@@ -19,8 +19,8 @@ enum GeometryParsePolicies implements NavigationPolicy {
      */
     INVOKESTATIC_FOLLOW_PACKAGE_GATE(
         "net/minecraft/client/model/",
-        "P29: shared mesh factories live under client/model/ - following calls elsewhere"
-            + " (geom/, util/) walks data constructors as if they were mesh code"),
+        "shared mesh factories live under client/model/ - following calls elsewhere (geom/, util/) walks data"
+            + " constructors as if they were mesh code"),
 
     /**
      * The {@code PartNames}-style {@code name+i} synthesis fallback for procedural bone
@@ -30,7 +30,8 @@ enum GeometryParsePolicies implements NavigationPolicy {
      */
     PART_NAMES_INDEX_FALLBACK(
         "name+i",
-        "P30: legacy PartNames synthesis - WARN-gated fallback, delete on a clean 26.1 proof run (doc-12 F3)");
+        "vanilla's PartNames names procedural bones name+i; kept WARN-gated so a silent fallback cannot"
+            + " mask a working generic walk, and deleted once that walk proves clean");
 
     private final @NotNull String value;
     private final @NotNull String provenance;

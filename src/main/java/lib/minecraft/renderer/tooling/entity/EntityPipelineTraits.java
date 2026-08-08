@@ -17,6 +17,7 @@ import org.objectweb.asm.tree.MethodNode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,8 +37,34 @@ import java.util.Set;
  * <p>Build-block boundaries in {@code RenderPipelines.<clinit>} are marked by any
  * {@code PUTSTATIC}: traits accumulate until the boundary and reset after it, so one
  * pipeline's defines never leak into the next.
+ *
+ * <p>A layer may reach its render type only through a static helper it calls rather than through a
+ * factory in its own body, so the layer probe follows the statics a layer <em>actually invokes</em>
+ * up to {@link #HELPER_HOPS} deep. Following what a layer calls is what separates that from
+ * accepting every static in its hierarchy - a base class's helpers are inherited by every subclass,
+ * and crediting a layer with one it never calls would classify the whole corpus alike.
  */
 final class EntityPipelineTraits {
+
+    /**
+     * How many static calls deep the layer probe follows a helper before giving up. Vanilla's cutout
+     * helper delegates once before reaching a factory, so one hop finds nothing and two is the floor
+     * rather than a margin. The walk resolves each call the way the JVM would and stops at any
+     * target the extracted jar does not hold, which is what keeps it inside vanilla's own code.
+     */
+    private static final int HELPER_HOPS = 2;
+
+    /** The {@code blend} token of a pipeline whose fragments are added to the destination. */
+    static final @NotNull String BLEND_ADDITIVE = "additive";
+
+    /** The {@code blend} token of a pipeline that blends its fragments against the destination. */
+    static final @NotNull String BLEND_TRANSLUCENT = "translucent";
+
+    /**
+     * The {@code blend} token of a pipeline that declares no blend function at all - it writes each
+     * surviving fragment over the destination verbatim, alpha included, rather than compositing it.
+     */
+    static final @NotNull String BLEND_CUTOUT = "cutout";
 
     /** Field descriptor of a {@code java.util.function.Function}-backed factory field (JDK name, kit-local). */
     private static final @NotNull String FUNCTION_DESC = "Ljava/util/function/Function;";
@@ -59,11 +86,21 @@ final class EntityPipelineTraits {
 
     private final @NotNull ClassNodeCache cache;
 
-    /** Pipeline field name to build-block trait set - the ONE {@code RenderPipelines.<clinit>} walk, lazy. */
+    /** ClientAcquisition field name to build-block trait set - the ONE {@code RenderPipelines.<clinit>} walk, lazy. */
     private @Nullable Map<String, Set<Trait>> pipelineTraits;
+
+    /**
+     * Pipeline (and snippet) field name to the {@code writeDepth} its {@code DepthStencilState}
+     * declares, filled by the same {@code <clinit>} walk that fills {@link #pipelineTraits}. Absent
+     * where no state was declared and none could be inherited from a snippet.
+     */
+    private final @NotNull Map<String, Boolean> pipelineDepthWrite = new LinkedHashMap<>();
 
     /** Factory name to resolved trait set - the per-factory memo. */
     private final @NotNull Map<String, Set<Trait>> factoryTraits = new LinkedHashMap<>();
+
+    /** Factory name to whether its {@code RenderSetup} declares {@code sortOnUpload} - the per-factory memo. */
+    private final @NotNull Map<String, Boolean> factorySorts = new LinkedHashMap<>();
 
     EntityPipelineTraits(@NotNull ClassNodeCache cache) {
         this.cache = cache;
@@ -86,12 +123,10 @@ final class EntityPipelineTraits {
     }
 
     /**
-     * Whether any {@code RenderTypes} factory invoked from the layer hierarchy's INSTANCE
+     * Whether any {@code RenderTypes} factory reached from the layer hierarchy's INSTANCE
      * methods carries the trait - the layer-body probe the overlay engine's emissive / blend
      * classification runs. The superclass walk picks up {@code RenderTypes.energySwirl} where
-     * it lives, in {@code EnergySwirlLayer.submit}; static methods are excluded because the
-     * {@code RenderLayer} base's static cutout helpers invoke {@code RenderTypes.entityCutout}
-     * themselves and would accept every layer.
+     * it lives, in {@code EnergySwirlLayer.submit}.
      *
      * @param layerClass the layer class's JVM internal name
      * @param trait the probed trait
@@ -111,55 +146,190 @@ final class EntityPipelineTraits {
     }
 
     /**
-     * The composite {@code blend} classification of a layer hierarchy: {@code "additive"}
-     * when any invoked factory's pipeline blends additively, else {@code "translucent"}
-     * when one blends translucent WITHOUT {@code NO_CARDINAL_LIGHTING} (the eyes pipelines
-     * are translucent full-bright and stay unannotated), else {@code null}
-     * (source-over normal). Instance methods only, per {@link #layerInvokes}.
+     * The composite {@code blend} classification of a layer hierarchy - the strongest token any
+     * reached factory yields, by {@link #blendRank}. Instance methods only, per
+     * {@link #layerInvokes}.
      *
      * @param layerClass the layer class's JVM internal name
-     * @return the blend token, or {@code null} for the default
+     * @return the blend token, or {@code null} for the source-over default
      */
     @Nullable String classifyBlend(@NotNull String layerClass) {
         String[] blend = {null};
         AsmKit.walkSuperChain(this.cache, layerClass, cn -> {
             for (String factory : instanceFactoryCalls(cn)) {
-                String token = blendToken(traitsOf(factory));
-                if ("additive".equals(token)) {
-                    blend[0] = token;
-                    return;
-                }
-                if (token != null && blend[0] == null) blend[0] = token;
+                String token = blendTokenOf(factory);
+                if (blendRank(token) > blendRank(blend[0])) blend[0] = token;
             }
         });
         return blend[0];
     }
 
-    /** The {@code RenderTypes} factory names invoked from the class's instance non-init methods. */
-    private static @NotNull List<String> instanceFactoryCalls(@NotNull ClassNode cn) {
+    /**
+     * The {@code blend} token of one {@code RenderTypes} factory, resolved through its pipeline:
+     * {@link #BLEND_ADDITIVE} when the build block pushed {@code BlendFunction.ADDITIVE},
+     * {@link #BLEND_TRANSLUCENT} when it pushed {@code BlendFunction.TRANSLUCENT} and the pipeline
+     * is not full-bright (the eyes pipelines are translucent full-bright and stay unannotated),
+     * {@link #BLEND_CUTOUT} when it pushed neither, and {@code null} when the factory or its
+     * pipeline could not be resolved at all.
+     *
+     * <p>That last distinction is the whole point of resolving here rather than from a trait set: an
+     * unresolved factory and a resolved one that declares no blend function both walk to an empty
+     * set, yet the first is an unknown that must default to source-over and the second is a positive
+     * finding that the destination is not read.
+     *
+     * @param factoryName the {@code RenderTypes} factory method name
+     * @return the blend token, or {@code null} when unresolved
+     */
+    @Nullable String blendTokenOf(@NotNull String factoryName) {
+        String pipelineField = resolveFactoryPipeline(factoryName);
+        if (pipelineField == null) return null;
+        Set<Trait> traits = pipelines().get(pipelineField);
+        if (traits == null) return null;
+        if (traits.contains(Trait.ADDITIVE)) return BLEND_ADDITIVE;
+        if (traits.contains(Trait.TRANSLUCENT))
+            return traits.contains(Trait.NO_CARDINAL_LIGHTING) ? null : BLEND_TRANSLUCENT;
+        return BLEND_CUTOUT;
+    }
+
+    /**
+     * Whether one {@code RenderTypes} factory's pipeline writes depth - vanilla's
+     * {@code DepthStencilState.writeDepth}, which is a pipeline declaration in its own right rather
+     * than a consequence of the {@code EMISSIVE} define. {@code DepthStencilState.DEFAULT} is
+     * {@code (LESS_THAN_OR_EQUAL, true)}, and a pipeline declaring no state of its own inherits the
+     * one on the snippet it was built from, so an unresolved factory answers {@code true} - the
+     * value all but a handful of pipelines carry.
+     *
+     * @param factoryName the {@code RenderTypes} factory method name
+     * @return whether fragments of this pass write the depth buffer
+     */
+    boolean factoryWritesDepth(@NotNull String factoryName) {
+        String pipelineField = resolveFactoryPipeline(factoryName);
+        if (pipelineField == null) return true;
+        pipelines();
+        return this.pipelineDepthWrite.getOrDefault(pipelineField, Boolean.TRUE);
+    }
+
+    /**
+     * Whether one {@code RenderTypes} factory's {@code RenderSetup} declares {@code sortOnUpload} -
+     * the flag that has vanilla sort the pass's quads back-to-front by centroid before it
+     * rasterizes them. Read off the factory body, or off the lambda a memoized
+     * {@code Function}-backed factory is bound to, since that is where the builder chain lives.
+     *
+     * @param factoryName the {@code RenderTypes} factory method name
+     * @return whether this pass's quads are drawn back-to-front
+     */
+    boolean factorySortsQuads(@NotNull String factoryName) {
+        return this.factorySorts.computeIfAbsent(factoryName, name -> {
+            ClassNode renderTypes = this.cache.load(VanillaSourceClasses.Types.RENDER_TYPES);
+            if (renderTypes == null) return false;
+            for (MethodNode method : renderTypes.methods) {
+                if (!name.equals(method.name)) continue;
+                if (declaresSortOnUpload(method)) return true;
+                for (AbstractInsnNode in : method.instructions) {
+                    if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
+                    if (!renderTypes.name.equals(fi.owner)) continue;
+                    if (!FUNCTION_DESC.equals(fi.desc) && !BIFUNCTION_DESC.equals(fi.desc)) continue;
+                    MethodNode lambda = chaseFunctionFieldLambda(renderTypes, fi.name);
+                    if (lambda != null && declaresSortOnUpload(lambda)) return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    /**
+     * Whether every {@code RenderTypes} factory the layer hierarchy reaches writes depth. Instance
+     * methods only, per {@link #layerInvokes} - a layer reaching none answers {@code true}, the
+     * default every ordinary pass carries.
+     *
+     * @param layerClass the layer class's JVM internal name
+     * @return whether the layer's pass writes depth
+     */
+    boolean layerWritesDepth(@NotNull String layerClass) {
+        boolean[] writes = {true};
+        AsmKit.walkSuperChain(this.cache, layerClass, cn -> {
+            for (String factory : instanceFactoryCalls(cn))
+                if (!factoryWritesDepth(factory)) writes[0] = false;
+        });
+        return writes[0];
+    }
+
+    /**
+     * Whether any {@code RenderTypes} factory the layer hierarchy reaches sorts its quads. Instance
+     * methods only, per {@link #layerInvokes}.
+     *
+     * @param layerClass the layer class's JVM internal name
+     * @return whether the layer's pass is drawn back-to-front
+     */
+    boolean layerSortsQuads(@NotNull String layerClass) {
+        boolean[] sorts = {false};
+        AsmKit.walkSuperChain(this.cache, layerClass, cn -> {
+            if (sorts[0]) return;
+            for (String factory : instanceFactoryCalls(cn))
+                if (factorySortsQuads(factory)) {
+                    sorts[0] = true;
+                    return;
+                }
+        });
+        return sorts[0];
+    }
+
+    /** Whether a method body invokes {@code RenderSetup$RenderSetupBuilder.sortOnUpload}. */
+    private static boolean declaresSortOnUpload(@NotNull MethodNode method) {
+        for (AbstractInsnNode in : method.instructions)
+            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDER_SETUP_BUILDER,
+                                       VanillaSourceClasses.Defines.SORT_ON_UPLOAD))
+                return true;
+        return false;
+    }
+
+    /**
+     * How strongly a token claims a layer, so a hierarchy reaching several factories resolves to one
+     * without depending on walk order - additive over translucent over cutout over the default.
+     *
+     * @param token the blend token, or {@code null}
+     * @return the rank, {@code 0} for the default
+     */
+    private static int blendRank(@Nullable String token) {
+        if (BLEND_ADDITIVE.equals(token)) return 3;
+        if (BLEND_TRANSLUCENT.equals(token)) return 2;
+        if (BLEND_CUTOUT.equals(token)) return 1;
+        return 0;
+    }
+
+    /**
+     * The {@code RenderTypes} factory names the class's instance non-init methods reach, directly or
+     * through a static helper they invoke.
+     */
+    private @NotNull List<String> instanceFactoryCalls(@NotNull ClassNode cn) {
         List<String> out = new ArrayList<>();
         for (MethodNode method : cn.methods) {
             if ((method.access & Opcodes.ACC_STATIC) != 0) continue;
             if (AsmKit.INIT.equals(method.name)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-                if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) continue;
-                if (VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner)) out.add(mi.name);
-            }
+            collectFactoryCalls(method, out, new HashSet<>(), HELPER_HOPS);
         }
         return out;
     }
 
     /**
-     * The {@code blend} token of a trait set - {@code "additive"}, {@code "translucent"}
-     * (only when not full-bright), or {@code null} for source-over.
-     *
-     * @param traits the walked trait set
-     * @return the token, or {@code null}
+     * Collects the {@code RenderTypes} factories one method body reaches, descending into each
+     * static call it makes while hops remain. Resolution walks the super chain the way
+     * {@code invokestatic} does, since javac names the calling class rather than the declaring one
+     * when a subclass invokes an inherited static; a target the jar does not hold ends that branch,
+     * which is what confines the descent to vanilla's own code.
      */
-    static @Nullable String blendToken(@NotNull Set<Trait> traits) {
-        if (traits.contains(Trait.ADDITIVE)) return "additive";
-        if (traits.contains(Trait.TRANSLUCENT) && !traits.contains(Trait.NO_CARDINAL_LIGHTING)) return "translucent";
-        return null;
+    private void collectFactoryCalls(@NotNull MethodNode method, @NotNull List<String> out,
+                                     @NotNull Set<String> visited, int hops) {
+        for (AbstractInsnNode in : method.instructions) {
+            if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) continue;
+            if (VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner)) {
+                out.add(mi.name);
+                continue;
+            }
+            if (hops <= 0 || !visited.add(mi.owner + '.' + mi.name + mi.desc)) continue;
+            MethodNode helper = AsmKit.findMethodInHierarchy(this.cache, mi.owner, mi.name, mi.desc);
+            if (helper != null) collectFactoryCalls(helper, out, visited, hops - 1);
+        }
     }
 
     // ------------------------------------------------------------------------------------
@@ -171,7 +341,7 @@ final class EntityPipelineTraits {
         if (renderTypes == null) return null;
         for (MethodNode method : renderTypes.methods) {
             if (!factoryName.equals(method.name)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
                 if (VanillaSourceClasses.Types.RENDER_PIPELINES.equals(fi.owner)) return fi.name;
                 // Function/BiFunction-backed factory (entityTranslucent, outline): the field is
@@ -187,28 +357,35 @@ final class EntityPipelineTraits {
     }
 
     /**
-     * The {@code RenderPipelines.X} field a lambda-backed factory field builds against:
-     * pairs the {@code <clinit>} {@code invokedynamic}; {@code PUTSTATIC <fieldName>} chain
-     * and reads the bound lambda's first pipeline reference.
+     * The {@code RenderPipelines.X} field a lambda-backed factory field builds against - the first
+     * pipeline reference in the lambda the field is bound to.
      */
     private static @Nullable String chaseFunctionFieldPipeline(@NotNull ClassNode renderTypes, @NotNull String fieldName) {
+        MethodNode lambda = chaseFunctionFieldLambda(renderTypes, fieldName);
+        if (lambda == null) return null;
+        for (AbstractInsnNode li : lambda.instructions)
+            if (AsmKit.isGetStatic(li, VanillaSourceClasses.Types.RENDER_PIPELINES))
+                return ((FieldInsnNode) li).name;
+        return null;
+    }
+
+    /**
+     * The lambda body a memoized {@code Function} / {@code BiFunction} factory field is bound to:
+     * pairs the {@code <clinit>} {@code invokedynamic}; {@code PUTSTATIC <fieldName>} chain and
+     * resolves the captured handle back to its synthetic method.
+     */
+    private static @Nullable MethodNode chaseFunctionFieldLambda(@NotNull ClassNode renderTypes, @NotNull String fieldName) {
         MethodNode clinit = AsmKit.findMethod(renderTypes, AsmKit.CLINIT);
         if (clinit == null) return null;
         Handle pendingLambda = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy) {
                 Handle handle = AsmKit.extractLambdaHandle(indy);
                 if (handle != null) pendingLambda = handle;
                 continue;
             }
-            if (AsmKit.isPutStatic(in, renderTypes.name, fieldName) && pendingLambda != null) {
-                MethodNode lambda = AsmKit.findMethod(renderTypes, pendingLambda.getName(), pendingLambda.getDesc());
-                if (lambda == null) return null;
-                for (AbstractInsnNode li = lambda.instructions.getFirst(); li != null; li = li.getNext())
-                    if (AsmKit.isGetStatic(li, VanillaSourceClasses.Types.RENDER_PIPELINES))
-                        return ((FieldInsnNode) li).name;
-                return null;
-            }
+            if (AsmKit.isPutStatic(in, renderTypes.name, fieldName) && pendingLambda != null)
+                return AsmKit.findMethod(renderTypes, pendingLambda.getName(), pendingLambda.getDesc());
         }
         return null;
     }
@@ -220,8 +397,7 @@ final class EntityPipelineTraits {
     private @NotNull Map<String, Set<Trait>> pipelines() {
         if (this.pipelineTraits != null) return this.pipelineTraits;
         Map<String, Set<Trait>> out = new LinkedHashMap<>();
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.RENDER_PIPELINES);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.RENDER_PIPELINES);
         if (clinit == null) {
             this.pipelineTraits = out;
             return out;
@@ -229,10 +405,42 @@ final class EntityPipelineTraits {
 
         EnumSet<Trait> block = EnumSet.noneOf(Trait.class);
         String pendingDefine = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        Boolean blockDepthWrite = null;
+        Boolean pendingBoolean = null;
+        List<String> blockSnippets = new ArrayList<>();
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingDefine = literal;
+                continue;
+            }
+            Boolean flag = AsmKit.readBooleanLiteral(in);
+            if (flag != null) {
+                pendingBoolean = flag;
+                continue;
+            }
+            // The depth-stencil state, in the two shapes vanilla writes it: the shared DEFAULT
+            // constant (LESS_THAN_OR_EQUAL, writeDepth true) and an explicit
+            // `new DepthStencilState(CompareOp, writeDepth)` whose flag is the boolean standing on
+            // the stack when the constructor is reached.
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DEPTH_STENCIL_STATE)
+                && in instanceof FieldInsnNode dsf
+                && VanillaSourceClasses.Defines.DEPTH_STENCIL_DEFAULT.equals(dsf.name)) {
+                blockDepthWrite = Boolean.TRUE;
+                continue;
+            }
+            if (AsmKit.isInvokeSpecial(in, VanillaSourceClasses.Types.DEPTH_STENCIL_STATE, AsmKit.INIT)
+                && pendingBoolean != null) {
+                blockDepthWrite = pendingBoolean;
+                pendingBoolean = null;
+                continue;
+            }
+            // A block builds on zero or more snippets and inherits whatever state it does not
+            // declare itself, so a pipeline naming no DepthStencilState (breeze wind) still has one.
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.RENDER_PIPELINES)
+                && in instanceof FieldInsnNode sf
+                && VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RENDER_PIPELINE_SNIPPET).equals(sf.desc)) {
+                blockSnippets.add(sf.name);
                 continue;
             }
             if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
@@ -252,8 +460,20 @@ final class EntityPipelineTraits {
             }
             if (in.getOpcode() == Opcodes.PUTSTATIC && in instanceof FieldInsnNode fi) {
                 out.put(fi.name, block.isEmpty() ? Set.of() : Collections.unmodifiableSet(EnumSet.copyOf(block)));
+                if (blockDepthWrite == null)
+                    for (String snippet : blockSnippets) {
+                        Boolean inherited = this.pipelineDepthWrite.get(snippet);
+                        if (inherited != null) {
+                            blockDepthWrite = inherited;
+                            break;
+                        }
+                    }
+                if (blockDepthWrite != null) this.pipelineDepthWrite.put(fi.name, blockDepthWrite);
                 block = EnumSet.noneOf(Trait.class);
                 pendingDefine = null;
+                blockDepthWrite = null;
+                pendingBoolean = null;
+                blockSnippets.clear();
             }
         }
         this.pipelineTraits = out;

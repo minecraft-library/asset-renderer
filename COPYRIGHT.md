@@ -16,11 +16,18 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
+This covers the whole tree, `harness/` included. That subtree is its own Gradle build and its own
+Fabric mod, and it was merged in as one import rather than written here, so it is called out by name:
+it is first-party code under this same licence, not a vendored third party, and it carries no licence
+file of its own. What it links is below.
+
 ## Third-Party Notices
 
 ### Minecraft Client Assets - Mojang AB
 
 The block models, item models, entity models, textures, and animation metadata processed by this library are the copyrighted property of **Mojang AB** (a Microsoft subsidiary). These assets are downloaded at runtime from the official Piston API, extracted from the Minecraft client JAR, and are **not distributed** with this repository.
+
+The `harness/` build goes further and compiles against the client, Fabric Loom resolving and remapping it at build time so the harness can drive it to render ground truth. That client is resolved from Mojang's own distribution on each machine that builds the harness; no part of it is committed here and none is redistributed in any artifact this repository produces.
 
 > "Minecraft" is a trademark of Mojang AB. This project is not affiliated with or endorsed by Mojang AB or Microsoft Corporation.
 
@@ -48,6 +55,9 @@ The Custom Item Textures (CIT) and Connected Textures (CTM) format support imple
 | [Gson](https://github.com/google/gson) | Apache-2.0 | JSON parsing for blockstates, models, and bundled snapshots |
 | [Lombok](https://projectlombok.org/) | MIT | Compile-time boilerplate reduction |
 | [JMH](https://github.com/openjdk/jmh) | GPL-2.0 with Classpath Exception | Benchmark harness (test-scope only) |
+| [Fabric Loader](https://github.com/FabricMC/fabric-loader) | Apache-2.0 | Mod loader the `harness/` build runs the client under |
+| [Fabric API](https://github.com/FabricMC/fabric) | Apache-2.0 | Screen and client-tick events the harness hooks |
+| [Fabric Loom](https://github.com/FabricMC/fabric-loom) | MIT | Gradle plugin that resolves and remaps the client for the harness build |
 | [JUnit 5](https://junit.org/junit5/) | EPL-2.0 | Test framework |
 | [Hamcrest](https://hamcrest.org/JavaHamcrest/) | BSD-3-Clause | Test matchers |
 

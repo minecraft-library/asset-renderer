@@ -55,4 +55,31 @@ class BoxTest {
         assertThat(new Box(-1, -1, -1, 1, 1, 1).maxExtent(), equalTo(2f));
     }
 
+    @Test
+    @DisplayName("grown forms each corner in vanilla's operand order, which is not re-associable")
+    void grownKeepsVanillaOperandOrder() {
+        // Vanilla's ModelPart$Cube computes each upper corner as (origin + size) + grow from the
+        // UN-grown origin, and each lower corner as origin - grow. These operands are a real armour
+        // magnitude: the head cube's own -4 origin, a one-unit axis, and the piglin baby shell's
+        // uniform 0.7 growth.
+        float origin = -4f;
+        float size = 1f;
+        float grow = 0.7f;
+
+        Box box = Box.grown(
+            new Vector3f(origin, origin, origin),
+            new Vector3f(size, size, size),
+            new Vector3f(grow, grow, grow));
+
+        assertThat(box.maxX(), equalTo((origin + size) + grow));
+        assertThat(box.minX(), equalTo(origin - grow));
+
+        // The pin has teeth: growing the lower corner first and adding the growth back twice is
+        // algebraically the same corner and one ULP away in binary32, so a re-association here would
+        // be silent without this line.
+        float reassociated = ((origin - grow) + size) + grow + grow;
+        assertThat(Float.floatToRawIntBits(box.maxX()), equalTo(0xC0133333));
+        assertThat(Float.floatToRawIntBits(reassociated), equalTo(0xC0133332));
+    }
+
 }

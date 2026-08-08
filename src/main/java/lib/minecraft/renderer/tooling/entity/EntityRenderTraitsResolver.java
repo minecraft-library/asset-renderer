@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -11,6 +11,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
@@ -47,10 +48,10 @@ final class EntityRenderTraitsResolver {
     private final @NotNull EntitySubject subject;
     private final @NotNull Diagnostics diagnostics;
 
-    EntityRenderTraitsResolver(@NotNull ClassNodeCache cache, @NotNull EntitySubject subject, @NotNull Diagnostics diagnostics) {
-        this.cache = cache;
-        this.subject = subject;
-        this.diagnostics = diagnostics;
+    EntityRenderTraitsResolver(@NotNull EntityContext context) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.diagnostics = context.diagnostics();
     }
 
     /**
@@ -59,7 +60,7 @@ final class EntityRenderTraitsResolver {
      *
      * @return the node, or {@code null} to omit
      */
-    @Nullable JsonNode resolve() {
+    @Nullable JsonTree resolve() {
         ClassNode cn = this.cache.load(this.subject.rendererClass());
         if (cn == null) return null;
 
@@ -68,7 +69,7 @@ final class EntityRenderTraitsResolver {
         int tint = resolveBaseTint(cn);
 
         if (scale == null && yawAddend == 0f && tint == NO_TINT) return null;
-        JsonNode node = JsonNode.object();
+        JsonTree node = JsonTree.object();
         if (scale != null) node.put("scale", (float) scale);
         if (yawAddend != 0f) node.put("yaw_addend", yawAddend);
         if (tint != NO_TINT) node.putHex("tint", tint);
@@ -101,7 +102,7 @@ final class EntityRenderTraitsResolver {
         int scaleSlot = floatArgSlot(setupRotations.desc, 1);
         if (bodyRotSlot < 0 || scaleSlot < 0) return 0f;
 
-        for (AbstractInsnNode in = setupRotations.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : setupRotations.instructions) {
             if (in.getOpcode() != Opcodes.INVOKESPECIAL) continue;
             if (!(in instanceof MethodInsnNode mi) || !VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(mi.name)) continue;
 
@@ -123,6 +124,178 @@ final class EntityRenderTraitsResolver {
             return 0f;
         }
         return 0f;
+    }
+
+    // ------------------------------------------------------------------------------------
+    // setupRotations Y translation
+    // ------------------------------------------------------------------------------------
+
+    /** Descriptor of the {@code PoseStack.translate} overload vanilla poses entities with. */
+    private static final @NotNull String TRANSLATE_DESC = "(FFF)V";
+
+    /**
+     * A {@code setupRotations} translate operand that may differ by age, plus the instruction its
+     * value expression starts at so the walk can step past it to the preceding argument.
+     *
+     * @param adult the value on the non-baby arm
+     * @param baby the value on the baby arm (equal to {@code adult} for an unconditional literal)
+     * @param start the first instruction of the value expression
+     */
+    private record AgeOperand(float adult, float baby, @NotNull AbstractInsnNode start) {}
+
+    /**
+     * The Y translation the renderer's own {@code setupRotations} applies at the harness's rest
+     * pose, as an {@code {adult, baby}} pair in blocks; {@code null} when it applies none, or none
+     * this can model.
+     *
+     * <p>Vanilla poses an entity by bracketing its rotations with {@code PoseStack} translates, and
+     * two of them differ by age - so the pair is read rather than a single value. Only a translate
+     * strictly along Y is accepted, with both other operands literal zero, and only when every
+     * operand is a literal or an {@code isBaby} select of two literals. That is what keeps the walk
+     * from over-reaching: the panda carries a genuine {@code isBaby} float select inside its own
+     * {@code setupRotations}, and it is declined because it sits in an arithmetic expression rather
+     * than directly in a translate's argument slot, and because its sibling translates carry a
+     * non-zero Z. Anchoring on the argument slot is the guard, not the field name.
+     *
+     * <p>Summing the translates is only faithful because at rest every rotation between them is
+     * about Y, which preserves the axis they act on. A literal X or Z rotation between two
+     * translates would make the sum wrong, so one declines the walk.
+     *
+     * <p>The walk stops at the first class in the renderer chain that declares
+     * {@code setupRotations} and reads only that class's own bodies - a glow squid declares none and
+     * correctly inherits the squid's. It deliberately does NOT follow the {@code super} call the
+     * body ends with: the base declaration's own translate is divided by the render scale and gated
+     * on an upside-down state no subject here is in.
+     *
+     * @return the {@code {adult, baby}} block offsets, or {@code null} when there is nothing to emit
+     */
+    @Nullable float[] resolveSetupYShift() {
+        ClassNode declaring = findSetupRotationsDeclarer();
+        if (declaring == null) return null;
+
+        String name = EntityOverlayResolver.simpleName(declaring.name);
+        float adult = 0f;
+        float baby = 0f;
+        boolean translates = false;
+        for (MethodNode method : declaring.methods) {
+            if (!VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) continue;
+            for (AbstractInsnNode in : method.instructions) {
+                if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK,
+                    VanillaSourceClasses.Methods.TRANSLATE, TRANSLATE_DESC)) continue;
+                translates = true;
+                // Arguments are pushed x, y, z, so the walk back off the call reads them in reverse.
+                AgeOperand z = readAgeOperand(AsmKit.previousReal(in));
+                if (z == null || z.adult() != 0f || z.baby() != 0f) return declineYShift(name, "off the Y axis");
+                AgeOperand y = readAgeOperand(AsmKit.previousReal(z.start()));
+                if (y == null) return declineYShift(name, "by a computed distance");
+                AgeOperand x = readAgeOperand(AsmKit.previousReal(y.start()));
+                if (x == null || x.adult() != 0f || x.baby() != 0f) return declineYShift(name, "off the Y axis");
+                adult += y.adult();
+                baby += y.baby();
+            }
+            // Only meaningful once something was accepted: a renderer that translates nothing has no
+            // pair of translates for a turn to come between, whatever else it rotates.
+            if (translates && hasNonYRotation(method))
+                return declineYShift(name, "around a literal non-Y axis, so its translates do not sum");
+        }
+        if (!translates || (adult == 0f && baby == 0f)) return null;
+        this.diagnostics.info("setupRotations Y shift adult %s / baby %s from %s", adult, baby, name);
+        return new float[] {adult, baby};
+    }
+
+    /**
+     * Reports the decline, so a renderer this cannot model reads as declined rather than as flat.
+     *
+     * @param renderer the declaring renderer's simple name
+     * @param reason what it does that the walk will not model
+     * @return {@code null}, the caller's answer
+     */
+    private @Nullable float[] declineYShift(@NotNull String renderer, @NotNull String reason) {
+        this.diagnostics.info("%s.setupRotations moves %s - no y_shift", renderer, reason);
+        return null;
+    }
+
+    /**
+     * The first class up the renderer chain OVERRIDING {@code setupRotations}, or {@code null} when
+     * none does.
+     *
+     * <p>The walk stops short of {@link VanillaSourceClasses.Types#LIVING_ENTITY_RENDERER}, which
+     * declares the method every override overrides. Its own translate is divided by the render scale
+     * and gated on an upside-down state no subject here is in, so reading it would mean nothing and
+     * would decline for every entity whose renderer overrides nothing.
+     *
+     * @return the overriding class, or {@code null} when the renderer inherits the base unchanged
+     */
+    private @Nullable ClassNode findSetupRotationsDeclarer() {
+        String current = this.subject.rendererClass();
+        while (current != null
+            && !AsmKit.OBJECT_INTERNAL.equals(current)
+            && !VanillaSourceClasses.Types.LIVING_ENTITY_RENDERER.equals(current)) {
+            ClassNode cn = this.cache.load(current);
+            if (cn == null) return null;
+            for (MethodNode method : cn.methods)
+                if (VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) return cn;
+            current = cn.superName;
+        }
+        return null;
+    }
+
+    /**
+     * Decodes one translate argument: a plain float literal, or javac's select of two literals on an
+     * {@code isBaby} read ({@code GETFIELD isBaby:Z; IFEQ; <baby>; GOTO; <adult>}). Returns
+     * {@code null} for anything else - an arithmetic expression, a non-literal, or a select on some
+     * other field - which is what declines the whole walk.
+     *
+     * @param tail the last instruction of the argument's value expression
+     * @return the decoded operand, or {@code null} when it is not one of the two accepted shapes
+     */
+    private static @Nullable AgeOperand readAgeOperand(@Nullable AbstractInsnNode tail) {
+        if (tail == null) return null;
+        Float direct = AsmKit.readFloatLiteral(tail);
+
+        // Select shape, read backwards: <adult literal>; GOTO; <baby literal>; IF; GETFIELD isBaby.
+        AbstractInsnNode jump = AsmKit.previousReal(tail);
+        if (direct != null && jump != null && jump.getOpcode() == Opcodes.GOTO) {
+            AbstractInsnNode fallThrough = AsmKit.previousReal(jump);
+            Float taken = fallThrough == null ? null : AsmKit.readFloatLiteral(fallThrough);
+            AbstractInsnNode branch = fallThrough == null ? null : AsmKit.previousReal(fallThrough);
+            int opcode = branch == null ? Opcodes.NOP : branch.getOpcode();
+            if (taken != null && (opcode == Opcodes.IFEQ || opcode == Opcodes.IFNE)) {
+                AbstractInsnNode read = AsmKit.previousReal(branch);
+                if (read != null && read.getOpcode() == Opcodes.GETFIELD
+                    && read instanceof FieldInsnNode field
+                    && VanillaSourceClasses.Fields.IS_BABY.equals(field.name)
+                    && "Z".equals(field.desc)) {
+                    // IFEQ jumps when the flag is false, so the fall-through arm is the baby's.
+                    AbstractInsnNode receiver = AsmKit.previousReal(read);
+                    if (receiver == null) return null;
+                    return opcode == Opcodes.IFEQ
+                        ? new AgeOperand(direct, taken, receiver)
+                        : new AgeOperand(taken, direct, receiver);
+                }
+            }
+        }
+        return direct == null ? null : new AgeOperand(direct, direct, tail);
+    }
+
+    /**
+     * Whether the method turns about a non-Y axis by a non-zero literal angle. Such a turn between
+     * two translates tilts the frame the later one acts in, so the two stop summing and the walk
+     * declines. A non-Y turn by a STATE angle is fine and is why this asks for a literal: the squid
+     * pitches by {@code xBodyRot}, which the harness freezes at zero.
+     *
+     * @param method the {@code setupRotations} body
+     * @return whether a literal non-Y turn is applied
+     */
+    private static boolean hasNonYRotation(@NotNull MethodNode method) {
+        for (AbstractInsnNode in : method.instructions) {
+            if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode field)) continue;
+            if (!VanillaSourceClasses.Types.MATH_AXIS.equals(field.owner) || field.name.startsWith("Y")) continue;
+            AbstractInsnNode angle = AsmKit.nextReal(in);
+            Float literal = angle == null ? null : AsmKit.readFloatLiteral(angle);
+            if (literal != null && literal != 0f) return true;
+        }
+        return false;
     }
 
     /**
@@ -165,7 +338,7 @@ final class EntityRenderTraitsResolver {
         if (scaleMethod == null) return null;
 
         Map<Integer, Float> slotLiterals = new HashMap<>();
-        for (AbstractInsnNode in = scaleMethod.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : scaleMethod.instructions) {
             if (AsmKit.isBranchInsn(in.getOpcode())) break;
             if (in.getOpcode() != Opcodes.FSTORE || !(in instanceof VarInsnNode store)) continue;
             AbstractInsnNode prev = AsmKit.previousReal(in);
@@ -176,7 +349,7 @@ final class EntityRenderTraitsResolver {
         String scaleDesc = "(FFF)V";
         float accum = 1f;
         boolean anyResolved = false;
-        for (AbstractInsnNode in = scaleMethod.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : scaleMethod.instructions) {
             if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE, scaleDesc)) continue;
             Float xyz = readUniformScaleArgs(in, slotLiterals);
             if (xyz == null) continue;
@@ -250,7 +423,7 @@ final class EntityRenderTraitsResolver {
      */
     private int resolveBaseTint(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+            for (AbstractInsnNode in : method.instructions)
                 if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR))
                     return whiteTextureDiffuseColor(this.cache);
         return NO_TINT;
@@ -265,14 +438,13 @@ final class EntityRenderTraitsResolver {
      * convention. {@code NO_TINT} on any pattern miss.
      */
     static int whiteTextureDiffuseColor(@NotNull ClassNodeCache cache) {
-        ClassNode dyeColor = cache.load(VanillaSourceClasses.Types.DYE_COLOR);
-        MethodNode clinit = dyeColor == null ? null : AsmKit.findMethod(dyeColor, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(cache, VanillaSourceClasses.Types.DYE_COLOR);
         if (clinit == null) return NO_TINT;
 
         boolean inAlloc = false;
         Integer lastInt = null;
         Integer diffuse = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in.getOpcode() == Opcodes.NEW
                 && in instanceof TypeInsnNode alloc
                 && VanillaSourceClasses.Types.DYE_COLOR.equals(alloc.desc)) {

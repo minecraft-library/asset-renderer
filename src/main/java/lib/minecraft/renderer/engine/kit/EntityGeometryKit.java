@@ -2,7 +2,6 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
@@ -10,12 +9,16 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.face.EntityFace;
-import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.face.CornerPhase;
+import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.tensor.Box;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -25,8 +28,8 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Load-bearing bone/cube {@literal ->} triangle assembler. Builds rasterizer-ready triangles
@@ -74,6 +77,13 @@ public class EntityGeometryKit {
     private static final float MIN_MODEL_EXTENT = 0.001f;
 
     /**
+     * The three faces the iso camera presents. The three it hides are exactly these turned to their
+     * {@link Face#opposite opposites}, so the hidden triple is derived at its one use rather than
+     * declared beside this one - two sets naming one fact.
+     */
+    private static final Face @NotNull [] ISO_VISIBLE = { Face.UP, Face.NORTH, Face.EAST };
+
+    /**
      * The vanilla entity-preview iso lighting frame - the harness's {@code ISO_ROTATION} {@code [210,
      * 45, 0]} as a {@link LightingFrame}, the default every entity render lights through. Distinct from
      * {@link Projection#VANILLA_ISO}'s camera pose ({@code [30, 225, 0]} + the renderer's facing
@@ -86,73 +96,33 @@ public class EntityGeometryKit {
 
     /**
      * Parameters for a native-resolution entity triangle build. Bundles the values that vary
-     * per render so callers spell them at a named call boundary instead of through a telescoping
-     * positional overload cascade.
+     * per render so callers spell them at a named call boundary rather than positionally.
      *
-     * @param centreAnchor model-space point that maps to the canvas centre
-     * @param emissive whether every emitted triangle renders full-bright and additive (eyes,
-     *     glowing spots)
-     * @param ndcScale model-units-to-NDC scale applied after centring on {@code centreAnchor}
-     * @param modelScale per-render vertex pre-scale folded in before the NDC scale (vanilla's
-     *     combined renderer-scale + state-scale chain)
+     * @param frame the {@link RenderFrame} this build is fitted through
+     * @param pass the {@link PassDeclaration} baked onto every triangle this build emits
      * @param tintArgb ARGB tint multiplied into every sampled texel; {@link ColorMath#WHITE}
      *     ({@code 0xFFFFFFFF}) is a no-op tint
-     * @param blend the colour-composition mode baked onto every emitted triangle -
-     *     {@link BlendMode#NORMAL} source-over (the default for bodies / cutout / texture-alpha
-     *     overlays) or {@link BlendMode#ADD} for an additive-glow overlay (creeper / wither energy
-     *     swirl declaring {@code blend: additive})
-     * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} baked onto every emitted
-     *     triangle - {@code 1.0} (no-op) except for an overlay declaring an explicit {@code alpha}
-     *     node (the warden pulsating-spots glow at {@code 0.25})
      * @param lighting the frame the per-face shade resolves through ({@link Lighting#resolveEntity});
      *     the {@link #DEFAULT_ENTITY_LIGHTING default} for every render, a mirror / borrowed frame to
      *     re-light the subject
      */
     public record EntityBuildParams(
-        @NotNull Vector3f centreAnchor,
-        boolean emissive,
-        float ndcScale,
-        float modelScale,
+        @NotNull RenderFrame frame,
+        @NotNull PassDeclaration pass,
         int tintArgb,
-        @NotNull BlendMode blend,
-        float alpha,
         @NotNull LightingFrame lighting
     ) {
         /**
-         * Constructs build params compositing with an explicit blend / opacity and the
-         * {@link #DEFAULT_ENTITY_LIGHTING default entity lighting frame}. Only a caller substituting the
-         * lighting (a mirror, a borrowed angle) uses the canonical eight-argument constructor.
+         * Constructs build params lit by the {@link #DEFAULT_ENTITY_LIGHTING default entity lighting
+         * frame}. Only a caller substituting the lighting (a mirror, a borrowed angle) uses the canonical
+         * four-argument constructor.
          *
-         * @param centreAnchor model-space point that maps to the canvas centre
-         * @param emissive whether every emitted triangle renders full-bright
-         * @param ndcScale model-units-to-NDC scale applied after centring
-         * @param modelScale per-render vertex pre-scale folded in before the NDC scale
-         * @param tintArgb ARGB tint multiplied into every sampled texel
-         * @param blend the colour-composition mode baked onto every emitted triangle
-         * @param alpha the per-fragment opacity multiplier baked onto every emitted triangle
-         */
-        public EntityBuildParams(
-            @NotNull Vector3f centreAnchor, boolean emissive, float ndcScale, float modelScale,
-            int tintArgb, @NotNull BlendMode blend, float alpha
-        ) {
-            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, blend, alpha, DEFAULT_ENTITY_LIGHTING);
-        }
-
-        /**
-         * Constructs build params compositing with the standard {@link BlendMode#NORMAL source-over}
-         * blend at full opacity and the {@link #DEFAULT_ENTITY_LIGHTING default entity lighting frame} -
-         * the default for every base body / cutout / texture-alpha overlay.
-         *
-         * @param centreAnchor model-space point that maps to the canvas centre
-         * @param emissive whether every emitted triangle renders full-bright
-         * @param ndcScale model-units-to-NDC scale applied after centring
-         * @param modelScale per-render vertex pre-scale folded in before the NDC scale
+         * @param frame the {@link RenderFrame} this build is fitted through
+         * @param pass the {@link PassDeclaration} baked onto every triangle this build emits
          * @param tintArgb ARGB tint multiplied into every sampled texel
          */
-        public EntityBuildParams(
-            @NotNull Vector3f centreAnchor, boolean emissive, float ndcScale, float modelScale, int tintArgb
-        ) {
-            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, BlendMode.NORMAL, 1f);
+        public EntityBuildParams(@NotNull RenderFrame frame, @NotNull PassDeclaration pass, int tintArgb) {
+            this(frame, pass, tintArgb, DEFAULT_ENTITY_LIGHTING);
         }
     }
 
@@ -162,7 +132,7 @@ public class EntityGeometryKit {
      *
      * @param model the entity model definition (Java Y-down frame)
      * @param texture the shared texture atlas
-     * @return the build result containing triangles and per-bone bounds
+     * @return the build result containing the triangle list
      */
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityModelData model,
@@ -174,63 +144,31 @@ public class EntityGeometryKit {
             (bounds.minX() + bounds.maxX()) * 0.5f,
             (bounds.minY() + bounds.maxY()) * 0.5f,
             (bounds.minZ() + bounds.maxZ()) * 0.5f);
-        return buildTriangles(model, texture,
-            new EntityBuildParams(centre, false, ENTITY_MODEL_FIT_EXTENT / extent, 1f, ColorMath.WHITE));
-    }
-
-    /**
-     * Native-resolution overload taking an explicit model-space centre anchor and per-render tint.
-     * Used by {@link EntityRenderer} to match the vanilla-reference-harness's fixed
-     * {@code pixelsPerBlock} convention and to centre the silhouette on the canvas via the
-     * model-space point whose iso projection equals the screen-space silhouette midpoint.
-     * Convenience wrapper over {@link #buildTriangles(EntityModelData, PixelBuffer, EntityBuildParams)}.
-     *
-     * @param model the entity model definition (Java Y-down frame)
-     * @param texture the shared texture atlas
-     * @param modelCentreAnchor model-space point that maps to the canvas centre
-     * @param emissive whether triangles render full-bright + additive
-     * @param ndcScale model-units-to-NDC scale pre-computed from the canvas dimensions and target
-     *     pixels-per-block
-     * @param modelScale per-render vertex pre-scale (vanilla renderer-scale + state-scale chain)
-     * @param tintArgb the ARGB tint applied to every triangle this call produces; use
-     *     {@code 0xFFFFFFFF} ({@link ColorMath#WHITE}) for no tint
-     * @return the build result containing triangles and per-bone bounds
-     */
-    public static @NotNull BuildResult buildTriangles(
-        @NotNull EntityModelData model,
-        @NotNull PixelBuffer texture,
-        @NotNull Vector3f modelCentreAnchor,
-        boolean emissive,
-        float ndcScale,
-        float modelScale,
-        int tintArgb
-    ) {
-        return buildTriangles(model, texture,
-            new EntityBuildParams(modelCentreAnchor, emissive, ndcScale, modelScale, tintArgb));
+        return buildTriangles(model, texture, new EntityBuildParams(
+            new RenderFrame(centre, ENTITY_MODEL_FIT_EXTENT / extent, 1f),
+            PassDeclaration.DEFAULT, ColorMath.WHITE));
     }
 
     /**
      * Builds rasterizer-ready triangles for an entity model at native resolution from the supplied
-     * build parameters. Both the auto-fit convenience overload and the renderer's native-scale
-     * overload delegate here.
+     * build parameters. The auto-fit convenience overload delegates here.
      *
      * @param model the entity model definition (Java Y-down frame)
      * @param texture the shared texture atlas
-     * @param params the centre anchor, emissive flag, scale factors, and tint for this build
-     * @return the build result containing triangles and per-bone bounds
+     * @param params the render frame, pass declaration, tint and lighting frame for this build
+     * @return the build result containing the triangle list
      */
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityModelData model,
         @NotNull PixelBuffer texture,
         @NotNull EntityBuildParams params
     ) {
-        Vector3f centre = params.centreAnchor();
-        boolean emissive = params.emissive();
-        float scale = params.ndcScale();
-        float modelScale = params.modelScale();
+        RenderFrame frame = params.frame();
+        Vector3f centre = frame.anchor();
+        float scale = frame.ndcScale();
+        float modelScale = frame.modelScale();
+        PassDeclaration pass = params.pass();
         int tintArgb = params.tintArgb();
-        BlendMode blend = params.blend();
-        float alpha = params.alpha();
         Lighting.EntityLighting lighting = Lighting.resolveEntity(params.lighting());
 
         Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
@@ -258,15 +196,11 @@ public class EntityGeometryKit {
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        Map<String, Vector3f[]> boneBounds = new HashMap<>();
 
         for (Map.Entry<String, EntityModelData.Bone> boneEntry : model.getBones().entrySet()) {
             String boneName = boneEntry.getKey();
             EntityModelData.Bone bone = boneEntry.getValue();
             Matrix4f boneChain = chainTransforms.get(boneName);
-
-            float bMinX = Float.POSITIVE_INFINITY, bMinY = Float.POSITIVE_INFINITY, bMinZ = Float.POSITIVE_INFINITY;
-            float bMaxX = Float.NEGATIVE_INFINITY, bMaxY = Float.NEGATIVE_INFINITY, bMaxZ = Float.NEGATIVE_INFINITY;
 
             // Java's PartPose / ModelPart authoring stores cube origins LOCAL to the bone's
             // pivot (the literal addBox(x, y, z, w, h, d) args from createBodyLayer). The bone
@@ -312,22 +246,10 @@ public class EntityGeometryKit {
                 boolean cubeIsTranslucent = !cubeCullBackFaces
                     && uvPartialAlphaPresent(cube, size, texture, texW, texH);
 
-                for (EntityFace face : EntityFace.CACHED_VALUES) {
-                    Vector3f[] corners = face.corners(cubeBounds);
-                    for (int i = 0; i < 4; i++) {
-                        Vector3f transformed = corners[i].transform(perCubeChainFluent);
-                        float nx = transformed.x();
-                        float ny = transformed.y();
-                        float nz = transformed.z();
-                        corners[i] = new Vector3f(nx, ny, nz);
-
-                        bMinX = Math.min(bMinX, nx);
-                        bMinY = Math.min(bMinY, ny);
-                        bMinZ = Math.min(bMinZ, nz);
-                        bMaxX = Math.max(bMaxX, nx);
-                        bMaxY = Math.max(bMaxY, ny);
-                        bMaxZ = Math.max(bMaxZ, nz);
-                    }
+                for (Face face : Face.CACHED_VALUES) {
+                    Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
+                    for (int i = 0; i < 4; i++)
+                        corners[i] = corners[i].transform(perCubeChainFluent);
 
                     // Positions and the STORED normal are both in the model's native Y-up frame now that
                     // the Y-flip lives on the placement (kit-internal geometry stays self-consistent).
@@ -337,7 +259,7 @@ public class EntityGeometryKit {
                     // copy of the normal while the stored normal stays Y-up. Lighting frame is a separate
                     // concern from the geometry Y-flip; only the geometry moves to the placement.
                     Vector3f normal = face.normal().transformNormal(fullTransform).normalize();
-                    Vector3f shadingNormal = new Vector3f(normal.x(), -normal.y(), normal.z());
+                    Vector3f shadingNormal = Turn.MIRROR_Y.apply(normal);
 
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
@@ -345,38 +267,22 @@ public class EntityGeometryKit {
                     Vector2f[] effUv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
                     float shading = lighting.shade(shadingNormal, cubeCullBackFaces);
 
-                    // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. The kit itself
+                    // Natural CCW emission - the shared {@code (0, 1, 2)} / {@code (0, 2, 3)} fan in
+                    // {@link BlockGeometryKit#addQuad}, so an entity cube's coplanar seams split on
+                    // the same diagonal every other quad in the renderer does. The kit itself
                     // is det=+1 (emit-order cross AGREES with the stored normal); the chirality
                     // reflection re-enters downstream via the renderer's Placement Y-flip. Total
                     // pipeline chirality: placement Y-flip (det -1) × engine_camera (det -1) ×
                     // projection's -y (det -1) = det -1. Model CCW → screen CW → rasterizer's
                     // {@code signedArea < 0} check correctly classifies these as front-facing.
                     String debugTag = boneName + ":" + face.direction();
-                    triangles.add(new VisibleTriangle(
-                        corners[0], corners[1], corners[2],
-                        effUv[0], effUv[1], effUv[2],
-                        texture, tintArgb,
-                        normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha), debugTag
-                    ));
-                    triangles.add(new VisibleTriangle(
-                        corners[0], corners[2], corners[3],
-                        effUv[0], effUv[2], effUv[3],
-                        texture, tintArgb,
-                        normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha), debugTag
-                    ));
+                    BlockGeometryKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, shading,
+                        new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, pass), debugTag);
                 }
             }
-
-            if (bMinX != Float.POSITIVE_INFINITY)
-                boneBounds.put(boneName, new Vector3f[]{
-                    new Vector3f(bMinX, bMinY, bMinZ),
-                    new Vector3f(bMaxX, bMaxY, bMaxZ)
-                });
         }
 
-        return new BuildResult(triangles, boneBounds);
+        return new BuildResult(triangles);
     }
 
     /**
@@ -388,6 +294,32 @@ public class EntityGeometryKit {
      */
     public static @NotNull Box computeBounds(@NotNull EntityModelData model) {
         return computeBounds(model, BoneKit.buildChainTransforms(model.getBones()));
+    }
+
+    /**
+     * The model-space bounds of ONE bone's own cubes, or empty when the bone is absent or cube-less,
+     * for callers that must seat geometry against a bone before any of it is built (the elytra's baby
+     * re-seat, which the canvas sizing needs before there is any geometry to measure).
+     *
+     * @param model the entity model definition (Java Y-down frame)
+     * @param boneName the bone to measure
+     * @return the bone's own cubes' AABB in the Java Y-down frame, or empty
+     */
+    public static @NotNull Optional<Box> computeBoneBounds(@NotNull EntityModelData model, @NotNull String boneName) {
+        EntityModelData.Bone bone = model.getBones().get(boneName);
+        if (bone == null || bone.getCubes().isEmpty()) return Optional.empty();
+        Matrix4f boneChain = BoneKit.buildChainTransform(model.getBones(), boneName);
+        BoundsAccumulator acc = new BoundsAccumulator();
+        float s = bone.getScale();
+        for (EntityModelData.Cube cube : bone.getCubes()) {
+            Matrix4f cubeTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
+            Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
+            for (float x : new float[]{ cubeBounds.minX(), cubeBounds.maxX() })
+                for (float y : new float[]{ cubeBounds.minY(), cubeBounds.maxY() })
+                    for (float z : new float[]{ cubeBounds.minZ(), cubeBounds.maxZ() })
+                        acc.add(new Vector3f(x, y, z).transform(cubeTransform));
+        }
+        return Optional.of(acc.toBox());
     }
 
     /**
@@ -444,7 +376,7 @@ public class EntityGeometryKit {
             for (EntityModelData.Cube cube : bone.getCubes()) {
                 Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
-                float inflate = cube.getInflate();
+                Vector3f grow = cube.getGrow();
                 Matrix4f cubeTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
 
                 Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
@@ -460,9 +392,9 @@ public class EntityGeometryKit {
                 }
 
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
-                for (EntityFace face : EntityFace.CACHED_VALUES) {
+                for (Face face : Face.CACHED_VALUES) {
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
-                    Vector3f[] corners3d = face.corners(cubeBounds);
+                    Vector3f[] corners3d = CornerPhase.POLYGON.corners(face, cubeBounds);
                     // Must match the renderer's UV resolver. {@link BoneKit#resolveFaceUv} alone
                     // pairs uvs[i] with corners3d[i] at DIAGONALLY OPPOSITE vertices of the
                     // face (kit corner order is cyclic-shifted by 1 from vanilla's polygon
@@ -473,7 +405,7 @@ public class EntityGeometryKit {
                     // Fully-opaque faces are unaffected: the 4 contributed positions are then
                     // the 4 cube corners regardless of pairing.
                     Vector2f[] uvs = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
-                    String dumpLabel = RendererDebug.boundsFaceLabel(boneName, cubeIndex, face.direction(), origin, size, inflate, cube.isMirror());
+                    String dumpLabel = RendererDebug.boundsFaceLabel(boneName, cubeIndex, face.direction(), origin, size, grow, cube.isMirror());
                     contributeFaceAlphaTight(corners3d, uvs, cubeTransform, modelScale, screenTransform, texture, acc, dumpLabel);
                 }
                 cubeIndex++;
@@ -788,44 +720,15 @@ public class EntityGeometryKit {
      * Builds a Matrix4f that maps a vertex in the entity's working pixel-unit frame
      * (post-bone-chain, post-pivot-translation, pre-rasterizer) into the entity-fit space
      * shared with {@link #buildTriangles}'s output. The transform is
-     * {@code (v - center) * scale} on each axis, with the overlay-fit path's Y-flip on positions
-     * applied (vanilla Y-up {@literal ->} screen Y-down).
+     * {@code (v - modelCentre) * ndcScale} on each axis.
      *
-     * <p>Used by {@link EntityRenderer} to project block-model
-     * overlay triangles (mooshroom mushroom blocks, etc) into the same entity-fit frame the
-     * primary entity geometry has been baked into so they render at the correct scale and
-     * orientation alongside the entity body.
-     *
-     * @param bounds the model bounds whose centre and extent drive the auto-fit
-     * @return the model-to-entity-fit matrix
-     */
-    public static @NotNull Matrix4f buildEntityFitMatrix(@NotNull Box bounds) {
-        float extent = Math.max(bounds.maxExtent(), MIN_MODEL_EXTENT);
-        return buildEntityFitMatrix(bounds, ENTITY_MODEL_FIT_EXTENT / extent);
-    }
-
-    /**
-     * Native-resolution variant of {@link #buildEntityFitMatrix(Box)}: caller supplies the
-     * model-units-to-NDC scale so block overlays composed onto an entity's frame match the same
-     * scale the renderer used for the entity body (no auto-fit).
-     *
-     * @param bounds the model bounds whose centre is the fit anchor
-     * @param ndcScale the caller-supplied model-units-to-NDC scale
-     * @return the model-to-entity-fit matrix at the supplied scale
-     */
-    public static @NotNull Matrix4f buildEntityFitMatrix(@NotNull Box bounds, float ndcScale) {
-        float cx = (bounds.minX() + bounds.maxX()) * 0.5f;
-        float cy = (bounds.minY() + bounds.maxY()) * 0.5f;
-        float cz = (bounds.minZ() + bounds.maxZ()) * 0.5f;
-        return buildEntityFitMatrix(new Vector3f(cx, cy, cz), ndcScale);
-    }
-
-    /**
-     * Native-resolution variant taking an explicit model-space centre anchor. Used by
-     * {@link EntityRenderer} so block overlays composite at the
-     * same silhouette-centred frame the entity body uses (the
-     * {@link #buildTriangles(EntityModelData, PixelBuffer, Vector3f, boolean, float, float, int)
-     * Vector3f overload} above).
+     * <p>Caller-supplied scale rather than an auto-fit, so block overlays composed onto an entity's
+     * frame match the scale the renderer used for the entity body. Used by {@link EntityRenderer} to
+     * project block-model overlay triangles (mooshroom mushroom blocks, etc) at the same
+     * silhouette-centred frame the entity body uses - the same {@link RenderFrame} the body was
+     * {@link #buildTriangles(EntityModelData, PixelBuffer, EntityBuildParams) built} through, with its
+     * two scales pre-multiplied by the caller - so they render at the correct scale and orientation
+     * alongside it.
      *
      * @param modelCentre the model-space point that maps to the canvas centre
      * @param ndcScale the caller-supplied model-units-to-NDC scale
@@ -859,7 +762,7 @@ public class EntityGeometryKit {
         @NotNull EntityModelData model,
         @NotNull String boneName
     ) {
-        return BoneKit.buildChainTransforms(model.getBones()).getOrDefault(boneName, Matrix4f.IDENTITY);
+        return BoneKit.buildChainTransform(model.getBones(), boneName);
     }
 
     /**
@@ -954,25 +857,23 @@ public class EntityGeometryKit {
     ) {
         if (size.x() == 0f || size.y() == 0f || size.z() == 0f) return false;
         // entityCutoutNoCull / entityTranslucent detection: cubes with significant non-opaque
-        // texels on visible faces need their back faces to render too - either to peek through
+        // texels on any face need their back faces to render too - either to peek through
         // alpha=0 cutouts (cutout family) or to alpha-stack at silhouette pixels (translucent
-        // family). Sampling the three iso-visible faces (UP/NORTH/EAST) is sufficient -
-        // non-opaque textures are typically symmetric across face pairs and we'd rather miss a
-        // one-sided non-opaque face than over-disable culling.
-        if (uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
-            || uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
-            || uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
-            return false;
-        boolean visibleHasContent =
-               uvHasContent(BoneKit.resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture);
-        if (visibleHasContent) return true;
-        boolean hiddenHasContent =
-               uvHasContent(BoneKit.resolveFaceUv(EntityFace.DOWN, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.SOUTH, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.WEST, cube, size, texW, texH), texture);
-        return !hiddenHasContent;
+        // family). All six faces are sampled because a cube's cutout can sit on a face hidden
+        // from the iso camera: the skeleton-horse baby legs carry their bone-strut cutout on the
+        // outboard (WEST/SOUTH) faces, under the 20% threshold on the visible UP/NORTH/EAST, so
+        // sampling only the visible triple would cull them and open two see-through holes where
+        // vanilla's entityCutoutNoCull draws the opaque inner faces through the front cutout.
+        for (Face face : Face.CACHED_VALUES)
+            if (uvNonOpaqueExceeds(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
+                return false;
+        for (Face face : ISO_VISIBLE)
+            if (uvHasContent(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
+                return true;
+        for (Face face : ISO_VISIBLE)
+            if (uvHasContent(BoneKit.resolveFaceUv(face.opposite(), cube, size, texW, texH), texture))
+                return false;
+        return true;
     }
 
     /**
@@ -996,7 +897,7 @@ public class EntityGeometryKit {
         float texW,
         float texH
     ) {
-        for (EntityFace face : EntityFace.CACHED_VALUES) {
+        for (Face face : Face.CACHED_VALUES) {
             if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
                 && BoneKit.isDegeneratePlaneFace(size, face)) continue;
             if (BoneKit.faceHasPartialAlpha(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
@@ -1072,15 +973,12 @@ public class EntityGeometryKit {
     }
 
     /**
-     * The result of building triangles from an entity model, carrying the triangle list and
-     * per-bone bounding boxes used by the armor overlay system.
+     * The result of building triangles from an entity model.
      *
      * @param triangles the triangle list ready for rasterization
-     * @param boneBounds per-bone axis-aligned bounding boxes keyed by bone name
      */
     public record BuildResult(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull Map<String, Vector3f[]> boneBounds
+        @NotNull ConcurrentList<VisibleTriangle> triangles
     ) {}
 
 }

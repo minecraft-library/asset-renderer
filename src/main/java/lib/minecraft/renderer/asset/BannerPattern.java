@@ -34,7 +34,7 @@ public record BannerPattern(
      * @return the banner texture id
      */
     public @NotNull String bannerTexture() {
-        return pathForAtlas("entity/banner");
+        return atlasTexture(this.assetId, "entity/banner");
     }
 
     /**
@@ -44,23 +44,25 @@ public record BannerPattern(
      * @return the shield texture id
      */
     public @NotNull String shieldTexture() {
-        return pathForAtlas("entity/shield");
+        return atlasTexture(this.assetId, "entity/shield");
     }
 
     /**
-     * Builds a namespaced texture id by inserting an atlas sub-path between this pattern's
-     * {@link #assetId} namespace and name - {@code namespace:name} becomes
+     * Builds a namespaced texture id by inserting an atlas sub-path between a pattern
+     * {@code assetId}'s namespace and name - {@code namespace:name} becomes
      * {@code namespace:<atlasPath>/name}. An {@code assetId} with no {@code :} defaults to the
-     * {@code minecraft} namespace.
+     * {@code minecraft} namespace. Shared by the banner / shield mask paths here and the
+     * banner-atlas variant paths on the item renderer's banner kit.
      *
+     * @param assetId the pattern asset id (e.g. {@code "minecraft:creeper"} or the bare {@code "creeper"})
      * @param atlasPath the atlas sub-path to splice in (e.g. {@code entity/banner})
      * @return the namespaced texture id under the given atlas path
      */
-    private @NotNull String pathForAtlas(@NotNull String atlasPath) {
+    public static @NotNull String atlasTexture(@NotNull String assetId, @NotNull String atlasPath) {
         // assetId is like "minecraft:creeper" - split namespace:name, prepend atlas path.
-        int colon = this.assetId.indexOf(':');
-        if (colon < 0) return "minecraft:" + atlasPath + "/" + this.assetId;
-        return this.assetId.substring(0, colon) + ":" + atlasPath + "/" + this.assetId.substring(colon + 1);
+        int colon = assetId.indexOf(':');
+        if (colon < 0) return "minecraft:" + atlasPath + "/" + assetId;
+        return assetId.substring(0, colon) + ":" + atlasPath + "/" + assetId.substring(colon + 1);
     }
 
 }

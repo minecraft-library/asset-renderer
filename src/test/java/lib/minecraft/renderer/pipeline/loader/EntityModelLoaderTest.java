@@ -1,0 +1,503 @@
+package lib.minecraft.renderer.pipeline.loader;
+
+import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.Entity.OverlayLayer;
+import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.LayerType;
+import lib.minecraft.renderer.asset.equipment.Shell;
+import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.option.EntityAppearance;
+import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
+
+/**
+ * Load-contract tests for {@link EntityModelLoader}, exercising the family read of
+ * {@code entity_models.json} directly. Load-bearing canaries: the wolf
+ * variant/state texture join, the baby three-source texture chain, the dyed-collar presence, the
+ * option-encoded variant coat map + resolver fold, the depth-clearance auto-skip on a
+ * base-mesh-inheriting overlay, the head-stripped alternate mesh on a category pass, the villager
+ * baby robe pass, the equipment material-to-asset table, and the per-entity saddle layers of the two
+ * renderers shared by two entities each.
+ */
+@DisplayName("EntityModelLoader native load")
+class EntityModelLoaderTest {
+
+    @Test
+    @DisplayName("wolf base texture ref equals the default variant option's wild texture")
+    void wolfWildEqualsTextureRef() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        Entity pale = coat(defs, "minecraft:wolf", "pale");
+        assertThat(pale.axes().stateTextures().get("wild"), is("wolf/wolf"));
+        assertThat("wild state equals the default texture_ref",
+            Optional.of(pale.axes().stateTextures().get("wild")), equalTo(pale.textureRef()));
+        assertThat(pale.axes().stateTextures().keySet(), hasItems("wild", "tame", "angry"));
+        assertThat(coat(defs, "minecraft:wolf", "ashen").axes().stateTextures().get("tame"), is("wolf/wolf_ashen_tame"));
+    }
+
+    @Test
+    @DisplayName("baby texture resolves via the three-source chain (variant baby_texture / isBaby binding / <adult>_baby)")
+    void babyThreeSourceChain() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        // 1) variant-table per-option baby_texture (per coat sub-definition)
+        assertThat(coat(defs, "minecraft:cow", "temperate").axes().stateTextures().get("baby"), is("cow/cow_temperate_baby"));
+        assertThat(coat(defs, "minecraft:cow", "warm").axes().stateTextures().get("baby"), is("cow/cow_warm_baby"));
+        assertThat("cow carries a distinct baby mesh", coat(defs, "minecraft:cow", "temperate").axes().babyModel().isPresent(), is(true));
+        // 2) non-variant entity sources its baby texture from the age.baby.texture (isBaby) binding
+        assertThat(defs.get("minecraft:sheep").axes().stateTextures().get("baby"), is("sheep/sheep_baby"));
+        // 3) enum-variant fallback to the <adult>_baby naming convention; the base row is the default coat
+        assertThat(defs.get("minecraft:axolotl").axes().stateTextures().get("baby"), is("axolotl/axolotl_lucy_baby"));
+    }
+
+    @Test
+    @DisplayName("dyed-collar texture is carried for wolf + cat, absent elsewhere")
+    void collarPresence() {
+        // The collar renders only when a collar colour is supplied (the truthful collar_color gate); the
+        // load contract pins the collar texture presence that gate resolves against. A bare wolf / cat
+        // with no collar colour therefore renders no collar band.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        assertThat(coat(defs, "minecraft:wolf", "pale").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat("every wolf variant shares the family collar",
+            coat(defs, "minecraft:wolf", "ashen").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat(coat(defs, "minecraft:cat", "black").layers().collar(), equalTo(Optional.of("cat/cat_collar")));
+        assertThat("a non-collar entity has none",
+            defs.get("minecraft:cow").layers().collar().isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("option-encoded variant family loads one base row + a coat map the resolver fold selects")
+    void variantOptionEncoding() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        Entity cow = defs.get("minecraft:cow");
+        assertThat("one base row, no coat pseudo-ids", cow != null && defs.get("minecraft:cow_cold") == null, is(true));
+        assertThat("the coat map carries every option", cow.axes().variants().keySet(), hasItems("cold", "temperate", "warm"));
+
+        // The base IS the default (temperate) coat; the resolver fold swaps it to the selected coat.
+        // cow_cold uses the horned coldcow mesh + cold texture, so selecting it changes both.
+        assertThat("the base row is the default coat", cow.textureRef(), is(cow.axes().variants().get("temperate").textureRef()));
+        Entity resolvedCold = cow.resolve(EntityAppearance.builder().variant(Optional.of("cold")).build());
+        assertThat("selecting cold swaps to the cold coat texture", resolvedCold.textureRef(), is(cow.axes().variants().get("cold").textureRef()));
+        assertThat("the cold coat differs from the default", resolvedCold.textureRef(), not(cow.textureRef()));
+        assertThat("selecting cold swaps to the cold coat mesh", resolvedCold.model(), sameInstance(cow.axes().variants().get("cold").model()));
+
+        // Canvas-group membership is baked onto Entity.members: an option-encoded variant model with no
+        // cross-entity group is a singleton (empty members); a genuine group_of group carries the
+        // self-inclusive member list identically on every member.
+        assertThat("an option-encoded variant model with no cross-group carries no members", cow.members(), is(empty()));
+        assertThat("a plain singleton entity carries no members", defs.get("minecraft:sheep").members(), is(empty()));
+        assertThat("a group_of group is self-inclusive on every member",
+            defs.get("minecraft:camel").members(), containsInAnyOrder("minecraft:camel", "minecraft:camel_husk"));
+        assertThat("the group member list is identical on every member",
+            defs.get("minecraft:camel_husk").members(), equalTo(defs.get("minecraft:camel").members()));
+    }
+
+    @Test
+    @DisplayName("the worn-armor shell is joined off the layers armor row")
+    void humanoidArmorFromLayersRow() {
+        // The armor row lives under `layers`: the reader joins its geometry reference against the
+        // geometry table (absence IS none). Skeleton/zombie wear a shell; cow/sheep wear none.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        assertThat("skeleton is humanoid-armored", defs.get("minecraft:skeleton").humanoidArmor().isPresent(), is(true));
+        assertThat("zombie is humanoid-armored", defs.get("minecraft:zombie").humanoidArmor().isPresent(), is(true));
+        assertThat("the derived accessor reads the layers row",
+            defs.get("minecraft:zombie").layers().humanoidArmor().isPresent(), is(true));
+        assertThat("cow is not humanoid-armored", defs.get("minecraft:cow").humanoidArmor().isPresent(), is(false));
+        assertThat("sheep is not humanoid-armored", defs.get("minecraft:sheep").humanoidArmor().isPresent(), is(false));
+
+        // The shell is the mesh vanilla hands the wearer, not the wearer's own: the boxes must be the
+        // armor unwrap's 64x32 tree, and the two layer deformations must travel with it.
+        Shell armor = defs.get("minecraft:zombie").humanoidArmor().orElseThrow();
+        assertThat("the shell carries the armor atlas width", armor.mesh().getTextureWidth(), is(64));
+        assertThat("the shell carries the armor atlas height", armor.mesh().getTextureHeight(), is(32));
+        assertThat("the leggings deformation rides the row", armor.innerGrow(), equalTo(new Vector3f(0.5f, 0.5f, 0.5f)));
+        assertThat("the outer deformation rides the row", armor.outerGrow(), equalTo(new Vector3f(1f, 1f, 1f)));
+        // The shell is ungrown: a leg's own CubeDeformation.extend(-0.1) is all its cube carries, so the
+        // slot's deformation is summed onto it at render rather than baked in twice.
+        assertThat("the shell's legs carry only their own extend",
+            armor.mesh().getBones().get("right_leg").getCubes().getFirst().getGrow(),
+            equalTo(new Vector3f(-0.1f, -0.1f, -0.1f)));
+        // The piglin's set differs from the generic one in nothing but its outer deformation, so the two
+        // share one geometry entry - the dedupe the collapsed shape buys.
+        assertThat("the piglin shares the generic shell mesh",
+            defs.get("minecraft:piglin").humanoidArmor().orElseThrow().mesh(), sameInstance(armor.mesh()));
+        assertThat("the piglin's own outer deformation still rides its row",
+            defs.get("minecraft:piglin").humanoidArmor().orElseThrow().outerGrow(),
+            equalTo(new Vector3f(1.02f, 1.02f, 1.02f)));
+    }
+
+    /** The option-encoded coat sub-definition for a variant family's option. */
+    private static Entity coat(ConcurrentMap<String, Entity> defs, String familyId, String option) {
+        return defs.get(familyId).axes().variants().get(option);
+    }
+
+    @Test
+    @DisplayName("a base-mesh-inheriting grow-less overlay is auto-skipped from canvas bounds")
+    void depthClearanceOnGeometryInheritance() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        // enderman eyes re-submit the base mesh (same geometry coordinate) with no tint - our auto-emitted
+        // depth-clearance inflate wins the coplanar tie, and the overlay is excluded from canvas bounds
+        // because the base already covers its silhouette. Keyed on the overlay inheriting the base mesh,
+        // not on ref-equality of the model object.
+        OverlayLayer eyes = defs.get("minecraft:enderman").overlays().getFirst();
+        assertThat("emissive eyes overlay", eyes.pass().emissive(), is(true));
+        assertThat("base-mesh-inheriting grow-less overlay skips bounds", eyes.skipBounds(), is(true));
+
+        // The sheep wool layer uses a DISTINCT geometry (SheepFurModel) and carries no depth-clearance, so
+        // it contributes to bounds; the same-mesh undercoat (SheepModel) is skipped.
+        List<OverlayLayer> sheep = defs.get("minecraft:sheep").overlays();
+        assertThat("sheep declares undercoat + wool overlays", sheep.size(), greaterThan(1));
+        assertThat("same-mesh wool undercoat skips bounds", sheep.get(0).skipBounds(), is(true));
+        assertThat("distinct-mesh wool layer contributes to bounds", sheep.get(1).skipBounds(), is(false));
+    }
+
+    @Test
+    @DisplayName("the villager robe pass stays same-geometry, so its depth clearance and bounds skip hold")
+    void villagerRobePassKeepsDepthClearance() {
+        // The robe pass carries an alternate head-stripped mesh, derived from the materialised mesh rather
+        // than from a second geometry coordinate. Expressing it as its own coordinate would flip
+        // sameGeometry false, dropping the depth-clearance inflate (z-fighting the base body) and
+        // un-setting the derived bounds skip - which moves the villager AND wandering_trader canvas.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        assertThat("villager type pass skips bounds", defs.get("minecraft:villager").overlays().getFirst().skipBounds(), is(true));
+        assertThat("zombie villager type pass skips bounds", defs.get("minecraft:zombie_villager").overlays().getFirst().skipBounds(), is(true));
+    }
+
+    @Test
+    @DisplayName("a baby overlay list is built per declared baby form, never copied off the adult one")
+    void babyOverlayListOnlyWhereDeclared() {
+        // The baby list is assembled from the rows that declare a `baby` node, not cloned from the adult
+        // list. The sheep is the case that can tell those apart: it carries TWO adult passes and vanilla
+        // gives only one of them a baby form, because SheepWoolUndercoatLayer.submit returns outright on a
+        // baby while SheepWoolLayer swaps to its baby mesh. A list that fell back would dress a lamb in the
+        // undercoat vanilla never draws on it.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        Entity sheep = defs.get("minecraft:sheep");
+        assertThat("the sheep has a baby mesh", sheep.axes().babyModel().isPresent(), is(true));
+        assertThat("the sheep carries an undercoat pass and a wool pass", sheep.overlays().size(), is(2));
+        assertThat("only the wool pass has a baby form", sheep.axes().babyOverlays().size(), is(1));
+        assertThat("the baby wool binds the baby wool texture",
+            sheep.axes().babyOverlays().getFirst().textureRef(), is(Optional.of("sheep/sheep_wool_baby")));
+        assertThat("the baby wool keeps the row's dye axis",
+            sheep.axes().babyOverlays().getFirst().tintBy(), is(Optional.of("wool_color")));
+
+        assertThat("a family with no baby mesh at all carries no baby list",
+            defs.get("minecraft:wandering_trader").axes().babyOverlays(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("the drowned's baby outer layer binds its own mesh, not an inflate of the baby body")
+    void drownedBabyOuterLayerBindsItsOwnMesh() {
+        // End-to-end canary over the shipped resource. Vanilla bakes DROWNED_BABY_OUTER_LAYER as its own
+        // LayerDefinition, and BabyZombieModel#createBodyLayer hardcodes its two head cubes' deformations
+        // instead of driving them off the parameter - so the shell is NOT the baby body grown by the row's
+        // 0.25 and the delta has to name a mesh. Inheriting the row's grow instead would land the adult
+        // inflate a second time on top of the baby factory's own.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        Entity drowned = defs.get("minecraft:drowned");
+        assertThat("the adult outer layer is the adult shell",
+            drowned.overlays().getFirst().textureRef(), is(Optional.of("zombie/drowned_outer_layer")));
+
+        List<OverlayLayer> babyPasses = drowned.axes().babyOverlays();
+        assertThat("the drowned ships exactly one baby outer pass", babyPasses.size(), is(1));
+        OverlayLayer shell = babyPasses.getFirst();
+        assertThat("the baby pass binds the baby outer texture",
+            shell.textureRef(), is(Optional.of("zombie/drowned_outer_layer_baby")));
+        assertThat("the baby shell is a mesh of its own, not the baby body",
+            shell.model(), is(not(sameInstance(drowned.axes().babyModel().orElseThrow()))));
+        assertThat("the baby shell stands proud, so it contributes to canvas bounds",
+            shell.skipBounds(), is(false));
+    }
+
+    @Test
+    @DisplayName("the trader llama ships a baby caparison, bound to the baby mesh and the baby decor texture")
+    void traderLlamaShipsBabyCaparison() {
+        // End-to-end canary over the shipped resource: vanilla dresses a baby trader llama in a distinct
+        // baby caparison, and the parity harness renders no babies, so a lost `baby` decor node would
+        // silently strip it with the suite still green. The adult decor stays the adult caparison.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        Entity llama = defs.get("minecraft:trader_llama");
+        assertThat("the trader llama has a baby mesh", llama.axes().babyModel().isPresent(), is(true));
+        assertThat("the adult decor is the adult caparison",
+            llama.overlays().getFirst().textureRef(), is(Optional.of("equipment/llama_body/trader_llama")));
+
+        List<OverlayLayer> babyPasses = llama.axes().babyOverlays();
+        assertThat("the trader llama ships exactly one baby decor pass", babyPasses.size(), is(1));
+        OverlayLayer caparison = babyPasses.getFirst();
+        assertThat("the baby pass binds the baby caparison texture",
+            caparison.textureRef(), is(Optional.of("equipment/llama_body/trader_llama_baby")));
+        assertThat("the baby pass keeps the decor bounds skip", caparison.skipBounds(), is(true));
+        assertThat("the baby caparison materialises on the baby mesh, not the adult one",
+            caparison.model().getBones().keySet(), is(llama.axes().babyModel().get().getBones().keySet()));
+    }
+
+    @Test
+    @DisplayName("both villagers ship a baby type pass, bound to the baby mesh and the baby robe texture")
+    void babyTypePassIsShippedForBothVillagers() {
+        // End-to-end canary over the shipped resource: the tooling must emit the `baby` node on the type
+        // pass and the loader must bind it into the baby overlay list. Nothing else covers it - the parity
+        // harness renders no babies, so a lost node or an unbound delta would silently strip the robe off
+        // every baby villager with the suite still green.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        assertShippedBabyTypePass(defs, "minecraft:villager", "villager", "bb_main");
+        assertShippedBabyTypePass(defs, "minecraft:zombie_villager", "zombie_villager", "nose");
+    }
+
+    /**
+     * Asserts a villager family ships exactly one baby overlay pass - the type pass - bound to the baby
+     * robe texture, materialised on the {@code age.baby} mesh rather than the adult one, keeping the
+     * bounds skip its same-geometry depth clearance derives, and carrying the head-stripped alternate mesh
+     * cut from that same baby mesh.
+     *
+     * @param defs the loaded index
+     * @param entityId the villager family
+     * @param texturePrefix the entity texture prefix the robe ref is qualified with
+     * @param babyOnlyBone a bone the baby mesh carries and the adult mesh does not
+     */
+    private static void assertShippedBabyTypePass(
+        ConcurrentMap<String, Entity> defs,
+        String entityId,
+        String texturePrefix,
+        String babyOnlyBone
+    ) {
+        Entity entity = defs.get(entityId);
+        List<OverlayLayer> babyPasses = entity.axes().babyOverlays();
+        assertThat(entityId + " ships exactly one baby overlay pass", babyPasses.size(), is(1));
+        assertThat(entityId + " the baby pass is the type pass",
+            babyPasses.stream().map(OverlayLayer::textureBy).toList(), contains(Optional.of("type")));
+
+        OverlayLayer robe = babyPasses.getFirst();
+        assertThat(entityId + " the baby pass binds the baby robe texture",
+            robe.textureRef(), is(Optional.of(texturePrefix + "/baby/plains")));
+        // The sameGeometry trap: materialising the derived row against the ADULT coordinate the row names
+        // would drop the depth-clearance inflate and un-set the derived bounds skip, z-fighting the baby
+        // body and moving the baby canvas.
+        assertThat(entityId + " the baby pass keeps its bounds skip", robe.skipBounds(), is(true));
+
+        EntityModelData babyMesh = entity.axes().babyModel()
+            .orElseThrow(() -> new AssertionError("entity '" + entityId + "' ships no baby mesh"));
+        assertThat(entityId + " the baby pass materialises on the baby mesh",
+            Set.copyOf(robe.model().getBones().keySet()), equalTo(Set.copyOf(babyMesh.getBones().keySet())));
+        assertThat(entityId + " '" + babyOnlyBone + "' is a baby-mesh bone the pass carries",
+            robe.model().getBones().containsKey(babyOnlyBone), is(true));
+        assertThat(entityId + " the adult type pass carries no baby-mesh bone",
+            categoryPass(defs, entityId, "type").model().getBones().containsKey(babyOnlyBone), is(false));
+
+        assertThat(entityId + " the baby pass carries the head-stripped alternate mesh", robe.noHatModel().isPresent(), is(true));
+        EntityModelData stripped = robe.noHatModel().get();
+        for (String bone : List.of("head", "hat", "hat_rim", "nose")) {
+            assertThat(entityId + " '" + bone + "' owns cubes on the baby pass mesh",
+                robe.model().getBones().get(bone).getCubes().isEmpty(), is(false));
+            assertThat(entityId + " '" + bone + "' is emptied on the baby alternate mesh",
+                stripped.getBones().get(bone).getCubes().isEmpty(), is(true));
+        }
+        assertThat(entityId + " the baby alternate keeps the body off the head subtree",
+            stripped.getBones().get("body").getCubes().isEmpty(), is(false));
+        assertThat(entityId + " the baby alternate is cut from the baby mesh",
+            Set.copyOf(stripped.getBones().keySet()), equalTo(Set.copyOf(babyMesh.getBones().keySet())));
+    }
+
+    @Test
+    @DisplayName("only the type pass carries the head-stripped alternate mesh, and it empties exactly the head subtree")
+    void categoryPassCarriesHeadStrippedAlternateMesh() {
+        // End-to-end canary over the shipped resource: the tooling must emit the cleared-bone key on the
+        // type pass and the loader must derive the alternate mesh from it. A regenerated resource that
+        // lost the key, or a loader that stopped deriving the mesh, fails here rather than silently
+        // rendering a hat through a hat-bearing profession's headwear.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        assertHeadStrippedTypePass(defs, "minecraft:villager", List.of("head", "hat", "hat_rim", "nose"));
+        assertHeadStrippedTypePass(defs, "minecraft:zombie_villager", List.of("head", "hat", "hat_rim"));
+    }
+
+    /**
+     * Asserts a category-pass family carries its alternate mesh on the {@code type} pass alone, that the
+     * mesh empties every named head-subtree bone while the body keeps its cubes, and that the bone
+     * hierarchy is otherwise untouched.
+     *
+     * @param defs the loaded index
+     * @param entityId the category-pass entity
+     * @param clearedBones the head-subtree bones the alternate mesh must empty
+     */
+    private static void assertHeadStrippedTypePass(
+        ConcurrentMap<String, Entity> defs,
+        String entityId,
+        List<String> clearedBones
+    ) {
+        OverlayLayer typePass = categoryPass(defs, entityId, "type");
+        assertThat(entityId + " type pass carries an alternate mesh", typePass.noHatModel().isPresent(), is(true));
+        assertThat(entityId + " profession pass carries no alternate mesh",
+            categoryPass(defs, entityId, "profession").noHatModel().isPresent(), is(false));
+        assertThat(entityId + " profession_level pass carries no alternate mesh",
+            categoryPass(defs, entityId, "profession_level").noHatModel().isPresent(), is(false));
+
+        EntityModelData full = typePass.model();
+        EntityModelData stripped = typePass.noHatModel().get();
+        for (String bone : clearedBones) {
+            assertThat(entityId + " '" + bone + "' is on the pass mesh", full.getBones().containsKey(bone), is(true));
+            assertThat(entityId + " '" + bone + "' owns cubes on the pass mesh", full.getBones().get(bone).getCubes().isEmpty(), is(false));
+            assertThat(entityId + " '" + bone + "' is emptied on the alternate mesh", stripped.getBones().get(bone).getCubes().isEmpty(), is(true));
+        }
+        assertThat(entityId + " body is off the head subtree and keeps its cubes",
+            stripped.getBones().get("body").getCubes().isEmpty(), is(false));
+
+        assertThat(entityId + " the alternate mesh keeps every bone",
+            Set.copyOf(stripped.getBones().keySet()), equalTo(Set.copyOf(full.getBones().keySet())));
+        for (String bone : full.getBones().keySet()) {
+            assertThat(entityId + " '" + bone + "' keeps its pivot",
+                stripped.getBones().get(bone).getPivot(), equalTo(full.getBones().get(bone).getPivot()));
+            assertThat(entityId + " '" + bone + "' keeps its parent",
+                stripped.getBones().get(bone).getParent(), equalTo(full.getBones().get(bone).getParent()));
+        }
+    }
+
+    @Test
+    @DisplayName("equipment layers ship their render layer and material asset table, mapping every material to an existing asset")
+    void equipmentLayersShipTheirMaterialAssetTable() {
+        // End-to-end canary over the shipped resource: the tooling must emit `layer_type` and the
+        // `material_assets` table, and the loader must decode both. A material mapped to the wrong asset
+        // id resolves to no equipment layers and silently drops the texture, and the parity harness
+        // equips nothing, so an inert table would leave the suite green with every saddle untextured.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+
+        // The three shapes the table exists for: the shared saddle asset, the identity-named armor
+        // tier, and the llama carpet whose asset name is NOT its material name.
+        assertEquipmentAsset(defs, "minecraft:pig", "saddle", LayerType.PIG_SADDLE, "saddle", "minecraft:saddle");
+        assertEquipmentAsset(defs, "minecraft:horse", "body", LayerType.HORSE_BODY, "leather", "minecraft:leather");
+        assertEquipmentAsset(defs, "minecraft:llama", "body", LayerType.LLAMA_BODY, "white", "minecraft:white_carpet");
+        assertEquipmentAsset(defs, "minecraft:llama", "body", LayerType.LLAMA_BODY, "red", "minecraft:red_carpet");
+        assertEquipmentAsset(defs, "minecraft:trader_llama", "body", LayerType.LLAMA_BODY, "trader_llama", "minecraft:trader_llama");
+        assertEquipmentAsset(defs, "minecraft:happy_ghast", "body", LayerType.HAPPY_GHAST_BODY, "white_harness", "minecraft:white_harness");
+        assertEquipmentAsset(defs, "minecraft:wolf", "body", LayerType.WOLF_BODY, "armadillo_scute", "minecraft:armadillo_scute");
+        // The nautilus body offers no leather tier, so its default must be one of the tiers it does ship.
+        assertEquipmentAsset(defs, "minecraft:nautilus", "body", LayerType.NAUTILUS_BODY, "copper", "minecraft:copper");
+        assertDefaultMaterial(defs, "minecraft:nautilus", "body", "copper");
+        assertDefaultMaterial(defs, "minecraft:horse", "body", "leather");
+        assertDefaultMaterial(defs, "minecraft:trader_llama", "body", "white");
+
+        // Every shipped equipment layer must resolve its own declared default - a default outside the
+        // table is exactly the silent-drop failure this table exists to prevent.
+        for (Entity definition : defs.values())
+            for (Entity.EquipmentOverlay equipment : definition.layers().equipment())
+                assertThat("equipment layer '" + equipment.layerType().getId() + "' resolves its default material '"
+                        + equipment.defaultMaterial() + "'",
+                    equipment.assetFor("").isPresent(), is(true));
+    }
+
+    @Test
+    @DisplayName("saddle layers whose renderer parameterises them ship per-entity, never crossed between the entities sharing that renderer")
+    void parameterisedSaddleLayersShipPerEntity() {
+        // End-to-end canary over the shipped resource: DonkeyRenderer (donkey + mule) and
+        // UndeadHorseRenderer (skeleton_horse + zombie_horse) each take their saddle's render layer and
+        // mesh as constructor parameters, so both come from the entity's own renderer registration. A
+        // resolver keyed off the renderer CLASS instead of the entity would silently give both members of
+        // a pair the same layer and the same mesh, and the parity harness saddles nothing, so the suite
+        // would stay green with a mule wearing a donkey's saddle.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+
+        assertEquipmentAsset(defs, "minecraft:donkey", "saddle", LayerType.DONKEY_SADDLE, "saddle", "minecraft:saddle");
+        assertEquipmentAsset(defs, "minecraft:mule", "saddle", LayerType.MULE_SADDLE, "saddle", "minecraft:saddle");
+        assertEquipmentAsset(defs, "minecraft:skeleton_horse", "saddle", LayerType.SKELETON_HORSE_SADDLE, "saddle", "minecraft:saddle");
+        assertEquipmentAsset(defs, "minecraft:zombie_horse", "saddle", LayerType.ZOMBIE_HORSE_SADDLE, "saddle", "minecraft:saddle");
+
+        // The undead horses keep the body-armor layer they already had - it resolves from the renderer's
+        // own statics, so the parameterised saddle must be an addition, never a replacement.
+        assertEquipmentAsset(defs, "minecraft:skeleton_horse", "body", LayerType.HORSE_BODY, "iron", "minecraft:iron");
+        assertEquipmentAsset(defs, "minecraft:zombie_horse", "body", LayerType.HORSE_BODY, "iron", "minecraft:iron");
+
+        // Distinct meshes where vanilla registers distinct ones: the donkey's saddle is baked at 0.87 and
+        // the mule's at 0.92, which lands as a different body pivot.
+        assertThat("donkey and mule saddles are separately baked meshes",
+            equipmentLayer(defs, "minecraft:donkey", "saddle").model().getBones().get("body").getPivot(),
+            is(not(equalTo(equipmentLayer(defs, "minecraft:mule", "saddle").model().getBones().get("body").getPivot()))));
+
+        // ... and one shared mesh where vanilla registers the same one: both undead horses bake the
+        // unscaled EquineSaddleModel, so they must join on a single geometry entry rather than duplicate it.
+        assertThat("skeleton and zombie horse saddles share one baked mesh",
+            equipmentLayer(defs, "minecraft:skeleton_horse", "saddle").model(),
+            sameInstance(equipmentLayer(defs, "minecraft:zombie_horse", "saddle").model()));
+    }
+
+    /**
+     * Asserts a shipped equipment layer carries the expected render layer and maps a material to an
+     * equipment asset id.
+     *
+     * @param defs the loaded index
+     * @param entityId the entity owning the layer
+     * @param slot the equipment slot the layer is gated on
+     * @param layerType the render layer the layer must declare
+     * @param material the material to resolve
+     * @param assetId the equipment asset id that material must name
+     */
+    private static void assertEquipmentAsset(
+        ConcurrentMap<String, Entity> defs,
+        String entityId,
+        String slot,
+        LayerType layerType,
+        String material,
+        String assetId
+    ) {
+        Entity.EquipmentOverlay equipment = equipmentLayer(defs, entityId, slot);
+        assertThat(entityId + " '" + slot + "' render layer", equipment.layerType(), is(layerType));
+        assertThat(entityId + " '" + slot + "' material '" + material + "' asset",
+            equipment.assetFor(material).map(ResourceId::id), is(Optional.of(assetId)));
+    }
+
+    /**
+     * Asserts a shipped equipment layer's default material - the one a render gets by selecting the
+     * slot without naming a material.
+     *
+     * @param defs the loaded index
+     * @param entityId the entity owning the layer
+     * @param slot the equipment slot the layer is gated on
+     * @param material the material the layer must default to
+     */
+    private static void assertDefaultMaterial(
+        ConcurrentMap<String, Entity> defs,
+        String entityId,
+        String slot,
+        String material
+    ) {
+        Entity.EquipmentOverlay equipment = equipmentLayer(defs, entityId, slot);
+        assertThat(entityId + " '" + slot + "' default material", equipment.defaultMaterial(), is(material));
+        assertThat(entityId + " '" + slot + "' resolves the same asset blank as by name",
+            equipment.assetFor(""), is(equipment.assetFor(material)));
+    }
+
+    /** The equipment layer of an entity gated on {@code slot}. */
+    private static Entity.EquipmentOverlay equipmentLayer(
+        ConcurrentMap<String, Entity> defs, String entityId, String slot) {
+        return defs.get(entityId)
+            .layers()
+            .equipment()
+            .stream()
+            .filter(overlay -> slot.equals(overlay.slot()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("entity '" + entityId + "' has no '" + slot + "' equipment layer"));
+    }
+
+    /** The overlay pass of an entity whose texture axis is {@code textureBy}. */
+    private static OverlayLayer categoryPass(ConcurrentMap<String, Entity> defs, String entityId, String textureBy) {
+        return defs.get(entityId)
+            .overlays()
+            .stream()
+            .filter(overlay -> overlay.textureBy().filter(textureBy::equals).isPresent())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("entity '" + entityId + "' has no '" + textureBy + "' category pass"));
+    }
+}

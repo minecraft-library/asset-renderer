@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import lib.minecraft.renderer.pipeline.pack.FormatRange;
-import lib.minecraft.renderer.pipeline.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.asset.pack.FormatRange;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
+import lib.minecraft.renderer.option.ItemModelContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -22,7 +22,7 @@ import java.util.TreeMap;
  * items-tree node vocabulary. Legacy {@code overrides} are vanilla-dead (0 files in
  * 26.1) but ubiquitous in pre-1.21.4 CIT packs; today Gson silently discards the array. This mapper
  * synthesises the same mechanical translation Mojang shipped in 1.21.4, so a legacy pack's overrides
- * flow through the {@link ItemModelWalker} like a native items file - legacy packs get the same
+ * flow through {@link ItemModelNode#resolve(ItemModelContext) node resolution} like a native items file - legacy packs get the same
  * caller-driven dispatch for free once the caller supplies the dispatch value.
  *
  * <p>Gated on the pack's own declared {@link FormatRange} max strictly below {@value #LEGACY_MAX_MAJOR}
@@ -95,14 +95,14 @@ public class LegacyOverrideMapper {
      *
      * @param itemId the owning item id (e.g. {@code minecraft:diamond_sword}), for diagnostics and ref
      *     namespace normalisation
-     * @param overrides the raw {@code overrides} array
+     * @param overrides the {@code overrides} array node
      * @param packId the owning pack id, for diagnostics
      * @param fallback the node the synthesised tree falls back to when no override matches
      * @return the synthesised root node, or empty when no override entry mapped (the item renders from
      *     its fallback as before)
      */
     public static @NotNull Optional<ItemModelNode> map(
-        @NotNull String itemId, @NotNull JsonArray overrides, @NotNull PackId packId, @NotNull ItemModelNode fallback
+        @NotNull String itemId, @NotNull JsonTree overrides, @NotNull PackId packId, @NotNull ItemModelNode fallback
     ) {
         String namespace = itemId.contains(":") ? itemId.substring(0, itemId.indexOf(':')) : "minecraft";
 
@@ -110,9 +110,9 @@ public class LegacyOverrideMapper {
         // first-appearance order of groups. A file is almost always one group (all custom_model_data,
         // or all pulling/pull); multiple groups fold safely below.
         LinkedHashMap<TreeMap<String, Boolean>, List<MappedOverride>> groups = new LinkedHashMap<>();
-        for (JsonElement element : overrides) {
-            if (!element.isJsonObject()) continue;
-            MappedOverride mapped = parseOverride(element.getAsJsonObject(), itemId, namespace, packId);
+        for (JsonTree element : overrides.elements().toList()) {
+            if (!element.isObject()) continue;
+            MappedOverride mapped = parseOverride(element, itemId, namespace, packId);
             if (mapped == null) continue;
             groups.computeIfAbsent(mapped.gates(), k -> new ArrayList<>()).add(mapped);
         }
@@ -137,24 +137,25 @@ public class LegacyOverrideMapper {
      * silently dropped.
      */
     private static @Nullable MappedOverride parseOverride(
-        @NotNull JsonObject override, @NotNull String itemId, @NotNull String namespace, @NotNull PackId packId
+        @NotNull JsonTree override, @NotNull String itemId, @NotNull String namespace, @NotNull PackId packId
     ) {
-        if (!override.has("model") || !override.get("model").isJsonPrimitive()) {
+        Optional<String> modelRef = override.findString("model");
+        if (modelRef.isEmpty()) {
             System.err.printf("Pack '%s' item '%s': skipping legacy override with no model%n", packId, itemId);
             return null;
         }
-        JsonObject predicate = override.has("predicate") && override.get("predicate").isJsonObject()
-            ? override.getAsJsonObject("predicate") : new JsonObject();
+        JsonTree predicate = override.findObject("predicate").orElseGet(JsonTree::object);
 
         TreeMap<String, Boolean> gates = new TreeMap<>();
         RangeConstraint range = null;
-        for (Map.Entry<String, JsonElement> entry : predicate.entrySet()) {
+        for (Map.Entry<String, JsonTree> entry : predicate.members().toList()) {
             String key = entry.getKey();
-            Float value = numeric(entry.getValue());
-            if (value == null) {
+            Optional<Float> parsed = predicate.findFloat(key);
+            if (parsed.isEmpty()) {
                 System.err.printf("Pack '%s' item '%s': skipping legacy override with non-numeric predicate '%s'%n", packId, itemId, key);
                 return null;
             }
+            float value = parsed.get();
             if (GATES.containsKey(key)) {
                 gates.put(GATES.get(key), value != 0f);
             } else if (RANGES.containsKey(key)) {
@@ -170,7 +171,7 @@ public class LegacyOverrideMapper {
             }
         }
 
-        String ref = normalizeRef(override.get("model").getAsString(), namespace);
+        String ref = normalizeRef(modelRef.get(), namespace);
         return new MappedOverride(gates, range, ref);
     }
 
@@ -205,7 +206,7 @@ public class LegacyOverrideMapper {
         ItemModelNode rangeFallback = plain.isEmpty()
             ? fallback
             : new ItemModelNode.Model(plain.getLast().modelRef(), List.of());
-        return new ItemModelNode.RangeDispatch(first.property(), first.scale(), "", List.copyOf(entries), rangeFallback);
+        return new ItemModelNode.RangeDispatch(first.property(), first.scale(), "", 0, List.copyOf(entries), rangeFallback);
     }
 
     /**
@@ -221,16 +222,6 @@ public class LegacyOverrideMapper {
                 ? new ItemModelNode.Condition(gate.getKey(), "", result, onFalse)
                 : new ItemModelNode.Condition(gate.getKey(), "", onFalse, result);
         return result;
-    }
-
-    /** Reads a predicate value as a float, or {@code null} when it is not a JSON number. */
-    private static @Nullable Float numeric(@NotNull JsonElement value) {
-        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) return null;
-        try {
-            return value.getAsFloat();
-        } catch (NumberFormatException ex) {
-            return null;
-        }
     }
 
     /** Namespaces a bare legacy model ref to the item's owning namespace ({@code item/foo -> minecraft:item/foo}). */

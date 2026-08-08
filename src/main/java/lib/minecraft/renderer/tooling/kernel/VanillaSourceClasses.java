@@ -2,6 +2,8 @@ package lib.minecraft.renderer.tooling.kernel;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+
 /**
  * The only home for vanilla class / ASM / member-name strings in tooling - one class, nested
  * static groups.
@@ -45,6 +47,9 @@ public final class VanillaSourceClasses {
         /** {@code MeshTransformer} - layer-level scale / mesh-mutation wraps. */
         public static final @NotNull String MESH_TRANSFORMER = MODEL_BUILDERS_ROOT + "MeshTransformer";
 
+        /** {@code BabyModelTransform} - the aged-down whole-mesh transformer, a per-top-level-bone rewrite. */
+        public static final @NotNull String BABY_MODEL_TRANSFORM = CLIENT_MODEL_ROOT + "BabyModelTransform";
+
         /** {@code CubeListBuilder} - the cube-chain builder. */
         public static final @NotNull String CUBE_LIST_BUILDER = MODEL_BUILDERS_ROOT + "CubeListBuilder";
 
@@ -78,11 +83,11 @@ public final class VanillaSourceClasses {
         /** {@code EntityRenderers} - the entity-renderer registry class. */
         public static final @NotNull String ENTITY_RENDERERS = "net/minecraft/client/renderer/entity/EntityRenderers";
 
-        /** {@code HumanoidArmorLayer} - the armor-mesh layer whose roster presence classifies {@code armor_type}. */
+        /** {@code HumanoidArmorLayer} - the layer whose roster presence emits a wearer's worn-armor row. */
         public static final @NotNull String HUMANOID_ARMOR_LAYER = "net/minecraft/client/renderer/entity/layers/HumanoidArmorLayer";
 
-        /** {@code SimpleEquipmentLayer} - the generic saddle / body-armor layer (roster row 15). */
-        public static final @NotNull String SIMPLE_EQUIPMENT_LAYER = "net/minecraft/client/renderer/entity/layers/SimpleEquipmentLayer";
+        /** {@code ArmorModelSet} - the set of armor meshes a renderer dresses its subject in. */
+        public static final @NotNull String ARMOR_MODEL_SET = "net/minecraft/client/renderer/entity/ArmorModelSet";
 
         /** {@code EntityModelSet} - the per-renderer registry of baked layers ({@code bakeLayer} owner on layer ctors). */
         public static final @NotNull String ENTITY_MODEL_SET = CLIENT_MODEL_GEOM_ROOT + "EntityModelSet";
@@ -93,11 +98,24 @@ public final class VanillaSourceClasses {
         /** {@code RenderType} - the factory product ({@code RenderTypes.*} return type). */
         public static final @NotNull String RENDER_TYPE = "net/minecraft/client/renderer/rendertype/RenderType";
 
+        /** {@code OverlayTexture} - the {@code submitModel} overlay argument, the anchor its colour follows. */
+        public static final @NotNull String OVERLAY_TEXTURE = "net/minecraft/client/renderer/texture/OverlayTexture";
+
         /** {@code RenderPipelines} - the static pipeline registry whose {@code <clinit>} build blocks carry the traits. */
         public static final @NotNull String RENDER_PIPELINES = "net/minecraft/client/renderer/RenderPipelines";
 
         /** {@code BlendFunction} - the blend-mode enum ({@code TRANSLUCENT} / {@code ADDITIVE} constants). */
         public static final @NotNull String BLEND_FUNCTION = "com/mojang/blaze3d/pipeline/BlendFunction";
+
+        /** {@code DepthStencilState} - the depth-test / depth-write state a build block declares. */
+        public static final @NotNull String DEPTH_STENCIL_STATE = "com/mojang/blaze3d/pipeline/DepthStencilState";
+
+        /** {@code RenderPipeline$Snippet} - the shared builder prefix a build block inherits its state from. */
+        public static final @NotNull String RENDER_PIPELINE_SNIPPET = "com/mojang/blaze3d/pipeline/RenderPipeline$Snippet";
+
+        /** {@code RenderSetup$RenderSetupBuilder} - the render-type builder carrying {@code sortOnUpload}. */
+        public static final @NotNull String RENDER_SETUP_BUILDER =
+            "net/minecraft/client/renderer/rendertype/RenderSetup$RenderSetupBuilder";
 
         /** {@code EquipmentClientInfo$LayerType} - the equipment texture-subdir enum ({@code <clinit>} id LDCs). */
         public static final @NotNull String EQUIPMENT_LAYER_TYPE = "net/minecraft/client/resources/model/EquipmentClientInfo$LayerType";
@@ -116,6 +134,9 @@ public final class VanillaSourceClasses {
 
         /** {@code com.mojang.math.Axis} - the rotation-axis constants block-overlay transforms route through. */
         public static final @NotNull String MATH_AXIS = "com/mojang/math/Axis";
+
+        /** {@code LivingEntityRenderer} - the base declarer of {@code setupRotations}, below every override. */
+        public static final @NotNull String LIVING_ENTITY_RENDERER = "net/minecraft/client/renderer/entity/LivingEntityRenderer";
 
         /** {@code LivingEntityRenderState} - the parameter type on renderer state methods. */
         public static final @NotNull String LIVING_ENTITY_RENDER_STATE = "net/minecraft/client/renderer/entity/state/LivingEntityRenderState";
@@ -140,6 +161,12 @@ public final class VanillaSourceClasses {
 
         /** {@code EntityModel} - the model-hierarchy walk sentinel (never walked past). */
         public static final @NotNull String ENTITY_MODEL = CLIENT_MODEL_ROOT + "EntityModel";
+
+        /** {@code EntityDataAccessor} - the key a synched entity field is registered and read under. */
+        public static final @NotNull String ENTITY_DATA_ACCESSOR = "net/minecraft/network/syncher/EntityDataAccessor";
+
+        /** {@code Byte} - the boxed carrier a synched flags byte is defined and read as. */
+        public static final @NotNull String BYTE = "java/lang/Byte";
 
         /** {@code ModelLayers} - the static-field registry of baked {@code ModelLayerLocation}s. */
         public static final @NotNull String MODEL_LAYERS = CLIENT_MODEL_GEOM_ROOT + "ModelLayers";
@@ -188,9 +215,6 @@ public final class VanillaSourceClasses {
 
         /** The block-state property package prefix - the tightened "is this field a Property" gate. */
         public static final @NotNull String STATE_PROPERTIES_PACKAGE = "net/minecraft/world/level/block/state/properties/";
-
-        /** {@code BlockStateProperties} - the shared property-constant holder ({@code FACING} etc.). */
-        public static final @NotNull String BLOCK_STATE_PROPERTIES = STATE_PROPERTIES_PACKAGE + "BlockStateProperties";
 
         /** {@code IntegerProperty} - the {@code create(name, min, max)} default reads the min. */
         public static final @NotNull String INTEGER_PROPERTY = STATE_PROPERTIES_PACKAGE + "IntegerProperty";
@@ -290,11 +314,45 @@ public final class VanillaSourceClasses {
         /** {@code EntityRenderer.getTextureLocation} - the texture-binding override. */
         public static final @NotNull String GET_TEXTURE_LOCATION = "getTextureLocation";
 
+        /** {@code Entity.defineSynchedData} - where a synched field's default value is registered. */
+        public static final @NotNull String DEFINE_SYNCHED_DATA = "defineSynchedData";
+
+        /** {@code Byte.valueOf} - the box a synched flags default is registered through. */
+        public static final @NotNull String VALUE_OF = "valueOf";
+
         /** {@code Identifier.withDefaultNamespace(String)} - the texture-path wrapping factory. */
         public static final @NotNull String WITH_DEFAULT_NAMESPACE = "withDefaultNamespace";
 
         /** {@code LivingEntityRenderer.addLayer(RenderLayer)} - the layer-roster call. */
         public static final @NotNull String ADD_LAYER = "addLayer";
+
+        /** {@code <Model>.createArmorMeshSet(CubeDeformation, CubeDeformation)} - the adult armor-set factory. */
+        public static final @NotNull String CREATE_ARMOR_MESH_SET = "createArmorMeshSet";
+
+        /**
+         * {@code <Model>.createArmorLayerSet(CubeDeformation, CubeDeformation)} - the same adult
+         * armor-set factory under the spelling the wearers with their own mesh use.
+         */
+        public static final @NotNull String CREATE_ARMOR_LAYER_SET = "createArmorLayerSet";
+
+        /**
+         * {@code <Model>.createBabyArmorMeshSet(CubeDeformation, CubeDeformation, PartPose)} - the
+         * baby armor-set factory, distinguished from the adult one by the trailing pose argument it
+         * seats the shell's arms through.
+         */
+        public static final @NotNull String CREATE_BABY_ARMOR_MESH_SET = "createBabyArmorMeshSet";
+
+        /**
+         * {@code PartPose.x()} / {@code y()} / {@code z()} - the three offset accessors a mesh
+         * factory reads a pose argument through, indexed by the axis each answers.
+         */
+        public static final @NotNull List<String> PART_POSE_OFFSETS = List.of("x", "y", "z");
+
+        /** {@code ArmorModelSet.putFrom(ArmorModelSet, ImmutableMap$Builder)} - the armor-set registration call. */
+        public static final @NotNull String PUT_FROM = "putFrom";
+
+        /** {@code ArmorModelSet.map(Function)} - the per-slot rewrite a scaled wearer registers through. */
+        public static final @NotNull String MAP = "map";
 
         /** {@code EntityRenderer.setupRotations} - the yaw-addend override. */
         public static final @NotNull String SETUP_ROTATIONS = "setupRotations";
@@ -344,6 +402,9 @@ public final class VanillaSourceClasses {
         /** {@code RenderLayer.coloredCutoutModelCopyLayerRender} - the tinted cutout-copy helper (implies entityCutout). */
         public static final @NotNull String COLORED_CUTOUT_HELPER = "coloredCutoutModelCopyLayerRender";
 
+        /** {@code RenderLayer.renderColoredCutoutModel} - the per-pass cutout submit a model select feeds. */
+        public static final @NotNull String RENDER_COLORED_CUTOUT_MODEL = "renderColoredCutoutModel";
+
         /** {@code RenderLayer.submit} - the per-layer render entry the structural gates walk. */
         public static final @NotNull String SUBMIT = "submit";
 
@@ -352,6 +413,9 @@ public final class VanillaSourceClasses {
 
         /** {@code PartDefinition.retainExactParts} - the subset-mesh transformer (warden spots, creaking eyes). */
         public static final @NotNull String RETAIN_EXACT_PARTS = "retainExactParts";
+
+        /** {@code PartDefinition.clearChild} - the cube-clearing child replace a head-stripped mesh opens with. */
+        public static final @NotNull String CLEAR_CHILD = "clearChild";
 
         /** {@code ColorLerper$Type.getColor(DyeColor)} - the dyed-overlay tint accessor. */
         public static final @NotNull String GET_COLOR = "getColor";
@@ -421,6 +485,19 @@ public final class VanillaSourceClasses {
         /** {@code DataComponents.ENCHANTMENT_GLINT_OVERRIDE} - the always-foil component the glint walk keys on. */
         public static final @NotNull String ENCHANTMENT_GLINT_OVERRIDE = "ENCHANTMENT_GLINT_OVERRIDE";
 
+        /** {@code OverlayTexture.NO_OVERLAY} - the {@code submitModel} argument its colour argument follows. */
+        public static final @NotNull String NO_OVERLAY = "NO_OVERLAY";
+
+        /**
+         * Suffix of {@code HumanoidModel.ADULT_ARMOR_PARTS_PER_SLOT} /
+         * {@code BABY_ARMOR_PARTS_PER_SLOT} - the per-slot part table an armor-set factory hands its
+         * fan-out, and the one thing in {@code createRoots} that says which shell a set builds.
+         */
+        public static final @NotNull String ARMOR_PARTS_PER_SLOT_SUFFIX = "_ARMOR_PARTS_PER_SLOT";
+
+        /** Prefix of the aged-down member of that pair. */
+        public static final @NotNull String BABY_ARMOR_PARTS_PREFIX = "BABY";
+
     }
 
     /** Descriptor composer - no hand-assembled descriptors survive anywhere. */
@@ -440,6 +517,44 @@ public final class VanillaSourceClasses {
 
         /** The {@code ModelPart} field / return-type reference descriptor. */
         public static final @NotNull String MODEL_PART_REF = ref(Types.MODEL_PART);
+
+        /** The {@code ArmorModelSet} field reference descriptor - the type that names an armor mesh. */
+        public static final @NotNull String ARMOR_MODEL_SET_REF = ref(Types.ARMOR_MODEL_SET);
+
+        /** The {@code CubeDeformation} field / parameter reference descriptor - the inflate carrier. */
+        public static final @NotNull String CUBE_DEFORMATION_REF = ref(Types.CUBE_DEFORMATION);
+
+        /** The {@code MeshDefinition} return-type reference descriptor. */
+        public static final @NotNull String MESH_DEFINITION_REF = ref(Types.MESH_DEFINITION);
+
+        /** The {@code EntityDataAccessor} field reference descriptor - a synched field's registration key. */
+        public static final @NotNull String ENTITY_DATA_ACCESSOR_REF = ref(Types.ENTITY_DATA_ACCESSOR);
+
+        /**
+         * Descriptor of the adult armor-set factory
+         * {@code (CubeDeformation inner, CubeDeformation outer)ArmorModelSet} - the shape that
+         * separates an adult set from vanilla's three-argument baby one.
+         */
+        public static final @NotNull String ARMOR_MESH_SET_DESC =
+            of(ARMOR_MODEL_SET_REF, CUBE_DEFORMATION_REF, CUBE_DEFORMATION_REF);
+
+        /** Descriptor of the base armor-mesh factory {@code (CubeDeformation)MeshDefinition}. */
+        public static final @NotNull String BASE_ARMOR_MESH_DESC =
+            of(MESH_DEFINITION_REF, CUBE_DEFORMATION_REF);
+
+        /** The {@code PartPose} field / parameter reference descriptor - the pose carrier. */
+        public static final @NotNull String PART_POSE_REF = ref(Types.PART_POSE);
+
+        /**
+         * Descriptor of the baby armor-set factory
+         * {@code (CubeDeformation inner, CubeDeformation outer, PartPose armOffset)ArmorModelSet} -
+         * the trailing pose is what separates it from the adult two-argument shape.
+         */
+        public static final @NotNull String BABY_ARMOR_MESH_SET_DESC =
+            of(ARMOR_MODEL_SET_REF, CUBE_DEFORMATION_REF, CUBE_DEFORMATION_REF, PART_POSE_REF);
+
+        /** Descriptor of a no-argument {@code float} accessor - {@code PartPose}'s three offsets. */
+        public static final @NotNull String FLOAT_ACCESSOR_DESC = of("F");
 
         /**
          * Composes a method descriptor from already-valid type descriptors.
@@ -483,6 +598,16 @@ public final class VanillaSourceClasses {
 
         /** The vanilla resource namespace prefix. */
         public static final @NotNull String MINECRAFT_NAMESPACE = "minecraft:";
+
+        /**
+         * Drops the {@link #MINECRAFT_NAMESPACE} prefix from an id, leaving the bare path.
+         *
+         * @param id the id to strip
+         * @return the namespace-less id, or {@code id} itself when it carries another namespace
+         */
+        public static @NotNull String stripNamespace(@NotNull String id) {
+            return id.startsWith(MINECRAFT_NAMESPACE) ? id.substring(MINECRAFT_NAMESPACE.length()) : id;
+        }
 
         /** The data-driven variant-table directory suffix ({@code data/minecraft/<stem>_variant/}). */
         public static final @NotNull String VARIANT_DIR_SUFFIX = "_variant";
@@ -589,6 +714,12 @@ public final class VanillaSourceClasses {
 
         /** {@code BlendFunction.ADDITIVE} - the additive-glow blend constant (energy swirl). */
         public static final @NotNull String ADDITIVE = "ADDITIVE";
+
+        /** {@code DepthStencilState.DEFAULT} - the {@code LESS_THAN_OR_EQUAL}, depth-writing state. */
+        public static final @NotNull String DEPTH_STENCIL_DEFAULT = "DEFAULT";
+
+        /** {@code RenderSetup$RenderSetupBuilder.sortOnUpload} - the back-to-front quad-sort declaration. */
+        public static final @NotNull String SORT_ON_UPLOAD = "sortOnUpload";
 
     }
 

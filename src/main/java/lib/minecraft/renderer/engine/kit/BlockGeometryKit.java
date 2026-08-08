@@ -8,13 +8,16 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.face.BlockFace;
-import lib.minecraft.renderer.face.EntityFace;
-import lib.minecraft.renderer.face.SixFaces;
+import lib.minecraft.renderer.face.CornerPhase;
+import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.face.FaceTextures;
+import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -22,8 +25,10 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -32,8 +37,9 @@ import java.util.Set;
  * The primary use case is constructing the six-face cube used by every isometric block and head
  * renderer. Each cube face is built as a pair of triangles with the correct CCW winding, UV
  * orientation, and surface normal so that back-face culling and inventory lighting produce the
- * expected result without caller-side fixups. All direction-aware logic - vertex winding, normals,
- * and default UV derivation - lives on {@link BlockFace}.
+ * expected result without caller-side fixups. All direction-aware logic lives in the face package:
+ * normals on {@link Face}, vertex winding on {@link CornerPhase}, default UV derivation on
+ * {@link Unwrap}.
  */
 @UtilityClass
 public class BlockGeometryKit {
@@ -43,7 +49,7 @@ public class BlockGeometryKit {
      * and {@code item/} model JSON authors coordinates against this grid - element
      * {@code from} / {@code to} values of {@code [0, 0, 0]} and {@code [16, 16, 16]} describe a
      * full unit cube, face UVs run from {@code 0} to {@code 16}, and {@code display.*.translation}
-     * values are in the same space. This kit and its consumers ({@link BlockFace#defaultUv},
+     * values are in the same space. This kit and its consumers ({@link Unwrap.Element#rect},
      * {@link BlockRenderer}, item renderer's display-transform path) divide by this constant to
      * normalise into the engine's {@code [-0.5, +0.5]} unit-cube space before projection.
      */
@@ -58,6 +64,12 @@ public class BlockGeometryKit {
      */
     private static final int FULL_LIGHT_EMISSION = 15;
 
+    /**
+     * The engine's normalized cube - the {@code [-0.5, +0.5]} span on every axis that every block
+     * element is converted into, and the box {@link #unitCube} builds.
+     */
+    private static final @NotNull Box UNIT_CUBE = new Box(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f);
+
 
     /**
      * Builds a list of 12 triangles (2 per face) describing a unit cube centered at the origin
@@ -65,71 +77,80 @@ public class BlockGeometryKit {
      * <p>
      * Every face uses the full {@code [0, 1]} UV rectangle.
      *
-     * @param faces the six face textures, keyed by {@link BlockFace} direction
+     * @param textures the texture each face paints
      * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
      * @return the 12-triangle list, ready for rasterization
      */
     public static @NotNull ConcurrentList<VisibleTriangle> unitCube(
-        @NotNull SixFaces faces,
+        @NotNull FaceTextures textures,
         int tintArgb
     ) {
-        return buildBoxTriangles(
-            new Vector3f(-0.5f, -0.5f, -0.5f),
-            new Vector3f(0.5f, 0.5f, 0.5f),
-            faces,
-            tintArgb
-        );
+        return buildBox(UNIT_CUBE, textures, tintArgb);
     }
 
     /**
-     * Builds a list of 12 triangles describing a box defined by minimum and maximum corners.
+     * Builds a list of 12 triangles describing an opaque, back-face-culled box, emitting untagged
+     * triangles.
      *
-     * @param min the minimum corner in model space
-     * @param max the maximum corner in model space
-     * @param faces the six face textures, keyed by {@link BlockFace} direction
+     * @param box the box in model space
+     * @param textures the texture each face paints
      * @param tintArgb the ARGB tint applied to every face
      * @return the 12-triangle list
      */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildBoxTriangles(
-        @NotNull Vector3f min,
-        @NotNull Vector3f max,
-        @NotNull SixFaces faces,
+    public static @NotNull ConcurrentList<VisibleTriangle> buildBox(
+        @NotNull Box box,
+        @NotNull FaceTextures textures,
         int tintArgb
     ) {
-        return buildBoxTriangles(min, max, faces, tintArgb, false);
+        return buildBox(box, textures, tintArgb, SurfaceTraits.OPAQUE_BODY, null);
     }
 
     /**
-     * Builds a list of 12 triangles describing a box, marking every face as glinted when
-     * {@code glinted} is set so the rasterizer's foil mask covers the whole box. Used by
-     * {@code ArmorKit} to build worn-armor cubes that receive the enchantment glint, baking the flag
-     * at construction instead of rewriting the triangles afterward.
+     * Builds a list of 12 triangles describing a box, carrying the surface character and the
+     * per-pixel-trace name the caller declares.
+     * <p>
+     * <b>One builder serves every box this renderer draws</b> - a block's unit cube, an item slab, the
+     * player's own body boxes, the cape, and a worn armour shell. Armour geometry does not differ from
+     * block geometry by a code path; it differs by the two bits between
+     * {@link SurfaceTraits#OPAQUE_BODY} and {@link SurfaceTraits#WORN_SHELL}, which is why those two
+     * constants are the whole of the distinction and why they carry their own reasons.
+     * <p>
+     * {@code debugPart} names the box for the per-pixel trace and each face's two triangles carry
+     * {@code part:face}. Without a tag an armour fragment logs {@code tag=null} and the trace skips it
+     * entirely, which has misread the armour seam twice - so a caller holding a name passes it whenever
+     * {@link RendererDebug#tracingPixels()} reports the dump armed. The name reaches the triangle as an
+     * argument rather than being recovered downstream from emission order.
      *
-     * @param min the minimum corner in model space
-     * @param max the maximum corner in model space
-     * @param faces the six face textures, keyed by {@link BlockFace} direction
+     * @param box the box in model space
+     * @param textures the texture each face paints
      * @param tintArgb the ARGB tint applied to every face
-     * @param glinted whether every face is worn-armor geometry receiving the enchantment foil
+     * @param surface the surface character every triangle of the box carries
+     * @param debugPart the box's name for the per-pixel trace, or {@code null} to emit untagged
      * @return the 12-triangle list
      */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildBoxTriangles(
-        @NotNull Vector3f min,
-        @NotNull Vector3f max,
-        @NotNull SixFaces faces,
+    public static @NotNull ConcurrentList<VisibleTriangle> buildBox(
+        @NotNull Box box,
+        @NotNull FaceTextures textures,
         int tintArgb,
-        boolean glinted
+        @NotNull SurfaceTraits surface,
+        @Nullable String debugPart
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        Box box = Box.of(min, max);
+        // The full [0, 1] rectangle - the UV every face of a box takes. One quartet serves all six
+        // faces because Vector2f is immutable, so the instances are shared rather than re-derived.
+        Vector2f[] uv = {
+            new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f)
+        };
 
-        for (BlockFace face : BlockFace.CACHED_VALUES) {
-            Vector3f[] corners = face.corners(box);
+        for (Face face : Face.CACHED_VALUES) {
+            Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
+            Vector3f normal = face.normal();
             addQuad(
-                triangles,
-                corners[0], corners[1], corners[2], corners[3],
-                faces.byFace(face), tintArgb,
-                face.normal(),
-                glinted
+                triangles, corners, uv,
+                textures.byFace(face), tintArgb,
+                normal, Lighting.inventory(normal),
+                surface,
+                debugPart == null ? null : debugPart + ":" + face.direction()
             );
         }
 
@@ -144,7 +165,7 @@ public class BlockGeometryKit {
      * pre-flattened block elements.
      * <p>
      * Each cube is walked with the same entity conventions the {@link EntityGeometryKit} uses -
-     * bone-local origins scaled by the bone's {@code scale}, {@link EntityFace} atlas-UV unwrap
+     * bone-local origins scaled by the bone's {@code scale}, {@link Face} atlas-UV unwrap
      * (via {@link BoneKit#resolvePolygonUv}), inflate, mirror, and per-cube / bind-pose
      * rotation (via {@link BoneKit#composeCubeTransform}) - then emitted in the block engine's
      * {@code [-0.5, +0.5]} frame by dividing the composed pixel-space position by
@@ -218,9 +239,9 @@ public class BlockGeometryKit {
                 Matrix4f cubeTransform = presentation.multiply(BoneKit.composeCubeTransform(cube, bone, boneChain));
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
 
-                for (EntityFace face : EntityFace.CACHED_VALUES) {
+                for (Face face : Face.CACHED_VALUES) {
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
-                    Vector3f[] corners = face.corners(cubeBounds);
+                    Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
                     for (int i = 0; i < corners.length; i++) {
                         Vector3f t = corners[i].transform(cubeTransform);
                         corners[i] = new Vector3f(
@@ -231,11 +252,9 @@ public class BlockGeometryKit {
                     Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
                     Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
                     boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
-                    addQuad(triangles,
-                        corners[0], corners[1], corners[2], corners[3],
-                        uv[0], uv[1], uv[2], uv[3],
-                        texture, tintArgb, normal,
-                        !isPlaneCube, translucent, true, 0, false);
+                    addQuad(triangles, corners, uv,
+                        texture, tintArgb, normal, Lighting.inventory(normal),
+                        new SurfaceTraits(!isPlaneCube, translucent, false, PassDeclaration.DEFAULT), null);
                 }
             }
         }
@@ -244,10 +263,35 @@ public class BlockGeometryKit {
     }
 
     /**
+     * Resolves a per-face texture substitution, letting a caller swap the pre-loaded texture of a
+     * given face for another (the Connected Textures block-face hook). The kit calls it per face with
+     * the face direction and its raw {@code #ref}; an empty return leaves the pre-loaded texture in
+     * place, so {@link #NONE} keeps every build byte-identical.
+     */
+    @FunctionalInterface
+    public interface FaceTextureResolver {
+
+        /**
+         * The inert resolver - every face falls through to its pre-loaded texture.
+         */
+        @NotNull FaceTextureResolver NONE = (face, rawRef) -> Optional.empty();
+
+        /**
+         * Resolves a substitute texture for one face, or empty to keep the pre-loaded one.
+         *
+         * @param face the face direction being built
+         * @param rawRef the face's raw texture ref (the {@link ModelFace#getTexture()} key)
+         * @return the substitute texture, or empty to fall through to the pre-loaded texture
+         */
+        @NotNull Optional<PixelBuffer> resolve(@NotNull Face face, @NotNull String rawRef);
+
+    }
+
+    /**
      * Per-build parameters for {@link #buildFromElements(ConcurrentList, Map, ElementBuildParams)}:
-     * the per-face tints, the blockstate variant rotation, the {@code uvlock} flag, and the
-     * force-translucent face refs. Bundles the values that vary per build so callers name them
-     * instead of threading a positional overload cascade.
+     * the per-face tints, the blockstate variant rotation, the {@code uvlock} flag, the
+     * force-translucent face refs, and the per-face texture resolver. Bundles the values that vary per
+     * build so callers name them instead of threading a positional overload cascade.
      *
      * @param tintedArgb ARGB applied to faces with {@code tintindex >= 0}
      * @param untintedArgb ARGB applied to faces with {@code tintindex = -1}
@@ -256,6 +300,8 @@ public class BlockGeometryKit {
      * @param uvLock whether the blockstate variant requested {@code uvlock}
      * @param forceTranslucentRefs raw face-texture refs whose model entry carried
      *     {@code force_translucent}, sorted into the translucent pass regardless of texel alpha
+     * @param ctm the per-face texture resolver - {@link FaceTextureResolver#NONE} unless a block render
+     *     supplies a Connected Textures resolver
      */
     public record ElementBuildParams(
         int tintedArgb,
@@ -263,7 +309,8 @@ public class BlockGeometryKit {
         int variantRotationX,
         int variantRotationY,
         boolean uvLock,
-        @NotNull Set<String> forceTranslucentRefs
+        @NotNull Set<String> forceTranslucentRefs,
+        @NotNull FaceTextureResolver ctm
     ) {}
 
     /**
@@ -275,7 +322,7 @@ public class BlockGeometryKit {
      * the engine's normalized {@code [-0.5, +0.5]} cube space, matching the convention used by
      * {@link #unitCube}. Faces missing from an element's {@code faces} map - or carrying an
      * unrecognized direction name - are skipped. Face UV rectangles are converted from 0-16 to
-     * {@code [0, 1]} space when present, otherwise derived via {@link BlockFace#defaultUv}. Face
+     * {@code [0, 1]} space when present, otherwise derived via {@link Unwrap.Element#rect}. Face
      * {@code rotation} ({@code 0}/{@code 90}/{@code 180}/{@code 270} degrees) rotates the UV
      * corners clockwise.
      * <p>
@@ -298,42 +345,50 @@ public class BlockGeometryKit {
         @NotNull Map<String, PixelBuffer> faceTextures,
         int tintArgb
     ) {
-        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintArgb, tintArgb, 0, 0, false, Set.of()));
+        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintArgb, tintArgb, 0, 0, false, Set.of(), FaceTextureResolver.NONE));
     }
 
     /**
-     * Per-face-tint variant of {@link #buildFromElements(ConcurrentList, Map, int)}. Faces whose
+     * Per-face-tint, {@code force_translucent}-aware variant of
+     * {@link #buildFromElements(ConcurrentList, Map, int)}. Faces whose
      * {@link ModelFace#getTintIndex() tintindex} is {@code >= 0} receive {@code tintedArgb}; faces
      * with {@code tintindex = -1} (the default) receive {@code untintedArgb}. Callers that want
-     * uniform tinting pass the same value for both, which is what the single-argument overload
-     * does.
+     * uniform tinting pass the same value for both, which is what the single-tint overload does.
+     * Refs present in {@code forceTranslucentRefs} join the translucent pass regardless of texel
+     * alpha.
      * <p>
-     * Used by {@link BlockRenderer} to honour vanilla's
-     * {@code "tintindex": 0} on banner-flag faces: the flag receives the dye colour, the pole
-     * and bar stay wood-brown. Biome-tinted blocks (grass_block, leaves) continue to call the
-     * uniform overload so every face still picks up the biome colormap sample.
+     * The split tint is what honours vanilla's {@code "tintindex": 0} on banner-flag faces: the
+     * flag receives the dye colour, the pole and bar stay wood-brown. Biome-tinted blocks
+     * (grass_block, leaves) call the uniform overload instead, so every face still picks up the
+     * biome colormap sample.
      *
      * @param tintedArgb ARGB applied to faces with {@code tintindex >= 0}
      * @param untintedArgb ARGB applied to faces with {@code tintindex = -1}
+     * @param forceTranslucentRefs raw face-texture refs flagged {@code force_translucent} by the model
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
         @NotNull ConcurrentList<ModelElement> elements,
         @NotNull Map<String, PixelBuffer> faceTextures,
         int tintedArgb,
-        int untintedArgb
+        int untintedArgb,
+        @NotNull Set<String> forceTranslucentRefs
     ) {
-        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, Set.of()));
+        return buildFromElements(elements, faceTextures,
+            new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, forceTranslucentRefs, FaceTextureResolver.NONE));
     }
 
     /**
-     * {@code uvlock}-aware variant of
-     * {@link #buildFromElements(ConcurrentList, Map, int, int)}. When {@code uvLock} is set, the
-     * UV of every face whose normal lies along the blockstate variant's Y-rotation axis (the
-     * {@code up} and {@code down} faces) is counter-rotated by the variant's Y angle so the
-     * texture stays aligned to the world grid rather than spinning with the rotated model -
-     * matching vanilla's per-face {@code uvlock} baking. The caller still applies the variant's
-     * position rotation separately (the UV lock is independent of where the vertices land), so
-     * passing {@code uvLock = false} reproduces the plain overload byte-for-byte.
+     * Core build that converts a resolved element list into rasterizer-ready triangles from the
+     * supplied {@link ElementBuildParams}. The two positional overloads delegate here. See
+     * {@link #buildFromElements(ConcurrentList, Map, int)} for the element-to-triangle conversion
+     * details (bounds normalization, UV derivation, element rotation).
+     * <p>
+     * When {@link ElementBuildParams#uvLock()} is set, the UV of every face whose normal lies along
+     * the blockstate variant's Y-rotation axis (the {@code up} and {@code down} faces) is
+     * counter-rotated by the variant's Y angle so the texture stays aligned to the world grid rather
+     * than spinning with the rotated model - matching vanilla's per-face {@code uvlock} baking. The
+     * caller still applies the variant's position rotation separately (the UV lock is independent of
+     * where the vertices land), so an unset flag reproduces the unrotated build byte-for-byte.
      * <p>
      * Both rotation axes are handled. A Y rotation spins the {@code up}/{@code down} faces in
      * place (stairs, walls, fence gates), so only those are counter-rotated. An X rotation tips
@@ -342,68 +397,6 @@ public class BlockGeometryKit {
      * {@code resin_clump} blocks and the single-face {@code mushroom_block}/{@code mushroom_stem}
      * skins, plus the quarter-turn {@code east}/{@code west} side corrections a thick box such as a
      * wall button needs (see {@link #uvLockQuarterTurns} for the full per-face table).
-     *
-     * @param variantRotationX the variant's whole-model X rotation in degrees (0/90/180/270)
-     * @param variantRotationY the variant's whole-model Y rotation in degrees (0/90/180/270)
-     * @param uvLock whether the blockstate variant requested {@code uvlock}
-     */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
-        @NotNull ConcurrentList<ModelElement> elements,
-        @NotNull Map<String, PixelBuffer> faceTextures,
-        int tintedArgb,
-        int untintedArgb,
-        int variantRotationX,
-        int variantRotationY,
-        boolean uvLock
-    ) {
-        return buildFromElements(elements, faceTextures,
-            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, Set.of()));
-    }
-
-    /**
-     * {@code force_translucent}-aware variant of {@link #buildFromElements(ConcurrentList, Map, int, int)}.
-     * Refs present in {@code forceTranslucentRefs} join the translucent pass regardless of texel alpha.
-     *
-     * @param forceTranslucentRefs raw face-texture refs flagged {@code force_translucent} by the model
-     */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
-        @NotNull ConcurrentList<ModelElement> elements,
-        @NotNull Map<String, PixelBuffer> faceTextures,
-        int tintedArgb,
-        int untintedArgb,
-        @NotNull Set<String> forceTranslucentRefs
-    ) {
-        return buildFromElements(elements, faceTextures,
-            new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, forceTranslucentRefs));
-    }
-
-    /**
-     * {@code force_translucent}-aware variant of
-     * {@link #buildFromElements(ConcurrentList, Map, int, int, int, int, boolean)}. Refs present in
-     * {@code forceTranslucentRefs} join the translucent pass regardless of texel alpha.
-     *
-     * @param forceTranslucentRefs raw face-texture refs flagged {@code force_translucent} by the model
-     */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
-        @NotNull ConcurrentList<ModelElement> elements,
-        @NotNull Map<String, PixelBuffer> faceTextures,
-        int tintedArgb,
-        int untintedArgb,
-        int variantRotationX,
-        int variantRotationY,
-        boolean uvLock,
-        @NotNull Set<String> forceTranslucentRefs
-    ) {
-        return buildFromElements(elements, faceTextures,
-            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, forceTranslucentRefs));
-    }
-
-    /**
-     * Core build that converts a resolved element list into rasterizer-ready triangles from the
-     * supplied {@link ElementBuildParams}. The three positional overloads delegate here. See
-     * {@link #buildFromElements(ConcurrentList, Map, int)} for the element-to-triangle conversion
-     * details (bounds normalization, UV derivation, element rotation) and the {@code uvlock}
-     * overload for the variant-rotation UV handling.
      *
      * @param elements the fully-resolved element list
      * @param faceTextures a map keyed by the exact {@link ModelFace#getTexture()} string to a
@@ -422,6 +415,7 @@ public class BlockGeometryKit {
         int variantRotationY = params.variantRotationY();
         boolean uvLock = params.uvLock();
         Set<String> forceTranslucentRefs = params.forceTranslucentRefs();
+        FaceTextureResolver ctm = params.ctm();
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
@@ -480,16 +474,17 @@ public class BlockGeometryKit {
             boolean twoSided = x0 == x1 || y0 == y1 || z0 == z1;
 
             for (Map.Entry<String, ModelFace> entry : element.getFaces().entrySet()) {
-                BlockFace blockFace = BlockFace.fromName(entry.getKey());
+                Face blockFace = Face.fromName(entry.getKey());
                 if (blockFace == null) continue;
 
                 ModelFace face = entry.getValue();
-                PixelBuffer texture = faceTextures.get(face.getTexture());
+                PixelBuffer texture = ctm.resolve(blockFace, face.getTexture())
+                    .orElseGet(() -> faceTextures.get(face.getTexture()));
                 if (texture == null) continue;
 
                 int uvLockTurns = uvLock ? uvLockQuarterTurns(blockFace, variantRotationX, variantRotationY) : 0;
                 Vector2f[] uv = resolveFaceUv(face, blockFace, element, uvLockTurns);
-                Vector3f[] corners = blockFace.corners(new Box(x0, y0, z0, x1, y1, z1));
+                Vector3f[] corners = CornerPhase.BAKERY.corners(blockFace, new Box(x0, y0, z0, x1, y1, z1));
                 Vector3f faceNormal = blockFace.normal();
 
                 if (elementTransform != null) {
@@ -510,16 +505,12 @@ public class BlockGeometryKit {
                 boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture)
                     || forceTranslucentRefs.contains(face.getTexture());
                 addQuad(
-                    triangles,
-                    corners[0], corners[1], corners[2], corners[3],
-                    uv[0], uv[1], uv[2], uv[3],
+                    triangles, corners, uv,
                     texture, faceTint,
                     faceNormal,
-                    !twoSided,
-                    translucent,
-                    element.isShade(),
-                    element.getLightEmission(),
-                    false
+                    elementShade(faceNormal, element.isShade(), element.getLightEmission()),
+                    new SurfaceTraits(!twoSided, translucent, false, PassDeclaration.DEFAULT),
+                    null
                 );
             }
         }
@@ -530,7 +521,7 @@ public class BlockGeometryKit {
     /**
      * Resolves the four UV corners (TL, BL, BR, TR) for a face in normalized {@code [0, 1]}
      * space. When the face supplies an explicit UV rectangle in 0-16 space it is used directly;
-     * otherwise the rectangle is delegated to {@link BlockFace#defaultUv}. Face rotation of
+     * otherwise the rectangle is delegated to {@link Unwrap.Element#rect}. Face rotation of
      * {@code 90}/{@code 180}/{@code 270} is applied by
      * {@link Vector4f#toUvCorners(float, float, int, boolean)} via a forward cyclic shift
      * matching vanilla's {@code Quadrant}-based UV rotation.
@@ -545,19 +536,19 @@ public class BlockGeometryKit {
      */
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
         @NotNull ModelFace face,
-        @NotNull BlockFace blockFace,
+        @NotNull Face blockFace,
         @NotNull ModelElement element,
         int uvLockQuarterTurnsCw
     ) {
         Vector4f rect = face.getUv()
-            .orElseGet(() -> blockFace.defaultUv(Box.of(element.getFrom(), element.getTo())));
+            .orElseGet(() -> new Unwrap.Element(Box.of(element.getFrom(), element.getTo())).rect(blockFace));
         Vector2f[] corners = rect.toUvCorners(
             VANILLA_PIXEL_UNITS_PER_BLOCK,
             VANILLA_PIXEL_UNITS_PER_BLOCK,
             face.getRotation(),
             false
         );
-        return rotateUvAboutCenter(corners, uvLockQuarterTurnsCw);
+        return CornerPhase.BAKERY.permuteUv(blockFace, rotateUvAboutCenter(corners, uvLockQuarterTurnsCw));
     }
 
     /**
@@ -618,7 +609,7 @@ public class BlockGeometryKit {
      * opposite side so it takes the opposite sense. Side faces keep their vertical axis under Y and
      * need no correction.
      */
-    private static int uvLockQuarterTurns(@NotNull BlockFace face, int variantRotationX, int variantRotationY) {
+    private static int uvLockQuarterTurns(@NotNull Face face, int variantRotationX, int variantRotationY) {
         if (variantRotationX != 0)
             return switch (variantRotationX) {
                 case 90 -> switch (face) {
@@ -648,91 +639,94 @@ public class BlockGeometryKit {
     }
 
     /**
-     * Adds two triangles describing a quad defined by four CCW-ordered vertices to the given list.
-     * <p>
-     * Vertex order is top-left, bottom-left, bottom-right, top-right when viewed from the
-     * positive normal direction, matching vanilla's {@code FaceInfo} convention. UV mapping is
-     * fixed to the full {@code [0, 1]} rectangle.
-     */
-    private static void addQuad(
-        @NotNull ConcurrentList<VisibleTriangle> out,
-        @NotNull Vector3f topLeft,
-        @NotNull Vector3f bottomLeft,
-        @NotNull Vector3f bottomRight,
-        @NotNull Vector3f topRight,
-        @NotNull PixelBuffer texture,
-        int tintArgb,
-        @NotNull Vector3f normal,
-        boolean glinted
-    ) {
-        addQuad(out,
-            topLeft, bottomLeft, bottomRight, topRight,
-            new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            texture, tintArgb, normal, true, false, true, 0, glinted);
-    }
-
-    /**
-     * Terminal quad emitter: splits a CCW quad into its two triangles and appends them to
-     * {@code out}, baking the inventory shade factor and {@link SurfaceTraits surface traits} into
-     * each so the rasterizer needs no per-triangle face lookup.
+     * Bakes the shade one face of a block element carries - the {@link Lighting#inventory} cardinal
+     * shade, {@link Shading#DISABLED} for a {@code "shade": false} element, or an emission-raised
+     * floor.
      * <p>
      * {@link Lighting#inventory} resolves the dominant cardinal of the (post-element-rotation) face
      * normal and returns the matching vanilla {@code Lighting.ITEMS_3D} approximation -
-     * cardinal-aligned faces reproduce the per-face values on {@link BlockFace#lighting}
+     * cardinal-aligned faces reproduce the per-face values on {@link Face#lighting}
      * ({@code 1.0}/{@code 0.5}/{@code 0.6}/{@code 0.8}), and faces tipped by {@code element.rotation}
-     * resolve to the closest cardinal's shade. When {@code directionalLight} is {@code false} (a face
-     * of a {@code "shade": false} element) the shade is instead {@link Shading#DISABLED}, so the
-     * relight pass renders it full-bright to match vanilla's in-world {@code getShade(dir, false) == 1.0}.
+     * resolve to the closest cardinal's shade. A {@code "shade": false} element takes
+     * {@link Shading#DISABLED} instead, so the relight pass renders it full-bright to match vanilla's
+     * in-world {@code getShade(dir, false) == 1.0}.
+     * <p>
+     * {@code light_emission} folds on top by raising the shade <b>floor</b> to {@code emission / 15},
+     * never by mapping to the {@link Shading#DISABLED} sentinel - which renders BLACK on the
+     * no-relight Held3D item path ({@code apply(-1)}). So an emissive {@code shade: true} face bakes a
+     * real {@code [0,1]} scalar that renders full-bright on Held3D and, on the block-icon path, is
+     * recomputed by {@link Shading#relightForItems3d}, where the floor is a documented Held3D-side
+     * effect. Vanilla's only emissive elements are {@code shade: false}, so they take the disabled
+     * branch unchanged and the fold is a no-op on vanilla content.
+     * <p>
+     * <b>Only the element path asks this.</b> A box, a bone cube, a fluid face and the shield have no
+     * element, no {@code shade} flag and no emission, so they bake {@link Lighting#inventory} directly
+     * rather than routing a {@code true, 0} pair through here - which is what those two literals used
+     * to hide.
      *
-     * @param cullBackFaces whether the rasterizer culls the away-facing side of these triangles
-     * @param translucent whether the face samples partial-alpha texels and must sort back-to-front
+     * @param normal the face normal, after any {@code element.rotation}
      * @param directionalLight whether the face receives {@code ITEMS_3D} shading, or full-bright when
      *     {@code false} (a {@code "shade": false} element)
-     * @param lightEmission the element's {@code light_emission} level {@code 0-15}: raises the baked
-     *     shade floor to {@code emission / 15}, full-bright at {@code 15};
-     *     {@code 0} leaves the shade untouched. The floor is a real {@code [0,1]} scalar (not the
-     *     {@link Shading#DISABLED} sentinel, which renders black on the un-relit Held3D path)
-     * @param glinted whether the face is worn-armor geometry receiving the enchantment foil
+     * @param lightEmission the element's {@code light_emission} level {@code 0-15}; {@code 0} leaves
+     *     the shade untouched and {@code 15} raises the floor to full-bright
+     * @return the shade scalar every triangle of the face carries
      */
-    private static void addQuad(
+    private static float elementShade(@NotNull Vector3f normal, boolean directionalLight, int lightEmission) {
+        if (!directionalLight) return Shading.DISABLED;
+        if (lightEmission > 0) {
+            float emissionFloor = Math.min(lightEmission, FULL_LIGHT_EMISSION) / (float) FULL_LIGHT_EMISSION;
+            return Math.max(Lighting.inventory(normal), emissionFloor);
+        }
+        return Lighting.inventory(normal);
+    }
+
+    /**
+     * The renderer's one quad emitter: splits a planar quad into its two triangles and appends them to
+     * {@code out}.
+     * <p>
+     * <b>The fan diagonal is chosen here, and every planar quad the renderer draws is split by this
+     * one line.</b> The triangles are {@code (0, 1, 2)} and {@code (0, 2, 3)}, so they meet along the
+     * corner-0 / corner-2 pair - the diagonal {@link CornerPhase} pins. That is not a matter of taste:
+     * two coplanar quads split on opposite diagonals fight along the seam they share, an equal depth
+     * passes ({@code GL_LEQUAL}, last-drawn-wins), and the winner is then decided by emission order. A
+     * block element, a bone cube, a fluid side and the shield used to spell this split independently
+     * and agreed by luck.
+     * <p>
+     * Both triangles carry one {@code normal}, one {@code shading} and one {@code traits} instance -
+     * that sharing is what makes them one quad rather than two triangles. A caller whose halves need
+     * different values has no shared per-quad value to hand in and emits its own pair; the renderer's
+     * only such site is a fluid's sloped top, whose four corners are not coplanar.
+     * <p>
+     * The shade is the caller's, baked before the call: {@link Lighting#inventory} for a box, a bone
+     * cube, a fluid face or the shield, {@link #elementShade} where a block element declares
+     * {@code shade} or {@code light_emission}, and the entity light frame's own scalar for an entity
+     * cube. Baking it here instead would make the emitter answer a lighting question only some of its
+     * callers ask.
+     *
+     * @param out the list both triangles are appended to
+     * @param corners the quad's four vertices, in the order the caller's {@link CornerPhase} walks them
+     * @param uv the four UVs, {@code uv[i]} pairing with {@code corners[i]}
+     * @param texture the texture both triangles sample
+     * @param tintArgb the ARGB tint applied to each sampled pixel, or {@code 0xFFFFFFFF} for no tint
+     * @param normal the surface normal both triangles carry
+     * @param shading the shade scalar both triangles carry
+     * @param traits the surface character both triangles carry, declared by the caller
+     * @param debugTag the {@code part:face} label for the per-pixel trace, or {@code null} when the
+     *     dump is not armed
+     */
+    static void addQuad(
         @NotNull ConcurrentList<VisibleTriangle> out,
-        @NotNull Vector3f topLeft,
-        @NotNull Vector3f bottomLeft,
-        @NotNull Vector3f bottomRight,
-        @NotNull Vector3f topRight,
-        @NotNull Vector2f uvTL,
-        @NotNull Vector2f uvBL,
-        @NotNull Vector2f uvBR,
-        @NotNull Vector2f uvTR,
+        @NotNull Vector3f @NotNull [] corners,
+        @NotNull Vector2f @NotNull [] uv,
         @NotNull PixelBuffer texture,
         int tintArgb,
         @NotNull Vector3f normal,
-        boolean cullBackFaces,
-        boolean translucent,
-        boolean directionalLight,
-        int lightEmission,
-        boolean glinted
+        float shading,
+        @NotNull SurfaceTraits traits,
+        @Nullable String debugTag
     ) {
-        // Shade baked per triangle (see the javadoc): inventory cardinal shade, or full-bright
-        // DISABLED for a "shade": false element. light_emission folds on top by
-        // raising the shade FLOOR to emission/15 (capped at 1.0 for the full 15) - NOT by mapping to
-        // the DISABLED sentinel, which renders BLACK on the no-relight Held3D item path (apply(-1)).
-        // So an emissive shade:true face bakes a real [0,1] scalar that renders full-bright on Held3D
-        // and, on the block-icon path, is recomputed by Shading.relightForItems3d (the floor is a
-        // documented Held3D-side effect there). Vanilla's only emissive elements are shade:false, so
-        // they take the DISABLED branch below unchanged - the fold is a no-op on vanilla.
-        float shading;
-        if (!directionalLight) {
-            shading = Shading.DISABLED;
-        } else if (lightEmission > 0) {
-            float emissionFloor = Math.min(lightEmission, FULL_LIGHT_EMISSION) / (float) FULL_LIGHT_EMISSION;
-            shading = Math.max(Lighting.inventory(normal), emissionFloor);
-        } else {
-            shading = Lighting.inventory(normal);
-        }
-        SurfaceTraits traits = new SurfaceTraits(cullBackFaces, false, translucent, glinted);
-        out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, traits, null));
-        out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, traits, null));
+        out.add(new VisibleTriangle(corners[0], corners[1], corners[2], uv[0], uv[1], uv[2], texture, tintArgb, normal, shading, traits, debugTag));
+        out.add(new VisibleTriangle(corners[0], corners[2], corners[3], uv[0], uv[2], uv[3], texture, tintArgb, normal, shading, traits, debugTag));
     }
 
 }

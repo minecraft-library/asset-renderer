@@ -3,6 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -12,7 +13,12 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
+import lib.minecraft.renderer.asset.pack.rule.CitResult;
+import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
+import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -22,8 +28,8 @@ import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.compose.RasterPass;
 import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
-import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.kit.BannerKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
@@ -34,19 +40,17 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.face.SixFaces;
+import lib.minecraft.renderer.face.FaceTextures;
+import lib.minecraft.renderer.option.BlockOptions;
+import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.option.ItemOptions;
+import lib.minecraft.renderer.option.SunAngle;
 import lib.minecraft.renderer.option.slot.ItemSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
-import lib.minecraft.renderer.pipeline.pack.item.SpecialKinds;
-import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
-import lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy;
-import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
+import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -59,10 +63,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntFunction;
 
 /**
- * Renders an {@link Item} as either a flat 2D GUI icon or a held 3D view by dispatching to one
- * of two sub-renderers based on {@link ItemOptions#getType()}.
+ * Renders an {@link Item} as a flat 2D GUI icon, a held 3D view, or the faithful inventory icon by
+ * dispatching on {@link ItemOptions#getType()}.
  * <p>
  * Each sub-renderer is a {@code public static final} inner class implementing
  * {@link Renderer Renderer&lt;ItemOptions&gt;}:
@@ -76,9 +83,13 @@ import java.util.Optional;
  * build real cubes via {@link BlockGeometryKit#buildFromElements}, flat sprite items composite
  * their tinted layer stack onto a thin textured slab. Both paths route through
  * {@link ModelEngine} with the item model's {@code thirdperson_righthand} display transform applied.</li>
+ * <li>{@link GuiIcon} renders the faithful inventory icon by index membership: an id with a flat
+ * item entry through {@link Gui2D}, a block-backed id with no flat icon (plain blocks and
+ * block-entities alike) through the isometric {@link BlockRenderer}. It adds no rendering of its own -
+ * both branches reuse an existing renderer.</li>
  * </ul>
  * Shared item lookup, the glint-finalization tail, and the per-layer tint resolution live as
- * package-private static helpers on this class so both sub-renderers can reach them without
+ * package-private static helpers on this class so the sub-renderers can reach them without
  * duplicating logic.
  */
 public final class ItemRenderer implements Renderer<ItemOptions> {
@@ -94,18 +105,24 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     private final @NotNull Held3D held3D;
 
     /**
-     * Constructs a new {@code ItemRenderer} bound to the given renderer context, eagerly building
-     * both sub-renderers so each {@link #render} call is a plain dispatch.
+     * The faithful inventory-icon sub-renderer ({@link ItemOptions.Type#GUI_ICON}).
+     */
+    private final @NotNull GuiIcon guiIcon;
+
+    /**
+     * Constructs a new {@code ItemRenderer} bound to the given renderer context, eagerly building the
+     * three sub-renderers so each {@link #render} call is a plain dispatch.
      *
      * @param context the renderer context supplying pack / model / texture lookups
      */
     public ItemRenderer(@NotNull RendererContext context) {
         this.gui2D = new Gui2D(context);
         this.held3D = new Held3D(context);
+        this.guiIcon = new GuiIcon(context, this.gui2D);
     }
 
     /**
-     * Dispatches to the {@link Gui2D} or {@link Held3D} sub-renderer keyed by
+     * Dispatches to the {@link Gui2D}, {@link Held3D}, or {@link GuiIcon} sub-renderer keyed by
      * {@link ItemOptions#getType()}, then composites the result over the options'
      * {@link ItemOptions#getBackground() background}.
      *
@@ -117,6 +134,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         ImageData rendered = switch (options.getType()) {
             case GUI_2D -> this.gui2D.render(options);
             case HELD_3D -> this.held3D.render(options);
+            case GUI_ICON -> this.guiIcon.render(options);
         };
         return options.getBackground().composite(rendered);
     }
@@ -131,31 +149,99 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Resolves the effective item to render, applying the caller's {@link ItemModelContext} and the
-     * CIT model override on top of the pipeline-baked item.
+     * Builds the per-render item resolver both render paths draw their frames through: maps an
+     * animation tick onto the item to render at it, memoized so a schedule that revisits an evaluation
+     * context resolves it once.
+     * <p>
+     * The item is per-frame because a dispatch tree can branch on world time - a clock resolves a
+     * different face on each frame of an animated bake. The memo is per-render and discarded with it:
+     * the CIT walk and pack state a resolution depends on are the render's own. Keying on the whole
+     * evaluation context needs no assumption about which part of a resolution a tick can move, and
+     * bounds the memo either way - one entry for a still, one per distinct sampled instant for a
+     * time-driven strip.
+     *
+     * @param context the renderer context supplying pack / model / texture lookups
+     * @param options the item render options
+     * @param cit the render's single CIT walk result
+     * @param animation the animation this render actually bakes, already derived
+     * @return the item to render at an animation tick
+     */
+    static @NotNull IntFunction<Item> frameItems(
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit,
+        @NotNull AnimationOptions animation
+    ) {
+        ItemModelContext modelContext = options.getItemModel();
+        // Only a game-time schedule moves the world clock between frames; a texture strip indexes a
+        // flipbook, which leaves the tree's evaluation context - and so the resolved model - alone.
+        boolean worldTime = animation.getSchedule() == AnimationOptions.Schedule.GAME_TIME;
+        Map<ItemModelContext, Item> resolved = new ConcurrentHashMap<>();
+        // Frames raster in parallel, so the memo is concurrent and its resolver stays pure.
+        return tick -> resolved.computeIfAbsent(
+            worldTime ? modelContext.atTick(tick) : modelContext,
+            at -> resolveRenderItem(context, options, cit, at));
+    }
+
+    /**
+     * Resolves the animation a render actually bakes. The caller's own timing is used as given, unless
+     * it opts into derivation - in which case an item whose model tree branches on world time has its
+     * timing derived from that tree: one frame per step the tree's own dispatch table resolves, spread
+     * evenly across a day and played back as game time. It lets a caller ask for an item to be animated
+     * without knowing which items are time-driven or how many faces they ship.
+     * <p>
+     * An item with nothing to animate keeps the caller's timing untouched, so requesting derivation on
+     * a plain item costs it nothing and leaves it a still.
+     *
+     * @param context the renderer context supplying the item's dispatch tree
+     * @param options the item render options
+     * @return the animation timing to bake
+     */
+    static @NotNull AnimationOptions itemAnimation(@NotNull RendererContext context, @NotNull ItemOptions options) {
+        AnimationOptions animation = options.getAnimation();
+        if (!animation.isDeriveTimeline()) return animation;
+
+        OptionalInt steps = context.findItemTree(options.getItemId())
+            .map(tree -> tree.root().timeDispatchSteps())
+            .orElseGet(OptionalInt::empty);
+        if (steps.isEmpty()) return animation;
+
+        // A day divided among the tree's steps. Floored at one tick so a table finer than the day is
+        // long still advances rather than sampling the same instant every frame.
+        int frames = steps.getAsInt();
+        return animation.mutate()
+            .frameCount(frames)
+            .ticksPerFrame(Math.max(1, SunAngle.TICKS_PER_DAY / frames))
+            .schedule(AnimationOptions.Schedule.GAME_TIME)
+            .build();
+    }
+
+    /**
+     * Resolves the effective item to render, applying an {@link ItemModelContext} and the CIT model
+     * override on top of the pipeline-baked item.
      * <p>
      * The neutral {@link ItemModelContext#gui()} context with no CIT model override takes the fast
      * path - the pipeline-baked item verbatim, byte-identical to a pre-tree render. Otherwise the
-     * item's dispatch tree is re-walked against the caller context, then a
+     * item's dispatch tree is re-walked against the given context, then a
      * present {@code cit.model()} replaces the resolved model id (the OptiFine override-the-final-model
      * join); the resolved model id is materialised back into an {@link Item} by reusing
      * the already-built index entry for that model (its geometry + textures), carrying the walked
      * branch's tints. Falls back to the baked item when the tree is absent or the branch resolves to
      * nothing.
      */
-    static @NotNull Item resolveRenderItem(@NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit) {
+    static @NotNull Item resolveRenderItem(
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit,
+        @NotNull ItemModelContext modelContext
+    ) {
         Item baked = requireItem(context, options.getItemId());
-        ItemModelContext modelContext = options.getItemModel();
         if (modelContext.isNeutral() && cit.model().isEmpty()) return baked;
 
-        ItemModelWalker.Resolution resolution = context.findItemTree(options.getItemId())
-            .map(tree -> ItemModelWalker.resolve(tree, modelContext))
+        ItemModelNode.Resolution resolution = context.findItemTree(options.getItemId())
+            .map(tree -> tree.resolve(modelContext))
             .orElse(null);
         // A special leaf maps onto an existing hardcoded / block-entity render path (parse-and-hold);
         // an unknown special kind is diagnosed and dropped. Either way the baked
         // item - already served by its own path - is returned.
         if (resolution != null && resolution.modelId().isEmpty() && resolution.special().isPresent()) {
-            SpecialKinds.resolveOrDrop(resolution.special().get());
+            resolution.special().get().resolveOrDrop();
             return baked;
         }
         // CIT whole-model override wins over the tree-resolved model.
@@ -178,7 +264,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         ModelData resolved = model.get();
         List<LayerTint> tints = resolution != null ? resolution.tints() : baked.tints();
-        return new Item(baked.id(), resolved, Concurrent.adoptMap(new HashMap<>(resolved.getTextures())),
+        HashMap<String, String> sprites = new HashMap<>();
+        resolved.getTextures().forEach((slot, texture) -> sprites.put(slot, texture.sprite()));
+        return new Item(baked.id(), resolved, Concurrent.adoptMap(sprites),
             baked.maxDurability(), tints, baked.alwaysGlinted());
     }
 
@@ -206,28 +294,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Model-space minimum bound (block units) for the wide, square face of the flat-sprite item
-     * slab. Reused for both the X and Y minimum corners so the sprite is a {@code 0.9}-block
-     * square.
+     * The flat-sprite item slab in model space (block units) - a {@code 0.9}-block square on X and Y,
+     * {@code 0.04} deep on Z. The square face is what carries the sprite; the depth is what stops it
+     * being a zero-thickness plane.
      */
-    private static final float FLAT_ITEM_SLAB_MIN_X = -0.45f;
-
-    /**
-     * Model-space maximum bound (block units) for the wide, square face of the flat-sprite item
-     * slab. Reused for both the X and Y maximum corners so the sprite is a {@code 0.9}-block
-     * square.
-     */
-    private static final float FLAT_ITEM_SLAB_MAX_X = 0.45f;
-
-    /**
-     * Model-space minimum-Z bound (block units) - the thin depth of the flat-sprite slab.
-     */
-    private static final float FLAT_ITEM_SLAB_MIN_Z = -0.02f;
-
-    /**
-     * Model-space maximum-Z bound (block units) - the thin depth of the flat-sprite slab.
-     */
-    private static final float FLAT_ITEM_SLAB_MAX_Z = 0.02f;
+    private static final @NotNull Box FLAT_ITEM_SLAB = new Box(-0.45f, -0.45f, -0.02f, 0.45f, 0.45f, 0.02f);
 
     /**
      * Prefix for multi-layer item texture keys ({@code layer0}, {@code layer1}, ...).
@@ -283,6 +354,26 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link Lens#ISOMETRIC_BLOCK}.
      */
     private static final @NotNull Lens SHIELD_PERSPECTIVE = Lens.orthographic(SHIELD_GUI_DISPLAY_SCALE);
+
+    /**
+     * The GUI shield's camera - {@link #SHIELD_GUI_ROTATION} through {@link #SHIELD_PERSPECTIVE}.
+     * Built once rather than per render: {@link Camera#fromPose} runs six trig evaluations to
+     * assemble the pose quaternion, and both of its inputs are constants.
+     */
+    private static final @NotNull Camera SHIELD_CAMERA = Camera.fromPose(SHIELD_GUI_ROTATION, SHIELD_PERSPECTIVE);
+
+    /**
+     * The GUI shield's lighting frame, tracking its own {@code display.gui} rotation so the plate is
+     * lit from the direction it is viewed from.
+     */
+    private static final @NotNull LightingFrame SHIELD_LIGHTING = LightingFrame.tracking(SHIELD_GUI_ROTATION);
+
+    /**
+     * The GUI shield's model transform - {@link #SHIELD_ALIGN_OFFSET} as a pure translation, which
+     * the camera then turns into the measured post-rotation screen shift.
+     */
+    private static final @NotNull Matrix4f SHIELD_MODEL_TRANSFORM = Matrix4f.IDENTITY.translate(
+        SHIELD_ALIGN_OFFSET.x(), SHIELD_ALIGN_OFFSET.y(), SHIELD_ALIGN_OFFSET.z());
 
     /**
      * Returns {@code true} when the item id is a banner or shield, which get composited through
@@ -346,17 +437,16 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         PixelBuffer composite = BannerKit.composite2D(engine.textures(), baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
 
-        return BlockGeometryKit.buildBoxTriangles(
-            new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
-            new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-            SixFaces.uniform(composite),
+        return BlockGeometryKit.buildBox(
+            FLAT_ITEM_SLAB,
+            FaceTextures.uniform(composite),
             ColorMath.WHITE
         );
     }
 
     /**
      * Renders the plain {@code minecraft:shield} item as its vanilla 3D {@code ShieldModel} into
-     * {@code buffer}. Mirrors the block-icon path ({@link lib.minecraft.renderer.BlockRenderer}'s
+     * {@code buffer}. Mirrors the block-icon path ({@link BlockRenderer}'s
      * {@code Isometric3D}): {@link ShieldKit} builds the plate + handle geometry, the
      * {@code display.gui} pose drives a {@code T * R * S} model transform (translation, then the
      * {@code [15, -25, -5]} rotation, then the {@code 0.65} scale - vanilla's
@@ -375,14 +465,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull ItemOptions options,
         int tick
     ) {
-        ModelEngine engine = new ModelEngine(context, Camera.fromPose(SHIELD_GUI_ROTATION, SHIELD_PERSPECTIVE));
+        ModelEngine engine = new ModelEngine(context, SHIELD_CAMERA);
         PixelBuffer texture = engine.textures().resolveTextureAtTick(SHIELD_NOPATTERN_TEXTURE_ID, tick);
         ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture);
-        triangles = ShieldKit.relightShield(triangles, LightingFrame.tracking(SHIELD_GUI_ROTATION));
+        triangles = ShieldKit.relightShield(triangles, SHIELD_LIGHTING);
 
-        Matrix4f modelTransform = Matrix4f.IDENTITY.translate(
-            SHIELD_ALIGN_OFFSET.x(), SHIELD_ALIGN_OFFSET.y(), SHIELD_ALIGN_OFFSET.z());
-        engine.rasterize(triangles, buffer, modelTransform);
+        engine.rasterize(triangles, buffer, SHIELD_MODEL_TRANSFORM);
     }
 
     /**
@@ -480,9 +568,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             return layerIndex;
         }
 
-        ConcurrentMap<String, String> variables = item.model().getTextures();
+        ConcurrentMap<String, ModelTexture> variables = item.model().getTextures();
         String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
-        String layerRef = variables.get(layerKey);
+        ModelTexture layerTexture = variables.get(layerKey);
+        String layerRef = layerTexture == null ? null : layerTexture.sprite();
         for (ModelElement element : elements) {
             for (ModelFace face : element.getFaces().values()) {
                 String faceRef = face.getTexture();
@@ -563,14 +652,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             // One CIT walk per render, shared by the layer stack (texture overrides) and the glint tail
             // (its GlintPolicy). The empty-context vanilla path yields CitResult.NONE, so both stay
-            // vanilla-identical. CIT + glint are tick-independent; only per-layer texture resolution is
-            // tick-aware, so the LayerContext is captured once and buildGuiLayers re-runs per frame with
-            // the frame's tick.
-            CitResult cit = engine.textures().resolveCit(options);
-            // Resolve the item AFTER the CIT walk so a CIT model override can replace the tree-resolved
-            // model; the neutral context + no override yields the baked item.
-            Item item = resolveRenderItem(this.context, options, cit);
-            LayerContext ctx = new LayerContext(this.context, engine.textures(), item, options, cit);
+            // vanilla-identical. The CIT walk reads no clock, so it is hoisted; the item is not, because
+            // a dispatch tree can branch on world time. Resolve it AFTER the CIT walk so a CIT model
+            // override can replace the tree-resolved model; the neutral context + no override yields the
+            // baked item.
+            CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
+            AnimationOptions anim = itemAnimation(this.context, options);
+            IntFunction<Item> itemAt = frameItems(this.context, options, cit, anim);
 
             // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
             // trim, damage-bar, and stack-count decorations) so callers can splice their own passes in
@@ -579,15 +667,19 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in. Vanilla
             // ships zero item sidecars, so frameCount defaults to 1 and every layer resolves at tick 0 -
             // byte-identical; a pack opting in with frameCount > 1 plays the flipbook per frame.
-            // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
+            // Build the schedule UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick() (staticFrame would hardcode tick 0). Default
             // (startTick=0, frameCount=1) is byte-identical.
-            AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
-            return Timeline.tickStrip(anim).bake(
+            // The glint finish spans the whole strip rather than one frame, and the only thing it reads
+            // off the item is a registry flag every branch of a tree carries alike, so it binds to the
+            // first frame's item.
+            return Timeline.schedule(anim).bake(
                 RasterPass.of(size, size, 1, options.getOutput().isAntiAlias(),
-                        (target, tick) -> Layers.foldInto(buildGuiLayers(ctx, tick), options.getLayerDecorator(), target))
-                    .finishing(itemGlint(engine.textures(), item, options, cit.glint())));
+                        (target, tick) -> Layers.foldInto(
+                            buildGuiLayers(new LayerContext(this.context, engine.textures(), itemAt.apply(tick), options, cit), tick),
+                            options.getLayerDecorator(), target))
+                    .finishing(itemGlint(engine.textures(), itemAt.apply(0), options, cit.glint())));
         }
 
         /**
@@ -620,14 +712,15 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             if (options.getContext().stackCount() > 1)
                 stack.append(ItemSlot.STACK_COUNT, frame ->
-                    ItemStackKit.drawStackCount(frame, options.getContext().stackCount(), MinecraftFont.REGULAR));
+                    ItemStackKit.drawStackCount(frame, options.getContext().stackCount(), MinecraftFont.Vanilla.REGULAR));
 
             return stack;
         }
 
         /**
-         * Per-render state passed to every {@link ImageLayer} in the 2D item composite stack. Captured
-         * once by {@link #render} and read by {@link #buildGuiLayers}.
+         * Per-frame state passed to every {@link ImageLayer} in the 2D item composite stack. Built by
+         * {@link #render} for each frame it bakes - every field but the resolved item is the render's
+         * own and identical across frames - and read by {@link #buildGuiLayers}.
          *
          * @param context renderer context for texture and override resolution
          * @param textures texture-resolution service for layer texture lookups
@@ -661,13 +754,28 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link PixelBuffer} via {@link ItemRenderer#composeTintedLayers} and feed the result into the
      * thin-Z-slab path, so the held view reflects the same per-layer tint as the GUI icon.
      */
-    @RequiredArgsConstructor
     public static final class Held3D implements Renderer<ItemOptions> {
 
         /**
          * The renderer context supplying pack / model / texture lookups.
          */
         private final @NotNull RendererContext context;
+
+        /**
+         * The pack-aware texture-resolution service bound once to {@link #context}, shared by the
+         * flat-slab layer composite and the glint tail.
+         */
+        private final @NotNull Textures textures;
+
+        /**
+         * Constructs the held-3D sub-renderer bound to the given context.
+         *
+         * @param context the renderer context supplying pack / model / texture lookups
+         */
+        public Held3D(@NotNull RendererContext context) {
+            this.context = context;
+            this.textures = new Textures(context);
+        }
 
         /** {@inheritDoc} */
         @Override
@@ -678,27 +786,29 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             Camera camera = Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).camera().lens());
             int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
 
-            // One CIT walk per render, shared by the flat-slab layer composite and the glint tail; both
-            // are tick-independent. Only the per-tick texture bake needs the tick, so the geometry build
-            // moves INSIDE the raster callback (fluid pattern) and the ModelEngine is rebuilt per frame
-            // for thread-safe parallel strip baking. Vanilla ships no item sidecars, so a default render
-            // (frameCount = 1) resolves at tick 0 - byte-identical.
-            Textures textures = new Textures(this.context);
-            CitResult cit = textures.resolveCit(options);
-            Item item = resolveRenderItem(this.context, options, cit);
-            Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
+            // One CIT walk per render, shared by the flat-slab layer composite and the glint tail; it
+            // reads no clock, so it is hoisted. The geometry build moves INSIDE the raster callback
+            // (fluid pattern) and the ModelEngine is rebuilt per frame for thread-safe parallel strip
+            // baking. Vanilla ships no item sidecars, so a default render (frameCount = 1) resolves at
+            // tick 0 - byte-identical.
+            CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
+            AnimationOptions anim = itemAnimation(this.context, options);
+            IntFunction<Item> itemAt = frameItems(this.context, options, cit, anim);
 
-            // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
+            // Build the schedule UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick() (staticFrame would hardcode tick 0). Default
             // (startTick=0, frameCount=1) is byte-identical.
-            AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
-            int ssaa = Math.max(1, options.getOutput().getSupersample());
-            return Timeline.tickStrip(anim).bake(
+            int ssaa = options.getOutput().getSupersample();
+            return Timeline.schedule(anim).bake(
                 RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) -> {
+                    // The display pose is read off the frame's own model: a tree that swaps models
+                    // between frames can swap their authored poses with them.
+                    Item item = itemAt.apply(tick);
                     ModelEngine engine = new ModelEngine(this.context, camera);
-                    engine.rasterize(buildTrianglesAtTick(engine, item, options, cit, tint, tick), target, displayTransform);
-                }).finishing(itemGlint(textures, item, options, cit.glint())));
+                    engine.rasterize(buildTrianglesAtTick(engine, item, options, cit, tint, tick), target,
+                        resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D));
+                }).finishing(itemGlint(this.textures, itemAt.apply(0), options, cit.glint())));
         }
 
         /**
@@ -720,14 +830,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (!item.model().getElements().isEmpty()) {
                 Map<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item, tick);
                 var forceRefs = Textures.resolveForceTranslucentRefs(
-                    item.model().getElements(), item.model().getTextures(), item.model().getTextureObjects());
+                    item.model().getElements(), item.model().getTextures());
                 return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint, tint, forceRefs);
             }
             PixelBuffer texture = composeTintedLayers(this.context, engine, item, options, cit, tick);
-            return BlockGeometryKit.buildBoxTriangles(
-                new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
-                new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-                SixFaces.uniform(texture),
+            return BlockGeometryKit.buildBox(
+                FLAT_ITEM_SLAB,
+                FaceTextures.uniform(texture),
                 ColorMath.WHITE
             );
         }
@@ -778,6 +887,94 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     transform.getTranslationY() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
                     transform.getTranslationZ() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK
                 );
+        }
+
+    }
+
+    /**
+     * Faithful inventory-icon renderer ({@link ItemOptions.Type#GUI_ICON}): the representation a GUI
+     * slot shows, routed by index membership rather than rendered anew. An id with a flat item entry
+     * renders through the shared {@link Gui2D} path unchanged; an id absent from the item index but
+     * backing a block (plain blocks and block-entities alike) renders through the isometric
+     * {@link BlockRenderer}, which already distinguishes a plain block model from a
+     * {@code BlockEntityRenderer} pose; an id backing neither raises {@link RenderException}.
+     * <p>
+     * The mode adds no rendering of its own - both branches reuse an existing renderer - so a
+     * flat-sprite icon is byte-identical to {@link ItemOptions.Type#GUI_2D} and a block-backed icon to
+     * the isometric block render at the same output frame.
+     */
+    public static final class GuiIcon implements Renderer<ItemOptions> {
+
+        /**
+         * Renderer context supplying the item / block index lookups that pick the branch.
+         */
+        private final @NotNull RendererContext context;
+
+        /**
+         * The shared flat 2D sub-renderer the flat-sprite branch delegates to.
+         */
+        private final @NotNull Gui2D gui2D;
+
+        /**
+         * The isometric block renderer the block / block-entity branch delegates to, built from the
+         * shared context.
+         */
+        private final @NotNull BlockRenderer blockRenderer;
+
+        /**
+         * Constructs the faithful-icon sub-renderer, reusing the owning {@link ItemRenderer}'s flat 2D
+         * sub-renderer and building an isometric {@link BlockRenderer} from the shared context.
+         *
+         * @param context the renderer context supplying pack / model / texture lookups
+         * @param gui2D the shared flat 2D GUI icon sub-renderer
+         */
+        public GuiIcon(@NotNull RendererContext context, @NotNull Gui2D gui2D) {
+            this.context = context;
+            this.gui2D = gui2D;
+            this.blockRenderer = new BlockRenderer(context);
+        }
+
+        /**
+         * Renders the faithful inventory icon: the {@link Gui2D} flat sprite for an item-index id,
+         * else the isometric {@link BlockRenderer} for a block-backed id. The block delegate renders
+         * on a transparent background so {@link ItemRenderer#render} composites the caller's own
+         * background exactly once.
+         *
+         * @param options the item render options
+         * @return the faithful inventory icon, before the shared background composite
+         */
+        @Override
+        public @NotNull ImageData render(@NotNull ItemOptions options) {
+            if (this.context.findItem(options.getItemId()).isPresent())
+                return this.gui2D.render(options);
+            if (this.context.findBlock(options.getItemId()).isPresent())
+                return this.blockRenderer.render(adaptToBlock(options));
+            throw new RenderException("No item or block registered for id '%s'", options.getItemId());
+        }
+
+        /**
+         * Adapts item options into the {@link BlockOptions} the block branch renders: the output size
+         * and anti-aliasing knobs carried onto the neutral iso output frame (default projection /
+         * facing / rotation) so the block honours its authored {@code display.gui} pose - the vanilla
+         * inventory look - rather than the item icon's {@code VANILLA_GUI_ITEM} projection. Renders on
+         * a transparent background so the caller composites its own background once.
+         *
+         * @param options the item render options
+         * @return the block options for the isometric block render
+         */
+        private static @NotNull BlockOptions adaptToBlock(@NotNull ItemOptions options) {
+            OutputOptions itemOutput = options.getOutput();
+            return BlockOptions.builder()
+                .blockId(options.getItemId())
+                .type(BlockOptions.Type.ISOMETRIC_3D)
+                .output(OutputOptions.builder()
+                    .canvasSize(itemOutput.getCanvasSize())
+                    .supersample(itemOutput.getSupersample())
+                    .antiAlias(itemOutput.isAntiAlias())
+                    .build())
+                .animation(options.getAnimation())
+                .background(Background.TRANSPARENT)
+                .build();
         }
 
     }

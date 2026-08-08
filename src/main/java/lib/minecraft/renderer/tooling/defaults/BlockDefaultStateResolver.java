@@ -8,7 +8,6 @@ import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -87,14 +86,14 @@ final class BlockDefaultStateResolver {
         String pendingProp = null;
         String pendingValue = null;
         Integer lastInt = null;
-        for (AbstractInsnNode node = ctor.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : ctor.instructions) {
             Integer intLiteral = AsmKit.readIntLiteral(node);
             if (intLiteral != null) {
                 lastInt = intLiteral;
                 continue;
             }
             if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode field) {
-                if (isPropertyFieldRef(field.desc)) pendingProp = this.properties.resolvePropertyName(field.owner, field.name);
+                if (PropertyDefinitionResolver.isPropertyFieldRef(field.desc)) pendingProp = this.properties.resolvePropertyName(field.owner, field.name);
                 else pendingValue = this.properties.enumSerializedName(field.owner, field.name);
                 continue;
             }
@@ -185,11 +184,10 @@ final class BlockDefaultStateResolver {
      * {@code planeField} is not a plane-style filter constant.
      */
     private @Nullable String resolvePlaneFirstDirection(@NotNull FieldInsnNode planeField, @NotNull String enumOwner) {
-        ClassNode planeClass = this.cache.load(planeField.owner);
-        MethodNode clinit = planeClass == null ? null : AsmKit.findMethod(planeClass, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, planeField.owner);
         if (clinit == null) return null;
         String firstDirection = null;
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : clinit.instructions) {
             if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode dir
                 && dir.owner.equals(enumOwner) && firstDirection == null)
                 firstDirection = dir.name;
@@ -200,12 +198,6 @@ final class BlockDefaultStateResolver {
             }
         }
         return null;
-    }
-
-    /** Reports whether a field descriptor references a block-state property (scalar or array). */
-    private static boolean isPropertyFieldRef(@NotNull String desc) {
-        String internal = AsmKit.internalNameOfRef(desc);
-        return internal != null && internal.startsWith(VanillaSourceClasses.Types.STATE_PROPERTIES_PACKAGE) && internal.endsWith("Property");
     }
 
 }

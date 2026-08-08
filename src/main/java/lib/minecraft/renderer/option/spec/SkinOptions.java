@@ -33,6 +33,20 @@ public class SkinOptions {
     private final boolean renderCape = false;
 
     /**
+     * The elytra wing texture source (rendered only when {@code renderElytra}). Falls back to the
+     * static {@code minecraft:elytra} wing skin when it supplies no source, mirroring how the cape
+     * degrades.
+     */
+    @lombok.Builder.Default
+    private final @NotNull TextureOptions elytra = TextureOptions.defaults();
+
+    /**
+     * Whether to render elytra wings behind the torso (3D bust / full only).
+     */
+    @lombok.Builder.Default
+    private final boolean renderElytra = false;
+
+    /**
      * Whether to render the second skin layer (hat, jacket, sleeves, trousers).
      */
     @lombok.Builder.Default

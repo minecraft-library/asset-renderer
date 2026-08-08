@@ -1,13 +1,10 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -19,16 +16,15 @@ import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Resolves one entity in one pass - the {@link #resolve()} put-chain IS the on-disk key
  * order, declared once, here. Each per-node resolver owns exactly one JSON node and returns
  * null to omit its key (the empty-vs-absent rule).
  *
- * <p>The overlays node resolves BEFORE the axes node (the shape axis clones the family's
+ * <p>The overlays node resolves BEFORE the axes node (the shape axis clones the model's
  * pattern overlays onto its large mesh), but the put chain keeps the on-disk order - axes
- * ahead of overlays. {@code family_of} is appended by the post-pass linker.
+ * ahead of overlays. {@code group_of} is appended by the post-pass linker.
  */
 final class EntityRendererResolver {
 
@@ -44,66 +40,53 @@ final class EntityRendererResolver {
     private final @NotNull EntityLayersResolver layers;
     private final @NotNull List<LayerSite> layerRoster;
 
-    EntityRendererResolver(
-        @NotNull ToolingSession session,
-        @NotNull EntitySubject subject,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull VariantIndex variants,
-        @NotNull Set<String> nonBaseSuffixes,
-        @NotNull BlockRegistryIndex blocks,
-        @NotNull EntityPipelineTraits pipelineTraits,
-        @NotNull GeometryManifest manifest
-    ) {
-        this.subject = subject;
-        this.diagnostics = session.diagnostics().child(subject.entityId());
+    EntityRendererResolver(@NotNull EntityContext context) {
+        this.subject = context.subject();
+        this.diagnostics = context.diagnostics();
         // ONE renderer-ctor-chain scan produces the ordered addLayer roster every
         // layer-consuming node reads (overlays, block_overlays, layers - the latter also
-        // carries the armor classification); a row's layer_index is its position here.
+        // carries the worn-armor row); a row's layer_index is its position here.
         // Same-class duplicates are kept - deduping by class would force the warden's
         // five-pass re-walk.
-        this.layerRoster = scanLayerRoster(session);
-        this.geometryRef = new EntityGeometryRefResolver(session.cache(), subject, layerDefinitions, manifest,
-            this.diagnostics.child("geometry"));
-        this.texture = new EntityTextureResolver(session.cache(), subject, variants, nonBaseSuffixes,
-            this.diagnostics.child("texture"));
-        this.renderTraits = new EntityRenderTraitsResolver(session.cache(), subject, this.diagnostics.child("render"));
-        this.bones = new EntityBoneResolver(session.cache(), subject, this.geometryRef, this.diagnostics.child("bones"));
-        this.axes = new EntityAxesResolver(session, subject, layerDefinitions, variants, this.geometryRef,
-            manifest, this.diagnostics.child("axes"));
-        this.overlays = new EntityOverlayResolver(session.cache(), subject, this.layerRoster, layerDefinitions,
-            this.geometryRef, pipelineTraits, manifest, this.diagnostics.child("overlays"));
-        this.blockOverlays = new EntityBlockOverlayResolver(session.cache(), subject, this.layerRoster, blocks,
-            this.diagnostics.child("blockOverlays"));
-        this.layers = new EntityLayersResolver(session, subject, this.layerRoster, layerDefinitions,
-            manifest, this.diagnostics.child("layers"));
+        this.layerRoster = scanLayerRoster(context.session());
+        this.geometryRef = new EntityGeometryRefResolver(context.scope("geometry"));
+        this.texture = new EntityTextureResolver(context.scope("texture"));
+        this.renderTraits = new EntityRenderTraitsResolver(context.scope("render"));
+        this.bones = new EntityBoneResolver(context.scope("bones"), this.geometryRef);
+        this.axes = new EntityAxesResolver(context.scope("axes"), this.geometryRef);
+        this.overlays = new EntityOverlayResolver(context.scope("overlays"), this.layerRoster, this.geometryRef);
+        this.blockOverlays = new EntityBlockOverlayResolver(context.scope("blockOverlays"), this.layerRoster);
+        this.layers = new EntityLayersResolver(context.scope("layers"), this.layerRoster);
     }
 
     /**
-     * Builds the family node - invocation order IS on-disk member order.
-     * The variant axis resolves ahead of the adult-texture resolution (variant-axis families
+     * Builds the model node - invocation order IS on-disk member order.
+     * The variant axis resolves ahead of the adult-texture resolution (variant-axis models
      * carry per-option textures, so no adult texture is resolved for them); the base geometry
      * and adult texture feed the mandatory age axis' {@code options.adult}, and the overlays
      * resolve ahead of the axes (the shape-axis clone) - the put order is unaffected.
      */
-    @NotNull JsonNode resolve() {
+    @NotNull JsonTree resolve() {
         // The primary geometry is registered FIRST (manifest order) but is not emitted at
-        // top level: it moves the family baseline (base geometry + adult texture) into
+        // top level: it moves the model baseline (base geometry + adult texture) into
         // the mandatory age axis' options.adult (EntityAgeAxisResolver).
         String baseGeometry = this.geometryRef.resolve();                               // -> manifest key
-        // armor_type is not a top-level member: EntityLayersResolver emits the humanoid
-        // classification as a `layers` row derived off the same addLayer roster.
-        JsonNode node = JsonNode.object()
+        // Worn armor is not a top-level member: EntityLayersResolver emits it as a `layers`
+        // row derived off the same addLayer roster, carrying its own geometry reference.
+        JsonTree node = JsonTree.object()
             .put("renderer", this.subject.rendererClass());                             // provenance scalar (resolver-owned)
         String texturePath = this.axes.resolveVariant() == null ? this.texture.resolve() : null;
-        JsonNode overlays = this.overlays.resolve();
+        JsonTree overlays = this.overlays.resolve();
         return node
             .putIf("render", this.renderTraits.resolve())                               // {scale?, yaw_addend?, tint?}
             .putIf("bones", this.bones.resolve())                                       // {hidden?, toggles?}
-            .put("axes", this.axes.resolve(baseGeometry, texturePath, overlays))        // age mandatory -> always present
+            // The setupRotations Y shift is per-age, so it rides the age options rather than `render`.
+            .put("axes", this.axes.resolve(baseGeometry, texturePath, overlays,
+                this.renderTraits.resolveSetupYShift()))                                // age mandatory -> always present
             .putIf("overlays", overlays)
             .putIf("block_overlays", this.blockOverlays.resolve())
             .putIf("layers", this.layers.resolve());
-    }   // family_of appended by the EntityFamilyLinker post-pass
+    }   // group_of appended by the EntityGroupLinker post-pass
 
     /**
      * One {@code addLayer(...)} call site in the renderer constructor chain.
@@ -136,7 +119,7 @@ final class EntityRendererResolver {
             List<LayerSite> level = new ArrayList<>();
             for (MethodNode ctor : cn.methods) {
                 if (!AsmKit.INIT.equals(ctor.name)) continue;
-                for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : ctor.instructions) {
                     // Owner-agnostic addLayer match - the renderer's super may be any of
                     // several LivingEntityRenderer subclasses; gate on the canonical
                     // descriptor shape (single Layer arg, boolean return).

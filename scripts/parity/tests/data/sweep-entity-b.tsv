@@ -1,0 +1,13 @@
+entity_id	mean_argb_delta	differing_pixels	java_coverage	vanilla_coverage	java_w	java_h	vanilla_w	vanilla_h
+minecraft__allay	0.0000	0	0.2000	0.2000	100	200	100	200
+minecraft__axolotl_gold	0.1234	12	0.4194	0.4194	352	275	352	275
+minecraft__bee	0.0091	3	0.3000	0.3000	120	120	120	120
+minecraft__cow	0.0000	0	0.5000	0.5000	200	200	200	200
+minecraft__creeper~charged=true	1.3888	900	0.6000	0.6100	318	563	318	563
+minecraft__enderman~carried=minecraft__grass_block	0.7000	70	0.3000	0.3000	250	400	250	400
+minecraft__ghast	0.0500	5	0.7000	0.7000	500	500	500	500
+minecraft__slime	0.4000	44	0.2000	0.2000	181	202	181	202
+minecraft__squid	0.9000	99	0.2500	0.2500	220	220	220	220
+minecraft__villager~villager_level=diamond~villager_profession=farmer	0.0300	2	0.3300	0.3300	150	300	150	300
+minecraft__warden	0.0004	1	0.4500	0.4500	400	600	400	600
+minecraft__zombie	0.0000	0	0.4000	0.4000	160	320	160	320

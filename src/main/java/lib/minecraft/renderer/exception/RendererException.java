@@ -23,8 +23,11 @@ import org.jetbrains.annotations.Nullable;
  * <ul>
  *   <li>{@link PipelineException} - asset extraction or parsing failures.</li>
  *   <li>{@link RenderException} - renderer output failures from valid inputs.</li>
- *   <li>{@link ToolingException} - build-time tooling failures.</li>
  * </ul>
+ *
+ * <p>Build-time tooling failures are deliberately <b>not</b> in this hierarchy: the tooling kernel
+ * raises its own {@code ToolingException} straight off {@link RuntimeException}, so a generator
+ * failure is not something a renderer's skip-and-continue handler can swallow.</p>
  *
  * @see RuntimeException
  */

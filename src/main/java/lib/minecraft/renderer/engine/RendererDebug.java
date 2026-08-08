@@ -94,6 +94,17 @@ public final class RendererDebug {
 
     // --- pixel trace ---
 
+    /**
+     * Whether the per-pixel trace is armed, so a kit that would have to build its
+     * {@link VisibleTriangle#debugTag() debug tags} on the fly can skip the work when nothing will
+     * read them.
+     *
+     * @return true when {@code -Dasset.entity.pixel.dump} was set and parsed
+     */
+    public static boolean tracingPixels() {
+        return PIXEL_DUMP_RECT != null;
+    }
+
     private static boolean pixelDumpContains(int px, int py) {
         if (PIXEL_DUMP_RECT == null) return false;
         return px >= PIXEL_DUMP_RECT[0] && py >= PIXEL_DUMP_RECT[1]
@@ -244,13 +255,13 @@ public final class RendererDebug {
     public static @Nullable String boundsFaceLabel(@NotNull String boneName, int cubeIndex,
                                                     @NotNull Object faceDirection,
                                                     @NotNull Vector3f origin, @NotNull Vector3f size,
-                                                    float inflate, boolean mirror) {
+                                                    @NotNull Vector3f grow, boolean mirror) {
         if (!BOUNDS_DUMP.get()) return null;
-        return String.format("bone=%s cube=%d face=%s orig=(%g,%g,%g) size=(%g,%g,%g) inflate=%g mirror=%s",
+        return String.format("bone=%s cube=%d face=%s orig=(%g,%g,%g) size=(%g,%g,%g) grow=(%g,%g,%g) mirror=%s",
             boneName, cubeIndex, faceDirection,
             origin.x(), origin.y(), origin.z(),
             size.x(), size.y(), size.z(),
-            inflate, mirror);
+            grow.x(), grow.y(), grow.z(), mirror);
     }
 
     /**

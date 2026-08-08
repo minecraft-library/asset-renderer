@@ -4,7 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.FormatRange;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,7 +23,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Unit coverage for {@link Pipeline#extractClientJar(Path, Path)} - in particular the
+ * Unit coverage for {@link ClientAcquisition#extractClientJar(Path, Path)} - in particular the
  * {@code pack.mcmeta} synthesis fallback that kicks in when the source jar does not ship
  * a root mcmeta (the modern Mojang client-jar shape, verified across 1.21.4 and 26.1
  * during the 999.8 backlog investigation).
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.is;
  * These tests construct synthetic ZIPs in-process - no Minecraft assets are touched and
  * the {@code @Tag("slow")} integration path is untouched.
  */
-@DisplayName("Pipeline.extractClientJar pack.mcmeta synthesis")
+@DisplayName("ClientAcquisition.extractClientJar pack.mcmeta synthesis")
 class PipelineExtractClientJarTest {
 
     private static final Gson GSON = GsonSettings.defaults().create();
@@ -65,17 +66,54 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         Path mcmeta = packRoot.resolve("pack.mcmeta");
         assertThat(Files.isRegularFile(mcmeta), is(true));
         MCMeta parsed = MCMeta.parse(Files.readString(mcmeta), new ResourceId("vanilla", "pack"));
         assertThat(parsed.pack().orElseThrow().formats().min().major(), is(84));
+        assertThat(parsed.pack().orElseThrow().formats().min().minor(), is(0));
         assertThat(parsed.pack().orElseThrow().description().plain(), containsString("Test Pack"));
         assertThat(Files.isRegularFile(packRoot.resolve("assets/minecraft/textures/block/stone.png")), is(true));
 
         // version.json is captured in memory for synthesis - it must NOT be extracted to disk.
         assertThat(Files.exists(packRoot.resolve("version.json")), is(false));
+    }
+
+    @Test
+    @DisplayName("Captures resource_minor into min_format; max_format widens to the major's minorRange ceiling")
+    void capturesResourceMinorIntoFormatRange(@TempDir Path tempDir) throws IOException {
+        Path jarPath = tempDir.resolve("client.jar");
+        Path packRoot = tempDir.resolve("pack");
+
+        writeZip(jarPath, zip -> {
+            zip.putNextEntry(new ZipEntry("version.json"));
+            zip.write(json(o -> {
+                o.addProperty("name", "future");
+                JsonObject pv = new JsonObject();
+                pv.addProperty("resource_major", 84);
+                pv.addProperty("resource_minor", 3);
+                o.add("pack_version", pv);
+            }).getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+
+            zip.putNextEntry(new ZipEntry("assets/minecraft/textures/block/stone.png"));
+            zip.write(new byte[]{1, 2, 3});
+            zip.closeEntry();
+        });
+
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
+
+        // The resolved renderer target is formats().min(); it must carry the full major.minor (matching
+        // vanilla's getPackVersion), while max widens to the major's highest minor - vanilla's builtin
+        // pack range PackFormat.minorRange = [(major, minor), (major, MAX)]. A bare pack_format int would
+        // have floored the minor to 0.
+        FormatRange formats = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"))
+            .pack().orElseThrow().formats();
+        assertThat(formats.min().major(), is(84));
+        assertThat(formats.min().minor(), is(3));
+        assertThat(formats.max().major(), is(84));
+        assertThat(formats.max().minor(), is(FormatRange.FormatVersion.MAX_MINOR));
     }
 
     @Test
@@ -107,7 +145,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         MCMeta parsed = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"));
         assertThat(parsed.pack().orElseThrow().formats().min().major(), is(42));
@@ -138,7 +176,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         MCMeta parsed = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"));
         assertThat(parsed.pack().orElseThrow().formats().min().major(), is(46));
@@ -166,7 +204,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         MCMeta parsed = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"));
         assertThat(parsed.pack().orElseThrow().formats().min().major(), is(84));
@@ -184,7 +222,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         assertThat(Files.exists(packRoot.resolve("pack.mcmeta")), is(false));
     }
@@ -212,7 +250,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         assertThat(Files.exists(packRoot.resolve("pack.mcmeta")), is(false));
     }
@@ -233,7 +271,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         assertThat(Files.exists(packRoot.resolve("pack.mcmeta")), is(false));
     }

@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tensor;
 
-import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -87,6 +86,30 @@ public record Box(float minX, float minY, float minZ, float maxX, float maxY, fl
     }
 
     /**
+     * The box one cube occupies: an origin and a size, grown on every side by a per-axis amount.
+     * <p>
+     * <b>The order of the three operands is vanilla's own and is not free to re-associate.</b>
+     * {@code ModelPart$Cube}'s constructor computes each upper corner as {@code (origin + size) + grow}
+     * from the <em>un-grown</em> origin, and each lower corner as {@code origin - grow}; float addition
+     * does not associate, so growing the lower corner first and adding the growth back twice is a
+     * different number in the last bits. Every cube box in the renderer - a worn shell's rows and the
+     * entity bounds walk alike - is formed here so the two cannot drift apart.
+     *
+     * @param origin the cube's lower corner before growth
+     * @param size the cube's extent before growth
+     * @param grow the per-axis growth applied to every side
+     * @return the grown cube box
+     */
+    public static @NotNull Box grown(
+        @NotNull Vector3f origin, @NotNull Vector3f size, @NotNull Vector3f grow) {
+        return new Box(
+            origin.x() - grow.x(), origin.y() - grow.y(), origin.z() - grow.z(),
+            origin.x() + size.x() + grow.x(),
+            origin.y() + size.y() + grow.y(),
+            origin.z() + size.z() + grow.z());
+    }
+
+    /**
      * The largest extent across all three axes - {@code max(maxX-minX, maxY-minY, maxZ-minZ)}.
      * <p>
      * Used by entity rendering to size the camera so the model fits regardless of which axis
@@ -94,6 +117,36 @@ public record Box(float minX, float minY, float minZ, float maxX, float maxY, fl
      */
     public float maxExtent() {
         return Math.max(maxX - minX, Math.max(maxY - minY, maxZ - minZ));
+    }
+
+    /**
+     * This box grown by the same amount on every side - each minimum moved down by {@code amount} and
+     * each maximum up by it, so the box gains {@code 2 * amount} of extent on each axis.
+     * <p>
+     * The one expansion primitive the renderer inflates a box through: a worn shell's layer growth, an
+     * armour piece's clearance over the player's own skin geometry, and the hat overlay's clearance
+     * over the head. Each caller keeps its own constant - the amounts are calibrated per frame and per
+     * scope and are not interchangeable - and shares only the arithmetic.
+     *
+     * @param amount the per-side growth, negative to shrink
+     * @return the grown box
+     */
+    public @NotNull Box expand(float amount) {
+        return new Box(
+            minX - amount, minY - amount, minZ - amount,
+            maxX + amount, maxY + amount, maxZ + amount);
+    }
+
+    /**
+     * The axis-aligned union of this box and another - the smallest box containing both.
+     *
+     * @param other the box to union with
+     * @return the smallest box containing both
+     */
+    public @NotNull Box union(@NotNull Box other) {
+        return new Box(
+            Math.min(minX, other.minX), Math.min(minY, other.minY), Math.min(minZ, other.minZ),
+            Math.max(maxX, other.maxX), Math.max(maxY, other.maxY), Math.max(maxZ, other.maxZ));
     }
 
 }

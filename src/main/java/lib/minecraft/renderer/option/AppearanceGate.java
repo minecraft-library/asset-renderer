@@ -7,13 +7,13 @@ import org.jetbrains.annotations.NotNull;
  * whether the gated overlay / layer renders for a given {@link EntityAppearance}. An absent {@code when}
  * is modelled as no gate (an {@code Optional.empty()} on the owning row), meaning unconditional.
  *
- * <p>Each arm names the exact vanilla branch its condition expresses. The seven arms mirror the seven
+ * <p>Each arm names the exact vanilla branch its condition expresses. The nine arms mirror the nine
  * {@code when} forms the tooling emits.
  */
 public sealed interface AppearanceGate
     permits AppearanceGate.StateGate, AppearanceGate.FlagGate, AppearanceGate.ChargedGate,
     AppearanceGate.TintedGate, AppearanceGate.EquipmentGate, AppearanceGate.MarkingsGate,
-    AppearanceGate.CollarColorGate {
+    AppearanceGate.CollarColorGate, AppearanceGate.AgeGate, AppearanceGate.SizeGate {
 
     /**
      * Reports whether the gated row renders for the given appearance.
@@ -60,15 +60,22 @@ public sealed interface AppearanceGate
     }
 
     /**
-     * Renders only once the row's tint axis holds a selected colour (the sheep wool undercoat, gated
-     * on {@code wool_color}). Carries the {@link #tintBy} axis token so the gate is self-contained.
+     * Renders only once the row's tint axis selects a colour that differs from the row's own baked
+     * tint - the sheep wool undercoat, gated on {@code wool_color}. Vanilla writes that as a dye
+     * comparison its layer returns early on ({@code woolColor == WHITE}), and the row's baked tint is
+     * the value that very dye resolves to, so the comparison travels as a colour rather than as a dye
+     * name and the gate needs no notion of which dye an axis starts at.
      *
      * @param tintBy the tint axis token whose selection activates the row
+     * @param defaultArgb the row's baked tint - the colour a selection has to differ from
      */
-    record TintedGate(@NotNull String tintBy) implements AppearanceGate {
+    record TintedGate(@NotNull String tintBy, int defaultArgb) implements AppearanceGate {
         @Override
         public boolean test(@NotNull EntityAppearance appearance) {
-            return TintAxis.ofToken(this.tintBy).flatMap(appearance::tint).isPresent();
+            return TintAxis.ofToken(this.tintBy)
+                .flatMap(axis -> appearance.tint(axis).map(axis::resolve))
+                .filter(argb -> argb != this.defaultArgb)
+                .isPresent();
         }
     }
 
@@ -93,13 +100,39 @@ public sealed interface AppearanceGate
     }
 
     /**
-     * Renders only when a collar colour is supplied - the wolf / cat collar branch
-     * ({@code collarColor != null}).
+     * Renders only when a collar is worn - the wolf / cat collar branch
+     * ({@code collarColor != null}), which their renderers fill for a tamed subject alone.
      */
     record CollarColorGate() implements AppearanceGate {
         @Override
         public boolean test(@NotNull EntityAppearance appearance) {
-            return appearance.tint(TintAxis.COLLAR).isPresent();
+            return appearance.collarTint().isPresent();
+        }
+    }
+
+    /**
+     * Renders when the {@code age} axis selects {@link #value} - the aged-down worn-armor shell the
+     * six wearers vanilla registers a second armor set for are dressed in.
+     *
+     * @param value the age that activates the row
+     */
+    record AgeGate(@NotNull Age value) implements AppearanceGate {
+        @Override
+        public boolean test(@NotNull EntityAppearance appearance) {
+            return appearance.getAge() == this.value;
+        }
+    }
+
+    /**
+     * Renders when the {@code size} axis selects {@link #value} - the shell a small armor stand
+     * wears, which is a different mesh rather than the full-size one drawn smaller.
+     *
+     * @param value the size that activates the row
+     */
+    record SizeGate(@NotNull Size value) implements AppearanceGate {
+        @Override
+        public boolean test(@NotNull EntityAppearance appearance) {
+            return appearance.getSize().filter(this.value::equals).isPresent();
         }
     }
 }

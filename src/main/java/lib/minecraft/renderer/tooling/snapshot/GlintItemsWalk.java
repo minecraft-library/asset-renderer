@@ -1,14 +1,13 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
@@ -38,20 +37,13 @@ public final class GlintItemsWalk {
      * @param session the live session
      * @param root the envelope root
      */
-    public static void run(@NotNull ToolingSession session, @NotNull JsonNode root) {
+    public static void run(@NotNull ToolingSession session, @NotNull JsonTree root) {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("items");
 
-        ClassNode items = cache.load(VanillaSourceClasses.Types.ITEMS);
-        if (items == null) {
-            diagnostics.error("'%s' class missing - glint set unresolved", VanillaSourceClasses.Types.ITEMS);
-            return;
-        }
-        MethodNode clinit = AsmKit.findMethod(items, AsmKit.CLINIT);
-        if (clinit == null) {
-            diagnostics.error("'%s.<clinit>' missing - glint set unresolved", VanillaSourceClasses.Types.ITEMS);
-            return;
-        }
+        MethodNode clinit = AsmKit.findMethodOrError(cache, diagnostics,
+            VanillaSourceClasses.Types.ITEMS, AsmKit.CLINIT, "glint set");
+        if (clinit == null) return;
 
         String itemFieldDesc = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.ITEM);
         TreeSet<String> glintItems = new TreeSet<>();
@@ -59,7 +51,7 @@ public final class GlintItemsWalk {
         String pendingItemId = null;
         boolean pendingGlint = false;
 
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : clinit.instructions) {
             String string = AsmKit.readStringLiteral(node);
             if (string != null) {
                 if (pendingItemId == null) pendingItemId = string;
@@ -83,7 +75,7 @@ public final class GlintItemsWalk {
             }
         }
 
-        JsonNode itemsNode = root.childArray("items");
+        JsonTree itemsNode = root.childArray("items");
         glintItems.forEach(itemsNode::add);
         diagnostics.info("%d always-glinted items from %s.<clinit>", glintItems.size(), VanillaSourceClasses.Types.ITEMS);
     }

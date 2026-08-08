@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import org.jetbrains.annotations.NotNull;
@@ -18,10 +18,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 
 /**
  * Resolves the {@code block_overlays[]} array - block-model composites on entity bodies
@@ -43,17 +40,14 @@ final class EntityBlockOverlayResolver {
     private final @NotNull Diagnostics diagnostics;
 
     EntityBlockOverlayResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull List<EntityRendererResolver.LayerSite> roster,
-        @NotNull BlockRegistryIndex blocks,
-        @NotNull Diagnostics diagnostics
+        @NotNull EntityContext context,
+        @NotNull List<EntityRendererResolver.LayerSite> roster
     ) {
-        this.cache = cache;
-        this.subject = subject;
+        this.cache = context.cache();
+        this.subject = context.subject();
         this.roster = roster;
-        this.blocks = blocks;
-        this.diagnostics = diagnostics;
+        this.blocks = context.indexes().blocks();
+        this.diagnostics = context.diagnostics();
     }
 
     /**
@@ -62,24 +56,21 @@ final class EntityBlockOverlayResolver {
      *
      * @return the rows, or {@code null} when no layer qualifies
      */
-    @Nullable JsonNode resolve() {
-        List<JsonNode> rows = new ArrayList<>();
+    @Nullable JsonTree resolve() {
+        List<JsonTree> rows = new ArrayList<>();
         for (EntityRendererResolver.LayerSite site : this.roster) {
             ClassNode cn = this.cache.load(site.layerClass());
             if (cn == null) continue;
             if (!EntityOverlayResolver.readsBlockModelRenderState(cn)) continue;
             resolveLayer(site, cn, rows);
         }
-        if (rows.isEmpty()) return null;
-        JsonNode out = JsonNode.array();
-        for (JsonNode row : rows) out.add(row);
-        return out;
+        return rows.isEmpty() ? null : JsonTree.arrayOf(rows);
     }
 
     private void resolveLayer(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn,
-        @NotNull List<JsonNode> rows
+        @NotNull List<JsonTree> rows
     ) {
         MethodNode submit = EntityOverlayResolver.typedSubmit(cn);
         if (submit == null) return;
@@ -89,15 +80,14 @@ final class EntityBlockOverlayResolver {
                 EntityOverlayResolver.simpleName(site.layerClass()));
             return;
         }
-        for (JsonNode transforms : extractPoseBlocks(submit)) {
-            JsonNode row = JsonNode.object()
+        for (JsonTree transforms : extractPoseBlocks(submit)) {
+            JsonTree row = JsonTree.object()
                 .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
                 .putInt("layer_index", site.layerIndex())
                 .putIf("block", source.blockId());
-            String bone = transforms.getString("attached_bone");
-            row.putIf("attached_bone", bone);
+            row.putIf("attached_bone", transforms.findString("attached_bone"));
             if (source.selectable()) row.put("selectable", true);
-            row.put("transforms", transforms.get("transforms"));
+            row.put("transforms", transforms.find("transforms").orElse(null));
             rows.add(row);
         }
     }
@@ -121,7 +111,7 @@ final class EntityBlockOverlayResolver {
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
         String stateClass = null;
         String blockField = null;
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : submit.instructions)
             if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi && stateRef.equals(fi.desc)) {
                 stateClass = fi.owner;
                 blockField = fi.name;
@@ -149,44 +139,12 @@ final class EntityBlockOverlayResolver {
     }
 
     /**
-     * The {@code $Variant} enum's canonical block: its {@code <clinit>} pairs each constant
-     * with the {@code Blocks.X} it wraps; the {@code DEFAULT} alias picks the canonical one,
-     * resolved to its registered id through the registry index.
+     * The {@code $Variant} enum's canonical block - the {@code DEFAULT} alias's entry in the
+     * enum's block table. The coats that wrap a different one carry it on their own variant
+     * option, so the row itself only ever names the default.
      */
     private @Nullable String resolveVariantDefaultBlock(@NotNull String variantClass) {
-        ClassNode cn = this.cache.load(variantClass);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
-        if (clinit == null) return null;
-        Map<String, String> constantToBlocksField = new LinkedHashMap<>();
-        String pendingBlocksField = null;
-        String pendingAlias = null;
-        String defaultConstant = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.BLOCKS)) {
-                pendingBlocksField = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (AsmKit.isGetStatic(in, variantClass)) {
-                pendingAlias = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, variantClass) && in instanceof FieldInsnNode put) {
-                if (EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue().equals(put.name) && pendingAlias != null)
-                    defaultConstant = pendingAlias;
-                else if (pendingBlocksField != null)
-                    constantToBlocksField.put(put.name, pendingBlocksField);
-                pendingBlocksField = null;
-                pendingAlias = null;
-            }
-        }
-        String blocksField = defaultConstant == null ? null : constantToBlocksField.get(defaultConstant);
-        if (blocksField == null) return null;
-        BlockRegistryIndex.Entry entry = this.blocks.byField(blocksField);
-        if (entry == null) {
-            this.diagnostics.warn("Blocks.%s has no registration entry [D25]", blocksField);
-            return null;
-        }
-        return entry.id();
+        return VariantBlockTable.of(this.cache, this.blocks, variantClass, this.diagnostics).defaultBlockId();
     }
 
     /**
@@ -223,7 +181,7 @@ final class EntityBlockOverlayResolver {
      */
     private static @Nullable String findLiteralBlockUpdate(@NotNull MethodNode method, @NotNull String blockFieldName) {
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE)) continue;
             String blocksField = null;
             boolean targetMatched = false;
@@ -249,7 +207,7 @@ final class EntityBlockOverlayResolver {
         Type[] args = AsmKit.argTypes(method.desc);
         if (args.length == 0 || args[0].getSort() != Type.OBJECT) return false;
         String entityClass = args[0].getInternalName();
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : method.instructions)
             if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
                 && entityClass.equals(mi.owner) && mi.desc.endsWith(")Z"))
                 return true;
@@ -266,15 +224,15 @@ final class EntityBlockOverlayResolver {
      * pose-stack ops in bytecode order. The float pseudo-stack consumes literal pushes
      * most-recent-first for each op.
      */
-    private @NotNull List<JsonNode> extractPoseBlocks(@NotNull MethodNode submit) {
-        List<JsonNode> out = new ArrayList<>();
+    private @NotNull List<JsonTree> extractPoseBlocks(@NotNull MethodNode submit) {
+        List<JsonTree> out = new ArrayList<>();
         boolean insideBlock = false;
-        JsonNode transforms = null;
+        JsonTree transforms = null;
         String attachedBone = null;
         List<Float> floats = new ArrayList<>();
         int opCount = 0;
 
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             Float literal = AsmKit.readFloatLiteral(in);
             if (literal != null) {
                 floats.add(literal);
@@ -284,7 +242,7 @@ final class EntityBlockOverlayResolver {
 
             if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.PUSH_POSE)) {
                 insideBlock = true;
-                transforms = JsonNode.array();
+                transforms = JsonTree.array();
                 attachedBone = null;
                 floats.clear();
                 opCount = 0;
@@ -292,7 +250,7 @@ final class EntityBlockOverlayResolver {
             }
             if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.POP_POSE)) {
                 if (insideBlock && opCount > 0) {
-                    JsonNode carrier = JsonNode.object();
+                    JsonTree carrier = JsonTree.object();
                     carrier.putIf("attached_bone", attachedBone);
                     carrier.put("transforms", transforms);
                     out.add(carrier);
@@ -310,7 +268,7 @@ final class EntityBlockOverlayResolver {
                 float z = floats.removeLast();
                 float y = floats.removeLast();
                 float x = floats.removeLast();
-                transforms.add(JsonNode.object().put("op", "translate").put("x", x).put("y", y).put("z", z));
+                transforms.add(JsonTree.object().put("op", "translate").put("x", x).put("y", y).put("z", z));
                 opCount++;
                 continue;
             }
@@ -319,7 +277,7 @@ final class EntityBlockOverlayResolver {
                 float z = floats.removeLast();
                 float y = floats.removeLast();
                 float x = floats.removeLast();
-                transforms.add(JsonNode.object().put("op", "scale").put("x", x).put("y", y).put("z", z));
+                transforms.add(JsonTree.object().put("op", "scale").put("x", x).put("y", y).put("z", z));
                 opCount++;
                 continue;
             }
@@ -344,7 +302,7 @@ final class EntityBlockOverlayResolver {
                     this.diagnostics.warn("unrecognised rotation axis field '%s' - op skipped", axis);
                     continue;
                 }
-                transforms.add(JsonNode.object().put("op", op).put("degrees", degrees));
+                transforms.add(JsonTree.object().put("op", op).put("degrees", degrees));
                 opCount++;
                 continue;
             }
@@ -405,7 +363,7 @@ final class EntityBlockOverlayResolver {
         String returnDesc = "()" + VanillaSourceClasses.Descs.MODEL_PART_REF;
         for (MethodNode method : model.methods) {
             if (!accessorName.equals(method.name) || !returnDesc.equals(method.desc)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+            for (AbstractInsnNode in : method.instructions)
                 if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi
                     && VanillaSourceClasses.Descs.MODEL_PART_REF.equals(fi.desc))
                     return fi.name;
@@ -419,7 +377,7 @@ final class EntityBlockOverlayResolver {
         if (init == null) return null;
         String pendingLiteral = null;
         String lastGetChildArg = null;
-        for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : init.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingLiteral = literal;

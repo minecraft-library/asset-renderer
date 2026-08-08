@@ -5,8 +5,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -34,18 +35,18 @@ import static org.hamcrest.Matchers.is;
 /**
  * Live-pipeline cross-check for {@code block_defaults.json}.
  * <p>
- * The byte-level integrity fixture ({@code block_defaults.sha256}) is asserted alongside the other
- * bundled JSON in {@code ResourceShaTest}. This {@code slow}-tagged test cross-checks the
+ * The byte-level integrity digest is pinned alongside the other bundled JSON in
+ * {@code digest.shipped-tables} and asserted by {@code ResourceShaTest}. This {@code slow}-tagged test cross-checks the
  * committed snapshot against a live pipeline: each non-empty {@code default} key must subset-resolve
  * to one of the block's runtime {@code block.getVariants().keySet()} variants. This catches the
  * ASM-derived default drifting away from the live blockstate parse.
  * <p>
  * The snapshot stores each block's default state as a structured {@code {prop:"val"}} object (an
  * empty {@code {}} for a no-property block); this test reconstructs the comma-joined key from that
- * object exactly as {@code BlockDefaultsReader} does at load.
+ * object exactly as {@code BlockDefaultsLoader} does at load.
  * <p>
- * Regeneration workflow: run {@code ./gradlew :asset-renderer:blockDefaults} to refresh the snapshot,
- * then update {@code block_defaults.sha256} per {@code ResourceShaTest}.
+ * Regeneration workflow: run {@code ./gradlew blockDefaults} to refresh the snapshot,
+ * then re-pin its digest per {@code ResourceShaTest}. No digest is transcribed by hand.
  */
 @DisplayName("block_defaults.json agrees with the live pipeline")
 class BlockDefaultsGoldenTest {
@@ -57,7 +58,7 @@ class BlockDefaultsGoldenTest {
     @Tag("slow")
     @DisplayName("each default resolves to a live-pipeline variant")
     void crossCheckAgainstLivePipeline() throws IOException {
-        Pipeline.Result result = Pipeline.run(PipelineOptions.builder()
+        ClientAssets result = ClientAcquisition.acquire(ClientOptions.builder()
             .version("26.1")
             .cacheRoot(new File("cache/it"))
             .build());
@@ -83,7 +84,7 @@ class BlockDefaultsGoldenTest {
 
     /**
      * Reconstructs the comma-joined {@code prop=val} default-state key from the structured
-     * {@code {prop:"val"}} object (properties are stored sorted), mirroring {@code BlockDefaultsReader}.
+     * {@code {prop:"val"}} object (properties are stored sorted), mirroring {@code BlockDefaultsLoader}.
      * An empty object yields the empty key (a no-property block).
      */
     private static @NotNull String joinDefaultKey(@NotNull JsonObject properties) {
@@ -112,7 +113,7 @@ class BlockDefaultsGoldenTest {
     @BeforeAll
     static void ensureGeneratedJsonExists() {
         if (!Files.exists(JSON_PATH))
-            throw new IllegalStateException("Run ./gradlew :asset-renderer:blockDefaults to generate " + JSON_PATH);
+            throw new IllegalStateException("Run ./gradlew blockDefaults to generate " + JSON_PATH);
     }
 
 }

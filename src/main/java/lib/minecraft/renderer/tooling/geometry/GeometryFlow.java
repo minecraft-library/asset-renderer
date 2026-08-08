@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.geometry;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -10,7 +10,7 @@ import java.util.Map;
 
 /**
  * The shared geometry pipeline: consumes the manifest a models walk populated in the same
- * session and emits the paired geometry file - own JsonNode tree, own file, recycled
+ * session and emits the paired geometry file - own JsonTree tree, own file, recycled
  * discovery, so a manifest key and its geometry entry can never desync across tasks.
  *
  * <p>Per deduped request: parse, stamp the {@code source} twin + {@code texture_size} +
@@ -34,17 +34,17 @@ public final class GeometryFlow {
      */
     public static void emit(@NotNull ToolingSession session, @NotNull GeometryManifest manifest, @NotNull Path out) {
         Diagnostics diagnostics = session.diagnostics().child("geometry");
-        JsonNode root = JsonNode.envelope(session,
+        JsonTree root = session.envelope(
             "GeometryManifest registration order (walk order; append-last as a data-structure property)");
-        JsonNode geometries = root.child("geometries");
+        JsonTree geometries = root.child("geometries");
         for (Map.Entry<String, GeometryRequest> entry : manifest.entries().entrySet()) {
             String key = entry.getKey();
             GeometryRequest request = entry.getValue();
             Diagnostics scope = diagnostics.child(key);
-            JsonNode parsed = GeometryParser.parse(session.cache(), request, scope);
+            JsonTree parsed = GeometryParser.parse(session.cache(), request, scope);
             if (parsed == null) continue;                       // ERROR already recorded by the parser
 
-            JsonNode node = JsonNode.object();
+            JsonTree node = JsonTree.object();
             node.put("source", sourceTwin(request));
             int texWidth = request.texWidthOverride() != null
                 ? request.texWidthOverride() : parsed.getInt("textureWidth", 64);
@@ -54,18 +54,22 @@ public final class GeometryFlow {
             node.put("y_axis", request.yAxis().name());
             if (GeometryCullResolver.usesCullRenderType(session.cache(), request.factoryClass()))
                 node.put("cull", true);
-            node.putIf("bones", parsed.get("bones"));
+            node.putIf("bones", parsed.find("bones"));
             geometries.put(key, node);
         }
-        root.writeResource(out, diagnostics);
+        root.write(out);
+        diagnostics.info("wrote %s", out.toAbsolutePath());
     }
 
     /**
-     * The structured {@code source} twin of the factory-coordinate key: the full class
-     * coordinate plus the same discriminators the key encodes, machine-readable.
+     * Returns the machine-readable {@code source} twin of the factory-coordinate key: the full
+     * class coordinate plus the same discriminators the key encodes, in the same canonical order.
+     *
+     * @param request the deduped request
+     * @return the {@code source} object stamped onto the geometry entry
      */
-    private static @NotNull JsonNode sourceTwin(@NotNull GeometryRequest request) {
-        JsonNode source = JsonNode.object()
+    private static @NotNull JsonTree sourceTwin(@NotNull GeometryRequest request) {
+        JsonTree source = JsonTree.object()
             .put("class", request.factoryClass())
             .put("method", request.factoryMethod());
         float[] grow = request.grow();
@@ -78,9 +82,14 @@ public final class GeometryFlow {
             source.put("fparam", floatParams[0]);
         if (request.appliedMeshTransformerScale() != 1f)
             source.put("scaled", request.appliedMeshTransformerScale());
+        BabyMeshTransform baby = request.babyTransform();
+        if (baby != null) source.put("baby", baby.discriminator());
+        GeometryRequest.PoseParam pose = request.poseParam();
+        if (pose != null && (pose.offset()[0] != 0f || pose.offset()[1] != 0f || pose.offset()[2] != 0f))
+            source.putFloats("pose", pose.offset()[0], pose.offset()[1], pose.offset()[2]);
         int[] intParams = request.paramIntValues();
         if (intParams != null) {
-            JsonNode bound = source.childArray("iparam");
+            JsonTree bound = source.childArray("iparam");
             boolean any = false;
             for (int slot = 0; slot < intParams.length; slot++) {
                 if (intParams[slot] == 0) continue;

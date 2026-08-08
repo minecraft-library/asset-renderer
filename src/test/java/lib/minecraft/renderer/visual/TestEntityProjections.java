@@ -3,19 +3,21 @@ package lib.minecraft.renderer.visual;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
-import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -29,7 +31,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import javax.imageio.ImageIO;
 
 /**
  * Renders one entity under every {@link Projection} in the catalog (perspective / axonometric /
@@ -41,7 +42,7 @@ import javax.imageio.ImageIO;
  * its camera comes from the selected projection. Each cell fits its own canvas
  * ({@link EntityOptions.FitMode#OUTPUT_SIZE}) so the whole taxonomy reads at a glance.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:entityProjections [-PentityId=minecraft:zombie] [-PrenderSize=256]}.
+ * <p>Usage: {@code ./gradlew entityProjections [-PentityId=minecraft:zombie] [-PrenderSize=256]}.
  */
 @UtilityClass
 public final class TestEntityProjections {
@@ -63,17 +64,17 @@ public final class TestEntityProjections {
         String entityId = args.length > 0 && !args[0].isBlank() ? args[0] : DEFAULT_ENTITY;
         int size = args.length > 1 ? Integer.parseInt(args[1]) : 256;
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
         PipelineRendererContext context = PipelineRendererContext.of(result);
         ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
-            System.err.println("entity_models.json / entity_geometry.json not present - run entityModelsJava first");
+            System.err.println("entity_models.json / entity_geometry.json not present - run entityModels first");
             return;
         }
         EntityRenderer renderer = new EntityRenderer(context, javaEntities);

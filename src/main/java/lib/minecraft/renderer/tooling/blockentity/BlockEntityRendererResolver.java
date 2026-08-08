@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import dev.simplified.gson.JsonTree;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -39,8 +39,8 @@ final class BlockEntityRendererResolver {
      *
      * @return the model entry
      */
-    @NotNull JsonNode resolve() {
-        return JsonNode.object()
+    @NotNull JsonTree resolve() {
+        return JsonTree.object()
             .put("renderer", this.subject.rendererClass())          // provenance scalar, used for diagnostics
             .put("geometry", this.split.geometryKey())              // -> block_geometry manifest key
             .put("y_axis", this.split.yAxis().name())               // pivot-band heuristic
@@ -52,8 +52,8 @@ final class BlockEntityRendererResolver {
     }
 
     /** The {@code inventory} node - GUI facing (BlockGuiResolver) plus the decomposed bytecode transform. */
-    private @NotNull JsonNode inventory() {
-        return JsonNode.object()
+    private @NotNull JsonTree inventory() {
+        return JsonTree.object()
             .put("y_rotation", this.gui.yRotation(this.split.splitId()))
             .put("flip", this.gui.flip(this.subject.rendererClass(), this.split.splitId()))
             .putIf("transform", this.transform.resolve(this.subject.rendererClass(), this.split.splitId()));

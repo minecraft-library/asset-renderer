@@ -131,8 +131,11 @@ src/main/resources/**/entity_geometry.upstream.json
 # (vanilla-render-mod plan, etc.) live here.
 notes/
 
-# Parity analysis Python bytecode (outputs land under cache/parity_analysis/, covered
-# by the cache/ ignore above).
+# CPython's own bytecode cache, written beside whatever it imports - today the parity
+# toolkit under scripts/parity/ and its lab/ and tests/ sub-packages. Nothing here is
+# authored and the next import regenerates it. This says nothing about where that
+# toolkit's outputs go: a working capture lands under cache/, a promoted one under the
+# tracked store, and a run's reports in the working root's own reserved _run/.
 scripts/**/__pycache__/
 
 # JMH scratch outputs (baseline + per-phase results from the Pineda rasterizer

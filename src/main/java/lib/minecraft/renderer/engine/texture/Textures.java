@@ -1,29 +1,25 @@
 package lib.minecraft.renderer.engine.texture;
 
-import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.model.ModelElement;
-import lib.minecraft.renderer.asset.model.ModelFace;
-import lib.minecraft.renderer.asset.model.ModelTexture;
-import lib.minecraft.renderer.exception.RenderException;
-
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
+import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.model.ModelElement;
+import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.asset.model.ModelTexture;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
-import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.kit.AnimationKit;
-import lib.minecraft.renderer.option.ItemOptions;
+import lib.minecraft.renderer.exception.RenderException;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.ByteBuffer;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -33,9 +29,8 @@ import java.util.function.Function;
  * to their layers) for its two families of helpers:
  * <ul>
  *   <li><b>Pack resolution</b> - {@code resolveTexture} / {@code resolveTextureAtTick} (animation
- *       strip extraction via {@link AnimationKit AnimationKit}), the {@code minecraft:entity/}
- *       entity-texture prefix ({@code resolveEntityTexture}), and the CIT {@code layer0}
- *       override lookup.</li>
+ *       strip extraction via {@link AnimationKit AnimationKit}) and the {@code minecraft:entity/}
+ *       entity-texture prefix ({@code resolveEntityTextureAtTick}).</li>
  *   <li><b>Tint sampling</b> - biome grass / foliage / water tint (the vanilla
  *       {@code BiomeSpecialEffects$GrassColorModifier} dark-forest / swamp variants and the default
  *       water table) and the redstone-wire-by-power tint, each honouring pack
@@ -131,25 +126,13 @@ public class Textures {
     }
 
     /**
-     * Resolves an entity texture ref against the vanilla pack at {@code minecraft:entity/<ref>},
-     * returning empty when the pack has no such texture. Centralises the {@code minecraft:entity/}
-     * prefix idiom the entity renderer's base / overlay / collar / equipment / family-member paths
-     * all share.
-     *
-     * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
-     *     {@code .png} suffix)
-     * @return the resolved texture, or empty when the pack has no match
-     */
-    public @NotNull Optional<PixelBuffer> resolveEntityTexture(@NotNull String ref) {
-        return tryResolveTexture("minecraft:entity/" + ref);
-    }
-
-    /**
-     * Resolves an entity texture ref at a specific animation tick - the frame-flattening counterpart
-     * of {@link #resolveEntityTexture(String)}, wrapping {@link #tryResolveTextureAtTick} with the
-     * {@code minecraft:entity/} prefix. A sidecar-less entity texture (every vanilla entity) returns
-     * its buffer unchanged, so {@code tick 0} is byte-identical to the raw lookup; a sidecar-carrying
-     * texture samples the frame for {@code tick} (frame-0-at-default when static).
+     * Resolves an entity texture ref against the vanilla pack at {@code minecraft:entity/<ref>} at a
+     * specific animation tick, wrapping {@link #tryResolveTextureAtTick} with the
+     * {@code minecraft:entity/} prefix. Centralises the {@code minecraft:entity/} prefix idiom the
+     * entity renderer's base / overlay / collar / equipment / family-member paths all share. A
+     * sidecar-less entity texture (every vanilla entity) returns its buffer unchanged, so
+     * {@code tick 0} is byte-identical to the raw lookup; a sidecar-carrying texture samples the frame
+     * for {@code tick} (frame-0-at-default when static).
      *
      * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
      *     {@code .png} suffix)
@@ -161,13 +144,31 @@ public class Textures {
     }
 
     /**
+     * The villager hat flag of an entity texture ref, resolved against the vanilla pack at
+     * {@code minecraft:entity/<ref>} - the {@code villager} sidecar section of the selected type or
+     * profession texture. Centralises the {@code minecraft:entity/} prefix idiom exactly as
+     * {@link #resolveEntityTextureAtTick} does. A texture with no sidecar, or a sidecar with no
+     * {@code villager} section, reads as {@link MCMeta.Villager.Hat#NONE} - vanilla's own default for an
+     * absent sidecar.
+     *
+     * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
+     *     {@code .png} suffix)
+     * @return the declared hat flag, or {@link MCMeta.Villager.Hat#NONE}
+     */
+    public @NotNull MCMeta.Villager.Hat findVillagerHat(@NotNull String ref) {
+        return this.context.findVillager("minecraft:entity/" + ref)
+            .map(MCMeta.Villager::hat)
+            .orElse(MCMeta.Villager.Hat.NONE);
+    }
+
+    /**
      * Returns the parsed {@code .mcmeta} animation sidecar for the given texture, if any. Wraps
      * {@link RendererContext#findAnimation(String)}.
      *
      * @param textureId the namespaced texture identifier
      * @return the animation metadata, or empty when the texture has no sidecar
      */
-    public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
+    private @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
         return this.context.findAnimation(textureId);
     }
 
@@ -269,7 +270,7 @@ public class Textures {
         Optional<ColorMap> map = this.context.findColorMap(type);
         if (map.isEmpty()) return ColorMath.WHITE;
 
-        int sampled = sampleColormap(unpackColorMap(map.get()), biome.temperature(), biome.downfall());
+        int sampled = sampleColormap(map.get().pixels(), biome.temperature(), biome.downfall());
         return applyModifier(sampled, biome.grassColorModifier(), target);
     }
 
@@ -287,25 +288,6 @@ public class Textures {
         if (power < 0 || power >= REDSTONE_TINTS.length)
             throw new IllegalArgumentException("Redstone power '%d' is outside [0, 15]".formatted(power));
         return this.context.findColorOverride("redstone." + power).orElse(REDSTONE_TINTS[power]);
-    }
-
-    /**
-     * Resolves the Custom Item Texture effect for this render - one walk of the merged CIT rules via
-     * {@link RendererContext#resolveItemTextureOverride(ItemContext)}, whose result the caller resolves
-     * each layer against with {@link CitResult#textureFor(String)} (one walk per render, not per layer).
-     *
-     * <p>The walk runs even for the {@link ItemContext#EMPTY} default: the item-texture override never
-     * fires there (no rule's item list contains the empty id), but the glint decision is
-     * context-independent for the global {@code useGlint=false} toggle and item-list-less
-     * {@code type=enchantment} rules, so it must ride through to the compose terminal even
-     * for a plainly-enchanted icon that carries no item NBT. A vanilla stack (no rules, no
-     * {@code useGlint}) still yields {@link CitResult#NONE}, so the empty-context path stays byte-identical.
-     *
-     * @param options the per-render options carrying the optional {@link ItemContext}
-     * @return the CIT effect, or {@link CitResult#NONE} when nothing matches and the glint is default
-     */
-    public @NotNull CitResult resolveCit(@NotNull ItemOptions options) {
-        return this.context.resolveItemTextureOverride(options.getContext());
     }
 
     /**
@@ -369,10 +351,10 @@ public class Textures {
      * means {@code "texture": "#all"}). Cycle-guarded so a malformed pack cannot hang the caller.
      *
      * @param reference the texture reference, possibly starting with {@code #}
-     * @param variables the variable map to resolve against
+     * @param variables the variable map to resolve against, valued by {@link ModelTexture}
      * @return the resolved namespaced texture id, or the last unresolvable {@code #variable}
      */
-    public static @NotNull String resolveTextureReference(@NotNull String reference, @NotNull ConcurrentMap<String, String> variables) {
+    public static @NotNull String resolveTextureReference(@NotNull String reference, @NotNull ConcurrentMap<String, ModelTexture> variables) {
         String current = reference;
 
         if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
@@ -381,9 +363,9 @@ public class Textures {
         ConcurrentSet<String> visited = Concurrent.newSet();
         while (current.startsWith("#")) {
             if (!visited.add(current)) return current;
-            String next = variables.get(current.substring(1));
+            ModelTexture next = variables.get(current.substring(1));
             if (next == null) return current;
-            current = next;
+            current = next.sprite();
         }
 
         return current;
@@ -409,7 +391,7 @@ public class Textures {
      */
     public static @NotNull ConcurrentMap<String, PixelBuffer> loadElementFaceTextures(
         @NotNull Iterable<ModelElement> elements,
-        @NotNull ConcurrentMap<String, String> textureVars,
+        @NotNull ConcurrentMap<String, ModelTexture> textureVars,
         @NotNull Function<String, Optional<PixelBuffer>> resolve
     ) {
         ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
@@ -435,41 +417,37 @@ public class Textures {
      * force-translucent when any variable in its deref chain is flagged.
      *
      * @param elements the model's element boxes
-     * @param textureVars the model's {@code #variable} bindings
-     * @param textureObjects the retained object-form entries keyed by variable name
+     * @param textureVars the model's {@code #variable} bindings, valued by {@link ModelTexture}
      * @return the raw face refs to force into the translucent pass, empty when nothing is flagged
      */
     public static @NotNull ConcurrentSet<String> resolveForceTranslucentRefs(
         @NotNull Iterable<ModelElement> elements,
-        @NotNull ConcurrentMap<String, String> textureVars,
-        @NotNull ConcurrentMap<String, ModelTexture> textureObjects
+        @NotNull ConcurrentMap<String, ModelTexture> textureVars
     ) {
         ConcurrentSet<String> refs = Concurrent.newSet();
-        if (textureObjects.isEmpty()) return refs;
+        if (textureVars.values().stream().noneMatch(ModelTexture::forceTranslucent)) return refs;
 
         for (ModelElement element : elements) {
             for (ModelFace face : element.getFaces().values()) {
                 String ref = face.getTexture();
                 if (ref.isBlank() || refs.contains(ref)) continue;
-                if (isForceTranslucent(ref, textureVars, textureObjects)) refs.add(ref);
+                if (isForceTranslucent(ref, textureVars)) refs.add(ref);
             }
         }
         return refs;
     }
 
     /**
-     * Walks the {@code #variable} chain of a face ref, reporting whether any hop resolves to an
-     * object-form entry flagged {@code force_translucent}.
+     * Walks the {@code #variable} chain of a face ref, reporting whether any hop resolves to a
+     * texture flagged {@code force_translucent}.
      *
      * @param reference the raw face-texture ref, possibly starting with {@code #}
-     * @param variables the variable map to resolve against
-     * @param textureObjects the retained object-form entries keyed by variable name
+     * @param variables the variable map to resolve against, valued by {@link ModelTexture}
      * @return {@code true} when any variable in the chain carried {@code force_translucent}
      */
     private static boolean isForceTranslucent(
         @NotNull String reference,
-        @NotNull ConcurrentMap<String, String> variables,
-        @NotNull ConcurrentMap<String, ModelTexture> textureObjects
+        @NotNull ConcurrentMap<String, ModelTexture> variables
     ) {
         String current = reference;
         if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
@@ -478,12 +456,10 @@ public class Textures {
         ConcurrentSet<String> visited = Concurrent.newSet();
         while (current.startsWith("#")) {
             if (!visited.add(current)) return false;
-            String name = current.substring(1);
-            ModelTexture object = textureObjects.get(name);
-            if (object != null && object.forceTranslucent()) return true;
-            String next = variables.get(name);
-            if (next == null) return false;
-            current = next;
+            ModelTexture texture = variables.get(current.substring(1));
+            if (texture == null) return false;
+            if (texture.forceTranslucent()) return true;
+            current = texture.sprite();
         }
         return false;
     }
@@ -504,32 +480,32 @@ public class Textures {
      * }</pre>
      * Vanilla returns a magenta fallback ({@code 0xFFFF00FF}) when the index is out of bounds;
      * this helper clamps instead for defensive parity with malformed colormaps.
+     * <p>
+     * The pixel is read straight out of the {@link ColorMap}'s bytes at its own offset. A colormap
+     * is 256x256, so unpacking the whole thing first cost a 65,536-element {@code int[]} - 256 KiB -
+     * to hand back one element. The four-byte big-endian read here is the same value bit for bit:
+     * {@link ColorMap} stores what {@code ColorMapLoader} packed big-endian, which is also how the
+     * unpack read it back, since {@code ByteBuffer.wrap} is big-endian by default. Each byte must be
+     * masked to {@code 0xFF} - dropping the mask on any of the low three sign-extends and corrupts
+     * every pixel whose channel reaches {@code 0x80}.
      *
-     * @param colormap the 256x256 colormap pixels in row-major ARGB order
+     * @param colormap the 256x256 colormap's raw ARGB bytes, row-major and big-endian
      * @param temperature the biome temperature
      * @param downfall the biome downfall
      * @return the sampled ARGB pixel
      */
-    public static int sampleColormap(int @NotNull [] colormap, float temperature, float downfall) {
+    public static int sampleColormap(byte @NotNull [] colormap, float temperature, float downfall) {
         float adjTemp = Math.clamp(temperature, 0f, 1f);
         float adjRain = Math.clamp(downfall, 0f, 1f) * adjTemp;
 
         int x = Math.clamp((int) ((1.0f - adjTemp) * COLORMAP_COORD_MAX), 0, (int) COLORMAP_COORD_MAX);
         int y = Math.clamp((int) ((1.0f - adjRain) * COLORMAP_COORD_MAX), 0, (int) COLORMAP_COORD_MAX);
 
-        return colormap[y * COLORMAP_SIZE + x];
-    }
-
-    /**
-     * Unpacks the row-major ARGB bytes from a {@link ColorMap} entity into an {@code int[]}
-     * colormap suitable for {@link #sampleColormap(int[], float, float)}.
-     */
-    private int @NotNull [] unpackColorMap(@NotNull ColorMap map) {
-        byte[] bytes = map.pixels();
-        int[] pixels = new int[bytes.length / 4];
-        ByteBuffer buffer = ByteBuffer.wrap(bytes);
-        buffer.asIntBuffer().get(pixels);
-        return pixels;
+        int offset = (y * COLORMAP_SIZE + x) * Integer.BYTES;
+        return ((colormap[offset] & 0xFF) << 24)
+            | ((colormap[offset + 1] & 0xFF) << 16)
+            | ((colormap[offset + 2] & 0xFF) << 8)
+            | (colormap[offset + 3] & 0xFF);
     }
 
 }

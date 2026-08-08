@@ -25,7 +25,7 @@ import java.util.function.UnaryOperator;
  * <p>The {@link #getFitMode() fitMode} field selects how the output canvas is sized:
  * {@link FitMode#OUTPUT_SIZE} (default) renders into a fixed {@code canvasSize x canvasSize}
  * square with the entity scaled to fit and {@code padding} pixels of clear space inside;
- * {@link FitMode#UNION_BOUNDS} and {@link FitMode#FAMILY_BOUNDS} size the canvas dynamically
+ * {@link FitMode#UNION_BOUNDS} and {@link FitMode#GROUP_BOUNDS} size the canvas dynamically
  * from the entity's bounds at native pixel resolution and are intended for vanilla-reference
  * parity work. See each enum constant's javadoc for the precise math.
  *
@@ -57,7 +57,7 @@ public class EntityOptions implements RenderOptions {
     /**
      * The entity-specific axis selections (age, state, carried, dyed collar) as one cohesive value,
      * so this class does not accrete a loose field per axis. Empty / default {@link EntityAppearance}
-     * (the default) has no effect on the render. Only consulted under the family form. Lower
+     * (the default) has no effect on the render. Only consulted under the model form. Lower
      * precedence than {@link #getTextureId() textureId} for texture resolution.
      */
     @lombok.Builder.Default
@@ -70,7 +70,7 @@ public class EntityOptions implements RenderOptions {
     /**
      * Canvas-sizing strategy. {@link FitMode#OUTPUT_SIZE} (default) honours
      * {@link OutputOptions#getCanvasSize() canvasSize} and centres the entity inside a fixed
-     * square canvas; {@link FitMode#UNION_BOUNDS} and {@link FitMode#FAMILY_BOUNDS} size the
+     * square canvas; {@link FitMode#UNION_BOUNDS} and {@link FitMode#GROUP_BOUNDS} size the
      * canvas dynamically from the entity's screen bounds for parity work. See each constant's
      * javadoc for the precise sizing math.
      */
@@ -84,7 +84,7 @@ public class EntityOptions implements RenderOptions {
      *   <li>{@link FitMode#OUTPUT_SIZE} - shrinks the available silhouette area inside the
      *       fixed {@link OutputOptions#getCanvasSize() canvasSize} canvas by {@code padding}
      *       pixels on each side.</li>
-     *   <li>{@link FitMode#UNION_BOUNDS}, {@link FitMode#FAMILY_BOUNDS} - expands the
+     *   <li>{@link FitMode#UNION_BOUNDS}, {@link FitMode#GROUP_BOUNDS} - expands the
      *       dynamically-computed canvas by {@code padding} pixels on each side around the
      *       native-sized silhouette.</li>
      * </ul>
@@ -98,20 +98,27 @@ public class EntityOptions implements RenderOptions {
      * Texel resolution in image-pixels per Minecraft block-unit, consumed by the two
      * {@code BOUNDS} {@link FitMode}s to size the canvas (the per-axis ratio is
      * {@code pixelsPerBlock / 16} since vanilla authors cubes in entity-pixels). Ignored by
-     * {@link FitMode#OUTPUT_SIZE}. Defaults to the {@code -Drefharness.pixelsPerBlock} system
-     * property, or {@code 256} when unset, matching the vanilla-reference-harness scale.
+     * {@link FitMode#OUTPUT_SIZE}. Defaults to {@code 256}.
+     *
+     * <p>The vanilla-reference-harness's {@code HarnessConfig.PIXELS_PER_BLOCK} holds this same
+     * number and sizes the same canvas from the other side, so changing it means editing both
+     * constants in one commit.
      */
     @lombok.Builder.Default
-    private final int pixelsPerBlock = Integer.getInteger("refharness.pixelsPerBlock", 256);
+    private final int pixelsPerBlock = 256;
 
     /**
      * Hard cap in pixels on the longer canvas axis for the two {@code BOUNDS} {@link FitMode}s.
      * An entity whose bounds would exceed this (ender_dragon, giant) is scaled down uniformly so
-     * the longer side equals the cap. Ignored by {@link FitMode#OUTPUT_SIZE}. Defaults to the
-     * {@code -Drefharness.maxCanvasSize} system property, or {@code 1024} when unset.
+     * the longer side equals the cap. Ignored by {@link FitMode#OUTPUT_SIZE}. Defaults to
+     * {@code 1024}.
+     *
+     * <p>The vanilla-reference-harness's {@code HarnessConfig.MAX_CANVAS_SIZE} holds this same number
+     * and applies the same cap from the other side, so changing it means editing both constants in
+     * one commit.
      */
     @lombok.Builder.Default
-    private final int maxCanvasSize = Integer.getInteger("refharness.maxCanvasSize", 1024);
+    private final int maxCanvasSize = 1024;
 
     /**
      * The default output frame for an entity icon - neutral output size, {@code VANILLA_ISO}
@@ -171,7 +178,7 @@ public class EntityOptions implements RenderOptions {
 
     /**
      * Canvas-sizing strategy for {@code EntityRenderer}. The three modes share the same
-     * per-entity / family bounds computation but derive canvas dimensions differently.
+     * per-entity / group bounds computation but derive canvas dimensions differently.
      */
     public enum FitMode {
 
@@ -179,7 +186,7 @@ public class EntityOptions implements RenderOptions {
          * Canvas is {@code canvasSize x canvasSize}. The entity's union silhouette (base
          * model plus non-{@code skipBounds} overlays) is scaled to fit, leaving
          * {@link EntityOptions#getPadding() padding} pixels of clear space inside the canvas on
-         * each side. Family siblings are not considered. No upper cap on canvas dimensions - the
+         * each side. Group siblings are not considered. No upper cap on canvas dimensions - the
          * caller is in control. Use for one-off renders (web API call, webpage icon, catalog
          * tile) where output dimensions are dictated by the consumer.
          */
@@ -197,15 +204,15 @@ public class EntityOptions implements RenderOptions {
         UNION_BOUNDS,
 
         /**
-         * Canvas is sized to the union across this entity AND every family member from
-         * {@code EntityModelLoader.loadFamilies()} (e.g. cow + cow_cold + cow_warm +
-         * mooshroom all share cow's family canvas). Same native ratio +
+         * Canvas is sized to the union across this entity AND every group member from the
+         * definition's {@code Entity.members()} canvas group (e.g. camel + camel_husk share one
+         * group canvas). Same native ratio +
          * {@link EntityOptions#getPadding() padding} expansion +
          * {@link EntityOptions#getMaxCanvasSize() maxCanvasSize} cap as {@link #UNION_BOUNDS}.
-         * Required by {@code TestEntityParityVanilla} since the harness sizes by family-union
+         * Required by {@code TestEntityParityVanilla} since the harness sizes by group-union
          * too; keep {@code padding = 0} to preserve byte-equal output against the harness PNGs.
          */
-        FAMILY_BOUNDS
+        GROUP_BOUNDS
 
     }
 

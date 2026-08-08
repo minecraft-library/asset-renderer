@@ -22,15 +22,6 @@ import org.jetbrains.annotations.NotNull;
 public interface Renderer<O extends RenderOptions> {
 
     /**
-     * Shared square-pixel default output size (in pixels) for single-subject renders. Consumed by
-     * {@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions},
-     * {@code FluidOptions}, and {@code PortalOptions} as the default value of their
-     * {@code canvasSize} field so the subject-scoped renderers all agree on one tile dimension out
-     * of the box.
-     */
-    int DEFAULT_CANVAS_SIZE = 256;
-
-    /**
      * Renders the given options into an image, either a {@link StaticImageData} single frame or an
      * {@link AnimatedImageData} multi-frame result depending on the subject and options.
      *

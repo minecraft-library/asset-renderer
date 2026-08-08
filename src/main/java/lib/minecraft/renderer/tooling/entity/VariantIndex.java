@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
@@ -16,7 +16,6 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +70,7 @@ final class VariantIndex {
         @NotNull Map<String, String> textures,
         @NotNull Map<String, String> babyTextures,
         @Nullable String model,
-        @Nullable JsonNode spawnConditions
+        @Nullable JsonTree spawnConditions
     ) {}
 
     private final @NotNull Map<String, List<Variant>> tables;
@@ -132,11 +131,6 @@ final class VariantIndex {
         return this.holderDefaults.get(stem);
     }
 
-    /** The indexed stems, in zip directory order (unmodifiable). */
-    @NotNull Map<String, List<Variant>> tables() {
-        return Collections.unmodifiableMap(this.tables);
-    }
-
     // ------------------------------------------------------------------------------------
     // table walk
     // ------------------------------------------------------------------------------------
@@ -174,15 +168,15 @@ final class VariantIndex {
         @NotNull String variantId,
         @NotNull Diagnostics diagnostics
     ) {
-        JsonNode root = cache.readJson(entryPath);
+        JsonTree root = cache.readJson(entryPath);
         if (root == null) return null;
 
         Map<String, String> textures = new LinkedHashMap<>();
         Map<String, String> babyTextures = new LinkedHashMap<>();
 
-        String singleAsset = root.getString(VanillaSourceClasses.DataKeys.ASSET_ID);
+        String singleAsset = root.findString(VanillaSourceClasses.DataKeys.ASSET_ID).orElse(null);
         if (singleAsset != null) textures.put("primary", texturePath(singleAsset));
-        String singleBabyAsset = root.getString(VanillaSourceClasses.DataKeys.BABY_ASSET_ID);
+        String singleBabyAsset = root.findString(VanillaSourceClasses.DataKeys.BABY_ASSET_ID).orElse(null);
         if (singleBabyAsset != null) babyTextures.put("primary", texturePath(singleBabyAsset));
 
         collectAssetMap(root, VanillaSourceClasses.DataKeys.ASSETS, textures);
@@ -193,26 +187,23 @@ final class VariantIndex {
             return null;
         }
         return new Variant(variantId, textures, babyTextures,
-            root.getString(VanillaSourceClasses.DataKeys.MODEL),
-            root.get(VanillaSourceClasses.DataKeys.SPAWN_CONDITIONS));
+            root.findString(VanillaSourceClasses.DataKeys.MODEL).orElse(null),
+            root.find(VanillaSourceClasses.DataKeys.SPAWN_CONDITIONS).orElse(null));
     }
 
     /** Folds {@code root.<field>}'s string members into {@code out} as texture paths. */
-    private static void collectAssetMap(@NotNull JsonNode root, @NotNull String field, @NotNull Map<String, String> out) {
-        JsonNode map = root.get(field);
+    private static void collectAssetMap(@NotNull JsonTree root, @NotNull String field, @NotNull Map<String, String> out) {
+        JsonTree map = root.find(field).orElse(null);
         if (map == null) return;
-        for (Map.Entry<String, JsonNode> member : map.members()) {
-            String assetId = map.getString(member.getKey());
+        for (Map.Entry<String, JsonTree> member : map.members().toList()) {
+            String assetId = map.findString(member.getKey()).orElse(null);
             if (assetId != null) out.put(member.getKey(), texturePath(assetId));
         }
     }
 
     /** Converts a variant {@code asset_id} resource location into a {@code textures/.../X.png} path. */
     private static @NotNull String texturePath(@NotNull String assetId) {
-        String stripped = assetId.startsWith(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE)
-            ? assetId.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length())
-            : assetId;
-        return "textures/" + stripped + ".png";
+        return "textures/" + VanillaSourceClasses.Paths.stripNamespace(assetId) + ".png";
     }
 
     // ------------------------------------------------------------------------------------
@@ -254,7 +245,7 @@ final class VariantIndex {
         Map<String, String> fieldToId = new LinkedHashMap<>();
         String pendingId = null;
         boolean pendingCreateKey = false;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null && !literal.contains(":") && !literal.contains("/")) {
                 pendingId = literal;
@@ -277,7 +268,7 @@ final class VariantIndex {
 
         // Second pass: which FIELD is bound to DEFAULT.
         String pendingField = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isGetStatic(in, holderInternal)) {
                 pendingField = ((FieldInsnNode) in).name;
                 continue;

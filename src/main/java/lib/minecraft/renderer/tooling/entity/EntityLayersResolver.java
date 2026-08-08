@@ -1,32 +1,40 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
+import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
+import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * Node {@code layers[]} - the option-gated conditional rows: collar, markings, equipment.
+ * Node {@code layers[]} - the option-gated conditional rows: collar, markings, equipment, armor.
  * One roster pass; row order is roster order.
  *
  * <ul>
+ *   <li><b>Armor</b> - a {@code HumanoidArmorLayer} site, carrying the worn-armor mesh as a
+ *       plain {@code overlay.geometry} reference plus the armor set's two deformations, and the
+ *       same shape again under {@code overlay.alternate} for the wearers vanilla hands a second,
+ *       genuinely distinct shell. That node names the appearance selection that reaches it, since
+ *       vanilla reaches both its second sets through one flag but two of this pipeline's axes.</li>
  *   <li><b>Collar</b> - structural detection (a null-gated {@code DyeColor} state read in
  *       the typed submit); the gate mirrors vanilla's actual
  *       {@code collarColor != null && !isInvisible} branch as
@@ -44,24 +52,38 @@ final class EntityLayersResolver {
     /** The markings axis name - the sole enum-map token routed to a layers row. */
     private static final @NotNull String MARKINGS_TOKEN = "markings";
 
+    /** The two axes a second armor set can be selected by, and the age axis's aged-down option. */
+    private static final @NotNull String AGE_AXIS = "age";
+    private static final @NotNull String SIZE_AXIS = "size";
+    private static final @NotNull String BABY_OPTION = "baby";
+
+    /** The two shells vanilla builds, named as {@code ArmorForm} spells them. */
+    private static final @NotNull String ADULT_FORM = "adult";
+    private static final @NotNull String BABY_FORM = "baby";
+
     private final @NotNull ClassNodeCache cache;
+    private final @NotNull String entityId;
+    private final @NotNull String rendererClass;
+    private final @NotNull List<String> registrationLayerFields;
     private final @NotNull List<EntityRendererResolver.LayerSite> roster;
     private final @NotNull EntityEquipmentResolver equipment;
+    private final @NotNull ArmorMeshIndex armorMeshes;
+    private final @NotNull GeometryManifest manifest;
     private final @NotNull Diagnostics diagnostics;
 
     EntityLayersResolver(
-        @NotNull ToolingSession session,
-        @NotNull EntitySubject subject,
-        @NotNull List<EntityRendererResolver.LayerSite> roster,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
+        @NotNull EntityContext context,
+        @NotNull List<EntityRendererResolver.LayerSite> roster
     ) {
-        this.cache = session.cache();
+        this.cache = context.cache();
+        this.entityId = context.subject().entityId();
+        this.rendererClass = context.subject().rendererClass();
+        this.registrationLayerFields = context.subject().lambdaLayerFields();
         this.roster = roster;
-        this.equipment = new EntityEquipmentResolver(session.cache(), subject, layerDefinitions, manifest,
-            diagnostics.child("equipment"));
-        this.diagnostics = diagnostics;
+        this.equipment = new EntityEquipmentResolver(context.scope("equipment"));
+        this.armorMeshes = context.indexes().armorMeshes();
+        this.manifest = context.indexes().manifest();
+        this.diagnostics = context.diagnostics();
     }
 
     /**
@@ -69,8 +91,8 @@ final class EntityLayersResolver {
      *
      * @return the rows, or {@code null} when no site emits
      */
-    @Nullable JsonNode resolve() {
-        List<JsonNode> rows = new ArrayList<>();
+    @Nullable JsonTree resolve() {
+        List<JsonTree> rows = new ArrayList<>();
         Map<MethodNode, AbstractInsnNode> lastAddLayer = new HashMap<>();
         for (EntityRendererResolver.LayerSite site : this.roster) {
             // The call-site window opens at the previous same-method site's addLayer (else
@@ -88,7 +110,7 @@ final class EntityLayersResolver {
             ClassNode cn = this.cache.load(site.layerClass());
             if (cn == null) continue;
             if (EntityOverlayResolver.isCollarShaped(cn)) {
-                JsonNode collar = resolveCollar(site, cn);
+                JsonTree collar = resolveCollar(site, cn);
                 if (collar != null) rows.add(collar);
                 continue;
             }
@@ -98,17 +120,14 @@ final class EntityLayersResolver {
                 continue;
             }
             if (EntityOverlayResolver.referencesEquipmentLayerType(cn)) {
-                JsonNode bespoke = this.equipment.resolveBespoke(site, cn);
+                JsonTree bespoke = this.equipment.resolveBespoke(site, cn);
                 if (bespoke != null) rows.add(bespoke);
                 continue;
             }
-            JsonNode callSite = this.equipment.resolveCallSite(site, windowStart);
+            JsonTree callSite = this.equipment.resolveCallSite(site, windowStart);
             if (callSite != null) rows.add(callSite);
         }
-        if (rows.isEmpty()) return null;
-        JsonNode out = JsonNode.array();
-        for (JsonNode row : rows) out.add(row);
-        return out;
+        return rows.isEmpty() ? null : JsonTree.arrayOf(rows);
     }
 
     /** Whether an enum-map axis token rides a {@code layers[]} row instead of an overlay. */
@@ -140,58 +159,239 @@ final class EntityLayersResolver {
      * tint is render-supplied via {@code tint_by}; the gate mirrors vanilla's actual
      * {@code collarColor != null} check rather than {@code state=tame}.
      */
-    private @Nullable JsonNode resolveCollar(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
+    private @Nullable JsonTree resolveCollar(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
         String texture = EntityOverlayResolver.findFirstNonBabyTextureLiteral(cn);
         if (texture == null) {
             this.diagnostics.warn("collar layer '%s' has no clinit texture - row dropped",
                 EntityOverlayResolver.simpleName(site.layerClass()));
             return null;
         }
-        this.diagnostics.info("collar row via null-gated DyeColor read [P6, D42]");
-        return JsonNode.object()
+        this.diagnostics.info("collar row via null-gated DyeColor read");
+        return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
             .put("id", "collar")
-            .put("when", JsonNode.object().put("collar_color", "set"))
-            .put("overlay", JsonNode.object()
+            .put("when", JsonTree.object().put("collar_color", "set"))
+            .put("overlay", JsonTree.object()
                 .put("texture", VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + texture)
                 .put("tint_by", "collar_color"));
     }
 
     /** The markings row: the full value map travels with the row. */
-    private @NotNull JsonNode resolveMarkings(
+    private @NotNull JsonTree resolveMarkings(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull EntityOverlayResolver.EnumMapOverlay enumMap
     ) {
-        JsonNode byValue = JsonNode.object();
+        JsonTree byValue = JsonTree.object();
         for (Map.Entry<String, String> entry : enumMap.textures().entrySet())
             byValue.put(entry.getKey().toLowerCase(Locale.ROOT),
                 VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + entry.getValue());
-        this.diagnostics.info("markings row: %d values [D43]", enumMap.textures().size());
-        return JsonNode.object()
+        this.diagnostics.info("markings row: %d values", enumMap.textures().size());
+        return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
             .put("id", MARKINGS_TOKEN)
-            .put("when", JsonNode.object().put(MARKINGS_TOKEN, "selected"))
-            .put("overlay", JsonNode.object()
+            .put("when", JsonTree.object().put(MARKINGS_TOKEN, "selected"))
+            .put("overlay", JsonTree.object()
                 .put("texture_by", MARKINGS_TOKEN)
                 .put("textures_by_value", byValue));
     }
 
     /**
-     * The armor classification row: humanoid armor is rendered by a vanilla
-     * {@code HumanoidArmorLayer}, so the classification is a layer-roster fact. The row carries
-     * {@code armor_type: "humanoid"} so the fact travels with the roster it derives from; the
-     * native reader reads it off this row. A {@code none} family emits no armor row - absence IS
-     * {@code none}.
+     * The armor row: worn armor is drawn by a vanilla {@code HumanoidArmorLayer}, so the row's
+     * presence is a layer-roster fact and its {@code id} identifies it. The mesh the wearer is dressed
+     * in rides a plain {@code geometry} reference in the row's {@code overlay} body, where every other
+     * row keeps its payload, with the armor set's two deformations alongside it - the shell is
+     * registered ungrown, so two wearers differing only in a deformation share one geometry entry.
+     *
+     * <p>Being armored IS wearing a resolved shell. A row whose mesh could not be resolved carries no
+     * reference and is an ERROR, which drops the wearer off the roster loudly rather than dressing it
+     * in a fallback that hides the failure.
      */
-    private @NotNull JsonNode armorRow(@NotNull EntityRendererResolver.LayerSite site) {
-        this.diagnostics.info("armor row: humanoid [LOCKED 3]");
-        return JsonNode.object()
+    private @NotNull JsonTree armorRow(@NotNull EntityRendererResolver.LayerSite site) {
+        JsonTree row = JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
-            .put("id", "armor")
-            .put("armor_type", "humanoid");
+            .put("id", "armor");
+
+        List<String> named = resolveArmorMeshes();
+        String name = named.isEmpty() ? null : named.getFirst();
+        ArmorMeshIndex.Set set = name == null ? null : this.armorMeshes.get(name);
+        if (set == null) {
+            this.diagnostics.error("armor row names mesh '%s', which LayerDefinitions registers no armor set for - wearer left bare",
+                name == null ? "<unnamed>" : name);
+            return row;
+        }
+        this.diagnostics.info("armor row: set '%s'", name);
+        JsonTree overlay = shellNode(set);
+
+        // A second set is a distinct shell only when it is a distinct shell. Vanilla hands the
+        // layer one set twice to say a wearer has only the one, and the piglin brute passes the
+        // same field twice and means nothing by it.
+        if (named.size() > 1) {
+            String alternateName = named.get(1);
+            ArmorMeshIndex.Set alternate = this.armorMeshes.get(alternateName);
+            if (alternate == null)
+                this.diagnostics.error("armor row names second mesh '%s', which LayerDefinitions registers no armor set for - wearer left in one shell",
+                    alternateName);
+            else if (!alternate.sameShellAs(set)) {
+                String option = distinguishingToken(name, alternateName);
+                String axis = option == null ? null : axisOf(option);
+                if (axis == null)
+                    this.diagnostics.error("armor row's second set '%s' names no axis option against '%s' - wearer left in one shell",
+                        alternateName, name);
+                else {
+                    overlay.put("alternate", alternateNode(alternate, axis, option));
+                    this.diagnostics.info("armor row: second set '%s' selected by %s=%s", alternateName, axis, option);
+                }
+            }
+        }
+        return row.put("overlay", overlay);
+    }
+
+    /**
+     * The one name token the second armor set carries that the first does not - the option that
+     * selects it.
+     *
+     * <p>Vanilla names every armor set {@code <wearer>_ARMOR} and every second one by inserting a
+     * single word: {@code ZOMBIE_ARMOR} against {@code ZOMBIE_BABY_ARMOR}, {@code ARMOR_STAND_ARMOR}
+     * against {@code ARMOR_STAND_SMALL_ARMOR}. The inserted word is the appearance option, so the
+     * row can say which selection reaches its second shell instead of naming one of them and making
+     * the other read as it.
+     *
+     * @return the single distinguishing token, or {@code null} when the two names differ by
+     *     anything other than exactly one
+     */
+    private static @Nullable String distinguishingToken(@NotNull String first, @NotNull String second) {
+        List<String> base = List.of(first.split("_"));
+        List<String> extra = Arrays.stream(second.split("_")).filter(token -> !base.contains(token)).toList();
+        return extra.size() == 1 ? extra.getFirst() : null;
+    }
+
+    /**
+     * The axis an option belongs to - the size domain holds its own members and the age axis holds
+     * the aged-down one. {@code null} for a token neither axis names, which is an unrecognised
+     * registration rather than a new axis.
+     */
+    private static @Nullable String axisOf(@NotNull String option) {
+        if (EntityAxisPolicies.SIZE_DOMAIN.strings().contains(option)) return SIZE_AXIS;
+        return BABY_OPTION.equals(option) ? AGE_AXIS : null;
+    }
+
+    /**
+     * The second shell's payload: the same members the adult shell writes, plus the selection that
+     * reaches it and which of vanilla's two shells it is.
+     *
+     * <p>The form is read off the set's own part table rather than off the option that selects it,
+     * because they do not have to agree - the small armor stand's shell is aged-down geometry built
+     * from the <em>adult</em> factory, so it keeps the adult per-slot parts, the full-size sheets
+     * and its trim, which is exactly the carve-out {@code HumanoidArmorLayer} spends a branch on.
+     */
+    private @NotNull JsonTree alternateNode(@NotNull ArmorMeshIndex.Set set, @NotNull String axis, @NotNull String option) {
+        JsonTree node = JsonTree.object()
+            .put("when", JsonTree.object().put(axis, option))
+            .put("geometry", registerShell(set))
+            .put("grow", growPair(set));
+        if (set.meshScale() != 1f) node.put("scaled", set.meshScale());
+        return node.put("form", set.babyParts() ? BABY_FORM : ADULT_FORM);
+    }
+
+    /**
+     * One shell's payload - its registered mesh, the two deformations the armor layers apply to it,
+     * and the whole-mesh scale it is registered through. The adult shell writes this into the row's
+     * {@code overlay} and a baby shell writes the same shape into that overlay's {@code baby}.
+     */
+    private @NotNull JsonTree shellNode(@NotNull ArmorMeshIndex.Set set) {
+        JsonTree node = JsonTree.object()
+            .put("geometry", registerShell(set))
+            .put("grow", growPair(set));
+        // Omitted at the identity, the way every other scale in the tree is - the eleven wearers
+        // vanilla registers unscaled write no key.
+        if (set.meshScale() != 1f) node.put("scaled", set.meshScale());
+        return node;
+    }
+
+    /**
+     * Registers one shell's mesh and returns its geometry coordinate. The mesh is registered ungrown
+     * and unscaled - both ride the row - but an aged-down whole-mesh transformer is baked, because it
+     * builds different boxes rather than resizing the same ones.
+     */
+    private @NotNull String registerShell(@NotNull ArmorMeshIndex.Set set) {
+        return this.manifest.register(GeometryRequest.armor(set.meshClass(), set.meshMethod(),
+                this.entityId, set.textureWidth(), set.textureHeight(), poseParamOf(set))
+            .withBabyTransform(set.babyTransform()));
+    }
+
+    /**
+     * The pose binding a shell's mesh factory is evaluated at, or {@code null} when the factory takes
+     * no pose. The adult factories take none; the baby ones are built at the pose their set was
+     * registered with, which is what makes the piglin family's baby shell a distinct mesh.
+     */
+    private static GeometryRequest.@Nullable PoseParam poseParamOf(@NotNull ArmorMeshIndex.Set set) {
+        int slot = set.poseSlot();
+        return slot < 0 ? null : new GeometryRequest.PoseParam(slot, set.armOffset());
+    }
+
+    /**
+     * The armor row's {@code grow} pair - the two deformations the armor layers apply, each in the
+     * scalar-or-array form a cube's own {@code grow} takes.
+     */
+    private static @NotNull JsonTree growPair(@NotNull ArmorMeshIndex.Set set) {
+        JsonTree grow = JsonTree.object();
+        putGrow(grow, "inner", set.innerGrow());
+        putGrow(grow, "outer", set.outerGrow());
+        return grow;
+    }
+
+    /** Writes one deformation - a scalar when uniform, a per-axis triple otherwise. */
+    private static void putGrow(@NotNull JsonTree node, @NotNull String name, float @NotNull [] grow) {
+        if (grow[0] == grow[1] && grow[1] == grow[2]) node.put(name, grow[0]);
+        else node.putFloats(name, grow[0], grow[1], grow[2]);
+    }
+
+    /**
+     * The armor sets this renderer dresses its subject in, in the order it hands them to its armor
+     * layer - the adult shell first and the baby one, when it names a second, after it. The names are
+     * lookup keys into the registrations {@code LayerDefinitions} makes - they identify the meshes and
+     * their deformations, and never ship.
+     *
+     * <p>Vanilla does not build worn armor from the wearer's own model - it hands the layer a shared
+     * armor set, and most humanoids share one. A renderer that wears a different set holds it as a
+     * static, so the fields along the constructor chain name the meshes. Leaf-first, because a
+     * subclass that passes its sets down to its super's constructor is the one that names them, and
+     * declaration order is the layer's own argument order: adult, then baby.
+     *
+     * <p>A renderer handed its sets as constructor arguments (the piglin family) names no field of its
+     * own - but the registration that hands them over does, so the walk falls back to the armor sets
+     * among the {@code ModelLayers} references in the renderer-factory lambda, in the same order.
+     *
+     * @return the lowercased field names in layer-argument order, empty when no armor set is named
+     */
+    private @NotNull List<String> resolveArmorMeshes() {
+        List<String> named = new ArrayList<>();
+        AsmKit.walkSuperChain(this.cache, this.rendererClass, cn -> {
+            if (!named.isEmpty()) return;
+            for (MethodNode ctor : cn.methods) {
+                if (!AsmKit.INIT.equals(ctor.name)) continue;
+                for (AbstractInsnNode in : ctor.instructions) {
+                    if (in.getOpcode() != Opcodes.GETSTATIC) continue;
+                    if (!(in instanceof FieldInsnNode field)) continue;
+                    if (!VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc)) continue;
+                    named.add(field.name.toLowerCase(Locale.ROOT));
+                }
+                if (!named.isEmpty()) return;
+            }
+        });
+        if (!named.isEmpty()) return named;
+
+        ClassNode modelLayers = this.cache.load(VanillaSourceClasses.Types.MODEL_LAYERS);
+        if (modelLayers == null) return named;
+        for (String layerField : this.registrationLayerFields) {
+            FieldNode field = AsmKit.findField(modelLayers, layerField);
+            if (field != null && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
+                named.add(layerField.toLowerCase(Locale.ROOT));
+        }
+        return named;
     }
 
 }

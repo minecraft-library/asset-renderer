@@ -1,0 +1,82 @@
+{
+  "//": "parity.manifest.portal · regen: ./gradlew parityCapture -Partifacts=manifest.portal",
+  "artifact": "manifest.portal",
+  "files": [
+    {
+      "path": "end_gateway_2d_animated.webp",
+      "sha256": "94557735ffe1b6d2bad7a985a37064b31c7b9e3de4f89b6a2b249d81be61445a"
+    },
+    {
+      "path": "end_gateway_2d_animated_smooth.webp",
+      "sha256": "1945ec56295412580a9b9b1af5a1045232cefd72764d19e2b911bd7eccb3e5b7"
+    },
+    {
+      "path": "end_gateway_2d_static.png",
+      "sha256": "d415dc95d3d3eff69c5436a88e294fe070c6ed56c9a30fe93cb9bb84d91492bd"
+    },
+    {
+      "path": "end_gateway_iso_animated.webp",
+      "sha256": "c4bf49eba60d9afe2af6dfd7be1761a9c3c7ec123dce68f6bfd6548dacd438e2"
+    },
+    {
+      "path": "end_gateway_iso_animated_smooth.webp",
+      "sha256": "c0c2f4205a1c6153b4c1f9e89ba1dc33a3e1cf9fcd280113c528dd8c0965fcf1"
+    },
+    {
+      "path": "end_gateway_iso_static.png",
+      "sha256": "6f9a969b2ec91332a2d5b6c59b4f52676591583f90cec4570106ed60912a313f"
+    },
+    {
+      "path": "end_portal_2d_animated.webp",
+      "sha256": "db1a0fddccc93c47128eea1e20eeac713b3b0deb338d781de7792a016c1f442a"
+    },
+    {
+      "path": "end_portal_2d_animated_smooth.webp",
+      "sha256": "d35e080307a9ffeff3a03781fc9a38b83d03f3c77988eacee365c2a1309cfba5"
+    },
+    {
+      "path": "end_portal_2d_static.png",
+      "sha256": "618e2be5c38a49028a765b04c323deb21224f5cf9f8ab28e9ba30a4820251f94"
+    },
+    {
+      "path": "end_portal_iso_animated.webp",
+      "sha256": "baed64e5ae9795eaf19e550f43baa645cdb3a06d6ae40779028f2bda7b2cb383"
+    },
+    {
+      "path": "end_portal_iso_animated_smooth.webp",
+      "sha256": "3ca685f310991924163adf3751a5205fccb712f61e956677847708db1728811f"
+    },
+    {
+      "path": "end_portal_iso_static.png",
+      "sha256": "912a4f3671b1d7daec71bff88e1d8dff607655b3b4cfb88f1e9aeae1877906e6"
+    }
+  ],
+  "format": 1,
+  "key": "path",
+  "kind": "manifest",
+  "provenance": {
+    "artifact": "manifest.portal",
+    "asset_dirty": false,
+    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "counts": {
+      "files": 12
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "portalRenderer",
+    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 4/5, render manifests: player-sheets 104, fluid 12, portal 12, visual 153 measured rather than asserted; 0 movers across the pair on all four. Fluid and portal are digest-for-digest identical to the P0 fp-run1 capture. Against p11-base, manifest.visual drops 625 entries that all fall inside a declared exclusion - the entity diff-panel tree and the three sub-trees with manifests of their own - adds 98 that are all inside member directories, and differs on exactly one: block-render-3d/minecraft_oak_stairs.png, the unsuffixed render alone with all six state-named oak_stairs renders unchanged, which is the fingerprint of the landed block-icon branch that takes a null variant only when the caller names no state. manifest.player-sheets has no independent operand anywhere and is promoted on determinism and population alone.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "root": "cache/visual/portal-renderer",
+    "timestamp": "2026-08-01T02:53:56Z",
+    "tool_version": "1.0.0"
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "//": "parity.pin.fluid-crc · regen: ./gradlew parityCapture -Partifacts=pin.fluid-crc",
+  "artifact": "pin.fluid-crc",
+  "format": 1,
+  "key": "pin_key",
+  "kind": "pin-set",
+  "provenance": {
+    "artifact": "pin.fluid-crc",
+    "asset_dirty": false,
+    "asset_sha": "00a006307ac6443e243d30caf238849e20cd9c60",
+    "counts": {
+      "values": 13
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "slowTest",
+    "reason": "P12: the eight render CRCs, the forty golden floats and the two corpus counts move out of Java literals into the store, carried across verbatim - every value equals the literal deleted at 00a00630^. pin.fluid-crc's thirteen values are new: the test compared run A to run B and pinned nothing",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "timestamp": "2026-08-01T11:35:36Z",
+    "tool_version": "1.0.0"
+  },
+  "values": {
+    "lava_frame_0": {
+      "crc32": "0x2806F6B2",
+      "subject": "Fluid.LAVA, FLUID_FACE_2D, canvas 64, frameCount 5, ticksPerFrame 3, frame 0",
+      "type": "crc32"
+    },
+    "lava_frame_1": {
+      "crc32": "0x8C1552C4",
+      "subject": "Fluid.LAVA, FLUID_FACE_2D, canvas 64, frameCount 5, ticksPerFrame 3, frame 1",
+      "type": "crc32"
+    },
+    "lava_frame_2": {
+      "crc32": "0xF7445FEA",
+      "subject": "Fluid.LAVA, FLUID_FACE_2D, canvas 64, frameCount 5, ticksPerFrame 3, frame 2",
+      "type": "crc32"
+    },
+    "lava_frame_3": {
+      "crc32": "0xBF63FCBA",
+      "subject": "Fluid.LAVA, FLUID_FACE_2D, canvas 64, frameCount 5, ticksPerFrame 3, frame 3",
+      "type": "crc32"
+    },
+    "lava_frame_4": {
+      "crc32": "0x893A19B2",
+      "subject": "Fluid.LAVA, FLUID_FACE_2D, canvas 64, frameCount 5, ticksPerFrame 3, frame 4",
+      "type": "crc32"
+    },
+    "water_frame_0": {
+      "crc32": "0x93796881",
+      "subject": "Fluid.WATER, FLUID_FACE_2D, canvas 64, frameCount 8, ticksPerFrame 2, frame 0",
+      "type": "crc32"
+    },
+    "water_frame_1": {
+      "crc32": "0xCF4169B1",
+      "subject": "Fluid.WATER, FLUID_FACE_2D, canvas 64, frameCount 8, ticksPerFrame 2, frame 1",
+      "type": "crc32"
+    },
+    "water_frame_2": {
+      "crc32": "0x8FE52233",
+      "subject": "Fluid.WATER, FLUID_FACE_2D, canvas 64, frameCount 8, ticksPerFrame 2, frame 2",
+      "type": "crc32"
+    },
+    "water_frame_3": {
+      "crc32": "0x3DE502CF",
+      "subject": "Fluid.WATER, FLUID_FACE_2D, canvas 64, frameCount 8, ticksPerFrame 2, frame 3",
+      "type": "crc32"
+    },
+    "water_frame_4": {
+      "crc32": "0x46CE391D",
+      "subject": "Fluid.WATER, FLUID_FACE_2D, canvas 64, frameCount 8, ticksPerFrame 2, frame 4",
+      "type": "crc32"
+    },
+    "water_frame_5": {
+      "crc32": "0x56BA76B3",
+      "subject": "Fluid.WATER, FLUID_FACE_2D, canvas 64, frameCount 8, ticksPerFrame 2, frame 5",
+      "type": "crc32"
+    },
+    "water_frame_6": {
+      "crc32": "0xB0A28849",
+      "subject": "Fluid.WATER, FLUID_FACE_2D, canvas 64, frameCount 8, ticksPerFrame 2, frame 6",
+      "type": "crc32"
+    },
+    "water_frame_7": {
+      "crc32": "0x4DE81E14",
+      "subject": "Fluid.WATER, FLUID_FACE_2D, canvas 64, frameCount 8, ticksPerFrame 2, frame 7",
+      "type": "crc32"
+    }
+  }
+}

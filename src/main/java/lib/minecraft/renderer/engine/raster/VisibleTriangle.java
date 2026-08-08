@@ -60,4 +60,5 @@ public record VisibleTriangle(
         this(position0, position1, position2, uv0, uv1, uv2, texture, tintArgb, normal, shading,
              traits, null);
     }
+
 }

@@ -80,18 +80,12 @@ final class EntityGeometryRefResolver {
      */
     record ModelConsumer(@NotNull String owner, @NotNull List<String> tripleFields) {}
 
-    EntityGeometryRefResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
-        this.layerDefinitions = layerDefinitions;
-        this.manifest = manifest;
-        this.diagnostics = diagnostics;
+    EntityGeometryRefResolver(@NotNull EntityContext context) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.layerDefinitions = context.indexes().layerDefinitions();
+        this.manifest = context.indexes().manifest();
+        this.diagnostics = context.diagnostics();
     }
 
     /**
@@ -240,7 +234,7 @@ final class EntityGeometryRefResolver {
         Type[] args = AsmKit.argTypes(ctor.desc);
         String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
         List<String> freshTriples = new ArrayList<>();
-        for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : ctor.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
                 && in instanceof FieldInsnNode push
                 && mllRef.equals(push.desc)) {
@@ -425,7 +419,7 @@ final class EntityGeometryRefResolver {
 
         Map<String, String> out = new LinkedHashMap<>();
         String pendingModelLayer = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
                 pendingModelLayer = ((FieldInsnNode) in).name;
                 continue;

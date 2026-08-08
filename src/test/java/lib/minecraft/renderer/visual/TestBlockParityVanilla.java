@@ -4,16 +4,19 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.parity.ParityPaths;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.engine.texture.Biome;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -24,12 +27,11 @@ import java.util.List;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.imageio.ImageIO;
 
 /**
  * Per-block parity report comparing the Java pipeline output (via {@link BlockRenderer} in
  * {@link BlockOptions.Type#ISOMETRIC_3D ISOMETRIC_3D} mode) against the vanilla-reference-harness
- * ground truth PNGs in {@code cache/asset-renderer/vanilla/26.1/references/blocks/}. The harness
+ * ground truth PNGs in the harness reference tree's {@code blocks/}. The harness
  * drives a real Minecraft client to render each block-as-item through vanilla's actual GUI
  * inventory pipeline ({@code ItemDisplayContext.GUI} display transform + {@code ITEMS_3D}
  * lighting + feature dispatcher to an offscreen RGBA8 texture), so its output is the canonical
@@ -47,7 +49,7 @@ import javax.imageio.ImageIO;
  *
  * <p>Buckets follow the convention {@code <0.25 / <0.50 / <0.75 / <1.0}.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:blockParityVanilla [-PblockId=minecraft:tnt]}.
+ * <p>Usage: {@code ./gradlew blockParityVanilla [-PblockId=minecraft:tnt]}.
  */
 @UtilityClass
 public final class TestBlockParityVanilla {
@@ -59,37 +61,13 @@ public final class TestBlockParityVanilla {
     private static final Path REPORT_FILE = OUTPUT_DIR.resolve("parity-report.tsv");
 
     /** Source of the harness-produced reference PNGs. */
-    private static final Path VANILLA_DIR = Path.of("cache/asset-renderer/vanilla/26.1/references/blocks");
+    private static final Path VANILLA_DIR = ParityPaths.references("blocks");
 
     /** Filename prefix the harness writes (block id with {@code :} replaced by {@code __}). */
     private static final @NotNull String VANILLA_PREFIX = "minecraft__";
 
     /** Square render size (matches harness {@code refharness.size} default). */
     private static final int RENDER_SIZE = 512;
-
-    /**
-     * Biome modelling vanilla's no-world-context "in hand" tint - the colour
-     * {@code BlockTintSource.color(state)} returns for a block-item GUI icon, which the harness now
-     * bakes into every reference (see {@code BlockFrameRenderer.resolveInventoryTints}). Vanilla
-     * resolves each tint target differently in hand, so this is not a single biome point:
-     * <ul>
-     * <li><b>grass</b> - {@code GrassColor.getDefaultColor() = get(0.5, 1.0)}, the grass colormap
-     *     centre {@code (127, 127)}; reproduced by sampling at {@code temperature 0.5 / downfall
-     *     1.0} with no grass override.</li>
-     * <li><b>foliage</b> - the fixed {@code FoliageColor.FOLIAGE_DEFAULT = 0xFF48B518} constant, NOT
-     *     a colormap sample; injected as a foliage override.</li>
-     * <li><b>dry foliage</b> - the fixed {@code DryFoliageColor} default {@code 0xFF5C3C32};
-     *     injected as a dry-foliage override.</li>
-     * </ul>
-     * Constant-tinted blocks (birch / spruce leaves, lily_pad) ignore the biome and use the fixed
-     * colour baked into {@code block_tints.json}.
-     */
-    private static final @NotNull Biome INVENTORY_DEFAULT_BIOME = Biome.builder("inventory_default")
-        .temperature(0.5f)
-        .downfall(1.0f)
-        .foliageColorOverride(0xFF48B518)
-        .dryFoliageColorOverride(0xFF5C3C32)
-        .build();
 
     /**
      * Runs the parity sweep.
@@ -104,17 +82,17 @@ public final class TestBlockParityVanilla {
             : List.of();
 
         if (!Files.isDirectory(VANILLA_DIR)) {
-            System.err.printf("Vanilla reference directory missing: %s%n  Run :asset-renderer:renderVanillaReferences first.%n",
+            System.err.printf("Vanilla reference directory missing: %s%n  Run renderVanillaReferences first.%n",
                 VANILLA_DIR.toAbsolutePath());
             return;
         }
         Files.createDirectories(OUTPUT_DIR);
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
 
@@ -147,23 +125,22 @@ public final class TestBlockParityVanilla {
             .collect(Collectors.toCollection(ArrayList::new));
         long totalMs = (System.nanoTime() - t0) / 1_000_000L;
 
-        rows.sort((a, b) -> Double.compare(a.meanDelta(), b.meanDelta()));
+        rows.sort(SweepReport.byDelta(Row::meanDelta));
 
-        StringBuilder report = new StringBuilder();
-        report.append("block_id\tmean_argb_delta\tdiffering_pixels\tjava_coverage\tvanilla_coverage\tjava_w\tjava_h\tvanilla_w\tvanilla_h\n");
+        List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)
-            report.append(String.format("%s\t%.4f\t%d\t%.4f\t%.4f\t%d\t%d\t%d\t%d%n",
-                r.blockId(), r.meanDelta(), r.differingPixels(), r.javaCoverage(), r.vanillaCoverage(),
-                r.javaW(), r.javaH(), r.vanillaW(), r.vanillaH()));
-        Files.writeString(REPORT_FILE, report.toString());
+            lines.add(String.join("\t",
+                r.blockId(), SweepReport.delta(r.meanDelta()), SweepReport.status(r.meanDelta()),
+                SweepReport.pixels(r.meanDelta(), r.differingPixels()),
+                SweepReport.ratio(r.javaCoverage()), SweepReport.ratio(r.vanillaCoverage()),
+                Integer.toString(r.javaW()), Integer.toString(r.javaH()),
+                Integer.toString(r.vanillaW()), Integer.toString(r.vanillaH())));
+        SweepReport.write(REPORT_FILE, SweepReport.KEY_COLUMN
+            + "\tmean_argb_delta\tstatus\tdiffering_pixels\tjava_coverage\tvanilla_coverage"
+            + "\tjava_w\tjava_h\tvanilla_w\tvanilla_h", lines);
         System.out.printf("Wrote %s (%d rows, %d ms total)%n", REPORT_FILE, rows.size(), totalMs);
 
-        long below025 = rows.stream().filter(r -> r.meanDelta() < 0.25).count();
-        long below05 = rows.stream().filter(r -> r.meanDelta() < 0.50).count();
-        long below075 = rows.stream().filter(r -> r.meanDelta() < 0.75).count();
-        long below1 = rows.stream().filter(r -> r.meanDelta() < 1.00).count();
-        System.out.printf("Parity buckets: <0.25: %d / <0.50: %d / <0.75: %d / <1.0: %d / total: %d%n",
-            below025, below05, below075, below1, rows.size());
+        SweepReport.printBuckets(rows.stream().mapToDouble(Row::meanDelta).toArray());
         List<Row> worst = rows.stream()
             .sorted((a, b) -> Double.compare(b.meanDelta(), a.meanDelta()))
             .toList();
@@ -178,7 +155,8 @@ public final class TestBlockParityVanilla {
      * {@link Row}. Self-contained (no shared mutable state) so it can run concurrently across
      * blocks via {@code parallelStream}; the shared {@code javaRenderer} reads only the immutable
      * {@link PipelineRendererContext}. Any failure (missing/unreadable reference, render error) is
-     * captured as a {@code POSITIVE_INFINITY} sentinel row rather than aborting the sweep.
+     * marked {@code POSITIVE_INFINITY} rather than aborting the sweep - which is what sorts it
+     * last, and what {@link SweepReport} emits as {@code failed}.
      */
     private static @NotNull Row renderAndCompare(@NotNull String blockId, @NotNull BlockRenderer javaRenderer) {
         Path blockDir = OUTPUT_DIR.resolve(blockId.replace(':', '_'));
@@ -204,7 +182,7 @@ public final class TestBlockParityVanilla {
                 .output(OutputOptions.builder()
                     .canvasSize(RENDER_SIZE)
                     .build())
-                .biome(INVENTORY_DEFAULT_BIOME)
+                .biome(Biome.INVENTORY_DEFAULT)
                 .build();
             ImageData java = javaRenderer.render(options);
             BufferedImage javaImg = java.toBufferedImage();

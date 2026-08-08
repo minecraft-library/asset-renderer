@@ -2,10 +2,15 @@ package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.exception.PipelineException;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,20 +29,16 @@ import java.util.regex.Pattern;
  * <p>A four-rung ladder picks each pack's preferred id, taking the first rung whose normalized output
  * is non-empty (a clean filename is never second-guessed by a fancier description): the filename stem
  * with its {@code .zip}/{@code .cats} extension chain stripped, then the {@code LICENSE} title line,
- * then a short ({@code <= 5}-word) mcmeta description, then the synthetic constant {@code pack}. Across
- * the supply order, the reserved ids {@link PackId#VANILLA} and {@link PackId#MINECRAFT} are pre-taken,
- * the first pack claiming an id keeps it bare, and every later collider gets a letter-ordinal suffix
+ * then a short ({@code <= 5}-word) mcmeta description, then the synthetic constant {@code pack}. Each
+ * rung reads its own naming input off the {@link Naming} handle, and the reads are lazy - the
+ * {@code LICENSE} slurp and the mcmeta probe run only when an earlier rung fails. Across the supply
+ * order, the reserved ids {@link PackId#VANILLA} and {@link PackId#MINECRAFT} are pre-taken, the first
+ * pack claiming an id keeps it bare, and every later collider gets a letter-ordinal suffix
  * ({@code -b}, {@code -c}, ...) with a loud warning naming both sources - never a silent shadow.
  * Supplying the identical source path twice is an error, not a collision.
  */
 @UtilityClass
-public final class PackIdDeriver {
-
-    /**
-     * The id-heuristic version, bumped whenever the derivation changes so cached pack directories
-     * re-key predictably.
-     */
-    public static final int HEURISTIC_VERSION = 1;
+final class PackIdDeriver {
 
     private static final @NotNull PackId SYNTHETIC = new PackId("pack");
     private static final @NotNull String[] EXTENSIONS = { ".zip", ".cats" };
@@ -46,55 +47,41 @@ public final class PackIdDeriver {
     private static final int MAX_DESCRIPTION_WORDS = 5;
 
     /**
-     * Picks the preferred (pre-collision) id for one pack via the source ladder.
+     * Picks the preferred (pre-collision) id for one pack, walking the ladder and taking the first rung
+     * that yields a usable id (the synthetic rung always does, so the ladder never falls through).
      *
-     * @param sources the pack's naming inputs
+     * @param naming the pack's naming handle
      * @return the preferred id, the winning rung, and the raw string that produced it
      */
-    public static @NotNull Preferred preferred(@NotNull PackNameSources sources) {
-        String stem = stripExtensions(sources.fileName());
-        Optional<PackId> byFile = PackId.normalize(stem);
-        if (byFile.isPresent()) return new Preferred(byFile.get(), Rung.FILENAME, stem);
-
-        if (sources.licenseTitleLine().isPresent()) {
-            String line = dropLicenseTokens(sources.licenseTitleLine().get());
-            Optional<PackId> byLicense = PackId.normalize(line);
-            if (byLicense.isPresent()) return new Preferred(byLicense.get(), Rung.LICENSE, line);
+    static @NotNull Candidate preferred(@NotNull Naming naming) {
+        for (Rung rung : Rung.values()) {
+            Optional<Candidate> candidate = rung.derive(naming);
+            if (candidate.isPresent()) return candidate.get();
         }
-
-        if (sources.description().isPresent()) {
-            String desc = sources.description().get();
-            if (isUsableDescription(desc)) {
-                Optional<PackId> byDescription = PackId.normalize(desc);
-                if (byDescription.isPresent()) return new Preferred(byDescription.get(), Rung.DESCRIPTION, desc);
-            }
-        }
-
-        return new Preferred(SYNTHETIC, Rung.SYNTHETIC, SYNTHETIC.value());
+        throw new IllegalStateException("Pack id ladder exhausted without the synthetic fallback");
     }
 
     /**
      * Assigns final ids across a supply-ordered set of packs, resolving collisions with letter-ordinal
      * suffixes and pre-seeding the reserved ids as taken.
      *
-     * @param supplyOrder the pack sources in supply (priority) order
-     * @return one assignment per source, in the same order
+     * @param supplyOrder the pack naming handles in supply (priority) order
+     * @return one id per source, in the same order
      * @throws PipelineException if the identical source path is supplied more than once
      */
-    public static @NotNull ConcurrentList<Assignment> assign(@NotNull List<PackNameSources> supplyOrder) {
+    static @NotNull ConcurrentList<PackId> assign(@NotNull List<Naming> supplyOrder) {
         Set<String> taken = new HashSet<>();
         taken.add(PackId.VANILLA.value());
         taken.add(PackId.MINECRAFT.value());
         Map<String, Path> takenBy = new HashMap<>();
         Set<Path> seenSources = new HashSet<>();
-        List<Assignment> out = new ArrayList<>();
+        List<PackId> out = new ArrayList<>();
 
-        for (PackNameSources sources : supplyOrder) {
-            if (!seenSources.add(sources.source()))
-                throw new PipelineException("Pack source '%s' supplied more than once", sources.source());
+        for (Naming naming : supplyOrder) {
+            if (!seenSources.add(naming.source()))
+                throw new PipelineException("Pack source '%s' supplied more than once", naming.source());
 
-            Preferred preferred = preferred(sources);
-            String base = preferred.id().value();
+            String base = preferred(naming).id().value();
             String candidate = base;
             int ordinal = 1;
             while (taken.contains(candidate)) {
@@ -102,17 +89,15 @@ public final class PackIdDeriver {
                 candidate = base + "-" + columnName(ordinal);
             }
 
-            boolean collided = !candidate.equals(base);
-            if (collided) {
+            if (!candidate.equals(base)) {
                 Object earlier = takenBy.getOrDefault(base, Path.of("(reserved id)"));
                 System.err.printf("Pack id collision: '%s' already claimed by source '%s'; source '%s' assigned '%s'%n",
-                    base, earlier, sources.source(), candidate);
+                    base, earlier, naming.source(), candidate);
             }
 
             taken.add(candidate);
-            takenBy.put(candidate, sources.source());
-            out.add(new Assignment(new PackId(candidate), preferred.rung(), preferred.rawName(),
-                collided ? Optional.of(new PackId(base)) : Optional.empty()));
+            takenBy.put(candidate, naming.source());
+            out.add(new PackId(candidate));
         }
         return Concurrent.adoptList(out).toUnmodifiable();
     }
@@ -150,6 +135,22 @@ public final class PackIdDeriver {
         return WHITESPACE.split(stripped).length <= MAX_DESCRIPTION_WORDS;
     }
 
+    /** The first non-blank line of a root {@code LICENSE}, if the container ships one. */
+    private static @NotNull Optional<String> licenseTitleLine(@NotNull PackContainer container) {
+        return container.bytes("LICENSE")
+            .map(bytes -> new String(bytes, StandardCharsets.UTF_8))
+            .flatMap(text -> text.lines().map(String::strip).filter(line -> !line.isEmpty()).findFirst());
+    }
+
+    /** The flattened, non-blank {@code pack.mcmeta} description, if any. */
+    private static @NotNull Optional<String> description(@NotNull PackContainer container) {
+        return container.bytes("pack.mcmeta")
+            .map(bytes -> MCMeta.parse(new String(bytes, StandardCharsets.UTF_8), new ResourceId("probe", "pack")))
+            .flatMap(MCMeta::pack)
+            .map(pack -> pack.description().plain())
+            .filter(plain -> !plain.isBlank());
+    }
+
     /** Excel-style bijective base-26 column name: {@code 1->a}, {@code 2->b}, ..., {@code 26->z}, {@code 27->aa}. */
     private static @NotNull String columnName(int ordinal) {
         StringBuilder sb = new StringBuilder();
@@ -162,31 +163,83 @@ public final class PackIdDeriver {
         return sb.toString();
     }
 
-    /** Which naming source a preferred id came from, coarsest (most reliable) first. */
-    public enum Rung { FILENAME, LICENSE, DESCRIPTION, SYNTHETIC }
+    /**
+     * A lazy handle over one pack's naming inputs - the source path (always available) and its detected
+     * container, whose bytes are read only when a rung asks for them.
+     *
+     * @param source the pack source as supplied - a directory or a {@code .zip} / {@code .cats} /
+     *     {@code .cats.zip} archive; its filename drives ladder rung 1
+     * @param container the detected container the {@code LICENSE} and {@code pack.mcmeta} reads go through
+     */
+    record Naming(@NotNull Path source, @NotNull PackContainer container) {
+
+        /** The pack source's filename, as it appears on disk (extension chain intact). */
+        @NotNull String fileName() {
+            Path name = this.source.getFileName();
+            return name == null ? "" : name.toString();
+        }
+    }
+
+    /**
+     * The four naming sources, coarsest (most reliable) first. Each constant reads its own raw naming
+     * string off the {@link Naming} handle, and {@link #derive} normalizes it into a {@link Candidate}
+     * when the read yields a usable id.
+     */
+    enum Rung {
+
+        /** The filename stem, with its {@code .zip}/{@code .cats} extension chain stripped. */
+        FILENAME {
+            @Override
+            @NotNull Optional<String> raw(@NotNull Naming naming) {
+                return Optional.of(stripExtensions(naming.fileName()));
+            }
+        },
+
+        /** The first non-blank {@code LICENSE} line, its trailing license tokens dropped. */
+        LICENSE {
+            @Override
+            @NotNull Optional<String> raw(@NotNull Naming naming) {
+                return licenseTitleLine(naming.container()).map(PackIdDeriver::dropLicenseTokens);
+            }
+        },
+
+        /** A short ({@code <= 5}-word) {@code pack.mcmeta} description. */
+        DESCRIPTION {
+            @Override
+            @NotNull Optional<String> raw(@NotNull Naming naming) {
+                return description(naming.container()).filter(PackIdDeriver::isUsableDescription);
+            }
+        },
+
+        /** The synthetic constant {@code pack} - the always-present fallback. */
+        SYNTHETIC {
+            @Override
+            @NotNull Optional<String> raw(@NotNull Naming naming) {
+                return Optional.of(PackIdDeriver.SYNTHETIC.value());
+            }
+        };
+
+        /** This rung's raw naming string, empty when the rung's source is absent. */
+        abstract @NotNull Optional<String> raw(@NotNull Naming naming);
+
+        /**
+         * Normalizes this rung's raw string into a candidate id, empty when the source is absent or
+         * normalizes to nothing.
+         *
+         * @param naming the pack's naming handle
+         * @return the candidate this rung yields, or empty
+         */
+        final @NotNull Optional<Candidate> derive(@NotNull Naming naming) {
+            return raw(naming).flatMap(raw -> PackId.normalize(raw).map(id -> new Candidate(id, this)));
+        }
+    }
 
     /**
      * A pack's preferred id before collision resolution.
      *
      * @param id the normalized preferred id
      * @param rung the ladder rung that produced it
-     * @param rawName the raw string the rung normalized
      */
-    public record Preferred(@NotNull PackId id, @NotNull Rung rung, @NotNull String rawName) {}
-
-    /**
-     * A pack's final assigned id after collision resolution.
-     *
-     * @param id the final id, suffixed when it collided
-     * @param rung the ladder rung that produced the preferred id
-     * @param rawName the raw string the rung normalized
-     * @param collisionBase the un-suffixed base id, present only when a collision suffix was applied
-     */
-    public record Assignment(
-        @NotNull PackId id,
-        @NotNull Rung rung,
-        @NotNull String rawName,
-        @NotNull Optional<PackId> collisionBase
-    ) {}
+    record Candidate(@NotNull PackId id, @NotNull Rung rung) {}
 
 }

@@ -1,9 +1,10 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import org.jetbrains.annotations.NotNull;
@@ -46,20 +47,19 @@ final class BlockCatalogResolver {
     private final @NotNull List<String> splitIds;
     private final @NotNull Diagnostics diagnostics;
 
-    private @Nullable Map<String, JsonNode> bySplitId;
+    private @Nullable Map<String, JsonTree> bySplitId;
 
     BlockCatalogResolver(
-        @NotNull ClassNodeCache cache,
+        @NotNull ToolingSession session,
         @NotNull BlockRegistryIndex blockRegistry,
         @NotNull BlockEntitySubject subject,
-        @NotNull List<String> splitIds,
-        @NotNull Diagnostics diagnostics
+        @NotNull List<String> splitIds
     ) {
-        this.cache = cache;
+        this.cache = session.cache();
         this.blockRegistry = blockRegistry;
         this.subject = subject;
         this.splitIds = splitIds;
-        this.diagnostics = diagnostics;
+        this.diagnostics = session.diagnostics().child(subject.beTypeId());
     }
 
     /**
@@ -69,13 +69,13 @@ final class BlockCatalogResolver {
      * @param splitId the models key
      * @return the {@code blocks} array node, or {@code null}
      */
-    @Nullable JsonNode blocks(@NotNull String splitId) {
+    @Nullable JsonTree blocks(@NotNull String splitId) {
         if (this.bySplitId == null) this.bySplitId = build();
         return this.bySplitId.get(splitId);
     }
 
     /** Dispatches the subject to its family builder, producing split id -> block rows. */
-    private @NotNull Map<String, JsonNode> build() {
+    private @NotNull Map<String, JsonTree> build() {
         Map<String, List<Row>> rows = new LinkedHashMap<>();
         BlockFamilyPolicies.CatalogFamily family = BlockFamilyPolicies.catalogFamily(this.subject.localId());
         if (family != null)                 // no catalog family (enchanting_table / lectern) = no catalog
@@ -93,7 +93,7 @@ final class BlockCatalogResolver {
                 case BANNER -> banner(rows);
             }
 
-        Map<String, JsonNode> out = new LinkedHashMap<>();
+        Map<String, JsonTree> out = new LinkedHashMap<>();
         rows.forEach((splitId, list) -> out.put(splitId, toArray(list)));
         return out;
     }
@@ -148,9 +148,9 @@ final class BlockCatalogResolver {
 
     /**
      * Chest: 11 blocks under the sole split; texture base from ChestSpecialRenderer. The regular +
-     * copper chests keep their validBlocks order, then trapped, then ender (the legacy Chest.discover
-     * concatenation CHEST + TRAPPED_CHEST + ENDER_CHEST; the shared-renderer union arrives in a
-     * different order).
+     * copper chests keep their validBlocks order, then trapped, then ender - the
+     * {@code CHEST + TRAPPED_CHEST + ENDER_CHEST} concatenation, which is emitted row order and is
+     * not the order the shared-renderer union arrives in.
      */
     private void chest(@NotNull Map<String, List<Row>> rows) {
         Map<String, String> bases = chestVariantBases();
@@ -271,16 +271,14 @@ final class BlockCatalogResolver {
     /**
      * ChestSpecialRenderer field name -> texture base ({@code REGULAR->normal},
      * {@code COPPER_EXPOSED->copper_exposed}). Each field binds {@code LDC <base>; INVOKESTATIC
-     * <sprite factory>; PUTSTATIC <field>}, so the base is the last string LDC before the store
-     * (the intervening factory call rules out {@code scanPendingBindings}).
+     * <sprite factory>; PUTSTATIC <field>}, so the base is the last string LDC before the store.
      */
     private @NotNull Map<String, String> chestVariantBases() {
         Map<String, String> out = new LinkedHashMap<>();
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER);
         if (clinit == null) return out;
         String pending = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pending = literal;
@@ -297,11 +295,10 @@ final class BlockCatalogResolver {
     /** CopperGolemOxidationLevels field name -> stripped texture path (first path LDC after each NEW). */
     private @NotNull Map<String, String> copperGolemTextures() {
         Map<String, String> out = new LinkedHashMap<>();
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS);
         if (clinit == null) return out;
         String pending = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in.getOpcode() == Opcodes.NEW) {
                 pending = null;
                 continue;
@@ -332,7 +329,7 @@ final class BlockCatalogResolver {
             }
         if (lambda == null) return out;
         String pendingType = null;
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : lambda.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.SKULL_BLOCK_TYPES)) {
                 pendingType = ((FieldInsnNode) in).name;
                 continue;
@@ -351,12 +348,11 @@ final class BlockCatalogResolver {
      * the {@code SHELL_TEXTURE} stem ({@code base}) -> {@code entity/conduit/base}.
      */
     private @NotNull String conduitTexture() {
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.CONDUIT_RENDERER);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.CONDUIT_RENDERER);
         if (clinit == null) return "";
         String base = null;
         String pendingStem = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 if (literal.contains("/")) base = literal; else pendingStem = literal;
@@ -370,11 +366,10 @@ final class BlockCatalogResolver {
 
     /** BellRenderer: the {@code BELL_TEXTURE} stem ({@code bell/bell_body}) under the block-entities {@code entity/} prefix. */
     private @NotNull String bellTexture() {
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.BELL_RENDERER);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.BELL_RENDERER);
         if (clinit == null) return "";
         String pendingStem = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingStem = literal;
@@ -390,16 +385,15 @@ final class BlockCatalogResolver {
      * The DyeColor serialized names in declaration order ({@code white, orange, magenta, ...}) -
      * the shulker / bed / banner colour ordering. Each enum constant binds its serialized name as
      * the SECOND string LDC between its {@code NEW} and closing {@code PUTSTATIC} (the first is the
-     * constant name); the {@code <init>} rules out {@code scanPendingBindings}.
+     * constant name).
      */
     private @NotNull List<String> dyeColorOrder() {
         List<String> order = new ArrayList<>();
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.DYE_COLOR);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.DYE_COLOR);
         if (clinit == null) return order;
         String first = null;
         String second = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in.getOpcode() == Opcodes.NEW && in instanceof TypeInsnNode type
                 && type.desc.equals(VanillaSourceClasses.Types.DYE_COLOR)) {
                 first = null;
@@ -512,10 +506,10 @@ final class BlockCatalogResolver {
     }
 
     /** Materialises a row list into the {@code blocks} array node, wrapping stems in the full asset grammar. */
-    private static @NotNull JsonNode toArray(@NotNull List<Row> rows) {
-        JsonNode array = JsonNode.array();
+    private static @NotNull JsonTree toArray(@NotNull List<Row> rows) {
+        JsonTree array = JsonTree.array();
         for (Row row : rows)
-            array.add(JsonNode.object()
+            array.add(JsonTree.object()
                 .put("block", row.block())
                 .put("texture", assetPath(row.texture()))
                 .putIf("variant", row.variant())

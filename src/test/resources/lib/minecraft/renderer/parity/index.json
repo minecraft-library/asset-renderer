@@ -1,0 +1,414 @@
+{
+  "//": "parity.report.oracle-index · regen: ./gradlew parityPromote (rewritten on every promotion)",
+  "artifact": "report.oracle-index",
+  "artifacts": {
+    "digest.colormap-lut": {
+      "baselined": true,
+      "determinism_floor": 1,
+      "entries": 3,
+      "file": "digests/colormap-lut.json",
+      "kind": "digest-set",
+      "promoted_at": "b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e",
+      "sha256": "01bec04337418a4cbd2bce8acf68b36b5d23411d33cb950d41ebb8461f0d27b8"
+    },
+    "digest.shipped-tables": {
+      "baselined": true,
+      "determinism_floor": 1,
+      "entries": 10,
+      "file": "digests/shipped-tables.json",
+      "kind": "digest-set",
+      "promoted_at": "b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e",
+      "sha256": "c000b00ff4ed273c6d363ba953755ba8a5c66b956b0d228b78589feb6a96aba3"
+    },
+    "manifest.dump.packs": {
+      "baselined": true,
+      "determinism_floor": 5,
+      "entries": 14,
+      "file": "manifests/dump-packs.json",
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "7b934f7386bd438e72831e1f111c8ea0050334aaec60fe13ab9cd3b3cb998bc0"
+    },
+    "manifest.dump.vanilla": {
+      "baselined": true,
+      "determinism_floor": 5,
+      "entries": 14,
+      "file": "manifests/dump-vanilla.json",
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "750d5a26dea696106e5aa33d8687769a7fea0d122999a83de85587ed04afa90d"
+    },
+    "manifest.fluid": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 12,
+      "file": "manifests/fluid.json",
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "a1a1fa683e06dc3f0540db23770c8197149bf6e564f6e3c1d988375108274994"
+    },
+    "manifest.player-raw": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 18,
+      "file": "manifests/player-raw.json",
+      "kind": "manifest",
+      "promoted_at": "47397e979e769f009a253ea46c7d72e211f3ea9d",
+      "sha256": "be0615aaf0538c116c56ebddfc500969b6bd76c77954abbd2d36998d88c111c4"
+    },
+    "manifest.player-sheets": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 104,
+      "file": "manifests/player-sheets.json",
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "e1913d22014274647c4ea6bc55389ad4cf2e970c6c956ccefe6653983ce026e3"
+    },
+    "manifest.portal": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 12,
+      "file": "manifests/portal.json",
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "14920840b5c76ec7b3a8c19c22a4d6bc2faed60d1438800670c06569ca159c17"
+    },
+    "manifest.references": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 2312,
+      "file": "manifests/references.json",
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "38e17e9dba36520a0f0e6104ccdab66d371b84a19cc910701bdbca6b655988a7"
+    },
+    "manifest.tooling-tables": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 10,
+      "file": "manifests/tooling-tables.json",
+      "kind": "manifest",
+      "last_duration_ms": 2696,
+      "promoted_at": "0bcb42335c9f472169445099c348bceaf2b92e58",
+      "sha256": "8e93940c34d27516b5deaadc1b76e0c065542f0210485f6ee095e648557aadc9"
+    },
+    "manifest.visual": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 199,
+      "file": "manifests/visual.json",
+      "kind": "manifest",
+      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+      "sha256": "66ceb9453d58a62a6ffb34489bc7e4936b86136470b3cb2389657c2c85d8b827"
+    },
+    "pin.block-crc": {
+      "baselined": true,
+      "determinism_floor": 1,
+      "entries": 3,
+      "file": "pins/block-crc.json",
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "0e20474a93858bc39f1202548e48263e48bf28753211a2237809922f95fcde67"
+    },
+    "pin.corpus-count": {
+      "baselined": true,
+      "determinism_floor": 1,
+      "entries": 2,
+      "file": "pins/corpus-count.json",
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "d5efe7cf0b7eac1b3bb7fe75618f33e770b9e8b78a52a6ff65e92f1b40099310"
+    },
+    "pin.fluid-crc": {
+      "baselined": true,
+      "determinism_floor": 1,
+      "entries": 13,
+      "file": "pins/fluid-crc.json",
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "f2d6408409a24ac139402ce174d1c1a6aa1f5d8b5cc22d46e1faafce975ba22c"
+    },
+    "pin.kit-corners": {
+      "baselined": true,
+      "determinism_floor": 1,
+      "entries": 1,
+      "file": "pins/kit-corners.json",
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "44cf7df5720bd1da3014103aabb3365c94e83c9ec5a9f12e0b8be1393ea98959"
+    },
+    "pin.player-crc": {
+      "baselined": true,
+      "determinism_floor": 1,
+      "entries": 3,
+      "file": "pins/player-crc.json",
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "b086888de3bd10d3401977e125cf2818b2685a8d870a933c548f26a43c04518a"
+    },
+    "pin.portal-crc": {
+      "baselined": true,
+      "determinism_floor": 1,
+      "entries": 2,
+      "file": "pins/portal-crc.json",
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "61e8265b1178cae2848f2d1ef9b4994292ce34653a7170bf8297abe5cce2d4e8"
+    },
+    "pin.vanilla-iso-pose": {
+      "baselined": true,
+      "determinism_floor": 1,
+      "entries": 1,
+      "file": "pins/vanilla-iso-pose.json",
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "7618413736607fc41bd45ad925f4c0fe3df305d385d22605a796a91aba72acdc"
+    },
+    "report.oracle-index": {
+      "baselined": false,
+      "determinism_floor": 1,
+      "file": "index.json",
+      "kind": "index"
+    },
+    "roster.blindness-rules": {
+      "baselined": false,
+      "determinism_floor": 1,
+      "file": "blindness.json",
+      "kind": "blindness-roster"
+    },
+    "sweep.armor": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 7,
+      "file": "sweeps/armor.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 16490,
+      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+      "sha256": "f0b5898e1646bcb168220beacd5ade875c14ce4f434ccc0c876d22ac4037bf6d",
+      "sum": "18.2471"
+    },
+    "sweep.block": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 1055,
+      "file": "sweeps/block.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 50027,
+      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+      "sha256": "03b29294dfacd32f908fc717672da845782800afb540bd6f9ebc730f4d4299ab",
+      "sum": "131.5270"
+    },
+    "sweep.entity": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 402,
+      "file": "sweeps/entity.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 24670,
+      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+      "sha256": "f6c5e09320b12ae16ea5ba585a33933b42eb610c6e86012a10437594f7ecc788",
+      "sum": "60.0047"
+    },
+    "sweep.glint": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 11,
+      "file": "sweeps/glint.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 28255,
+      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+      "sha256": "aa8ade46a1bbd8de63b471aa60be348a939f172fee21949e5426b4fc7c00aaf5",
+      "sum": "528.6236"
+    },
+    "sweep.item": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 479,
+      "file": "sweeps/item.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 129288,
+      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+      "sha256": "c87bf90ba4d1576c149518279650710dd185e9ae217e116815e5927e09f68112",
+      "sum": "128.9575"
+    },
+    "sweep.player": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 2,
+      "file": "sweeps/player.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 11964,
+      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+      "sha256": "4bc2688a50ef20626a257c49c85e6dd4b6dd4052819d9f76af9681df904c0324",
+      "sum": "29.1376"
+    }
+  },
+  "external": {
+    "digest.dump-sections": {
+      "home": "cache/parity-dump/<label>/{vanilla,packs}/",
+      "reason": "the same 28 values manifest.dump.vanilla and manifest.dump.packs already carry, one per section file; a third copy of one number",
+      "stored": false
+    },
+    "pin.tick-lattice": {
+      "home": "lib.minecraft.renderer.engine.compose.TimelineTest",
+      "reason": "an identity (millisAt(f) == tickAt(f) * 50.0), not a captured value - re-baselining is not a concept for it",
+      "stored": false
+    },
+    "probe.depth-quantum": {
+      "home": "cache/asset-renderer/vanilla/<version>/depth-quantum-probe/",
+      "reason": "written deliberately outside the reference tree by renderVanillaDepthQuantumProbe",
+      "stored": false
+    },
+    "probe.pixel": {
+      "home": "untracked working notes",
+      "reason": "instrumented-build evidence; not reproducible by re-running a gate, so it can be neither captured, compared nor promoted, and what it was written into is gitignored rather than tracked, so no path here would resolve for anyone who clones this",
+      "stored": false
+    },
+    "report.capture-note": {
+      "home": "commit messages",
+      "reason": "its one non-duplicated field is the promotion reason, which is a provenance key; its restore recipe is parityCompare, which is code rather than prose",
+      "stored": false
+    },
+    "report.expected-diff": {
+      "home": "<working root>/_run/expected-diff.json",
+      "reason": "a pre-registered input to one gate, written before the capture it gates",
+      "stored": false
+    },
+    "report.harness-fit-log": {
+      "home": "build/parity/harness-<task>.log",
+      "reason": "the harness prints one fit line per cohort to stdout; the tee under build/ is where it is persisted, and it is scratch rather than a promoted value",
+      "stored": false
+    },
+    "report.movers": {
+      "home": "<working root>/_run/compare.json",
+      "reason": "a statement about a comparison rather than a value a run produces, so it is never promoted",
+      "stored": false
+    },
+    "report.plan": {
+      "home": "<working root>/_run/plan.json",
+      "reason": "what a changed path sees and is blind to; capture-only, never promoted",
+      "stored": false
+    }
+  },
+  "format": 1,
+  "key": "artifact",
+  "kind": "index",
+  "pointers": {
+    "report.buckets": {
+      "pointer": "sweeps/<sweep>.json#/summary/buckets"
+    },
+    "report.coverage-gaps": {
+      "pointer": "sweeps/<sweep>.json#/summary/gaps"
+    },
+    "report.diagnostics-log": {
+      "pointer": "manifests/tooling-tables.json#/logs"
+    },
+    "report.failure-rows": {
+      "pointer": "sweeps/<sweep>.json#/rows/<n>/status"
+    },
+    "report.harness-sweep-counts": {
+      "pointer": "<artifact>#/provenance/counts"
+    },
+    "report.run-provenance": {
+      "pointer": "<artifact>#/provenance"
+    },
+    "report.sum": {
+      "pointer": "sweeps/<sweep>.json#/summary/sum"
+    },
+    "report.wall-time": {
+      "pointer": "<artifact>#/provenance/wall_time_ms"
+    },
+    "report.worst-list": {
+      "pointer": "sweeps/<sweep>.json#/summary/worst"
+    }
+  },
+  "sources": {
+    "pin.armor-span": {
+      "cross_repo": false,
+      "re_derive": "inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation",
+      "test_class": "lib.minecraft.renderer.engine.kit.ArmorKitCitCompositeTest"
+    },
+    "roster.appearance-axes": {
+      "cross_repo": true,
+      "re_derive": "AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset",
+      "test_class": "lib.minecraft.renderer.visual.AppearanceKey"
+    },
+    "roster.armor-subjects": {
+      "anchor": [
+        "SUBJECTS = List.of("
+      ],
+      "cross_repo": true,
+      "lines": "129-136",
+      "re_derive": "must match the harness ArmorSweep roster byte for byte or the sweep finds no reference",
+      "test_class": "lib.minecraft.renderer.visual.TestArmorParityVanilla"
+    },
+    "roster.dump-sections": {
+      "cross_repo": false,
+      "re_derive": "PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated",
+      "test_class": "lib.minecraft.renderer.pipeline.dump.PipelineParityDump"
+    },
+    "roster.face-phase": {
+      "cross_repo": false,
+      "re_derive": "vanilla's own corner order per face, read off the bakery and the polygon paths",
+      "test_class": "lib.minecraft.renderer.face.FacePhaseTest"
+    },
+    "roster.frame-turn": {
+      "cross_repo": false,
+      "re_derive": "the order-8 diagonal group; each constant is which axes it negates",
+      "test_class": "lib.minecraft.renderer.face.FrameTurnTest"
+    },
+    "roster.glint-subjects": {
+      "anchor": [
+        "GUI_GLINT_ITEMS = List.of(",
+        "LEATHER_ARMOR_ITEMS = List.of("
+      ],
+      "cross_repo": true,
+      "lines": "107-115, 125-130",
+      "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
+      "test_class": "lib.minecraft.renderer.visual.TestGlintParityVanilla"
+    },
+    "roster.humanoid-armor": {
+      "anchor": [
+        "EXPECTED = Set.of("
+      ],
+      "cross_repo": false,
+      "lines": "30-34",
+      "re_derive": "EntityModelLoader.load() filtered on humanoidArmor().isPresent()",
+      "test_class": "lib.minecraft.renderer.pipeline.loader.HumanoidArmorRosterTest"
+    },
+    "roster.humanoid-part-crop": {
+      "anchor": [
+        "ORIGINS = {"
+      ],
+      "cross_repo": false,
+      "lines": "35-48",
+      "re_derive": "Unwrap.Atlas.rect at each part's atlas origin under Turn.HALF_X",
+      "test_class": "lib.minecraft.renderer.face.HumanoidPartCropTest"
+    },
+    "roster.overlay-pipeline": {
+      "cross_repo": false,
+      "re_derive": "EntityPipelineTraits over the extracted client jar's layer classes",
+      "test_class": "lib.minecraft.renderer.pipeline.loader.OverlayPipelineRosterTest"
+    },
+    "roster.pack-fixtures": {
+      "cross_repo": false,
+      "re_derive": "PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere",
+      "test_class": "lib.minecraft.renderer.pipeline.dump.PipelineParityDump"
+    },
+    "roster.player-scopes": {
+      "anchor": [
+        "List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL)"
+      ],
+      "cross_repo": false,
+      "lines": "102",
+      "re_derive": "the scopes the harness PlayerSweep renders",
+      "test_class": "lib.minecraft.renderer.visual.TestPlayerParityVanilla"
+    },
+    "roster.sheet-groups": {
+      "cross_repo": false,
+      "re_derive": "the -Psheets groups TestPlayerRender accepts; ten offline plus the network-only account group",
+      "test_class": "lib.minecraft.renderer.visual.TestPlayerRender"
+    }
+  }
+}

@@ -1,23 +1,22 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.pipeline.pack.PackContainer;
-import lib.minecraft.renderer.pipeline.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.PackRoot;
-import lib.minecraft.renderer.pipeline.pack.PackStack;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
-import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
+import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
+import lib.minecraft.renderer.option.ItemModelContext;
+import lib.minecraft.renderer.pipeline.pack.PackSubtree;
+import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,8 +28,8 @@ import java.util.Optional;
  * trees, from which the two projections the pipeline needs are derived by walking each tree against
  * the neutral
  * {@link ItemModelContext#gui()} context - {@link #deriveBlockItemModels(Map)} (the block-item
- * inventory-model map {@code BlockIndexLoader} consumes) and {@link #deriveTints(Map)} (the per-layer
- * tint list {@code ItemIndexLoader} attaches).
+ * inventory-model map {@code BlockIndexBuilder} consumes) and {@link #deriveTints(Map)} (the per-layer
+ * tint list {@code ItemIndexBuilder} attaches).
  *
  * <p>The block-item map is the root-plain-model-block-ref set (a dispatch-rooted item is never a
  * block-item override), and the neutral walk reaches the tint-carrying branch. Packs merge
@@ -42,6 +41,19 @@ public class ItemModelTreeLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
+    /** The native item-definition subtree every pack contributes. */
+    private static final @NotNull PackSubtree.Subtree ITEMS =
+        PackSubtree.Subtree.of(VanillaSourcePaths.ITEMS_SUBDIR, ".json");
+
+    /**
+     * The legacy {@code models/item} subtree, contributed only by a pre-format-46 pack. Such a pack
+     * ships no {@code items/*.json} trees; its {@code overrides} arrays map onto the same tree form,
+     * so the walker serves them like a native items file. A vanilla or modern stack lists nothing
+     * here.
+     */
+    private static final @NotNull PackSubtree.Subtree LEGACY_ITEM_MODELS =
+        PackSubtree.Subtree.gated(VanillaSourcePaths.MODELS_ITEM_SUBDIR, ".json", LegacyOverrideMapper::isLegacyPack);
+
     /**
      * Loads and merges the item-definition trees across the whole pack stack, keyed by item id
      * ({@code "minecraft:compass"}).
@@ -51,39 +63,19 @@ public class ItemModelTreeLoader {
      */
     public static @NotNull ConcurrentMap<String, ItemModelTree> load(@NotNull PackStack stack) {
         HashMap<String, ItemModelTree> merged = new HashMap<>();
-        for (ResourcePack pack : stack.ascending()) {
-            pack.meta().pack().ifPresent(section -> merged.keySet().removeIf(id -> section.hides(ResourceId.parse(id))));
-            PackContainer container = pack.container();
 
-            for (PackRoot root : pack.roots())
-                for (String namespace : pack.namespaces()) {
-                    String itemsPrefix = root.prefix()
-                        + VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.ITEMS_SUBDIR);
-                    scanRoot(container, itemsPrefix, namespace).forEach(merged::put);
-                }
-
-            // A pre-format-46 pack ships no items/*.json trees; its models/item/*.json `overrides`
-            // arrays map onto the same tree form so the walker serves them like a native items file.
-            // Runs only for a legacy pack, so a vanilla / modern stack is untouched.
-            if (LegacyOverrideMapper.isLegacyPack(pack))
-                for (PackRoot root : pack.roots())
-                    for (String namespace : pack.namespaces()) {
-                        String itemModelsPrefix = root.prefix()
-                            + VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.MODELS_ITEM_SUBDIR);
-                        mergeLegacyOverrides(container, itemModelsPrefix, namespace, pack.id(), merged);
-                    }
+        // The two subtrees are walked together rather than one after the other, because a legacy
+        // pack's own models/item overrides must beat its own items trees while still losing to a
+        // higher pack's - which is the interleaving the shared walk produces by listing both
+        // subtrees per pack, in this declared order.
+        for (PackSubtree.Entry entry : PackSubtree.walk(stack, ITEMS, LEGACY_ITEM_MODELS)) {
+            if (entry.subtree().equals(ITEMS))
+                parseTree(entry).ifPresent(tree -> merged.put(tree.getKey(), tree.getValue()));
+            else
+                parseLegacyOverride(entry, merged).ifPresent(tree -> merged.put(tree.getKey(), tree.getValue()));
         }
+
         return Concurrent.adoptMap(merged).toUnmodifiable();
-    }
-
-    /** Scans one {@code (root x namespace)} items subtree into an itemId -> tree map. */
-    private static @NotNull Map<String, ItemModelTree> scanRoot(@NotNull PackContainer container, @NotNull String itemsPrefix, @NotNull String namespace) {
-        List<String> files = container.entries(itemsPrefix).filter(p -> p.endsWith(".json")).toList();
-
-        return files.parallelStream()
-            .map(p -> parseTree(container, p, itemsPrefix, namespace))
-            .flatMap(Optional::stream)
-            .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**
@@ -93,15 +85,14 @@ public class ItemModelTreeLoader {
      * prepended. Malformed / unreadable input is skipped (logged) so a bad entry falls back to a
      * lower-priority pack.
      */
-    private static @NotNull Optional<Map.Entry<String, ItemModelTree>> parseTree(@NotNull PackContainer container, @NotNull String entry, @NotNull String itemsPrefix, @NotNull String namespace) {
-        String relative = entry.substring(itemsPrefix.length() + 1);
-        if (!relative.endsWith(".json")) return Optional.empty();
-        String itemId = VanillaSourcePaths.namespacePrefix(namespace) + relative.substring(0, relative.length() - ".json".length());
+    private static @NotNull Optional<Map.Entry<String, ItemModelTree>> parseTree(@NotNull PackSubtree.Entry entry) {
+        String itemId = VanillaSourcePaths.namespacePrefix(entry.namespace()) + entry.stem();
 
         try {
-            JsonObject json = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
-            if (json == null || !json.has("model") || !json.get("model").isJsonObject()) return Optional.empty();
-            ItemModelNode root = ItemModelParser.parse(json.getAsJsonObject("model"));
+            JsonTree json = JsonTree.parse(entry.container().bytes(entry.entryPath()).orElseThrow());
+            Optional<JsonTree> model = json.findObject("model");
+            if (model.isEmpty()) return Optional.empty();
+            ItemModelNode root = GSON.fromJson(model.get().toGson(), ItemModelNode.class);
             return Optional.of(Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
         } catch (RuntimeException ex) {
             // Resource packs sometimes ship deeply nested or otherwise malformed item definitions
@@ -127,14 +118,6 @@ public class ItemModelTreeLoader {
      * block-item model reference is left untouched (the legacy override is dropped with a diagnostic)
      * so the block-item inventory projection {@code deriveBlockItemModels} keys on is preserved.
      */
-    private static void mergeLegacyOverrides(@NotNull PackContainer container, @NotNull String itemModelsPrefix, @NotNull String namespace, @NotNull PackId packId, @NotNull Map<String, ItemModelTree> merged) {
-        List<String> files = container.entries(itemModelsPrefix).filter(p -> p.endsWith(".json")).toList();
-
-        for (String p : files)
-            parseLegacyOverride(container, p, itemModelsPrefix, namespace, packId, merged)
-                .ifPresent(entry -> merged.put(entry.getKey(), entry.getValue()));
-    }
-
     /**
      * Parses one {@code models/item/*.json} file's {@code overrides} array into an
      * {@code itemId -> }{@link ItemModelTree} entry, or empty when the file carries no mappable
@@ -145,11 +128,11 @@ public class ItemModelTreeLoader {
      * (logged), matching the native scan's skip-not-abort contract.
      */
     private static @NotNull Optional<Map.Entry<String, ItemModelTree>> parseLegacyOverride(
-        @NotNull PackContainer container, @NotNull String entry, @NotNull String itemModelsPrefix, @NotNull String namespace, @NotNull PackId packId, @NotNull Map<String, ItemModelTree> merged
+        @NotNull PackSubtree.Entry entry, @NotNull Map<String, ItemModelTree> merged
     ) {
-        String relative = entry.substring(itemModelsPrefix.length() + 1);
-        if (!relative.endsWith(".json")) return Optional.empty();
-        String stem = relative.substring(0, relative.length() - ".json".length());
+        String namespace = entry.namespace();
+        PackId packId = entry.pack().id();
+        String stem = entry.stem();
         String itemId = VanillaSourcePaths.namespacePrefix(namespace) + stem;
 
         // Preserve a native block-item inventory projection: deriveBlockItemModels keys on a
@@ -166,10 +149,11 @@ public class ItemModelTreeLoader {
             : new ItemModelNode.Model(VanillaSourcePaths.modelIdPrefix(namespace, VanillaSourcePaths.ITEM_KIND) + stem, List.of());
 
         try {
-            JsonObject json = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
-            if (json == null || !json.has("overrides") || !json.get("overrides").isJsonArray()) return Optional.empty();
-            JsonArray overrides = json.getAsJsonArray("overrides");
-            if (overrides.isEmpty()) return Optional.empty();
+            JsonTree json = JsonTree.parse(entry.container().bytes(entry.entryPath()).orElseThrow());
+            Optional<JsonTree> overridesOpt = json.findArray("overrides");
+            if (overridesOpt.isEmpty()) return Optional.empty();
+            JsonTree overrides = overridesOpt.get();
+            if (overrides.size() == 0) return Optional.empty();
             return LegacyOverrideMapper.map(itemId, overrides, packId, fallback)
                 .map(root -> Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
         } catch (RuntimeException ex) {
@@ -182,7 +166,7 @@ public class ItemModelTreeLoader {
 
     /**
      * Derives the block-item inventory-model map ({@code itemId -> blockModelId}) from the parsed
-     * trees - the block-item projection {@code BlockIndexLoader} consumes to swap a block's in-world
+     * trees - the block-item projection {@code BlockIndexBuilder} consumes to swap a block's in-world
      * model for its inventory model (e.g. {@code piston -> block/piston_inventory}). Only a
      * root-plain-{@code model} node whose ref is a block model qualifies; a dispatch-rooted item
      * (beehive, bee_nest) is never a block-item override.
@@ -211,7 +195,7 @@ public class ItemModelTreeLoader {
         HashMap<String, List<LayerTint>> tintMap = new HashMap<>();
         ItemModelContext neutral = ItemModelContext.gui();
         trees.forEach((itemId, tree) -> {
-            List<LayerTint> tints = ItemModelWalker.resolve(tree, neutral).tints();
+            List<LayerTint> tints = tree.resolve(neutral).tints();
             if (!tints.isEmpty()) tintMap.put(itemId, tints);
         });
         return Concurrent.adoptMap(tintMap).toUnmodifiable();

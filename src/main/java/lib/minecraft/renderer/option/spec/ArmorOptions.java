@@ -1,10 +1,13 @@
 package lib.minecraft.renderer.option.spec;
 
+import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -41,6 +44,60 @@ public class ArmorOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> boots = Optional.empty();
+
+    /**
+     * The equipped item identity per slot, driving the pack-rule (CIT) armor texture override. Empty
+     * by default, which leaves each slot's equipment-model texture in force; a populated entry lets a
+     * {@code type=armor} rule retexture that slot. Kept beside the {@link ArmorPiece} slots rather than
+     * on the piece so every {@code ArmorPiece.of(...)} call site stays untouched.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Map<ArmorSlot, ItemContext> items = Map.of();
+
+    /**
+     * The piece worn in one slot, or empty when that slot is unarmored.
+     *
+     * <p><b>The exhaustive switch is deliberate and belongs here.</b> This is the type that owns the
+     * four fields, so this is the one place a fifth {@link ArmorSlot} constant must be answered for -
+     * and an arrow switch over an enum with no {@code default} makes adding one a compile error rather
+     * than a slot that silently never equips in every consumer. It is not a guard a renderer should be
+     * carrying on this type's behalf. {@code ArmorOptionsTest} pins the same obligation from the
+     * outside, so the rule survives even if this body is ever rewritten.
+     *
+     * @param slot the armor slot
+     * @return the piece worn there, or empty
+     */
+    public @NotNull Optional<ArmorPiece> piece(@NotNull ArmorSlot slot) {
+        return switch (slot) {
+            case HELMET -> this.helmet;
+            case CHESTPLATE -> this.chestplate;
+            case LEGGINGS -> this.leggings;
+            case BOOTS -> this.boots;
+        };
+    }
+
+    /**
+     * The equipped pieces keyed by slot, in {@link ArmorSlot} declaration order - the back-to-front
+     * composite order every consumer iterates. An unequipped slot is absent rather than mapped to an
+     * empty value, so a consumer walks only what is worn.
+     *
+     * @return the equipped pieces, in composite order
+     */
+    public @NotNull Map<ArmorSlot, ArmorPiece> equipped() {
+        Map<ArmorSlot, ArmorPiece> pieces = new EnumMap<>(ArmorSlot.class);
+        for (ArmorSlot slot : ArmorSlot.CACHED_VALUES)
+            piece(slot).ifPresent(worn -> pieces.put(slot, worn));
+        return pieces;
+    }
+
+    /**
+     * Whether any equipped piece carries the enchantment glint.
+     *
+     * @return {@code true} when at least one worn piece is enchanted
+     */
+    public boolean hasEnchanted() {
+        return equipped().values().stream().anyMatch(ArmorPiece::enchanted);
+    }
 
     /**
      * Opens a builder seeded from this instance's current values, for deriving a variant with a

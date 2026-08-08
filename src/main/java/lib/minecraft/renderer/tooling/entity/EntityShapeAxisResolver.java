@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -46,20 +46,13 @@ final class EntityShapeAxisResolver {
     private final @NotNull GeometryManifest manifest;
     private final @NotNull Diagnostics diagnostics;
 
-    EntityShapeAxisResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull EntityGeometryRefResolver geometryRef,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
-        this.layerDefinitions = layerDefinitions;
+    EntityShapeAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
-        this.manifest = manifest;
-        this.diagnostics = diagnostics;
+        this.manifest = context.indexes().manifest();
+        this.diagnostics = context.diagnostics();
     }
 
     /**
@@ -70,12 +63,12 @@ final class EntityShapeAxisResolver {
      * @param overlays the family's resolved {@code overlays} rows to clone, or {@code null}
      * @return the node, or {@code null} to omit
      */
-    @Nullable JsonNode resolve(@Nullable String adultTexture, @Nullable JsonNode overlays) {
+    @Nullable JsonTree resolve(@Nullable String adultTexture, @Nullable JsonTree overlays) {
         if (!"shape".equals(EntityAxisPolicies.shapeSizeAxisFor(this.subject.entityId()))) return null;
         String primaryField = this.geometryRef.primaryFieldName();
         if (primaryField == null) return null;
 
-        JsonNode options = null;
+        JsonTree options = null;
         for (String field : new LinkedHashSet<>(this.geometryRef.tripleSites())) {
             if (field.equals(primaryField)) continue;
             String option = field.substring(field.lastIndexOf('_') + 1).toLowerCase(Locale.ROOT);
@@ -87,19 +80,19 @@ final class EntityShapeAxisResolver {
                 entry.texWidthOverride(), entry.texHeightOverride(),
                 entry.floatParam(), entry.grow(), entry.appliedMeshTransformerScale()));
             String optionTexture = optionClinitTexture(option);
-            JsonNode body = JsonNode.object().put("geometry", key)
+            JsonTree body = JsonTree.object().put("geometry", key)
                 .putIf("texture", optionTexture);
             body.putIf("overlays", cloneOverlays(overlays, key, adultTexture, optionTexture));
-            if (options == null) options = JsonNode.object();
+            if (options == null) options = JsonTree.object();
             options.put(option, body);
-            this.diagnostics.info("shape axis: option '%s' mesh ModelLayers.%s -> %s [D2]", option, field, key);
+            this.diagnostics.info("shape axis: option '%s' mesh ModelLayers.%s -> %s", option, field, key);
         }
         if (options == null) {
-            this.diagnostics.warn("P37 declares a shape axis but no second body mesh resolved");
+            this.diagnostics.warn("policy declares a shape axis but no second body mesh resolved");
             return null;
         }
 
-        JsonNode node = JsonNode.object().put("default", DOMAIN.getFirst());
+        JsonTree node = JsonTree.object().put("default", DOMAIN.getFirst());
         node.put("options", options);
         return node;
     }
@@ -110,8 +103,8 @@ final class EntityShapeAxisResolver {
      * family texture's stem swaps to the option stem when the swapped path exists in the
      * jar; every other member copies verbatim. {@code null} when there is nothing to clone.
      */
-    private @Nullable JsonNode cloneOverlays(
-        @Nullable JsonNode overlays,
+    private @Nullable JsonTree cloneOverlays(
+        @Nullable JsonTree overlays,
         @NotNull String optionKey,
         @Nullable String familyTexture,
         @Nullable String optionTexture
@@ -120,15 +113,15 @@ final class EntityShapeAxisResolver {
         String familyKey = this.geometryRef.primaryKey();
         String familyStem = textureStem(familyTexture);
         String optionStem = textureStem(optionTexture);
-        JsonNode out = null;
-        for (JsonNode row : overlays.elements()) {
-            JsonNode clone = JsonNode.object();
-            for (var member : row.members()) {
-                if ("geometry".equals(member.getKey()) && Objects.equals(row.getString("geometry"), familyKey)) {
+        JsonTree out = null;
+        for (JsonTree row : overlays.elements().toList()) {
+            JsonTree clone = JsonTree.object();
+            for (var member : row.members().toList()) {
+                if ("geometry".equals(member.getKey()) && Objects.equals(row.findString("geometry").orElse(null), familyKey)) {
                     clone.put("geometry", optionKey);
                     continue;
                 }
-                String texture = "texture".equals(member.getKey()) ? row.getString("texture") : null;
+                String texture = "texture".equals(member.getKey()) ? row.findString("texture").orElse(null) : null;
                 if (texture != null && familyStem != null && optionStem != null && texture.startsWith(familyStem)) {
                     String swapped = optionStem + texture.substring(familyStem.length());
                     String rawPath = swapped.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length());
@@ -140,7 +133,7 @@ final class EntityShapeAxisResolver {
                 }
                 clone.put(member.getKey(), member.getValue());
             }
-            if (out == null) out = JsonNode.array();
+            if (out == null) out = JsonTree.array();
             out.add(clone);
         }
         return out;
@@ -164,7 +157,7 @@ final class EntityShapeAxisResolver {
         if (clinit == null) return null;
         String wantedPrefix = option.toUpperCase(Locale.ROOT);
         String pendingPath = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) {
                 pendingPath = literal;

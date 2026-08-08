@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
@@ -16,7 +16,7 @@ import java.util.List;
  * and fans each subject into its family splits via {@link BlockGeometrySourceResolver}, appending
  * one {@code models} entry per split id.
  *
- * <p>The block side has no {@code family_of} analogue - no post-pass.
+ * <p>The block side has no {@code group_of} analogue - no post-pass.
  */
 public final class BlockEntityRegistryWalk {
 
@@ -35,7 +35,7 @@ public final class BlockEntityRegistryWalk {
         @NotNull ToolingSession session,
         @NotNull List<BlockEntitySubject> subjects,
         @NotNull GeometryManifest manifest,
-        @NotNull JsonNode root
+        @NotNull JsonTree root
     ) {
         LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
         BlockRegistryIndex blockRegistry = BlockRegistryIndex.build(session);
@@ -43,16 +43,15 @@ public final class BlockEntityRegistryWalk {
         BlockGuiResolver gui = new BlockGuiResolver(session.cache());
         InventoryTransformResolver transform = new InventoryTransformResolver(session.cache());
 
-        JsonNode models = root.child("models");
+        JsonTree models = root.child("models");
         for (BlockEntitySubject subject : subjects) {
-            BlockGeometrySourceResolver geometry = new BlockGeometrySourceResolver(
-                session, subject, layerDefinitions, manifest, session.diagnostics().child(subject.beTypeId()));
+            BlockGeometrySourceResolver geometry =
+                new BlockGeometrySourceResolver(session, subject, layerDefinitions, manifest);
             List<BlockGeometrySourceResolver.Split> splits = geometry.resolveSplits();
 
             List<String> splitIds = new ArrayList<>();
             for (BlockGeometrySourceResolver.Split split : splits) splitIds.add(split.splitId());
-            BlockCatalogResolver catalog = new BlockCatalogResolver(session.cache(), blockRegistry, subject,
-                splitIds, session.diagnostics().child(subject.beTypeId()));
+            BlockCatalogResolver catalog = new BlockCatalogResolver(session, blockRegistry, subject, splitIds);
 
             for (BlockGeometrySourceResolver.Split split : splits)
                 models.put(split.splitId(), new BlockEntityRendererResolver(subject, split, tint, gui, catalog, transform).resolve());

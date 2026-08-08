@@ -8,14 +8,14 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Item.LayerTint;
-import lib.minecraft.renderer.pipeline.pack.Capability;
-import lib.minecraft.renderer.pipeline.pack.MCMeta;
-import lib.minecraft.renderer.pipeline.pack.PackContainer;
-import lib.minecraft.renderer.pipeline.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.PackRoot;
-import lib.minecraft.renderer.pipeline.pack.PackStack;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
-import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
+import lib.minecraft.renderer.asset.PackStack;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.PackCapability;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -78,7 +78,7 @@ class ItemModelTreeParityTest {
     private static PackStack vanillaStack() {
         return PackStack.of(Concurrent.newList(new ResourcePack(
             PackId.VANILLA, new PackContainer.Directory(VANILLA_ROOT), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE))));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE))));
     }
 
     // --- frozen former-loader reference ---

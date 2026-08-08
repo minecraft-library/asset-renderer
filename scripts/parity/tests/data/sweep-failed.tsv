@@ -1,0 +1,3 @@
+entity_id	mean_argb_delta	differing_pixels	java_coverage	vanilla_coverage	java_w	java_h	vanilla_w	vanilla_h
+minecraft__ok	0.5000	5	0.1000	0.1000	10	10	10	10
+minecraft__crashed	Infinity	-1	0.0000	0.0000	0	0	0	0

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,7 +22,12 @@ final class InventoryTransformResolver {
 
     private final @NotNull TransformWalker walker;
 
-    /** (renderer + '|' + attachment) -> decomposed tuple (absent = not yet computed; null = no transform). */
+    /**
+     * (renderer + '|' + attachment) -> decomposed tuple, filled by {@link Map#computeIfAbsent},
+     * which records no mapping when the walk yields nothing - so an absent key means "not yet
+     * computed" and never "no transform", and a renderer the walker declines re-runs the whole
+     * symbolic execution once per split that asks.
+     */
     private final @NotNull Map<String, float[]> memo = new HashMap<>();
 
     InventoryTransformResolver(@NotNull ClassNodeCache cache) {
@@ -37,7 +42,7 @@ final class InventoryTransformResolver {
      * @param splitId the models key
      * @return the transform float array node, or {@code null}
      */
-    @Nullable JsonNode resolve(@NotNull String rendererClass, @NotNull String splitId) {
+    @Nullable JsonTree resolve(@NotNull String rendererClass, @NotNull String splitId) {
         String entry = BlockTransformPolicies.rendererEntry(rendererClass);
         if (entry == null) return null;
 
@@ -45,7 +50,7 @@ final class InventoryTransformResolver {
         String key = rendererClass + "|" + attachment;
         float[] tuple = this.memo.computeIfAbsent(key, ignored -> this.walker.decompose(rendererClass, entry, attachment));
         if (tuple == null) return null;
-        JsonNode array = JsonNode.array();
+        JsonTree array = JsonTree.array();
         for (float value : tuple) array.add(value);
         return array;
     }

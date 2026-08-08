@@ -1,28 +1,30 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.ImageFactory;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.pipeline.pack.Capability;
-import lib.minecraft.renderer.pipeline.pack.MCMeta;
-import lib.minecraft.renderer.pipeline.pack.PackContainer;
-import lib.minecraft.renderer.pipeline.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.PackRoot;
-import lib.minecraft.renderer.pipeline.pack.PackStack;
-import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.PackCapability;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.ResolvedTexture;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
-import javax.imageio.ImageIO;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -76,9 +78,9 @@ class TextureResolutionTest {
     @Test
     @DisplayName("higher-priority pack wins a cross-pack id collision")
     void crossPackPriority() {
-        assertThat(stack.indexed(ResourceId.parse("minecraft:block/stone")).orElseThrow().pack(),
-            is(new PackId("hypixel-skyblock")));
-        assertThat(stack.indexed(ResourceId.parse("minecraft:block/stone")).orElseThrow().width(), is(32));
+        ResolvedTexture stone = stack.indexed(ResourceId.parse("minecraft:block/stone")).orElseThrow();
+        assertThat(stone.pack(), is(new PackId("hypixel-skyblock")));
+        assertThat(new ImageFactory().fromByteArray(stone.bytes()).toPixelBuffer().width(), is(32));
 
         ResolvedTexture resolved = stack.resolve(ResourceId.parse("minecraft:block/stone")).orElseThrow();
         assertThat(resolved.pack(), is(new PackId("hypixel-skyblock")));
@@ -141,7 +143,7 @@ class TextureResolutionTest {
             new ResourceId("filterpack", "pack"));
         ResourcePack filterPack = new ResourcePack(new PackId("filterpack"),
             new PackContainer.Directory(top), filtering, Concurrent.newList(PackRoot.BASE),
-            Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
+            Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
 
         PackStack bare = PackStack.of(Concurrent.newList(lower, filterPack));
         PackStack filtered = bare.withTextureIndex(TextureIndexer.index(bare));
@@ -152,16 +154,16 @@ class TextureResolutionTest {
     }
 
     @Test
-    @DisplayName("index row relativePath is the owning-root-relative container path")
-    void relativePathShape() {
-        assertThat(stack.indexed(new ResourceId("hypixel_skyblock", "item/sword")).orElseThrow().relativePath(),
-            equalTo("assets/hypixel_skyblock/textures/item/sword.png"));
+    @DisplayName("index row path is the baked winning root-prefixed container path (overlay winner)")
+    void indexedPathIsBaked() {
+        assertThat(stack.indexed(ResourceId.parse("minecraft:block/grass")).orElseThrow().path(),
+            equalTo("ov/assets/minecraft/textures/block/grass.png"));
     }
 
     private static @org.jetbrains.annotations.NotNull ResourcePack pack(PackId id, Path root, Set<String> namespaces,
                                                                         ConcurrentList<PackRoot> roots) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            roots.toUnmodifiable(), namespaces, Set.of(Capability.VANILLA_CORE));
+            roots.toUnmodifiable(), namespaces, Set.of(PackCapability.VANILLA_CORE));
     }
 
     private static void png(Path path, int width, int height) throws IOException {

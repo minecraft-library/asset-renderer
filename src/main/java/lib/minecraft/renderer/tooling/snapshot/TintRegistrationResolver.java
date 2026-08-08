@@ -130,7 +130,7 @@ final class TintRegistrationResolver {
         if (sources == null) return null;
         MethodNode factory = AsmKit.findMethod(sources, factoryName);
         if (factory == null) return null;
-        for (AbstractInsnNode in = factory.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : factory.instructions)
             if (in.getOpcode() == Opcodes.NEW
                 && in instanceof TypeInsnNode type
                 && type.desc.startsWith(VanillaSourceClasses.Types.BLOCK_TINT_SOURCES))
@@ -147,7 +147,7 @@ final class TintRegistrationResolver {
         if (node == null) return null;
         for (MethodNode method : node.methods) {
             if (method.instructions == null) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_GRASS_COLOR))
                     return Block.TintTarget.GRASS;
                 if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_FOLIAGE_COLOR))
@@ -175,7 +175,7 @@ final class TintRegistrationResolver {
         // The AGE read is `getValue(AGE); checkcast Integer; intValue; istore <age>`. Bind that
         // local to 0 (the min / freshly-placed default) and evaluate the arithmetic that follows.
         AbstractInsnNode getValue = null;
-        for (AbstractInsnNode in = color.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : color.instructions)
             if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.BLOCK_STATE, VanillaSourceClasses.Methods.GET_VALUE)) {
                 getValue = in;
                 break;

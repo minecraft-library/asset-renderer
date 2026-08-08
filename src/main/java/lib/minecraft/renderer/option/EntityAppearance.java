@@ -12,10 +12,10 @@ import java.util.Set;
 /**
  * The entity-specific axis selections for a single {@code EntityRenderer} invocation, held as one
  * cohesive value on {@link EntityOptions#getAppearance()} so {@code EntityOptions} does not accrete a
- * loose field per axis. Each selection maps onto the {@code entity_models.json} family form: the
+ * loose field per axis. Each selection maps onto the {@code entity_models.json} model form: the
  * typed {@link #getAge() age} axis, the option-sourced dyed {@link #tint(TintAxis) collar} tint, and the
  * id-encoded / option-encoded string axes ({@link #getState() state}, {@link #getCarried() carried})
- * whose valid values are declared per-entity in the family JSON rather than a hard-coded enum.
+ * whose valid values are declared per-entity in the model JSON rather than a hard-coded enum.
  *
  * <p>Every axis is empty / default unless explicitly set, so the default appearance has no effect on
  * the render. An axis a given entity does not support is simply ignored at render (an unknown
@@ -24,6 +24,15 @@ import java.util.Set;
 @Getter
 @Builder(toBuilder = true)
 public class EntityAppearance {
+
+    /** The {@link #getState() state} token a tamed subject selects - the wolf's tame coat. */
+    private static final @NotNull String TAME_STATE = "tame";
+
+    /**
+     * The collar dye an untouched tamed subject wears, matching the {@code DEFAULT_COLLAR_COLOR}
+     * both collar-bearing entities declare.
+     */
+    private static final @NotNull DyeColor DEFAULT_COLLAR_COLOR = DyeColor.Vanilla.RED;
 
     /**
      * Age selector. {@link Age#BABY} renders the entity's distinct baby mesh when it has one;
@@ -45,7 +54,7 @@ public class EntityAppearance {
     /**
      * Variant selector for entities whose coat / colour {@code variant} axis is option-encoded (cow
      * temperate / cold / warm, wolf coats, cat breeds, ...). Selects that option's baked mesh + coat
-     * texture in place of the family's default coat; empty (default) renders the default coat. Ignored
+     * texture in place of the model's default coat; empty (default) renders the default coat. Ignored
      * by entities with no variant axis, or while the axis is id-encoded (each coat a first-class render id).
      */
     @lombok.Builder.Default
@@ -80,7 +89,7 @@ public class EntityAppearance {
      * The selected dye per {@link TintAxis tint axis} - the body base tint ({@link TintAxis#BASE},
      * tropical fish) and each named overlay tint ({@link TintAxis#WOOL} sheep wool,
      * {@link TintAxis#PATTERN} tropical fish pattern, {@link TintAxis#COLLAR} wolf / cat collar).
-     * An axis absent from the map uses its target's baked default (the family {@code base_tint} or
+     * An axis absent from the map uses its target's baked default (the model {@code base_tint} or
      * the overlay's {@code tint_color}), so the default appearance is unchanged; a
      * present axis multiplies its target by the dye's {@link DyeColor#argb() ARGB}. One map rather
      * than a loose {@link Optional} field per dye axis - see {@link TintAxis}.
@@ -127,7 +136,8 @@ public class EntityAppearance {
     /**
      * Villager / zombie-villager biome type - the robe texture forming the base clothing pass. When
      * the resolved entity carries a {@code texture_by: type} overlay (the villager profession layer),
-     * that overlay draws the selected type's {@code <prefix>/type/<biome>} robe;
+     * that overlay draws the selected type's {@code <prefix>/type/<biome>} robe, or its
+     * {@code <prefix>/baby/<biome>} robe once {@link #getAge() age} selects {@link Age#BABY};
      * {@link VillagerType#PLAINS} (default) resolves to the baked {@code type/plains} robe. Ignored by
      * entities without a villager profession layer.
      */
@@ -146,15 +156,17 @@ public class EntityAppearance {
 
     /**
      * Villager / zombie-villager trade level badge - the small emblem over the profession clothes.
-     * When set to a non-{@link VillagerLevel#NONE} tier and the selected
-     * {@link #villagerProfession profession} {@link VillagerProfession#drawsBadge() draws a badge}
-     * (a real job), the resolved entity's {@code texture_by: profession_level} overlay draws that
-     * tier's {@code <prefix>/profession_level/<badge>} texture; {@link VillagerLevel#NONE} (default)
-     * or a {@code NONE} / {@code NITWIT} profession draws no badge. Ignored by entities without a
-     * villager profession layer.
+     * Whenever the selected {@link #villagerProfession profession}
+     * {@link VillagerProfession#drawsBadge() draws a badge} (a real job), the resolved entity's
+     * {@code texture_by: profession_level} overlay draws a tier's
+     * {@code <prefix>/profession_level/<badge>} texture: the tier named here, or
+     * {@link VillagerLevel#minimum() the first} when empty (default), which is what vanilla clamps
+     * an unspecified level up to. A {@code NONE} or {@code NITWIT} profession draws no badge whatever
+     * is named here, and neither does a baby. Ignored by entities without a villager profession
+     * layer.
      */
     @lombok.Builder.Default
-    private final @NotNull VillagerLevel villagerLevel = VillagerLevel.NONE;
+    private final @NotNull Optional<VillagerLevel> villagerLevel = Optional.empty();
 
     /**
      * Whether the entity renders sheared. When {@code true} the resolved definition drops its
@@ -174,7 +186,7 @@ public class EntityAppearance {
 
     /**
      * The set of bone-toggle names to un-hide for entities with toggleable bones (donkey / mule /
-     * llama {@code chest}). Each name matches a family-form {@code bone_toggles} key; a toggle a
+     * llama {@code chest}). Each name matches a model-form {@code bone_toggles} key; a toggle a
      * given entity does not declare is ignored. Empty (default) leaves every toggleable bone hidden.
      */
     @lombok.Builder.Default
@@ -190,6 +202,15 @@ public class EntityAppearance {
      */
     @lombok.Builder.Default
     private final @NotNull java.util.Map<String, String> equipment = java.util.Map.of();
+
+    /**
+     * Whether the entity wears an elytra. When {@code true} the two elytra wings render on the back as
+     * a model overlay; {@code false} (default) draws no wings. Only meaningful for the humanoid roster
+     * that can equip a chest item; a headless render draws the static {@code minecraft:elytra} wing
+     * texture (there is no wearer cape / elytra skin source).
+     */
+    @lombok.Builder.Default
+    private final boolean elytra = false;
 
     /**
      * The dye selected for a {@link TintAxis tint axis}, or empty when the axis uses its baked
@@ -209,6 +230,29 @@ public class EntityAppearance {
      */
     public boolean isBaby() {
         return this.age == Age.BABY;
+    }
+
+    /**
+     * Whether this appearance selects the tamed state.
+     *
+     * @return {@code true} when {@link #getState() state} selects {@code tame}
+     */
+    public boolean isTamed() {
+        return this.state.filter(TAME_STATE::equals).isPresent();
+    }
+
+    /**
+     * The dye the collar draws with, or empty when no collar is worn. Vanilla ties the collar to
+     * tameness rather than to dyeing - a tamed subject always wears one, in the untouched default red
+     * until it is dyed - so a tamed appearance resolves a colour with {@link TintAxis#COLLAR} left
+     * unselected. Selecting that axis without the state resolves one too: vanilla cannot dye an
+     * untamed subject's collar, so naming a collar dye is itself a statement that the subject is tamed.
+     *
+     * @return the collar dye, or empty when the subject is neither tamed nor collar-dyed
+     */
+    public @NotNull Optional<DyeColor> collarTint() {
+        if (this.isTamed()) return Optional.of(this.tints.getOrDefault(TintAxis.COLLAR, DEFAULT_COLLAR_COLOR));
+        return this.tint(TintAxis.COLLAR);
     }
 
     /**

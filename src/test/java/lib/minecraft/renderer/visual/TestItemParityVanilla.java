@@ -7,8 +7,10 @@ import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.parity.ParityPaths;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -27,7 +29,7 @@ import java.util.stream.Stream;
 /**
  * Per-item parity report comparing the Java pipeline output (via {@link ItemRenderer} in
  * {@link ItemOptions.Type#GUI_2D GUI_2D} mode) against the vanilla-reference-harness ground
- * truth PNGs in {@code cache/asset-renderer/vanilla/26.1/references/items/}. The harness drives
+ * truth PNGs in the harness reference tree's {@code items/}. The harness drives
  * a real Minecraft client to render each item through vanilla's GUI inventory pipeline
  * ({@code ItemDisplayContext.GUI} + {@code ITEMS_FLAT} / {@code ITEMS_3D} lighting + feature
  * dispatcher to an offscreen RGBA8 texture), so its output is the canonical baseline.
@@ -43,7 +45,7 @@ import java.util.stream.Stream;
  *
  * <p>Buckets follow the convention {@code <0.25 / <0.50 / <0.75 / <1.0}.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:itemParityVanilla [-PitemId=minecraft:diamond_sword]}.
+ * <p>Usage: {@code ./gradlew itemParityVanilla [-PitemId=minecraft:diamond_sword]}.
  */
 @UtilityClass
 public final class TestItemParityVanilla {
@@ -55,7 +57,7 @@ public final class TestItemParityVanilla {
     private static final Path REPORT_FILE = OUTPUT_DIR.resolve("parity-report.tsv");
 
     /** Source of the harness-produced reference PNGs. */
-    private static final Path VANILLA_DIR = Path.of("cache/asset-renderer/vanilla/26.1/references/items");
+    private static final Path VANILLA_DIR = ParityPaths.references("items");
 
     /** Filename prefix the harness writes (item id with {@code :} replaced by {@code __}). */
     private static final @NotNull String VANILLA_PREFIX = "minecraft__";
@@ -76,17 +78,17 @@ public final class TestItemParityVanilla {
             : List.of();
 
         if (!Files.isDirectory(VANILLA_DIR)) {
-            System.err.printf("Vanilla reference directory missing: %s%n  Run :asset-renderer:renderVanillaReferences first.%n",
+            System.err.printf("Vanilla reference directory missing: %s%n  Run renderVanillaReferences first.%n",
                 VANILLA_DIR.toAbsolutePath());
             return;
         }
         Files.createDirectories(OUTPUT_DIR);
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
 
@@ -161,23 +163,22 @@ public final class TestItemParityVanilla {
         }
         long totalMs = (System.nanoTime() - t0) / 1_000_000L;
 
-        rows.sort((a, b) -> Double.compare(a.meanDelta(), b.meanDelta()));
+        rows.sort(SweepReport.byDelta(Row::meanDelta));
 
-        StringBuilder report = new StringBuilder();
-        report.append("item_id\tmean_argb_delta\tdiffering_pixels\tjava_coverage\tvanilla_coverage\tjava_w\tjava_h\tvanilla_w\tvanilla_h\n");
+        List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)
-            report.append(String.format("%s\t%.4f\t%d\t%.4f\t%.4f\t%d\t%d\t%d\t%d%n",
-                r.itemId(), r.meanDelta(), r.differingPixels(), r.javaCoverage(), r.vanillaCoverage(),
-                r.javaW(), r.javaH(), r.vanillaW(), r.vanillaH()));
-        Files.writeString(REPORT_FILE, report.toString());
+            lines.add(String.join("\t",
+                r.itemId(), SweepReport.delta(r.meanDelta()), SweepReport.status(r.meanDelta()),
+                SweepReport.pixels(r.meanDelta(), r.differingPixels()),
+                SweepReport.ratio(r.javaCoverage()), SweepReport.ratio(r.vanillaCoverage()),
+                Integer.toString(r.javaW()), Integer.toString(r.javaH()),
+                Integer.toString(r.vanillaW()), Integer.toString(r.vanillaH())));
+        SweepReport.write(REPORT_FILE, SweepReport.KEY_COLUMN
+            + "\tmean_argb_delta\tstatus\tdiffering_pixels\tjava_coverage\tvanilla_coverage"
+            + "\tjava_w\tjava_h\tvanilla_w\tvanilla_h", lines);
         System.out.printf("Wrote %s (%d rows, %d ms total)%n", REPORT_FILE, rows.size(), totalMs);
 
-        long below025 = rows.stream().filter(r -> r.meanDelta() < 0.25).count();
-        long below05 = rows.stream().filter(r -> r.meanDelta() < 0.50).count();
-        long below075 = rows.stream().filter(r -> r.meanDelta() < 0.75).count();
-        long below1 = rows.stream().filter(r -> r.meanDelta() < 1.00).count();
-        System.out.printf("Parity buckets: <0.25: %d / <0.50: %d / <0.75: %d / <1.0: %d / total: %d%n",
-            below025, below05, below075, below1, rows.size());
+        SweepReport.printBuckets(rows.stream().mapToDouble(Row::meanDelta).toArray());
         List<Row> worst = rows.stream()
             .sorted((a, b) -> Double.compare(b.meanDelta(), a.meanDelta()))
             .toList();

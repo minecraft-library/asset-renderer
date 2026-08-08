@@ -52,38 +52,13 @@ public class RasterMath {
 
     /**
      * Computes the barycentric {@code (u, v, w)} coordinates of a 2D point relative to a triangle,
-     * where {@code u/v/w} weight vertices {@code a/b/c} respectively and sum to {@code 1}. Used to
-     * interpolate per-vertex attributes (UVs, depth) across the triangle's face.
+     * where {@code u/v/w} weight vertices {@code a/b/c} respectively and sum to {@code 1}, writing
+     * them into {@code out[0..2]}. Used to interpolate per-vertex attributes (UVs, depth) across the
+     * triangle's face.
      * <p>
-     * Allocates a fresh array; hot pixel loops should call
-     * {@link #barycentricInto(Vector2f, Vector2f, Vector2f, float, float, float[])} with a reused
-     * scratch buffer instead.
-     *
-     * @param a the first vertex
-     * @param b the second vertex
-     * @param c the third vertex
-     * @param point the query point
-     * @return a three-element float array {@code [u, v, w]}; all zeros for a degenerate triangle
-     */
-    public static float @NotNull [] barycentric(
-        @NotNull Vector2f a,
-        @NotNull Vector2f b,
-        @NotNull Vector2f c,
-        @NotNull Vector2f point
-    ) {
-        float[] out = new float[3];
-        barycentricInto(a, b, c, point.x(), point.y(), out);
-        return out;
-    }
-
-    /**
-     * Allocation-free variant of {@link #barycentric(Vector2f, Vector2f, Vector2f, Vector2f)}.
-     * Takes the query point as two floats (so callers inside tight pixel loops do not have to
-     * allocate a {@link Vector2f}) and writes the three barycentric coordinates into
-     * {@code out[0..2]}.
-     * <p>
-     * Math is bit-identical to the allocating variant: a degenerate triangle (zero denominator)
-     * writes zeros to all three output slots, matching {@link #barycentric}'s behaviour.
+     * Allocation-free: the query point arrives as two floats and the result lands in a
+     * caller-supplied scratch array, so a tight pixel loop allocates neither a {@link Vector2f} nor
+     * a return array. A degenerate triangle (zero denominator) writes zeros to all three slots.
      *
      * @param a the first vertex
      * @param b the second vertex
@@ -127,7 +102,11 @@ public class RasterMath {
      * factory negates all A/B/C and denom so the {@code >= 0} inside test works regardless
      * of winding. The {@code topLeftXX} flags pre-evaluate
      * {@link RasterMath#isTopOrLeftEdge isTopOrLeftEdge} on the quantized integer
-     * endpoints; the per-pixel test reads the boolean directly.
+     * endpoints; the per-pixel test reads the boolean directly. <b>They are negated along with
+     * the coefficients</b> - negating an edge's coefficients is exactly reversing its direction,
+     * and the classification is antisymmetric under that reversal, so the two have to move
+     * together or a triangle submitted the other way round gets the opposite fill rule from the
+     * neighbour it shares an edge with.
      * <p>
      * The {@code stepXij} / {@code stepYij} fields are {@code A_ij * P} and {@code B_ij * P}
      * respectively, where {@code P =} {@link RasterMath#FIXED_POINT_PRECISION}. The
@@ -220,6 +199,12 @@ public class RasterMath {
                 a20 = -a20; b20 = -b20; c20 = -c20;
                 a01 = -a01; b01 = -b01; c01 = -c01;
                 denom = -denom;
+                // Negating an edge's coefficients is reversing its direction - e_ji == -e_ij
+                // identically - and the classification reads that direction and is antisymmetric
+                // under reversing it, so the flags move with the coefficients.
+                topLeft12 = !topLeft12;
+                topLeft20 = !topLeft20;
+                topLeft01 = !topLeft01;
             }
             return new EdgeCoefficients(
                 a12, b12, c12, a20, b20, c20, a01, b01, c01, denom,
@@ -301,44 +286,32 @@ public class RasterMath {
      * fixed-point endpoints so the classification is deterministic regardless of upstream
      * float drift.
      * <ul>
-     * <li>Top edge: horizontal ({@code sy == ey}) going left ({@code sx > ex})</li>
-     * <li>Left edge: non-horizontal going down ({@code ey > sy})</li>
+     * <li>Top edge: horizontal ({@code sy == ey}) going right ({@code ex > sx})</li>
+     * <li>Left edge: non-horizontal going up ({@code ey < sy})</li>
      * </ul>
+     *
+     * <p><b>The two arms follow from the winding rather than being free to choose.</b> Callers hand
+     * the edge in the direction the {@link EdgeCoefficients#of sign-normalized} coefficients
+     * evaluate it, which is the winding where {@code e >= 0} marks the interior - clockwise on
+     * screen with Y running down. Under that winding {@code e_ij >= 0} puts the interior to the left
+     * of a downward edge, so a downward edge is the triangle's <em>right</em> one and the
+     * <em>upward</em> edge is its left; the horizontal arm follows the same derivation and lands on
+     * left-to-right for top. The mirrored reading is equally self-consistent - it still hands every
+     * shared edge to exactly one side - but it is the bottom-right rule, and it hands that edge to
+     * the opposite side from the GPU.
      */
     private static boolean isTopOrLeftEdge(long sx, long sy, long ex, long ey) {
-        if (sy == ey) return sx > ex;
-        return ey > sy;
+        if (sy == ey) return ex > sx;
+        return ey < sy;
     }
 
     /**
-     * Returns the integer bounding box of a triangle clamped to the canvas.
-     *
-     * @param a the first vertex
-     * @param b the second vertex
-     * @param c the third vertex
-     * @param canvasW the canvas width
-     * @param canvasH the canvas height
-     * @return {@code [minX, minY, maxX, maxY]} (inclusive)
-     */
-    public static int @NotNull [] triangleBounds(
-        @NotNull Vector2f a,
-        @NotNull Vector2f b,
-        @NotNull Vector2f c,
-        int canvasW,
-        int canvasH
-    ) {
-        int[] out = new int[4];
-        triangleBoundsInto(a, b, c, canvasW, canvasH, out);
-        return out;
-    }
-
-    /**
-     * Allocation-free variant of {@link #triangleBounds(Vector2f, Vector2f, Vector2f, int, int)}.
-     * Writes {@code [minX, minY, maxX, maxY]} into {@code out[0..3]} using a caller-supplied
-     * scratch array.
+     * Writes the integer bounding box of a triangle, clamped to the canvas, into {@code out[0..3]}
+     * as {@code [minX, minY, maxX, maxY]}.
      * <p>
-     * Math is bit-identical to the allocating variant. Bounds are clamped to
-     * {@code [0, canvasW-1]} x {@code [0, canvasH-1]} inclusive.
+     * Allocation-free: the result lands in a caller-supplied scratch array rather than a fresh one,
+     * so a per-triangle loop allocates nothing. Bounds are clamped to {@code [0, canvasW-1]} x
+     * {@code [0, canvasH-1]} inclusive.
      *
      * @param a the first vertex
      * @param b the second vertex

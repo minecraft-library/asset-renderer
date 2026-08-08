@@ -7,14 +7,15 @@ import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.FluidRenderer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
+import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.FluidOptions;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.engine.texture.Biome;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -42,7 +43,7 @@ import java.util.Optional;
  * {@link Block.TintTarget#WATER} is wired; the override path works today.</li>
  * </ul>
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:fluidRenderer}. Takes no {@code -P} flags; sizes are
+ * Usage: {@code ./gradlew fluidRenderer}. Takes no {@code -P} flags; sizes are
  * fixed at {@link #STATIC_SIZE} / {@link #ANIMATED_SIZE}.
  */
 @UtilityClass
@@ -66,11 +67,11 @@ public final class TestFluidRenderer {
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
 

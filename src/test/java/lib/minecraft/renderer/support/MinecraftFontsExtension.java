@@ -2,10 +2,10 @@ package lib.minecraft.renderer.support;
 
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.tooling.ToolingFonts;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.Extension;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.nio.file.Files;

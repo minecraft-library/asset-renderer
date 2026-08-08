@@ -23,8 +23,8 @@ enum EntityAxisPolicies implements NavigationPolicy {
      */
     NATURAL_SIZE_SET(
         Map.of("minecraft:slime", List.of(1, 2, 4), "minecraft:magma_cube", List.of(1, 2, 4)),
-        "P1: natural sizes 1<<rand(3) live in server world-entity code, not the client jar"
-            + " (legacy ToolingEntityModels:524-528); scale-per-size is proportional per SlimeRenderer.scale at squish 0 [D5]"),
+        "natural sizes 1<<rand(3) live in server world-entity code, not the client jar; scale-per-size is"
+            + " proportional per SlimeRenderer.scale at squish 0"),
 
     /**
      * The render-axis name vocabulary shared with the runtime loaders. This is the
@@ -34,7 +34,7 @@ enum EntityAxisPolicies implements NavigationPolicy {
     AXIS_NAME_VOCABULARY(
         List.of("wool_color", "collar_color", "pattern", "pattern_color", "type",
             "profession", "profession_level", "weathering", "markings", "sheared"),
-        "P9: tooling<->runtime shared option vocabulary (legacy EntityOverlayResolver:490,520-524,876)"),
+        "tooling<->runtime shared option vocabulary"),
 
     /**
      * The state-key precedence selecting a variant option's default texture and the state
@@ -44,7 +44,7 @@ enum EntityAxisPolicies implements NavigationPolicy {
      */
     STATE_PRECEDENCE(
         List.of("wild", "primary"),
-        "P22: render-default state pick, wild->primary->first (legacy EntityVariantResolver:114-136)"),
+        "render-default state pick, wild->primary->first"),
 
     /**
      * The alpha-first-unconditional default-variant tiebreak used when a data-variant
@@ -55,8 +55,8 @@ enum EntityAxisPolicies implements NavigationPolicy {
      */
     ALPHA_FIRST_UNCONDITIONAL_TIEBREAK(
         "alphabetical-unconditional",
-        "P27: mirrors vanilla runtime selection at a fresh-spawn zero state - cat all_black"
-            + " carries structure+moon conditions, black wins (legacy EntityRuntimeJsonWriter:158-176)"),
+        "mirrors vanilla runtime selection at a fresh-spawn zero state - cat all_black carries structure+moon"
+            + " conditions, black wins"),
 
     /**
      * The size-axis option domain, in declared order, plus the default-pick rule: the
@@ -67,20 +67,27 @@ enum EntityAxisPolicies implements NavigationPolicy {
      */
     SIZE_DOMAIN(
         List.of("small", "medium", "large"),
-        "P28: invented size vocabulary + default = option-less member (legacy EntityFamilyJsonWriter:261-264)"),
+        "invented size vocabulary + default = option-less member"),
 
     /**
      * The shape / size axis membership plus option naming: which entities carry a
      * multi-mesh body axis and which axis it is. Detection of the extra body meshes is
      * generic (via renderer-constructor references); the axis classification and the
-     * field-suffix-to-option naming ({@code PUFFERFISH_MEDIUM} to {@code medium}, matched
-     * against the {@link #SIZE_DOMAIN} domain; shape domain fixed {@code [small, large]})
-     * are declared here.
+     * field-suffix-to-option naming ({@code PUFFERFISH_MEDIUM} to {@code medium},
+     * {@code ARMOR_STAND_SMALL} to {@code small}, matched against the {@link #SIZE_DOMAIN}
+     * domain; shape domain fixed {@code [small, large]}) are declared here.
+     *
+     * <p>The armor stand belongs here rather than under the age axis because vanilla's own word
+     * for the selection is {@code Small} - the flag it persists, the accessor it reads and the
+     * layer it registers all say so. Its renderer routes that flag through {@code isBaby} to reach
+     * the armor layer and then carves itself back out of the aged-down sheets and trim, which is a
+     * detail of vanilla's plumbing rather than a statement that a small stand is a young one.
      */
     SHAPE_SIZE_MEMBERSHIP(
-        Map.of("minecraft:pufferfish", "size", "minecraft:salmon", "size", "minecraft:tropical_fish", "shape"),
-        "P37: 'the only vanilla entity with distinct body shapes/sizes' judgments"
-            + " (legacy ToolingEntityModels:414-448); detection generic per D2/D3, membership + naming declared");
+        Map.of("minecraft:pufferfish", "size", "minecraft:salmon", "size",
+            "minecraft:armor_stand", "size", "minecraft:tropical_fish", "shape"),
+        "'the only vanilla entity with distinct body shapes/sizes' judgments; the detection is generic,"
+            + " the membership and the naming are declared");
 
     private final @NotNull Object value;
     private final @NotNull String provenance;

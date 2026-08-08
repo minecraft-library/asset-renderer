@@ -1,23 +1,20 @@
 /**
- * The pack rule layer - OptiFine CIT / CTM parsing and evaluation, NBT conditionals,
- * {@code color.properties}, and the Catharsis conventions - consuming
- * {@link lib.minecraft.renderer.pipeline.pack pack}'s pinned types
- * ({@link lib.minecraft.renderer.pipeline.pack.PackStack PackStack},
- * {@link lib.minecraft.renderer.pipeline.pack.PackId PackId}) without redefining them.
+ * The pack rule parsers - scan a pack's OptiFine / MCPatcher CIT and CTM trees and
+ * {@code color.properties} into the {@link lib.minecraft.renderer.asset.pack.rule asset.pack.rule}
+ * DTOs at pipeline time. Pipeline-only; the parsed rules are render-evaluated from
+ * {@code asset.pack.rule}.
  *
- * <p><b>NBT conditionals.</b> The nbt-factory dependency supplies the tag model
- * ({@code lib.minecraft.nbt.tag.CompoundTag} / {@code ListTag} / {@code NumericalTag}) and the
- * parse surface; this package supplies what its compound-only {@code getPath} cannot -
- * {@link lib.minecraft.renderer.pipeline.pack.rule.NbtPath NbtPath} walks lists / wildcards /
- * {@code count}, {@link lib.minecraft.renderer.pipeline.pack.rule.NbtPredicate NbtPredicate} carries
- * the first-class {@code pattern:}/{@code regex:}/{@code range:}/{@code exists:}/{@code raw:}
- * prefixes, and {@code NbtValues} normalizes the three nbt-factory gaps (scalar-literal wrap, SNBT
- * booleans, cross-type numeric equality). {@link lib.minecraft.renderer.pipeline.pack.rule.NbtRule
- * NbtRule} joins a path, a predicate, and the {@code !} negation flag.
+ * <p>{@link lib.minecraft.renderer.pipeline.pack.rule.RuleScanner RuleScanner} walks a pack's active
+ * roots into its per-pack {@link lib.minecraft.renderer.asset.pack.rule.RuleSet RuleSet} and folds the
+ * whole stack into the merged view ({@code mergeAll});
+ * {@link lib.minecraft.renderer.pipeline.pack.rule.CitParser CitParser} and
+ * {@link lib.minecraft.renderer.pipeline.pack.rule.CtmParser CtmParser} parse one {@code .properties}
+ * file each into a {@code CitRule} / {@code CtmRule};
+ * {@link lib.minecraft.renderer.pipeline.pack.rule.RuleDiagnostics RuleDiagnostics} logs rejects, and
+ * {@link lib.minecraft.renderer.pipeline.pack.rule.RuleRejection RuleRejection} is the package-private
+ * control-flow signal that never escapes the layer.
  *
- * <p><b>Parity.</b> Vanilla ships no {@code optifine/} tree, so every rule-layer behavior is inert
- * with only vanilla loaded - the byte-parity contract holds without gating. CIT / CTM rule records,
- * {@code RuleSet} stack merge, {@code GlintPolicy}, and the
- * Catharsis condition evaluator land alongside this NBT foundation.
+ * <p><b>Parity.</b> Vanilla ships no {@code optifine/} tree, so a vanilla-only scan yields nothing and
+ * the whole rule layer stays inert - the byte-parity contract holds without gating.
  */
 package lib.minecraft.renderer.pipeline.pack.rule;

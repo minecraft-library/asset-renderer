@@ -1,14 +1,14 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
-import dev.simplified.image.ImageData;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,7 +29,7 @@ import java.nio.file.Path;
  * ignores it; {@code -PantiAlias} (FXAA) applies to both. Held renders are written with a
  * {@code _held} filename suffix so they never overwrite a GUI icon of the same item.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:itemRender2D [-PitemId=minecraft:diamond_sword]
+ * Usage: {@code ./gradlew itemRender2D [-PitemId=minecraft:diamond_sword]
  * [-PrenderSize=256] [-Ptype=gui|held] [-Psupersample=2] [-PantiAlias=true]}.
  */
 @UtilityClass
@@ -68,11 +68,11 @@ public final class TestItemRender2D {
             ? ItemOptions.Type.HELD_3D
             : ItemOptions.Type.GUI_2D;
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
 

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
+import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -12,8 +13,6 @@ import lib.minecraft.renderer.option.slot.ItemSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
-import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -193,7 +192,15 @@ public class ItemOptions implements RenderOptions {
         /**
          * 2D flat GUI inventory icon.
          */
-        GUI_2D
+        GUI_2D,
+
+        /**
+         * Faithful inventory icon - the representation a GUI slot shows, auto-selected per id: a flat
+         * {@code item/generated} sprite (through the {@link #GUI_2D} path), a 3D block icon, or a
+         * block-entity render (both through the isometric block renderer). Lets a caller request the
+         * vanilla inventory look without choosing the geometry mode.
+         */
+        GUI_ICON
 
     }
 

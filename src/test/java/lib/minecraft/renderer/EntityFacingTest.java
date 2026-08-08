@@ -2,13 +2,14 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
-import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import org.junit.jupiter.api.BeforeAll;
@@ -57,10 +58,10 @@ class EntityFacingTest {
 
     @BeforeAll
     static void bootstrap() {
-        Pipeline.Result result = Pipeline.run(
-            PipelineOptions.builder().version("26.1").cacheRoot(CACHE_ROOT).build());
+        ClientAssets result = ClientAcquisition.acquire(
+            ClientOptions.builder().version("26.1").cacheRoot(CACHE_ROOT).build());
         ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
-        assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModelsJava first");
+        assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
         entityRenderer = new EntityRenderer(PipelineRendererContext.of(result), entities);
     }
 

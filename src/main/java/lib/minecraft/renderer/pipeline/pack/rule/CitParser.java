@@ -4,7 +4,17 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.rule.CitOutput;
+import lib.minecraft.renderer.asset.pack.rule.CitRule;
+import lib.minecraft.renderer.asset.pack.rule.CitType;
+import lib.minecraft.renderer.asset.pack.rule.DamageSpec;
+import lib.minecraft.renderer.asset.pack.rule.EnchantmentSpec;
+import lib.minecraft.renderer.asset.pack.rule.Hand;
+import lib.minecraft.renderer.asset.pack.rule.IntRanges;
+import lib.minecraft.renderer.asset.pack.rule.NbtPath;
+import lib.minecraft.renderer.asset.pack.rule.NbtPredicate;
+import lib.minecraft.renderer.asset.pack.rule.NbtRule;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -54,9 +64,12 @@ public class CitParser {
         @NotNull String propsDir, @NotNull String citRoot
     ) {
         CitType type = CitType.parse(props.getProperty("type"));
+        // A concrete-retexture subject (item / armor / elytra) must name its items and produce an output;
+        // only type=enchantment legitimately carries neither - it feeds the glint policy, not a texture.
+        boolean retextures = type == CitType.ITEM || type == CitType.ARMOR || type == CitType.ELYTRA;
 
         List<ResourceId> items = parseIds(props.getProperty("items", props.getProperty("matchItems", "")));
-        if (type == CitType.ITEM && items.isEmpty())
+        if (retextures && items.isEmpty())
             throw new RuleRejection("items", "", "rule matches no items");
 
         int weight = parseWeight(props.getProperty("weight"));
@@ -67,7 +80,7 @@ public class CitParser {
         ConcurrentList<NbtRule> nbtRules = parseNbtRules(props);
         CitOutput output = parseOutput(props, propsDir, citRoot, basename(ruleId));
 
-        if (type == CitType.ITEM && output.isEmpty())
+        if (retextures && output.isEmpty())
             throw new RuleRejection("texture", "", "rule produces no texture or model output");
 
         return new CitRule(ruleId, pack, type, Concurrent.adoptList(items).toUnmodifiable(),

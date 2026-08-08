@@ -1,0 +1,85 @@
+{
+  "//": "parity.digest.shipped-tables · regen: ./gradlew parityCapture -Partifacts=digest.shipped-tables",
+  "artifact": "digest.shipped-tables",
+  "digests": {
+    "block_defaults": {
+      "form": "table-canonical",
+      "regen": "blockDefaults",
+      "sha256": "4328f52c1ae6d0357aa880692fb4a22760fc1726cb29f4c079ba55c437f5a048"
+    },
+    "block_geometry": {
+      "form": "table-canonical",
+      "regen": "blockModels",
+      "sha256": "0d3f86ed4abbd21378dd984c6139a05c52212ef7415a41baa13926aa474cae84"
+    },
+    "block_items": {
+      "form": "table-canonical",
+      "regen": "blockItems",
+      "sha256": "26893bcb0f42a5741b6f63755d2429b52dfc5b398758f998bd75b60becdf10b5"
+    },
+    "block_models": {
+      "form": "table-canonical",
+      "regen": "blockModels",
+      "sha256": "67a00c840cb5ed76f1e80c7e9d3b29b27c3d39491e93d3cd179afa0b49e4f6b6"
+    },
+    "block_tints": {
+      "form": "table-canonical",
+      "regen": "blockTints",
+      "sha256": "ecd1de9f83f6c5af03343398c78e8b2704c2212caf4bbbd5b37915f01eb44fd8"
+    },
+    "color_maps": {
+      "form": "table-canonical",
+      "regen": "colorMaps",
+      "sha256": "f4d79025c14be0654d318fa03fe52b32823fb2830e27ba960991119b628707e8"
+    },
+    "entity_geometry": {
+      "form": "table-canonical",
+      "regen": "entityModels",
+      "sha256": "9a31e5ff9c3183f2d806eb521e13a4689e100f9028d1f30be9df5dae617d3fdf"
+    },
+    "entity_models": {
+      "form": "table-canonical",
+      "regen": "entityModels",
+      "sha256": "3eb51f5cd139f1844ed36fee875cfd8cc5cfe476cbc6b820c05330e39cda9e2f"
+    },
+    "glint_items": {
+      "form": "table-canonical",
+      "regen": "glintItems",
+      "sha256": "4d802cfb3b278af8eb051531176bdc38d6a63d7ac094350f5693f9424c07acf8"
+    },
+    "potion_colors": {
+      "form": "table-canonical",
+      "regen": "potionColors",
+      "sha256": "8d52d81d00a71a70fbaad363381755a20f71743734440f5d1ddc7656d0fd6159"
+    }
+  },
+  "format": 1,
+  "key": "name",
+  "kind": "digest-set",
+  "provenance": {
+    "artifact": "digest.shipped-tables",
+    "asset_dirty": false,
+    "asset_sha": "b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e",
+    "counts": {
+      "digests": 10
+    },
+    "determinism_runs": 2,
+    "flags": {
+      "gson": "2.13.2"
+    },
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "test",
+    "reason": "P11: the ten shipped-table digests and the three colormap LUT digests move out of ten one-line fixtures and three inline hex literals into the store, carried across verbatim - every value equals the blob committed at HEAD~2",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "timestamp": "2026-08-01T11:00:38Z",
+    "tool_version": "1.0.0"
+  }
+}

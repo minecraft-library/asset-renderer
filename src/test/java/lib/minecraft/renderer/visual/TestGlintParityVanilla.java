@@ -17,19 +17,22 @@ import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.PlayerOptions;
+import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.option.spec.ArmorOptions;
+import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.parity.ParityPaths;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.option.spec.ArmorMaterial;
-import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -46,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
-import javax.imageio.ImageIO;
 
 /**
  * Animated enchantment-glint parity tool. The remaining item-parity outliers are all intrinsically
@@ -56,8 +58,8 @@ import javax.imageio.ImageIO;
  * phase-aligned with frame {@code N} of the harness, and a per-frame diff becomes meaningful.
  *
  * <p>The harness references are produced by {@code renderVanillaGlintReferences} (the
- * {@code GlintSweeper} glint-only sweep) into
- * {@code cache/asset-renderer/vanilla/26.1/references/glint/<id>/frame_NNN.png}, with the harness's
+ * {@code GlintSweep} glint-only sweep) into
+ * the harness reference tree's {@code glint/<id>/frame_NNN.png}, with the harness's
  * {@code GlintTexturingMixin} forcing the same {@code t_N} per frame. This side renders the base item
  * icon with the glint suppressed ({@link ItemOptions#getGlintOverride()} = {@code false}), then
  * composites {@link GlintKit#applyGlintAtTimes} at the same schedule.
@@ -70,9 +72,9 @@ import javax.imageio.ImageIO;
  * <p><b>The atlas-UV residual is expected.</b> Vanilla samples the glint through each fragment's live
  * <em>atlas</em> sprite coordinate, unknowable offline; {@link GlintKit} substitutes the normalized
  * icon coordinate. The time alignment is exact; the spatial band pattern carries a residual the
- * delta will not drive to zero (see {@code notes/glint-parity.md}).
+ * delta will not drive to zero.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:glintParityVanilla [-PitemId=minecraft:nether_star]}.
+ * <p>Usage: {@code ./gradlew glintParityVanilla [-PitemId=minecraft:nether_star]}.
  */
 @UtilityClass
 public final class TestGlintParityVanilla {
@@ -84,15 +86,15 @@ public final class TestGlintParityVanilla {
     private static final Path REPORT_FILE = OUTPUT_DIR.resolve("parity-report.tsv");
 
     /** Source of the harness-produced animated glint references. */
-    private static final Path VANILLA_DIR = Path.of("cache/asset-renderer/vanilla/26.1/references/glint");
+    private static final Path VANILLA_DIR = ParityPaths.references("glint");
 
     /** Square render size - matches the harness {@code refharness.size} default. */
     private static final int RENDER_SIZE = 512;
 
-    /** Frames per subject. MUST match the harness {@code GlintSweeper.FRAME_COUNT}. */
+    /** Frames per subject. MUST match the harness {@code GlintSweep.FRAME_COUNT}. */
     private static final int FRAME_COUNT = 30;
 
-    /** Glint-time step (vanilla post-{@code glintSpeed} millis) per frame. MUST match {@code GlintSweeper.STEP_MILLIS}. */
+    /** Glint-time step (vanilla post-{@code glintSpeed} millis) per frame. MUST match the harness {@code GlintSweep.STEP_MILLIS}. */
     private static final long STEP_MILLIS = 1_000L;
 
     /** Display delay per GIF frame - decoupled from the glint-time schedule, just a watchable speed. */
@@ -150,15 +152,15 @@ public final class TestGlintParityVanilla {
 
         boolean haveVanilla = Files.isDirectory(VANILLA_DIR);
         if (!haveVanilla)
-            System.err.printf("Glint reference directory missing: %s%n  Run :asset-renderer:renderVanillaGlintReferences first."
+            System.err.printf("Glint reference directory missing: %s%n  Run renderVanillaGlintReferences first."
                 + " Rendering Java-only frames + GIFs.%n", VANILLA_DIR.toAbsolutePath());
         Files.createDirectories(OUTPUT_DIR);
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
         PipelineRendererContext context = PipelineRendererContext.of(result);
@@ -179,16 +181,23 @@ public final class TestGlintParityVanilla {
             }
         }
 
-        rows.sort((a, b) -> Double.compare(b.meanDelta(), a.meanDelta()));
-        StringBuilder report = new StringBuilder("item_id\tframes\tmean_argb_delta\tworst_frame\tvanilla_present\tdiagnostic\n");
+        rows.sort(SweepReport.byDelta(Row::meanDelta));
+        List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)
-            report.append(String.format("%s\t%d\t%.4f\t%d\t%s\t%s%n",
-                r.itemId(), r.frames(), r.meanDelta(), r.worstFrame(), r.vanillaPresent(), r.diagnostic()));
-        Files.writeString(REPORT_FILE, report.toString());
+            lines.add(String.join("\t",
+                r.itemId(), SweepReport.delta(r.meanDelta()), SweepReport.status(r.meanDelta()),
+                Integer.toString(r.frames()), Integer.toString(r.worstFrame()),
+                Boolean.toString(r.vanillaPresent()), Boolean.toString(r.diagnostic())));
+        SweepReport.write(REPORT_FILE, SweepReport.KEY_COLUMN
+            + "\tmean_argb_delta\tstatus\tframes\tworst_frame\tvanilla_present\tdiagnostic", lines);
+        SweepReport.printBuckets(rows.stream().mapToDouble(Row::meanDelta).toArray());
 
         System.out.printf("%nWrote %s (%d subjects)%n", REPORT_FILE, rows.size());
+        List<Row> worst = rows.stream()
+            .sorted((a, b) -> Double.compare(b.meanDelta(), a.meanDelta()))
+            .toList();
         System.out.println("Mean per-frame ARGB delta (worst first; armor rows are diagnostic, not parity):");
-        for (Row r : rows)
+        for (Row r : worst)
             System.out.printf("    %-32s mean %8.2f  %s%n", r.itemId(), r.meanDelta(),
                 !r.vanillaPresent() ? "(java-only, no vanilla refs)" : r.diagnostic() ? "(diagnostic: pose/model differ)" : "");
     }
@@ -234,7 +243,7 @@ public final class TestGlintParityVanilla {
             diffFrames.add(diff);
             ImageIO.write(diff, "PNG", dir.resolve("diff").resolve(frameName(n)).toFile());
 
-            double delta = meanDelta(vanilla, java);
+            double delta = ParityMetrics.compareImages(vanilla, java).meanDelta();
             totalDelta += delta;
             if (delta > worstDelta) { worstDelta = delta; worstFrame = n; }
         }
@@ -340,7 +349,7 @@ public final class TestGlintParityVanilla {
      * {@link GlintKit#ITEM_SCALE}, so the only unknown is removed and every other factor (scroll,
      * rotation, sampling, blend, alpha) can be checked for bit-parity. Otherwise the offline
      * approximation runs, with the UV scale overridable via {@code -Dasset.glint.itemScale} for empirical
-     * calibration (see {@code notes/glint-parity.md}).
+     * calibration.
      */
     private static GlintKit.@NotNull GlintOptions itemGlintOptions(boolean atlasUvMode) {
         GlintKit.GlintOptions preset = GlintKit.GlintOptions.itemDefault(30);
@@ -462,33 +471,6 @@ public final class TestGlintParityVanilla {
             g.dispose();
         }
         return sheet;
-    }
-
-    // --- diff math (mirrors TestItemParityVanilla: mean |delta| of RGB composited over white) ---
-
-    private static double meanDelta(@NotNull BufferedImage a, @NotNull BufferedImage b) {
-        int w = Math.min(a.getWidth(), b.getWidth());
-        int h = Math.min(a.getHeight(), b.getHeight());
-        long total = 0L;
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int pa = a.getRGB(x, y);
-                int pb = b.getRGB(x, y);
-                total += compositeDiff(pa, ColorMath.alpha(pa), pb, ColorMath.alpha(pb));
-            }
-        }
-        return (double) total / ((long) w * h);
-    }
-
-    private static int compositeDiff(int pa, int aa, int pb, int ab) {
-        int r = compositeOverWhite(ColorMath.red(pa), aa) - compositeOverWhite(ColorMath.red(pb), ab);
-        int g = compositeOverWhite(ColorMath.green(pa), aa) - compositeOverWhite(ColorMath.green(pb), ab);
-        int bl = compositeOverWhite(ColorMath.blue(pa), aa) - compositeOverWhite(ColorMath.blue(pb), ab);
-        return Math.abs(r) + Math.abs(g) + Math.abs(bl);
-    }
-
-    private static int compositeOverWhite(int channel, int alpha) {
-        return (channel * alpha + 255 * (255 - alpha) + 127) / 255;
     }
 
     /** Per-subject row in the TSV report. */

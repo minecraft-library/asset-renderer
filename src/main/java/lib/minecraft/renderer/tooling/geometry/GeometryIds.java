@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.geometry;
 
+import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -8,13 +9,18 @@ import org.jetbrains.annotations.NotNull;
  * by construction, greppable, replacing the legacy insertion-order {@code _<n>} fragility.
  *
  * <p>Discriminators appear only when set, in the declared canonical order {@code grow},
- * {@code fparam}, {@code scaled}, {@code iparam}, {@code ref}:
+ * {@code fparam}, {@code scaled}, {@code baby}, {@code pose}, {@code iparam}, {@code ref}:
  * <ul>
  *   <li><b>{@code @grow=<v>}</b> / <b>{@code @grow=<x,y,z>}</b> - the request's grow
  *       pre-seed (scalar form when uniform), absent at zero.</li>
  *   <li><b>{@code @fparam=<v>}</b> - the slot-0 float-parameter seed (donkey 0.87, mule
  *       0.92), absent at zero / no table.</li>
  *   <li><b>{@code @scaled=<f>}</b> - the external MeshTransformer scale, absent at 1.</li>
+ *   <li><b>{@code @baby=<SimpleClass.FIELD>}</b> - the aged-down whole-mesh transformer the
+ *       registration applies, named the way {@code @ref} names an enum constant rather than
+ *       spelling its seven values; absent for a mesh registered untransformed.</li>
+ *   <li><b>{@code @pose=<x,y,z>}</b> - the bound {@code PartPose} offset (the baby piglin's
+ *       armor arm offset), absent at the zero pose the generic baby shell is built at.</li>
  *   <li><b>{@code @iparam=<slot>:<v>[,...]}</b> - the bound int-parameter slots
  *       (banner standing / wall). Non-zero slots are encoded; a bound-but-all-zero table
  *       encodes {@code 0:0} - the substitution semantics, not the table length, are the
@@ -48,6 +54,13 @@ final class GeometryIds {
             key.append("@fparam=").append(floatParams[0]);
         if (request.appliedMeshTransformerScale() != 1f)
             key.append("@scaled=").append(request.appliedMeshTransformerScale());
+        BabyMeshTransform baby = request.babyTransform();
+        if (baby != null) key.append("@baby=").append(baby.discriminator());
+        GeometryRequest.PoseParam pose = request.poseParam();
+        if (pose != null && (pose.offset()[0] != 0f || pose.offset()[1] != 0f || pose.offset()[2] != 0f))
+            key.append("@pose=").append(pose.offset()[0])
+                .append(',').append(pose.offset()[1])
+                .append(',').append(pose.offset()[2]);
         int[] intParams = request.paramIntValues();
         if (intParams != null) {
             StringBuilder pairs = new StringBuilder();
@@ -68,7 +81,7 @@ final class GeometryIds {
      * form: {@code a/b/Outer$Inner} yields {@code Outer$Inner}).
      */
     private static @NotNull String simpleClass(@NotNull String internalName) {
-        return internalName.substring(internalName.lastIndexOf('/') + 1);
+        return AsmKit.simpleName(internalName);
     }
 
 }

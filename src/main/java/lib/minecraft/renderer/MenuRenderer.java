@@ -8,18 +8,18 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
 import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
-import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.kit.NineSliceKit;
 import lib.minecraft.renderer.engine.kit.TextKit;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.MenuOptions;
@@ -32,9 +32,9 @@ import lib.minecraft.text.font.MinecraftFontMetrics;
 import lib.minecraft.text.font.MinecraftGraphics;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Renders an inventory-style menu (chest, player, crafting, anvil) by dispatching to one of
@@ -223,7 +223,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         ItemOptions fillerOptions = switch (options.getFill()) {
             case BLACK_STAINED_GLASS_PANE -> ItemOptions.builder()
                 .itemId("minecraft:black_stained_glass_pane")
-                .type(ItemOptions.Type.GUI_2D)
+                .type(ItemOptions.Type.GUI_ICON)
                 .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SLOT_SIZE - 4).build())
                 .build();
             case EMPTY -> throw new RenderException("EMPTY handled above");
@@ -367,9 +367,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @param chrome the chrome buffer to draw onto
      * @param rows the slot-grid row count
      * @param cols the slot-grid column count
-     * @param slotSprite the resolved vanilla slot sprite, or {@code null} to leave slots as bare panel
+     * @param slotSprite the resolved vanilla slot sprite, or empty to leave slots as bare panel
      */
-    static void drawVanillaChestChrome(@NotNull PixelBuffer chrome, int rows, int cols, @Nullable PixelBuffer slotSprite) {
+    static void drawVanillaChestChrome(@NotNull PixelBuffer chrome, int rows, int cols, @NotNull Optional<PixelBuffer> slotSprite) {
         int w = chrome.width();
         int h = chrome.height();
 
@@ -402,32 +402,35 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
     /**
      * Blits one inventory slot cell into the given rect from the vanilla {@code container/slot} sprite
-     * via {@link NineSliceKit} (stretched to the rect). A {@code null} sprite - the slot texture
+     * via {@link NineSliceKit} (stretched to the rect). An empty sprite - the slot texture
      * unresolved - draws nothing, leaving the panel background showing (missing textures drop, no
      * procedural fallback).
+     * <p>
+     * Serves the regular grid and the layouts that place cells outside it alike, e.g. the vanilla
+     * anvil slot row below the rename textbox.
      *
      * @param chrome the chrome buffer to draw onto
      * @param x the slot rect x origin
      * @param y the slot rect y origin
      * @param w the slot rect width
      * @param h the slot rect height
-     * @param slotSprite the resolved slot sprite, or {@code null} to draw nothing
+     * @param slotSprite the resolved slot sprite, or empty to draw nothing
      */
-    static void drawSlotCell(@NotNull PixelBuffer chrome, int x, int y, int w, int h, @Nullable PixelBuffer slotSprite) {
-        if (slotSprite == null) return;
-        NineSliceKit.draw(chrome, slotSprite, SLOT_SCALING, x, y, w, h, MinecraftFont.MC_PIXEL_SCALE, 1.0f);
+    static void drawSlotCell(@NotNull PixelBuffer chrome, int x, int y, int w, int h, @NotNull Optional<PixelBuffer> slotSprite) {
+        if (slotSprite.isEmpty()) return;
+        NineSliceKit.draw(chrome, slotSprite.get(), SLOT_SCALING, x, y, w, h, MinecraftFont.MC_PIXEL_SCALE, 1.0f);
     }
 
     /**
      * Resolves the vanilla {@code container/slot} sprite through the pack stack (a grayscale texture,
-     * decoded gamma-safe), pinned to its tick-0 frame when a pack ships an animated variant, or
-     * {@code null} when no pack supplies it.
+     * decoded gamma-safe), pinned to its tick-0 frame when a pack ships an animated variant, or empty
+     * when no pack supplies it.
      *
      * @param context the renderer context resolving the slot texture
-     * @return the decoded slot sprite, or {@code null} when unresolved
+     * @return the decoded slot sprite, or empty when unresolved
      */
-    static @Nullable PixelBuffer resolveSlotSprite(@NotNull RendererContext context) {
-        return new Textures(context).tryResolveTextureAtTick(SLOT_SPRITE_ID, 0).orElse(null);
+    static @NotNull Optional<PixelBuffer> resolveSlotSprite(@NotNull RendererContext context) {
+        return new Textures(context).tryResolveTextureAtTick(SLOT_SPRITE_ID, 0);
     }
 
     /**
@@ -521,22 +524,6 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         int offset = (size - thickness) / 2;
         chrome.fillRect(x, y + offset, size, thickness, argb);
         chrome.fillRect(x + offset, y, thickness, size, argb);
-    }
-
-    /**
-     * Draws a single slot cell (matching the {@link #drawVanillaChestChrome} slot style) at the given
-     * pixel position from the vanilla {@code container/slot} sprite. Used by layouts that place slot
-     * cells outside the regular grid, e.g. the vanilla anvil slot row below the rename textbox.
-     *
-     * @param chrome the chrome buffer to draw onto
-     * @param x the slot rect x origin
-     * @param y the slot rect y origin
-     * @param w the slot rect width
-     * @param h the slot rect height
-     * @param slotSprite the resolved slot sprite, or {@code null} to draw nothing
-     */
-    static void drawSlotInset(@NotNull PixelBuffer chrome, int x, int y, int w, int h, @Nullable PixelBuffer slotSprite) {
-        drawSlotCell(chrome, x, y, w, h, slotSprite);
     }
 
     /**
@@ -639,7 +626,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         int defaultArgb,
         long frameSeed
     ) {
-        MinecraftFontMetrics metrics = MinecraftFont.REGULAR.getFontMetrics();
+        MinecraftFontMetrics metrics = MinecraftFont.Vanilla.REGULAR.metrics();
         int textY = bandTop + (bandHeight - metrics.getHeight()) / 2 + metrics.getAscent();
         MinecraftGraphics g = new MinecraftGraphics(buffer);
         TextKit.drawLine(g, titleLine, titleX / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, defaultArgb, frameSeed);
@@ -657,10 +644,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     ) {
         if (label.isEmpty()) return;
 
-        MinecraftFontMetrics metrics = MinecraftFont.REGULAR.getFontMetrics();
+        MinecraftFontMetrics metrics = MinecraftFont.Vanilla.REGULAR.metrics();
         int textY = innerY + (innerH - metrics.getHeight()) / 2 + metrics.getAscent();
         MinecraftGraphics g = new MinecraftGraphics(buffer);
-        TextKit.drawText(g, label, (innerX + 2) / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.REGULAR, ColorMath.WHITE);
+        TextKit.drawText(g, label, (innerX + 2) / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.Vanilla.REGULAR, ColorMath.WHITE);
     }
 
     /**
@@ -673,11 +660,11 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
         String text = "Enchantment Cost: " + cost;
         int xpGreen = 0xFF80FF20;
-        MinecraftFontMetrics metrics = MinecraftFont.REGULAR.getFontMetrics();
-        int textX = canvasW - INSET - 4 - TextKit.measureText(text, MinecraftFont.REGULAR);
+        MinecraftFontMetrics metrics = MinecraftFont.Vanilla.REGULAR.metrics();
+        int textX = canvasW - INSET - 4 - TextKit.measureText(text, MinecraftFont.Vanilla.REGULAR);
         int textY = areaTop + (areaHeight - metrics.getHeight()) / 2 + metrics.getAscent();
         MinecraftGraphics g = new MinecraftGraphics(buffer);
-        TextKit.drawText(g, text, textX / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.REGULAR, xpGreen);
+        TextKit.drawText(g, text, textX / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.Vanilla.REGULAR, xpGreen);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -818,7 +805,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             int canvasW = COLS * SLOT_SIZE + 2 * INSET;
             int canvasH = ROWS * SLOT_SIZE + 2 * INSET + TITLE_HEIGHT;
 
-            PixelBuffer slotSprite = resolveSlotSprite(this.context);
+            Optional<PixelBuffer> slotSprite = resolveSlotSprite(this.context);
             PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
             drawVanillaChestChrome(chrome, ROWS, COLS, slotSprite);
             drawSlotBackground(chrome, 3, 0, 0xFFC6C6C6);
@@ -889,7 +876,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             int xpLabelHeight = options.getXpCost() > 0 ? XP_LABEL_HEIGHT : 0;
             int canvasH = TITLE_HEIGHT + TEXTBOX_HEIGHT + SLOT_SIZE + 2 * INSET + xpLabelHeight;
 
-            PixelBuffer slotSprite = resolveSlotSprite(this.context);
+            Optional<PixelBuffer> slotSprite = resolveSlotSprite(this.context);
             PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
             drawVanillaChestChrome(chrome, 0, COLS, slotSprite);
             drawHammer(chrome, INSET + 4, (TITLE_HEIGHT - 16) / 2 + 2, 16, 16, CHROME_BORDER_HIGHLIGHT);
@@ -903,7 +890,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             int slotRowY = INSET + TITLE_HEIGHT + TEXTBOX_HEIGHT;
             for (int col : SLOT_COLS) {
                 int sx = INSET + col * SLOT_SIZE;
-                drawSlotInset(chrome, sx, slotRowY, SLOT_SIZE - 2, SLOT_SIZE - 2, slotSprite);
+                drawSlotCell(chrome, sx, slotRowY, SLOT_SIZE - 2, SLOT_SIZE - 2, slotSprite);
             }
 
             drawPlusInSlot(chrome, 1, slotRowY);
@@ -975,7 +962,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             int canvasW = SKYBLOCK_CHEST_COLS * SLOT_SIZE + 2 * INSET;
             int canvasH = SKYBLOCK_CHEST_ROWS * SLOT_SIZE + 2 * INSET + TITLE_HEIGHT;
 
-            PixelBuffer slotSprite = resolveSlotSprite(this.context);
+            Optional<PixelBuffer> slotSprite = resolveSlotSprite(this.context);
             PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
             drawVanillaChestChrome(chrome, SKYBLOCK_CHEST_ROWS, SKYBLOCK_CHEST_COLS, slotSprite);
             drawCraftArrowInSlot(chrome, ARROW_SLOT % SKYBLOCK_CHEST_COLS, ARROW_SLOT / SKYBLOCK_CHEST_COLS);
@@ -1051,7 +1038,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             int canvasW = SKYBLOCK_CHEST_COLS * SLOT_SIZE + 2 * INSET;
             int canvasH = SKYBLOCK_CHEST_ROWS * SLOT_SIZE + 2 * INSET + TITLE_HEIGHT;
 
-            PixelBuffer slotSprite = resolveSlotSprite(this.context);
+            Optional<PixelBuffer> slotSprite = resolveSlotSprite(this.context);
             PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
             drawVanillaChestChrome(chrome, SKYBLOCK_CHEST_ROWS, SKYBLOCK_CHEST_COLS, slotSprite);
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
@@ -1092,7 +1079,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
             ItemOptions redPaneOptions = ItemOptions.builder()
                 .itemId("minecraft:red_stained_glass_pane")
-                .type(ItemOptions.Type.GUI_2D)
+                .type(ItemOptions.Type.GUI_ICON)
                 .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SLOT_SIZE - 4).build())
                 .build();
             ImageData redPane = itemRenderer.render(redPaneOptions);

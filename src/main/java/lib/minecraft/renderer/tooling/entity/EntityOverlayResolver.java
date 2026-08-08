@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -17,10 +17,8 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
-import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayDeque;
@@ -75,23 +73,18 @@ final class EntityOverlayResolver {
     private final @NotNull Diagnostics diagnostics;
 
     EntityOverlayResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
+        @NotNull EntityContext context,
         @NotNull List<EntityRendererResolver.LayerSite> roster,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull EntityGeometryRefResolver geometryRef,
-        @NotNull EntityPipelineTraits traits,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
+        @NotNull EntityGeometryRefResolver geometryRef
     ) {
-        this.cache = cache;
-        this.subject = subject;
+        this.cache = context.cache();
+        this.subject = context.subject();
         this.roster = roster;
-        this.layerDefinitions = layerDefinitions;
+        this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
-        this.traits = traits;
-        this.manifest = manifest;
-        this.diagnostics = diagnostics;
+        this.traits = context.indexes().pipelineTraits();
+        this.manifest = context.indexes().manifest();
+        this.diagnostics = context.diagnostics();
     }
 
     /**
@@ -101,8 +94,8 @@ final class EntityOverlayResolver {
      *
      * @return the rows, or {@code null} when no site emits
      */
-    @Nullable JsonNode resolve() {
-        List<JsonNode> rows = new ArrayList<>();
+    @Nullable JsonTree resolve() {
+        List<JsonTree> rows = new ArrayList<>();
         boolean sameGeometryEmissive = false;
         for (EntityRendererResolver.LayerSite site : this.roster) {
             ClassNode cn = this.cache.load(site.layerClass());
@@ -115,48 +108,45 @@ final class EntityOverlayResolver {
             if (referencesEquipmentLayerType(cn)) {
                 // Bespoke equipment is handled elsewhere; only its DEFAULT decor (an
                 // EquipmentAssets constant gated on a truthy entity predicate) overlays here.
-                JsonNode decor = resolveDefaultDecor(site, cn);
+                JsonTree decor = resolveDefaultDecor(site, cn);
                 if (decor != null) rows.add(decor);
                 continue;
             }
             EnumMapOverlay enumMap = findEnumMapOverlay(this.cache, cn);
             if (enumMap != null && EntityLayersResolver.isLayersRowToken(enumMap.token())) continue;
 
-            List<JsonNode> emitted = resolveSite(site, cn, enumMap);
-            for (JsonNode row : emitted) {
+            List<JsonTree> emitted = resolveSite(site, cn, enumMap);
+            for (JsonTree row : emitted) {
                 rows.add(row);
-                JsonNode pipeline = row.get("pipeline");
-                if (pipeline != null && pipeline.getBool("emissive", false)
-                    && Objects.equals(row.getString("geometry"), this.geometryRef.primaryKey()))
+                JsonTree pipeline = row.find("pipeline").orElse(null);
+                if (pipeline != null && pipeline.getBoolean("emissive", false)
+                    && Objects.equals(row.findString("geometry").orElse(null), this.geometryRef.primaryKey()))
                     sameGeometryEmissive = true;
             }
         }
         if (!sameGeometryEmissive) {
-            JsonNode tail = resolveRendererTailEyes();
+            JsonTree tail = resolveRendererTailEyes();
             if (tail != null) rows.add(tail);
         }
-        if (rows.isEmpty()) return null;
-        JsonNode out = JsonNode.array();
-        for (JsonNode row : rows) out.add(row);
-        return out;
+        return rows.isEmpty() ? null : JsonTree.arrayOf(rows);
     }
 
     /** Dispatches one roster site through the structural arms; first claim wins. */
-    private @NotNull List<JsonNode> resolveSite(
+    private @NotNull List<JsonTree> resolveSite(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn,
         @Nullable EnumMapOverlay enumMap
     ) {
-        List<JsonNode> emissive = resolveEmissiveProviderSite(site, cn);
+        List<JsonTree> emissive = resolveEmissiveProviderSite(site, cn);
         if (emissive != null) return emissive;
-        JsonNode eyes = resolveEyesBinding(site.layerClass(), site.layerIndex(), cn);
+        JsonTree eyes = resolveEyesBinding(site.layerClass(), site.layerIndex(), cn);
         if (eyes != null) return List.of(eyes);
         if (enumMap != null) return List.of(resolveEnumMapRow(site, enumMap));
-        List<JsonNode> villager = resolveVillagerPasses(site, cn);
+        List<JsonTree> villager = resolveVillagerPasses(site, cn);
         if (villager != null) return villager;
-        JsonNode parameterized = resolveParameterizedBinding(site, cn);
+        JsonTree parameterized = resolveParameterizedBinding(site, cn);
         if (parameterized != null) return List.of(parameterized);
-        JsonNode composite = resolveComposite(site, cn);
+        JsonTree composite = resolveComposite(site, cn);
         if (composite != null) return List.of(composite);
         return List.of();
     }
@@ -190,7 +180,7 @@ final class EntityOverlayResolver {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return false;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             if (in.getOpcode() != Opcodes.GETFIELD || !(in instanceof FieldInsnNode fi)) continue;
             if (!dyeRef.equals(fi.desc)) continue;
             AbstractInsnNode cursor = in;
@@ -210,7 +200,7 @@ final class EntityOverlayResolver {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return false;
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : submit.instructions)
             if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi && stateRef.equals(fi.desc))
                 return true;
         return false;
@@ -219,7 +209,7 @@ final class EntityOverlayResolver {
     /** The bespoke-equipment discriminator: any method references the LayerType enum. */
     static boolean referencesEquipmentLayerType(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+            for (AbstractInsnNode in : method.instructions)
                 if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)) return true;
         return false;
     }
@@ -242,7 +232,7 @@ final class EntityOverlayResolver {
     static @Nullable EnumMapOverlay findEnumMapOverlay(@NotNull ClassNodeCache cache, @NotNull ClassNode cn) {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return null;
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             if (in.getOpcode() != Opcodes.INVOKEINTERFACE || !(in instanceof MethodInsnNode mi)) continue;
             if (!"java/util/Map".equals(mi.owner) || !"get".equals(mi.name)) continue;
             String stateField = null;
@@ -269,15 +259,15 @@ final class EntityOverlayResolver {
     // ------------------------------------------------------------------------------------
 
     /** A fresh row carrying its source-class and layer-index provenance pair. */
-    private static @NotNull JsonNode row(@NotNull String sourceClass, int layerIndex) {
-        return JsonNode.object()
+    private static @NotNull JsonTree row(@NotNull String sourceClass, int layerIndex) {
+        return JsonTree.object()
             .put("source", simpleName(sourceClass))
             .putInt("layer_index", layerIndex);
     }
 
     /** The simple class name of a JVM internal name (nested classes keep their {@code $} form). */
     static @NotNull String simpleName(@NotNull String internalName) {
-        return internalName.substring(internalName.lastIndexOf('/') + 1);
+        return AsmKit.simpleName(internalName);
     }
 
     /**
@@ -316,7 +306,7 @@ final class EntityOverlayResolver {
     }
 
     /** Emits {@code grow} as a scalar when uniform, a triplet when asymmetric. */
-    private static void putGrow(@NotNull JsonNode row, float @Nullable [] grow) {
+    private static void putGrow(@NotNull JsonTree row, float @Nullable [] grow) {
         if (grow == null) return;
         if (grow[0] == grow[1] && grow[1] == grow[2]) row.put("grow", grow[0]);
         else row.putFloats("grow", grow[0], grow[1], grow[2]);
@@ -325,15 +315,27 @@ final class EntityOverlayResolver {
     /**
      * The {@code pipeline} node - {@code emissive} is the walked NO_CARDINAL_LIGHTING trait
      * (absent = shaded), {@code blend} the additive / translucent classification (absent =
-     * normal), {@code alpha} the fractional frozen-frame opacity (absent = 1.0). Null when
-     * every member is at its default.
+     * normal), {@code alpha} the fractional frozen-frame opacity (absent = 1.0),
+     * {@code depth_write} the pipeline's {@code DepthStencilState.writeDepth} (absent = writes,
+     * which is what {@code DepthStencilState.DEFAULT} declares) and {@code sorted} its
+     * {@code RenderSetup.sortOnUpload} (absent = drawn in submission order). Each member omits its
+     * identity, so the node is null when the pass is an ordinary shaded source-over one.
+     *
+     * @param emissive whether the pass skips cardinal lighting
+     * @param blend the blend token, or {@code null} for source-over
+     * @param alpha the opacity multiplier
+     * @param writesDepth whether the pass writes the depth buffer
+     * @param sorted whether the pass's quads are drawn back-to-front
      */
-    private static @Nullable JsonNode pipelineNode(boolean emissive, @Nullable String blend, float alpha) {
-        if (!emissive && blend == null && alpha >= 1f) return null;
-        JsonNode node = JsonNode.object();
+    private static @Nullable JsonTree pipelineNode(boolean emissive, @Nullable String blend, float alpha,
+                                                   boolean writesDepth, boolean sorted) {
+        if (!emissive && blend == null && alpha >= 1f && writesDepth && !sorted) return null;
+        JsonTree node = JsonTree.object();
         if (emissive) node.put("emissive", true);
         if (blend != null) node.put("blend", blend);
         if (alpha < 1f) node.put("alpha", alpha);
+        if (!writesDepth) node.put("depth_write", false);
+        if (sorted) node.put("sorted", true);
         return node;
     }
 
@@ -368,12 +370,12 @@ final class EntityOverlayResolver {
      * by SHAPE and classified by pipeline traits, never by a class or field name match.
      * Works unchanged on a renderer's own {@code <clinit>} (the dragon tail).
      */
-    private @Nullable JsonNode resolveEyesBinding(@NotNull String sourceClass, int layerIndex, @NotNull ClassNode cn) {
+    private @Nullable JsonTree resolveEyesBinding(@NotNull String sourceClass, int layerIndex, @NotNull ClassNode cn) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         String renderTypeReturn = ")" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RENDER_TYPE);
         String pendingTexture = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = readEntityTextureLiteral(in);
             if (literal != null) {
                 pendingTexture = literal;
@@ -389,13 +391,14 @@ final class EntityOverlayResolver {
                 // A default-pipeline factory (the dragon's dying entityCutoutDissolve) never
                 // pre-builds a glow overlay - skip it without consuming the pending texture.
                 if (factoryTraits.isEmpty()) continue;
-                JsonNode node = row(sourceClass, layerIndex)
+                JsonTree node = row(sourceClass, layerIndex)
                     .putIf("geometry", this.geometryRef.primaryKey())
                     .put("texture", namespaced(pendingTexture));
                 node.putIf("pipeline", pipelineNode(
                     factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-                    EntityPipelineTraits.blendToken(factoryTraits), 1f));
-                this.diagnostics.info("eyes overlay '%s' via clinit RenderTypes.%s [D20]", simpleName(sourceClass), mi.name);
+                    this.traits.blendTokenOf(mi.name), 1f,
+                    this.traits.factoryWritesDepth(mi.name), this.traits.factorySortsQuads(mi.name)));
+                this.diagnostics.info("eyes overlay '%s' via clinit RenderTypes.%s", simpleName(sourceClass), mi.name);
                 return node;
             }
         }
@@ -408,14 +411,14 @@ final class EntityOverlayResolver {
      * site. Runs only when no same-geometry emissive row emitted, with no {@code layer_index}
      * - the row is not in vanilla's addLayer list (empty-vs-absent).
      */
-    private @Nullable JsonNode resolveRendererTailEyes() {
+    private @Nullable JsonTree resolveRendererTailEyes() {
         ClassNode renderer = this.cache.load(this.subject.rendererClass());
         if (renderer == null) return null;
         MethodNode clinit = AsmKit.findMethod(renderer, AsmKit.CLINIT);
         if (clinit == null) return null;
         String renderTypeReturn = ")" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RENDER_TYPE);
         String pendingTexture = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = readEntityTextureLiteral(in);
             if (literal != null) {
                 pendingTexture = literal;
@@ -429,13 +432,14 @@ final class EntityOverlayResolver {
                 && hasEyeStem(pendingTexture)) {
                 var factoryTraits = this.traits.traitsOf(mi.name);
                 if (factoryTraits.isEmpty()) continue;   // default pipeline - not a glow binding
-                JsonNode node = JsonNode.object()
+                JsonTree node = JsonTree.object()
                     .put("source", simpleName(this.subject.rendererClass()))
                     .putIf("geometry", this.geometryRef.primaryKey())
                     .put("texture", namespaced(pendingTexture));
                 node.putIf("pipeline", pipelineNode(
                     factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-                    EntityPipelineTraits.blendToken(factoryTraits), 1f));
+                    this.traits.blendTokenOf(mi.name), 1f,
+                    this.traits.factoryWritesDepth(mi.name), this.traits.factorySortsQuads(mi.name)));
                 this.diagnostics.info("renderer-tail eyes via clinit RenderTypes.%s", mi.name);
                 return node;
             }
@@ -452,19 +456,19 @@ final class EntityOverlayResolver {
      * from the map, so the default draws nothing - with the full value-to-path map and a
      * bounds skip (a zero-state-none overlay never contributes silhouette).
      */
-    private @NotNull JsonNode resolveEnumMapRow(
+    private @NotNull JsonTree resolveEnumMapRow(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull EnumMapOverlay enumMap
     ) {
-        JsonNode node = row(site.layerClass(), site.layerIndex())
+        JsonTree node = row(site.layerClass(), site.layerIndex())
             .putIf("geometry", this.geometryRef.primaryKey())
             .put("texture_by", axisToken(enumMap.token()));
-        JsonNode byValue = JsonNode.object();
+        JsonTree byValue = JsonTree.object();
         for (Map.Entry<String, String> entry : enumMap.textures().entrySet())
             byValue.put(entry.getKey().toLowerCase(Locale.ROOT), namespaced(entry.getValue()));
         node.put("textures_by_value", byValue);
         node.put("skip_bounds", true);
-        this.diagnostics.info("enum-map overlay: texture_by '%s', %d values [D11]",
+        this.diagnostics.info("enum-map overlay: texture_by '%s', %d values",
             enumMap.token(), enumMap.textures().size());
         return node;
     }
@@ -493,7 +497,7 @@ final class EntityOverlayResolver {
      * energy-swirl subclasses a class-name-only gate would reject. Emits one row with the
      * walked gates, tint, pipeline, and mesh reference.
      */
-    private @Nullable JsonNode resolveComposite(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
+    private @Nullable JsonTree resolveComposite(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
         String bakedField = findCtorBakedField(cn);
         if (bakedField == null) return null;
         if (!compositeGateAccepts(cn)) return null;
@@ -505,20 +509,43 @@ final class EntityOverlayResolver {
         }
 
         boolean additive = this.traits.layerInvokes(cn.name, EntityPipelineTraits.Trait.ADDITIVE);
-        JsonNode node = row(site.layerClass(), site.layerIndex());
+        JsonTree node = row(site.layerClass(), site.layerIndex());
         node.putIf("when", compositeWhen(cn, additive));
         MeshRef mesh = overlayMesh(bakedField);
         node.putIf("geometry", mesh.key());
         node.put("texture", namespaced(texture));
         node.putIf("texture_by", switchDispatchTextureBy(cn));
-        ColorSource tint = extractCutoutTint(cn);
+        ColorSource tint = extractOverlayTint(cn);
         if (tint.argb() != NO_TINT) node.putHex("tint", tint.argb());
         node.putIf("tint_by", tint.axisToken());
         node.putIf("pipeline", pipelineNode(
             this.traits.layerInvokes(cn.name, EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-            this.traits.classifyBlend(cn.name), 1f));
+            this.traits.classifyBlend(cn.name), 1f,
+            this.traits.layerWritesDepth(cn.name), this.traits.layerSortsQuads(cn.name)));
         putGrow(node, mesh.grow());
+        node.putIf("baby", compositeBabyForm(cn));
         return node;
+    }
+
+    /**
+     * The composite row's {@code baby} delta, for a layer that bakes a {@code ModelLayers} baby mesh
+     * beside its adult one and forks on {@code isBaby} inside {@code submit} - the drowned's outer
+     * shell, the sheep's wool. Null when the layer bakes no baby mesh, which is most of them.
+     *
+     * <p>The mesh is named rather than inherited because a baby pass is not always the baby body: the
+     * drowned's outer shell is its own {@code LayerDefinition}, and its factory hardcodes two of the
+     * head cubes' deformations instead of driving them off the parameter, so no inflate of the body
+     * reaches it. Where the two DO coincide - vanilla registers the sheep's baby wool against the
+     * very {@code LayerDefinition} its baby body uses - the walk mints the key the age axis already
+     * registered and the pass stays coincident with the body it dresses.
+     *
+     * @param cn the layer class
+     * @return the baby delta node, or {@code null} when the layer bakes no baby mesh
+     */
+    private @Nullable JsonTree compositeBabyForm(@NotNull ClassNode cn) {
+        String babyField = findCtorBakedBabyField(cn);
+        if (babyField == null) return null;
+        return babyForm(findFirstBabyTextureLiteral(cn), null, overlayMesh(babyField).key());
     }
 
     /** The first ctor-baked non-baby {@code ModelLayers} field (name filter), or {@code null}. */
@@ -526,7 +553,7 @@ final class EntityOverlayResolver {
         for (MethodNode method : cn.methods) {
             if (!AsmKit.INIT.equals(method.name)) continue;
             String pending = null;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
                     pending = ((FieldInsnNode) in).name;
                     continue;
@@ -540,6 +567,31 @@ final class EntityOverlayResolver {
         return null;
     }
 
+    /**
+     * The first ctor-baked {@code ModelLayers.*_BABY} field - the layer's baby mesh, whose own
+     * {@code CubeDeformation} the baby decor delta carries. The complement of {@link #findCtorBakedField}.
+     *
+     * @param cn the layer class
+     * @return the baby {@code ModelLayers} field name, or {@code null} when the layer bakes no baby mesh
+     */
+    private static @Nullable String findCtorBakedBabyField(@NotNull ClassNode cn) {
+        for (MethodNode method : cn.methods) {
+            if (!AsmKit.INIT.equals(method.name)) continue;
+            String pending = null;
+            for (AbstractInsnNode in : method.instructions) {
+                if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
+                    pending = ((FieldInsnNode) in).name;
+                    continue;
+                }
+                if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER)
+                    && pending != null
+                    && pending.contains("BABY"))
+                    return pending;
+            }
+        }
+        return null;
+    }
+
     /** Whether any hierarchy INSTANCE method invokes a {@code RenderTypes} factory or the cutout helper. */
     private boolean compositeGateAccepts(@NotNull ClassNode cn) {
         boolean[] accepted = {false};
@@ -547,7 +599,7 @@ final class EntityOverlayResolver {
             if (accepted[0]) return;
             for (MethodNode method : level.methods) {
                 if ((method.access & Opcodes.ACC_STATIC) != 0 || AsmKit.INIT.equals(method.name)) continue;
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : method.instructions) {
                     if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) continue;
                     if (VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner)
                         || VanillaSourceClasses.Methods.COLORED_CUTOUT_HELPER.equals(mi.name)) {
@@ -568,21 +620,21 @@ final class EntityOverlayResolver {
      * {@code isSheared} - {@code isBaby} / {@code isInvisible} are universal render gates,
      * not option axes, and fall out of the vocabulary filter).
      */
-    private @Nullable JsonNode compositeWhen(@NotNull ClassNode cn, boolean additive) {
-        if (additive) return JsonNode.object().put("charged", true);
+    private @Nullable JsonTree compositeWhen(@NotNull ClassNode cn, boolean additive) {
+        if (additive) return JsonTree.object().put("charged", true);
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return null;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR)) continue;
             AbstractInsnNode next = AsmKit.nextReal(in);
             if (next != null && (next.getOpcode() == Opcodes.IF_ACMPEQ || next.getOpcode() == Opcodes.IF_ACMPNE)) {
                 AbstractInsnNode before = AsmKit.previousReal(in);
                 if (before instanceof FieldInsnNode read && dyeRef.equals(read.desc))
-                    return JsonNode.object().put("tinted", true);
+                    return JsonTree.object().put("tinted", true);
             }
         }
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             if (in.getOpcode() != Opcodes.GETFIELD || !(in instanceof FieldInsnNode fi)) continue;
             if (!"Z".equals(fi.desc) || !fi.name.startsWith("is")) continue;
             AbstractInsnNode branch = AsmKit.nextReal(in);
@@ -593,7 +645,7 @@ final class EntityOverlayResolver {
             if (!EntityAxisPolicies.AXIS_NAME_VOCABULARY.strings().contains(token)) continue;
             // IFEQ skips the RETURN when the flag is false - the row renders at flag ==
             // false (the wool renders UNsheared); IFNE is the inverse shape.
-            return JsonNode.object().put("flag", token).put("value", branch.getOpcode() != Opcodes.IFEQ);
+            return JsonTree.object().put("flag", token).put("value", branch.getOpcode() != Opcodes.IFEQ);
         }
         return null;
     }
@@ -609,7 +661,7 @@ final class EntityOverlayResolver {
         boolean hasSwitch = false;
         int identifierReads = 0;
         String enumField = null;
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             int opcode = in.getOpcode();
             if (opcode == Opcodes.TABLESWITCH || opcode == Opcodes.LOOKUPSWITCH) hasSwitch = true;
             if (opcode == Opcodes.GETFIELD && in instanceof FieldInsnNode fi
@@ -639,6 +691,19 @@ final class EntityOverlayResolver {
     private record ColorSource(int argb, @Nullable String axisToken) {}
 
     /**
+     * Statically resolves the colour a layer submits its overlay with - the render-supplied source
+     * first, then the fixed literal - or the no-tint identity when neither resolves.
+     *
+     * @param layerCn the layer class
+     * @return the resolved tint plus its {@code tint_by} axis, or the no-tint identity
+     */
+    private @NotNull ColorSource extractOverlayTint(@NotNull ClassNode layerCn) {
+        ColorSource sourced = extractCutoutTint(layerCn);
+        if (sourced.argb() != NO_TINT) return sourced;
+        return new ColorSource(submittedColorLiteral(layerCn), null);
+    }
+
+    /**
      * Statically resolves the {@code color} argument of a cutout-copy helper call: a
      * parameterless state getter chases into the {@code ColorLerper.getColor(DyeColor)}
      * evaluation at the WHITE default (the wool layers); a plain int state field chases the
@@ -649,7 +714,7 @@ final class EntityOverlayResolver {
     private @NotNull ColorSource extractCutoutTint(@NotNull ClassNode layerCn) {
         for (MethodNode method : layerCn.methods) {
             if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) continue;
                 if (!VanillaSourceClasses.Methods.COLORED_CUTOUT_HELPER.equals(mi.name)) continue;
                 for (AbstractInsnNode prev = in.getPrevious(); prev != null; prev = prev.getPrevious()) {
@@ -669,6 +734,41 @@ final class EntityOverlayResolver {
             }
         }
         return new ColorSource(NO_TINT, null);
+    }
+
+    /**
+     * The fixed {@code color} argument of a {@code submitModel} call along the layer's super chain -
+     * the constant standing directly after the {@code OverlayTexture.NO_OVERLAY} argument it follows
+     * in vanilla's signature. This is how the energy swirl carries its half strength: it submits at
+     * {@code 0xFF808080} with full alpha rather than at the white the colour-less overload passes, so
+     * every texel it adds is scaled by {@code 128/255} before the blend, and an aura added at white
+     * comes out just under twice as bright. The walk climbs the super chain because the constant sits
+     * on {@code EnergySwirlLayer} while the roster names its two subclasses.
+     *
+     * <p>A white literal reads as the no-tint identity, so a layer submitting the default colour stays
+     * indistinguishable from one naming no colour at all.
+     *
+     * @param layerCn the layer class
+     * @return the submitted ARGB literal, or the no-tint identity when none resolves
+     */
+    private int submittedColorLiteral(@NotNull ClassNode layerCn) {
+        int[] argb = {NO_TINT};
+        AsmKit.walkSuperChain(this.cache, layerCn.name, level -> {
+            if (argb[0] != NO_TINT) return;
+            for (MethodNode method : level.methods) {
+                if ((method.access & Opcodes.ACC_STATIC) != 0 || AsmKit.INIT.equals(method.name)) continue;
+                for (AbstractInsnNode in : method.instructions) {
+                    if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.OVERLAY_TEXTURE)
+                        || !VanillaSourceClasses.Fields.NO_OVERLAY.equals(((FieldInsnNode) in).name)) continue;
+                    AbstractInsnNode color = AsmKit.nextReal(in);
+                    Integer literal = color == null ? null : AsmKit.readIntLiteral(color);
+                    if (literal == null) continue;
+                    argb[0] = literal;
+                    return;
+                }
+            }
+        });
+        return argb[0];
     }
 
     /** The vocabulary-gated tint axis of a color-source member name ({@code getWoolColor} to {@code wool_color}). */
@@ -692,7 +792,7 @@ final class EntityOverlayResolver {
             : AsmKit.findMethod(stateClass, stateColorCall.name, stateColorCall.desc);
         if (stateMethod == null) return NO_TINT;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
-        for (AbstractInsnNode in = stateMethod.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : stateMethod.instructions) {
             if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.COLOR_LERPER_TYPE, VanillaSourceClasses.Methods.GET_COLOR)) continue;
             String dyeField = null;
             for (AbstractInsnNode prev = in.getPrevious(); prev != null; prev = prev.getPrevious())
@@ -721,7 +821,7 @@ final class EntityOverlayResolver {
             for (MethodNode method : cn.methods) {
                 if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
                 boolean pendingDiffuse = false;
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : method.instructions) {
                     if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR,
                             VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)) {
                         pendingDiffuse = true;
@@ -746,7 +846,7 @@ final class EntityOverlayResolver {
         MethodNode init = AsmKit.findMethod(stateClass, AsmKit.INIT);
         if (init == null) return null;
         String pending = null;
-        for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : init.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR)) {
                 pending = ((FieldInsnNode) in).name;
                 continue;
@@ -771,7 +871,7 @@ final class EntityOverlayResolver {
             : AsmKit.findMethod(lerper, VanillaSourceClasses.Methods.GET_MODIFIED_COLOR);
         if (method == null) return null;
         boolean pastWhiteCompare = false;
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR, "WHITE")) {
                 AbstractInsnNode branch = AsmKit.nextReal(in);
                 if (branch != null && (branch.getOpcode() == Opcodes.IF_ACMPNE || branch.getOpcode() == Opcodes.IF_ACMPEQ))
@@ -803,7 +903,7 @@ final class EntityOverlayResolver {
         if (own != null) return own;
         for (MethodNode method : cn.methods) {
             if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
                 if (!VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)) continue;
                 String chased = chaseTextureFieldOwner(fi.owner, fi.name);
@@ -816,13 +916,42 @@ final class EntityOverlayResolver {
     /**
      * The first {@code <clinit>} texture literal flowing through
      * {@code withDefaultNamespace} into a non-baby {@code Identifier} field.
+     *
+     * @param cn the class whose {@code <clinit>} is walked
+     * @return the raw jar path, or {@code null} when the class binds none
      */
     static @Nullable String findFirstNonBabyTextureLiteral(@NotNull ClassNode cn) {
+        return findFirstTextureLiteral(cn, false);
+    }
+
+    /**
+     * The baby counterpart of {@link #findFirstNonBabyTextureLiteral} - the literal bound to a
+     * {@code BABY} {@code Identifier} field, which a layer holding one mesh per age draws its baby
+     * pass against ({@code drowned_outer_layer_baby}, {@code sheep_wool_baby}).
+     *
+     * @param cn the class whose {@code <clinit>} is walked
+     * @return the raw jar path, or {@code null} when the class binds no baby texture
+     */
+    static @Nullable String findFirstBabyTextureLiteral(@NotNull ClassNode cn) {
+        return findFirstTextureLiteral(cn, true);
+    }
+
+    /**
+     * The first {@code <clinit>} texture literal flowing through {@code withDefaultNamespace} into
+     * an {@code Identifier} field of the requested age. One walk serves both polarities: a field of
+     * the other age discards the pending literal rather than ending the walk, so neither can read
+     * the other's path.
+     *
+     * @param cn the class whose {@code <clinit>} is walked
+     * @param baby whether a {@code BABY} field is the one to accept rather than the one to reject
+     * @return the raw jar path, or {@code null} when the class binds none of that age
+     */
+    private static @Nullable String findFirstTextureLiteral(@NotNull ClassNode cn, boolean baby) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pendingPath = null;
         boolean pendingIdentifier = false;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = readEntityTextureLiteral(in);
             if (literal != null) {
                 pendingPath = literal;
@@ -837,7 +966,7 @@ final class EntityOverlayResolver {
                 && in instanceof FieldInsnNode fi
                 && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
                 && pendingPath != null && pendingIdentifier) {
-                if (!fi.name.contains("BABY")) return pendingPath;
+                if (fi.name.contains("BABY") == baby) return pendingPath;
                 pendingPath = null;
                 pendingIdentifier = false;
             }
@@ -860,7 +989,7 @@ final class EntityOverlayResolver {
      *
      * @return the emitted rows, or {@code null} when the site is not provider-shaped
      */
-    private @Nullable List<JsonNode> resolveEmissiveProviderSite(
+    private @Nullable List<JsonTree> resolveEmissiveProviderSite(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn
     ) {
@@ -904,25 +1033,28 @@ final class EntityOverlayResolver {
 
         float alpha = evaluateFrozenAlpha(providers.get(1));
         if (alpha <= 0f) {
-            this.diagnostics.info("provider layer '%s' frozen-frame alpha 0 - pass drops (P12)", simpleName(site.layerClass()));
+            this.diagnostics.info("provider layer '%s' frozen-frame alpha 0 - pass drops", simpleName(site.layerClass()));
             return List.of();
         }
-        ProviderTexture texture = resolveProviderTexture(providers.get(0));
+        ProviderTexture texture = resolveProviderTexture(providers.getFirst());
         if (texture == null) {
             this.diagnostics.info("provider layer '%s' texture unresolved - dropped", simpleName(site.layerClass()));
             return List.of();
         }
-        var factoryTraits = this.traits.traitsOf(renderTypeFactoryName(providers.get(2)));
+        String factoryName = renderTypeFactoryName(providers.get(2));
+        var factoryTraits = this.traits.traitsOf(factoryName);
         boolean emissive = factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING);
-        String blend = EntityPipelineTraits.blendToken(factoryTraits);
+        String blend = this.traits.blendTokenOf(factoryName);
+        boolean writesDepth = this.traits.factoryWritesDepth(factoryName);
+        boolean sorted = this.traits.factorySortsQuads(factoryName);
 
         boolean primaryMesh = modelField == null || modelField.equals(this.geometryRef.primaryFieldName());
-        JsonNode node = row(site.layerClass(), site.layerIndex());
+        JsonTree node = row(site.layerClass(), site.layerIndex());
         if (primaryMesh) {
             node.putIf("geometry", this.geometryRef.primaryKey())
                 .put("texture", texture.path())
                 .putIf("texture_by", texture.textureBy())
-                .putIf("pipeline", pipelineNode(emissive, blend, 1f));
+                .putIf("pipeline", pipelineNode(emissive, blend, 1f, writesDepth, sorted));
             return List.of(node);
         }
         if (alpha >= EntityOverlayPolicies.FULL_MESH_REUSE_ALPHA_EPSILON.floatValue()) {
@@ -931,7 +1063,7 @@ final class EntityOverlayResolver {
             node.putIf("geometry", this.geometryRef.primaryKey())
                 .put("texture", texture.path())
                 .putIf("texture_by", texture.textureBy())
-                .putIf("pipeline", pipelineNode(emissive, blend, 1f))
+                .putIf("pipeline", pipelineNode(emissive, blend, 1f, writesDepth, sorted))
                 .put("skip_bounds", true);
             return List.of(node);
         }
@@ -949,9 +1081,9 @@ final class EntityOverlayResolver {
         node.put("geometry", key)
             .put("texture", texture.path())
             .putIf("texture_by", texture.textureBy())
-            .putIf("pipeline", pipelineNode(emissive, blend, alpha))
+            .putIf("pipeline", pipelineNode(emissive, blend, alpha, writesDepth, sorted))
             .put("skip_bounds", true);
-        JsonNode bones = node.childArray("retain_bones");
+        JsonTree bones = node.childArray("retain_bones");
         for (String bone : retain) bones.add(bone);
         return List.of(node);
     }
@@ -979,7 +1111,7 @@ final class EntityOverlayResolver {
         ClassNode owner = this.cache.load(factoryCall.owner);
         MethodNode method = owner == null ? null : AsmKit.findMethod(owner, factoryCall.name, factoryCall.desc);
         if (method == null) return null;
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : method.instructions)
             if (AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy) {
                 Handle handle = AsmKit.extractLambdaHandle(indy);
                 if (handle != null) return handle;
@@ -992,7 +1124,7 @@ final class EntityOverlayResolver {
         Map<Integer, String> out = new LinkedHashMap<>();
         String pendingField = null;
         boolean baked = false;
-        for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : ctor.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
                 pendingField = ((FieldInsnNode) in).name;
                 baked = false;
@@ -1028,7 +1160,7 @@ final class EntityOverlayResolver {
         if (lambda == null) return null;
         // Field-return shape: GETSTATIC <Identifier field> chased through the owner clinit.
         String stateField = null;
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : lambda.instructions) {
             if (in.getOpcode() == Opcodes.GETSTATIC && in instanceof FieldInsnNode fi
                 && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)) {
                 String chased = chaseTextureFieldOwner(fi.owner, fi.name);
@@ -1045,7 +1177,7 @@ final class EntityOverlayResolver {
         if (zeroState == null) return null;
         String token = axisToken(stateField);
         boolean vocab = EntityAxisPolicies.AXIS_NAME_VOCABULARY.strings().contains(token);
-        this.diagnostics.info("provider texture via state dispatch: texture_by '%s' [D23]", token);
+        this.diagnostics.info("provider texture via state dispatch: texture_by '%s'", token);
         return new ProviderTexture(namespaced(zeroState), vocab ? token : null);
     }
 
@@ -1053,17 +1185,16 @@ final class EntityOverlayResolver {
     private @Nullable String firstEyeLiteral(@NotNull ClassNode lambdaOwner, @NotNull MethodNode lambda) {
         LinkedHashSet<String> candidates = new LinkedHashSet<>();
         candidates.add(lambdaOwner.name);
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : lambda.instructions)
             if (in instanceof MethodInsnNode mi
                 && (in.getOpcode() == Opcodes.INVOKESTATIC || in.getOpcode() == Opcodes.INVOKEVIRTUAL)
                 && mi.owner.startsWith(VanillaSourceClasses.Types.MINECRAFT_ROOT))
                 candidates.add(mi.owner);
         List<String> stems = EntityOverlayPolicies.EYE_STEM_FIRST_LITERAL.strings();
         for (String candidate : candidates) {
-            ClassNode cn = this.cache.load(candidate);
-            MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+            MethodNode clinit = AsmKit.findClinit(this.cache, candidate);
             if (clinit == null) continue;
-            for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : clinit.instructions) {
                 String literal = readEntityTextureLiteral(in);
                 if (literal == null) continue;
                 String stem = literal.substring(0, literal.length() - ".png".length());
@@ -1082,7 +1213,7 @@ final class EntityOverlayResolver {
         MethodNode lambda = owner == null ? null
             : AsmKit.findMethod(owner, renderTypeProvider.getName(), renderTypeProvider.getDesc());
         if (lambda == null) return "";
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : lambda.instructions)
             if (in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi
                 && VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner))
                 return mi.name;
@@ -1100,7 +1231,7 @@ final class EntityOverlayResolver {
             : AsmKit.findMethod(factoryOwner, entry.factoryMethod(), entry.factoryDesc());
         if (factory == null) return null;
         Handle transformer = null;
-        for (AbstractInsnNode in = factory.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : factory.instructions)
             if (AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy) {
                 transformer = AsmKit.extractLambdaHandle(indy);
                 if (transformer != null) break;
@@ -1110,7 +1241,7 @@ final class EntityOverlayResolver {
         if (lambda == null) return null;
         List<String> retain = new ArrayList<>();
         boolean retained = false;
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : lambda.instructions) {
             if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
                 && VanillaSourceClasses.Methods.RETAIN_EXACT_PARTS.equals(mi.name)) {
                 retained = true;
@@ -1137,7 +1268,7 @@ final class EntityOverlayResolver {
         if (lambda == null) return 0f;
         float frozen = EntityOverlayPolicies.FROZEN_FRAME.floatValue();
         Deque<Double> stack = new ArrayDeque<>();
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : lambda.instructions) {
             int op = in.getOpcode();
             Float constant = AsmKit.readFloatLiteral(in);
             if (constant != null) {
@@ -1200,15 +1331,25 @@ final class EntityOverlayResolver {
      * {@code ResourceKey} and is existence-probed, so a NONE-defaulted pass (profession)
      * carries no texture and drops at zero state.
      *
+     * <p>A submit that swaps one category's directory token on its age arm carries that
+     * substitution as a {@code baby} node: the same probe run with the age token, plus the
+     * alternate mesh's own cleared-bone root. The node is a delta - it names no geometry,
+     * because a baby overlay materialises against the age axis' baby mesh, and everything it
+     * omits is inherited from the row. It rides the FIRST pass, the one vanilla's mesh select
+     * applies to and the one that already owns {@code no_hat_root}; a substitution naming any
+     * other category is an unexpected vanilla shape, warned about and dropped rather than
+     * attached to a later row.
+     *
      * @return the pass rows, or {@code null} when the site is not category-shaped
      */
-    private @Nullable List<JsonNode> resolveVillagerPasses(
+    private @Nullable List<JsonTree> resolveVillagerPasses(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn
     ) {
         MethodNode submit = typedSubmit(cn);
         if (submit == null || !ctorTakesString(cn)) return null;
-        List<String> categories = collectCategoryTokens(submit, cn.name);
+        CategoryTokens tokens = collectCategoryTokens(submit, cn.name);
+        List<String> categories = tokens.categories();
         if (categories.size() < 2) return null;
         String prefix = callSiteStringArg(site);
         if (prefix == null) {
@@ -1217,25 +1358,98 @@ final class EntityOverlayResolver {
             return List.of();
         }
         List<String> defaultIds = dataClassDefaultIds(submit);
-        List<JsonNode> rows = new ArrayList<>(categories.size());
-        for (String category : categories) {
-            String texture = null;
-            for (String id : defaultIds) {
-                String candidate = VanillaSourceClasses.Paths.TEXTURES_ENTITY + prefix + "/" + category + "/" + id + ".png";
-                if (this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + candidate)) {
-                    texture = candidate;
-                    break;
+        String noHatRoot = null;
+        String babyNoHatRoot = null;
+        if (selectsModelBeforeFirstPass(submit)) {
+            List<String> clearedRoots = noHatRootBones(site);
+            if (clearedRoots.isEmpty()) {
+                this.diagnostics.warn("category-pass layer '%s' selects a model but no ModelLayers field resolves a"
+                    + " cleared bone - no_hat_root omitted", simpleName(site.layerClass()));
+            } else {
+                noHatRoot = clearedRoots.getFirst();
+                if (clearedRoots.size() > 1) babyNoHatRoot = clearedRoots.getLast();
+                if (clearedRoots.size() > 2) {
+                    this.diagnostics.info("category-pass layer '%s' bakes %d cleared-bone meshes - the last is taken"
+                        + " as the age root", simpleName(site.layerClass()), clearedRoots.size());
                 }
             }
-            JsonNode node = row(site.layerClass(), site.layerIndex())
+        } else {
+            this.diagnostics.info("category-pass layer '%s' has no conditional model select before its first pass"
+                + " - no_hat_root omitted", simpleName(site.layerClass()));
+        }
+        // The alternate mesh and the age substitution both belong to the FIRST pass - vanilla selects the
+        // mesh once, before that pass, and its age arm only picks WHICH alternate mesh, never which row.
+        // One predicate for both, so the two can never drift onto different rows.
+        String babyCategory = tokens.babyCategory();
+        if (babyCategory != null && !categories.getFirst().equals(tokens.substituted())) {
+            this.diagnostics.warn("category-pass layer '%s' substitutes directory '%s' for '%s', which is not its"
+                + " first pass - baby form dropped", simpleName(site.layerClass()), babyCategory, tokens.substituted());
+            babyCategory = null;
+        }
+        String babyTexture = babyCategory == null ? null : probeCategoryTexture(prefix, babyCategory, defaultIds);
+        JsonTree baby = babyCategory == null ? null : babyForm(babyTexture, babyNoHatRoot, null);
+        List<JsonTree> rows = new ArrayList<>(categories.size());
+        for (String category : categories) {
+            boolean firstPass = rows.isEmpty();
+            String texture = probeCategoryTexture(prefix, category, defaultIds);
+            JsonTree node = row(site.layerClass(), site.layerIndex())
                 .putIf("geometry", this.geometryRef.primaryKey())
                 .putIf("texture", texture == null ? null : namespaced(texture))
-                .put("texture_by", category);
+                .put("texture_by", category)
+                .putIf("no_hat_root", firstPass ? noHatRoot : null)
+                .putIf("baby", firstPass ? baby : null);
             if (texture == null) node.put("skip_bounds", true);
             rows.add(node);
         }
-        this.diagnostics.info("category passes: %s, prefix '%s' [D17]", categories, prefix);
+        this.diagnostics.info("category passes: %s, prefix '%s'", categories, prefix);
+        if (babyCategory != null) {
+            this.diagnostics.info("category pass '%s' substitutes directory '%s' on its age arm -> %s",
+                tokens.substituted(), babyCategory, babyTexture);
+        }
         return rows;
+    }
+
+    /**
+     * Probes the category's zero-state texture: the first
+     * {@code textures/entity/<prefix>/<category>/<id>.png} the jar actually ships, in
+     * default-id order.
+     *
+     * @param prefix the ctor-supplied path prefix
+     * @param category the directory token to probe under
+     * @param defaultIds the zero-state id candidates in declaration order
+     * @return the raw jar path, or {@code null} when no candidate exists
+     */
+    private @Nullable String probeCategoryTexture(
+        @NotNull String prefix,
+        @NotNull String category,
+        @NotNull List<String> defaultIds
+    ) {
+        for (String id : defaultIds) {
+            String candidate = VanillaSourceClasses.Paths.TEXTURES_ENTITY + prefix + "/" + category + "/" + id + ".png";
+            if (this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + candidate)) return candidate;
+        }
+        return null;
+    }
+
+    /**
+     * The row's {@code baby} age delta - the members a baby render substitutes. Null when none
+     * resolved, so the key is absent rather than empty.
+     *
+     * @param texture the raw jar path of the probed age texture, or {@code null} when none exists
+     * @param noHatRoot the cleared-bone root of the age alternate mesh, or {@code null} when the
+     *     site bakes no separate one
+     * @param geometry the baby mesh coordinate, or {@code null} to materialise against the
+     *     {@code age.baby} mesh the way a decor delta does
+     * @return the delta node, or {@code null} when it would be empty
+     */
+    private static @Nullable JsonTree babyForm(
+        @Nullable String texture, @Nullable String noHatRoot, @Nullable String geometry
+    ) {
+        if (texture == null && noHatRoot == null && geometry == null) return null;
+        return JsonTree.object()
+            .putIf("geometry", geometry)
+            .putIf("texture", texture == null ? null : namespaced(texture))
+            .putIf("no_hat_root", noHatRoot);
     }
 
     /** Whether any ctor takes a plain {@code String} parameter (the path prefix). */
@@ -1249,29 +1463,70 @@ final class EntityOverlayResolver {
     }
 
     /**
+     * The category roster of a typed submit together with its age substitution.
+     *
+     * @param categories the pass categories in first-use order
+     * @param babyCategory the directory token substituted on the {@code isBaby} arm, or
+     *     {@code null} when the submit carries no age arm
+     * @param substituted the category that token stands in for, or {@code null} when the else arm
+     *     did not resolve to a literal
+     */
+    private record CategoryTokens(
+        @NotNull List<String> categories,
+        @Nullable String babyCategory,
+        @Nullable String substituted
+    ) {}
+
+    /**
      * The distinct category literals of the typed submit, in first-use order - the pass
      * roster. A literal on the {@code isBaby}-true ternary arm (the {@code baby} texture
-     * directory) is an age concern, not a pass category, and is excluded by its
-     * {@code GETFIELD isBaby; IF*; LDC} shape. Requires the self String-arg helper gate the
-     * caller already applied.
+     * directory) is an age concern, not a pass category, and is excluded from the roster by its
+     * {@code GETFIELD isBaby; IF*; LDC} shape; it is kept aside instead, paired with the
+     * category it substitutes for, so the row that owns it can carry an age delta. Requires the
+     * self String-arg helper gate the caller already applied.
      */
-    private static @NotNull List<String> collectCategoryTokens(@NotNull MethodNode submit, @NotNull String layerClass) {
+    private static @NotNull CategoryTokens collectCategoryTokens(@NotNull MethodNode submit, @NotNull String layerClass) {
         boolean helperSeen = false;
         for (AbstractInsnNode in = submit.instructions.getFirst(); in != null && !helperSeen; in = in.getNext())
             helperSeen = in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
                 && layerClass.equals(mi.owner) && mi.desc.startsWith("(Ljava/lang/String;");
-        if (!helperSeen) return List.of();
+        if (!helperSeen) return new CategoryTokens(List.of(), null, null);
         LinkedHashSet<String> out = new LinkedHashSet<>();
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        String babyCategory = null;
+        String substituted = null;
+        for (AbstractInsnNode in : submit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal == null || !isCategoryToken(literal)) continue;
             AbstractInsnNode branch = AsmKit.previousReal(in);
             AbstractInsnNode read = branch == null ? null : AsmKit.previousReal(branch);
             boolean babyArm = branch != null && (branch.getOpcode() == Opcodes.IFEQ || branch.getOpcode() == Opcodes.IFNE)
                 && read instanceof FieldInsnNode fi && VanillaSourceClasses.Fields.IS_BABY.equals(fi.name);
-            if (!babyArm) out.add(literal);
+            if (!babyArm) {
+                out.add(literal);
+                continue;
+            }
+            String elseArm = babyCategory == null ? elseArmLiteral(in) : null;
+            if (elseArm == null) continue;
+            babyCategory = literal;
+            substituted = elseArm;
         }
-        return new ArrayList<>(out);
+        return new CategoryTokens(new ArrayList<>(out), babyCategory, substituted);
+    }
+
+    /**
+     * The literal on the else arm of the ternary whose then arm pushed {@code babyLiteral} - the
+     * category the age directory token stands in for. Reached structurally, through the
+     * {@code GOTO} that skips the else arm.
+     *
+     * @param babyLiteral the {@code LDC} on the age arm
+     * @return the else arm's own literal, or {@code null} when the chain is not a two-arm
+     *     literal ternary
+     */
+    private static @Nullable String elseArmLiteral(@NotNull AbstractInsnNode babyLiteral) {
+        AbstractInsnNode skip = AsmKit.nextReal(babyLiteral);
+        if (skip == null || skip.getOpcode() != Opcodes.GOTO) return null;
+        AbstractInsnNode elseArm = AsmKit.nextReal(skip);
+        return elseArm == null ? null : AsmKit.readStringLiteral(elseArm);
     }
 
     /** A category token: lowercase word characters only, never a path fragment. */
@@ -1294,6 +1549,103 @@ final class EntityOverlayResolver {
     }
 
     /**
+     * Whether the typed submit picks between two models before its first pass - the shape that
+     * proves an alternate mesh applies to the FIRST category row and to that row only. The pick
+     * compiles to a boolean-branch ternary over two model references: an {@code IFEQ} whose
+     * fall-through is an {@code ALOAD}, followed by the {@code GOTO} that skips the else arm and
+     * the else arm's own {@code ALOAD}. Reaching the first cutout submit without that quad means
+     * every pass draws the same mesh.
+     *
+     * @param submit the layer's typed submit
+     * @return {@code true} when the model select precedes the first pass
+     */
+    private static boolean selectsModelBeforeFirstPass(@NotNull MethodNode submit) {
+        for (AbstractInsnNode in : submit.instructions) {
+            if (in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi
+                && VanillaSourceClasses.Methods.RENDER_COLORED_CUTOUT_MODEL.equals(mi.name))
+                return false;
+            if (in.getOpcode() != Opcodes.IFEQ) continue;
+            AbstractInsnNode thenArm = AsmKit.nextReal(in);
+            if (thenArm == null || thenArm.getOpcode() != Opcodes.ALOAD) continue;
+            AbstractInsnNode skip = AsmKit.nextReal(thenArm);
+            if (skip == null || skip.getOpcode() != Opcodes.GOTO) continue;
+            AbstractInsnNode elseArm = AsmKit.nextReal(skip);
+            if (elseArm != null && elseArm.getOpcode() == Opcodes.ALOAD) return true;
+        }
+        return false;
+    }
+
+    /**
+     * The bones whose subtrees the site's alternate meshes clear, in bake order, derived from the
+     * renderer's own ctor-arg region: the alternate models are baked there from
+     * {@code ModelLayers} fields, so each field in {@code [allocation .. addLayer)} is resolved
+     * through the layer-definition index to its factory and the factory is read for its
+     * cleared-child name. Bake order is the only discriminator vanilla gives - the adult mesh is
+     * baked first and the age mesh last, the same convention the age axis' own pick relies on.
+     *
+     * @param site the layer site whose ctor-arg region holds the bakes
+     * @return the cleared bone names in bake order, empty when no field resolves one
+     */
+    private @NotNull List<String> noHatRootBones(@NotNull EntityRendererResolver.LayerSite site) {
+        List<String> bones = new ArrayList<>();
+        for (AbstractInsnNode in = site.allocation(); in != null && in != site.addLayer(); in = in.getNext()) {
+            if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS) || !(in instanceof FieldInsnNode fi))
+                continue;
+            LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(fi.name);
+            if (entry == null) continue;
+            String bone = clearedChildName(entry);
+            if (bone != null) bones.add(bone);
+        }
+        return bones;
+    }
+
+    /**
+     * The {@code PartDefinition.clearChild} argument a layer factory bakes - the subtree root the
+     * mesh empties. Read from the factory body first, then from its inline {@code MeshTransformer}
+     * lambdas, which is where a factory that clears through
+     * {@code LayerDefinition.apply(mesh -> ...)} keeps the call. Only an owner-local synthetic
+     * lambda body is walked; a method reference to a foreign class is skipped rather than read out
+     * of the factory's own class.
+     *
+     * @param entry the layer-definition entry naming the factory
+     * @return the cleared bone name, or {@code null} when the factory clears nothing
+     */
+    private @Nullable String clearedChildName(@NotNull LayerDefinitionIndex.Entry entry) {
+        ClassNode factoryOwner = this.cache.load(entry.factoryClass());
+        MethodNode factory = factoryOwner == null ? null
+            : AsmKit.findMethod(factoryOwner, entry.factoryMethod(), entry.factoryDesc());
+        if (factory == null) return null;
+        String direct = clearedChildInBody(factory);
+        if (direct != null) return direct;
+        for (AbstractInsnNode in : factory.instructions) {
+            if (!AsmKit.isLambdaInvokeDynamic(in) || !(in instanceof InvokeDynamicInsnNode indy)) continue;
+            Handle handle = AsmKit.extractLambdaHandle(indy);
+            MethodNode lambda = handle == null || !handle.getOwner().equals(factoryOwner.name) ? null
+                : AsmKit.findMethod(factoryOwner, handle.getName(), handle.getDesc());
+            String nested = lambda == null ? null : clearedChildInBody(lambda);
+            if (nested != null) return nested;
+        }
+        return null;
+    }
+
+    /** The name argument of the first {@code PartDefinition.clearChild} a body calls, or {@code null}. */
+    private static @Nullable String clearedChildInBody(@NotNull MethodNode body) {
+        String pending = null;
+        for (AbstractInsnNode in : body.instructions) {
+            String literal = AsmKit.readStringLiteral(in);
+            if (literal != null) {
+                pending = literal;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
+                && VanillaSourceClasses.Types.PART_DEFINITION.equals(mi.owner)
+                && VanillaSourceClasses.Methods.CLEAR_CHILD.equals(mi.name))
+                return pending;
+        }
+        return null;
+    }
+
+    /**
      * The zero-state id candidates: the data classes whose {@code Holder} accessors the
      * submit consumes declare their defaults as {@code ResourceKey} constants resolved
      * through a registry - each constant's owner {@code <clinit>} pairs it with its id
@@ -1302,7 +1654,7 @@ final class EntityOverlayResolver {
     private @NotNull List<String> dataClassDefaultIds(@NotNull MethodNode submit) {
         LinkedHashSet<String> owners = new LinkedHashSet<>();
         String holderReturn = ")" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.HOLDER);
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : submit.instructions)
             if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
                 && mi.desc.endsWith(holderReturn))
                 owners.add(mi.owner);
@@ -1312,7 +1664,7 @@ final class EntityOverlayResolver {
             ClassNode dataClass = this.cache.load(ownerName);
             if (dataClass == null) continue;
             for (MethodNode method : dataClass.methods)
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : method.instructions) {
                     if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
                     if (!keyRef.equals(fi.desc)) continue;
                     String id = clinitStringBinding(fi.owner, fi.name);
@@ -1324,11 +1676,10 @@ final class EntityOverlayResolver {
 
     /** The last string literal an owner {@code <clinit>} pairs with {@code PUTSTATIC <field>}. */
     private @Nullable String clinitStringBinding(@NotNull String ownerInternalName, @NotNull String fieldName) {
-        ClassNode owner = this.cache.load(ownerInternalName);
-        MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, ownerInternalName);
         if (clinit == null) return null;
         String pending = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pending = literal;
@@ -1349,7 +1700,7 @@ final class EntityOverlayResolver {
      * and texture come from the call-site region, order-independent by type. Any future
      * layer wired to the shape auto-resolves without an allowlist.
      */
-    private @Nullable JsonNode resolveParameterizedBinding(
+    private @Nullable JsonTree resolveParameterizedBinding(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn
     ) {
@@ -1373,16 +1724,17 @@ final class EntityOverlayResolver {
         String texture = chaseTextureFieldOwner(textureOwner, textureField);
         if (texture == null) return null;
 
-        JsonNode node = row(site.layerClass(), site.layerIndex());
+        JsonTree node = row(site.layerClass(), site.layerIndex());
         MeshRef mesh = overlayMesh(modelLayerField);
         node.putIf("geometry", mesh.key());
         node.put("texture", namespaced(texture));
-        ColorSource tint = extractCutoutTint(cn);
+        ColorSource tint = extractOverlayTint(cn);
         if (tint.argb() != NO_TINT) node.putHex("tint", tint.argb());
         node.putIf("tint_by", tint.axisToken());
         node.putIf("pipeline", pipelineNode(
             this.traits.layerInvokes(cn.name, EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-            this.traits.classifyBlend(cn.name), 1f));
+            this.traits.classifyBlend(cn.name), 1f,
+            this.traits.layerWritesDepth(cn.name), this.traits.layerSortsQuads(cn.name)));
         putGrow(node, mesh.grow());
         return node;
     }
@@ -1403,7 +1755,7 @@ final class EntityOverlayResolver {
                 slot += arg.getSize();
             }
             if (locationSlot < 0 || !identifier) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER)) continue;
                 AbstractInsnNode prev = AsmKit.previousReal(in);
                 if (prev instanceof VarInsnNode load && prev.getOpcode() == Opcodes.ALOAD && load.var == locationSlot)
@@ -1425,7 +1777,7 @@ final class EntityOverlayResolver {
      * the renderer). The decor row renders unconditionally at zero state, so the harness
      * reference keeps its carpet.
      */
-    private @Nullable JsonNode resolveDefaultDecor(
+    private @Nullable JsonTree resolveDefaultDecor(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn
     ) {
@@ -1433,18 +1785,20 @@ final class EntityOverlayResolver {
         if (submit == null) return null;
         String keyRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RESOURCE_KEY);
         String assetConstant = null;
+        String babyAssetConstant = null;
         String gateField = null;
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi && "Z".equals(fi.desc)
                 && assetConstant == null
                 && !VanillaSourceClasses.Fields.IS_BABY.equals(fi.name))
                 gateField = fi.name;
             if (in.getOpcode() == Opcodes.GETSTATIC && in instanceof FieldInsnNode fi
                 && VanillaSourceClasses.Types.EQUIPMENT_ASSETS.equals(fi.owner)
-                && keyRef.equals(fi.desc)
-                && !fi.name.contains("BABY")   // the adult arm is the zero state
-                && assetConstant == null)
-                assetConstant = fi.name;
+                && keyRef.equals(fi.desc)) {
+                // The adult arm is the zero state; the isBaby arm's *_BABY asset drives the baby age delta.
+                if (fi.name.contains("BABY")) { if (babyAssetConstant == null) babyAssetConstant = fi.name; }
+                else if (assetConstant == null) assetConstant = fi.name;
+            }
         }
         if (assetConstant == null) return null;
         if (gateField != null && !entityPredicateTrue(gateField)) {
@@ -1461,21 +1815,59 @@ final class EntityOverlayResolver {
             return null;
         }
 
-        JsonNode node = row(site.layerClass(), site.layerIndex());
+        JsonTree node = row(site.layerClass(), site.layerIndex());
         MeshRef mesh = overlayMesh(findCtorBakedField(cn));
         node.putIf("geometry", mesh.key());
         node.put("texture", namespaced(VanillaSourceClasses.Paths.TEXTURES_ENTITY
             + VanillaSourceClasses.Paths.EQUIPMENT_DIR + subdir + "/" + assetId + ".png"));
         putGrow(node, mesh.grow());
         if (EntityOverlayPolicies.DECOR_SKIP_BOUNDS.booleanValue()) node.put("skip_bounds", true);
+        JsonTree baby = babyDecorNode(cn, subdir, babyAssetConstant);
+        if (baby != null) node.put("baby", baby);
         this.diagnostics.info("default decor: %s/%s (gate '%s' constant-true)", subdir, assetId, gateField);
         return node;
+    }
+
+    /**
+     * The {@code baby} age delta for a default-decor row: the {@code isBaby}-arm {@code *_BABY} equipment
+     * asset's texture plus the baby decoration mesh's own inflate. Vanilla dresses a baby trader llama in
+     * a distinct baby caparison ({@code BabyLlamaModel#createBodyLayer} at {@code CubeDeformation(0.2)},
+     * asset {@code trader_llama_baby}) rather than the adult one ({@code LlamaModel#createBodyLayer} at
+     * {@code 0.5}, asset {@code trader_llama}); the baby mesh itself is the row's {@code age.baby}
+     * coordinate, so only the texture and grow differ. Null when the subject has no baby arm.
+     *
+     * @param cn the decor layer class
+     * @param subdir the equipment-texture sub-directory shared with the adult row
+     * @param babyAssetConstant the {@code *_BABY} {@code EquipmentAssets} constant, or {@code null} when absent
+     * @return the baby delta node, or {@code null} when there is no baby arm
+     */
+    private @Nullable JsonTree babyDecorNode(
+        @NotNull ClassNode cn,
+        @NotNull String subdir,
+        @Nullable String babyAssetConstant
+    ) {
+        if (babyAssetConstant == null) return null;
+        String babyAssetId = clinitStringBinding(VanillaSourceClasses.Types.EQUIPMENT_ASSETS, babyAssetConstant);
+        if (babyAssetId == null) {
+            this.diagnostics.warn("baby decor asset '%s' unresolved - no baby decoration", babyAssetConstant);
+            return null;
+        }
+        JsonTree baby = JsonTree.object();
+        baby.put("texture", namespaced(VanillaSourceClasses.Paths.TEXTURES_ENTITY
+            + VanillaSourceClasses.Paths.EQUIPMENT_DIR + subdir + "/" + babyAssetId + ".png"));
+        String babyField = findCtorBakedBabyField(cn);
+        LayerDefinitionIndex.Entry babyEntry = babyField == null ? null : this.layerDefinitions.get(babyField);
+        if (babyEntry == null)
+            this.diagnostics.warn("baby decor mesh for '%s' unresolved - inheriting the adult grow", babyAssetId);
+        else
+            putGrow(baby, nonZeroGrow(babyEntry.grow()));
+        return baby;
     }
 
     /** The first {@code EquipmentClientInfo$LayerType} constant any method reads. */
     private static @Nullable String firstLayerTypeConstant(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+            for (AbstractInsnNode in : method.instructions)
                 if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
                     return ((FieldInsnNode) in).name;
         return null;
@@ -1494,7 +1886,7 @@ final class EntityOverlayResolver {
             for (MethodNode method : cn.methods) {
                 if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
                 String pendingCall = null;
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : method.instructions) {
                     if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
                         && mi.desc.endsWith(")Z")) {
                         pendingCall = mi.name;
@@ -1520,7 +1912,7 @@ final class EntityOverlayResolver {
     /** The constant of an {@code iconst_0/1; ireturn} body, or {@code null} for computed returns. */
     private static @Nullable Boolean constantBooleanReturn(@NotNull MethodNode method) {
         Boolean pending = null;
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (AsmKit.isPseudoNode(in)) continue;
             if (in.getOpcode() == Opcodes.ICONST_0) pending = Boolean.FALSE;
             else if (in.getOpcode() == Opcodes.ICONST_1) pending = Boolean.TRUE;
@@ -1535,12 +1927,11 @@ final class EntityOverlayResolver {
      * {@code Identifier} field via the {@code LDC; withDefaultNamespace; PUTSTATIC} chain.
      */
     private @Nullable String chaseTextureFieldOwner(@NotNull String ownerInternalName, @NotNull String fieldName) {
-        ClassNode owner = this.cache.load(ownerInternalName);
-        MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, ownerInternalName);
         if (clinit == null) return null;
         String pendingPath = null;
         boolean pendingIdentifier = false;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = readEntityTextureLiteral(in);
             if (literal != null) {
                 pendingPath = literal;

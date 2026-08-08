@@ -39,7 +39,7 @@
  * </ul>
  * Camera-to-screen projection ({@link lib.minecraft.renderer.engine.camera.Lens Lens})
  * sits with {@code Camera} in the camera subpackage; the general geometric primitives split across
- * {@link lib.minecraft.renderer.face face} (face enums) and
+ * {@link lib.minecraft.renderer.face face} (the face vocabulary) and
  * {@link lib.minecraft.renderer.tensor tensor} ({@code Box}, {@code EulerRotation});
  * frame-building lives with the post stages in
  * {@link lib.minecraft.renderer.engine.compose compose}.

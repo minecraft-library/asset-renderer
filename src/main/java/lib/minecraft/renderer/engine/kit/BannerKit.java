@@ -108,9 +108,7 @@ public class BannerKit {
          * @return the namespaced texture id
          */
         public @NotNull String textureFor(@NotNull String assetId) {
-            int colon = assetId.indexOf(':');
-            if (colon < 0) return "minecraft:" + this.atlasPath + "/" + assetId;
-            return assetId.substring(0, colon) + ":" + this.atlasPath + "/" + assetId.substring(colon + 1);
+            return BannerPattern.atlasTexture(assetId, this.atlasPath);
         }
 
     }

@@ -1,8 +1,10 @@
 package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.option.AtlasOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.option.AtlasTile;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -25,7 +27,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * invariant - a parallelStream().forEach implementation would shuffle tiles.
  * <p>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew :asset-renderer:slowTest}.
+ * {@code ./gradlew slowTest}.
  */
 @Tag("slow")
 @DisplayName("AtlasRenderer parallel dispatch order + determinism")
@@ -36,8 +38,8 @@ class AtlasRendererParallelismTest {
 
     @BeforeAll
     static void bootstrapPipeline() {
-        Pipeline.Result result = Pipeline.run(
-            PipelineOptions.builder()
+        ClientAssets result = ClientAcquisition.acquire(
+            ClientOptions.builder()
                 .version("26.1")
                 .cacheRoot(CACHE_ROOT)
                 .build()
@@ -62,11 +64,11 @@ class AtlasRendererParallelismTest {
             .tileSize(64)
             .build();
 
-        List<String> firstIds = atlasRenderer.renderAtlas(options).tiles().stream()
-            .map(AtlasRenderer.TileSpec::id)
+        List<String> firstIds = atlasRenderer.renderAtlas(options).sidecar().tiles().stream()
+            .map(AtlasTile::id)
             .toList();
-        List<String> secondIds = atlasRenderer.renderAtlas(options).tiles().stream()
-            .map(AtlasRenderer.TileSpec::id)
+        List<String> secondIds = atlasRenderer.renderAtlas(options).sidecar().tiles().stream()
+            .map(AtlasTile::id)
             .toList();
 
         assertThat("parallel atlas dispatch must be order-stable",

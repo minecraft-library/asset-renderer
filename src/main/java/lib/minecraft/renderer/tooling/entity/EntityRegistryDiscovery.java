@@ -65,14 +65,14 @@ public final class EntityRegistryDiscovery {
 
         ClassNode entityType = AsmKit.requireClass(cache, VanillaSourceClasses.Types.ENTITY_TYPE, "EntityType discovery");
         Map<String, String> fieldToClass = collectEntityTypeFieldClasses(entityType);
-        Map<String, MobRegistration> mobRegistrations = collectMobRegistrations(entityType, diagnostics);
+        Map<String, String> mobRegistrations = collectMobRegistrations(entityType, diagnostics);
         Map<String, RendererRegistration> rendererRegistrations = collectRendererRegistrations(cache, diagnostics);
 
         List<EntitySubject> subjects = new ArrayList<>();
         int totalMobs = 0;
-        for (Map.Entry<String, MobRegistration> mobEntry : mobRegistrations.entrySet()) {
+        for (Map.Entry<String, String> mobEntry : mobRegistrations.entrySet()) {
             String fieldName = mobEntry.getKey();
-            MobRegistration mob = mobEntry.getValue();
+            String entityId = mobEntry.getValue();
 
             String entityClass = fieldToClass.get(fieldName);
             if (entityClass == null) {
@@ -86,18 +86,17 @@ public final class EntityRegistryDiscovery {
             RendererRegistration renderer = rendererRegistrations.get(fieldName);
             if (renderer == null) {
                 diagnostics.warn("mob '%s%s' has no resolvable renderer registration - no family emitted",
-                    VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE, mob.entityId());
+                    VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE, entityId);
                 continue;
             }
 
             subjects.add(new EntitySubject(
-                VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + mob.entityId(),
-                fieldName,
+                VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + entityId,
                 entityClass,
-                mob.mobCategory(),
                 renderer.rendererClass(),
                 List.copyOf(renderer.lambdaLayerFields()),
-                List.copyOf(renderer.lambdaTypeArgs())
+                List.copyOf(renderer.lambdaTypeArgs()),
+                List.copyOf(renderer.lambdaEquipmentLayerTypes())
             ));
         }
 
@@ -126,7 +125,7 @@ public final class EntityRegistryDiscovery {
      * metadata (entity id + {@code MobCategory}), preserving static-initializer (vanilla
      * alphabetical) order.
      */
-    private static @NotNull Map<String, MobRegistration> collectMobRegistrations(
+    private static @NotNull Map<String, String> collectMobRegistrations(
         @NotNull ClassNode entityType,
         @NotNull Diagnostics diagnostics
     ) {
@@ -136,11 +135,11 @@ public final class EntityRegistryDiscovery {
             return Map.of();
         }
 
-        Map<String, MobRegistration> out = new LinkedHashMap<>();
+        Map<String, String> out = new LinkedHashMap<>();
         String pendingId = null;
         String pendingCategory = null;
 
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) pendingId = literal;
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MOB_CATEGORY))
@@ -158,7 +157,7 @@ public final class EntityRegistryDiscovery {
             if (fieldName == null) {
                 diagnostics.warn("EntityType registration for id '%s' has no PUTSTATIC field", pendingId);
             } else {
-                out.put(fieldName, new MobRegistration(pendingId, pendingCategory));
+                out.put(fieldName, pendingId);
             }
             pendingId = null;
             pendingCategory = null;
@@ -175,7 +174,8 @@ public final class EntityRegistryDiscovery {
     /**
      * Walks {@code EntityRenderers.<clinit>} and returns a map from {@code EntityType} field
      * name to the resolved renderer class plus the {@code ModelLayers.X} /
-     * {@code <Renderer>$Type.X} references seen in the lambda body.
+     * {@code <Renderer>$Type.X} / {@code EquipmentClientInfo$LayerType.X} references seen in
+     * the lambda body.
      *
      * <p>Each registration compiles to {@code GETSTATIC EntityType.X} followed by an
      * {@code INVOKEDYNAMIC create():EntityRendererProvider}; the walk carries the field name
@@ -199,7 +199,7 @@ public final class EntityRegistryDiscovery {
 
         Map<String, RendererRegistration> out = new LinkedHashMap<>();
         String pendingEntityField = null;
-        for (AbstractInsnNode in = registryInit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : registryInit.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE)) {
                 pendingEntityField = ((FieldInsnNode) in).name;
                 continue;
@@ -218,8 +218,9 @@ public final class EntityRegistryDiscovery {
 
     /**
      * Resolves a lambda-metafactory {@code INVOKEDYNAMIC} to the renderer class the lambda
-     * produces, plus the {@code ModelLayers.X} field references and {@code <Renderer>$Type.X}
-     * enum-constant references seen in the lambda body. Two implementation-method shapes:
+     * produces, plus the {@code ModelLayers.X} field references, {@code <Renderer>$Type.X}
+     * enum-constant references, and {@code EquipmentClientInfo$LayerType.X} constants seen in
+     * the lambda body. Two implementation-method shapes:
      * a bare {@code XRenderer::new} constructor reference (the handle's owner IS the renderer
      * class, empty reference sets), and an {@code H_INVOKESTATIC} synthetic lambda whose body
      * is walked for its first {@code NEW} plus the field references. Returns {@code null}
@@ -233,29 +234,24 @@ public final class EntityRegistryDiscovery {
         if (handle == null) return null;
 
         if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && AsmKit.INIT.equals(handle.getName()))
-            return new RendererRegistration(handle.getOwner(), Set.of(), Set.of());
+            return new RendererRegistration(handle.getOwner(), Set.of(), Set.of(), Set.of());
 
         if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
             Set<String> layerFields = new LinkedHashSet<>();
             Set<EntitySubject.TypeFieldRef> typeArgs = new LinkedHashSet<>();
+            Set<String> equipmentLayerTypes = new LinkedHashSet<>();
             String rendererClass = AsmKit.walkLambdaBody(indy, ownerClass, node -> {
                 if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.MODEL_LAYERS))
                     layerFields.add(((FieldInsnNode) node).name);
+                else if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
+                    equipmentLayerTypes.add(((FieldInsnNode) node).name);
                 else if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode fi && fi.owner.contains("$Type"))
                     typeArgs.add(new EntitySubject.TypeFieldRef(fi.owner, fi.name));
             });
-            return rendererClass == null ? null : new RendererRegistration(rendererClass, layerFields, typeArgs);
+            return rendererClass == null ? null : new RendererRegistration(rendererClass, layerFields, typeArgs, equipmentLayerTypes);
         }
         return null;
     }
-
-    /**
-     * {@code <clinit>}-derived registration metadata paired with each {@code EntityType} field.
-     *
-     * @param entityId the namespace-less registry id
-     * @param mobCategory the {@code MobCategory} enum constant name
-     */
-    private record MobRegistration(@NotNull String entityId, @NotNull String mobCategory) {}
 
     /**
      * Resolved renderer registration paired with each {@code EntityType} field.
@@ -263,11 +259,14 @@ public final class EntityRegistryDiscovery {
      * @param rendererClass the renderer class's JVM internal name
      * @param lambdaLayerFields {@code ModelLayers.X} field names from the lambda body
      * @param lambdaTypeArgs {@code <Renderer>$Type.X} references from the lambda body
+     * @param lambdaEquipmentLayerTypes {@code EquipmentClientInfo$LayerType.X} constant names
+     *     from the lambda body
      */
     private record RendererRegistration(
         @NotNull String rendererClass,
         @NotNull Set<String> lambdaLayerFields,
-        @NotNull Set<EntitySubject.TypeFieldRef> lambdaTypeArgs
+        @NotNull Set<EntitySubject.TypeFieldRef> lambdaTypeArgs,
+        @NotNull Set<String> lambdaEquipmentLayerTypes
     ) {}
 
 }

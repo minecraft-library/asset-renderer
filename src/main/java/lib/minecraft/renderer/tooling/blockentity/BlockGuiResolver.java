@@ -1,8 +1,9 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,6 +22,7 @@ import java.util.Map;
  * flip) via {@link ClassNodeCache#readJson}, with the bell suppressed and a flat-sprite default of
  * TRUE. Per-renderer icon rolls are memoised.
  */
+@RequiredArgsConstructor
 final class BlockGuiResolver {
 
     /** The parent-chain depth bound the model walk follows. */
@@ -30,10 +32,6 @@ final class BlockGuiResolver {
 
     /** split id -> resolved display.gui roll (absent = not yet computed; present-null = unresolved). */
     private final @NotNull Map<String, Float> rollBySplitId = new HashMap<>();
-
-    BlockGuiResolver(@NotNull ClassNodeCache cache) {
-        this.cache = cache;
-    }
 
     /**
      * The split's inventory yaw (the camera-facing convention).
@@ -66,11 +64,11 @@ final class BlockGuiResolver {
      * @param splitId the models key
      * @return the {@code {rotation?, additive?}} node, or {@code null}
      */
-    @Nullable JsonNode icon(@NotNull String splitId) {
+    @Nullable JsonTree icon(@NotNull String splitId) {
         Integer rotation = BlockTransformPolicies.iconRotation(splitId);
         boolean additive = BlockTransformPolicies.isIconAdditive(splitId);
         if (rotation == null && !additive) return null;
-        JsonNode icon = JsonNode.object();
+        JsonTree icon = JsonTree.object();
         if (rotation != null) icon.putInt("rotation", rotation);
         if (additive) icon.put("additive", true);
         return icon;
@@ -79,16 +77,16 @@ final class BlockGuiResolver {
     /** The {@code display.gui} roll of the split's item icon, or {@code null} when unresolved. */
     private @Nullable Float displayGuiRoll(@NotNull String splitId) {
         if (this.rollBySplitId.containsKey(splitId)) return this.rollBySplitId.get(splitId);
-        Float roll = resolveRoll(localId(splitId));
+        Float roll = resolveRoll(stripNamespace(splitId));
         this.rollBySplitId.put(splitId, roll);
         return roll;
     }
 
     /** Reads the item definition, reduces its model component, and walks the parent chain for the roll. */
     private @Nullable Float resolveRoll(@NotNull String localId) {
-        JsonNode item = this.cache.readJson(VanillaSourceClasses.Paths.ITEM_MODEL_DIR + localId + VanillaSourceClasses.Paths.JSON_SUFFIX);
+        JsonTree item = this.cache.readJson(VanillaSourceClasses.Paths.ITEM_MODEL_DIR + localId + VanillaSourceClasses.Paths.JSON_SUFFIX);
         if (item == null) return null;
-        String modelRef = resolveModelRef(item.get(VanillaSourceClasses.DataKeys.MODEL));
+        String modelRef = resolveModelRef(item.find(VanillaSourceClasses.DataKeys.MODEL).orElse(null));
         return modelRef == null ? null : readDisplayGuiRoll(modelRef);
     }
 
@@ -98,14 +96,15 @@ final class BlockGuiResolver {
      * {@code minecraft:select} -> its fallback (recursively). Other component types (the pose
      * selectors, never reached at the reference pose) yield {@code null}.
      */
-    private @Nullable String resolveModelRef(@Nullable JsonNode component) {
+    private @Nullable String resolveModelRef(@Nullable JsonTree component) {
         if (component == null) return null;
-        String type = component.getString(VanillaSourceClasses.DataKeys.TYPE);
+        String type = component.findString(VanillaSourceClasses.DataKeys.TYPE).orElse(null);
         if (type == null) return null;
+
         return switch (type) {
-            case VanillaSourceClasses.DataKeys.MODEL_COMPONENT -> component.getString(VanillaSourceClasses.DataKeys.MODEL);
-            case VanillaSourceClasses.DataKeys.SPECIAL_COMPONENT -> component.getString(VanillaSourceClasses.DataKeys.BASE);
-            case VanillaSourceClasses.DataKeys.SELECT_COMPONENT -> resolveModelRef(component.get(VanillaSourceClasses.DataKeys.FALLBACK));
+            case VanillaSourceClasses.DataKeys.MODEL_COMPONENT -> component.findString(VanillaSourceClasses.DataKeys.MODEL).orElse(null);
+            case VanillaSourceClasses.DataKeys.SPECIAL_COMPONENT -> component.findString(VanillaSourceClasses.DataKeys.BASE).orElse(null);
+            case VanillaSourceClasses.DataKeys.SELECT_COMPONENT -> resolveModelRef(component.find(VanillaSourceClasses.DataKeys.FALLBACK).orElse(null));
             default -> null;
         };
     }
@@ -114,23 +113,20 @@ final class BlockGuiResolver {
     private @Nullable Float readDisplayGuiRoll(@NotNull String modelRef) {
         String path = stripNamespace(modelRef);
         for (int depth = 0; depth < MAX_MODEL_PARENT_DEPTH; depth++) {
-            JsonNode model = this.cache.readJson(VanillaSourceClasses.Paths.MODEL_DIR + path + VanillaSourceClasses.Paths.JSON_SUFFIX);
+            JsonTree model = this.cache.readJson(VanillaSourceClasses.Paths.MODEL_DIR + path + VanillaSourceClasses.Paths.JSON_SUFFIX);
             if (model == null) return null;
-            JsonNode display = model.get(VanillaSourceClasses.DataKeys.DISPLAY);
-            JsonNode gui = display == null ? null : display.get(VanillaSourceClasses.DataKeys.GUI);
-            JsonNode rotation = gui == null ? null : gui.get(VanillaSourceClasses.DataKeys.ROTATION);
-            JsonNode roll = rotation == null ? null : rotation.at(2);   // [pitch, yaw, roll]
-            if (roll != null) return roll.floatValue(0f);
-            String parent = model.getString(VanillaSourceClasses.DataKeys.PARENT);
+            var roll = model.findPath(
+                VanillaSourceClasses.DataKeys.DISPLAY,
+                VanillaSourceClasses.DataKeys.GUI,
+                VanillaSourceClasses.DataKeys.ROTATION)
+                .flatMap(rotation -> rotation.findAt(2));   // [pitch, yaw, roll]
+            if (roll.isPresent()) return roll.get().asFloat(0f);
+            String parent = model.findString(VanillaSourceClasses.DataKeys.PARENT).orElse(null);
             if (parent == null) return null;
             path = stripNamespace(parent);
         }
-        return null;
-    }
 
-    /** The split's namespace-less id ({@code chest} for {@code minecraft:chest}) - the item-def basename. */
-    private static @NotNull String localId(@NotNull String splitId) {
-        return stripNamespace(splitId);
+        return null;
     }
 
     /** Strips any {@code namespace:} prefix. */

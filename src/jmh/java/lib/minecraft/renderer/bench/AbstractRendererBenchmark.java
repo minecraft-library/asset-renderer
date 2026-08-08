@@ -1,7 +1,8 @@
 package lib.minecraft.renderer.bench;
 
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.openjdk.jmh.annotations.Level;
@@ -12,7 +13,7 @@ import org.openjdk.jmh.annotations.TearDown;
 
 /**
  * Shared {@link Scope#Benchmark} state for every rendering benchmark. Loads the asset pipeline
- * once per JMH trial via {@link Pipeline#run} so the pack-download + PNG-decode + JSON-parse cost
+ * once per JMH trial via {@link ClientAcquisition#run} so the pack-download + PNG-decode + JSON-parse cost
  * does not contaminate the per-iteration measurements each concrete benchmark captures.
  * <p>
  * Subclasses override {@link #onSetupTrial()} to pre-build their renderer(s) and option builders
@@ -34,7 +35,7 @@ public abstract class AbstractRendererBenchmark {
      * Raw pipeline result kept alongside {@link #context} for benchmarks that need the on-disk
      * pack root or the loaded-model counts for sanity-checking before a measurement kicks off.
      */
-    protected Pipeline.Result pipelineResult;
+    protected ClientAssets pipelineResult;
 
     /**
      * Runs the pipeline once per trial, resolves the renderer context, then hands off to the
@@ -44,7 +45,7 @@ public abstract class AbstractRendererBenchmark {
      */
     @Setup(Level.Trial)
     public final void bootstrapPipeline() throws Exception {
-        this.pipelineResult = Pipeline.run(PipelineOptions.defaults());
+        this.pipelineResult = ClientAcquisition.acquire(ClientOptions.defaults());
         this.context = PipelineRendererContext.of(this.pipelineResult);
         onSetupTrial();
     }

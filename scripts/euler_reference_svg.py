@@ -349,6 +349,8 @@ out_path = (script_dir
             / "tensor" / "doc-files" / "euler_reference.svg").resolve()
 
 out_path.parent.mkdir(parents=True, exist_ok=True)
-out_path.write_text("\n".join(svg_parts), encoding="utf-8")
+# newline="\n" so Python does not translate the joined LF to the platform separator: this writes a
+# TRACKED svg, and on Windows the default would put CRLF into a file whose blob is LF.
+out_path.write_text("\n".join(svg_parts), encoding="utf-8", newline="\n")
 
 print(f"Wrote {out_path}")

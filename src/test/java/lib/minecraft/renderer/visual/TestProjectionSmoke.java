@@ -5,20 +5,20 @@ import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import javax.imageio.ImageIO;
 
 /**
  * Diagnostic task that renders one block under every {@link Projection} (at its base pose) plus a
@@ -29,7 +29,7 @@ import javax.imageio.ImageIO;
  * {@code minecraft:tnt} - a complete cube with distinct top/side/bottom faces that make orientation
  * and clipping issues obvious.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:projectionSmoke [-PblockId=minecraft:tnt] [-PrenderSize=512]}
+ * Usage: {@code ./gradlew projectionSmoke [-PblockId=minecraft:tnt] [-PrenderSize=512]}
  */
 @UtilityClass
 public final class TestProjectionSmoke {
@@ -61,7 +61,7 @@ public final class TestProjectionSmoke {
         String blockId = args.length > 0 ? args[0] : "minecraft:tnt";
         int size = args.length > 1 ? Integer.parseInt(args[1]) : 512;
 
-        PipelineRendererContext context = PipelineRendererContext.of(Pipeline.run(PipelineOptions.defaults()));
+        PipelineRendererContext context = PipelineRendererContext.of(ClientAcquisition.acquire(ClientOptions.defaults()));
         BlockRenderer renderer = new BlockRenderer(context);
         Path outputDir = Path.of("cache/visual/projection-smoke");
         Files.createDirectories(outputDir);

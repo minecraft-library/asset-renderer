@@ -4,12 +4,14 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -20,7 +22,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import javax.imageio.ImageIO;
 
 /**
  * Diagnostic task that proves the {@code ColorProperties} wiring end-to-end through the 16
@@ -33,7 +34,7 @@ import javax.imageio.ImageIO;
  * immediate. The companion {@code RedstoneTintTest} pins the same path with strict pixel
  * assertions in the regular test suite.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:redstoneTints [-PrenderSize=64]}
+ * Usage: {@code ./gradlew redstoneTints [-PrenderSize=64]}
  */
 @UtilityClass
 public final class TestRedstoneTints {
@@ -102,15 +103,15 @@ public final class TestRedstoneTints {
      * the caller sees a clear bootstrap error message.
      */
     private static @NotNull PipelineRendererContext buildContext(@NotNull ConcurrentList<File> userPacks) {
-        PipelineOptions options = PipelineOptions.defaults()
+        ClientOptions options = ClientOptions.defaults()
             .mutate()
             .texturePacks(userPacks)
             .build();
         try {
-            Pipeline.Result result = Pipeline.run(options);
+            ClientAssets result = ClientAcquisition.acquire(options);
             return PipelineRendererContext.of(result);
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
     }

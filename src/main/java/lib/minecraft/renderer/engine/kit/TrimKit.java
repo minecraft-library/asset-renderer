@@ -90,17 +90,39 @@ public class TrimKit {
         @NotNull String armorSlot,
         @NotNull String material
     ) {
-        String baseTrimId = TRIM_TEXTURE_PREFIX + armorSlot + "_trim";
+        return permuteFrom(engine, TRIM_TEXTURE_PREFIX + armorSlot + "_trim", material);
+    }
+
+    /**
+     * Resolves and permutes a trim overlay from an already-built base-pattern id and a material key -
+     * the three texture resolves in base / palette-key / material order, the three-way missing guard,
+     * and the permutation.
+     *
+     * <p>The base id is the caller's because it is the only thing the two trim paths differ by: an item
+     * icon reads {@code trims/items/{slot}_trim} while a worn shell reads
+     * {@code trims/entity/{layer}/{pattern}}. So the palette key both share, and the prefix the
+     * material's colour strip sits under, are each declared once - here - rather than once per path.
+     *
+     * @param engine the texture engine for pack-aware texture resolution
+     * @param baseId the grayscale base pattern's texture id
+     * @param material the trim material key supplying the colour palette
+     * @return the permuted trim overlay, or empty when any of the three source textures is missing
+     */
+    static @NotNull Optional<PixelBuffer> permuteFrom(
+        @NotNull Textures engine,
+        @NotNull String baseId,
+        @NotNull String material
+    ) {
         String materialPaletteId = PALETTE_MATERIAL_PREFIX + material;
 
-        Optional<PixelBuffer> baseTrim = engine.tryResolveTexture(baseTrimId);
+        Optional<PixelBuffer> base = engine.tryResolveTexture(baseId);
         Optional<PixelBuffer> paletteKey = engine.tryResolveTexture(PALETTE_KEY_ID);
         Optional<PixelBuffer> materialPalette = engine.tryResolveTexture(materialPaletteId);
 
-        if (baseTrim.isEmpty() || paletteKey.isEmpty() || materialPalette.isEmpty())
+        if (base.isEmpty() || paletteKey.isEmpty() || materialPalette.isEmpty())
             return Optional.empty();
 
-        return Optional.of(permute(baseTrim.get(), paletteKey.get(), materialPalette.get()));
+        return Optional.of(permute(base.get(), paletteKey.get(), materialPalette.get()));
     }
 
     /**

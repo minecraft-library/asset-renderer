@@ -1,0 +1,4 @@
+subject	mean_argb_delta	differing_pixels	java_coverage	vanilla_coverage
+minecraft__zombie_iron	2.4299	8492	0.2970	0.2996
+minecraft__piglin_iron	2.4906	8800	0.3100	0.3120
+minecraft__zombie_leather-dyeb04030	1.1000	4000	0.2500	0.2500

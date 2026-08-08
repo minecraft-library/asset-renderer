@@ -89,7 +89,7 @@
  *
  * <p><b>JSON adapters.</b> {@code Vector2f}, {@code Vector3f}, and {@code Vector4f} each
  * carry a Gson {@code TypeAdapter}, registered via the
- * {@link lib.minecraft.renderer.pipeline.PipelineGsonContributor PipelineGsonContributor} SPI
+ * {@link lib.minecraft.renderer.pipeline.util.PipelineGsonContributor PipelineGsonContributor} SPI
  * so downstream modules pick them up automatically through {@code GsonSettings.defaults()}.
  *
  * @see lib.minecraft.renderer.tensor.Matrix4f

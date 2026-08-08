@@ -1,0 +1,48 @@
+{
+  "//": "parity.pin.player-crc · regen: ./gradlew parityCapture -Partifacts=pin.player-crc",
+  "artifact": "pin.player-crc",
+  "format": 1,
+  "key": "pin_key",
+  "kind": "pin-set",
+  "provenance": {
+    "artifact": "pin.player-crc",
+    "asset_dirty": false,
+    "asset_sha": "00a006307ac6443e243d30caf238849e20cd9c60",
+    "counts": {
+      "values": 3
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "slowTest",
+    "reason": "P12: the eight render CRCs, the forty golden floats and the two corpus counts move out of Java literals into the store, carried across verbatim - every value equals the literal deleted at 00a00630^. pin.fluid-crc's thirteen values are new: the test compared run A to run B and pinned nothing",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "timestamp": "2026-08-01T11:35:37Z",
+    "tool_version": "1.0.0"
+  },
+  "values": {
+    "armored_full_vanilla_iso": {
+      "crc32": "0x60CFB45A",
+      "subject": "Type.FULL + ArmorMaterial.IRON helmet/chestplate/leggings/boots, THREE_D, VANILLA_ISO, canvas 256, ssaa 1, aa off, steve skin",
+      "type": "crc32"
+    },
+    "full_vanilla_iso": {
+      "crc32": "0xF9665E93",
+      "subject": "Type.FULL, THREE_D, VANILLA_ISO, canvas 256, ssaa 1, aa off, steve skin",
+      "type": "crc32"
+    },
+    "skull_portrait": {
+      "crc32": "0x88CDA794",
+      "subject": "Type.SKULL, THREE_D, PORTRAIT, canvas 256, ssaa 1, aa off, steve skin",
+      "type": "crc32"
+    }
+  }
+}

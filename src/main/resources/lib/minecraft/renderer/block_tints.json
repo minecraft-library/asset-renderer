@@ -2,125 +2,103 @@
   "//": "tooling.blockTints · regen: ./gradlew blockTints · order: BlockColors.createDefault() walk order",
   "format": 2,
   "source_version": "26.1",
-  "tints": [
-    {
-      "block": "minecraft:large_fern",
+  "tints": {
+    "minecraft:large_fern": {
       "target": "GRASS",
       "source": "doubleTallGrass"
     },
-    {
-      "block": "minecraft:tall_grass",
+    "minecraft:tall_grass": {
       "target": "GRASS",
       "source": "doubleTallGrass"
     },
-    {
-      "block": "minecraft:fern",
+    "minecraft:fern": {
       "target": "GRASS",
       "source": "grass"
     },
-    {
-      "block": "minecraft:short_grass",
+    "minecraft:short_grass": {
       "target": "GRASS",
       "source": "grass"
     },
-    {
-      "block": "minecraft:potted_fern",
+    "minecraft:potted_fern": {
       "target": "GRASS",
       "source": "grass"
     },
-    {
-      "block": "minecraft:bush",
+    "minecraft:bush": {
       "target": "GRASS",
       "source": "grass"
     },
-    {
-      "block": "minecraft:grass_block",
+    "minecraft:grass_block": {
       "target": "GRASS",
       "source": "grassBlock"
     },
-    {
-      "block": "minecraft:spruce_leaves",
+    "minecraft:spruce_leaves": {
       "target": "CONSTANT",
       "constant": "0xFF619961",
       "source": "constant"
     },
-    {
-      "block": "minecraft:birch_leaves",
+    "minecraft:birch_leaves": {
       "target": "CONSTANT",
       "constant": "0xFF80A755",
       "source": "constant"
     },
-    {
-      "block": "minecraft:oak_leaves",
+    "minecraft:oak_leaves": {
       "target": "FOLIAGE",
       "source": "foliage"
     },
-    {
-      "block": "minecraft:jungle_leaves",
+    "minecraft:jungle_leaves": {
       "target": "FOLIAGE",
       "source": "foliage"
     },
-    {
-      "block": "minecraft:acacia_leaves",
+    "minecraft:acacia_leaves": {
       "target": "FOLIAGE",
       "source": "foliage"
     },
-    {
-      "block": "minecraft:dark_oak_leaves",
+    "minecraft:dark_oak_leaves": {
       "target": "FOLIAGE",
       "source": "foliage"
     },
-    {
-      "block": "minecraft:vine",
+    "minecraft:vine": {
       "target": "FOLIAGE",
       "source": "foliage"
     },
-    {
-      "block": "minecraft:mangrove_leaves",
+    "minecraft:mangrove_leaves": {
       "target": "FOLIAGE",
       "source": "foliage"
     },
-    {
-      "block": "minecraft:leaf_litter",
+    "minecraft:leaf_litter": {
       "target": "DRY_FOLIAGE",
       "source": "dryFoliage"
     },
-    {
-      "block": "minecraft:sugar_cane",
+    "minecraft:sugar_cane": {
       "target": "GRASS",
       "source": "sugarCane"
     },
-    {
-      "block": "minecraft:attached_melon_stem",
+    "minecraft:attached_melon_stem": {
       "target": "CONSTANT",
       "constant": "0xFFE0C71C",
       "source": "constant"
     },
-    {
-      "block": "minecraft:attached_pumpkin_stem",
+    "minecraft:attached_pumpkin_stem": {
       "target": "CONSTANT",
       "constant": "0xFFE0C71C",
       "source": "constant"
     },
-    {
-      "block": "minecraft:melon_stem",
+    "minecraft:melon_stem": {
       "target": "CONSTANT",
       "constant": "0xFF00FF00",
       "source": "stem@age=0"
     },
-    {
-      "block": "minecraft:pumpkin_stem",
+    "minecraft:pumpkin_stem": {
       "target": "CONSTANT",
       "constant": "0xFF00FF00",
       "source": "stem@age=0"
     },
-    {
-      "block": "minecraft:lily_pad",
+    "minecraft:lily_pad": {
       "target": "CONSTANT",
       "constant": "0xFF71C35C",
       "source": "constant"
     }
-  ],
+  },
   "dropped": [
     {
       "block": "minecraft:pink_petals",

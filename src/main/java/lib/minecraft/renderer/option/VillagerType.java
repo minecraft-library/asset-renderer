@@ -12,7 +12,9 @@ import java.util.Locale;
  * the {@code <prefix>/type/plains} robe the layer composites at zero state; the other biomes swap
  * in their {@code <prefix>/type/<biome>} robe.
  * The prefix ({@code villager} / {@code zombie_villager}) is supplied per-entity at render, so this
- * enum carries only the prefix-relative sub-path.
+ * enum carries only the prefix-relative sub-path. It carries two of them, differing in nothing but the
+ * directory token: {@link #overlaySubPath()} for the adult robe pass and {@link #babyOverlaySubPath()}
+ * for the baby one, mirroring the layer's own {@code isBaby ? "baby" : "type"} swap.
  */
 public enum VillagerType {
 
@@ -33,6 +35,18 @@ public enum VillagerType {
      */
     public @NotNull String overlaySubPath() {
         return "type/" + name().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * The prefix-relative baby robe sub-path for this biome (e.g. {@code baby/desert}) - the layer's
+     * {@code isBaby ? "baby" : "type"} directory swap; the renderer prepends the entity texture prefix
+     * to form the full {@code textures/entity/} ref. The {@code baby/} directory ships no
+     * {@code .mcmeta} sidecars, so the hat flag is still read off {@link #overlaySubPath()}.
+     *
+     * @return the {@code baby/<biome>} sub-path
+     */
+    public @NotNull String babyOverlaySubPath() {
+        return "baby/" + name().toLowerCase(Locale.ROOT);
     }
 
     /**

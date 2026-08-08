@@ -1,0 +1,67 @@
+{
+  "//": "parity.sweep.player · regen: ./gradlew parityCapture -Partifacts=sweep.player",
+  "artifact": "sweep.player",
+  "format": 1,
+  "key": "subject",
+  "kind": "sweep-table",
+  "provenance": {
+    "artifact": "sweep.player",
+    "asset_dirty": false,
+    "asset_sha": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+    "counts": {
+      "failed": 0,
+      "rows": 2
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "mode": "EVERY",
+    "parity_class": "moving",
+    "population_changed": true,
+    "producer": "playerParityVanilla",
+    "reason": "Whole-store capture on a clean tree at the end of the parity-cleanup follow-up. Twenty-three of twenty-four artifacts are byte-identical to the previous baseline, including all six sweeps after a full ground-truth re-render, so the six landed phases moved no hashed byte and the reference tree had no staleness to shed. manifest.visual gains 46 rows and moves none: its membership was widened from six sub-trees to eight, and entity-projections and projection-smoke are hashed here for the first time.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "reference_manifest_digest": "d380e24f3d253cf6ccb5f9c3beb1ba1b9e12a827c438ec3898dc38acbf29d170",
+    "timestamp": "2026-08-07T16:43:17Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 11964
+  },
+  "rows": [
+    {
+      "differing_pixels": "67152",
+      "java_coverage": "0.2827",
+      "mean_argb_delta": "11.8529",
+      "status": "ok",
+      "subject": "full",
+      "vanilla_coverage": "0.2820"
+    },
+    {
+      "differing_pixels": "116939",
+      "java_coverage": "0.6145",
+      "mean_argb_delta": "17.2847",
+      "status": "ok",
+      "subject": "skull",
+      "vanilla_coverage": "0.6198"
+    }
+  ],
+  "summary": {
+    "buckets": {
+      "<0.25": 0,
+      "<0.50": 0,
+      "<0.75": 0,
+      "<1.00": 0,
+      "failed": 0,
+      "total": 2
+    },
+    "failed": 0,
+    "rows": 2,
+    "sum": "29.1376"
+  }
+}

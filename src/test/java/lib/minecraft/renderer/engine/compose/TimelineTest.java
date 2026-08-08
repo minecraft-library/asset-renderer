@@ -9,6 +9,7 @@ import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -110,6 +112,120 @@ class TimelineTest {
             assertThat(timeline.millisAt(f), is(timeline.tickAt(f) * 50.0));
     }
 
+    // ---- ageInTicks (the off-lattice view) ------------------------------------------------------
+
+    @Test
+    @DisplayName("ageInTicks on a tick permit is exactly its tickAt, for every permit")
+    void ageInTicksIsExactOnTickPermits() {
+        // The lattice identity above makes this exact rather than approximate: tick * 50.0 is an exact
+        // integer product well inside a double's mantissa, and dividing it back by 50 recovers the tick
+        // with no rounding. Asserted as float equality on purpose - a tolerance here would hide the
+        // narrowing this view would otherwise be free to introduce.
+        List<Timeline.TickTimeline> permits = List.of(
+            new Timeline.Static(7),
+            new Timeline.TickLoop(3, 6, 2, 100),
+            new Timeline.TickLoop(0, 64, 375, Timeline.MILLIS_PER_TICK),
+            new Timeline.ChangePoints(List.of(
+                new Timeline.ChangePoints.Keyframe(0, 50),
+                new Timeline.ChangePoints.Keyframe(5, 50),
+                new Timeline.ChangePoints.Keyframe(23_999, 50))));
+
+        for (Timeline.TickTimeline timeline : permits)
+            for (int f = 0; f < timeline.frames(); f++)
+                assertThat(timeline.ageInTicks(f), is((float) timeline.tickAt(f)));
+    }
+
+    @Test
+    @DisplayName("ageInTicks falls between ticks on a wall-rate loop, which has no tickAt")
+    void ageInTicksIsFractionalOnFpsLoop() {
+        Timeline.FpsLoop timeline = new Timeline.FpsLoop(30, 6);
+        for (int f = 0; f < timeline.frames(); f++)
+            assertThat(timeline.ageInTicks(f), is((float) (f * (1000.0 / 30) / Timeline.MILLIS_PER_TICK)));
+        // The value the whole view exists for: a frame sitting off the tick lattice.
+        float age = timeline.ageInTicks(1);
+        assertThat(age, is(0.6666667f));
+        assertThat(age == Math.rint(age), is(false));
+    }
+
+    @Test
+    @DisplayName("ageInTicks reads the millisecond axis, so it tracks millisAt on every schedule")
+    void ageInTicksTracksMillisAt() {
+        List<Timeline> schedules = List.of(
+            new Timeline.Static(7),
+            new Timeline.TickLoop(3, 6, 2, 100),
+            new Timeline.FpsLoop(24, 5));
+        for (Timeline timeline : schedules)
+            for (int f = 0; f < timeline.frames(); f++)
+                assertThat(timeline.ageInTicks(f), is((float) (timeline.millisAt(f) / Timeline.MILLIS_PER_TICK)));
+    }
+
+    // ---- SubTickLoop (sampling between ticks) ---------------------------------------------------
+
+    @Test
+    @DisplayName("one sub-tick step is the whole-tick schedule itself, not a copy of it")
+    void subTickStepOneIsTheWholeTickSchedule() {
+        // Identity, not equivalence: the default path must reach the exact same object shape, so a
+        // caller who never asks for subdivision cannot be moved by its arithmetic.
+        assertThat(Timeline.gameTime(5, 8, 3, 1), is(Timeline.gameTime(5, 8, 3)));
+        assertThat(Timeline.gameTime(5, 8, 3, 0), is(Timeline.gameTime(5, 8, 3)));
+        assertThat(Timeline.gameTime(5, 8, 3, -2), is(Timeline.gameTime(5, 8, 3)));
+        assertThat(Timeline.gameTime(5, 8, 3, 4), is(instanceOf(Timeline.SubTickLoop.class)));
+    }
+
+    @Test
+    @DisplayName("a still has no motion to sample finely, so it stays a Static however subdivided")
+    void subTickLeavesAStillAlone() {
+        assertThat(Timeline.gameTime(7, 1, 4, 8), is(instanceOf(Timeline.Static.class)));
+        assertThat(Timeline.gameTime(7, 1, 4, 8).frames(), is(1));
+    }
+
+    @Test
+    @DisplayName("subdividing samples between ticks over the same span at the same speed")
+    void subTickSubdividesTheSameSpan() {
+        Timeline whole = Timeline.gameTime(0, 4, 1);
+        Timeline fine = Timeline.gameTime(0, 4, 1, 4);
+
+        assertThat(fine.frames(), is(16));
+        // Quarter-tick steps: the whole-tick instants still appear, with three new ones between each.
+        for (int f = 0; f < fine.frames(); f++)
+            assertThat(fine.ageInTicks(f), is(f * 0.25f));
+        for (int f = 0; f < whole.frames(); f++)
+            assertThat(fine.ageInTicks(f * 4), is(whole.ageInTicks(f)));
+
+        // Same wall-clock span, so the loop plays at the same speed - only more finely sampled. 50 ms
+        // does not divide into 4 evenly, so the leftover 2 ms go to the first frames of each tick.
+        assertThat(fine.delayMs(0), is(13));
+        assertThat(fine.delayMs(1), is(13));
+        assertThat(fine.delayMs(2), is(12));
+        assertThat(fine.delayMs(3), is(12));
+        assertThat(fine.playbackMsAt(4), is((long) Timeline.MILLIS_PER_TICK));
+        assertThat(fine.playbackMsAt(fine.frames()), is(whole.playbackMsAt(whole.frames())));
+    }
+
+    @Test
+    @DisplayName("a step count that does not divide the tick evenly rounds the delay, and says so")
+    void subTickRoundsAnUnevenDelay() {
+        // 50 / 3 is 16.67 ms, which no whole-millisecond delay can carry. Spreading the leftover keeps
+        // each tick exactly 50 ms - 17 / 17 / 16 - where a rounded 17 / 17 / 17 would stretch the loop.
+        Timeline fine = Timeline.gameTime(0, 2, 1, 3);
+        assertThat(fine.frames(), is(6));
+        assertThat(fine.delayMs(0), is(17));
+        assertThat(fine.delayMs(1), is(17));
+        assertThat(fine.delayMs(2), is(16));
+        assertThat(fine.playbackMsAt(3), is((long) Timeline.MILLIS_PER_TICK));
+        assertThat(fine.playbackMsAt(6), is(2L * Timeline.MILLIS_PER_TICK));
+        assertThat(fine.ageInTicks(1), is(1f / 3f));
+    }
+
+    @Test
+    @DisplayName("SubTickLoop is not a tick timeline, having no honest tick to report")
+    void subTickLoopIsNotTickNative() {
+        Timeline fine = Timeline.gameTime(0, 4, 1, 4);
+        assertThat(fine instanceof Timeline.TickTimeline, is(false));
+        // It still sits on the millisecond axis every schedule shares.
+        assertThat(fine.millisAt(1), is(0.25 * Timeline.MILLIS_PER_TICK));
+    }
+
     // ---- FpsLoop -------------------------------------------------------------------------------
 
     @Test
@@ -199,6 +315,56 @@ class TimelineTest {
         Timeline.ChangePoints b = new Timeline.ChangePoints(List.of(
             new Timeline.ChangePoints.Keyframe(0, 50), new Timeline.ChangePoints.Keyframe(2, 100)));
         assertThat(a, is(b));
+    }
+
+    // ---- schedule (the caller-selected playback fork) -------------------------------------------
+
+    @Test
+    @DisplayName("schedule defaults to the authored-rate texture strip")
+    void scheduleDefaultsToTextureStrip() {
+        AnimationOptions anim = AnimationOptions.builder().frameCount(64).ticksPerFrame(375).build();
+        assertThat(Timeline.schedule(anim), is(Timeline.tickStrip(anim)));
+        assertTickLoop(Timeline.schedule(anim), 0, 64, 375, 375 * Timeline.MILLIS_PER_TICK);
+    }
+
+    @Test
+    @DisplayName("schedule GAME_TIME samples the same ticks but plays each back in one tick")
+    void scheduleGameTimeCompressesPlayback() {
+        // A whole day across the clock's 64 faces: the same 375-tick sampling cadence either way, but
+        // the strip would hold each frame for the 18.75 s of world time it covers - a 20-minute loop -
+        // where the game-time schedule plays the day out in 3.2 s.
+        AnimationOptions anim = AnimationOptions.builder()
+            .frameCount(64).ticksPerFrame(375).schedule(AnimationOptions.Schedule.GAME_TIME).build();
+        assertTickLoop(Timeline.schedule(anim), 0, 64, 375, Timeline.MILLIS_PER_TICK);
+
+        Timeline.TickTimeline strip = Timeline.tickStrip(anim);
+        Timeline.TickTimeline compressed = Timeline.schedule(anim);
+        for (int frame = 0; frame < 64; frame++)
+            assertThat(compressed.tickAt(frame), is(strip.tickAt(frame)));
+        assertThat(compressed.playbackMsAt(64), is(3_200L));
+    }
+
+    @Test
+    @DisplayName("schedule GAME_TIME normalizes a single frame to a Static, like the strip does")
+    void scheduleGameTimeSingleFrameIsStatic() {
+        AnimationOptions anim = AnimationOptions.builder()
+            .startTick(7).schedule(AnimationOptions.Schedule.GAME_TIME).build();
+        Timeline.TickTimeline timeline = Timeline.schedule(anim);
+        assertThat(timeline, is(instanceOf(Timeline.Static.class)));
+        assertThat(timeline.tickAt(0), is(7));
+    }
+
+    @Test
+    @DisplayName("the 200-tick derive cap does not clip an explicit day-long strip")
+    void scheduleIsNotClippedByDeriveCap() {
+        // MAX_LOOP_TICKS bounds derivation from .mcmeta sidecars, not a schedule a caller states
+        // outright - a 64 x 375 day spans 24 000 ticks, two orders past the cap.
+        AnimationOptions anim = AnimationOptions.builder()
+            .frameCount(64).ticksPerFrame(375).schedule(AnimationOptions.Schedule.GAME_TIME).build();
+        Timeline.TickTimeline timeline = Timeline.schedule(anim);
+        assertThat(timeline.frames(), is(64));
+        assertThat(timeline.tickAt(63), is(23_625));
+        assertThat(timeline.tickAt(63), is(greaterThan(Timeline.MAX_LOOP_TICKS)));
     }
 
     // ---- deriveTickStrip (the six AUTO fixtures) -----------------------------------------------

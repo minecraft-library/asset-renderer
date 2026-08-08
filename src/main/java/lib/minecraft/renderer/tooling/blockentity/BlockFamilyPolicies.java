@@ -40,10 +40,9 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             Map.entry("skull#createHumanoidHeadLayer", "minecraft:skull_humanoid_head"),
             Map.entry("skull#createHeadLayer", "minecraft:skull_dragon_head"),
             Map.entry("skull#createHeadModel", "minecraft:skull_piglin_head")),
-        "P34/P31: our split ids for the multi-mesh families (bed head/foot, decorated_pot base/sides,"
-            + " bell_body, 4-way skull); vanilla uses one BlockEntityType each - legacy"
-            + " SourceDiscovery.applyMethodSuffix:738-757 + SKULL_VARIANT_POLICY:141-144 (skull dims stay"
-            + " derived from each wrapper's LayerDefinition.create tail: mob 64x32, humanoid 64x64)"),
+        "our split ids for the multi-mesh families (bed head/foot, decorated_pot base/sides, bell_body,"
+            + " 4-way skull); vanilla registers one BlockEntityType each. Skull dims stay derived from each"
+            + " wrapper's LayerDefinition.create tail - mob 64x32, humanoid 64x64"),
 
     /**
      * The sign factory-parameter table, keyed on the factory method the renderer's own
@@ -62,8 +61,8 @@ enum BlockFamilyPolicies implements NavigationPolicy {
                 new SignVariant("minecraft:hanging_sign", null, "CEILING"),
                 new SignVariant("minecraft:hanging_sign_attached", null, "CEILING_MIDDLE"),
                 new SignVariant("minecraft:wall_hanging_sign", null, "WALL"))),
-        "P39: sign withStick + hanging-sign attachment split ids; the factory branch structure is"
-            + " bytecode, the id<->constant naming is ours - legacy SourceDiscovery.emitSignSources:693-716"),
+        "sign withStick + hanging-sign attachment split ids; the factory branch structure is bytecode, the"
+            + " id<->constant naming is ours"),
 
     /**
      * The banner {@code ModelLayers} field to (split id, {@code withStick})
@@ -79,9 +78,8 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             "WALL_BANNER", new BannerVariant("minecraft:wall_banner", 0),
             "STANDING_BANNER_FLAG", new BannerVariant("minecraft:banner_flag", 1),
             "WALL_BANNER_FLAG", new BannerVariant("minecraft:wall_banner_flag", 0)),
-        "P34: banner ModelLayers field -> (split id, withStick); the ICONST split is baked in"
-            + " createRoots, the flag/pole split is the _FLAG field suffix - legacy"
-            + " SourceDiscovery.PARAM_INT_SUFFIX:125-128 + BannerFlagModel endsWith heuristic"),
+        "banner ModelLayers field -> (split id, withStick); the ICONST split is baked in createRoots, and the"
+            + " flag/pole split is the _FLAG field suffix, matched against a BannerFlagModel endsWith test"),
 
     /**
      * The {@code SkullBlock$Types} to catalog split-id map. Vanilla has ONE
@@ -98,9 +96,9 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             Map.entry("player", "minecraft:skull_humanoid_head"),
             Map.entry("dragon", "minecraft:skull_dragon_head"),
             Map.entry("piglin", "minecraft:skull_piglin_head")),
-        "P31: the 4-way skull split grouping the seven SkullBlock$Types by shared mesh + texture dims -"
-            + " legacy BlockListDiscovery.SKULL_TYPE_TO_ENTITY_ID:149-157 (mob 64x32 / humanoid 64x64 /"
-            + " dragon mesh / piglin ears); vanilla registers one BlockEntityType.SKULL, the split is ours"),
+        "the 4-way skull split grouping the seven SkullBlock$Types by shared mesh + texture dims (mob 64x32 /"
+            + " humanoid 64x64 / dragon mesh / piglin ears); vanilla registers one BlockEntityType.SKULL, so the"
+            + " split is ours"),
 
     /**
      * The catalog family-dispatch roster: which subjects emit a {@code blocks[]} catalog and
@@ -122,9 +120,8 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             Map.entry("copper_golem_statue", CatalogFamily.COPPER_GOLEM_STATUE),
             Map.entry("skull", CatalogFamily.SKULL),
             Map.entry("banner", CatalogFamily.BANNER)),
-        "P33: the family-dispatch roster - legacy BlockListDiscovery.FAMILY_DISPATCH:191/:203-222;"
-            + " the family set is derivable from discovery, only the per-family split/texture-source"
-            + " divergence is declared (07 3 row 18); part-only pseudo families ride PART_COMPOSITION [P32]"),
+        "the family-dispatch roster: the family set is derivable from discovery, so only the per-family"
+            + " split / texture-source divergence is declared; part-only pseudo families ride PART_COMPOSITION"),
 
     /**
      * The chest block-to-{@code ChestSpecialRenderer}-texture-field binding: the three fixed
@@ -136,10 +133,9 @@ enum BlockFamilyPolicies implements NavigationPolicy {
         new ChestVariants(
             Map.of("chest", "REGULAR", "trapped_chest", "TRAPPED", "ender_chest", "ENDER_CHEST"),
             "COPPER_"),
-        "P35: chest class->texture-field binding + COPPER_<weather> composition with the UNAFFECTED"
-            + " fallback - legacy BlockListDiscovery switch :1199-1212 + weather default :1914; 'the"
-            + " class<->field binding is spread across vanilla's special-renderer dispatch; not one"
-            + " walkable site' (07 3 row 22)"),
+        "chest class->texture-field binding + COPPER_<weather> composition with the UNAFFECTED fallback; the"
+            + " class<->field binding is spread across vanilla's special-renderer dispatch rather than sitting at"
+            + " one walkable site"),
 
     /**
      * Which of a tint-bearing renderer's meshes takes the dye: the {@code *FlagModel} factory
@@ -148,10 +144,10 @@ enum BlockFamilyPolicies implements NavigationPolicy {
      */
     BANNER_DYE_TARGET(
         "FlagModel",
-        "P43: the dye-taking mesh is the *FlagModel factory - legacy TintDiscovery.java:84 (classEntry"
-            + " .contains(\"Flag\") && endsWith(\"Model.class\")), rationale :81-85; 'LIKELY-hard - would"
-            + " need renderer data-flow analysis of which submitted buffer receives the DyeColor'"
-            + " (08 3 row 34); consulted by BlockTintFlagResolver"),
+        "the dye-taking mesh is the *FlagModel factory, matched as a class name containing \"Flag\" and ending"
+            + " \"Model.class\"; the honest derivation would need renderer data-flow analysis of which submitted"
+            + " buffer receives the DyeColor, so this stays a declared escape hatch. Consulted by"
+            + " BlockTintFlagResolver"),
 
     /**
      * The fixed sheet texture stems ({@code = Sheets.<X>} sprite prefixes) per catalog
@@ -180,9 +176,8 @@ enum BlockFamilyPolicies implements NavigationPolicy {
      */
     PLAYER_SKULL_SKIN(
         "entity/player/slim/steve",
-        "the DefaultPlayerSkin.getDefaultSkin chase result (legacy SourceDiscovery:969-1046) - the"
-            + " stable default skin the PLAYER SkullBlock$Types entry renders; every other type reads"
-            + " SKIN_BY_TYPE from the SkullBlockRenderer populate lambda");
+        "the DefaultPlayerSkin.getDefaultSkin chase result - the stable default skin the PLAYER SkullBlock$Types"
+            + " entry renders; every other type reads SKIN_BY_TYPE from the SkullBlockRenderer populate lambda");
 
     /**
      * One sign / hanging-sign variant: the split id plus the branch parameter selecting it -

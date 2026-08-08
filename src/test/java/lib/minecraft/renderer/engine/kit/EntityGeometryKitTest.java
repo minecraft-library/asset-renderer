@@ -6,10 +6,12 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.face.EntityFace;
-import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -50,7 +52,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * defect in one shows as a focused assertion failure rather than a downstream entity-render
  * regression. Guarding against: removing / adding a kit {@code FLIP_Y} without updating the
  * winding-reversal, changing UV-permutation arrays without the UP↔DOWN face swap, and breaking the
- * atlas-layout coefficients in {@link EntityFace#defaultUv}.
+ * atlas-layout coefficients in {@link Unwrap.Atlas#rect}.
  */
 class EntityGeometryKitTest {
 
@@ -129,7 +131,7 @@ class EntityGeometryKitTest {
             Vector3f geomNormal = Vector3f.cross(edge1, edge2);
             float alignment = Vector3f.dot(geomNormal, tri.normal());
             if (alignment <= 0f) {
-                EntityFace face = cardinalFor(tri.normal());
+                Face face = cardinalFor(tri.normal());
                 errors.append("face ").append(face)
                     .append(": emit-order cross ").append(formatVec(geomNormal))
                     .append(" should agree with stored normal ").append(formatVec(tri.normal()))
@@ -143,20 +145,20 @@ class EntityGeometryKitTest {
     @Test
     @DisplayName("each cardinal face direction is represented by exactly two triangles")
     void faceCoverage_eachFaceHasTwoTriangles() {
-        Map<EntityFace, Integer> faceCount = new HashMap<>();
-        for (EntityFace face : EntityFace.CACHED_VALUES) faceCount.put(face, 0);
+        Map<Face, Integer> faceCount = new HashMap<>();
+        for (Face face : Face.CACHED_VALUES) faceCount.put(face, 0);
         for (VisibleTriangle tri : collect(buildSingleCube())) {
-            EntityFace face = cardinalFor(tri.normal());
+            Face face = cardinalFor(tri.normal());
             faceCount.put(face, faceCount.get(face) + 1);
         }
-        for (EntityFace face : EntityFace.CACHED_VALUES)
+        for (Face face : Face.CACHED_VALUES)
             assertThat("face " + face + " triangle count", faceCount.get(face), equalTo(2));
     }
 
     /**
      * Pins the atlas footprint: no UV escapes the cube's box-unwrap strip. A 2×2×2 cube at
      * {@code texOffs(0, 0)} on a 64×64 texture occupies exactly {@code u[0, 8/64], v[0, 4/64]}. Catches
-     * a broken {@link EntityFace#defaultUv} coefficient that would sample outside the authored region.
+     * a broken {@link Unwrap.Atlas#rect} coefficient that would sample outside the authored region.
      */
     @Test
     @DisplayName("UV mapping covers only the cube's UV strip atlas region")
@@ -266,7 +268,7 @@ class EntityGeometryKitTest {
             new Vector3f(-HALF, -HALF, -HALF), // origin
             new Vector3f(2f * HALF, 2f * HALF, 2f * HALF), // size
             Vector2f.ZERO, // uv (atlas origin)
-            0f, // inflate
+            Vector3f.ZERO, // grow
             false, // mirror
             Vector3f.ZERO, // pivot
             EulerRotation.NONE, // rotation
@@ -287,7 +289,7 @@ class EntityGeometryKitTest {
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", bone);
 
-        EntityModelData model = new EntityModelData(64, 64, 0f, bones, false);
+        EntityModelData model = new EntityModelData(TextureSize.DEFAULT, 0f, bones, false);
         return EntityGeometryKit.buildTriangles(model, solidTexture(64, 64));
     }
 
@@ -295,7 +297,7 @@ class EntityGeometryKitTest {
     private static ConcurrentList<EntityModelData.Cube> unitChildCube() {
         EntityModelData.Cube cube = new EntityModelData.Cube(
             new Vector3f(-0.5f, -0.5f, -0.5f), new Vector3f(1f, 1f, 1f), Vector2f.ZERO,
-            0f, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
+            Vector3f.ZERO, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
         ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
         cubes.add(cube);
         return cubes;
@@ -313,7 +315,7 @@ class EntityGeometryKitTest {
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", body);
         bones.put("head", head);
-        return new EntityModelData(64, 64, 0f, bones, false);
+        return new EntityModelData(TextureSize.DEFAULT, 0f, bones, false);
     }
 
     /** Single root {@code head} bone at a pre-flattened world pivot + rotation (no parent). */
@@ -322,7 +324,7 @@ class EntityGeometryKitTest {
             worldPivot, rot, EulerRotation.NONE, 1f, unitChildCube(), null);
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("head", head);
-        return new EntityModelData(64, 64, 0f, bones, false);
+        return new EntityModelData(TextureSize.DEFAULT, 0f, bones, false);
     }
 
     /** Asserts two boxes match on all six extents within {@code eps}. */
@@ -362,18 +364,18 @@ class EntityGeometryKitTest {
     }
 
     /**
-     * Maps a (mostly-)axis-aligned normal back to its source EntityFace. The de-flipped kit stores
+     * Maps a (mostly-)axis-aligned normal back to its source face. The de-flipped kit stores
      * normals in the model's native Y-up frame, so {@code +Y} is UP and {@code -Y} is DOWN directly.
      */
-    private static EntityFace cardinalFor(Vector3f normal) {
+    private static Face cardinalFor(Vector3f normal) {
         float ax = Math.abs(normal.x());
         float ay = Math.abs(normal.y());
         float az = Math.abs(normal.z());
         if (ay > ax && ay > az)
-            return normal.y() > 0 ? EntityFace.UP : EntityFace.DOWN;
+            return normal.y() > 0 ? Face.UP : Face.DOWN;
         if (ax > az)
-            return normal.x() > 0 ? EntityFace.EAST : EntityFace.WEST;
-        return normal.z() > 0 ? EntityFace.SOUTH : EntityFace.NORTH;
+            return normal.x() > 0 ? Face.EAST : Face.WEST;
+        return normal.z() > 0 ? Face.SOUTH : Face.NORTH;
     }
 
 }

@@ -2,7 +2,7 @@
   "//": "tooling.entityModels · regen: ./gradlew entityModels · order: EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain",
   "format": 2,
   "source_version": "26.1",
-  "families": {
+  "models": {
     "minecraft:allay": {
       "renderer": "net/minecraft/client/renderer/entity/AllayRenderer",
       "axes": {
@@ -40,23 +40,22 @@
       "bones": {
         "hidden": [
           "hat",
-          "leftArm",
-          "rightArm",
-          "base_plate"
+          "left_arm",
+          "right_arm"
         ],
         "toggles": {
-          "show_arms": {
+          "arms": {
             "bones": [
-              "leftArm",
-              "rightArm"
+              "left_arm",
+              "right_arm"
             ],
             "default": false
           },
-          "show_base_plate": {
+          "base_plate": {
             "bones": [
               "base_plate"
             ],
-            "default": false
+            "default": true
           }
         }
       },
@@ -69,6 +68,14 @@
               "texture": "minecraft:textures/entity/armorstand/armorstand.png"
             }
           }
+        },
+        "size": {
+          "default": "large",
+          "options": {
+            "small": {
+              "geometry": "ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER"
+            }
+          }
         }
       },
       "layers": [
@@ -76,7 +83,24 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 0,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "ArmorStandArmorModel#createBaseMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            },
+            "alternate": {
+              "when": {
+                "size": "small"
+              },
+              "geometry": "ArmorStandArmorModel#createBaseMesh@baby=HumanoidModel.BABY_TRANSFORMER",
+              "grow": {
+                "inner": 0.5,
+                "outer": 1.0
+              },
+              "form": "adult"
+            }
+          }
         }
       ]
     },
@@ -84,7 +108,6 @@
       "renderer": "net/minecraft/client/renderer/entity/AxolotlRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "lucy",
           "options": {
             "lucy": {
@@ -225,7 +248,10 @@
           "source": "SkeletonClothingLayer",
           "layer_index": 4,
           "geometry": "HumanoidModel#createMesh@grow=0.2",
-          "texture": "minecraft:textures/entity/skeleton/bogged_overlay.png"
+          "texture": "minecraft:textures/entity/skeleton/bogged_overlay.png",
+          "pipeline": {
+            "blend": "cutout"
+          }
         }
       ],
       "layers": [
@@ -233,7 +259,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -257,7 +289,8 @@
           "geometry": "BreezeModel#createWindLayer",
           "texture": "minecraft:textures/entity/breeze/breeze_wind.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "sorted": true
           }
         },
         {
@@ -266,7 +299,9 @@
           "geometry": "BreezeModel#createBodyLayer",
           "texture": "minecraft:textures/entity/breeze/breeze_eyes.png",
           "pipeline": {
-            "blend": "translucent"
+            "blend": "translucent",
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -298,8 +333,11 @@
           },
           "overlay": {
             "geometry": "CamelSaddleModel#createSaddleLayer",
-            "texture_template": "equipment/camel_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "camel_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -327,18 +365,20 @@
           },
           "overlay": {
             "geometry": "CamelSaddleModel#createSaddleLayer",
-            "texture_template": "equipment/camel_husk_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "camel_husk_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ],
-      "family_of": "minecraft:camel"
+      "group_of": "minecraft:camel"
     },
     "minecraft:cat": {
       "renderer": "net/minecraft/client/renderer/entity/CatRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "black",
           "options": {
             "all_black": {
@@ -524,7 +564,9 @@
           "geometry": "SpiderModel#createSpiderBodyLayer@scaled=0.7",
           "texture": "minecraft:textures/entity/spider/spider_eyes.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -533,7 +575,6 @@
       "renderer": "net/minecraft/client/renderer/entity/ChickenRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "temperate",
           "options": {
             "cold": {
@@ -628,7 +669,9 @@
           "texture": "minecraft:textures/entity/copper_golem/copper_golem_eyes.png",
           "texture_by": "weathering",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -637,7 +680,6 @@
       "renderer": "net/minecraft/client/renderer/entity/CowRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "temperate",
           "options": {
             "cold": {
@@ -734,9 +776,11 @@
           },
           "geometry": "CreeperModel#createBodyLayer",
           "texture": "minecraft:textures/entity/creeper/creeper_armor.png",
+          "tint": "0xFF808080",
           "pipeline": {
             "emissive": true,
-            "blend": "additive"
+            "blend": "additive",
+            "sorted": true
           },
           "grow": 2.0
         }
@@ -791,7 +835,25 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "DonkeyModel#createSaddleLayer@fparam=0.87",
+            "layer_type": "donkey_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
+          }
+        }
+      ]
     },
     "minecraft:drowned": {
       "renderer": "net/minecraft/client/renderer/entity/DrownedRenderer",
@@ -816,7 +878,14 @@
           "layer_index": 4,
           "geometry": "DrownedModel#createBodyLayer",
           "texture": "minecraft:textures/entity/zombie/drowned_outer_layer.png",
-          "grow": 0.25
+          "pipeline": {
+            "blend": "cutout"
+          },
+          "grow": 0.25,
+          "baby": {
+            "geometry": "BabyDrownedModel#createBodyLayer@grow=0.25",
+            "texture": "minecraft:textures/entity/zombie/drowned_outer_layer_baby.png"
+          }
         }
       ],
       "layers": [
@@ -824,7 +893,32 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            },
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
+              "geometry": "HumanoidModel#createBabyArmorMesh",
+              "grow": {
+                "inner": [
+                  -0.1,
+                  0.3,
+                  0.3
+                ],
+                "outer": [
+                  -0.1,
+                  0.5,
+                  0.3
+                ]
+              },
+              "form": "baby"
+            }
+          }
         }
       ]
     },
@@ -862,7 +956,9 @@
           "geometry": "EndermanModel#createBodyLayer",
           "texture": "minecraft:textures/entity/enderman/enderman_eyes.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ],
@@ -939,7 +1035,9 @@
           "geometry": "EnderDragonModel#createBodyLayer",
           "texture": "minecraft:textures/entity/enderdragon/dragon_eyes.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -985,7 +1083,6 @@
       "renderer": "net/minecraft/client/renderer/entity/FrogRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "temperate",
           "options": {
             "cold": {
@@ -1061,6 +1158,10 @@
             "adult": {
               "geometry": "HappyGhastModel#createBodyLayer",
               "texture": "minecraft:textures/entity/ghast/happy_ghast.png"
+            },
+            "baby": {
+              "geometry": "HappyGhastModel#createBodyLayer@scaled=0.2375",
+              "texture": "minecraft:textures/entity/ghast/happy_ghast_baby.png"
             }
           }
         }
@@ -1075,8 +1176,26 @@
           },
           "overlay": {
             "geometry": "HappyGhastHarnessModel#createHarnessLayer@iparam=0:0",
-            "texture_template": "equipment/happy_ghast_body/<material>",
+            "layer_type": "happy_ghast_body",
             "default_material": "white_harness",
+            "material_assets": {
+              "black_harness": "minecraft:black_harness",
+              "blue_harness": "minecraft:blue_harness",
+              "brown_harness": "minecraft:brown_harness",
+              "cyan_harness": "minecraft:cyan_harness",
+              "gray_harness": "minecraft:gray_harness",
+              "green_harness": "minecraft:green_harness",
+              "light_blue_harness": "minecraft:light_blue_harness",
+              "light_gray_harness": "minecraft:light_gray_harness",
+              "lime_harness": "minecraft:lime_harness",
+              "magenta_harness": "minecraft:magenta_harness",
+              "orange_harness": "minecraft:orange_harness",
+              "pink_harness": "minecraft:pink_harness",
+              "purple_harness": "minecraft:purple_harness",
+              "red_harness": "minecraft:red_harness",
+              "white_harness": "minecraft:white_harness",
+              "yellow_harness": "minecraft:yellow_harness"
+            },
             "baby_geometry": "HappyGhastHarnessModel#createHarnessLayer@scaled=0.2375@iparam=0:0"
           }
         }
@@ -1100,7 +1219,14 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 1,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            },
+            "scaled": 6.0
+          }
         }
       ]
     },
@@ -1112,12 +1238,18 @@
           "options": {
             "adult": {
               "geometry": "SquidModel#createBodyLayer",
-              "texture": "minecraft:textures/entity/squid/glow_squid.png"
+              "texture": "minecraft:textures/entity/squid/glow_squid.png",
+              "y_shift": -0.70000005
+            },
+            "baby": {
+              "geometry": "BabySquidModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/squid/glow_squid_baby.png",
+              "y_shift": -0.35000002
             }
           }
         }
       },
-      "family_of": "minecraft:squid"
+      "group_of": "minecraft:squid"
     },
     "minecraft:goat": {
       "renderer": "net/minecraft/client/renderer/entity/GoatRenderer",
@@ -1184,7 +1316,6 @@
       "renderer": "net/minecraft/client/renderer/entity/HorseRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "white",
           "options": {
             "white": {
@@ -1270,8 +1401,16 @@
           },
           "overlay": {
             "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1@scaled=1.1",
-            "texture_template": "equipment/horse_body/<material>",
-            "default_material": "leather"
+            "layer_type": "horse_body",
+            "default_material": "leather",
+            "material_assets": {
+              "copper": "minecraft:copper",
+              "diamond": "minecraft:diamond",
+              "gold": "minecraft:gold",
+              "iron": "minecraft:iron",
+              "leather": "minecraft:leather",
+              "netherite": "minecraft:netherite"
+            }
           }
         },
         {
@@ -1283,8 +1422,11 @@
           },
           "overlay": {
             "geometry": "EquineSaddleModel#createSaddleLayer@scaled=1.1",
-            "texture_template": "equipment/horse_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "horse_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -1311,7 +1453,33 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            },
+            "scaled": 1.0625,
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
+              "geometry": "HumanoidModel#createBabyArmorMesh",
+              "grow": {
+                "inner": [
+                  -0.1,
+                  0.3,
+                  0.3
+                ],
+                "outer": [
+                  -0.1,
+                  0.5,
+                  0.3
+                ]
+              },
+              "form": "baby"
+            }
+          }
         }
       ]
     },
@@ -1415,7 +1583,6 @@
       },
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "creamy",
           "options": {
             "creamy": {
@@ -1466,8 +1633,28 @@
           },
           "overlay": {
             "geometry": "LlamaModel#createBodyLayer@grow=0.5",
-            "texture_template": "equipment/llama_body/<material>",
-            "default_material": "white"
+            "layer_type": "llama_body",
+            "default_material": "white",
+            "material_assets": {
+              "black": "minecraft:black_carpet",
+              "blue": "minecraft:blue_carpet",
+              "brown": "minecraft:brown_carpet",
+              "cyan": "minecraft:cyan_carpet",
+              "gray": "minecraft:gray_carpet",
+              "green": "minecraft:green_carpet",
+              "light_blue": "minecraft:light_blue_carpet",
+              "light_gray": "minecraft:light_gray_carpet",
+              "lime": "minecraft:lime_carpet",
+              "magenta": "minecraft:magenta_carpet",
+              "orange": "minecraft:orange_carpet",
+              "pink": "minecraft:pink_carpet",
+              "purple": "minecraft:purple_carpet",
+              "red": "minecraft:red_carpet",
+              "trader_llama": "minecraft:trader_llama",
+              "trader_llama_baby": "minecraft:trader_llama_baby",
+              "white": "minecraft:white_carpet",
+              "yellow": "minecraft:yellow_carpet"
+            }
           }
         }
       ]
@@ -1501,14 +1688,14 @@
       "renderer": "net/minecraft/client/renderer/entity/MushroomCowRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "red",
           "options": {
             "brown": {
               "textures": {
                 "wild": "minecraft:textures/entity/cow/mooshroom_brown.png"
               },
-              "baby_texture": "minecraft:textures/entity/cow/mooshroom_brown_baby.png"
+              "baby_texture": "minecraft:textures/entity/cow/mooshroom_brown_baby.png",
+              "block": "minecraft:brown_mushroom"
             },
             "red": {
               "textures": {
@@ -1630,7 +1817,7 @@
           ]
         }
       ],
-      "family_of": "minecraft:cow"
+      "group_of": "minecraft:cow"
     },
     "minecraft:mule": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
@@ -1663,7 +1850,25 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "DonkeyModel#createSaddleLayer@fparam=0.92",
+            "layer_type": "mule_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
+          }
+        }
+      ]
     },
     "minecraft:nautilus": {
       "renderer": "net/minecraft/client/renderer/entity/NautilusRenderer",
@@ -1674,6 +1879,10 @@
             "adult": {
               "geometry": "NautilusModel#createBodyLayer",
               "texture": "minecraft:textures/entity/nautilus/nautilus.png"
+            },
+            "baby": {
+              "geometry": "NautilusModel#createBabyBodyLayer",
+              "texture": "minecraft:textures/entity/nautilus/nautilus_baby.png"
             }
           }
         }
@@ -1688,8 +1897,15 @@
           },
           "overlay": {
             "geometry": "NautilusArmorModel#createBodyLayer",
-            "texture_template": "equipment/nautilus_body/<material>",
-            "default_material": "leather"
+            "layer_type": "nautilus_body",
+            "default_material": "copper",
+            "material_assets": {
+              "copper": "minecraft:copper",
+              "diamond": "minecraft:diamond",
+              "gold": "minecraft:gold",
+              "iron": "minecraft:iron",
+              "netherite": "minecraft:netherite"
+            }
           }
         },
         {
@@ -1701,8 +1917,11 @@
           },
           "overlay": {
             "geometry": "NautilusSaddleModel#createSaddleLayer",
-            "texture_template": "equipment/nautilus_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "nautilus_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -1729,7 +1948,6 @@
       "renderer": "net/minecraft/client/renderer/entity/PandaRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "normal",
           "options": {
             "normal": {
@@ -1807,7 +2025,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -1845,7 +2069,9 @@
           "geometry": "PhantomModel#createBodyLayer",
           "texture": "minecraft:textures/entity/phantom/phantom_eyes.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -1854,7 +2080,6 @@
       "renderer": "net/minecraft/client/renderer/entity/PigRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "temperate",
           "options": {
             "cold": {
@@ -1923,8 +2148,11 @@
           },
           "overlay": {
             "geometry": "PigModel#createBodyLayer@grow=0.5",
-            "texture_template": "equipment/pig_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "pig_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -1951,7 +2179,24 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.02
+            },
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
+              "geometry": "HumanoidModel#createBabyArmorMesh@pose=0.5,-0.5,0.0",
+              "grow": {
+                "inner": 0.7,
+                "outer": 0.7
+              },
+              "form": "baby"
+            }
+          }
         }
       ]
     },
@@ -1973,10 +2218,16 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.02
+            }
+          }
         }
       ],
-      "family_of": "minecraft:piglin"
+      "group_of": "minecraft:piglin"
     },
     "minecraft:pillager": {
       "renderer": "net/minecraft/client/renderer/entity/PillagerRenderer",
@@ -2044,7 +2295,6 @@
       "renderer": "net/minecraft/client/renderer/entity/RabbitRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "brown",
           "options": {
             "brown": {
@@ -2134,10 +2384,10 @@
           "default": "medium",
           "options": {
             "small": {
-              "scale": 0.5
+              "geometry": "SalmonModel#createBodyLayer@scaled=0.5"
             },
             "large": {
-              "scale": 1.5
+              "geometry": "SalmonModel#createBodyLayer@scaled=1.5"
             }
           }
         }
@@ -2170,7 +2420,10 @@
           "geometry": "SheepModel#createBodyLayer",
           "texture": "minecraft:textures/entity/sheep/sheep_wool_undercoat.png",
           "tint": "0xFFE6E6E6",
-          "tint_by": "wool_color"
+          "tint_by": "wool_color",
+          "pipeline": {
+            "blend": "cutout"
+          }
         },
         {
           "source": "SheepWoolLayer",
@@ -2182,7 +2435,14 @@
           "geometry": "SheepFurModel#createFurLayer",
           "texture": "minecraft:textures/entity/sheep/sheep_wool.png",
           "tint": "0xFFE6E6E6",
-          "tint_by": "wool_color"
+          "tint_by": "wool_color",
+          "pipeline": {
+            "blend": "cutout"
+          },
+          "baby": {
+            "geometry": "BabySheepModel#createBodyLayer",
+            "texture": "minecraft:textures/entity/sheep/sheep_wool_baby.png"
+          }
         }
       ]
     },
@@ -2235,7 +2495,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -2266,8 +2532,32 @@
           },
           "overlay": {
             "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1",
-            "texture_template": "equipment/horse_body/<material>",
-            "default_material": "leather"
+            "layer_type": "horse_body",
+            "default_material": "leather",
+            "material_assets": {
+              "copper": "minecraft:copper",
+              "diamond": "minecraft:diamond",
+              "gold": "minecraft:gold",
+              "iron": "minecraft:iron",
+              "leather": "minecraft:leather",
+              "netherite": "minecraft:netherite"
+            }
+          }
+        },
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 1,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "EquineSaddleModel#createSaddleLayer",
+            "layer_type": "skeleton_horse_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -2306,7 +2596,8 @@
           "geometry": "SlimeModel#createOuterBodyLayer",
           "texture": "minecraft:textures/entity/slime/slime.png",
           "pipeline": {
-            "blend": "translucent"
+            "blend": "translucent",
+            "sorted": true
           }
         }
       ]
@@ -2395,7 +2686,9 @@
           "geometry": "SpiderModel#createSpiderBodyLayer",
           "texture": "minecraft:textures/entity/spider/spider_eyes.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -2408,7 +2701,13 @@
           "options": {
             "adult": {
               "geometry": "SquidModel#createBodyLayer",
-              "texture": "minecraft:textures/entity/squid/squid.png"
+              "texture": "minecraft:textures/entity/squid/squid.png",
+              "y_shift": -0.70000005
+            },
+            "baby": {
+              "geometry": "BabySquidModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/squid/squid_baby.png",
+              "y_shift": -0.35000002
             }
           }
         }
@@ -2432,7 +2731,10 @@
           "source": "SkeletonClothingLayer",
           "layer_index": 4,
           "geometry": "HumanoidModel#createMesh@grow=0.25",
-          "texture": "minecraft:textures/entity/skeleton/stray_overlay.png"
+          "texture": "minecraft:textures/entity/skeleton/stray_overlay.png",
+          "pipeline": {
+            "blend": "cutout"
+          }
         }
       ],
       "layers": [
@@ -2440,10 +2742,16 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ],
-      "family_of": "minecraft:skeleton"
+      "group_of": "minecraft:skeleton"
     },
     "minecraft:strider": {
       "renderer": "net/minecraft/client/renderer/entity/StriderRenderer",
@@ -2472,8 +2780,11 @@
           },
           "overlay": {
             "geometry": "AdultStriderModel#createBodyLayer",
-            "texture_template": "equipment/strider_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "strider_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -2511,7 +2822,6 @@
       },
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "creamy",
           "options": {
             "creamy": {
@@ -2559,7 +2869,11 @@
           "geometry": "LlamaModel#createBodyLayer",
           "texture": "minecraft:textures/entity/equipment/llama_body/trader_llama.png",
           "grow": 0.5,
-          "skip_bounds": true
+          "skip_bounds": true,
+          "baby": {
+            "texture": "minecraft:textures/entity/equipment/llama_body/trader_llama_baby.png",
+            "grow": 0.2
+          }
         }
       ],
       "layers": [
@@ -2572,12 +2886,32 @@
           },
           "overlay": {
             "geometry": "LlamaModel#createBodyLayer@grow=0.5",
-            "texture_template": "equipment/llama_body/<material>",
-            "default_material": "white"
+            "layer_type": "llama_body",
+            "default_material": "white",
+            "material_assets": {
+              "black": "minecraft:black_carpet",
+              "blue": "minecraft:blue_carpet",
+              "brown": "minecraft:brown_carpet",
+              "cyan": "minecraft:cyan_carpet",
+              "gray": "minecraft:gray_carpet",
+              "green": "minecraft:green_carpet",
+              "light_blue": "minecraft:light_blue_carpet",
+              "light_gray": "minecraft:light_gray_carpet",
+              "lime": "minecraft:lime_carpet",
+              "magenta": "minecraft:magenta_carpet",
+              "orange": "minecraft:orange_carpet",
+              "pink": "minecraft:pink_carpet",
+              "purple": "minecraft:purple_carpet",
+              "red": "minecraft:red_carpet",
+              "trader_llama": "minecraft:trader_llama",
+              "trader_llama_baby": "minecraft:trader_llama_baby",
+              "white": "minecraft:white_carpet",
+              "yellow": "minecraft:yellow_carpet"
+            }
           }
         }
       ],
-      "family_of": "minecraft:llama"
+      "group_of": "minecraft:llama"
     },
     "minecraft:tropical_fish": {
       "renderer": "net/minecraft/client/renderer/entity/TropicalFishRenderer",
@@ -2609,6 +2943,9 @@
                   "texture_by": "pattern",
                   "tint": "0xFFF9FFFE",
                   "tint_by": "pattern_color",
+                  "pipeline": {
+                    "blend": "cutout"
+                  },
                   "grow": 0.008
                 }
               ]
@@ -2625,6 +2962,9 @@
           "texture_by": "pattern",
           "tint": "0xFFF9FFFE",
           "tint_by": "pattern_color",
+          "pipeline": {
+            "blend": "cutout"
+          },
           "grow": 0.008
         }
       ]
@@ -2697,7 +3037,12 @@
           "layer_index": 1,
           "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
           "texture": "minecraft:textures/entity/villager/type/plains.png",
-          "texture_by": "type"
+          "texture_by": "type",
+          "no_hat_root": "head",
+          "baby": {
+            "texture": "minecraft:textures/entity/villager/baby/plains.png",
+            "no_hat_root": "head"
+          }
         },
         {
           "source": "VillagerProfessionLayer",
@@ -2747,7 +3092,7 @@
           }
         }
       },
-      "family_of": "minecraft:villager"
+      "group_of": "minecraft:villager"
     },
     "minecraft:warden": {
       "renderer": "net/minecraft/client/renderer/entity/WardenRenderer",
@@ -2769,7 +3114,9 @@
           "geometry": "WardenModel#createBodyLayer",
           "texture": "minecraft:textures/entity/warden/warden_bioluminescent_layer.png",
           "pipeline": {
-            "blend": "translucent"
+            "blend": "translucent",
+            "depth_write": false,
+            "sorted": true
           },
           "skip_bounds": true
         },
@@ -2780,7 +3127,9 @@
           "texture": "minecraft:textures/entity/warden/warden_pulsating_spots_1.png",
           "pipeline": {
             "blend": "translucent",
-            "alpha": 0.25
+            "alpha": 0.25,
+            "depth_write": false,
+            "sorted": true
           },
           "skip_bounds": true,
           "retain_bones": [
@@ -2833,9 +3182,11 @@
           },
           "geometry": "WitherBossModel#createBodyLayer",
           "texture": "minecraft:textures/entity/wither/wither_armor.png",
+          "tint": "0xFF808080",
           "pipeline": {
             "emissive": true,
-            "blend": "additive"
+            "blend": "additive",
+            "sorted": true
           },
           "grow": 0.5
         }
@@ -2859,7 +3210,14 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            },
+            "scaled": 1.2
+          }
         }
       ]
     },
@@ -2867,7 +3225,6 @@
       "renderer": "net/minecraft/client/renderer/entity/WolfRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "pale",
           "options": {
             "ashen": {
@@ -3051,8 +3408,11 @@
           },
           "overlay": {
             "geometry": "AdultWolfModel#createBodyLayer@grow=0.2",
-            "texture_template": "equipment/wolf_body/<material>",
-            "default_material": "armadillo_scute"
+            "layer_type": "wolf_body",
+            "default_material": "armadillo_scute",
+            "material_assets": {
+              "armadillo_scute": "minecraft:armadillo_scute"
+            }
           }
         },
         {
@@ -3086,7 +3446,7 @@
           }
         }
       },
-      "family_of": "minecraft:hoglin"
+      "group_of": "minecraft:hoglin"
     },
     "minecraft:zombie": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieRenderer",
@@ -3110,7 +3470,32 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            },
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
+              "geometry": "HumanoidModel#createBabyArmorMesh",
+              "grow": {
+                "inner": [
+                  -0.1,
+                  0.3,
+                  0.3
+                ],
+                "outer": [
+                  -0.1,
+                  0.5,
+                  0.3
+                ]
+              },
+              "form": "baby"
+            }
+          }
         }
       ]
     },
@@ -3141,8 +3526,32 @@
           },
           "overlay": {
             "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1",
-            "texture_template": "equipment/horse_body/<material>",
-            "default_material": "leather"
+            "layer_type": "horse_body",
+            "default_material": "leather",
+            "material_assets": {
+              "copper": "minecraft:copper",
+              "diamond": "minecraft:diamond",
+              "gold": "minecraft:gold",
+              "iron": "minecraft:iron",
+              "leather": "minecraft:leather",
+              "netherite": "minecraft:netherite"
+            }
+          }
+        },
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 1,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "EquineSaddleModel#createSaddleLayer",
+            "layer_type": "zombie_horse_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -3151,7 +3560,6 @@
       "renderer": "net/minecraft/client/renderer/entity/ZombieNautilusRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "temperate",
           "options": {
             "temperate": {
@@ -3200,8 +3608,15 @@
           },
           "overlay": {
             "geometry": "NautilusArmorModel#createBodyLayer",
-            "texture_template": "equipment/nautilus_body/<material>",
-            "default_material": "leather"
+            "layer_type": "nautilus_body",
+            "default_material": "copper",
+            "material_assets": {
+              "copper": "minecraft:copper",
+              "diamond": "minecraft:diamond",
+              "gold": "minecraft:gold",
+              "iron": "minecraft:iron",
+              "netherite": "minecraft:netherite"
+            }
           }
         },
         {
@@ -3213,8 +3628,11 @@
           },
           "overlay": {
             "geometry": "NautilusSaddleModel#createSaddleLayer",
-            "texture_template": "equipment/nautilus_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "nautilus_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -3242,7 +3660,12 @@
           "layer_index": 4,
           "geometry": "ZombieVillagerModel#createBodyLayer",
           "texture": "minecraft:textures/entity/zombie_villager/type/plains.png",
-          "texture_by": "type"
+          "texture_by": "type",
+          "no_hat_root": "head",
+          "baby": {
+            "texture": "minecraft:textures/entity/zombie_villager/baby/plains.png",
+            "no_hat_root": "head"
+          }
         },
         {
           "source": "VillagerProfessionLayer",
@@ -3264,7 +3687,32 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "ZombieVillagerModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            },
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
+              "geometry": "HumanoidModel#createBabyArmorMesh",
+              "grow": {
+                "inner": [
+                  -0.1,
+                  0.3,
+                  0.3
+                ],
+                "outer": [
+                  -0.1,
+                  0.5,
+                  0.3
+                ]
+              },
+              "form": "baby"
+            }
+          }
         }
       ]
     },
@@ -3290,10 +3738,27 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.02
+            },
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
+              "geometry": "HumanoidModel#createBabyArmorMesh@pose=0.5,-0.5,0.0",
+              "grow": {
+                "inner": 0.7,
+                "outer": 0.7
+              },
+              "form": "baby"
+            }
+          }
         }
       ],
-      "family_of": "minecraft:piglin"
+      "group_of": "minecraft:piglin"
     }
   }
 }

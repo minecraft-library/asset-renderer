@@ -14,6 +14,10 @@ import static org.hamcrest.Matchers.*;
  * ({@link DyeColor.Vanilla#ofName(String)} hit / null miss, and {@link DyeColor#ofName(String)}
  * delegating to it) and {@link DyeColor#of(int)} wrapping a caller RGB as an opaque
  * {@link DyeColor.Custom}.
+ *
+ * <p>The wool colours are pinned against the vanilla reference renders rather than against the
+ * formula that produces them, so the assertions can fail: a scale that drifted would still agree with
+ * itself. Each is the full-lit top face of the matching {@code sheep~wool_color=*} reference.
  */
 class DyeColorTest {
 
@@ -36,11 +40,35 @@ class DyeColorTest {
     }
 
     @Test
+    @DisplayName("WHITE wool is vanilla's override, not the scaled dye")
+    void whiteWoolIsOverridden() {
+        assertThat(DyeColor.Vanilla.WHITE.woolArgb(), is(equalTo(0xFFE6E6E6)));
+        // What the scale alone would give. If these ever coincide the override has stopped mattering.
+        assertThat(DyeColor.Vanilla.WHITE.woolArgb(), is(not(equalTo(0xFFBABFBE))));
+    }
+
+    @Test
+    @DisplayName("wool scales every other dye to three quarters")
+    void woolScalesOtherDyes() {
+        assertThat(DyeColor.Vanilla.PINK.woolArgb(), is(equalTo(0xFFB6687F)));
+        assertThat(DyeColor.Vanilla.YELLOW.woolArgb(), is(equalTo(0xFFBEA22D)));
+        assertThat(DyeColor.Vanilla.BLACK.woolArgb(), is(equalTo(0xFF151518)));
+    }
+
+    @Test
+    @DisplayName("a custom dye's wool colour is its own")
+    void customWoolIsItsOwnColour() {
+        DyeColor dye = DyeColor.of(0x123456);
+        assertThat(dye.woolArgb(), is(equalTo(dye.argb())));
+    }
+
+    @Test
     @DisplayName("every vanilla dye has fully opaque alpha")
     void alphaIsOpaque() {
         for (DyeColor.Vanilla dye : DyeColor.Vanilla.values()) {
             int alpha = (dye.argb() >>> 24) & 0xFF;
             assertThat(dye.name() + " alpha", alpha, is(0xFF));
+            assertThat(dye.name() + " wool alpha", (dye.woolArgb() >>> 24) & 0xFF, is(0xFF));
         }
     }
 

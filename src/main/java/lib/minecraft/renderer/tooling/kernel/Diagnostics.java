@@ -139,8 +139,12 @@ public final class Diagnostics {
     }
 
     /**
-     * Returns whether this scope's subtree recorded at least one {@link Severity#ERROR} -
-     * the strict-gate read (an {@code ERROR} fails the flow).
+     * Returns whether this scope's subtree recorded at least one {@link Severity#ERROR}. This is
+     * a convenience read over {@link #count(Severity)} and is not the gate itself: the gate is
+     * {@link ToolingSession#failOnStrictGate()}, which counts {@code ERROR} and {@code WARN}
+     * separately because it names both figures in the exception it throws.
+     *
+     * @return {@code true} when the subtree recorded an {@code ERROR}
      */
     public boolean failed() {
         return count(Severity.ERROR) > 0;
@@ -184,7 +188,10 @@ public final class Diagnostics {
         if (this.parent != null)
             throw new ToolingException("flush is root-only (called on scope '%s')", this.path);
         if (this.mode != Output.FILE || this.fileTarget == null) return;
-        StringJoiner lines = new StringJoiner(System.lineSeparator(), "", System.lineSeparator());
+        // Literal LF on both the separator and the terminator. A diagnostics log is an operand - the
+        // tooling-tables artifact carries a digest per flow over it - so asking the JVM what a
+        // newline is would make that digest a fact about the host rather than about the run.
+        StringJoiner lines = new StringJoiner("\n", "", "\n");
         for (Entry entry : this.rootEntries)
             lines.add(entry.timestamp() + " [" + entry.severity() + "] " + entry.path() + " - " + entry.message());
         try {

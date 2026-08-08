@@ -10,8 +10,9 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -38,7 +39,7 @@ import java.nio.file.Path;
  * over the 200-tick cap), {@code sea_lantern} (stepped) - plus {@code command_block} (scrolling
  * command texture) for a fourth distinct flipbook.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:blockFlipbook [-PrenderSize=256]}.
+ * <p>Usage: {@code ./gradlew blockFlipbook [-PrenderSize=256]}.
  */
 @UtilityClass
 public final class TestBlockFlipbook {
@@ -63,11 +64,11 @@ public final class TestBlockFlipbook {
     public static void main(String @NotNull [] args) throws IOException {
         int size = args.length > 0 ? Integer.parseInt(args[0]) : 256;
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
 

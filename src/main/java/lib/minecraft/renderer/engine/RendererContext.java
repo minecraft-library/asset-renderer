@@ -12,26 +12,29 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.EquipmentModel;
+import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.asset.model.ModelTransform;
-import lib.minecraft.renderer.pipeline.pack.MCMeta;
-import lib.minecraft.renderer.pipeline.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelNode;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
-import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
-import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
+import lib.minecraft.renderer.asset.pack.rule.CitResult;
+import lib.minecraft.renderer.asset.pack.rule.ItemContext;
+import lib.minecraft.renderer.asset.pack.rule.RuleSet;
+import lib.minecraft.renderer.engine.kit.NineSliceKit;
+import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.option.spec.ArmorMaterial;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
  * The engine's resource-provider port: the read-only view of active texture packs, biome
  * colormaps, model repositories, and other lookup-side state that every renderer and engine
  * subsystem consumes, without coupling consumers to a specific implementation. The
- * {@link lib.minecraft.renderer.pipeline.Pipeline pipeline} supplies the production implementation;
+ * {@link ClientAcquisition pipeline} supplies the production implementation;
  * tests and in-memory callers supply lightweight stubs directly.
  * <p>
  * Method naming follows two prefixes for {@link Optional}-returning lookups:
@@ -50,14 +53,6 @@ import java.util.Optional;
 public interface RendererContext {
 
     /**
-     * Looks up an active resource pack by its id.
-     *
-     * @param id the pack id, e.g. {@link PackId#VANILLA}
-     * @return the pack, or empty when no active pack has that id
-     */
-    @NotNull Optional<ResourcePack> findPack(@NotNull PackId id);
-
-    /**
      * Looks up the parsed {@code .mcmeta} animation sidecar for the given texture, if any. The
      * default implementation returns empty so non-animated contexts do not need to override it;
      * animation-aware contexts should look up the texture's index row and forward its captured
@@ -72,7 +67,7 @@ public interface RendererContext {
 
     /**
      * Looks up the parsed {@code gui.scaling} sidecar for a GUI-sprite texture, if any - the
-     * nine-slice / tile / stretch metadata {@link lib.minecraft.renderer.engine.kit.NineSliceKit}
+     * nine-slice / tile / stretch metadata {@link NineSliceKit}
      * consumes for tooltip and menu chrome. The default returns empty so non-pack contexts do not need
      * to override it; the production context forwards the texture's index-row sidecar's
      * {@code gui.scaling} section.
@@ -81,6 +76,19 @@ public interface RendererContext {
      * @return the scaling metadata, or empty when the texture has no {@code gui.scaling} sidecar
      */
     default @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
+        return Optional.empty();
+    }
+
+    /**
+     * Looks up the parsed {@code villager} sidecar section for a villager type / profession texture, if
+     * any - the hat flag the profession layer's mesh select consumes. The default returns empty so
+     * non-pack contexts do not need to override it; the production context forwards the texture's
+     * index-row sidecar's {@code villager} section.
+     *
+     * @param textureId the namespaced texture id
+     * @return the villager metadata, or empty when the texture has no {@code villager} sidecar
+     */
+    default @NotNull Optional<MCMeta.Villager> findVillager(@NotNull String textureId) {
         return Optional.empty();
     }
 
@@ -189,51 +197,6 @@ public interface RendererContext {
     }
 
     /**
-     * Resolves the {@code display.gui} transform a block's inventory icon renders through - the block
-     * item's gui, the same source the in-game icon and the vanilla-reference harness use. The item is
-     * the block's {@link Block#itemBlockId() item-block id}, so a secondary block that shares another
-     * block's item (a wall banner, a wall skull, a filled cauldron) resolves the standing block's gui,
-     * mirroring the in-game {@code new ItemStack(block)} resolution. Walks the
-     * block-item's dispatch tree at the neutral {@link ItemModelContext#gui() gui context}; a
-     * {@code special} leaf (chest, banner, skull, bed) resolves to its {@code base} item model - the
-     * one carrying the gui - while a plain leaf uses its own resolved model, both falling back to
-     * {@code <ns>:item/<name>}. Reads that model's flattened {@code display.gui}, finally falling back
-     * to the block model's own gui. Returns empty when no gui is authored anywhere, in which case the
-     * caller poses the icon at the default iso pose.
-     *
-     * @param block the block whose inventory-icon gui transform to resolve
-     * @return the authored {@code display.gui}, or empty when none is readable
-     */
-    default @NotNull Optional<ModelTransform> resolveIconGui(@NotNull Block block) {
-        ResourceId itemBlock = block.itemBlockId();
-        String itemId = itemBlock.id();
-        Optional<ItemModelTree> tree = findItemTree(itemId);
-
-        // The gui transform survives only on a direct model or special item wrapper. A dispatch or
-        // composite root (select / condition / range_dispatch / composite - chest's date select,
-        // the bed / copper_golem_statue composites) exposes no readable transform, so the in-game
-        // icon - and the vanilla-reference harness - render it at the default iso pose. Such a root
-        // has no gui override here.
-        ItemModelNode root = tree.map(ItemModelTree::root).orElse(null);
-        if (root != null && !(root instanceof ItemModelNode.Model) && !(root instanceof ItemModelNode.Special))
-            return Optional.empty();
-
-        // A special leaf carries the gui on its base item model (banner / skull on template_*); a plain
-        // leaf uses its own resolved model. Both fall back to <ns>:item/<name>.
-        String resolved = tree
-            .map(t -> ItemModelWalker.resolve(t, ItemModelContext.gui()))
-            .map(resolution -> resolution.special()
-                .map(ItemModelNode.Special::base)
-                .orElseGet(() -> resolution.modelId().orElse(null)))
-            .orElse(null);
-        String modelId = resolved != null ? resolved : itemBlock.namespace() + ":item/" + itemBlock.name();
-
-        Optional<ModelTransform> itemGui = findItemModel(modelId).map(model -> model.getDisplay().get("gui"));
-        if (itemGui.isPresent()) return itemGui;
-        return Optional.ofNullable(block.model().getDisplay().get("gui"));
-    }
-
-    /**
      * Looks up the ARGB display colour for a potion effect, used by potion-bottle and tipped-arrow
      * rendering to tint the liquid / head layer. The default returns empty so test stubs do not
      * need to override it; the production context reads the bundled
@@ -283,15 +246,73 @@ public interface RendererContext {
      * named sub-texture replacements, a model override, and the glint policy. The default returns
      * {@link CitResult#NONE} so test stubs need not override it.
      *
-     * <p>Connected Textures (CTM) has no render seam: it renders nothing, so the
-     * merged CTM rules are parse-and-store only, with zero render-path callers (see
-     * {@code CtmNeighborResolver}).
+     * <p>Connected Textures resolve through {@link #resolveConnectedTexture} - the base-replacing methods
+     * substitute a matched face's tile for an isolated block icon; overlays and world-state predicates
+     * stay inert.
      *
      * @param context the per-render item context (item id + NBT + enchantments + display name)
      * @return the CIT effect, or {@link CitResult#NONE} when no rule matches
      */
     default @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
         return CitResult.NONE;
+    }
+
+    /**
+     * Resolves the highest-precedence CIT armor / elytra retexture for an equipped piece - the
+     * {@code type=armor} / {@code type=elytra} analogue of {@link #resolveItemTextureOverride}, walking
+     * the merged CIT rule list first-match-wins for the layer type's subject and returning the winning
+     * rule's effect. The default returns {@link CitResult#NONE} so every stub and a vanilla-only stack
+     * leaves the equipment model's own texture in force.
+     *
+     * @param material the equipped piece's armor material
+     * @param layerType the render layer being textured; {@link LayerType#WINGS} selects the elytra
+     *     subject, any other the armor subject
+     * @param item the per-render item context (the equipped item's id + NBT) the rule matches against
+     * @return the CIT effect, or {@link CitResult#NONE} when no rule matches
+     */
+    default @NotNull CitResult resolveArmorTextureOverride(
+        @NotNull ArmorMaterial material, @NotNull LayerType layerType, @NotNull ItemContext item) {
+        return CitResult.NONE;
+    }
+
+    /**
+     * Resolves the Connected Textures substitution for one face of an isolated block icon - the
+     * highest-precedence matching non-overlay rule replaces the face's base texture with its no-neighbor
+     * tile. Walks the merged CTM rules first-match-wins (see
+     * {@link RuleSet#connectedTextureFor}); the base-replacing
+     * methods ({@code ctm} family / {@code fixed} / {@code random} / {@code repeat} / {@code top})
+     * substitute a matched face's tile, while overlays and world-state predicates stay inert. The default
+     * returns empty so every stub and vanilla-only stack is inert.
+     *
+     * <p>{@code faces} targeting uses the model-local face, which equals the world face for the full-cube
+     * blocks CTM applies to; the flat {@code BlockFace2D} sprite path is not wired.
+     *
+     * @param blockId the rendered block's namespaced id
+     * @param state the rendered block state, keyed by property name to its value
+     * @param baseTextureId the concrete resolved texture id of the face
+     * @param face the renderer block face being drawn
+     * @return the substitute texture id, or empty when no rule replaces the base
+     */
+    default @NotNull Optional<ResourceId> resolveConnectedTexture(
+        @NotNull String blockId, @NotNull Map<String, String> state,
+        @NotNull String baseTextureId, @NotNull Face face) {
+        return Optional.empty();
+    }
+
+    /**
+     * Resolves the ordered equipment texture layers for an asset id under a layer type - the
+     * data-driven source for worn-armor, elytra, and mob-equipment textures, exposing the parsed
+     * {@code equipment/*.json} model the way {@link #resolveTexture} exposes pack bytes. The default
+     * returns an empty list, so every stub and a stack with no equipment index resolves to no layers;
+     * a slot with no layers simply does not texture (the no-missing-texture-fallback contract).
+     *
+     * @param assetId the equipment asset id (e.g. {@code minecraft:iron}, {@code minecraft:elytra})
+     * @param layerType the render layer whose subdir the textures sit under
+     * @return the ordered base-to-overlay layers, or an empty list when the stack ships no such asset
+     */
+    default @NotNull List<EquipmentModel.Layer> resolveEquipmentLayers(
+        @NotNull ResourceId assetId, @NotNull LayerType layerType) {
+        return List.of();
     }
 
     /**
@@ -304,16 +325,134 @@ public interface RendererContext {
     @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId);
 
     /**
-     * Resolves a texture within one specific pack, bypassing the stack-wide namespace-first dispatch -
-     * the escape hatch for callers that need a pack-restricted lookup. The default returns empty so
-     * test stubs do not need to override it.
+     * A forwarding mixin for context wrappers: every {@link RendererContext} method forwards to
+     * {@link #delegate()}, so an implementor overrides only the methods it changes and supplies the
+     * wrapped context through {@code delegate()} (a record component named {@code delegate} satisfies it
+     * directly).
      *
-     * @param pack the pack to restrict resolution to
-     * @param id the namespaced texture id
-     * @return the decoded texture, or empty when the pack does not supply it
+     * <p>Because every method is forwarded rather than defaulted, a wrapper that wants a lookup to
+     * behave differently from its delegate must say so explicitly - pinning an override rather than
+     * relying on a silent empty default. A method a wrapper leaves alone reaches the real context, which
+     * is the safe default for a pass-through view; the deliberate exceptions are stated at the override.
      */
-    default @NotNull Optional<PixelBuffer> resolveTexture(@NotNull PackId pack, @NotNull ResourceId id) {
-        return Optional.empty();
+    interface Forwarding extends RendererContext {
+
+        /**
+         * The wrapped context every non-overridden method forwards to.
+         *
+         * @return the delegate context
+         */
+        @NotNull RendererContext delegate();
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
+            return delegate().findAnimation(textureId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
+            return delegate().findGuiScaling(textureId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<MCMeta.Villager> findVillager(@NotNull String textureId) {
+            return delegate().findVillager(textureId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<BannerPattern> findBannerPattern(@NotNull String patternId) {
+            return delegate().findBannerPattern(patternId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Block> findBlock(@NotNull String id) {
+            return delegate().findBlock(id);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Block.Entity> findBlockEntityEntry(@NotNull String blockId) {
+            return delegate().findBlockEntityEntry(blockId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<ColorMap> findColorMap(ColorMap.@NotNull Type type) {
+            return delegate().findColorMap(type);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
+            return delegate().findColorOverride(key);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Entity> findEntity(@NotNull String id) {
+            return delegate().findEntity(id);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Item> findItem(@NotNull String id) {
+            return delegate().findItem(id);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+            return delegate().findItemTree(id);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
+            return delegate().findItemModel(modelId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
+            return delegate().findPotionEffectColor(effectId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull ConcurrentList<BannerPattern> knownBannerPatterns() {
+            return delegate().knownBannerPatterns();
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull ConcurrentList<String> knownBlockIds() {
+            return delegate().knownBlockIds();
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull ConcurrentList<String> knownItemIds() {
+            return delegate().knownItemIds();
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
+            return delegate().resolveItemTextureOverride(context);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull CitResult resolveArmorTextureOverride(
+            @NotNull ArmorMaterial material, @NotNull LayerType layerType, @NotNull ItemContext item) {
+            return delegate().resolveArmorTextureOverride(material, layerType, item);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<ResourceId> resolveConnectedTexture(
+            @NotNull String blockId, @NotNull Map<String, String> state,
+            @NotNull String baseTextureId, @NotNull Face face) {
+            return delegate().resolveConnectedTexture(blockId, state, baseTextureId, face);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull List<EquipmentModel.Layer> resolveEquipmentLayers(
+            @NotNull ResourceId assetId, @NotNull LayerType layerType) {
+            return delegate().resolveEquipmentLayers(assetId, layerType);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
+            return delegate().resolveTexture(textureId);
+        }
+
     }
 
 }

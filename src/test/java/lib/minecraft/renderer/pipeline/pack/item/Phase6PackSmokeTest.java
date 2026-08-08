@@ -1,8 +1,13 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.PackStack;
+import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
+import lib.minecraft.renderer.option.ItemModelContext;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
-import lib.minecraft.renderer.pipeline.pack.PackStack;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -41,7 +46,11 @@ class Phase6PackSmokeTest {
         Path hypixel = PACKS.resolve("hypixel-skyblock");
         assumeTrue(Files.isDirectory(hypixel), () -> "hypixel-skyblock pack not present under " + PACKS);
 
-        PackStack stack = PackAcquisition.acquire(List.of(hypixel), cache, VANILLA);
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(cache.toFile())
+            .texturePacks(Concurrent.adoptList(List.of(hypixel.toFile())))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
         ConcurrentMap<String, ItemModelTree> trees = ItemModelTreeLoader.load(stack);
 
         long hypixelTrees = trees.keySet().stream().filter(id -> id.startsWith(NS + ":")).count();
@@ -51,7 +60,7 @@ class Phase6PackSmokeTest {
         ItemModelTree known = trees.get(NS + ":item/abiphones/abiphone_basic");
         assertThat("known skyblock item-def tree present", known, notNullValue());
         assertThat("skyblock tree resolves to a model leaf",
-            ItemModelWalker.resolve(known, ItemModelContext.gui()).modelId().isPresent(), is(true));
+            known.resolve(ItemModelContext.gui()).modelId().isPresent(), is(true));
     }
 
 }

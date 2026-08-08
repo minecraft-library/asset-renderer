@@ -5,16 +5,19 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
-import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.parity.ParityPaths;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -26,13 +29,12 @@ import java.util.Optional;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.imageio.ImageIO;
 
 /**
  * Per-entity parity report comparing the Java pipeline output (via {@link EntityRenderer} +
  * {@code entity_models.json} / {@code entity_geometry.json}) against the
  * vanilla-reference-harness ground truth PNGs in
- * {@code cache/asset-renderer/vanilla/26.1/references/entities/}. The harness drives a real
+ * the harness reference tree's {@code entities/}. The harness drives a real
  * Minecraft client to render each entity through vanilla's actual render path, so its output is
  * the canonical baseline; the Java pipeline aims to match it.
  *
@@ -48,7 +50,7 @@ import javax.imageio.ImageIO;
  * - each contains {@code vanilla.png}, {@code java.png}, {@code diff.png}. A top-level
  * {@code parity-report.tsv} ranks entities by mean ARGB delta ascending.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:entityParityVanilla [-PentityId=minecraft:zombie]}.
+ * <p>Usage: {@code ./gradlew entityParityVanilla [-PentityId=minecraft:zombie]}.
  */
 @UtilityClass
 public final class TestEntityParityVanilla {
@@ -60,7 +62,7 @@ public final class TestEntityParityVanilla {
     private static final Path REPORT_FILE = OUTPUT_DIR.resolve("parity-report.tsv");
 
     /** Source of the harness-produced reference PNGs. */
-    private static final Path VANILLA_DIR = Path.of("cache/asset-renderer/vanilla/26.1/references/entities");
+    private static final Path VANILLA_DIR = ParityPaths.references("entities");
 
     /** Filename prefix the harness writes (entity id with {@code :} replaced by {@code __}). */
     private static final @NotNull String VANILLA_PREFIX = "minecraft__";
@@ -78,53 +80,65 @@ public final class TestEntityParityVanilla {
             : List.of();
 
         if (!Files.isDirectory(VANILLA_DIR)) {
-            System.err.printf("Vanilla reference directory missing: %s%n  Run :asset-renderer:renderVanillaReferences first.%n",
+            System.err.printf("Vanilla reference directory missing: %s%n  Run renderVanillaReferences first.%n",
                 VANILLA_DIR.toAbsolutePath());
             return;
         }
         Files.createDirectories(OUTPUT_DIR);
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
 
         PipelineRendererContext context = PipelineRendererContext.of(result);
         ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
-            System.err.println("entity_models.json missing - run :asset-renderer:entityModelsJava first");
+            System.err.println("entity_models.json missing - run entityModels first");
             return;
         }
         EntityRenderer javaRenderer = new EntityRenderer(context, javaEntities);
 
         TreeSet<String> javaKeys = new TreeSet<>(javaEntities.keySet());
-        TreeSet<String> vanillaKeys = collectVanillaEntityIds();
+        AppearanceCodec codec = AppearanceCodec.of(javaEntities);
 
-        // Variant-aware enumeration: reconcile the harness's per-variant refs (cow_cold) with the Java
-        // keyset whether variant is id-encoded (a first-class key) or option-encoded (base + an
-        // appearance selection). This ADDS the variant-superset families whose only ref is the plain
-        // base (axolotl / llama / panda / rabbit / trader_llama), previously silently un-compared.
-        ParityRefMapping mapping = ParityRefMapping.load();
-        List<ParityRefMapping.Subject> subjects = mapping.resolve(javaKeys, vanillaKeys);
-        if (!entityIdFilter.isEmpty()) {
-            List<ParityRefMapping.Subject> filtered = subjects.stream()
-                .filter(s -> entityIdFilter.contains(s.refId()) || entityIdFilter.contains(s.entityId()))
-                .collect(Collectors.toCollection(ArrayList::new));
-            // Preserve the "render any id passed" affordance: an id that resolves to no subject
-            // (e.g. a bare base id) renders plain against its own ref.
-            for (String id : entityIdFilter)
-                if (filtered.stream().noneMatch(s -> s.refId().equals(id) || s.entityId().equals(id)))
-                    filtered.add(new ParityRefMapping.Subject(id, id, Optional.empty()));
-            subjects = filtered;
+        // Every reference name is read through the one grammar both repos implement. A name this
+        // parser cannot read stops the sweep: a reference emitted in a spelling nothing reads has no
+        // row to be missing from, so it would otherwise look exactly like a reference never emitted.
+        List<Subject> subjects = new ArrayList<>();
+        List<AppearanceKey.Result.Malformed> malformed = new ArrayList<>();
+        List<String> unresolved = new ArrayList<>();
+        for (String fileName : collectReferenceNames()) {
+            String stem = fileName.substring(0, fileName.length() - ".png".length());
+            switch (codec.parse(fileName)) {
+                case AppearanceKey.Result.Malformed bad -> malformed.add(bad);
+                case AppearanceKey.Result.Parsed parsed -> {
+                    if (javaKeys.contains(parsed.key().entityId())) subjects.add(new Subject(stem, parsed.key()));
+                    else unresolved.add(stem);
+                }
+            }
         }
+        if (!malformed.isEmpty()) {
+            System.err.printf("%d reference name(s) the parser could not read:%n", malformed.size());
+            for (AppearanceKey.Result.Malformed bad : malformed)
+                System.err.printf("    %-56s %s%n", bad.name(), bad.reason());
+            System.exit(1);
+        }
+        if (!entityIdFilter.isEmpty())
+            subjects = subjects.stream()
+                .filter(s -> entityIdFilter.contains(s.key().entityId()) || entityIdFilter.contains(s.refStem()))
+                .collect(Collectors.toCollection(ArrayList::new));
 
-        System.out.printf("Parity sweep (vs vanilla harness): %d subjects to %s (unresolved harness refs: %d, java-only: %d)%n",
-            subjects.size(), OUTPUT_DIR.toAbsolutePath(),
-            mapping.unresolved(javaKeys, vanillaKeys).size(),
-            javaKeys.size() - ParityRefMapping.legacyIntersection(javaKeys, vanillaKeys).size());
+        // Entities the pipeline models that no reference names - the other side of the coverage
+        // question from `unresolved`, which is references naming an entity the pipeline does not model.
+        TreeSet<String> covered = subjects.stream().map(s -> s.key().entityId())
+            .collect(Collectors.toCollection(TreeSet::new));
+        long uncovered = javaKeys.stream().filter(id -> !covered.contains(id)).count();
+        System.out.printf("Parity sweep (vs vanilla harness): %d subjects to %s (malformed: 0, unresolved harness refs: %d, java entities with no reference: %d)%n",
+            subjects.size(), OUTPUT_DIR.toAbsolutePath(), unresolved.size(), uncovered);
 
         long t0 = System.nanoTime();
         // Parallel dispatch across independent per-entity renders, mirroring
@@ -140,23 +154,22 @@ public final class TestEntityParityVanilla {
             .collect(Collectors.toCollection(ArrayList::new));
         long totalMs = (System.nanoTime() - t0) / 1_000_000L;
 
-        rows.sort((a, b) -> Double.compare(a.meanDelta(), b.meanDelta()));
+        rows.sort(SweepReport.byDelta(Row::meanDelta));
 
-        StringBuilder report = new StringBuilder();
-        report.append("entity_id\tmean_argb_delta\tdiffering_pixels\tjava_coverage\tvanilla_coverage\tjava_w\tjava_h\tvanilla_w\tvanilla_h\n");
+        List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)
-            report.append(String.format("%s\t%.4f\t%d\t%.4f\t%.4f\t%d\t%d\t%d\t%d%n",
-                r.entityId(), r.meanDelta(), r.differingPixels(), r.javaCoverage(), r.vanillaCoverage(),
-                r.javaW(), r.javaH(), r.vanillaW(), r.vanillaH()));
-        Files.writeString(REPORT_FILE, report.toString());
+            lines.add(String.join("\t",
+                r.entityId(), SweepReport.delta(r.meanDelta()), SweepReport.status(r.meanDelta()),
+                SweepReport.pixels(r.meanDelta(), r.differingPixels()),
+                SweepReport.ratio(r.javaCoverage()), SweepReport.ratio(r.vanillaCoverage()),
+                Integer.toString(r.javaW()), Integer.toString(r.javaH()),
+                Integer.toString(r.vanillaW()), Integer.toString(r.vanillaH())));
+        SweepReport.write(REPORT_FILE, SweepReport.KEY_COLUMN
+            + "\tmean_argb_delta\tstatus\tdiffering_pixels\tjava_coverage\tvanilla_coverage"
+            + "\tjava_w\tjava_h\tvanilla_w\tvanilla_h", lines);
         System.out.printf("Wrote %s (%d rows, %d ms total)%n", REPORT_FILE, rows.size(), totalMs);
 
-        long below025 = rows.stream().filter(r -> r.meanDelta() < 0.25).count();
-        long below05 = rows.stream().filter(r -> r.meanDelta() < 0.5).count();
-        long below075 = rows.stream().filter(r -> r.meanDelta() < 0.75).count();
-        long below1 = rows.stream().filter(r -> r.meanDelta() < 1.0).count();
-        System.out.printf("Parity buckets: <0.25: %d / <0.5: %d / <0.75: %d / <1: %d / total: %d%n",
-            below025, below05, below075, below1, rows.size());
+        SweepReport.printBuckets(rows.stream().mapToDouble(Row::meanDelta).toArray());
         List<Row> worst = rows.stream()
             .sorted((a, b) -> Double.compare(b.meanDelta(), a.meanDelta()))
             .toList();
@@ -171,20 +184,20 @@ public final class TestEntityParityVanilla {
      * {@link Row}. Self-contained (no shared mutable state) so it can run concurrently across
      * entities via {@code parallelStream}; the shared {@code javaRenderer} reads only the immutable
      * {@link PipelineRendererContext} + entity-definition map. Any failure (missing/unreadable
-     * reference, render error) is captured as a {@code POSITIVE_INFINITY} sentinel row rather than
-     * aborting the sweep.
+     * reference, render error) marks the row {@code POSITIVE_INFINITY} rather than aborting the
+     * sweep - which is what sorts it last, and what {@link SweepReport} emits as {@code failed}.
      *
      * @param subject the parity subject (its ref id names the vanilla PNG + output folder; its entity id
      *     and variant drive the Java render)
      * @param javaRenderer the shared read-only Java entity renderer
-     * @return the comparison row, or a {@code POSITIVE_INFINITY} sentinel on failure
+     * @return the comparison row, its delta {@code POSITIVE_INFINITY} on failure
      */
-    private static @NotNull Row renderAndCompare(@NotNull ParityRefMapping.Subject subject, @NotNull EntityRenderer javaRenderer) {
-        String refId = subject.refId();
-        Path entityDir = OUTPUT_DIR.resolve(refId.replace(':', '_'));
+    private static @NotNull Row renderAndCompare(@NotNull Subject subject, @NotNull EntityRenderer javaRenderer) {
+        String refId = subject.refStem();
+        Path entityDir = OUTPUT_DIR.resolve(refId);
         try {
             Files.createDirectories(entityDir);
-            Path vanillaPng = VANILLA_DIR.resolve(VANILLA_PREFIX + refId.substring("minecraft:".length()) + ".png");
+            Path vanillaPng = VANILLA_DIR.resolve(refId + ".png");
             BufferedImage vanillaImg = ImageIO.read(vanillaPng.toFile());
             if (vanillaImg == null) {
                 System.err.printf("       %-40s vanilla PNG unreadable: %s%n", refId, vanillaPng);
@@ -194,12 +207,10 @@ public final class TestEntityParityVanilla {
             int vh = vanillaImg.getHeight();
 
             EntityOptions.EntityOptionsBuilder optionsBuilder = EntityOptions.builder()
-                .entityId(Optional.of(subject.entityId()))
-                .fitMode(EntityOptions.FitMode.FAMILY_BOUNDS);
-            // Drive the option-encoded variant coat (empty for an id-encoded pseudo-id, whose id already
-            // selects the coat, or a non-variant subject).
-            subject.variant().ifPresent(v -> optionsBuilder.appearance(
-                lib.minecraft.renderer.option.EntityAppearance.builder().variant(Optional.of(v)).build()));
+                .entityId(Optional.of(subject.key().entityId()))
+                .appearance(subject.key().appearance())
+                .fitMode(EntityOptions.FitMode.GROUP_BOUNDS);
+            subject.key().armor().ifPresent(optionsBuilder::armor);
             EntityOptions options = optionsBuilder.build();
             ImageData java;
             lib.minecraft.renderer.engine.RendererDebug.beginPerEntityBoundsDump(refId);
@@ -238,23 +249,23 @@ public final class TestEntityParityVanilla {
         }
     }
 
-    /**
-     * Walks the harness output directory and converts each {@code minecraft__<name>.png} filename
-     * into the entity id {@code minecraft:<name>} so the cross-reference with the Java pipeline's
-     * keyset is exact.
-     */
-    private static @NotNull TreeSet<String> collectVanillaEntityIds() throws IOException {
+    /** Lists every reference file name in the harness output directory, in sorted order. */
+    private static @NotNull List<String> collectReferenceNames() throws IOException {
         try (Stream<Path> stream = Files.list(VANILLA_DIR)) {
-            TreeSet<String> ids = new TreeSet<>();
-            stream.forEach(path -> {
-                String name = path.getFileName().toString();
-                if (!name.startsWith(VANILLA_PREFIX) || !name.endsWith(".png")) return;
-                String stem = name.substring(VANILLA_PREFIX.length(), name.length() - ".png".length());
-                ids.add("minecraft:" + stem);
-            });
-            return ids;
+            return stream.map(path -> path.getFileName().toString())
+                .filter(name -> name.endsWith(".png"))
+                .sorted()
+                .toList();
         }
     }
+
+    /**
+     * One parity subject: the reference to compare against, and what it says to render.
+     *
+     * @param refStem the reference file name without its suffix, which also names the output folder
+     * @param key the render the name resolved to
+     */
+    private record Subject(@NotNull String refStem, @NotNull AppearanceKey key) {}
 
     /** Per-entity row in the TSV report. */
     private record Row(@NotNull String entityId, double meanDelta, long differingPixels, double javaCoverage, double vanillaCoverage, int javaW, int javaH, int vanillaW, int vanillaH) {}

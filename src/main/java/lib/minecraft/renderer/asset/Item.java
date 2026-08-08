@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * A fully-parsed item definition backed by its vanilla model JSON.
  * <p>
- * Every field is populated once during {@code Pipeline} bootstrap and stored verbatim. A
+ * Every field is populated once during {@code ClientAcquisition} bootstrap and stored verbatim. A
  * non-zero {@link #maxDurability()} gates the GUI damage bar overlay at render time. The
  * {@link #tints() tints} list carries the per-layer {@link LayerTint} rules parsed from the
  * MC 26.1 item definition's {@code model.tints[]} array (array index = layer {@code tintindex}),

@@ -1,14 +1,26 @@
 package lib.minecraft.renderer.pipeline;
 
 
+import com.google.gson.JsonObject;
+import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
-import lib.minecraft.renderer.pipeline.pack.PackContainer;
-import lib.minecraft.renderer.pipeline.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.ResolvedTexture;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.parity.ParityJson;
+import lib.minecraft.renderer.parity.Pins;
+import lib.minecraft.renderer.parity.SelfCapture;
+import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
+import lib.minecraft.renderer.pipeline.pack.ColorMapLoader;
+import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
+import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -17,8 +29,9 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -30,7 +43,7 @@ import static org.hamcrest.Matchers.*;
  * populated.
  * <p>
  * This test is tagged {@code slow} and is skipped by the default {@code test} task. Run it
- * explicitly with {@code ./gradlew :asset-renderer:slowTest}. The first run downloads ~25MB
+ * explicitly with {@code ./gradlew slowTest}. The first run downloads ~25MB
  * from {@code piston-data.mojang.com}; subsequent runs reuse the cached copy in
  * {@code asset-renderer/cache/it} and complete in seconds.
  * <p>
@@ -40,14 +53,32 @@ import static org.hamcrest.Matchers.*;
  * {@code asset-renderer/cache/}, so nothing leaks into commits.
  */
 @Tag("slow")
-@DisplayName("Pipeline end-to-end integration")
+@DisplayName("ClientAcquisition end-to-end integration")
 class PipelineIntegrationTest {
 
     /** Stable, non-temporary cache root so the extracted client jar survives across sessions. */
     private static final File CACHE_ROOT = new File("cache/it");
 
-    /** Full pipeline result shared across every test in the class, built once in {@link #downloadAndExtract()}. */
-    private static Pipeline.Result result;
+    /** The digest-set the colormap byte-parity assertion both writes and reads. */
+    private static final String COLORMAP_ARTIFACT = "digest.colormap-lut";
+
+    /** The canonical form those digests are taken over: the raw big-endian ARGB buffer. */
+    private static final String COLORMAP_FORM = "raw-argb-bytes";
+
+    /** Client assets (options + vanilla root) shared across every test, built once in {@link #downloadAndExtract()}. */
+    private static ClientAssets result;
+
+    /** The compiled pack stack, probed by the stack / texture-index assertions. */
+    private static PackStack stack;
+
+    /** The resolved block + item model sets, probed by the model-count assertions. */
+    private static ResolvedModels models;
+
+    /** The loaded block-tint table, probed by the {@code block_tints.json} assertion. */
+    private static Map<String, Block.Tint> blockTints;
+
+    /** The stack-resolved biome colormaps, probed by the colormap byte-parity assertion. */
+    private static ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
 
     /** Extracted pack root ({@code cache/it/.../vanilla}) that the on-disk assertions probe. */
     private static Path packRoot;
@@ -58,13 +89,17 @@ class PipelineIntegrationTest {
      */
     @BeforeAll
     static void downloadAndExtract() {
-        PipelineOptions options = PipelineOptions.builder()
+        ClientOptions options = ClientOptions.builder()
             .version("26.1")
             .cacheRoot(CACHE_ROOT)
             .build();
 
-        result = Pipeline.run(options);
-        packRoot = result.getPackRoot();
+        result = ClientAcquisition.acquire(options);
+        packRoot = result.vanillaRoot();
+        stack = PackAcquisition.acquire(result);
+        models = ResolvedModels.load(stack);
+        blockTints = BlockTintsLoader.load();
+        colorMaps = ColorMapLoader.load(stack);
     }
 
     @Test
@@ -84,48 +119,49 @@ class PipelineIntegrationTest {
     @Test
     @DisplayName("populates the vanilla pack at the base of the stack")
     void populatesVanillaPack() {
-        ResourcePack vanilla = result.getStack().vanilla();
+        ResourcePack vanilla = stack.vanilla();
         assertThat(vanilla.id(), equalTo(PackId.VANILLA));
         assertThat(vanilla.namespaces(), hasItem("minecraft"));
         assertThat(vanilla.container(), instanceOf(PackContainer.Directory.class));
         assertThat(((PackContainer.Directory) vanilla.container()).root().toString(), containsString("vanilla"));
-        assertThat(result.getStack().ascending().getFirst(), is(vanilla));
+        assertThat(stack.ascending().getFirst(), is(vanilla));
     }
 
     @Test
     @DisplayName("loads every block model under models/block")
     void loadsBlockModels() {
-        assertThat("block model count", result.getBlockModels().size(), is(greaterThan(500)));
-        assertThat(result.getBlockModels(), hasKey("minecraft:block/grass_block"));
-        assertThat(result.getBlockModels(), hasKey("minecraft:block/cobblestone"));
-        assertThat(result.getBlockModels(), hasKey("minecraft:block/stone"));
+        assertThat("block model count", models.blocks().size(), is(greaterThan(500)));
+        assertThat(models.blocks(), hasKey("minecraft:block/grass_block"));
+        assertThat(models.blocks(), hasKey("minecraft:block/cobblestone"));
+        assertThat(models.blocks(), hasKey("minecraft:block/stone"));
 
-        ModelData grass = result.getBlockModels().get("minecraft:block/grass_block");
+        ModelData grass = models.blocks().get("minecraft:block/grass_block");
         assertThat("grass block model resolved", grass, is(notNullValue()));
     }
 
     @Test
     @DisplayName("loads every item model under models/item")
     void loadsItemModels() {
-        assertThat("item model count", result.getItemModels().size(), is(greaterThan(500)));
-        assertThat(result.getItemModels(), hasKey("minecraft:item/diamond_sword"));
-        assertThat(result.getItemModels(), hasKey("minecraft:item/iron_pickaxe"));
-        assertThat(result.getItemModels(), hasKey("minecraft:item/apple"));
+        assertThat("item model count", models.items().size(), is(greaterThan(500)));
+        assertThat(models.items(), hasKey("minecraft:item/diamond_sword"));
+        assertThat(models.items(), hasKey("minecraft:item/iron_pickaxe"));
+        assertThat(models.items(), hasKey("minecraft:item/apple"));
 
-        ModelData sword = result.getItemModels().get("minecraft:item/diamond_sword");
+        ModelData sword = models.items().get("minecraft:item/diamond_sword");
         assertThat("diamond sword model resolved", sword, is(notNullValue()));
     }
 
     @Test
     @DisplayName("catalogues every texture under assets/minecraft/textures")
     void cataloguesTextures() {
-        assertThat("texture catalogue is populated", result.getStack().textureIndex().size(), is(greaterThan(500)));
+        assertThat("texture catalogue is populated", stack.textureIndex().size(), is(greaterThan(500)));
 
-        IndexedTexture grassTop = result.getStack().textureIndex().get(ResourceId.parse("minecraft:block/grass_block_top"));
+        ResolvedTexture grassTop = stack.textureIndex().get(ResourceId.parse("minecraft:block/grass_block_top"));
         assertThat("grass_block_top texture catalogued", grassTop, is(notNullValue()));
-        assertThat(grassTop.width(), is(greaterThanOrEqualTo(16)));
-        assertThat(grassTop.height(), is(greaterThanOrEqualTo(16)));
-        assertThat(grassTop.relativePath(), allOf(
+        PixelBuffer grassBuffer = new ImageFactory().fromByteArray(grassTop.bytes()).toPixelBuffer();
+        assertThat(grassBuffer.width(), is(greaterThanOrEqualTo(16)));
+        assertThat(grassBuffer.height(), is(greaterThanOrEqualTo(16)));
+        assertThat(grassTop.path(), allOf(
             containsString("block"),
             containsString("grass_block_top"),
             containsString(".png")
@@ -151,17 +187,17 @@ class PipelineIntegrationTest {
     }
 
     @Test
-    @DisplayName("VanillaTintsLoader loads the bundled block_tints.json into Block.Tint entries")
+    @DisplayName("BlockTintsLoader loads the bundled block_tints.json into Block.Tint entries")
     void parsesBlockColors() {
-        var tints = result.getBlockTints();
+        var tints = blockTints;
 
         // Print the full table once so the slowTest log captures what the bundled JSON contains
-        // - useful when refreshing the snapshot via the generateVanillaTints Gradle task and
-        // verifying nothing silently dropped.
+        // - useful when refreshing the table via the `blockTints` Gradle task and verifying nothing
+        // silently dropped.
         System.out.println("Loaded " + tints.size() + " Block.Tint entries from block_tints.json:");
         tints.forEach((blockId, tint) -> {
             String constant = tint.constant()
-                .map(v -> String.format(" 0x%08X", v))
+                .map(v -> String.format(" 0x%08X", v.getRGB()))
                 .orElse("");
             System.out.println("  " + blockId + " -> " + tint.target() + constant);
         });
@@ -180,7 +216,7 @@ class PipelineIntegrationTest {
         assertThat(spruceLeaves, is(notNullValue()));
         assertThat(spruceLeaves.target(), equalTo(Block.TintTarget.CONSTANT));
         assertThat(spruceLeaves.constant().isPresent(), is(true));
-        assertThat("spruce constant ARGB", spruceLeaves.constant().get(), equalTo(0xFF619961));
+        assertThat("spruce constant ARGB", spruceLeaves.constant().get().getRGB(), equalTo(0xFF619961));
 
         var leafLitter = tints.get("minecraft:leaf_litter");
         assertThat(leafLitter, is(notNullValue()));
@@ -188,25 +224,33 @@ class PipelineIntegrationTest {
     }
 
     @Test
-    @DisplayName("stack-resolved colormaps byte-match the bundled color_maps.json LUT (D10)")
+    @DisplayName("stack-resolved colormaps byte-match the digests pinned in the parity store (D10)")
     void colormapsByteMatchBundledLut() {
-        // The byte-parity probe: sha256 of the raw
-        // big-endian ARGB bytes of each bundled colormap. The re-point resolves vanilla's own
-        // extracted PNG through the stack and must decode to the identical bytes.
-        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.GRASS).pixels()),
-            equalTo("99ac9a2db44c6ed14da168bad2f66001535fd8b6290a2255bc8aa251d16afcc4"));
-        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.FOLIAGE).pixels()),
-            equalTo("64c43c6b59f7da4ae1c8f56a332c6e21a6d0789dd0272c2cc32c809bc2e0da50"));
-        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.DRY_FOLIAGE).pixels()),
-            equalTo("04fe97199d0400e161c1413077735b8dff765d86999890d76953681bee86708f"));
-    }
-
-    private static String sha256(byte[] bytes) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (java.security.NoSuchAlgorithmException ex) {
-            throw new IllegalStateException(ex);
+        // The byte-parity probe: sha256 of the raw big-endian ARGB bytes of each bundled colormap.
+        // The re-point resolves vanilla's own extracted PNG through the stack and must decode to
+        // the identical bytes. The form is `raw-argb-bytes`, which - unlike the shipped tables'
+        // `table-canonical` - encodes no library's formatting, so no dependency version rides with
+        // it.
+        Map<String, JsonObject> entries = new TreeMap<>();
+        Map<String, String> observed = new TreeMap<>();
+        for (ColorMap.Type type : List.of(ColorMap.Type.GRASS, ColorMap.Type.FOLIAGE,
+            ColorMap.Type.DRY_FOLIAGE)) {
+            String digest = ParityJson.sha256(colorMaps.get(type).pixels());
+            observed.put(type.name(), digest);
+            JsonObject entry = new JsonObject();
+            entry.addProperty("form", COLORMAP_FORM);
+            entry.addProperty("sha256", digest);
+            entries.put(type.name(), entry);
         }
+        SelfCapture.write(COLORMAP_ARTIFACT, entries);
+
+        SelfCapture.requireBaseline(COLORMAP_ARTIFACT);
+
+        assertThat("the pinned LUT set and the LUTs actually resolved must be the same names",
+            Pins.keys(COLORMAP_ARTIFACT), equalTo(List.copyOf(observed.keySet())));
+        observed.forEach((name, digest) -> assertThat(name + " colormap LUT bytes; if intentional, "
+                + "re-baseline it: " + Pins.rebaselineCommand(COLORMAP_ARTIFACT),
+            digest, equalTo(Pins.digest(COLORMAP_ARTIFACT, name))));
     }
 
 }

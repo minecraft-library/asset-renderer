@@ -3,9 +3,12 @@ package lib.minecraft.renderer.engine.kit;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.face.EntityFace;
-import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.face.CornerPhase;
+import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.face.Turn;
+import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -71,6 +74,27 @@ public class BoneKit {
         for (String name : bones.keySet())
             resolveChainFrom(name, bones, cache, new LinkedHashSet<>(), base);
         return cache;
+    }
+
+    /**
+     * Builds one named bone's ancestor-anchor chain matrix, for the callers that want a single bone
+     * rather than the whole map. Walks that bone's parent chain alone through the same recursion
+     * {@link #buildChainTransforms} drives every bone through, in the same operand order, so the two
+     * agree bit for bit on any bone forest - a chain is a function of its own ancestors, and the
+     * map's memoization only skips recomputation rather than changing a value. The one case they can
+     * part is a parent <b>cycle</b>, where the map's answer depends on which member the bone
+     * iteration reached first and this walk always breaks at the bone asked for; vanilla-derived
+     * geometry is a tree, so nothing shipped can tell them apart.
+     *
+     * @param bones the model's bones keyed by name
+     * @param name the bone whose chain to build
+     * @return the bone's ancestor-anchor chain matrix, or {@link Matrix4f#IDENTITY} when absent
+     */
+    public static @NotNull Matrix4f buildChainTransform(
+        @NotNull Map<String, EntityModelData.Bone> bones,
+        @NotNull String name
+    ) {
+        return resolveChainFrom(name, bones, new HashMap<>(), new LinkedHashSet<>(), Matrix4f.IDENTITY);
     }
 
     /**
@@ -232,11 +256,13 @@ public class BoneKit {
     }
 
     /**
-     * Computes a cube's axis-aligned bounds in bone-local pixel space: the cube origin and size
-     * scaled by the owning bone's uniform {@code scale} and expanded on every side by the scaled
-     * per-axis grow. Shared by both kits' per-cube emit loops (the block {@code /16 - 0.5}
-     * normalization and the entity fit / measure passes) so the scaled-grow arithmetic lives in one
-     * place. The grow expands the corner box only; the {@code size}-derived UV footprint is untouched
+     * Computes a cube's axis-aligned bounds in bone-local pixel space: the cube origin, size and grow
+     * each scaled by the owning bone's uniform {@code scale}, assembled by {@link Box#grown} in
+     * vanilla's own operand order. This method owns the <em>scaling</em> - per operand, so the identity
+     * scale cannot round - and {@link Box#grown} owns the growth, which is what keeps this walk and a
+     * worn shell's rows on one expression. Shared by both kits' per-cube emit loops (the block
+     * {@code /16 - 0.5} normalization and the entity fit / measure passes). The grow expands the corner
+     * box only; the {@code size}-derived UV footprint is untouched
      * ({@link EntityModelData.Cube#getGrow()}). A scalar {@code inflate} degenerates to an equal grow
      * on all three axes.
      *
@@ -246,24 +272,16 @@ public class BoneKit {
      * @return the scaled, grown cube bounds in bone-local coordinates
      */
     public static @NotNull Box scaledCubeBounds(float scale, @NotNull EntityModelData.Cube cube) {
-        Vector3f origin = cube.getOrigin();
-        Vector3f size = cube.getSize();
-        Vector3f grow = cube.getGrow();
-        float gx = scale * grow.x();
-        float gy = scale * grow.y();
-        float gz = scale * grow.z();
-        float ox = scale * origin.x();
-        float oy = scale * origin.y();
-        float oz = scale * origin.z();
-        return new Box(
-            ox - gx, oy - gy, oz - gz,
-            ox + scale * size.x() + gx, oy + scale * size.y() + gy, oz + scale * size.z() + gz);
+        return Box.grown(
+            cube.getOrigin().multiply(scale),
+            cube.getSize().multiply(scale),
+            cube.getGrow().multiply(scale));
     }
 
     /**
      * Resolves the raw four-corner UV rectangle for one cube face in atlas-position order
      * ({@code TL, BL, BR, TR}). Uses the cube's per-face UV override when present, otherwise
-     * derives the rectangle from the atlas layout via {@link EntityFace#defaultUv}. Forwards the
+     * derives the rectangle from the atlas layout via {@link Unwrap.Atlas#rect}. Forwards the
      * cube's {@code mirror} flag to {@link Vector4f#toUvCorners} for the U-flip.
      *
      * @param face the geometric face being resolved
@@ -275,7 +293,7 @@ public class BoneKit {
      *     top-right)
      */
     static @NotNull Vector2f @NotNull [] resolveFaceUv(
-        @NotNull EntityFace face,
+        @NotNull Face face,
         @NotNull EntityModelData.Cube cube,
         @NotNull Vector3f size,
         float texWidth,
@@ -284,7 +302,7 @@ public class BoneKit {
         EntityModelData.FaceUv override = cube.getFaceUv().get(face.direction());
         Vector4f rect;
         if (override == null) {
-            rect = face.defaultUv(cube.getUv(), size);
+            rect = new Unwrap.Atlas(cube.getUv(), size, cube.isMirror()).rect(face);
         } else {
             Vector2f uv = override.getUv();
             Vector2f uvSize = override.getUvSize();
@@ -296,7 +314,7 @@ public class BoneKit {
     /**
      * Resolves the per-vertex UV array for one polygon, including mirror handling and the
      * vanilla-spec slot permutation. The output is indexed in the kit's corner order
-     * ({@link EntityFace#vertexIndices}) so each {@code corners[i]} pairs with the UV vanilla's
+     * ({@link CornerPhase#POLYGON}) so each {@code corners[i]} pairs with the UV vanilla's
      * cube ctor assigns to the same world-space vertex.
      * <p>
      * For {@code cube.isMirror()} cubes, vanilla's {@code ModelPart.Cube} ctor swaps the cube's
@@ -304,15 +322,15 @@ public class BoneKit {
      * effect of swapping which UV strip is applied to the cube's +X vs -X face (vanilla's WEST
      * polygon UV ends up on the +X face, EAST polygon UV on the -X face). The polygon ctor also
      * reverses each polygon's vertex array, which U-flips every face's UV mapping. Both effects
-     * are replicated for {@code mirror=true} cubes via {@link EntityFace#mirror} and the
+     * are replicated for {@code mirror=true} cubes via {@link Turn#MIRROR_X} and the
      * {@link Vector4f#toUvCorners} mirror flag inside {@link #resolveFaceUv}.
      * <p>
      * The per-face slot permutation maps {@link #resolveFaceUv}'s {@code (TL, BL, BR, TR)}
      * output to the (max-u, top-v)-first ordering vanilla's {@code Polygon} ctor produces. For
      * non-UP faces, vanilla's vertex 0 lands in the TR slot; for UP, it lands in BR because the
      * polygon ctor's {@code f3 / f5} parameters are V-inverted on the atlas strip. The exact
-     * slot mapping per face lives on {@link EntityFace#polygonVertexSlots} and is applied via
-     * {@link EntityFace#permuteToPolygonOrder} so both kits share the same source of truth.
+     * slot mapping per face lives on {@link CornerPhase#uvSlots} and is applied via
+     * {@link CornerPhase#permuteUv} so both kits share the same source of truth.
      * <p>
      * Independent of the kit's permanent Y-flip on positions: that flip changes where vertices project to
      * screen, but each vertex's vanilla-spec UV is unchanged.
@@ -325,14 +343,15 @@ public class BoneKit {
      * @return the four per-vertex UVs in the kit's corner order
      */
     public static @NotNull Vector2f @NotNull [] resolvePolygonUv(
-        @NotNull EntityFace face,
+        @NotNull Face face,
         @NotNull EntityModelData.Cube cube,
         @NotNull Vector3f size,
         float texWidth,
         float texHeight
     ) {
-        Vector2f[] uv = resolveFaceUv(face.mirror(cube.isMirror()), cube, size, texWidth, texHeight);
-        return face.permuteToPolygonOrder(uv);
+        Face strip = cube.isMirror() ? Turn.MIRROR_X.apply(face) : face;
+        Vector2f[] uv = resolveFaceUv(strip, cube, size, texWidth, texHeight);
+        return CornerPhase.POLYGON.permuteUv(face, uv);
     }
 
     /**
@@ -351,10 +370,10 @@ public class BoneKit {
      * @return {@code true} if the polygon collapses to a line; {@code false} when the face has
      *     full plane area
      */
-    public static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull EntityFace face) {
-        if (size.x() == 0f) return face != EntityFace.WEST && face != EntityFace.EAST;
-        if (size.y() == 0f) return face != EntityFace.UP && face != EntityFace.DOWN;
-        if (size.z() == 0f) return face != EntityFace.NORTH && face != EntityFace.SOUTH;
+    public static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull Face face) {
+        if (size.x() == 0f) return face.axis() != 0;
+        if (size.y() == 0f) return face.axis() != 1;
+        if (size.z() == 0f) return face.axis() != 2;
         return false;
     }
 

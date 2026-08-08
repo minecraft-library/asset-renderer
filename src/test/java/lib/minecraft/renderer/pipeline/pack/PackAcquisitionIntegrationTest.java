@@ -1,8 +1,16 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
+import lib.minecraft.renderer.asset.pack.PackCapability;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.ResolvedTexture;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -12,11 +20,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.SortedSet;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -44,7 +54,11 @@ class PackAcquisitionIntegrationTest {
             "sample packs not present under " + PACKS);
 
         List<Path> sources = new ArrayList<>(List.of(defrosted, hypixel, eureka));
-        PackStack stack = PackAcquisition.acquire(sources, cache, VANILLA);
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(cache.toFile())
+            .texturePacks(Concurrent.adoptList(sources.stream().map(Path::toFile).toList()))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
 
         assertThat(stack.size(), is(4));
 
@@ -52,25 +66,29 @@ class PackAcquisitionIntegrationTest {
         ResourcePack vanilla = stack.vanilla();
         assertThat(vanilla.id(), is(PackId.VANILLA));
         assertThat(vanilla.namespaces(), hasItem("minecraft"));
-        assertThat(vanilla.has(Capability.VANILLA_CORE), is(true));
+        assertThat(vanilla.has(PackCapability.VANILLA_CORE), is(true));
 
         // defrosted: kebab dir id, three namespaces, optifine capability
         ResourcePack def = stack.byId(new PackId("defrosted")).orElseThrow();
         assertThat(def.namespaces(), hasItems("minecraft", "lunar", "skybox"));
-        assertThat(def.has(Capability.OPTIFINE_RULES), is(true));
-        assertThat(def.has(Capability.CATHARSIS_CONVENTIONS), is(false));
+        // namespaces() returns a sorted set (not a salted Set.copyOf), so primaryNamespace()'s findFirst
+        // and the paletted-permutation iteration resolve the same winner on every JVM run.
+        assertThat(def.namespaces(), is(instanceOf(SortedSet.class)));
+        assertThat(new ArrayList<>(def.namespaces()), is(def.namespaces().stream().sorted().toList()));
+        assertThat(def.has(PackCapability.OPTIFINE_RULES), is(true));
+        assertThat(def.has(PackCapability.CATHARSIS_CONVENTIONS), is(false));
 
         // hypixel-skyblock: kebab dir / snake namespace duality, plain vanilla-core only
         ResourcePack hyp = stack.byId(new PackId("hypixel-skyblock")).orElseThrow();
         assertThat(hyp.namespaces(), hasItems("minecraft", "hypixel_skyblock"));
         assertThat(hyp.primaryNamespace().orElseThrow(), is("hypixel_skyblock"));
-        assertThat(hyp.has(Capability.OPTIFINE_RULES), is(false));
-        assertThat(hyp.has(Capability.CATHARSIS_CONVENTIONS), is(false));
+        assertThat(hyp.has(PackCapability.OPTIFINE_RULES), is(false));
+        assertThat(hyp.has(PackCapability.CATHARSIS_CONVENTIONS), is(false));
 
         // eureka: .cats filename id, catharsis capability, served virtually from its .cats container
         // (no extraction to disk - the render path reads bytes straight from the archive).
         ResourcePack eur = stack.byId(new PackId("eureka")).orElseThrow();
-        assertThat(eur.has(Capability.CATHARSIS_CONVENTIONS), is(true));
+        assertThat(eur.has(PackCapability.CATHARSIS_CONVENTIONS), is(true));
         assertThat(eur.container(), is(org.hamcrest.Matchers.instanceOf(PackContainer.Cats.class)));
         assertThat("the pack mcmeta is reachable through the container without extraction",
             eur.container().bytes("pack.mcmeta").isPresent(), is(true));
@@ -86,8 +104,12 @@ class PackAcquisitionIntegrationTest {
             "sample packs not present under " + PACKS);
 
         List<Path> sources = new ArrayList<>(List.of(defrosted, hypixel));
-        PackStack stack = PackAcquisition.acquire(sources, cache, VANILLA);
-        ConcurrentMap<ResourceId, IndexedTexture> index = TextureIndexer.index(stack);
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(cache.toFile())
+            .texturePacks(Concurrent.adoptList(sources.stream().map(Path::toFile).toList()))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
+        ConcurrentMap<ResourceId, ResolvedTexture> index = TextureIndexer.index(stack);
 
         // Vanilla alone catalogues > 500 textures; the user packs override some and add their own.
         assertThat(index.size(), is(greaterThan(500)));

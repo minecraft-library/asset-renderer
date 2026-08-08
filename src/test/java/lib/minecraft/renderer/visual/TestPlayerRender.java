@@ -13,20 +13,21 @@ import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.PlayerOptions;
+import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.option.spec.ArmorOptions;
+import lib.minecraft.renderer.option.spec.ArmorPiece;
+import lib.minecraft.renderer.option.spec.ArmorTrim;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.option.spec.ArmorMaterial;
-import lib.minecraft.renderer.option.spec.ArmorPiece;
-import lib.minecraft.renderer.option.spec.ArmorTrim;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -44,13 +45,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import javax.imageio.ImageIO;
 
 /**
  * Visual sweep of every {@link PlayerRenderer} option, written as labelled contact sheets to
  * {@code cache/visual/player-render/} for eyeballing. This is a <b>functional / visual</b> tool
- * ("does it render and look right") - there is no parity gate; worn-armor entity-pose parity is a
- * separate effort and out of scope (see {@code notes/player-parity.md}).
+ * ("does it render and look right") - there is no parity gate here; worn-armor entity-pose parity is
+ * {@code TestArmorParityVanilla}'s, and player-model parity {@code TestPlayerParityVanilla}'s.
  *
  * <p>Each sheet is a grid of labelled cells over a checkerboard (so transparent renders stay
  * visible). The sweep covers the scope x dimension grid, the player head in 3D under every
@@ -63,11 +63,11 @@ import javax.imageio.ImageIO;
  *
  * <p>The sweep skin is the vanilla {@code entity/player/wide/steve} texture id (offline); the sweep
  * cape is a synthesized 64x32 texture since the vanilla pack ships none. The {@code account} sheet
- * is the exception - it streams a live skin + cape through {@link Pipeline#mojang()} and is skipped
+ * is the exception - it streams a live skin + cape through {@link ClientAcquisition#mojang()} and is skipped
  * (not fatal) when offline. 3D cells render at {@link #SSAA}x supersampling for crisp edges.
  *
  * <p>Usage:
- * {@code ./gradlew :asset-renderer:playerRender [-PrenderSize=256] [-Psheets=core-matrix,toggles,account,...] [-Ppack[=<url>]] [-Paccount=<username>]}.
+ * {@code ./gradlew playerRender [-PrenderSize=256] [-Psheets=core-matrix,toggles,account,...] [-Ppack[=<url>]] [-Paccount=<username>]}.
  */
 @UtilityClass
 public final class TestPlayerRender {
@@ -196,6 +196,14 @@ public final class TestPlayerRender {
             .skin(skinBase().cape(TextureOptions.builder().bytes(Optional.of(cape)).build()).renderCape(true).build()).output(sweepRender(size).mutate().rotation(new EulerRotation(0f, 180f, 0f)).build()).build()));
         cells.add(new Cell("cape (front)", base(size).type(PlayerOptions.Type.FULL)
             .skin(skinBase().cape(TextureOptions.builder().bytes(Optional.of(cape)).build()).renderCape(true).build()).build()));
+        // Elytra supersedes the cape and shows the cape design (use_player_texture); rear view since the
+        // wings sit on the anatomical back.
+        cells.add(new Cell("elytra only (3/4)", base(size).type(PlayerOptions.Type.FULL)
+            .skin(skinBase().renderElytra(true).build())
+            .output(sweepRender(size).mutate().rotation(new EulerRotation(0f, 135f, 0f)).build()).build()));
+        cells.add(new Cell("elytra+cape (3/4)", base(size).type(PlayerOptions.Type.FULL)
+            .skin(skinBase().cape(TextureOptions.builder().bytes(Optional.of(cape)).build()).renderCape(true).renderElytra(true).build())
+            .output(sweepRender(size).mutate().rotation(new EulerRotation(0f, 135f, 0f)).build()).build()));
         cells.add(new Cell("ssaa 1 (raw)", base(size).type(PlayerOptions.Type.FULL).output(sweepRender(size).mutate().supersample(1).build()).build()));
         cells.add(new Cell("ssaa 4 + fxaa", base(size).type(PlayerOptions.Type.FULL).output(sweepRender(size).mutate().antiAlias(true).build()).build()));
         cells.add(new Cell("rot 0/0/0 (front)", base(size).type(PlayerOptions.Type.FULL)
@@ -237,7 +245,7 @@ public final class TestPlayerRender {
         cells.add(new Cell("boots only 2D", base(size).type(PlayerOptions.Type.FULL)
             .dimension(PlayerOptions.Dimension.TWO_D).armor(ArmorOptions.builder().boots(Optional.of(iron)).build()).build()));
         cells.add(new Cell("enchanted iron 3D", allSlots(base(size).type(PlayerOptions.Type.FULL),
-            new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), Optional.empty(), true)).build()));
+            new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), true)).build()));
         return cells;
     }
 
@@ -247,7 +255,7 @@ public final class TestPlayerRender {
      * glint is watchable on each slot in both dimensions.
      */
     private static @NotNull List<Cell> glintPerSlot(int size) {
-        ArmorPiece iron = new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), Optional.empty(), true);
+        ArmorPiece iron = new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), true);
         List<Cell> cells = new ArrayList<>();
         for (PlayerOptions.Dimension dim : PlayerOptions.Dimension.values()) {
             String d = dim == PlayerOptions.Dimension.THREE_D ? "3D" : "2D";
@@ -308,15 +316,15 @@ public final class TestPlayerRender {
     }
 
     /**
-     * Live-account sheet: resolves a username's Mojang profile through {@link Pipeline#mojang()},
+     * Live-account sheet: resolves a username's Mojang profile through {@link ClientAcquisition#mojang()},
      * then renders its real skin (and cape, if the account has one) across scopes. The cape is shown
      * from the rear and at a 3/4 angle since the front-facing default hides the anatomical back.
-     * The skin / cape URLs stream through the same {@link Pipeline#mojang()} contract at render time
+     * The skin / cape URLs stream through the same {@link ClientAcquisition#mojang()} contract at render time
      * (see {@code PlayerRenderer.resolveSkin}/{@code resolveCape}). Requires network; the caller
      * skips the sheet on failure.
      */
     private static @NotNull List<Cell> account(int size, @NotNull String username) throws MojangApiException {
-        MojangProfile profile = Pipeline.mojang().getMojangProfile(username);
+        MojangProfile profile = ClientAcquisition.mojang().getMojangProfile(username);
         MojangProfile.Textures textures = profile.getTextures();
         Optional<String> skinUrl = textures.getSkin().map(value -> value.getUrl());
         Optional<String> capeUrl = textures.getCape().map(value -> value.getUrl());
@@ -329,6 +337,10 @@ public final class TestPlayerRender {
         cells.add(new Cell(username + " head", accountBase(size, skinUrl).type(PlayerOptions.Type.SKULL).build()));
         cells.add(new Cell(username + " 2D", accountBase(size, skinUrl)
             .type(PlayerOptions.Type.FULL).dimension(PlayerOptions.Dimension.TWO_D).build()));
+        // Elytra using the static wing skin (no cape source), so the wings show regardless of the account.
+        cells.add(new Cell(username + " elytra (3/4)", accountBase(size, skinUrl)
+            .type(PlayerOptions.Type.FULL).skin(accountSkinBase(skinUrl).renderElytra(true).build())
+            .output(sweepRender(size).mutate().rotation(new EulerRotation(0f, 135f, 0f)).build()).build()));
         if (capeUrl.isPresent()) {
             cells.add(new Cell(username + " cape (rear)", accountBase(size, skinUrl)
                 .type(PlayerOptions.Type.FULL).skin(accountSkinBase(skinUrl).cape(TextureOptions.builder().url(capeUrl).build()).renderCape(true).build())
@@ -336,6 +348,10 @@ public final class TestPlayerRender {
             cells.add(new Cell(username + " cape (3/4)", accountBase(size, skinUrl)
                 .type(PlayerOptions.Type.FULL).skin(accountSkinBase(skinUrl).cape(TextureOptions.builder().url(capeUrl).build()).renderCape(true).build())
                 .output(sweepRender(size).mutate().rotation(new EulerRotation(0f, 150f, 0f)).build()).build()));
+            // The wearer's cape textures the elytra (use_player_texture) and supersedes the flat cape.
+            cells.add(new Cell(username + " elytra+cape (3/4)", accountBase(size, skinUrl)
+                .type(PlayerOptions.Type.FULL).skin(accountSkinBase(skinUrl).cape(TextureOptions.builder().url(capeUrl).build()).renderCape(true).renderElytra(true).build())
+                .output(sweepRender(size).mutate().rotation(new EulerRotation(0f, 135f, 0f)).build()).build()));
         } else {
             System.out.println("  (account has no cape)");
         }
@@ -529,11 +545,11 @@ public final class TestPlayerRender {
     }
 
     private static @NotNull PipelineRendererContext buildContext(@NotNull ConcurrentList<File> userPacks) {
-        PipelineOptions options = PipelineOptions.defaults().mutate().texturePacks(userPacks).build();
+        ClientOptions options = ClientOptions.defaults().mutate().texturePacks(userPacks).build();
         try {
-            return PipelineRendererContext.of(Pipeline.run(options));
+            return PipelineRendererContext.of(ClientAcquisition.acquire(options));
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
     }
@@ -561,15 +577,23 @@ public final class TestPlayerRender {
     /**
      * Synthesizes a recognizable 64x32 cape texture (vanilla ships none): navy field with a red top
      * band and a gold centre stripe painted on <b>both</b> broad faces (the south crop at x 1..10 and
-     * the north crop at x 12..21) so the design reads whichever face the iso pose presents.
+     * the north crop at x 12..21) so the design reads whichever face the iso pose presents. The whole
+     * atlas is filled and the elytra wing region (texOffs {@code 22,0}) carries a gold cross-hatch, so a
+     * caped player wearing an elytra ({@code use_player_texture}) shows the cape design on the wings -
+     * an elytra-compatible cape, matching the real 64x32 capes that ship both designs.
      */
     private static byte[] capeTexture() {
         BufferedImage img = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < 17; y++)
-            for (int x = 0; x < 22; x++)
+        for (int y = 0; y < 32; y++)
+            for (int x = 0; x < 64; x++)
                 img.setRGB(x, y, 0xFF1A2E6E);
         paintCapeFace(img, 1);   // south broad face (x 1..10)
         paintCapeFace(img, 12);  // north broad face (x 12..21)
+        // Elytra wing region (a 10x20x2 box unwrapped at 22,0 spans x 22..46, y 0..22): gold cross-hatch
+        // so the cape-textured wings are visibly the cape, not the static elytra skin.
+        for (int y = 0; y < 22; y++)
+            for (int x = 22; x < 46; x++)
+                if (((x + y) % 5) < 2) img.setRGB(x, y, 0xFFFED83D);
         try {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             ImageIO.write(img, "PNG", bos);

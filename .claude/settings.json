@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/parity-gate-precommit.js\"",
+            "timeout": 20,
+            "statusMessage": "Checking parity gate..."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -29,11 +29,16 @@ import org.objectweb.asm.tree.MethodNode;
  * (the vanilla adult-first constructor convention, javap-pinned on both consumer shapes). A
  * {@code _BABY} field-suffix fallback runs only when the dataflow pick misses, at INFO.
  *
- * <p>Same-model-class factories are skipped - NautilusModel bakes adult and baby from the
- * same class and the collision suffix would shift the adult's id. Baby texture chain: variant
- * families carry per-option {@code baby_texture} instead (node emits geometry only); plain
- * families take the renderer's isBaby-branch texture literal, then the {@code <adult>_baby}
- * sibling existence-probed as a declared fallback.
+ * <p>A baby is skipped only when it mints the adult's own geometry key - the one case where the
+ * option would be a duplicate of the default under a name claiming otherwise. The factory
+ * coordinate grammar is what makes that the right question to ask: two meshes off one model class
+ * separate by method or by an {@code @}-discriminator, so the nautilus's
+ * {@code #createBabyBodyLayer} and the happy ghast's second {@code @scaled} are distinct keys, and
+ * only a genuine re-pick of the adult collides.
+ *
+ * <p>Baby texture chain: variant families carry per-option {@code baby_texture} instead (node emits
+ * geometry only); plain families take the renderer's isBaby-branch texture literal, then the
+ * {@code <adult>_baby} sibling existence-probed as a declared fallback.
  */
 final class EntityAgeAxisResolver {
 
@@ -47,20 +52,13 @@ final class EntityAgeAxisResolver {
     private final @NotNull GeometryManifest manifest;
     private final @NotNull Diagnostics diagnostics;
 
-    EntityAgeAxisResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull EntityGeometryRefResolver geometryRef,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
-        this.layerDefinitions = layerDefinitions;
+    EntityAgeAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
-        this.manifest = manifest;
-        this.diagnostics = diagnostics;
+        this.manifest = context.indexes().manifest();
+        this.diagnostics = context.diagnostics();
     }
 
     /**
@@ -75,24 +73,44 @@ final class EntityAgeAxisResolver {
      *     {@code null} on variant-axis / unresolved families
      * @param variantFamily whether the family carries a variant axis (baby textures then
      *     live per-option as {@code baby_texture} - the adult / baby options emit geometry only)
+     * @param setupYShift the renderer's {@code setupRotations} Y translation as an
+     *     {@code {adult, baby}} pair in blocks, or {@code null} when it applies none. It lives on the
+     *     age options rather than on {@code render} because vanilla brackets its rotations with
+     *     translates the age selects between - a family-level member could not hold both
      * @return the age node (always non-null)
      */
-    @NotNull JsonNode resolve(@Nullable String baseGeometry, @Nullable String adultTexture, boolean variantFamily) {
-        JsonNode adult = JsonNode.object().putIf("geometry", baseGeometry);
+    @NotNull JsonTree resolve(
+        @Nullable String baseGeometry, @Nullable String adultTexture, boolean variantFamily,
+        float @Nullable [] setupYShift
+    ) {
+        JsonTree adult = JsonTree.object().putIf("geometry", baseGeometry);
         if (!variantFamily) adult.putIf("texture", adultTexture);
-        JsonNode node = JsonNode.object().put("default", "adult");
-        JsonNode options = node.child("options");
+        if (setupYShift != null && setupYShift[0] != 0f) adult.put("y_shift", setupYShift[0]);
+        JsonTree node = JsonTree.object().put("default", "adult");
+        JsonTree options = node.child("options");
         options.put("adult", adult);
-        JsonNode baby = resolveBaby(adultTexture, variantFamily);
-        if (baby != null) options.put("baby", baby);
+        JsonTree baby = resolveBaby(baseGeometry, adultTexture, variantFamily);
+        if (baby != null) {
+            if (setupYShift != null && setupYShift[1] != 0f) baby.put("y_shift", setupYShift[1]);
+            options.put("baby", baby);
+        }
         return node;
     }
 
     /**
      * The {@code options.baby} delta body, or {@code null} when no dedicated baby mesh resolves
-     * (the baby field is unindexed, or the baby bakes from the adult model class).
+     * (the baby field is unindexed, or the baby mesh IS the adult's).
+     *
+     * @param baseGeometry the family's resolved primary geometry key, compared against the key the
+     *     baby mints so an option that would duplicate the default is dropped
+     * @param adultTexture the family's resolved adult texture, the stem the {@code <adult>_baby}
+     *     probe works from
+     * @param variantFamily whether baby textures live per-option rather than on this node
+     * @return the baby delta, or {@code null} when none resolves
      */
-    private @Nullable JsonNode resolveBaby(@Nullable String adultTexture, boolean variantFamily) {
+    private @Nullable JsonTree resolveBaby(
+        @Nullable String baseGeometry, @Nullable String adultTexture, boolean variantFamily
+    ) {
         String babyField = pickBabyLayerField();
         if (babyField == null) return null;
         LayerDefinitionIndex.Entry babyEntry = this.layerDefinitions.get(babyField);
@@ -100,21 +118,20 @@ final class EntityAgeAxisResolver {
             this.diagnostics.info("baby layer ModelLayers.%s has no LayerDefinitions.createRoots entry - baby option omitted", babyField);
             return null;
         }
-        LayerDefinitionIndex.Entry primary = this.geometryRef.resolvedEntry();
-        // Skip babies baked from the SAME model class as the adult (nautilus:
-        // NautilusModel#createBabyBodyLayer vs #createBodyLayer) - their geometry ids derive
-        // the same class-based stem and the collision suffix would shift the adult's.
-        if (primary != null && primary.factoryClass().equals(babyEntry.factoryClass())) {
-            this.diagnostics.info("baby layer ModelLayers.%s shares the adult model class - baby option skipped [D10]", babyField);
-            return null;
-        }
 
         String key = this.manifest.register(GeometryRequest.body(
             babyEntry.factoryClass(), babyEntry.factoryMethod(), this.subject.entityId(),
             babyEntry.texWidthOverride(), babyEntry.texHeightOverride(),
             babyEntry.floatParam(), babyEntry.appliedMeshTransformerScale()));
+        // A baby that mints the adult's own key IS the adult mesh, and an option naming it would be a
+        // byte-identical copy of the default. Registering first and comparing keys is what asks that
+        // exactly: the manifest dedupes by key, so a baby that collides adds no entry to collide with.
+        if (key.equals(baseGeometry)) {
+            this.diagnostics.info("baby layer ModelLayers.%s mints the adult mesh key - baby option skipped", babyField);
+            return null;
+        }
 
-        JsonNode baby = JsonNode.object().put("geometry", key);
+        JsonTree baby = JsonTree.object().put("geometry", key);
         if (!variantFamily) baby.putIf("texture", resolveBabyTexture(adultTexture));
         this.diagnostics.info("age axis: baby mesh ModelLayers.%s -> %s", babyField, key);
         return baby;
@@ -132,7 +149,19 @@ final class EntityAgeAxisResolver {
         // Declared naming fallback: the first _BABY-suffixed triple in the ctor chain.
         for (String field : this.geometryRef.tripleSites())
             if (field.endsWith("_BABY") && this.layerDefinitions.get(field) != null) {
-                this.diagnostics.info("baby layer ModelLayers.%s via P10 field-suffix fallback (isBaby dataflow missed)", field);
+                this.diagnostics.info("baby layer ModelLayers.%s via field-suffix fallback (isBaby dataflow missed)", field);
+                return field;
+            }
+        // Registration-lambda fallback: a renderer handed already-BUILT models bakes nothing in its
+        // own constructor, so it has no triple for either arm above to read - EntityRenderers bakes
+        // SQUID and SQUID_BABY in the registration lambda and passes SquidRenderer two SquidModels.
+        // The adult already resolves from this same pool; the baby just never consulted it. Guarded
+        // against the adult's own field so a family naming one layer cannot re-pick it as its baby.
+        for (String field : this.subject.lambdaLayerFields())
+            if (field.endsWith("_BABY")
+                && !field.equals(this.geometryRef.primaryFieldName())
+                && this.layerDefinitions.get(field) != null) {
+                this.diagnostics.info("baby layer ModelLayers.%s via registration-lambda reference order", field);
                 return field;
             }
         return null;
@@ -171,7 +200,7 @@ final class EntityAgeAxisResolver {
      * the scan window.
      */
     private static boolean readsIsBaby(@NotNull MethodNode method, @Nullable String dispatchOwner) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (in.getOpcode() != Opcodes.GETFIELD
                 || !(in instanceof FieldInsnNode fi)
                 || !VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)
@@ -205,7 +234,7 @@ final class EntityAgeAxisResolver {
         String prefixed = adultTexture.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length());
         String candidate = prefixed.substring(0, prefixed.length() - ".png".length()) + "_baby.png";
         if (!this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + candidate)) return null;
-        this.diagnostics.info("baby texture via _baby sibling probe [D26/P10]");
+        this.diagnostics.info("baby texture via _baby sibling probe");
         return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + candidate;
     }
 
@@ -279,7 +308,7 @@ final class EntityAgeAxisResolver {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pendingPath = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) {
                 pendingPath = literal;

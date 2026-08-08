@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
+import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
@@ -10,7 +11,7 @@ import java.util.Set;
 /**
  * The block-geometry escape hatches: the "which layer factory is THE whole-block geometry vs a
  * decorative sub-layer" allow-list the generic ModelLayers x
- * {@link lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex} join can not settle on
+ * {@link LayerDefinitionIndex} join can not settle on
  * its own (conduit eye/wind/cage, copper-golem poses all resolve to real factories). Declared
  * here with provenance; never fetches ({@code PolicyPurityTest}).
  *
@@ -33,10 +34,9 @@ enum BlockGeometryPolicies implements NavigationPolicy {
             "createShellMesh", "createBaseLayer", "createSidesLayer", "createHeadLayer",
             "createFootLayer", "createHeadModel", "createFlagLayer", "createSignLayer",
             "createHangingSignLayer", "createMobHeadLayer", "createHumanoidHeadLayer"),
-        "P38: the primary-vs-decorative layer allow-list - legacy SourceDiscovery.PRIMARY_METHOD_NAMES"
-            + " :162-178; its own :156-160 javadoc sketches a validBlocks-derived alternative but calls"
-            + " it brittle (conduit eye/wind/cage, copper-golem poses would misclassify), so it stays a"
-            + " declared escape hatch with a diag-WARN on any layer matched by neither path");
+        "the primary-vs-decorative layer allow-list: the validBlocks-derived alternative is brittle - conduit"
+            + " eye / wind / cage and the copper-golem poses would misclassify - so this stays a declared escape"
+            + " hatch, with a diag-WARN on any layer matched by neither path");
 
     private final @NotNull Object value;
     private final @NotNull String provenance;

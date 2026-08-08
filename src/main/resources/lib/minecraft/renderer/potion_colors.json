@@ -2,138 +2,39 @@
   "//": "tooling.potionColors · regen: ./gradlew potionColors · order: effect id sort order",
   "format": 2,
   "source_version": "26.1",
-  "effects": [
-    {
-      "effect": "minecraft:absorption",
-      "color": "0xFF2552A5"
-    },
-    {
-      "effect": "minecraft:bad_omen",
-      "color": "0xFF0B6138"
-    },
-    {
-      "effect": "minecraft:blindness",
-      "color": "0xFF1F1F23"
-    },
-    {
-      "effect": "minecraft:breath_of_the_nautilus",
-      "color": "0xFF00FFEE"
-    },
-    {
-      "effect": "minecraft:conduit_power",
-      "color": "0xFF1DC2D1"
-    },
-    {
-      "effect": "minecraft:darkness",
-      "color": "0xFF292721"
-    },
-    {
-      "effect": "minecraft:dolphins_grace",
-      "color": "0xFF88A3BE"
-    },
-    {
-      "effect": "minecraft:fire_resistance",
-      "color": "0xFFFF9900"
-    },
-    {
-      "effect": "minecraft:glowing",
-      "color": "0xFF94A061"
-    },
-    {
-      "effect": "minecraft:haste",
-      "color": "0xFFD9C043"
-    },
-    {
-      "effect": "minecraft:health_boost",
-      "color": "0xFFF87D23"
-    },
-    {
-      "effect": "minecraft:hero_of_the_village",
-      "color": "0xFF44FF44"
-    },
-    {
-      "effect": "minecraft:hunger",
-      "color": "0xFF587653"
-    },
-    {
-      "effect": "minecraft:invisibility",
-      "color": "0xFFF6F6F6"
-    },
-    {
-      "effect": "minecraft:jump_boost",
-      "color": "0xFFFDFF84"
-    },
-    {
-      "effect": "minecraft:levitation",
-      "color": "0xFFCEFFFF"
-    },
-    {
-      "effect": "minecraft:luck",
-      "color": "0xFF59C106"
-    },
-    {
-      "effect": "minecraft:mining_fatigue",
-      "color": "0xFF4A4217"
-    },
-    {
-      "effect": "minecraft:nausea",
-      "color": "0xFF551D4A"
-    },
-    {
-      "effect": "minecraft:night_vision",
-      "color": "0xFFC2FF66"
-    },
-    {
-      "effect": "minecraft:poison",
-      "color": "0xFF87A363"
-    },
-    {
-      "effect": "minecraft:regeneration",
-      "color": "0xFFCD5CAB"
-    },
-    {
-      "effect": "minecraft:resistance",
-      "color": "0xFF9146F0"
-    },
-    {
-      "effect": "minecraft:saturation",
-      "color": "0xFFF82423"
-    },
-    {
-      "effect": "minecraft:slow_falling",
-      "color": "0xFFF3CFB9"
-    },
-    {
-      "effect": "minecraft:slowness",
-      "color": "0xFF8BAFE0"
-    },
-    {
-      "effect": "minecraft:speed",
-      "color": "0xFF33EBFF"
-    },
-    {
-      "effect": "minecraft:strength",
-      "color": "0xFFFFC700"
-    },
-    {
-      "effect": "minecraft:unluck",
-      "color": "0xFFC0A44D"
-    },
-    {
-      "effect": "minecraft:water_breathing",
-      "color": "0xFF98DAC0"
-    },
-    {
-      "effect": "minecraft:weakness",
-      "color": "0xFF484D48"
-    },
-    {
-      "effect": "minecraft:wind_charged",
-      "color": "0xFFBDC9FF"
-    },
-    {
-      "effect": "minecraft:wither",
-      "color": "0xFF736156"
-    }
-  ]
+  "effects": {
+    "minecraft:absorption": "0xFF2552A5",
+    "minecraft:bad_omen": "0xFF0B6138",
+    "minecraft:blindness": "0xFF1F1F23",
+    "minecraft:breath_of_the_nautilus": "0xFF00FFEE",
+    "minecraft:conduit_power": "0xFF1DC2D1",
+    "minecraft:darkness": "0xFF292721",
+    "minecraft:dolphins_grace": "0xFF88A3BE",
+    "minecraft:fire_resistance": "0xFFFF9900",
+    "minecraft:glowing": "0xFF94A061",
+    "minecraft:haste": "0xFFD9C043",
+    "minecraft:health_boost": "0xFFF87D23",
+    "minecraft:hero_of_the_village": "0xFF44FF44",
+    "minecraft:hunger": "0xFF587653",
+    "minecraft:invisibility": "0xFFF6F6F6",
+    "minecraft:jump_boost": "0xFFFDFF84",
+    "minecraft:levitation": "0xFFCEFFFF",
+    "minecraft:luck": "0xFF59C106",
+    "minecraft:mining_fatigue": "0xFF4A4217",
+    "minecraft:nausea": "0xFF551D4A",
+    "minecraft:night_vision": "0xFFC2FF66",
+    "minecraft:poison": "0xFF87A363",
+    "minecraft:regeneration": "0xFFCD5CAB",
+    "minecraft:resistance": "0xFF9146F0",
+    "minecraft:saturation": "0xFFF82423",
+    "minecraft:slow_falling": "0xFFF3CFB9",
+    "minecraft:slowness": "0xFF8BAFE0",
+    "minecraft:speed": "0xFF33EBFF",
+    "minecraft:strength": "0xFFFFC700",
+    "minecraft:unluck": "0xFFC0A44D",
+    "minecraft:water_breathing": "0xFF98DAC0",
+    "minecraft:weakness": "0xFF484D48",
+    "minecraft:wind_charged": "0xFFBDC9FF",
+    "minecraft:wither": "0xFF736156"
+  }
 }

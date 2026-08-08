@@ -19,24 +19,26 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
-import javax.imageio.ImageIO;
 
 /**
  * Side-by-side visual comparison of the block-entity subjects (bed, chest) rendered two ways: the
@@ -57,7 +59,7 @@ import javax.imageio.ImageIO;
  * other parity tools here there is no diff/metric pass - the eye does the comparison across the
  * pipeline-vs-mc_assets pairs.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:bedParity [-PrenderSize=1024]}.
+ * <p>Usage: {@code ./gradlew bedCompare [-PrenderSize=1024]}.
  */
 @UtilityClass
 public final class TestBedParity {
@@ -76,19 +78,19 @@ public final class TestBedParity {
     public static void main(String @NotNull [] args) throws IOException {
         int size = args.length > 0 ? Integer.parseInt(args[0]) : 1024;
 
-        Pipeline.Result result = Pipeline.run(PipelineOptions.defaults());
+        ClientAssets result = ClientAcquisition.acquire(ClientOptions.defaults());
         PipelineRendererContext context = PipelineRendererContext.of(result);
         BlockRenderer renderer = new BlockRenderer(context);
         Path outputDir = Path.of("cache/visual/bed-parity");
         Files.createDirectories(outputDir);
 
-        // 1. Pipeline entity model version
+        // 1. ClientAcquisition entity model version
         render(renderer, "minecraft:red_bed", size, outputDir.resolve("pipeline_red_bed.png"));
 
         // 2. mc-assets ground truth (block model elements)
         renderMcAssetsBed(context, size, outputDir.resolve("mc_assets_red_bed.png"));
 
-        // 3. Pipeline chest
+        // 3. ClientAcquisition chest
         render(renderer, "minecraft:chest", size, outputDir.resolve("pipeline_chest.png"));
 
         // 4. mc-assets chest ground truth
@@ -157,7 +159,8 @@ public final class TestBedParity {
                 t.texture(), t.tintArgb(),
                 Vector3f.normalize(
                     Vector3f.transformNormal(t.normal(), rotY)),
-                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
+                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }
 
@@ -209,7 +212,8 @@ public final class TestBedParity {
                 t.texture(), t.tintArgb(),
                 Vector3f.normalize(
                     Vector3f.transformNormal(t.normal(), rotY)),
-                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
+                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }
 
@@ -304,7 +308,8 @@ public final class TestBedParity {
                 scaleV(t.position1(), cx, cy, cz, scale),
                 scaleV(t.position2(), cx, cy, cz, scale),
                 t.uv0(), t.uv1(), t.uv2(),
-                t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
+                t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }
         return out;

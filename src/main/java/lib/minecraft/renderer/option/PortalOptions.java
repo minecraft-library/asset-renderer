@@ -56,7 +56,8 @@ public class PortalOptions implements RenderOptions {
 
     /**
      * The default animation timing for a portal render - seed tick 0, 1 frame, 8 ticks per frame
-     * (the calm parallax playback rate), with the 0.2 loop-crossfade fraction.
+     * (the game-time step the parallax shader advances per output frame), with the 0.2 loop-crossfade
+     * fraction.
      */
     public static final @NotNull AnimationOptions DEFAULT_ANIMATION =
             AnimationOptions.builder().ticksPerFrame(8).build();

@@ -3,32 +3,33 @@ package lib.minecraft.renderer.visual;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import javax.imageio.ImageIO;
 
 /**
  * Diagnostic task that renders blocks to PNG files for visual inspection. For each block spec it
  * writes the isometric 3D render ({@link BlockOptions.Type#ISOMETRIC_3D}) plus one flat 2D render
- * per {@link BlockFace} ({@link BlockOptions.Type#BLOCK_FACE_2D}) so orientation and per-face UV
+ * per {@link Face} ({@link BlockOptions.Type#BLOCK_FACE_2D}) so orientation and per-face UV
  * issues can be compared side by side. All output lands under {@code cache/visual/block-render-3d/}.
  * <p>
  * With no {@code -PblockId} the task renders {@link #BLOCK_TEST_2} (a mix of non-full-cube shapes)
  * at 512px with 2x supersampling. The TNT block ({@link #BLOCK_TEST_1}) has text and distinct
  * top / side / bottom faces that make orientation issues immediately obvious.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:blockRender3D [-PblockId=minecraft:tnt] [-PrenderSize=512] [-Pssaa=2]}.
+ * Usage: {@code ./gradlew blockRender3D [-PblockId=minecraft:tnt] [-PrenderSize=512] [-Pssaa=2]}.
  * Note the Gradle wiring only forwards {@code -PrenderSize} / {@code -Pssaa} when {@code -PblockId}
  * is also supplied; without a block id the task runs the default list at the built-in defaults.
  */
@@ -69,11 +70,11 @@ public final class TestBlockRender3D {
         int size = args.length > 1 ? Integer.parseInt(args[1]) : 512;
         int ssaa = args.length > 2 ? Integer.parseInt(args[2]) : 2;
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
 
@@ -119,7 +120,7 @@ public final class TestBlockRender3D {
             }
 
             // Render each 2D face for comparison
-            for (BlockFace face : BlockFace.CACHED_VALUES) {
+            for (Face face : Face.CACHED_VALUES) {
                 try {
                     BlockOptions faceOpt = BlockOptions.builder()
                         .blockId(blockId)

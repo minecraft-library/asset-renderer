@@ -1,0 +1,90 @@
+{
+  "//": "parity.manifest.dump.vanilla · regen: ./gradlew parityCapture -Partifacts=manifest.dump.vanilla",
+  "artifact": "manifest.dump.vanilla",
+  "files": [
+    {
+      "path": "block-entities.json",
+      "sha256": "02f52e9669ebb1d44f70b770ebff0ffb6b4ce86c4e99b5cab52a90c3ff1bfe0f"
+    },
+    {
+      "path": "block-models.json",
+      "sha256": "8fa9423da2e9ffbc307254a50c60b15b586a70cc021038b27f59d712408fc748"
+    },
+    {
+      "path": "blocks.json",
+      "sha256": "2fe647ea8d010646b922a4a2e41391329dbeae361f9db9fc99618a61068ca994"
+    },
+    {
+      "path": "entities.json",
+      "sha256": "bace1e41cda5df7858e3f61a0eefed30bb8481fbd411072677699a869616dafb"
+    },
+    {
+      "path": "item-models.json",
+      "sha256": "dd847b1f06362d3c20caed8be0274ed45579124d46259149dc96ed12c164ebe3"
+    },
+    {
+      "path": "items.json",
+      "sha256": "0e89cd4290e37b991d6dbce4dbf2368a93e00595a473dad20db06fef1c43df5b"
+    },
+    {
+      "path": "misc.json",
+      "sha256": "4bb6750188a1ba0535009b19df21fadff5e35138775c91b643cfc46d25e837e6"
+    },
+    {
+      "path": "packs.json",
+      "sha256": "1b78c64c4aa41316778350c9161fcfb933aa1d3e29ea79bd39d5471ac263809d"
+    },
+    {
+      "path": "probes.json",
+      "sha256": "a0439c21c45d67007573eeb85984689422a2eca16eb254dcd9301f2b10da0abe"
+    },
+    {
+      "path": "rules.json",
+      "sha256": "4351e81ca6efc147f646d7fd03466da522e950d8b70acabf04fbad84d5ff4344"
+    },
+    {
+      "path": "run.json",
+      "sha256": "c225ac9478c3c970431de33b7c135f938932128f0340781579a817cd7e2303e5"
+    },
+    {
+      "path": "synthesis.json",
+      "sha256": "3dccf13adb485c780f11143480998b144fe321856de87c326d7c249460246fe9"
+    },
+    {
+      "path": "textures.json",
+      "sha256": "f94107fbd4fbff8e24eb0d85c811c1a2fec1c09888d0a6ad3cb7470eeba10498"
+    },
+    {
+      "path": "trees.json",
+      "sha256": "6fc4172b0c6ee8e370351e3a3fff0a592481f0463caf312aebdb5d2579a05cd5"
+    }
+  ],
+  "format": 1,
+  "key": "path",
+  "kind": "manifest",
+  "provenance": {
+    "artifact": "manifest.dump.vanilla",
+    "asset_dirty": false,
+    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "counts": {
+      "files": 14
+    },
+    "determinism_runs": 5,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "parityDump",
+    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 5/5, dump pair at FIVE runs: 14 of 14 sections stable across all five in both configs, all four compares against run 1 clean. The retained series-end dump tree reproduces the committed oracle digests exactly, so it is that oracle; six of its fourteen sections differ and it predates HEAD by 314 commits. Field-level, every one is accounted for: block-models.json and item-models.json differ ONLY by gui_light_3d being removed from every model, 2392 and 1284 removals with no other field touched, which is the registered delta; entities.json differs by named landed work - show_base_plate becoming base_plate plus arms, the small armour stand size_models SMALL, and equipment texture_template becoming layer_type, material_assets and default_material; and block-entities.json, blocks.json and items.json have an identical field set with values moved, so no schema change. run.json is byte-identical to the oracle.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "root": "cache/parity-dump/head/vanilla",
+    "timestamp": "2026-08-01T02:31:04Z",
+    "tool_version": "1.0.0"
+  }
+}

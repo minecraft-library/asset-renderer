@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.asset;
 
-import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
@@ -13,14 +13,17 @@ import lib.minecraft.renderer.tensor.Matrix4f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.awt.Color;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
  * A fully-parsed block definition backed by its vanilla model JSON and blockstate variants.
  * <p>
- * Every field is populated once during {@code Pipeline} bootstrap and stored verbatim; no
+ * Every field is populated once during {@code ClientAcquisition} bootstrap and stored verbatim; no
  * lazy or computed fields live on this DTO. Lookup happens through the active renderer
  * context.
  *
@@ -45,12 +48,11 @@ import java.util.Optional;
  * @param source where this block's registration originated. Used by atlas tile classification to
  *     label the source path (block-model file, blockstate-only fallback, or block-entity geometry
  *     override) without forcing consumers to type-check the renderer-context implementation
- * @param defaultStateKey the block's canonical default blockstate key as {@code property=value} pairs
- *     sorted alphabetically (e.g.
- *     {@code "facing=north,half=lower,hinge=left,open=false,powered=false"}), or empty when the block
- *     has no properties. Sourced from {@code block_defaults.json} (an ASM bytewalk of
+ * @param defaultState the block's default blockstate as a parsed {@code property -> value} map (e.g.
+ *     {@code {facing=north, half=lower, hinge=left, open=false, powered=false}}), or empty when the
+ *     block has no properties. Sourced from {@code block_defaults.json} (an ASM bytewalk of
  *     {@code registerDefaultState}) and baked on at pipeline-context construction. The renderer falls
- *     back to this key when a caller supplies no explicit variant, so blocks with per-state models
+ *     back to this state when a caller supplies no explicit variant, so blocks with per-state models
  *     render their default rather than whichever state registered first
  * @param itemBlockId the id of the block whose inventory item this block's icon poses through - the
  *     block's own id for a block that owns an item, or the standing block's id for a secondary block
@@ -59,6 +61,17 @@ import java.util.Optional;
  *     {@code block_items.json} (an ASM walk of the {@code Items} registry) and baked on at
  *     pipeline-context construction, so the icon renderer resolves the shared item's
  *     {@code display.gui} the same way the in-game inventory does
+ * @param iconGui the resolved {@code display.gui} transform this block's inventory icon poses through -
+ *     the {@link #itemBlockId() item-block}'s gui (a {@code special} leaf resolves to its {@code base}
+ *     model's gui, a plain leaf to its own resolved model), falling back to this block's own model gui,
+ *     or empty when no gui is authored anywhere. Baked at index build so the icon renderer reads it
+ *     without walking the item dispatch tree at render time
+ * @param modelIcon whether vanilla draws this block's inventory icon from a block model rather than a
+ *     flat item sprite - true exactly when the block-item's tree is a plain {@code model} root naming
+ *     a block model, which is what {@link #model()} then holds. Vanilla bakes such an icon at the
+ *     identity model state, so it carries neither a blockstate variant's rotation nor a multipart
+ *     assembly; a false here means vanilla's icon is a sprite (doors, wall torches, comparators) or a
+ *     block-entity renderer's mesh, and the 3D render is this pipeline's own stand-in
  */
 public record Block(
     @NotNull ResourceId id,
@@ -70,9 +83,25 @@ public record Block(
     @NotNull Tint tint,
     @NotNull Optional<Entity> entity,
     @NotNull Source source,
-    @NotNull String defaultStateKey,
-    @NotNull ResourceId itemBlockId
+    @NotNull ConcurrentMap<String, String> defaultState,
+    @NotNull ResourceId itemBlockId,
+    @NotNull Optional<ModelTransform> iconGui,
+    boolean modelIcon
 ) {
+
+    /**
+     * The canonical joined default-state key ({@code "prop=val,.."}, property-sorted; {@code ""} when
+     * the block declares no properties) - the serialized projection of {@link #defaultState()} kept for
+     * the parity dump and back-compat callers. The renderer reads {@link #defaultState()} directly
+     * everywhere but the carried-block variant lookup, which keys {@link #variants()} by this string
+     * once per block-overlay row per frame; a default state carries at most one property, so the join
+     * it runs there is a single token.
+     *
+     * @return the joined default-state key
+     */
+    public @NotNull String defaultStateKey() {
+        return BlockStateKey.join(this.defaultState);
+    }
 
     /**
      * Returns this block's texture reference for the first of {@code directionKeys} that is bound in
@@ -168,7 +197,13 @@ public record Block(
      * @param constant the hardcoded ARGB value, present only when {@code target} is
      *     {@link TintTarget#CONSTANT CONSTANT} and empty otherwise
      */
-    public record Tint(@NotNull TintTarget target, @NotNull Optional<Integer> constant) {}
+    public record Tint(@NotNull TintTarget target, @NotNull Optional<Color> constant) {
+
+        /** Normalises an absent {@code constant} (a colormap-target tint, or a Gson-omitted member) to empty. */
+        public Tint {
+            if (constant == null) constant = Optional.empty();
+        }
+    }
 
     /**
      * The geometry a {@link Variant} carries - either a resolved element model (plain blockstate
@@ -214,8 +249,19 @@ public record Block(
      * @param y the whole-model Y rotation in degrees (0, 90, 180, or 270)
      * @param uvlock whether UVs should be locked to the block grid during rotation
      * @param geometry the variant's geometry - an {@link ElementGeometry} or a {@link BoneGeometry}
+     * @param properties the variant's blockstate key parsed once at load into a {@code property -> value}
+     *     map ({@code facing=east,half=lower} to {@code {facing=east, half=lower}}); empty for a
+     *     multipart apply, which matches through its {@code when} condition rather than a key
+     * @param noPosition the entry vanilla draws for this key when the draw has no world position behind
+     *     it - a block an entity holds or carries - resolved once at index build, or empty when the key
+     *     authored a single variant and so offers no choice. Vanilla picks between an authored array's
+     *     entries at random, seeded by the block's position; with no position it seeds with a constant
+     *     instead, which makes the choice fixed rather than arbitrary. Present for the 34 blocks that
+     *     author such an array, and its own {@code noPosition} is always empty
      */
-    public record Variant(@NotNull String modelId, int x, int y, boolean uvlock, @NotNull VariantGeometry geometry) {
+    public record Variant(@NotNull String modelId, int x, int y, boolean uvlock,
+                          @NotNull VariantGeometry geometry, @NotNull ConcurrentMap<String, String> properties,
+                          @NotNull Optional<Variant> noPosition) {
 
         /**
          * Reports whether this variant applies a whole-model rotation.
@@ -240,10 +286,87 @@ public record Block(
         /**
          * A single entry in a multipart blockstate.
          *
-         * @param when the raw condition JSON, or {@code null} for unconditional parts
+         * @param when the parsed condition, {@link When.Always} for unconditional parts
          * @param apply the model reference and rotation to render when the condition matches
          */
-        public record Part(@Nullable JsonObject when, @NotNull Variant apply) {}
+        public record Part(@NotNull When when, @NotNull Variant apply) {}
+
+        /**
+         * A parsed multipart {@code "when"} condition, evaluated against a block's resolved property
+         * map. The vanilla forms map one-to-one: an {@code "AND"} array to {@link All}, an {@code "OR"}
+         * array to {@link Any}, a property object to {@link Match} (each value's {@code |} alternation
+         * pre-split at load), and an absent condition to {@link Always}. {@code AND} takes precedence
+         * over {@code OR}, which takes precedence over a plain property object.
+         */
+        public sealed interface When permits When.All, When.Any, When.Match, When.Always {
+
+            /**
+             * Reports whether this condition holds for a block's resolved properties. A property the
+             * block does not declare reads as the empty string.
+             *
+             * @param properties the block's {@code property -> value} map
+             * @return whether the condition matches
+             */
+            boolean matches(@NotNull ConcurrentMap<String, String> properties);
+
+            /**
+             * All sub-conditions must match - the {@code "AND"} form.
+             *
+             * @param terms the conjoined sub-conditions, in author order
+             */
+            record All(@NotNull List<When> terms) implements When {
+
+                @Override
+                public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
+                    for (When term : this.terms)
+                        if (!term.matches(properties)) return false;
+                    return true;
+                }
+            }
+
+            /**
+             * At least one sub-condition must match - the {@code "OR"} form.
+             *
+             * @param terms the alternative sub-conditions, in author order
+             */
+            record Any(@NotNull List<When> terms) implements When {
+
+                @Override
+                public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
+                    for (When term : this.terms)
+                        if (term.matches(properties)) return true;
+                    return false;
+                }
+            }
+
+            /**
+             * Every named property must equal one of its allowed values - a property object. Each
+             * value's {@code |} alternation is pre-split at load, so {@code "side|up"} becomes
+             * {@code ["side", "up"]} and a lone {@code "true"} becomes {@code ["true"]}.
+             *
+             * @param required each property name to its allowed values
+             */
+            record Match(@NotNull Map<String, List<String>> required) implements When {
+
+                @Override
+                public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
+                    for (Map.Entry<String, List<String>> entry : this.required.entrySet())
+                        if (!entry.getValue().contains(properties.getOrDefault(entry.getKey(), ""))) return false;
+                    return true;
+                }
+            }
+
+            /**
+             * The unconditional part - no {@code "when"} key; always matches.
+             */
+            record Always() implements When {
+
+                @Override
+                public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
+                    return true;
+                }
+            }
+        }
 
     }
 

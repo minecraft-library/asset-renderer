@@ -75,13 +75,13 @@ public final class BlockEntityRegistryDiscovery {
             Pending pending = byRenderer.get(rendererClass);
             if (pending == null)
                 byRenderer.put(rendererClass, pending = new Pending(
-                    VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + type.id(), typeField, rendererClass));
+                    VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + type.id(), rendererClass));
             pending.blockFields.addAll(type.blockFields());
         }
 
         List<BlockEntitySubject> subjects = new ArrayList<>();
         for (Pending pending : byRenderer.values())
-            subjects.add(new BlockEntitySubject(pending.id, pending.typeField, pending.rendererClass, List.copyOf(pending.blockFields)));
+            subjects.add(new BlockEntitySubject(pending.id, pending.rendererClass, List.copyOf(pending.blockFields)));
 
         diagnostics.info("discovered %d block-entity types, %d subjects after shared-renderer dedupe",
             types.size(), subjects.size());
@@ -113,7 +113,7 @@ public final class BlockEntityRegistryDiscovery {
         Map<String, TypeRegistration> out = new LinkedHashMap<>();
         String pendingId = null;
         List<String> pendingBlocks = new ArrayList<>();
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingId = literal;
@@ -159,7 +159,7 @@ public final class BlockEntityRegistryDiscovery {
 
         Map<String, String> out = new LinkedHashMap<>();
         String pendingTypeField = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE)) {
                 pendingTypeField = ((FieldInsnNode) in).name;
                 continue;
@@ -189,13 +189,11 @@ public final class BlockEntityRegistryDiscovery {
     private static final class Pending {
 
         private final @NotNull String id;
-        private final @NotNull String typeField;
         private final @NotNull String rendererClass;
         private final @NotNull List<String> blockFields = new ArrayList<>();
 
-        private Pending(@NotNull String id, @NotNull String typeField, @NotNull String rendererClass) {
+        private Pending(@NotNull String id, @NotNull String rendererClass) {
             this.id = id;
-            this.typeField = typeField;
             this.rendererClass = rendererClass;
         }
 

@@ -8,9 +8,11 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -122,6 +124,33 @@ class BlockGeometryKitTest {
             BlockGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
 
         assertThat(triangles.size(), equalTo(2));
+    }
+
+    @Test
+    @DisplayName("a FaceTextureResolver substitutes exactly the faces it targets; others keep the base texture")
+    void faceTextureResolver_substitutesTargetedFace() {
+        ModelElement element = new ModelElement();
+        for (String dir : new String[]{ "down", "up", "north", "south", "west", "east" })
+            element.getFaces().put(dir, face("#all"));
+
+        PixelBuffer base = texture1x1();
+        PixelBuffer substitute = solid(2, 2);
+        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
+        faceTextures.put("#all", base);
+
+        // Swap only the UP face (the CTM per-face hook); every other face falls through to the base.
+        BlockGeometryKit.FaceTextureResolver resolver = (blockFace, rawRef) ->
+            blockFace == Face.UP ? Optional.of(substitute) : Optional.empty();
+        BlockGeometryKit.ElementBuildParams params = new BlockGeometryKit.ElementBuildParams(
+            TINT_ARGB, TINT_ARGB, 0, 0, false, Set.of(), resolver);
+
+        ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(one(element), faceTextures, params);
+
+        assertThat(triangles.size(), equalTo(12));
+        for (VisibleTriangle t : triangles) {
+            boolean up = cardinal(t.normal()).equals("+y");
+            assertThat(t.texture(), sameInstance(up ? substitute : base));
+        }
     }
 
     @Test
@@ -239,14 +268,14 @@ class BlockGeometryKitTest {
     private static EntityModelData fullBlockCubeModel() {
         EntityModelData.Cube cube = new EntityModelData.Cube(
             new Vector3f(-8f, -8f, -8f), new Vector3f(16f, 16f, 16f), Vector2f.ZERO,
-            0f, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
+            Vector3f.ZERO, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
         ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
         cubes.add(cube);
         EntityModelData.Bone bone = new EntityModelData.Bone(
             new Vector3f(8f, 8f, 8f), EulerRotation.NONE, EulerRotation.NONE, 1f, cubes, null);
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", bone);
-        return new EntityModelData(16, 16, 0f, bones, false);
+        return new EntityModelData(new TextureSize(16, 16), 0f, bones, false);
     }
 
     /** Maps a (mostly-)axis-aligned normal to its cardinal-direction label. */
@@ -303,7 +332,16 @@ class BlockGeometryKitTest {
         return list;
     }
 
-    /** Sets a private declared field by reflection, used to populate parser-only model fields. */
+    /**
+     * Sets a private declared field by reflection, used to populate parser-only model fields.
+     *
+     * <p><b>Renaming one of these fields breaks this suite at runtime, not at compile time.</b> The
+     * names are string literals, so a rename refactor across the production types reports clean and
+     * then every fixture here throws {@code NoSuchFieldException}. Seven names are reached this way -
+     * {@code from}, {@code to}, {@code shade} and {@code lightEmission} on the model element, and
+     * {@code texture}, {@code uv} and {@code rotation} on the model face. Rename any of them and the
+     * matching literal below has to move with it.
+     */
     private static void setField(Object target, String name, Object value) throws ReflectiveOperationException {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);

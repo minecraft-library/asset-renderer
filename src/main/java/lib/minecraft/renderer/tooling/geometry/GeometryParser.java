@@ -3,21 +3,21 @@ package lib.minecraft.renderer.tooling.geometry;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -38,16 +38,17 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
 /**
  * Shared ASM bytecode walker for vanilla {@code LayerDefinition.create / CubeListBuilder /
  * PartPose / addOrReplaceChild} geometry: cache-fed, {@link GeometryRequest} in,
- * {@link JsonNode} out, 3-component grow. Consumed by {@code GeometryFlow} for both the
+ * {@link JsonTree} out, 3-component grow. Consumed by {@code GeometryFlow} for both the
  * entity and block flows - the bytecode shape is identical; only the requests differ.
  *
- * <p>Internal JSON assembly deliberately stays on Gson types rather than {@link JsonNode};
- * {@link JsonNode#wrap} adapts the output edge.
+ * <p>Internal JSON assembly deliberately stays on Gson types rather than {@link JsonTree};
+ * {@link JsonTree#wrap} adapts the output edge.
  *
  * <p>Parses the {@code createSingleBodyLayer()} / {@code createBodyLayer()} methods of
  * model classes to extract cube definitions, UV offsets, pivot points, and texture
@@ -84,7 +85,7 @@ public final class GeometryParser {
     /**
      * Parses one {@link GeometryRequest}'s factory bytecode and returns the raw parse
      * product - {@code textureWidth}, {@code textureHeight}, {@code bones} - as a
-     * {@link JsonNode}, or {@code null} when the parse produced no bone with cubes.
+     * {@link JsonTree}, or {@code null} when the parse produced no bone with cubes.
      * Schema assembly (the {@code source} twin, {@code texture_size} pairing, overrides,
      * {@code y_axis}, {@code cull}) is {@code GeometryFlow}'s job; missing classes /
      * methods (typically a MC version bump rename) and parse failures are ERRORs on
@@ -96,7 +97,7 @@ public final class GeometryParser {
      * @return the parse product ({@code textureWidth}, {@code textureHeight},
      *     {@code bones}), or {@code null} when nothing was emitted
      */
-    public static @Nullable JsonNode parse(@NotNull ClassNodeCache cache, @NotNull GeometryRequest request, @NotNull Diagnostics diagnostics) {
+    public static @Nullable JsonTree parse(@NotNull ClassNodeCache cache, @NotNull GeometryRequest request, @NotNull Diagnostics diagnostics) {
         ClassNode classNode = cache.load(request.factoryClass());
         if (classNode == null) {
             diagnostics.error("%s: class '%s' not found in client jar (renamed in MC version bump?)", request.subjectId(), request.factoryClass());
@@ -109,7 +110,7 @@ public final class GeometryParser {
         }
         try {
             JsonObject model = parseLayerMethod(method.instructions, cache, request, diagnostics);
-            return model == null ? null : JsonNode.wrap(model);
+            return model == null ? null : JsonTree.wrap(model);
         } catch (Exception ex) {
             diagnostics.error("%s: parse failure - %s", request.subjectId(), ex.getMessage());
             return null;
@@ -170,6 +171,17 @@ public final class GeometryParser {
             state.refParamOwner = refParam.ownerInternal();
             state.refParamValue = refParam.value();
         }
+        // Bind a PartPose parameter to a concrete offset so the factory's reads of it fold - splits
+        // {@code createBabyArmorMesh(CubeDeformation, PartPose)} into one shell per pose.
+        GeometryRequest.PoseParam poseParam = request.poseParam();
+        if (poseParam != null) {
+            state.poseParamSlot = poseParam.slot();
+            state.poseParamOffset = poseParam.offset().clone();
+        }
+        // The aged-down whole-mesh transformer the registration wraps this factory's result in.
+        // Carried rather than folded into meshTransformerScale: it rewrites a pose per top-level
+        // bone through one of two operators, which no single factor can express.
+        state.babyTransform = request.babyTransform();
         state.currentSource = request;
         state.diagnostics = diagnostics;
         walkInstructions(instructions, state, cache);
@@ -188,6 +200,7 @@ public final class GeometryParser {
         applyRetainedNamesFilter(state);
         applyClearedBonesFilter(state);
         applyMeshTransformerScaling(state);
+        applyBabyMeshTransform(state);
 
         if (state.bones.isEmpty()) return null;
 
@@ -280,7 +293,7 @@ public final class GeometryParser {
         if (clinit == null) return null;
 
         InvokeDynamicInsnNode pendingIndy = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isPseudoNode(in)) continue;
             if (in instanceof InvokeDynamicInsnNode indy && AsmKit.isLambdaInvokeDynamic(indy)) {
                 pendingIndy = indy;
@@ -301,7 +314,7 @@ public final class GeometryParser {
                 // The lambda body is the canonical `mesh.getRoot(); modifyMesh(...);
                 // aload_0; areturn` pattern. Find the first INVOKESTATIC whose descriptor is
                 // (Lnet/.../PartDefinition;)V - that's the modifyMesh-style callback.
-                for (AbstractInsnNode body = lambda.instructions.getFirst(); body != null; body = body.getNext()) {
+                for (AbstractInsnNode body : lambda.instructions) {
                     if (AsmKit.isPseudoNode(body)) continue;
                     if (body instanceof MethodInsnNode mi
                         && mi.getOpcode() == Opcodes.INVOKESTATIC
@@ -370,6 +383,72 @@ public final class GeometryParser {
                 bone.addProperty("scale", combined);
             }
         }
+    }
+
+    /**
+     * Bakes the captured {@link WalkState#babyTransform} into every emitted bone - the aged-down
+     * proportions vanilla's {@code BabyModelTransform} gives a mesh at registration.
+     *
+     * <p>Vanilla rewrites the pose of each of the root's <b>direct children</b>, choosing the head
+     * operator for the names the transformer holds and the body operator for the rest, and leaves
+     * grandchildren untouched by reference. So the factor and the offset are decided by a bone's
+     * <b>top-level ancestor</b>, not by the bone itself.
+     *
+     * <p>Two halves, matching the shape {@link #applyMeshTransformerScaling} already has:
+     * <ul>
+     *   <li>The <b>offset</b> is a single translate on the top-level bone, applied <em>before</em>
+     *       the scale, so a top-level pivot lands at {@code (pivot + offset) * f}. Descendants
+     *       inherit it through the parent chain and must not be offset again.</li>
+     *   <li>The <b>factor</b> multiplies every bone's pivot and {@code scale}, top-level and
+     *       descendant alike, because vanilla's bone scale propagates down the chain at render and
+     *       this codebase's does not - the same inverse the whole-mesh scale pass relies on.</li>
+     * </ul>
+     *
+     * <p>Cubes are left untouched: the kit multiplies local cube vertices by the bone's
+     * {@code scale} at the pivot translate, which is where vanilla's own propagated scale lands.
+     *
+     * <p>Runs after the whole-mesh scale pass, which is the order vanilla composes them in - a
+     * registration scales the {@code LayerDefinition} it then transforms. No mesh in 26.1 carries
+     * both.
+     *
+     * @param state the parse state whose emitted bones are re-walked and transformed in place
+     */
+    private static void applyBabyMeshTransform(@NotNull WalkState state) {
+        BabyMeshTransform transform = state.babyTransform;
+        if (transform == null) return;
+        for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
+            String top = topLevelAncestor(entry.getKey(), state.boneParents);
+            boolean head = transform.isHeadPart(top);
+            float f = head ? transform.headFactor() : transform.bodyFactor();
+            float offsetY = head ? transform.headYOffset() : transform.bodyYOffset();
+            float offsetZ = head ? transform.headZOffset() : 0f;
+            boolean isTop = entry.getKey().equals(top);
+
+            JsonObject bone = entry.getValue().getAsJsonObject();
+            JsonArray pivot = bone.getAsJsonArray("pivot");
+            if (pivot != null && pivot.size() == 3) {
+                float px = pivot.get(0).getAsFloat();
+                float py = pivot.get(1).getAsFloat() + (isTop ? offsetY : 0f);
+                float pz = pivot.get(2).getAsFloat() + (isTop ? offsetZ : 0f);
+                JsonArray transformed = new JsonArray();
+                transformed.add(f * px);
+                transformed.add(f * py);
+                transformed.add(f * pz);
+                bone.add("pivot", transformed);
+            }
+            float existing = bone.has("scale") ? bone.get("scale").getAsFloat() : 1f;
+            float combined = existing * f;
+            if (combined == 1f) bone.remove("scale");
+            else bone.addProperty("scale", combined);
+        }
+    }
+
+    /** The top-level bone a bone descends from - itself when it has no parent. */
+    private static @NotNull String topLevelAncestor(@NotNull String bone, @NotNull Map<String, String> parents) {
+        String cursor = bone;
+        for (String parent = parents.get(cursor); parent != null; parent = parents.get(cursor))
+            cursor = parent;
+        return cursor;
     }
 
     /**
@@ -594,7 +673,7 @@ public final class GeometryParser {
         // so legacy literal-stack walkers keep their literal-only walk. Branch-following
         // remains gated on {@code paramIntValues != null} - without a known parameter
         // value the parser falls through linearly. Decoupling the two gates means Java
-        // entities at the top-level Source (where {@code paramIntValues == null} but
+        // entities at the top-level request (where {@code paramIntValues == null} but
         // {@code EVALUATING}) still pop the comparison values, preventing
         // the leftover-literal warnings produced by for-loop {@code IF_ICMPGE} etc.
         if (node instanceof JumpInsnNode jumpInsn) {
@@ -1146,7 +1225,7 @@ public final class GeometryParser {
                     state.frame.pendingFreshArrayType = '\0';
                 } else if (state.frame.pendingRandomSource != null) {
                     // The previous {@code RandomSource.createThreadLocalInstance(J)}
-                    // captured a seeded {@link java.util.Random}; bind it to this slot so
+                    // captured a seeded {@link Random}; bind it to this slot so
                     // subsequent {@code aload <slot>; <bound>; invokeinterface nextInt}
                     // calls can step it. GhastModel's {@code ldc2_w 1660L;
                     // invokestatic createThreadLocalInstance; astore_2} hits this exactly.
@@ -1186,6 +1265,10 @@ public final class GeometryParser {
                 // sentinel so the upcoming {@code getstatic <Enum>.<C>; if_acmp*} resolves.
                 if (state.refParamOwner != null && varInsn.var == state.refParamSlot)
                     state.refStack.add(WalkState.REF_PARAM_SENTINEL);
+                // Bound-pose split: loading the bound pose slot arms the offset accessor that
+                // follows it, so only reads of THAT pose fold to the bound literal.
+                if (state.poseParamOffset != null && varInsn.var == state.poseParamSlot)
+                    state.poseLoaded = true;
                 float[] deformationInflate = state.cubeDeformationSlots.get(varInsn.var);
                 if (deformationInflate != null)
                     state.pendingInflate = deformationInflate.clone();
@@ -1390,7 +1473,7 @@ public final class GeometryParser {
             && !state.numStack.isEmpty()) {
             float f = state.numStack.popNumber().floatValue();
             // Vanilla never calls {@code scaling(0)}; a captured 0 means the synthetic
-            // {@link Source}'s {@code paramFloatValues} didn't supply the {@code createBodyLayer}
+            // {@link GeometryRequest}'s {@code paramFloatValues} didn't supply the {@code createBodyLayer}
             // float parameter that this site references via {@code fload_0}. Donkey / mule hit
             // this: their {@code createBodyLayer(float)} reads the renderer's per-variant scale,
             // which our tooling-side source builder doesn't currently populate. Skip the capture
@@ -1456,12 +1539,12 @@ public final class GeometryParser {
         }
         // {@code RandomSource.createThreadLocalInstance(J)} - seeded factory. Mojang's
         // {@code SingleThreadedRandomSource} ctor calls {@code setSeed} with the same LCG
-        // as {@link java.util.Random#setSeed} (multiplier {@code 25214903917L}, increment
+        // as {@link Random#setSeed} (multiplier {@code 25214903917L}, increment
         // {@code 11L}, modulus mask {@code (1L << 48) - 1}). The subsequent
         // {@code BitRandomSource#nextInt(int)} default method is also identical to
-        // {@code java.util.Random#nextInt(int)} - same power-of-2 fast path, same
+        // {@code Random#nextInt(int)} - same power-of-2 fast path, same
         // rejection-sampling loop for non-power-of-2 bounds. So substituting
-        // {@code new java.util.Random(seed)} produces bit-identical results. Pops the
+        // {@code new Random(seed)} produces bit-identical results. Pops the
         // long seed from numStack, stashes a fresh Random on
         // {@link CallFrame#pendingRandomSource}; the next {@code ASTORE} binds it to a
         // local slot.
@@ -1480,13 +1563,13 @@ public final class GeometryParser {
             AbstractInsnNode seedNode = AsmKit.previousReal(methodInsn);
             Long seed = seedNode != null ? AsmKit.readLongLiteral(seedNode) : null;
             if (seed != null) {
-                state.frame.pendingRandomSource = new java.util.Random(seed);
+                state.frame.pendingRandomSource = new Random(seed);
             }
             return;
         }
         // {@code RandomSource.nextInt(I)I} via invokeinterface. Walks back over preceding
         // real instructions to find the {@code ALOAD <slot>} that pushed the random
-        // reference; when the slot has a tracked {@link java.util.Random} AND the bound
+        // reference; when the slot has a tracked {@link Random} AND the bound
         // operand is a real literal, steps the random and pushes the literal int result.
         // Otherwise pops the bound and pushes a non-literal marker so the JVM stack stays
         // aligned.
@@ -1501,7 +1584,7 @@ public final class GeometryParser {
                 AbstractInsnNode boundNode = AsmKit.previousReal(methodInsn);
                 AbstractInsnNode aloadNode = boundNode != null ? AsmKit.previousReal(boundNode) : null;
                 if (aloadNode instanceof VarInsnNode aload && aload.getOpcode() == Opcodes.ALOAD) {
-                    java.util.Random rng = state.frame.localRandomSources.get(aload.var);
+                    Random rng = state.frame.localRandomSources.get(aload.var);
                     if (rng != null && bound.intValue() > 0) {
                         state.numStack.push(rng.nextInt(bound.intValue()));
                         return;
@@ -1656,40 +1739,13 @@ public final class GeometryParser {
      * off {@link WalkState#numStack}.
      *
      * @param descriptor the JVM method descriptor
-     * @return the arg-type characters in source order, or an empty array on a malformed
-     *     descriptor
+     * @return the arg-type characters in source order
      */
     private static char @NotNull [] parseArgTypes(@NotNull String descriptor) {
-        int paren = descriptor.indexOf('(');
-        int close = descriptor.indexOf(')');
-        if (paren < 0 || close < 0) return new char[0];
-        java.util.List<Character> out = new java.util.ArrayList<>();
-        int i = paren + 1;
-        while (i < close) {
-            char c = descriptor.charAt(i);
-            if (c == 'L') {
-                out.add('L');
-                int end = descriptor.indexOf(';', i);
-                if (end < 0) return new char[0];
-                i = end + 1;
-            } else if (c == '[') {
-                out.add('[');
-                while (i < close && descriptor.charAt(i) == '[') i++;
-                if (i < close && descriptor.charAt(i) == 'L') {
-                    int end = descriptor.indexOf(';', i);
-                    if (end < 0) return new char[0];
-                    i = end + 1;
-                } else {
-                    i++;
-                }
-            } else {
-                out.add(c);
-                i++;
-            }
-        }
-        char[] arr = new char[out.size()];
-        for (int j = 0; j < out.size(); j++) arr[j] = out.get(j);
-        return arr;
+        Type[] args = AsmKit.argTypes(descriptor);
+        char[] chars = new char[args.length];
+        for (int i = 0; i < args.length; i++) chars[i] = args[i].getDescriptor().charAt(0);
+        return chars;
     }
 
     /**
@@ -2019,7 +2075,7 @@ public final class GeometryParser {
     }
 
     /**
-     * Handles {@code PartPose.offset / rotation / offsetAndRotation / scaled} calls,
+     * Handles {@code PartPose.offset / rotation / offsetAndRotation / scaled / withScale} calls,
      * consuming literals off {@link WalkState#numStack} and storing the result on
      * {@link CallFrame#pendingPivot} / {@link CallFrame#pendingRotation} /
      * {@link CallFrame#pendingScale} for the next {@code addOrReplaceChild} flush. Rotation
@@ -2029,6 +2085,19 @@ public final class GeometryParser {
      * @param state the parse state whose pending pivot / rotation / scale are set
      */
     private static void handlePartPose(@NotNull MethodInsnNode methodInsn, @NotNull WalkState state) {
+        // A read of the bound pose's offset - the baby armor shell's factory seats its two arms by
+        // adding the pose it was called with to a literal, so the accessor has to answer with the
+        // bound value for the arithmetic that follows to fold. Only a read of the armed slot folds;
+        // any other pose keeps the walk's existing behaviour of pushing nothing.
+        int poseAxis = VanillaSourceClasses.Methods.PART_POSE_OFFSETS.indexOf(methodInsn.name);
+        if (poseAxis >= 0
+            && VanillaSourceClasses.Descs.FLOAT_ACCESSOR_DESC.equals(methodInsn.desc)
+            && state.poseParamOffset != null
+            && state.poseLoaded) {
+            state.numStack.push(state.poseParamOffset[poseAxis]);
+            state.poseLoaded = false;
+            return;
+        }
         switch (methodInsn.name) {
             case "offset" -> {
                 if (methodInsn.desc.startsWith("(FFF")) {
@@ -2081,7 +2150,25 @@ public final class GeometryParser {
                 // applies to and resets when the next addOrReplaceChild finalises the bone.
                 if (methodInsn.desc.startsWith("(F") && !methodInsn.desc.startsWith("(FF")) {
                     requireStack(state, 1, "PartPose.scaled(F)");
-                    state.frame.pendingScale = popFloatWithDiagnostics(state, "PartPose.scaled(F)");
+                    float scale = popFloatWithDiagnostics(state, "PartPose.scaled(F)");
+                    state.frame.pendingScale = scale;
+                    // scaled(F) writes six fields, not three: it multiplies the pivot by F as well as
+                    // the three scale components. A pose that offsets and then scales means the offset
+                    // is expressed in the scaled frame, so leaving the pivot alone places the bone -
+                    // and every child hanging off it - at the unscaled offset.
+                    for (int axis = 0; axis < state.frame.pendingPivot.length; axis++)
+                        state.frame.pendingPivot[axis] *= scale;
+                }
+            }
+            case "withScale" -> {
+                // PartPose.withScale(F) is scaled(F)'s sibling and not its synonym: it copies the
+                // pivot and the rotation through untouched and only assigns the three scale
+                // components, where scaled(F) multiplies the pivot by F as well. A pose that offsets
+                // and then calls withScale is stating an offset in the unscaled frame, so touching
+                // the pivot here would displace the bone and everything hanging off it.
+                if (methodInsn.desc.startsWith("(F") && !methodInsn.desc.startsWith("(FF")) {
+                    requireStack(state, 1, "PartPose.withScale(F)");
+                    state.frame.pendingScale = popFloatWithDiagnostics(state, "PartPose.withScale(F)");
                 }
             }
             default -> { }
@@ -2121,8 +2208,8 @@ public final class GeometryParser {
 
             // Cumulative model scale (ancestor scale times this bone's local scale). Only the scale
             // is folded here - the kit's ModelPart-style chain
-            // ({@link lib.minecraft.renderer.engine.kit.EntityGeometryKit} resolveChainFrom / the
-            // shared {@link lib.minecraft.renderer.engine.kit.BoneKit}) supplies each ancestor's
+            // (EntityGeometryKit resolveChainFrom / the
+            // shared BoneKit) supplies each ancestor's
             // rotation + translation at render. Children read the cumulative scale back via
             // {@link BoneMeta}.
             float worldScale = parentScale * state.frame.pendingScale;
@@ -2200,8 +2287,8 @@ public final class GeometryParser {
         /**
          * Float values to substitute for {@code FLOAD slot} parameter loads when
          * evaluating arithmetic. {@code null} disables float param substitution AND
-         * arithmetic evaluation entirely (the legacy behaviour). When non-null,
-         * see {@link Source#paramFloatValues()} for the substitution rules.
+         * arithmetic evaluation entirely (the literal-stack-only walk). When non-null,
+         * see {@link GeometryRequest#paramFloatValues()} for the substitution rules.
          */
         float @Nullable [] paramFloatValues;
 
@@ -2265,16 +2352,16 @@ public final class GeometryParser {
         @NotNull ConcurrentMap<Integer, float[]> localFloatArrays = Concurrent.newMap();
 
         /**
-         * JVM local-variable slot -> tracked {@link java.util.Random} created by a seeded
+         * JVM local-variable slot -> tracked {@link Random} created by a seeded
          * {@code RandomSource.createThreadLocalInstance(J)} factory + {@code ASTORE} pair.
          * Each subsequent {@code aload <slot>; <bound>; invokeinterface
          * RandomSource.nextInt(I)I} sequence steps the random and pushes the literal
          * result. Vanilla's {@code GhastModel.createBodyLayer} uses seed {@code 1660L} to
          * deterministically produce tentacle heights; the parser substitutes the same
-         * {@link java.util.Random} algorithm (Mojang's {@code BitRandomSource} matches the
+         * {@link Random} algorithm (Mojang's {@code BitRandomSource} matches the
          * standard LCG bit-for-bit). Starts empty in each child frame ({@link #inlineChild}).
          */
-        @NotNull ConcurrentMap<Integer, java.util.Random> localRandomSources = Concurrent.newMap();
+        @NotNull ConcurrentMap<Integer, Random> localRandomSources = Concurrent.newMap();
 
         /**
          * Random instance captured by a {@code RandomSource.createThreadLocalInstance(J)}
@@ -2282,7 +2369,7 @@ public final class GeometryParser {
          * {@code ASTORE}. Reset on consumption. Non-null only across that single
          * createThreadLocalInstance-then-ASTORE pair.
          */
-        @Nullable java.util.Random pendingRandomSource;
+        @Nullable Random pendingRandomSource;
 
         /**
          * Length captured by a {@code NEWARRAY <T>} instruction that hasn't yet been bound
@@ -2319,7 +2406,8 @@ public final class GeometryParser {
         float @NotNull [] pendingRotation = { 0, 0, 0 };
 
         /**
-         * Uniform scale from {@code PartPose.scaled}; {@code 1f} when no scale was applied.
+         * Uniform scale from {@code PartPose.scaled} or {@code PartPose.withScale}; {@code 1f} when
+         * no scale was applied.
          */
         float pendingScale = 1f;
 
@@ -2384,8 +2472,14 @@ public final class GeometryParser {
          * Marker pushed onto {@link #refStack} when the bound reference parameter is loaded. A
          * sentinel distinct from any enum constant field name so the {@code IF_ACMP*} evaluator
          * can tell the parameter side from the constant side of the comparison.
+         * <p>
+         * <b>The leading NUL is spelled as an escape and must stay one.</b> A raw NUL byte in the
+         * source makes ripgrep classify this file as binary and drop it from every
+         * directory-scoped search while still finding it when it is named outright, so a symbol
+         * sweep over the package silently omits the largest file in it. The compiled constant is
+         * the same character either way.
          */
-        private static final @NotNull String REF_PARAM_SENTINEL = " REF_PARAM";
+        private static final @NotNull String REF_PARAM_SENTINEL = "\0REF_PARAM";
 
         final @NotNull AsmKit.LiteralStack numStack = new AsmKit.LiteralStack(NUM_STACK_CAPACITY);
 
@@ -2395,7 +2489,7 @@ public final class GeometryParser {
         final @NotNull ConcurrentList<Integer> branchStack = Concurrent.newList();
 
         /**
-         * Enum-reference branch evaluation (set from {@link Source#refParam()}). When
+         * Enum-reference branch evaluation (set from {@link GeometryRequest#refParam()}). When
          * {@link #refParamOwner} is non-null, {@code ALOAD <refParamSlot>} pushes the
          * {@link #REF_PARAM_SENTINEL} marker onto {@link #refStack}, {@code GETSTATIC
          * <refParamOwner>.<name>} pushes the constant field name, and {@code IF_ACMPEQ} /
@@ -2408,6 +2502,17 @@ public final class GeometryParser {
         int refParamSlot = -1;
 
         /**
+         * Bound-pose evaluation (set from {@link GeometryRequest#poseParam()}). When
+         * {@link #poseParamOffset} is non-null, {@code ALOAD <poseParamSlot>} arms
+         * {@link #poseLoaded} and the {@code PartPose.x() / y() / z()} that follows pushes the
+         * bound component instead of leaving the arithmetic around it unresolvable. Used to build
+         * one armor shell per pose the baby set factory is called with.
+         */
+        float @Nullable [] poseParamOffset;
+        int poseParamSlot = -1;
+        boolean poseLoaded;
+
+        /**
          * Object-reference branch stack for {@link #refParamOwner} evaluation. Holds either
          * {@link #REF_PARAM_SENTINEL} (the bound attachment parameter) or an enum constant field
          * name pushed by {@code GETSTATIC <refParamOwner>}. Each {@code aload;getstatic;if_acmp}
@@ -2416,7 +2521,8 @@ public final class GeometryParser {
         final @NotNull ConcurrentList<String> refStack = Concurrent.newList();
 
         /**
-         * Flattened pivot + scale for each flushed bone, used to resolve child inheritance.
+         * Cumulative uniform scale for each flushed bone, used to resolve child inheritance. No
+         * pivot or rotation is folded here - the kit composes each ancestor's at render.
          */
         final @NotNull ConcurrentMap<String, BoneMeta> boneMeta = Concurrent.newMap();
 
@@ -2471,6 +2577,14 @@ public final class GeometryParser {
         float meshTransformerScale = 1f;
 
         /**
+         * The aged-down whole-mesh transformer the registration applies (set from
+         * {@link GeometryRequest#babyTransform()}), re-walked into the emitted bone tree by
+         * {@link #applyBabyMeshTransform} after {@link #walkInstructions} returns. {@code null}
+         * for every mesh vanilla registers untransformed.
+         */
+        @Nullable BabyMeshTransform babyTransform;
+
+        /**
          * The 3-component inflate captured from the most recent {@code new CubeDeformation}
          * or {@code .extend} call; consumed by the next {@code addBox} variant and reset to
          * {@link #defaultInflate} after the cube emits. Asymmetric {@code (FFF)} variants
@@ -2479,14 +2593,14 @@ public final class GeometryParser {
         float @NotNull [] pendingInflate = { 0f, 0f, 0f };
 
         /**
-         * The factory's default {@code CubeDeformation} inflate, captured at the call site
-         * in {@link EntityLayerDefinitionResolver} (e.g. {@code 0.25} for
-         * {@code DROWNED_OUTER_LAYER}'s {@code DrownedModel.createBodyLayer(new
+         * The factory's default {@code CubeDeformation} inflate, seeded from the requesting
+         * resolver's captured call-site value through {@link GeometryRequest#grow()} (e.g.
+         * {@code 0.25} for {@code DROWNED_OUTER_LAYER}'s {@code DrownedModel.createBodyLayer(new
          * CubeDeformation(0.25F))}). {@link #pendingInflate} resets to this value after every
          * {@code emitCube} so all cubes in the factory pick up the call-site-provided inflate
          * by default, while inline {@code new CubeDeformation(F)} / {@code .extend(F)}
-         * per-cube overrides still take precedence on the next addBox. Zero for normal entity
-         * sources whose factory takes no {@code CubeDeformation} arg.
+         * per-cube overrides still take precedence on the next addBox. Zero for a request whose
+         * factory takes no {@code CubeDeformation} arg.
          */
         float @NotNull [] defaultInflate = { 0f, 0f, 0f };
 
@@ -2668,9 +2782,9 @@ public final class GeometryParser {
      * entries, allocating a new array (and copying existing values) when {@code current}
      * is {@code null} or too small. Used by the for-loop unroller in
      * {@link #handleInstruction} to inject the iterator's per-iteration value into a slot
-     * that might not have been pre-sized by the {@link Source}'s {@code paramIntValues}
-     * (top-level Java entity sources don't set {@code paramIntValues} at all, so the slot
-     * is unallocated until the first loop fires).
+     * that might not have been pre-sized by the {@link GeometryRequest}'s {@code paramIntValues}
+     * (the entity recipes leave {@code paramIntValues} null, so the slot is unallocated
+     * until the first loop fires).
      *
      * @param current the existing {@code paramIntValues} array, or {@code null}
      * @param slot the slot index that must be addressable
@@ -2979,7 +3093,7 @@ public final class GeometryParser {
      * Returns {@code null} when no matching PUTSTATIC exists.
      */
     private static @Nullable FieldInsnNode findPutstatic(@NotNull MethodNode clinit, @NotNull String fieldName, @NotNull String desc) {
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : clinit.instructions) {
             if (!(node instanceof FieldInsnNode put) || put.getOpcode() != Opcodes.PUTSTATIC) continue;
             if (fieldName.equals(put.name) && desc.equals(put.desc)) return put;
         }

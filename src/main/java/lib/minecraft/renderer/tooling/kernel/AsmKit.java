@@ -9,12 +9,10 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.WeakHashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -33,7 +31,9 @@ import java.util.regex.Pattern;
  *   <li><b>Class / member loading</b> - jar entry to {@link ClassNode}, name and descriptor
  *       method / field lookups (including superclass-chain variants), throwing {@code require*}
  *       variants for callers that want a tooling-canonical "obfuscated or unsupported version"
- *       error instead of a null return, plus {@link #findEnumDefaultName findEnumDefaultName}
+ *       error instead of a null return, {@link #findClinit findClinit} and
+ *       {@link #findMethodOrError findMethodOrError} for the silent and the reporting arms of the
+ *       load-then-look-up pair, plus {@link #findEnumDefaultName findEnumDefaultName}
  *       for the {@code GETSTATIC value; PUTSTATIC <default>} enum-default idiom.</li>
  *   <li><b>Class-hierarchy walks</b> - {@link #walkConstructorChain walkConstructorChain},
  *       {@link #walkSuperChain walkSuperChain}, {@link #walkSuperChainUntil walkSuperChainUntil},
@@ -64,9 +64,7 @@ import java.util.regex.Pattern;
  *       {@link #findFollowingPutStatic findFollowingPutStatic},
  *       {@link #containsInvoke(MethodNode, int, String, String) containsInvoke}, and
  *       {@link #containsFieldOp containsFieldOp}.</li>
- *   <li><b>Dissolvers</b> - {@link #scanPendingBindings scanPendingBindings} (the
- *       LDC-to-PUTSTATIC scanner shape behind nine-plus legacy clones) and
- *       {@link #readStaticEnumMap readStaticEnumMap} (enum-keyed map construction: coat /
+ *   <li><b>Dissolvers</b> - {@link #readStaticEnumMap readStaticEnumMap} (enum-keyed map construction: coat /
  *       crackiness / markings / oxidation) absorb the duplicated walkers.</li>
  *   <li><b>Integer for-loop detection</b> - {@link #detectIntForLoop detectIntForLoop} matches
  *       the canonical javac {@code for (int i = INIT; i < BOUND; i += STEP)} scaffold into an
@@ -91,13 +89,28 @@ import java.util.regex.Pattern;
  *       extractGenericTypeParameter} pulls the single concrete type parameter out of an
  *       {@code Outer<LInner;>} field signature.</li>
  *   <li><b>Diagnostic formatters</b> - {@code diagMissingClass} / {@code diagMissingMethod} /
- *       {@code diagMissingField} / {@code diagUnexpectedPattern} emit canonical {@code WARN}
- *       entries to a {@link Diagnostics} sink so degraded-parse warnings share one phrasing.</li>
+ *       {@code diagMissingField} / {@code diagUnexpectedPattern} offer canonical {@code WARN}
+ *       phrasings for a {@link Diagnostics} sink. Nothing calls them: a tooling walk that
+ *       loses a class or a member reports it at {@code ERROR} and bails, so these four are an
+ *       available phrasing rather than the one in force. <b>Do not adopt them to collapse those
+ *       hand-rolled arms</b>: the strict gate fails on an {@code ERROR} always and on a
+ *       {@code WARN} only under {@code -Dasset.tooling.strict=warn}, so swapping the severity
+ *       moves every one of those failures out of the default gate. {@link #findMethodOrError} is
+ *       the reporting arm that keeps it.</li>
  *   <li><b>Retention / state classes</b> - {@link LiteralStack} accumulates recent literal
  *       pushes so a builder-dispatch instruction can pop them in LIFO order, and
  *       {@link SlotTracker} models the {@code ASTORE n} / {@code ALOAD n} local-variable dance
  *       for parsers that must remember a slot's value across intervening instructions.</li>
  * </ul>
+ *
+ * <p>That inventory is capability, not a call graph. Fourteen of the names it lists have no
+ * production caller and are kept deliberately, a bytecode primitive being cheaper to carry
+ * than to re-derive on a Minecraft version bump: both {@code requireMethod} forms,
+ * {@link #requireClinit}, {@link #requireField}, {@link #findFieldInHierarchy},
+ * {@link #readAnyLiteral}, {@link #argSlotCount}, both {@code isInvokeInterface} forms,
+ * {@link #isGetField}, both {@code containsInvoke} forms, {@link #containsFieldOp}, and all
+ * four {@code diag*} formatters. Of those, only {@code requireClinit} and
+ * {@code findFieldInHierarchy} are reached at all, by this kit's own unit test.
  *
  * <p>None of the helpers here know about the vanilla semantic patterns the callers are
  * hunting for (tint sources, effect colours, cube literals, layer dispatch, lambda targets).
@@ -213,6 +226,58 @@ public final class AsmKit {
                 return m;
         }
         return null;
+    }
+
+    /**
+     * Returns the simple name of a JVM internal name - {@code a/b/Outer$Inner} yields
+     * {@code Outer$Inner}, so a nested class keeps its {@code $} form.
+     *
+     * @param internalName the JVM internal name
+     * @return the text after the last {@code /}
+     */
+    public static @NotNull String simpleName(@NotNull String internalName) {
+        return internalName.substring(internalName.lastIndexOf('/') + 1);
+    }
+
+    /**
+     * Returns a class's {@code <clinit>}, or {@code null} when the jar holds no such class or the
+     * class runs no static initialiser. The two misses answer alike, which is what every walk
+     * reading a static table off a class it may not find wants; a caller that has to tell them
+     * apart, or that reads the {@link ClassNode} itself, loads it and calls {@link #findMethod}.
+     *
+     * @param cache the per-session cache to consult / populate
+     * @param internalName the class's JVM internal name
+     * @return the static initialiser, or {@code null} when the class or the initialiser is absent
+     */
+    public static @Nullable MethodNode findClinit(@NotNull ClassNodeCache cache, @NotNull String internalName) {
+        ClassNode classNode = cache.load(internalName);
+        return classNode == null ? null : findMethod(classNode, CLINIT);
+    }
+
+    /**
+     * Returns a named method on a class, recording an ERROR and answering {@code null} when either
+     * the class or the method is missing - the report-and-continue arm beside
+     * {@link #requireClass}'s throwing one and {@link #findClinit}'s silent one.
+     *
+     * @param cache the per-session cache to consult / populate
+     * @param diagnostics the sink the miss is recorded to
+     * @param internalName the class's JVM internal name
+     * @param methodName the method name
+     * @param subject what goes unresolved when the lookup fails, named in the message
+     * @return the matching method, or {@code null} when the class or the method is missing
+     */
+    public static @Nullable MethodNode findMethodOrError(@NotNull ClassNodeCache cache,
+        @NotNull Diagnostics diagnostics, @NotNull String internalName, @NotNull String methodName,
+        @NotNull String subject) {
+        ClassNode classNode = cache.load(internalName);
+        if (classNode == null) {
+            diagnostics.error("'%s' class missing - %s unresolved", internalName, subject);
+            return null;
+        }
+        MethodNode method = findMethod(classNode, methodName);
+        if (method == null)
+            diagnostics.error("'%s.%s' missing - %s unresolved", internalName, methodName, subject);
+        return method;
     }
 
     /**
@@ -408,7 +473,7 @@ public final class AsmKit {
         MethodNode clinit = findMethod(cn, CLINIT);
         if (clinit == null) return null;
         String pendingFieldName = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
                 && enumInternalName.equals(fi.owner)) {
@@ -911,6 +976,29 @@ public final class AsmKit {
     // ----------------------------------------------------------------------------------------
 
     /**
+     * Returns {@code true} when local-variable {@code slot} is a parameter of {@code method}
+     * declared with the given reference type - the test that tells a value loaded by
+     * {@code ALOAD slot} apart from a class-local constant. A renderer that takes its layer
+     * type as a constructor parameter reads it this way, so the value has to be recovered from
+     * the construction site rather than from the class itself.
+     *
+     * @param method the method owning the slot
+     * @param slot the local-variable slot an {@code ALOAD} names
+     * @param internalName the expected parameter type's JVM internal name
+     * @return {@code true} when the slot is a parameter of that type
+     */
+    public static boolean isParameterOfType(@NotNull MethodNode method, int slot, @NotNull String internalName) {
+        int current = (method.access & Opcodes.ACC_STATIC) == 0 ? 1 : 0;   // instance methods hold `this` in slot 0
+        for (Type arg : Type.getArgumentTypes(method.desc)) {
+            if (current == slot)
+                return arg.getSort() == Type.OBJECT && arg.getInternalName().equals(internalName);
+            current += arg.getSize();
+        }
+        return false;
+    }
+
+
+    /**
      * Returns {@code true} when {@code node} is a {@code GETSTATIC} on the given owner class.
      * Field name is ignored - use the name-qualified overload to match a specific field.
      *
@@ -1294,7 +1382,7 @@ public final class AsmKit {
      * @return {@code true} when at least one matching invoke exists in the body
      */
     public static boolean containsInvoke(@NotNull MethodNode method, int opcode, @NotNull String owner, @NotNull String name) {
-        for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext())
+        for (AbstractInsnNode node : method.instructions)
             if (isInvoke(node, opcode, owner, name)) return true;
         return false;
     }
@@ -1316,7 +1404,7 @@ public final class AsmKit {
         @NotNull String name,
         @NotNull String descriptor
     ) {
-        for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext())
+        for (AbstractInsnNode node : method.instructions)
             if (isInvoke(node, opcode, owner, name, descriptor)) return true;
         return false;
     }
@@ -1334,7 +1422,7 @@ public final class AsmKit {
      * @return {@code true} when at least one matching field access exists in the body
      */
     public static boolean containsFieldOp(@NotNull MethodNode method, int opcode, @NotNull String owner, @NotNull String name) {
-        for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : method.instructions) {
             if (node.getOpcode() != opcode) continue;
             if (!(node instanceof FieldInsnNode fieldInsn)) continue;
             if (fieldInsn.owner.equals(owner) && fieldInsn.name.equals(name)) return true;
@@ -1345,55 +1433,6 @@ public final class AsmKit {
     // ----------------------------------------------------------------------------------------
     // Dissolvers - shared walk shapes that absorbed N duplicated scanners
     // ----------------------------------------------------------------------------------------
-
-    /**
-     * One {@code <value>; PUTSTATIC} binding recovered by {@link #scanPendingBindings}.
-     *
-     * @param owner the {@code PUTSTATIC} owner's JVM internal name
-     * @param field the bound static field's name
-     * @param value the decoded pending value
-     * @param site the {@code PUTSTATIC} instruction node
-     */
-    public record StaticBinding<V>(@NotNull String owner, @NotNull String field, @NotNull V value, @NotNull AbstractInsnNode site) {}
-
-    /**
-     * Scans {@code method} for {@code <pending value>; PUTSTATIC} pairs - the shape behind
-     * the nine-plus legacy LDC-to-PUTSTATIC scanner clones. {@code pendingReader} decodes a
-     * candidate value from each instruction (typically one of the {@code readXLiteral}
-     * helpers); a following {@code PUTSTATIC} accepted by {@code putStaticFilter} commits the
-     * pending value to that field. Reset semantics follow
-     * {@link #resolveStaticScalingFactor}'s strict model: any other real instruction clears
-     * the pending value so a stale literal never binds to a later store; pseudo-nodes are
-     * skipped transparently.
-     *
-     * @param method the method to scan (typically a {@code <clinit>})
-     * @param pendingReader decodes a candidate pending value from an instruction, or {@code null}
-     * @param putStaticFilter accepts the {@code PUTSTATIC} instructions that commit a binding
-     * @return the bindings in encounter order
-     */
-    public static <V> @NotNull List<StaticBinding<V>> scanPendingBindings(
-        @NotNull MethodNode method,
-        @NotNull Function<AbstractInsnNode, @Nullable V> pendingReader,
-        @NotNull Predicate<FieldInsnNode> putStaticFilter
-    ) {
-        List<StaticBinding<V>> out = new ArrayList<>();
-        V pending = null;
-        for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext()) {
-            if (isPseudoNode(node)) continue;
-            V value = pendingReader.apply(node);
-            if (value != null) {
-                pending = value;
-                continue;
-            }
-            if (node.getOpcode() == Opcodes.PUTSTATIC && node instanceof FieldInsnNode field && putStaticFilter.test(field)) {
-                if (pending != null) out.add(new StaticBinding<>(field.owner, field.name, pending, field));
-                pending = null;
-                continue;
-            }
-            pending = null;
-        }
-        return out;
-    }
 
     /**
      * Reads a static enum-keyed map's {@code <clinit>} construction into a
@@ -1424,7 +1463,7 @@ public final class AsmKit {
         MethodNode clinit = findMethod(cn, CLINIT);
         if (clinit == null) return out;
         String pendingKey = null;
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : clinit.instructions) {
             if (isPutStatic(node, owner, mapField)) break;
             if (node.getOpcode() == Opcodes.GETSTATIC
                 && node instanceof FieldInsnNode field
@@ -1447,28 +1486,35 @@ public final class AsmKit {
     // ----------------------------------------------------------------------------------------
 
     /**
+     * Per-cache-instance memo for {@link #resolveStaticScalingFactor} (must permit
+     * {@code null} values - "resolved to null" is distinct from "not yet walked").
+     * Single-threaded per session by tooling convention.
+     */
+    private static final @NotNull Map<ClassNodeCache, Map<String, Float>> SCALING_MEMO = new WeakHashMap<>();
+
+    /**
      * Resolves a {@code static final} field whose {@code <clinit>} initialiser is a literal
      * single-float factory call - {@code LDC F; INVOKESTATIC <factoryOwner>.<factoryMethod>(F)...;
      * PUTSTATIC <owner>.<field>:<fieldDesc>} - to that {@code F}. Walks the owning class's
-     * {@code <clinit>} once and binds <b>every</b> canonical field it encounters into
-     * {@code cache} (keyed {@code owner + "." + field}), so sibling fields on the same class
-     * resolve without a re-walk; a non-canonical initialiser (indy-backed, arithmetic on {@code F},
-     * compound) binds {@code null}. {@code cache.containsKey} distinguishes "resolved to null"
-     * from "not yet walked", and short-circuits before {@code classLoader} is consulted so a cache
-     * hit never touches the jar.
+     * {@code <clinit>} once and memoises <b>every</b> canonical field it encounters, keyed
+     * {@code owner + "." + field}, so sibling fields on the same class resolve without a re-walk;
+     * a non-canonical initialiser (indy-backed, arithmetic on {@code F}, compound) memoises
+     * {@code null}. The memo's own {@code containsKey} distinguishes "resolved to null" from "not
+     * yet walked" and short-circuits before {@link ClassNodeCache#load}, so a hit never touches
+     * the jar.
      *
      * <p>Kept vanilla-agnostic: the caller supplies the factory owner / method and the field
-     * descriptor (for the vanilla mesh-transformer walkers these are {@code MeshTransformer} /
+     * descriptor (for the mesh-transformer walkers these are {@code MeshTransformer} /
      * {@code "scaling"} / {@code L...MeshTransformer;}). The factory is matched as
      * {@code "(F)" + fieldDesc} - a single {@code float} argument returning the field type.
-     * The memo is keyed per {@link ClassNodeCache} INSTANCE and lives here in the kit so the
-     * cache stays storage-only; it is weakly keyed so a closed session's entries
-     * vanish with its cache.
+     * {@link #SCALING_MEMO} is keyed per {@link ClassNodeCache} instance and lives here in the kit
+     * so the cache stays storage-only; it is weakly keyed so a closed session's entries vanish
+     * with its cache.
      *
      * <p>An intervening {@code LDC F} between a {@code scaling(F)} call and its {@code PUTSTATIC}
      * clears the pending scaled value, so a stale factor never binds to a later field. This is a
-     * defensive stance: a looser reset would also satisfy every vanilla 26.1 {@code <clinit>}
-     * (see {@code AsmKitTest}), so the stricter reset is adopted unconditionally.
+     * defensive stance: a looser reset would satisfy every shipped {@code <clinit>} equally well,
+     * so the stricter reset is adopted unconditionally rather than tuned to the corpus.
      *
      * @param cache the per-session cache to consult / populate (also the memo key)
      * @param owner the field's owning class internal name (memo key + {@code PUTSTATIC} owner match)
@@ -1478,13 +1524,6 @@ public final class AsmKit {
      * @param fieldDesc the field's JVM descriptor (also the factory's return type)
      * @return the resolved factor, or {@code null} for a non-canonical / missing initialiser
      */
-    /**
-     * Per-cache-instance memo for {@link #resolveStaticScalingFactor} (must permit
-     * {@code null} values - "resolved to null" is distinct from "not yet walked").
-     * Single-threaded per session by tooling convention.
-     */
-    private static final @NotNull Map<ClassNodeCache, Map<String, Float>> SCALING_MEMO = new WeakHashMap<>();
-
     public static @Nullable Float resolveStaticScalingFactor(
         @NotNull ClassNodeCache cache,
         @NotNull String owner,
@@ -1507,7 +1546,7 @@ public final class AsmKit {
         String factoryDesc = "(F)" + fieldDesc;
         Float pendingFloat = null;
         Float pendingScaled = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             int op = in.getOpcode();
             if (op < 0) continue; // labels / line numbers / frames
             if (in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f) {
@@ -1795,7 +1834,7 @@ public final class AsmKit {
         if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
             MethodNode lambda = findMethod(ownerClass, handle.getName(), handle.getDesc());
             if (lambda == null) return null;
-            for (AbstractInsnNode node = lambda.instructions.getFirst(); node != null; node = node.getNext())
+            for (AbstractInsnNode node : lambda.instructions)
                 if (node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW)
                     return type.desc;
         }
@@ -1831,7 +1870,7 @@ public final class AsmKit {
             MethodNode lambda = findMethod(ownerClass, handle.getName(), handle.getDesc());
             if (lambda == null) return null;
             String found = null;
-            for (AbstractInsnNode node = lambda.instructions.getFirst(); node != null; node = node.getNext()) {
+            for (AbstractInsnNode node : lambda.instructions) {
                 visitor.accept(node);
                 if (found == null && node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW)
                     found = type.desc;
@@ -1908,7 +1947,7 @@ public final class AsmKit {
      * @return the recipe string, or {@code null} when no matching indy is present
      */
     public static @Nullable String findStringConcatRecipeIn(@NotNull MethodNode helper) {
-        for (AbstractInsnNode node = helper.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : helper.instructions) {
             if (node instanceof InvokeDynamicInsnNode indy) {
                 String recipe = resolveStringConcatRecipe(indy);
                 if (recipe != null) return recipe;
@@ -1948,9 +1987,16 @@ public final class AsmKit {
     // ----------------------------------------------------------------------------------------
 
     /**
-     * Emits a canonical {@code WARN} entry of the form
-     * {@code "'%s' class missing from jar - %s"}. Use after a {@link ClassNodeCache#load}
-     * returned {@code null} when the caller wants to continue with a degraded result.
+     * Emits a canonical {@link Diagnostics.Severity#WARN} entry of the form
+     * {@code "'%s' class missing from jar - %s"} for a walk that has lost a class and can
+     * still finish without it.
+     *
+     * <p>The severity is the whole of the choice, so this is not the guard for a class a walk
+     * cannot continue without. {@link ToolingSession#failOnStrictGate()} fails a run on an
+     * {@link Diagnostics.Severity#ERROR} unconditionally but on a {@code WARN} only under
+     * {@code -Dasset.tooling.strict=warn}, so a guard that bails records the class it could not
+     * load at {@code ERROR} in a message of its own. Every missing-class guard in the tooling
+     * bails, which is why nothing calls this.
      *
      * @param diagnostics the diagnostic sink
      * @param internalName the missing class's JVM internal name
@@ -2354,9 +2400,11 @@ public final class AsmKit {
      * instructions. The caller drives it explicitly via {@link #store(int, Object)} on
      * {@code ASTORE}-like events and {@link #load(int)} on {@code ALOAD}-like events.
      *
-     * <p>Used today by {@code GeometryParser} (cube-deformation tracking),
-     * {@code EntityLayerDefinitionResolver} (layer-definition tracking through fluent
-     * apply chains), and {@code InventoryTransformDecomposer} (matrix / vector tracking).
+     * <p>It serves the walk whose operand has to survive an intervening call: a value is
+     * produced, parked in a slot, and read back several instructions later once the argument it
+     * belongs to is finally pushed. A walk that can read its operand from the instruction just
+     * before it wants {@link AsmKit#previousReal previousReal}; one that needs the last few
+     * literals in LIFO order wants {@link LiteralStack}.
      *
      * @param <T> the tracked value type
      */

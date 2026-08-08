@@ -160,7 +160,7 @@ public class MenuOptions implements RenderOptions {
         public static @NotNull MenuSlotContent of(@NotNull String itemId) {
             ItemOptions options = ItemOptions.builder()
                 .itemId(itemId)
-                .type(ItemOptions.Type.GUI_2D)
+                .type(ItemOptions.Type.GUI_ICON)
                 .build();
             return new MenuSlotContent(itemId, options, 1);
         }
@@ -175,7 +175,7 @@ public class MenuOptions implements RenderOptions {
         public static @NotNull MenuSlotContent of(@NotNull String itemId, int count) {
             ItemOptions options = ItemOptions.builder()
                 .itemId(itemId)
-                .type(ItemOptions.Type.GUI_2D)
+                .type(ItemOptions.Type.GUI_ICON)
                 .build();
             return new MenuSlotContent(itemId, options, count);
         }

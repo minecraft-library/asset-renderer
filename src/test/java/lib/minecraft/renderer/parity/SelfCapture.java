@@ -1,0 +1,210 @@
+package lib.minecraft.renderer.parity;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Assumptions;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Writes the observed value of a self-captured artifact into the parity working root.
+ *
+ * <p>A self-captured row is one whose value only exists inside a test JVM - a digest over a
+ * canonical form this repository defines, a CRC32 over pixels this renderer just produced. No
+ * producer directory holds it, so the capture step does not read one: the test writes the artifact
+ * at its own production-relative path under {@link ParityStore#WORKING}, and
+ * {@code capture-normalize} validates that file where it stands, stamps provenance onto it and
+ * fails loudly when it is absent.
+ *
+ * <p><b>The write happens before the assertion, always.</b> A capture records what the run
+ * produced, and the run that most needs its value recorded is the one whose pin just drifted - so a
+ * failing gate still leaves a capture, and re-baselining is a promote rather than a second
+ * measurement.
+ *
+ * <p><b>A finished capture is never written into.</b> {@code capture-index} writes the working
+ * root's completion marker last, and after it the root is a measurement somebody is about to
+ * compare and promote. An ordinary suite run lands in that same root, and one rewrote four
+ * artifacts inside a finished capture, stripping the provenance a capture step had stamped while
+ * the marker still described the earlier run - which the compare could not see, because provenance
+ * is outside the payload it joins. So the write is declined there rather than the test failing: the
+ * capture is a side effect of a run whose real job is the assertion below it, and failing would
+ * take the assertion down with it. A run that IS part of a capture never meets the marker, because
+ * the erase is ordered before every producer.
+ *
+ * <p><b>A decline is reported, never silent.</b> It prints the artifact, the root and the command
+ * that takes a fresh capture, and the build forwards that line to the console of the run that
+ * skipped the write - the one run whose author is expecting the file to change. A skip nobody hears
+ * is the failure the whole store is built against, and the answer carrying it is an empty
+ * {@link Optional} that a caller is free to ignore.
+ *
+ * <p><b>Every name in the envelope follows from the artifact id.</b> The kind prefix decides the
+ * directory (that rule is {@link ParityStore#pathOf}), and here it decides the three names the
+ * envelope spells its payload with. One rule per direction, so a new row of an existing kind states
+ * nothing and cannot state it differently.
+ */
+public final class SelfCapture {
+
+    /** The three names an artifact kind spells its envelope with, by the id's kind prefix. */
+    private static final @NotNull Map<String, Envelope> ENVELOPES = Map.of(
+        "digest", new Envelope("digest-set", "name", "digests"),
+        "pin", new Envelope("pin-set", "pin_key", "values"));
+
+    /** The marker {@code capture-index} writes last, after which the root is a finished capture. */
+    private static final @NotNull String COMPLETE = "COMPLETE";
+
+    /**
+     * The producer's own provenance flags, popped by {@code capture-normalize} and never stored.
+     *
+     * <p>The one channel for a value only the measuring process knows. It rides the payload the way
+     * the toolkit's own {@code _counts} and {@code _root} do, and it comes last on the way in, so an
+     * observed value beats a {@code --flag} guessed on the build side.
+     */
+    private static final @NotNull String FLAGS = "_flags";
+
+    private SelfCapture() {}
+
+    /**
+     * Aborts the calling test when the store index says this artifact has no baseline yet.
+     *
+     * <p>A self-captured value has to be capturable <em>before</em> it can be promoted, so its
+     * reader cannot assert on the run that first produces it. That state is read from
+     * {@link ParityStore#isBaselined} - a tracked file - rather than from a property somebody
+     * remembers to pass, and it stops being reachable the moment the artifact is promoted.
+     *
+     * <p>An abort rather than a pass: a test reported as skipped, with this reason, is
+     * distinguishable in the report from one that ran and agreed.
+     *
+     * @param artifactId the artifact the caller is about to read
+     * @throws ParityStoreException if the index does not register the id at all
+     */
+    public static void requireBaseline(@NotNull String artifactId) {
+        if (ParityStore.isBaselined(artifactId)) return;
+        Assumptions.abort(artifactId + " has no baseline yet, so there is nothing to assert against. "
+            + "Give it one: " + Pins.bootstrapCommand(artifactId));
+    }
+
+    /**
+     * Writes a self-captured artifact, with no producer-declared flags.
+     *
+     * @param artifactId the artifact id
+     * @param entries its payload, keyed the way the artifact's envelope key names
+     * @return the file written, or empty when the working root holds a finished capture
+     */
+    public static @NotNull Optional<Path> write(
+        @NotNull String artifactId,
+        @NotNull Map<String, JsonObject> entries
+    ) {
+        return write(artifactId, entries, List.of());
+    }
+
+    /**
+     * Writes a self-captured artifact.
+     *
+     * @param artifactId the artifact id
+     * @param entries its payload, keyed the way the artifact's envelope key names
+     * @param flags provenance flags this producer observed, each spelled {@code name=value}
+     * @return the file written, or empty when the working root holds a finished capture
+     * @throws ParityStoreException if the id names no self-capturing kind, or the payload is empty
+     */
+    public static @NotNull Optional<Path> write(
+        @NotNull String artifactId,
+        @NotNull Map<String, JsonObject> entries,
+        @NotNull List<String> flags
+    ) {
+        return writeInto(ParityStore.WORKING, artifactId, entries, flags);
+    }
+
+    /**
+     * Returns whether a working root holds a capture that has already been closed.
+     *
+     * <p>The marker alone, and no test for an open one. {@code capture-index} unlinks the open
+     * marker before it writes this one, so the two are never both there, and a root with neither is
+     * the ordinary state before any capture has been taken - which a later erase clears anyway.
+     *
+     * @param root the working root
+     * @return whether it carries the completion marker
+     */
+    static boolean holdsFinishedCapture(@NotNull Path root) {
+        return Files.isRegularFile(root.resolve(ParityStore.RUN_DIR).resolve(COMPLETE));
+    }
+
+    /**
+     * Writes a self-captured artifact into the named working root.
+     *
+     * @param root the working root to write into
+     * @param artifactId the artifact id
+     * @param entries its payload, keyed the way the artifact's envelope key names
+     * @param flags provenance flags this producer observed, each spelled {@code name=value}
+     * @return the file written, or empty when the root holds a finished capture
+     * @throws ParityStoreException if the id names no self-capturing kind, or the payload is empty
+     */
+    static @NotNull Optional<Path> writeInto(
+        @NotNull Path root,
+        @NotNull String artifactId,
+        @NotNull Map<String, JsonObject> entries,
+        @NotNull List<String> flags
+    ) {
+        int dot = artifactId.indexOf('.');
+        Envelope envelope = dot < 0 ? null : ENVELOPES.get(artifactId.substring(0, dot));
+        if (envelope == null)
+            throw new ParityStoreException(
+                "Artifact '%s' names no self-capturing kind; the kinds that self-capture are %s",
+                artifactId, String.join(", ", ENVELOPES.keySet().stream().sorted().toList()));
+        // An empty capture promotes as a zero-entry artifact that compares clean against itself for
+        // ever, which is the exact false green the whole store is built against.
+        if (entries.isEmpty())
+            throw new ParityStoreException(
+                "Refusing to capture '%s' with no entries - an empty artifact compares clean against "
+                    + "anything, so it fails here instead", artifactId);
+
+        // After the two payload refusals, so a wrong id and an empty set stay unconditional errors:
+        // both are the caller's mistake and neither becomes acceptable because a capture is closed.
+        Path file = root.resolve(ParityStore.pathOf(artifactId));
+        if (holdsFinishedCapture(root)) {
+            System.out.println("parity: not capturing " + artifactId + " into " + root
+                + " - it holds a finished capture. Run ./gradlew parityCapture to take a new one.");
+            return Optional.empty();
+        }
+
+        JsonObject payload = new JsonObject();
+        entries.forEach(payload::add);
+
+        JsonObject envelopeJson = new JsonObject();
+        envelopeJson.addProperty("//", "parity." + artifactId + " · regen: " + Pins.regenCommand(artifactId));
+        envelopeJson.addProperty("artifact", artifactId);
+        envelopeJson.addProperty("format", ParityStore.SUPPORTED_FORMAT);
+        envelopeJson.addProperty("key", envelope.key());
+        envelopeJson.addProperty("kind", envelope.kind());
+        envelopeJson.add(envelope.member(), payload);
+        if (!flags.isEmpty()) {
+            JsonArray declared = new JsonArray(flags.size());
+            flags.forEach(declared::add);
+            envelopeJson.add(FLAGS, declared);
+        }
+
+        try {
+            ParityJson.write(file, envelopeJson);
+        } catch (IOException ex) {
+            throw new ParityStoreException(new UncheckedIOException(ex),
+                "Cannot write the capture of '%s' to '%s'", artifactId, file);
+        }
+        return Optional.of(file);
+    }
+
+    /**
+     * The envelope names one artifact kind spells its payload with.
+     *
+     * @param kind the envelope's {@code kind}
+     * @param key the field the comparator joins entries on
+     * @param member the payload member the entries live under
+     */
+    private record Envelope(@NotNull String kind, @NotNull String key, @NotNull String member) {}
+
+}

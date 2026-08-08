@@ -1,14 +1,14 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.option.TextOptions;
-import lib.minecraft.renderer.support.MinecraftFontsExtension;
-import lib.minecraft.text.ColorSegment;
-import lib.minecraft.text.LineSegment;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.option.TextOptions;
+import lib.minecraft.renderer.support.MinecraftFontsExtension;
+import lib.minecraft.text.ColorSegment;
+import lib.minecraft.text.LineSegment;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

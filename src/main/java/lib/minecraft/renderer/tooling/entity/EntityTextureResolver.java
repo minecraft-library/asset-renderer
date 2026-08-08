@@ -66,18 +66,12 @@ final class EntityTextureResolver {
     private final @NotNull Set<String> nonBaseSuffixes;
     private final @NotNull Diagnostics diagnostics;
 
-    EntityTextureResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull VariantIndex variants,
-        @NotNull Set<String> nonBaseSuffixes,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
-        this.variants = variants;
-        this.nonBaseSuffixes = nonBaseSuffixes;
-        this.diagnostics = diagnostics;
+    EntityTextureResolver(@NotNull EntityContext context) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.variants = context.indexes().variants();
+        this.nonBaseSuffixes = context.indexes().nonBaseSuffixes();
+        this.diagnostics = context.diagnostics();
     }
 
     /**
@@ -241,7 +235,7 @@ final class EntityTextureResolver {
      * carries no binding info of its own.
      */
     private static boolean isBridgeMethod(@NotNull MethodNode method) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : method.instructions)
             if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
                 && in instanceof MethodInsnNode mi
                 && VanillaSourceClasses.Methods.GET_TEXTURE_LOCATION.equals(mi.name))
@@ -273,7 +267,7 @@ final class EntityTextureResolver {
         String ownerSuffix = suffixes.getFirst();
         String exactAccessor = suffixes.get(1);
         String accessorSuffix = suffixes.getLast();
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : method.instructions)
             if (in instanceof MethodInsnNode mi
                 && in.getOpcode() == Opcodes.INVOKEVIRTUAL
                 && (mi.name.endsWith(accessorSuffix) || exactAccessor.equals(mi.name))
@@ -292,7 +286,7 @@ final class EntityTextureResolver {
         boolean sawMapGet = false;
         boolean sawStaticMap = false;
         boolean sawIdentifierReturningCall = false;
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
                 && "Ljava/util/Map;".equals(fi.desc))
@@ -310,7 +304,7 @@ final class EntityTextureResolver {
         }
         if (sawStaticMap && sawMapGet) return "enum-map";
         if (sawIdentifierReturningCall) return "method-dispatch";
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : method.instructions)
             if (in.getOpcode() == Opcodes.GETFIELD
                 && in instanceof FieldInsnNode fi
                 && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
@@ -354,7 +348,7 @@ final class EntityTextureResolver {
     /** Every {@code GETSTATIC <field>:LIdentifier;} in the method, in source order. */
     private static @NotNull List<FieldInsnNode> collectIdentifierGetStatics(@NotNull MethodNode method) {
         List<FieldInsnNode> out = new ArrayList<>();
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : method.instructions)
             if (in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
                 && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc))
@@ -380,7 +374,7 @@ final class EntityTextureResolver {
         Map<String, String> out = new LinkedHashMap<>();
         String pendingPath = null;
         boolean expectingPutStatic = false;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) {
                 pendingPath = literal;
@@ -430,7 +424,7 @@ final class EntityTextureResolver {
      */
     private @Nullable Binding chaseStaticDispatch(@NotNull MethodNode method) {
         MethodInsnNode dispatch = null;
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (in.getOpcode() == Opcodes.INVOKESTATIC
                 && in instanceof MethodInsnNode mi
                 && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.IDENTIFIER)
@@ -484,7 +478,7 @@ final class EntityTextureResolver {
         Map<String, String> out = new LinkedHashMap<>();
         String pendingPath = null;
         boolean expectingPutStatic = false;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) {
                 pendingPath = literal;
@@ -540,7 +534,7 @@ final class EntityTextureResolver {
         for (MethodNode m : cn.methods) {
             if (!m.name.startsWith(AsmKit.LAMBDA_STATIC_PREFIX) && !AsmKit.CLINIT.equals(m.name)) continue;
             String pendingVariantName = null;
-            for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : m.instructions) {
                 if (in.getOpcode() == Opcodes.GETSTATIC && in instanceof FieldInsnNode fi
                     && fi.desc.startsWith("L")
                     && fi.desc.endsWith(";")
@@ -587,7 +581,7 @@ final class EntityTextureResolver {
      * filtered out accordingly.
      */
     private void collectTextureLiteralsFromMethod(@NotNull MethodNode method, @NotNull List<String> out) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null && isRealTexturePath(literal)) out.add(literal);
         }
@@ -634,7 +628,7 @@ final class EntityTextureResolver {
         if (getTex == null) return null;
 
         String variantClass = null;
-        for (AbstractInsnNode in = getTex.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : getTex.instructions) {
             if (in.getOpcode() != Opcodes.GETFIELD || !(in instanceof FieldInsnNode fi)) continue;
             if (!VARIANT_FIELD.equals(fi.name)) continue;
             variantClass = AsmKit.internalNameOfRef(fi.desc);
@@ -687,7 +681,7 @@ final class EntityTextureResolver {
             visited.add(this.subject.rendererClass());
             for (MethodNode m : cn.methods) {
                 if (!VanillaSourceClasses.Methods.GET_TEXTURE_LOCATION.equals(m.name)) continue;
-                for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext())
+                for (AbstractInsnNode in : m.instructions)
                     if (in.getOpcode() == Opcodes.INVOKESTATIC
                         && in instanceof MethodInsnNode mi
                         && !mi.owner.equals(this.subject.rendererClass())
@@ -746,8 +740,7 @@ final class EntityTextureResolver {
      * {@code new SpriteMapper(sheet, LDC prefix)}. Returns {@code null} on any mismatch.
      */
     private @Nullable String findSheetsTextureFallback() {
-        ClassNode renderer = this.cache.load(this.subject.rendererClass());
-        MethodNode rendererClinit = renderer == null ? null : AsmKit.findMethod(renderer, AsmKit.CLINIT);
+        MethodNode rendererClinit = AsmKit.findClinit(this.cache, this.subject.rendererClass());
         if (rendererClinit == null) return null;
 
         String spriteIdDesc = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.SPRITE_ID);
@@ -755,7 +748,7 @@ final class EntityTextureResolver {
 
         String sheetsOwner = null;
         String spriteIdField = null;
-        for (AbstractInsnNode in = rendererClinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : rendererClinit.instructions) {
             if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi) || !spriteIdDesc.equals(fi.desc)) continue;
             if (AsmKit.nextReal(in) instanceof MethodInsnNode mi
                 && mi.getOpcode() == Opcodes.INVOKEVIRTUAL
@@ -768,13 +761,12 @@ final class EntityTextureResolver {
         }
         if (sheetsOwner == null) return null;
 
-        ClassNode sheetsCn = this.cache.load(sheetsOwner);
-        MethodNode sheetsClinit = sheetsCn == null ? null : AsmKit.findMethod(sheetsCn, AsmKit.CLINIT);
+        MethodNode sheetsClinit = AsmKit.findClinit(this.cache, sheetsOwner);
         if (sheetsClinit == null) return null;
 
         String mapperField = null;
         String name = null;
-        for (AbstractInsnNode in = sheetsClinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : sheetsClinit.instructions) {
             if (!AsmKit.isPutStatic(in, sheetsOwner, spriteIdField)) continue;
             AbstractInsnNode invoke = AsmKit.previousReal(in);
             if (!(invoke instanceof MethodInsnNode mi
@@ -795,7 +787,7 @@ final class EntityTextureResolver {
         if (mapperField == null) return null;
 
         String prefix = null;
-        for (AbstractInsnNode in = sheetsClinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : sheetsClinit.instructions) {
             if (!AsmKit.isPutStatic(in, sheetsOwner, mapperField)) continue;
             AbstractInsnNode init = AsmKit.previousReal(in);
             if (!(init instanceof MethodInsnNode mi

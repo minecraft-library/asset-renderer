@@ -1,0 +1,150 @@
+{
+  "//": "parity.sweep.glint · regen: ./gradlew parityCapture -Partifacts=sweep.glint",
+  "artifact": "sweep.glint",
+  "format": 1,
+  "key": "subject",
+  "kind": "sweep-table",
+  "provenance": {
+    "artifact": "sweep.glint",
+    "asset_dirty": false,
+    "asset_sha": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+    "counts": {
+      "failed": 0,
+      "rows": 11
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "mode": "EVERY",
+    "parity_class": "moving",
+    "population_changed": true,
+    "producer": "glintParityVanilla",
+    "reason": "Whole-store capture on a clean tree at the end of the parity-cleanup follow-up. Twenty-three of twenty-four artifacts are byte-identical to the previous baseline, including all six sweeps after a full ground-truth re-render, so the six landed phases moved no hashed byte and the reference tree had no staleness to shed. manifest.visual gains 46 rows and moves none: its membership was widened from six sub-trees to eight, and entity-projections and projection-smoke are hashed here for the first time.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "reference_manifest_digest": "d380e24f3d253cf6ccb5f9c3beb1ba1b9e12a827c438ec3898dc38acbf29d170",
+    "timestamp": "2026-08-07T16:43:14Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 28255
+  },
+  "rows": [
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "5.3818",
+      "status": "ok",
+      "subject": "minecraft__debug_stick",
+      "vanilla_present": "true",
+      "worst_frame": "14"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "23.3374",
+      "status": "ok",
+      "subject": "minecraft__enchanted_book",
+      "vanilla_present": "true",
+      "worst_frame": "16"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "16.8569",
+      "status": "ok",
+      "subject": "minecraft__enchanted_golden_apple",
+      "vanilla_present": "true",
+      "worst_frame": "17"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "11.3918",
+      "status": "ok",
+      "subject": "minecraft__end_crystal",
+      "vanilla_present": "true",
+      "worst_frame": "21"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "15.2725",
+      "status": "ok",
+      "subject": "minecraft__experience_bottle",
+      "vanilla_present": "true",
+      "worst_frame": "22"
+    },
+    {
+      "diagnostic": "true",
+      "frames": "30",
+      "mean_argb_delta": "103.9529",
+      "status": "ok",
+      "subject": "minecraft__leather_boots",
+      "vanilla_present": "true",
+      "worst_frame": "23"
+    },
+    {
+      "diagnostic": "true",
+      "frames": "30",
+      "mean_argb_delta": "111.3907",
+      "status": "ok",
+      "subject": "minecraft__leather_chestplate",
+      "vanilla_present": "true",
+      "worst_frame": "17"
+    },
+    {
+      "diagnostic": "true",
+      "frames": "30",
+      "mean_argb_delta": "120.0313",
+      "status": "ok",
+      "subject": "minecraft__leather_helmet",
+      "vanilla_present": "true",
+      "worst_frame": "25"
+    },
+    {
+      "diagnostic": "true",
+      "frames": "30",
+      "mean_argb_delta": "85.3111",
+      "status": "ok",
+      "subject": "minecraft__leather_leggings",
+      "vanilla_present": "true",
+      "worst_frame": "16"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "9.1703",
+      "status": "ok",
+      "subject": "minecraft__nether_star",
+      "vanilla_present": "true",
+      "worst_frame": "16"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "26.5269",
+      "status": "ok",
+      "subject": "minecraft__written_book",
+      "vanilla_present": "true",
+      "worst_frame": "6"
+    }
+  ],
+  "summary": {
+    "buckets": {
+      "<0.25": 0,
+      "<0.50": 0,
+      "<0.75": 0,
+      "<1.00": 0,
+      "failed": 0,
+      "total": 11
+    },
+    "failed": 0,
+    "rows": 11,
+    "sum": "528.6236"
+  }
+}

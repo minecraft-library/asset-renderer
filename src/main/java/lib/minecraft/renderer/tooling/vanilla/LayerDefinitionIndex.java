@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
+import lib.minecraft.renderer.tooling.geometry.BabyMeshTransform;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -16,7 +17,6 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -51,10 +51,6 @@ public final class LayerDefinitionIndex {
     private static final @NotNull String SCALING_DESC =
         VanillaSourceClasses.Descs.of(VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF, "F");
 
-    /** Field descriptor of a {@code CubeDeformation} reference - the static-field grow shape. */
-    private static final @NotNull String CUBE_DEFORMATION_REF =
-        VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.CUBE_DEFORMATION);
-
     /**
      * One resolved {@code ModelLayers} entry: the factory coordinate plus every call-site
      * bake argument the request factories consume.
@@ -77,6 +73,9 @@ public final class LayerDefinitionIndex {
      * @param appliedMeshTransformerScale the composed scale of every
      *     {@code .apply(MeshTransformer.scaling(F))} chained onto the factory result
      *     ({@code 1f} = none)
+     * @param appliedBabyTransform the aged-down whole-mesh transformer chained onto the factory
+     *     result, or {@code null} when none is - the armor stand's small body is the one entry in
+     *     26.1 that carries one
      */
     public record Entry(
         @NotNull String factoryClass,
@@ -87,14 +86,22 @@ public final class LayerDefinitionIndex {
         @NotNull String layerField,
         float @NotNull [] grow,
         @Nullable Float floatParam,
-        float appliedMeshTransformerScale
+        float appliedMeshTransformerScale,
+        @Nullable BabyMeshTransform appliedBabyTransform
     ) {
 
         /** A copy with {@link #appliedMeshTransformerScale} multiplied by {@code factor}. */
         private @NotNull Entry composeAppliedScale(float factor) {
             return new Entry(this.factoryClass, this.factoryMethod, this.factoryDesc, this.texWidthOverride,
                 this.texHeightOverride, this.layerField, this.grow, this.floatParam,
-                this.appliedMeshTransformerScale * factor);
+                this.appliedMeshTransformerScale * factor, this.appliedBabyTransform);
+        }
+
+        /** A copy carrying the aged-down transformer an {@code apply} chains onto the factory result. */
+        private @NotNull Entry composeBabyTransform(@NotNull BabyMeshTransform transform) {
+            return new Entry(this.factoryClass, this.factoryMethod, this.factoryDesc, this.texWidthOverride,
+                this.texHeightOverride, this.layerField, this.grow, this.floatParam,
+                this.appliedMeshTransformerScale, transform);
         }
 
     }
@@ -160,8 +167,12 @@ public final class LayerDefinitionIndex {
         // of a static MeshTransformer field, or ALOAD of a tracked slot). Consumed by the next
         // `invokevirtual apply(MeshTransformer)` to fold into pendingDirect.
         Float pendingAppliedMTScale = null;
+        // The aged-down transformer the MeshTransformer most recently pushed resolves to, when it
+        // is one. Read only where the scaling resolve declines, so the ten scaling-bound fields
+        // never pay for the second walk.
+        BabyMeshTransform pendingAppliedBaby = null;
 
-        for (AbstractInsnNode in = createRoots.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : createRoots.instructions) {
             int opcode = in.getOpcode();
 
             // Capture float literals that may end up as the `new CubeDeformation(F)` arg or a
@@ -189,7 +200,7 @@ public final class LayerDefinitionIndex {
             // `GETSTATIC <field>: CubeDeformation` - a static-field deformation at the call
             // site, resolved through the owner's <clinit> bind.
             if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
-                && CUBE_DEFORMATION_REF.equals(fi.desc)) {
+                && VanillaSourceClasses.Descs.CUBE_DEFORMATION_REF.equals(fi.desc)) {
                 pendingDeformationGrow = resolveDeformationField(cache, fi.owner, fi.name);
                 continue;
             }
@@ -208,6 +219,7 @@ public final class LayerDefinitionIndex {
                 pendingDeformationGrow = null;
                 pendingFloat = null;
                 pendingAppliedMTScale = null;
+                pendingAppliedBaby = null;
                 continue;
             }
 
@@ -215,11 +227,18 @@ public final class LayerDefinitionIndex {
             // class-level static transformer onto the LayerDefinition via apply(). Resolved via
             // the field owner's <clinit>; non-canonical initialisers (indy-backed
             // DONKEY_TRANSFORMER, compound applies) resolve to null, leaving the chain at 1f.
+            //
+            // A field the scaling resolve declines may still be an aged-down transformer - the
+            // MeshTransformer type covers both, and three vanilla classes spell BABY_TRANSFORMER
+            // as a scaling while a fourth spells it as a BabyModelTransform.
             if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
                 && VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF.equals(fi.desc)) {
                 pendingAppliedMTScale = AsmKit.resolveStaticScalingFactor(cache, fi.owner, fi.name,
                     VanillaSourceClasses.Types.MESH_TRANSFORMER, VanillaSourceClasses.Methods.SCALING,
                     VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF);
+                pendingAppliedBaby = pendingAppliedMTScale != null
+                    ? null
+                    : BabyMeshTransform.resolve(cache, fi.owner, fi.name);
                 continue;
             }
 
@@ -243,7 +262,7 @@ public final class LayerDefinitionIndex {
                 if (AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION)) {
                     pendingMesh = new Entry(mi.owner, mi.name, mi.desc, null, null,
                         pendingLayerField == null ? "" : pendingLayerField,
-                        growOf(pendingDeformationGrow), null, 1f);
+                        growOf(pendingDeformationGrow), null, 1f, null);
                     pendingDeformationGrow = null;
                     continue;
                 }
@@ -252,7 +271,7 @@ public final class LayerDefinitionIndex {
                     && pendingMesh != null) {
                     pendingDirect = new Entry(pendingMesh.factoryClass(), pendingMesh.factoryMethod(),
                         pendingMesh.factoryDesc(), widthHeight[0], widthHeight[1],
-                        pendingMesh.layerField(), pendingMesh.grow(), null, 1f);
+                        pendingMesh.layerField(), pendingMesh.grow(), null, 1f, null);
                     pendingMesh = null;
                     continue;
                 }
@@ -264,7 +283,7 @@ public final class LayerDefinitionIndex {
                     Float floatParam = pendingFloat != null && mi.desc.startsWith("(F)") ? pendingFloat : null;
                     pendingDirect = new Entry(mi.owner, mi.name, mi.desc, null, null,
                         pendingLayerField == null ? "" : pendingLayerField,
-                        growOf(pendingDeformationGrow), floatParam, 1f);
+                        growOf(pendingDeformationGrow), floatParam, 1f, null);
                     pendingDeformationGrow = null;
                     pendingFloat = null;
                 }
@@ -304,9 +323,11 @@ public final class LayerDefinitionIndex {
             if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.LAYER_DEFINITION,
                     VanillaSourceClasses.Methods.APPLY, APPLY_DESC)
                 && pendingDirect != null
-                && pendingAppliedMTScale != null) {
-                pendingDirect = pendingDirect.composeAppliedScale(pendingAppliedMTScale);
+                && (pendingAppliedMTScale != null || pendingAppliedBaby != null)) {
+                if (pendingAppliedMTScale != null) pendingDirect = pendingDirect.composeAppliedScale(pendingAppliedMTScale);
+                if (pendingAppliedBaby != null) pendingDirect = pendingDirect.composeBabyTransform(pendingAppliedBaby);
                 pendingAppliedMTScale = null;
+                pendingAppliedBaby = null;
                 // Inline apply consumes the scaling result directly off the operand stack -
                 // clear the slot mirror so a later unrelated ASTORE doesn't pick it up.
                 pendingScalingMTFloat = null;
@@ -323,11 +344,12 @@ public final class LayerDefinitionIndex {
                     pendingDirect.factoryClass(), pendingDirect.factoryMethod(), pendingDirect.factoryDesc(),
                     pendingDirect.texWidthOverride(), pendingDirect.texHeightOverride(),
                     pendingLayerField, pendingDirect.grow(), pendingDirect.floatParam(),
-                    pendingDirect.appliedMeshTransformerScale())));
+                    pendingDirect.appliedMeshTransformerScale(), pendingDirect.appliedBabyTransform())));
                 pendingLayerField = null;
                 pendingDirect = null;
                 pendingMesh = null;
                 pendingAppliedMTScale = null;
+                pendingAppliedBaby = null;
             }
         }
 
@@ -347,13 +369,6 @@ public final class LayerDefinitionIndex {
         return this.entries.get(layerField);
     }
 
-    /**
-     * The full index, field to entry, in {@code createRoots} registration order (unmodifiable).
-     */
-    public @NotNull Map<String, Entry> entries() {
-        return Collections.unmodifiableMap(this.entries);
-    }
-
     /** The 3-component grow of a pending deformation ({@code null} = no grow). */
     private static float @NotNull [] growOf(float @Nullable [] grow) {
         return grow == null ? new float[]{0f, 0f, 0f} : grow;
@@ -364,19 +379,23 @@ public final class LayerDefinitionIndex {
      * owner's {@code <clinit>} for the {@code new CubeDeformation(F|FFF); PUTSTATIC <field>}
      * bind. Returns {@code null} when the owner or the bind is absent (treated as no
      * deformation - the caller's growOf handles it).
+     *
+     * @param cache the per-session class cache
+     * @param ownerInternalName the field owner's JVM internal name
+     * @param fieldName the static field name
+     * @return the 3-component grow, or {@code null} when unresolvable
      */
-    private static float @Nullable [] resolveDeformationField(
+    static float @Nullable [] resolveDeformationField(
         @NotNull ClassNodeCache cache,
         @NotNull String ownerInternalName,
         @NotNull String fieldName
     ) {
-        ClassNode owner = cache.load(ownerInternalName);
-        MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(cache, ownerInternalName);
         if (clinit == null) return null;
         boolean inAlloc = false;
         float[] literals = new float[3];
         int seen = 0;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in.getOpcode() == Opcodes.NEW
                 && in instanceof TypeInsnNode alloc
                 && VanillaSourceClasses.Types.CUBE_DEFORMATION.equals(alloc.desc)) {
@@ -401,6 +420,46 @@ public final class LayerDefinitionIndex {
     }
 
     /**
+     * Resolves a static {@code PartPose} field to its {@code (x, y, z)} offset by walking the
+     * owner's {@code <clinit>} for the literals its bind pushes.
+     *
+     * <p>Read as "the first three floats this field's initialiser pushes" rather than off a
+     * constructor shape, because vanilla spells the two poses that reach an armor set two ways -
+     * {@code PartPose.ZERO} through the {@code offsetAndRotation(FFFFFF)} factory and the baby
+     * piglin's arm offset through the nine-argument record constructor. Both lead with the offset,
+     * and only the offset is read: the mesh factory that consumes the pose touches nothing but
+     * {@code x()} / {@code y()} / {@code z()}.
+     *
+     * @param cache the per-session class cache
+     * @param ownerInternalName the field owner's JVM internal name
+     * @param fieldName the static field name
+     * @return the 3-component offset, or {@code null} when unresolvable
+     */
+    static float @Nullable [] resolvePartPoseField(
+        @NotNull ClassNodeCache cache,
+        @NotNull String ownerInternalName,
+        @NotNull String fieldName
+    ) {
+        MethodNode clinit = AsmKit.findClinit(cache, ownerInternalName);
+        if (clinit == null) return null;
+        float[] literals = new float[3];
+        int seen = 0;
+        for (AbstractInsnNode in : clinit.instructions) {
+            Float literal = AsmKit.readFloatLiteral(in);
+            if (literal != null) {
+                if (seen < 3) literals[seen] = literal;
+                seen++;
+                continue;
+            }
+            if (in.getOpcode() != Opcodes.PUTSTATIC) continue;
+            if (AsmKit.isPutStatic(in, ownerInternalName, fieldName) && seen >= 3)
+                return new float[]{literals[0], literals[1], literals[2]};
+            seen = 0;
+        }
+        return null;
+    }
+
+    /**
      * Rewrites a pure-delegate factory ({@code INVOKESTATIC other; ARETURN} and nothing else)
      * to its delegate target, so entities sharing a layer factory through a no-op delegate
      * collapse onto one geometry key by construction. Entries whose factory has any other
@@ -412,7 +471,7 @@ public final class LayerDefinitionIndex {
         MethodNode method = AsmKit.findMethod(cn, entry.factoryMethod(), entry.factoryDesc());
         if (method == null) return entry;
         MethodInsnNode delegate = null;
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             int op = in.getOpcode();
             if (op == -1) continue;
             if (op == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi) {
@@ -426,7 +485,8 @@ public final class LayerDefinitionIndex {
         if (delegate == null || !delegate.desc.equals(entry.factoryDesc())) return entry;
         return new Entry(delegate.owner, delegate.name, delegate.desc,
             entry.texWidthOverride(), entry.texHeightOverride(), entry.layerField(),
-            entry.grow(), entry.floatParam(), entry.appliedMeshTransformerScale());
+            entry.grow(), entry.floatParam(), entry.appliedMeshTransformerScale(),
+            entry.appliedBabyTransform());
     }
 
 }

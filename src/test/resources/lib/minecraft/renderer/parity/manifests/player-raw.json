@@ -1,0 +1,106 @@
+{
+  "//": "parity.manifest.player-raw · regen: ./gradlew parityCapture -Partifacts=manifest.player-raw",
+  "artifact": "manifest.player-raw",
+  "files": [
+    {
+      "path": "armor-parity-vanilla/minecraft__piglin_iron/java.png",
+      "sha256": "e256bc6c94676b228511ebc0eac30beda433e76676e4443af73f4e26f65804b6"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__piglin_iron/vanilla.png",
+      "sha256": "4b6c32b3b0ae019a140d4656476d4e01a31cb229e27c868b58da25e912f02817"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__piglin_iron_baby/java.png",
+      "sha256": "c6818fb4fced6a90ced954753c380ce62da2f3f910de6d279347f5f21e0bf82c"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__piglin_iron_baby/vanilla.png",
+      "sha256": "0af823356d009b8fce7bce1f21ea160cc8a46428877ba8169dc6df1a6642ee02"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__piglin_leather-dyeb04030_baby/java.png",
+      "sha256": "6674519c7389eb0954efd46890c55bcd584af69751ff60ec43aa83f47d173ddd"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__piglin_leather-dyeb04030_baby/vanilla.png",
+      "sha256": "d5a78fbf0d184033a630cf06a206fa6c004d1c532e2eb85da1a83803ede848f3"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__zombie_iron/java.png",
+      "sha256": "6b6fb446f505a0b10f06e1135617549ba1bd9cb67b410f5c523d779a1d959e26"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__zombie_iron/vanilla.png",
+      "sha256": "0c58177f221b472810c2ceed1a31354f472d8058e43c1e0d8608b42051a9fe56"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__zombie_iron_baby/java.png",
+      "sha256": "d098f9abadf4a46e03b7d102ba5555c0b8df104e852a2e32baf92ce81f4900ba"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__zombie_iron_baby/vanilla.png",
+      "sha256": "bfbfd4d40ccc7204c3be24b24c7e1c3e2c38f24844ee9aa3c6f11ea09f65dad5"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030/java.png",
+      "sha256": "5f5e5a9d2dd5527e2a5e320c440843322534e30332da4b195da7bf4e326605ac"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030/vanilla.png",
+      "sha256": "ffa1811d19f09af7815e24971a78a313e58352e3a1f2e0f29115473c3dde22df"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030_baby/java.png",
+      "sha256": "35e5b5170028762627097c6e66cb48b1c3d75d13d9dbb7a8b3ddfc6827dbb9e2"
+    },
+    {
+      "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030_baby/vanilla.png",
+      "sha256": "10e4ed4c99b67b54f4fa6cc0768297dea85b1a59850237da2596f9a1957c4fa1"
+    },
+    {
+      "path": "player-parity-vanilla/full/java.png",
+      "sha256": "669c9409b5d5122aa06f76cf6d1dbd9be6176bf74d14999867263ea66f6189e3"
+    },
+    {
+      "path": "player-parity-vanilla/full/vanilla.png",
+      "sha256": "a2053cfd938c47cb260fcb886129ffe89df811e96ef9867a951458eaac5225e9"
+    },
+    {
+      "path": "player-parity-vanilla/skull/java.png",
+      "sha256": "7d57fda7631eab1fffefa1fa172defe37b4b149906b375bef464cab7a13747a9"
+    },
+    {
+      "path": "player-parity-vanilla/skull/vanilla.png",
+      "sha256": "825172ea51e6a9390e2a5c7c92d630b7b1caa86fb04d4e69816d76dcf969aed6"
+    }
+  ],
+  "format": 1,
+  "key": "path",
+  "kind": "manifest",
+  "provenance": {
+    "artifact": "manifest.player-raw",
+    "asset_dirty": false,
+    "asset_sha": "47397e979e769f009a253ea46c7d72e211f3ea9d",
+    "counts": {
+      "files": 18
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "moving",
+    "producer": "playerRawSweepSet",
+    "reason": "first baseline of manifest.player-raw, the 60th artifact. It is the 18 raw renders the split made hashable: vanilla.png and java.png across 2 player scopes and 7 armour subjects, with the alignToBox-rescaled pair, the diff and the panel deliberately excluded because those are an AWT resample and two things built from it. Determinism: two independent captures (cache/parity/p14b-a and -b) agreed on all 18 entries, moved 0, against a floor of 2. sweep.player (29.1376) and sweep.armor (18.2471) were measured unmoved across the same split, so this artifact opens on the same render its LOOK gauge has always reported.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "root": "cache/visual",
+    "timestamp": "2026-08-02T01:14:47Z",
+    "tool_version": "1.0.0"
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "//": "tooling.blockItems · regen: ./gradlew blockItems2 · order: secondary block ids sorted; each maps to its standing block's item id",
+  "//": "tooling.blockItems · regen: ./gradlew blockItems · order: secondary block ids sorted; each maps to its standing block's item id",
   "format": 2,
   "source_version": "26.1",
   "aliases": {

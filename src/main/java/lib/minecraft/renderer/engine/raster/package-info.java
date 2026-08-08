@@ -7,9 +7,13 @@
  *       draw-list record every {@link lib.minecraft.renderer.engine.kit kit} emits and the engine
  *       consumes: vertex positions, UVs, source texture, tint, normal, shading scalar, and
  *       {@link lib.minecraft.renderer.engine.raster.SurfaceTraits SurfaceTraits}.</li>
- *   <li>{@link lib.minecraft.renderer.engine.raster.SurfaceTraits SurfaceTraits} - per-triangle
- *       behavior flags ({@code cullBackFaces}, {@code emissive}, {@code translucent},
- *       {@code glinted}).</li>
+ *   <li>{@link lib.minecraft.renderer.engine.raster.SurfaceTraits SurfaceTraits} - the three
+ *       behavior flags a builder decides per cube ({@code cullBackFaces}, {@code translucent},
+ *       {@code glinted}) plus the pass the triangle was submitted under.</li>
+ *   <li>{@link lib.minecraft.renderer.engine.raster.PassDeclaration PassDeclaration} - what vanilla
+ *       declares about a whole render pass rather than about one surface drawn through it
+ *       ({@code emissive}, {@code blend}, {@code alpha}, {@code writesDepth}, {@code sorted}), shared
+ *       by every triangle one build emits.</li>
  *   <li>{@link lib.minecraft.renderer.engine.raster.RasterMath RasterMath} - 2D coverage math:
  *       barycentric coordinates, the {@code 1/256} fixed-point sub-pixel grid, and the
  *       {@code EdgeCoefficients} that drive the Pineda incremental edge functions / top-left fill

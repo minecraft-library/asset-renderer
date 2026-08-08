@@ -1,12 +1,13 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -26,10 +27,10 @@ import java.util.Map;
 import java.util.TreeSet;
 
 /**
- * Node {@code axes.variant} - the option-encoded variant axis (the axis is
- * {@code id_encoded: false}): each coat is a render-time {@code EntityAppearance.variant}
- * selection over one base id, not a first-class {@code <id>_<opt>} pseudo-id. Two source
- * arms, tried in order:
+ * Node {@code axes.variant} - the option-encoded variant axis: each coat is a render-time
+ * {@code EntityAppearance.variant} selection over one base id, never a first-class
+ * {@code <id>_<opt>} id of its own, so nothing is ever synthesized into the keyspace the vanilla
+ * entity registry owns. Two source arms, tried in order:
  *
  * <ul>
  *   <li><b>Data-driven tables</b> - the {@code data/minecraft/<stem>_variant/} JSONs already
@@ -61,24 +62,18 @@ final class EntityVariantAxisResolver {
     private final @NotNull LayerDefinitionIndex layerDefinitions;
     private final @NotNull EntityGeometryRefResolver geometryRef;
     private final @NotNull GeometryManifest manifest;
+    private final @NotNull BlockRegistryIndex blocks;
     private final @NotNull Diagnostics diagnostics;
 
-    EntityVariantAxisResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull VariantIndex variants,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull EntityGeometryRefResolver geometryRef,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
-        this.variants = variants;
-        this.layerDefinitions = layerDefinitions;
+    EntityVariantAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.variants = context.indexes().variants();
+        this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
-        this.manifest = manifest;
-        this.diagnostics = diagnostics;
+        this.manifest = context.indexes().manifest();
+        this.blocks = context.indexes().blocks();
+        this.diagnostics = context.diagnostics();
     }
 
     /**
@@ -87,7 +82,7 @@ final class EntityVariantAxisResolver {
      *
      * @return the node, or {@code null} to omit
      */
-    @Nullable JsonNode resolve() {
+    @Nullable JsonTree resolve() {
         List<VariantIndex.Variant> table = this.variants.table(this.subject.localId());
         if (table != null) return resolveDataDriven(table);
         return resolveEnumMap();
@@ -97,13 +92,13 @@ final class EntityVariantAxisResolver {
     // data-driven arm
     // ------------------------------------------------------------------------------------
 
-    private @NotNull JsonNode resolveDataDriven(@NotNull List<VariantIndex.Variant> table) {
+    private @NotNull JsonTree resolveDataDriven(@NotNull List<VariantIndex.Variant> table) {
         String stem = this.subject.localId();
         String dflt = this.variants.holderDefault(stem);
         if (dflt == null) {
             dflt = alphaFirstUnconditional(table);
             if (dflt != null)
-                this.diagnostics.info("variant default '%s' via alpha-first-unconditional derivation [D30/P27]", dflt);
+                this.diagnostics.info("variant default '%s' via alpha-first-unconditional derivation", dflt);
         }
         if (dflt == null) {
             dflt = table.getFirst().variantId();
@@ -111,10 +106,10 @@ final class EntityVariantAxisResolver {
         }
 
         Map<String, String> modelTypeLayers = modelTypeToModelLayerField();
-        JsonNode node = JsonNode.object().put("id_encoded", false).put("default", dflt);
-        JsonNode options = node.child("options");
+        JsonTree node = JsonTree.object().put("default", dflt);
+        JsonTree options = node.child("options");
         for (VariantIndex.Variant variant : table) {
-            JsonNode option = JsonNode.object()
+            JsonTree option = JsonTree.object()
                 .put("textures", texturesNode(variant.textures()))
                 .putIf("baby_texture", fullPath(pickByStatePrecedence(variant.babyTextures())))
                 .putIf("geometry", resolveModelDiscriminator(variant, modelTypeLayers))
@@ -140,10 +135,10 @@ final class EntityVariantAxisResolver {
     }
 
     /** Whether every spawn-condition entry lacks a {@code condition} sub-object (absent list = unconditional). */
-    private static boolean isUnconditional(@Nullable JsonNode spawnConditions) {
+    private static boolean isUnconditional(@Nullable JsonTree spawnConditions) {
         if (spawnConditions == null) return true;
-        for (JsonNode entry : spawnConditions.elements())
-            if (entry.get(VanillaSourceClasses.DataKeys.CONDITION) != null) return false;
+        for (JsonTree entry : spawnConditions.elements().toList())
+            if (entry.find(VanillaSourceClasses.DataKeys.CONDITION).isPresent()) return false;
         return true;
     }
 
@@ -152,8 +147,8 @@ final class EntityVariantAxisResolver {
      * folds onto the legacy {@code wild} key), then the remaining state keys in table walk
      * order, values as full namespaced paths.
      */
-    private static @NotNull JsonNode texturesNode(@NotNull Map<String, String> textures) {
-        JsonNode node = JsonNode.object();
+    private static @NotNull JsonTree texturesNode(@NotNull Map<String, String> textures) {
+        JsonTree node = JsonTree.object();
         String precedentKey = null;
         for (String state : EntityAxisPolicies.STATE_PRECEDENCE.strings())
             if (textures.containsKey(state)) {
@@ -204,7 +199,7 @@ final class EntityVariantAxisResolver {
         String layerField = modelTypeLayers.get(variant.model().toUpperCase(Locale.ROOT));
         if (layerField == null) {
             layerField = (variant.model() + "_" + this.subject.localId()).toUpperCase(Locale.ROOT);
-            this.diagnostics.info("variant '%s' model '%s' resolved by P20 naming convention -> ModelLayers.%s",
+            this.diagnostics.info("variant '%s' model '%s' resolved by <MODEL>_<STEM> naming convention -> ModelLayers.%s",
                 variant.variantId(), variant.model(), layerField);
         }
         LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(layerField);
@@ -234,7 +229,7 @@ final class EntityVariantAxisResolver {
         Map<String, String> out = new LinkedHashMap<>();
         for (MethodNode method : cn.methods) {
             String pendingModelType = null;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
                 if (fi.owner.endsWith(modelTypeSuffix)) {
                     pendingModelType = fi.name;
@@ -253,7 +248,7 @@ final class EntityVariantAxisResolver {
     // enum-map arm
     // ------------------------------------------------------------------------------------
 
-    private @Nullable JsonNode resolveEnumMap() {
+    private @Nullable JsonTree resolveEnumMap() {
         ClassNode cn = this.cache.load(this.subject.rendererClass());
         if (cn == null) return null;
 
@@ -267,17 +262,19 @@ final class EntityVariantAxisResolver {
             String firstConstant = coats.byConstant().keySet().iterator().next();
             String dflt = variantId(defaultConstant != null ? defaultConstant : firstConstant, ids);
             if (defaultConstant == null)
-                this.diagnostics.info("variant default '%s' via first map key [D1] (enum has no DEFAULT)", dflt);
+                this.diagnostics.info("variant default '%s' via first map key (enum has no DEFAULT)", dflt);
 
-            JsonNode node = JsonNode.object().put("id_encoded", false).put("default", dflt);
-            JsonNode options = node.child("options");
+            VariantBlockTable table = VariantBlockTable.of(this.cache, this.blocks, enumInternal, this.diagnostics);
+            JsonTree node = JsonTree.object().put("default", dflt);
+            JsonTree options = node.child("options");
             for (Map.Entry<String, List<String>> coat : coats.byConstant().entrySet()) {
                 String id = variantId(coat.getKey(), ids);
-                options.put(id, JsonNode.object()
-                    .put("textures", JsonNode.object().put("wild", fullPath(coat.getValue().getFirst())))
-                    .putIf("baby_texture", fullPath(coat.getValue().size() > 1 ? coat.getValue().get(1) : null)));
+                options.put(id, JsonTree.object()
+                    .put("textures", JsonTree.object().put("wild", fullPath(coat.getValue().getFirst())))
+                    .putIf("baby_texture", fullPath(coat.getValue().size() > 1 ? coat.getValue().get(1) : null))
+                    .putIf("block", coatBlock(table, coat.getKey())));
             }
-            this.diagnostics.info("variant axis (enum-map '%s'): %d options, default '%s' [D1]",
+            this.diagnostics.info("variant axis (enum-map '%s'): %d options, default '%s'",
                 enumInternal, coats.byConstant().size(), dflt);
             return node;
         }
@@ -338,7 +335,7 @@ final class EntityVariantAxisResolver {
 
         for (MethodNode body : bodies) {
             String pendingConstant = null;
-            for (AbstractInsnNode in = body.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : body.instructions) {
                 if (in.getOpcode() == Opcodes.GETSTATIC
                     && in instanceof FieldInsnNode fi
                     && enumInternal.equals(fi.owner)
@@ -387,7 +384,7 @@ final class EntityVariantAxisResolver {
             String id = variantId(field.name, ids);
             String adult = adultTemplate.replace("%s", id);
             if (!this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + adult)) {
-                this.diagnostics.info("template variant '%s' dropped - '%s' not shipped [D28]", id, adult);
+                this.diagnostics.info("template variant '%s' dropped - '%s' not shipped", id, adult);
                 continue;
             }
             List<String> paths = new ArrayList<>();
@@ -408,13 +405,12 @@ final class EntityVariantAxisResolver {
      * {@code "dark_brown"}).
      */
     private @NotNull Map<String, String> enumSerializedIds(@NotNull String enumInternal) {
-        ClassNode enumNode = this.cache.load(enumInternal);
-        MethodNode clinit = enumNode == null ? null : AsmKit.findMethod(enumNode, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, enumInternal);
         if (clinit == null) return Map.of();
 
         Map<String, String> out = new LinkedHashMap<>();
         List<String> pendingStrings = new ArrayList<>();
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingStrings.add(literal);
@@ -429,6 +425,21 @@ final class EntityVariantAxisResolver {
             }
         }
         return out;
+    }
+
+    /**
+     * The block a coat draws its block overlays as, when that is not the one the
+     * {@code block_overlays[]} row already carries. Vanilla holds the block on the variant
+     * constant, so a coat that wraps the default's block needs no member - it is the identity, and
+     * omitting it keeps a family whose coats all wrap one block (or none at all) byte-unchanged.
+     *
+     * @param table the variant enum's constant-to-block table
+     * @param constantName the coat's enum constant name
+     * @return the coat's block id, or {@code null} when it is the row's own
+     */
+    private static @Nullable String coatBlock(@NotNull VariantBlockTable table, @NotNull String constantName) {
+        String block = table.byConstant().get(constantName);
+        return block == null || block.equals(table.defaultBlockId()) ? null : block;
     }
 
     /** A constant's serialized id, falling back to the lowercase constant name at INFO. */

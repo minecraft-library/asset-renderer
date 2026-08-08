@@ -1,16 +1,14 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
@@ -44,20 +42,13 @@ public final class PotionColorWalk {
      * @param session the live session
      * @param root the envelope root
      */
-    public static void run(@NotNull ToolingSession session, @NotNull JsonNode root) {
+    public static void run(@NotNull ToolingSession session, @NotNull JsonTree root) {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("effects");
 
-        ClassNode mobEffects = cache.load(VanillaSourceClasses.Types.MOB_EFFECTS);
-        if (mobEffects == null) {
-            diagnostics.error("'%s' class missing - effect colour table unresolved", VanillaSourceClasses.Types.MOB_EFFECTS);
-            return;
-        }
-        MethodNode clinit = AsmKit.findMethod(mobEffects, AsmKit.CLINIT);
-        if (clinit == null) {
-            diagnostics.error("'%s.<clinit>' missing - effect colour table unresolved", VanillaSourceClasses.Types.MOB_EFFECTS);
-            return;
-        }
+        MethodNode clinit = AsmKit.findMethodOrError(cache, diagnostics,
+            VanillaSourceClasses.Types.MOB_EFFECTS, AsmKit.CLINIT, "effect colour table");
+        if (clinit == null) return;
 
         String colorCtorDesc = VanillaSourceClasses.Descs.of("V",
             VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MOB_EFFECT_CATEGORY), "I");
@@ -68,7 +59,7 @@ public final class PotionColorWalk {
         Integer pendingColor = null;
         AsmKit.LiteralStack intStack = new AsmKit.LiteralStack(8);
 
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : clinit.instructions) {
             Integer literal = AsmKit.readIntLiteral(node);
             if (literal != null) {
                 intStack.push(literal);
@@ -109,16 +100,9 @@ public final class PotionColorWalk {
             }
         }
 
-        JsonNode effects = root.childArray("effects");
-        colors.forEach((effectId, color) -> effects.add(row(effectId, color)));
+        JsonTree effects = root.child("effects");
+        colors.forEach((effectId, color) -> effects.putHex(effectId, color | 0xFF000000));
         diagnostics.info("%d effect colour rows from %s.<clinit>", colors.size(), VanillaSourceClasses.Types.MOB_EFFECTS);
-    }
-
-    /** One {@code {effect, color}} row with the colour forced fully opaque. */
-    private static @NotNull JsonNode row(@NotNull String effectId, int color) {
-        JsonNode row = JsonNode.object().put("effect", effectId);
-        row.putHex("color", color | 0xFF000000);
-        return row;
     }
 
 }

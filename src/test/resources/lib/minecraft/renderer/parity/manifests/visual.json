@@ -1,0 +1,831 @@
+{
+  "//": "parity.manifest.visual · regen: ./gradlew parityCapture -Partifacts=manifest.visual",
+  "artifact": "manifest.visual",
+  "files": [
+    {
+      "path": "block-render-3d/minecraft_brewing_stand_bottle1.png",
+      "sha256": "8603606e39da23c78947439175a02234f9dcd762aff15747bd2a5330fc71bbbe"
+    },
+    {
+      "path": "block-render-3d/minecraft_brewing_stand_bottle1_down.png",
+      "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
+    },
+    {
+      "path": "block-render-3d/minecraft_brewing_stand_bottle1_east.png",
+      "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
+    },
+    {
+      "path": "block-render-3d/minecraft_brewing_stand_bottle1_north.png",
+      "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
+    },
+    {
+      "path": "block-render-3d/minecraft_brewing_stand_bottle1_south.png",
+      "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
+    },
+    {
+      "path": "block-render-3d/minecraft_brewing_stand_bottle1_up.png",
+      "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
+    },
+    {
+      "path": "block-render-3d/minecraft_brewing_stand_bottle1_west.png",
+      "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
+    },
+    {
+      "path": "block-render-3d/minecraft_cake.png",
+      "sha256": "4fd1320a6d1b3bbd50c59133f37a02f259cd3e8f676b1e0bf8d20aa0c1e86795"
+    },
+    {
+      "path": "block-render-3d/minecraft_cake_down.png",
+      "sha256": "615cafadf4fcf6b01bc06c869583a7feb918d153f594b6f4a0a3cf6575b7c963"
+    },
+    {
+      "path": "block-render-3d/minecraft_cake_east.png",
+      "sha256": "9a28495aa3bae7dfc72cd00f0c86d62c75df35da5e3efa48fca0303e8a1c6512"
+    },
+    {
+      "path": "block-render-3d/minecraft_cake_north.png",
+      "sha256": "9a28495aa3bae7dfc72cd00f0c86d62c75df35da5e3efa48fca0303e8a1c6512"
+    },
+    {
+      "path": "block-render-3d/minecraft_cake_south.png",
+      "sha256": "9a28495aa3bae7dfc72cd00f0c86d62c75df35da5e3efa48fca0303e8a1c6512"
+    },
+    {
+      "path": "block-render-3d/minecraft_cake_up.png",
+      "sha256": "6f9bb481c90c4619d1a19cdabf44ba279b297c9f6202e4b52717e8e5bf38c2bf"
+    },
+    {
+      "path": "block-render-3d/minecraft_cake_west.png",
+      "sha256": "9a28495aa3bae7dfc72cd00f0c86d62c75df35da5e3efa48fca0303e8a1c6512"
+    },
+    {
+      "path": "block-render-3d/minecraft_lever.png",
+      "sha256": "555e39fc78c3594af7b88618d13acda4f2194cad092be636ed9f4fc0a3658e5a"
+    },
+    {
+      "path": "block-render-3d/minecraft_lever_down.png",
+      "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
+    },
+    {
+      "path": "block-render-3d/minecraft_lever_east.png",
+      "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
+    },
+    {
+      "path": "block-render-3d/minecraft_lever_north.png",
+      "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
+    },
+    {
+      "path": "block-render-3d/minecraft_lever_south.png",
+      "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
+    },
+    {
+      "path": "block-render-3d/minecraft_lever_up.png",
+      "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
+    },
+    {
+      "path": "block-render-3d/minecraft_lever_west.png",
+      "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
+    },
+    {
+      "path": "block-render-3d/minecraft_oak_stairs.png",
+      "sha256": "08dae54eee359baf6fae008c69d3c62cdba080a8622556cdd07b86dab292f4f6"
+    },
+    {
+      "path": "block-render-3d/minecraft_oak_stairs_down.png",
+      "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
+    },
+    {
+      "path": "block-render-3d/minecraft_oak_stairs_east.png",
+      "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
+    },
+    {
+      "path": "block-render-3d/minecraft_oak_stairs_north.png",
+      "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
+    },
+    {
+      "path": "block-render-3d/minecraft_oak_stairs_south.png",
+      "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
+    },
+    {
+      "path": "block-render-3d/minecraft_oak_stairs_up.png",
+      "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
+    },
+    {
+      "path": "block-render-3d/minecraft_oak_stairs_west.png",
+      "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
+    },
+    {
+      "path": "block-render-3d/minecraft_torch.png",
+      "sha256": "d8006a0e7a42822f4fdff2c1f9cedb024e0d218d50a4479a3b96794413728d02"
+    },
+    {
+      "path": "block-render-3d/minecraft_torch_down.png",
+      "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
+    },
+    {
+      "path": "block-render-3d/minecraft_torch_east.png",
+      "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
+    },
+    {
+      "path": "block-render-3d/minecraft_torch_north.png",
+      "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
+    },
+    {
+      "path": "block-render-3d/minecraft_torch_south.png",
+      "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
+    },
+    {
+      "path": "block-render-3d/minecraft_torch_up.png",
+      "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
+    },
+    {
+      "path": "block-render-3d/minecraft_torch_west.png",
+      "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie.png",
+      "sha256": "4afe4c093a45a539f788ed7083dba1bc38661fc757b75e85f5dc8dd86d3f1a66"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/cabinet.png",
+      "sha256": "4dd5cf48fe78264851056dc45f8f4418fd1ce90f38d2c46b0ba6d8032ae30e4b"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/cavalier.png",
+      "sha256": "5c120960b008d42c4918f7bde003065a055883c41d0b15fa1d29341b7079478b"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/dimetric.png",
+      "sha256": "11b88b4415ed7251805a604aac3c7672a066ded8afa58f6b3500b616d1365381"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_cavalier_--.png",
+      "sha256": "5c120960b008d42c4918f7bde003065a055883c41d0b15fa1d29341b7079478b"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_cavalier_-F.png",
+      "sha256": "c164abfbb96429c4fc8663864d6b2e1dba9868f9b948175237ffa79245aae1ba"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_cavalier_M-.png",
+      "sha256": "ca6a75d202367a46ddd7c2608534957a22ad2b9559d66e12ed7d2fdd562e3b0f"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_cavalier_MF.png",
+      "sha256": "19f5d5d8bc4f9ae295e90847a628a88154b9828e08bfe89aa462af98a00da7d0"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_military_--.png",
+      "sha256": "3f7b447cc740a0a2558d8989f980f92e01b2884fdf62db394600d12019323367"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_military_-F.png",
+      "sha256": "6d3454e6d336523f42ac61af9fd6ced8d2fe4ac9c146e2ee20d5816f8693a0dc"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_military_M-.png",
+      "sha256": "1c5d81843b49495425d0a2712f792c97cd8145bc803b802be12774a1a44ed098"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_military_MF.png",
+      "sha256": "6e8a889330655936399d30d04bd870ef84d3d48e8eff8ceba332de92736e92d0"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_portrait_--.png",
+      "sha256": "5503e537e49477e3675e42f38fc8fc618ef52fcace99334da946b4d238d6a3f6"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_portrait_-F.png",
+      "sha256": "a9baa636b32d117f5ee087b34082afbc56e3d3641d675892c978305050d51d1a"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_portrait_M-.png",
+      "sha256": "e1779c1e87b4297c9d99e9e08013d52198a61d644d2e19b91d018669685001dc"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_portrait_MF.png",
+      "sha256": "22cf5a05f3f59916766a14b3caa4208ae602caad52c878de9f277e45112abea0"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_--.png",
+      "sha256": "3eda78a7fefedaad8b4d40510fe4300c84ceb6e0dc50116a9417eb690a421f5e"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_-F.png",
+      "sha256": "c383108fe3ddb0e0a646df4494e7f5369e96a3cbd0af9d6afb41cd619e58e149"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_M-.png",
+      "sha256": "7d700900614b6ac851ec41b950c77277c957e415fd30eae5a9878b34445f74ce"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_MF.png",
+      "sha256": "4a410af87e8ec548dd0fb0937c225193c9907ce3075546a924c6fe37e62778c2"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/isometric.png",
+      "sha256": "546069d2e0d930881dddc8ba2cbfb4c2c6c6be3232052425889923dc39134e5b"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/military.png",
+      "sha256": "3f7b447cc740a0a2558d8989f980f92e01b2884fdf62db394600d12019323367"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/one_point.png",
+      "sha256": "ad40deb4ba5ad9efb533fbf6eee57b66dba18516b801b6e0519ee8a91c8e5d52"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/portrait.png",
+      "sha256": "5503e537e49477e3675e42f38fc8fc618ef52fcace99334da946b4d238d6a3f6"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/three_point.png",
+      "sha256": "99408898352d8e2f8cdb5d6122edea4a91b65de3e15d897e1f49a36446b5d951"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/trimetric.png",
+      "sha256": "133d3dafbf81c9d6f0280543064c6133269b8cd2b5954aeff34fca33c128e6d8"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/two_point.png",
+      "sha256": "3cab0f703fbe26d51b6c0327d18863bf2665f9d2a8399a04f2a84c677bd73168"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/vanilla_gui_item.png",
+      "sha256": "3e51b93bfc5120821bcc94faeff4b5c0426106973f777ca94180d33501405d32"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/vanilla_iso.png",
+      "sha256": "3eda78a7fefedaad8b4d40510fe4300c84ceb6e0dc50116a9417eb690a421f5e"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie_facing.png",
+      "sha256": "7af77db800470109a392c24774dec2b1b0d00e41314705c68d6ecc376f30bbca"
+    },
+    {
+      "path": "entity-render-3d/minecraft_allay.png",
+      "sha256": "ef1083f7834642571e0619b6c474783c4733d4542d800b1b46ba6dc0d6bb42f3"
+    },
+    {
+      "path": "entity-render-3d/minecraft_armadillo.png",
+      "sha256": "451c7b749d3fb94906e9c9ad00174357bbab0dcbe58f645de97bf21849bba72d"
+    },
+    {
+      "path": "entity-render-3d/minecraft_armor_stand.png",
+      "sha256": "49c370e13d2e1b4ba0bd6d472c2b2249c1a300266df7472fa030f733069dbf65"
+    },
+    {
+      "path": "entity-render-3d/minecraft_axolotl.png",
+      "sha256": "f2341cbc9023eb749ce4fc516d28f041eb33039d2249c93028a86320a4f52e5c"
+    },
+    {
+      "path": "entity-render-3d/minecraft_bat.png",
+      "sha256": "77bb6bd80c7651be4a1657e32f6e4eeb68adb3818500580f13ecffc7ad3215ba"
+    },
+    {
+      "path": "entity-render-3d/minecraft_bee.png",
+      "sha256": "3cde38a5c0b2b047a6b5e82389562446fc484f20fa7a4e7f43889a59f1f33b21"
+    },
+    {
+      "path": "entity-render-3d/minecraft_blaze.png",
+      "sha256": "217221cf529f7b1b351d13bec09f2233e1d3550edce386eeaa8ee03d09acd846"
+    },
+    {
+      "path": "entity-render-3d/minecraft_bogged.png",
+      "sha256": "cff75db34bdf1108dabbecdc04eb6bf75631b10cbca73f759c486f3edebf9cac"
+    },
+    {
+      "path": "entity-render-3d/minecraft_breeze.png",
+      "sha256": "20d8c2612cd9fbb5a22e73f329456b8bdec27b3fa313b8a637b3ec942db89f1b"
+    },
+    {
+      "path": "entity-render-3d/minecraft_camel.png",
+      "sha256": "f43f8202fba2980925c492698e33463b1589d9eaa3a102e75a2752d664b7b98f"
+    },
+    {
+      "path": "entity-render-3d/minecraft_camel_husk.png",
+      "sha256": "6d81f56cb08025000d4b34f9d2dadbd269548ccf7e978f78cef937db9ed9dcf0"
+    },
+    {
+      "path": "entity-render-3d/minecraft_cat.png",
+      "sha256": "c7f28041927f2cb61b8ec50622b9e1673fe85da4435918d37893b2a6bcb61bff"
+    },
+    {
+      "path": "entity-render-3d/minecraft_cave_spider.png",
+      "sha256": "afeb2340827c4dd4e1b95c024930620b4aead3a0048dfdbb2748b39a461cd2b5"
+    },
+    {
+      "path": "entity-render-3d/minecraft_chicken.png",
+      "sha256": "e66f4f8bc344a755e04f8d45dc848ea3e7900bf53a90e555e221f05ea524ec30"
+    },
+    {
+      "path": "entity-render-3d/minecraft_cod.png",
+      "sha256": "ecf0ec2b492d86713ae31b7073858132e89fcb3fc9822a37610742e55809fdca"
+    },
+    {
+      "path": "entity-render-3d/minecraft_copper_golem.png",
+      "sha256": "5119a0d1f7ed8112e9d4beae00c055a283374c63836c117fad6036ab633fb27a"
+    },
+    {
+      "path": "entity-render-3d/minecraft_cow.png",
+      "sha256": "ce1589fe8a605bf65b53b613c60a83d1e52b328c78a60027851f50864cc031ee"
+    },
+    {
+      "path": "entity-render-3d/minecraft_creaking.png",
+      "sha256": "c0a507e5f7335667526ce71a7ff6a4641d45e4a16aaf1f3313b4c7100edc3fa7"
+    },
+    {
+      "path": "entity-render-3d/minecraft_creeper.png",
+      "sha256": "0c404570c7d7d7f5b3433ce6ad850b92d2c422f2537a88ca0724f4b3113b4aa0"
+    },
+    {
+      "path": "entity-render-3d/minecraft_dolphin.png",
+      "sha256": "56fec12a62c93d77fab957fabdc106c67c4a76c909d650e8a9aae815490d5865"
+    },
+    {
+      "path": "entity-render-3d/minecraft_donkey.png",
+      "sha256": "77b10700d6953b4e3313007e8dc9e72ec8530c1793d50708308216f76ee56b6b"
+    },
+    {
+      "path": "entity-render-3d/minecraft_drowned.png",
+      "sha256": "afe27bbf0e1265708bfc75687194a7ef0996e3f0336a2b04ae60c4d26e32ebf1"
+    },
+    {
+      "path": "entity-render-3d/minecraft_elder_guardian.png",
+      "sha256": "f8aefee6fe8e2eb42ad3e949369f11ba8a288f14b7c0a78ff3b6996017e9cb90"
+    },
+    {
+      "path": "entity-render-3d/minecraft_ender_dragon.png",
+      "sha256": "e2b470b90324a436fc77c399db5eeec2c340e569cf97ec179a5806b368ddfda5"
+    },
+    {
+      "path": "entity-render-3d/minecraft_enderman.png",
+      "sha256": "fd1b01566b269558a5fd5408240dd029b4de4452b2ad6733fe3d15e971be5293"
+    },
+    {
+      "path": "entity-render-3d/minecraft_endermite.png",
+      "sha256": "f2f85845dee2edaf8ce4106938164489ab1f1e36b4b2cdbb8c884b04177857e1"
+    },
+    {
+      "path": "entity-render-3d/minecraft_evoker.png",
+      "sha256": "04ca0755173a657464c9ca1e7a022a0c0caf0d48b59bd626fe2e405ab3000e68"
+    },
+    {
+      "path": "entity-render-3d/minecraft_fox.png",
+      "sha256": "46ed460a001e87ebc10a5e360023f1360df10a3d4beea61e77a71b2904b9f385"
+    },
+    {
+      "path": "entity-render-3d/minecraft_frog.png",
+      "sha256": "08b62590af508c96b6863585913fc88d2f5f59c98a6c62f11b1d8345f6142ae8"
+    },
+    {
+      "path": "entity-render-3d/minecraft_ghast.png",
+      "sha256": "d4dc9c29b02f7ccb71daa2ab189a3f6ad86b6b4527429e7d1207a6f44a753913"
+    },
+    {
+      "path": "entity-render-3d/minecraft_giant.png",
+      "sha256": "54b6feca23378275874ded4ec11c62fb6eedfa7e168f9ba579f125af9a87be77"
+    },
+    {
+      "path": "entity-render-3d/minecraft_glow_squid.png",
+      "sha256": "7a6d87f9d3eeda67ae022be3d9a32f8964e16286dc1282e2377b441b1cff4829"
+    },
+    {
+      "path": "entity-render-3d/minecraft_goat.png",
+      "sha256": "498b6e9955d642a56ec93651b8ff5ea16a953b09a170dbb470e58df557fc9af3"
+    },
+    {
+      "path": "entity-render-3d/minecraft_guardian.png",
+      "sha256": "ffe4673519081f1a17781d1d21b2f0124521d316c55e29658f369882e9daf366"
+    },
+    {
+      "path": "entity-render-3d/minecraft_happy_ghast.png",
+      "sha256": "873880110ab7feaea9d02f186964a5173ec7cf3aa49f7673138ea767de7ec571"
+    },
+    {
+      "path": "entity-render-3d/minecraft_hoglin.png",
+      "sha256": "6c00be012cf5848e6569338929331edcfd246b5fbb8d13fae21e4ddc71b1135c"
+    },
+    {
+      "path": "entity-render-3d/minecraft_horse.png",
+      "sha256": "7be2d2aff91e72634646788671dea2a22cd082d37149bbdf9b90d110dc7d4f3b"
+    },
+    {
+      "path": "entity-render-3d/minecraft_husk.png",
+      "sha256": "878c267cfb436bec9820f0db64f5ea94c1e6a31c1c89dad472fe5420d2b3d2dd"
+    },
+    {
+      "path": "entity-render-3d/minecraft_illusioner.png",
+      "sha256": "8096b6220b95e0aa7bc4e6155b2ac8fe37776f7e1796fe19a21084be683ec4c5"
+    },
+    {
+      "path": "entity-render-3d/minecraft_iron_golem.png",
+      "sha256": "e6f872ac70a86beb582103419c7082232fa5bb2f3775ea61641087c5da23029d"
+    },
+    {
+      "path": "entity-render-3d/minecraft_llama.png",
+      "sha256": "fe6b9117fe620f995107477ae254307ace0ee9d575f99075317cea2935888d18"
+    },
+    {
+      "path": "entity-render-3d/minecraft_magma_cube.png",
+      "sha256": "57121f877cee7d7fcbdd2da62a6fd884b15429c4df3ef329634e36c11e619130"
+    },
+    {
+      "path": "entity-render-3d/minecraft_mooshroom.png",
+      "sha256": "f6be101256e8bb538dded45cfe574112c62db105bb178fd7135f34254b24d829"
+    },
+    {
+      "path": "entity-render-3d/minecraft_mule.png",
+      "sha256": "e768d1f3ea7e750311e6d5b11f4d484737251c8e05735ac143e3aa856bb7019a"
+    },
+    {
+      "path": "entity-render-3d/minecraft_nautilus.png",
+      "sha256": "b8201a2dc38605fd1fbc8af04636fe82698742a1999780c130a30ea56182e950"
+    },
+    {
+      "path": "entity-render-3d/minecraft_ocelot.png",
+      "sha256": "e28ef388b203052ff23b8fed96948bdb7bcf333d3302f74826ceadcca40abe8a"
+    },
+    {
+      "path": "entity-render-3d/minecraft_panda.png",
+      "sha256": "4b99f9ba2b9fad0b56f746600e2e5d8e3f694d96670bc5266704249e7fbd54aa"
+    },
+    {
+      "path": "entity-render-3d/minecraft_parched.png",
+      "sha256": "b6f410ed6a26f421f8c31a1419c80fc45d2ade885f6631b6590e07a83f13d8fd"
+    },
+    {
+      "path": "entity-render-3d/minecraft_parrot.png",
+      "sha256": "8b28ca7b02f74c4053e15c901c8c775fd9262bf112386f403b321d802cbee192"
+    },
+    {
+      "path": "entity-render-3d/minecraft_phantom.png",
+      "sha256": "0e4ce587d071a9c32441fc31eac668640602a2f00d6d53e47c9280d1f80c395a"
+    },
+    {
+      "path": "entity-render-3d/minecraft_pig.png",
+      "sha256": "256c625d095201310f66fb8516ca6ddae3d68bd4bf35bc0a31fc34f4bfa10adb"
+    },
+    {
+      "path": "entity-render-3d/minecraft_piglin.png",
+      "sha256": "13aa9ac56dcbc6714f8cb028f3a6d2ee107abfdc45f7664f2727937db4460f53"
+    },
+    {
+      "path": "entity-render-3d/minecraft_piglin_brute.png",
+      "sha256": "d865f518c03964190fec9c48a840bc9d576d115530750b647822fbef7fb3cbae"
+    },
+    {
+      "path": "entity-render-3d/minecraft_pillager.png",
+      "sha256": "6a1c6231bf6373f8e8a384f2275bf890bf7fc683430bd25965bff012a7b9affb"
+    },
+    {
+      "path": "entity-render-3d/minecraft_polar_bear.png",
+      "sha256": "136861a4c061eee9708b2264e49b6a672d3f8b019dc151d991db601b4f3a99da"
+    },
+    {
+      "path": "entity-render-3d/minecraft_pufferfish.png",
+      "sha256": "382d46ecd7e6468cb6824071fff9040c4b8f0c371e78c9abbec7375578283798"
+    },
+    {
+      "path": "entity-render-3d/minecraft_rabbit.png",
+      "sha256": "91b592733c82a49c566fb8f13909ed06bf867ad108e2a40c8d2e9851f53fe7fa"
+    },
+    {
+      "path": "entity-render-3d/minecraft_ravager.png",
+      "sha256": "39583855c3ed70df80fbcb48209a8a7140d643d8184436395210cf86aab9bfdc"
+    },
+    {
+      "path": "entity-render-3d/minecraft_salmon.png",
+      "sha256": "877641633366a6dd9a5f7575450477c9b2662855c469ffcb2a1d6826de206655"
+    },
+    {
+      "path": "entity-render-3d/minecraft_sheep.png",
+      "sha256": "412eca40407cb39eaee4fc35655886084a4e3204f7d9dcfc0321fc37650f6316"
+    },
+    {
+      "path": "entity-render-3d/minecraft_shulker.png",
+      "sha256": "520cd3a3914cc8fe9eaa3c77c7195a097f9c66e3f991b52efe122fc7bf531796"
+    },
+    {
+      "path": "entity-render-3d/minecraft_silverfish.png",
+      "sha256": "53cec29a96420d188829b6f3e4897206460831d32db9e18bf970ddbe2172de07"
+    },
+    {
+      "path": "entity-render-3d/minecraft_skeleton.png",
+      "sha256": "637cf4b87169b58eba728f35084f249a72d17f91f56552e25c4b3734c7fe42a1"
+    },
+    {
+      "path": "entity-render-3d/minecraft_skeleton_horse.png",
+      "sha256": "de1c00a47ba5a05c8eceece79d6b924e8b5c4b4bf6008add000b687ed7fb6f13"
+    },
+    {
+      "path": "entity-render-3d/minecraft_slime.png",
+      "sha256": "71688cc5d60ae4bd31cebd11b0594f4b44259dbf4d9f54e1de56016b8311fda4"
+    },
+    {
+      "path": "entity-render-3d/minecraft_sniffer.png",
+      "sha256": "6e2d388648ab9201b97dd241a2d0884284f2045266befe1e34971168f245ab0b"
+    },
+    {
+      "path": "entity-render-3d/minecraft_snow_golem.png",
+      "sha256": "92773840d2e9adaafeb4eff3c516cc35cd2fc848759fac9f9d99b907220d4205"
+    },
+    {
+      "path": "entity-render-3d/minecraft_spider.png",
+      "sha256": "f9fd4334f46a0080f8930b7ae0b5b16e429c0c27c25e757ed09508f845227f44"
+    },
+    {
+      "path": "entity-render-3d/minecraft_squid.png",
+      "sha256": "c457477d4f54e08e121a27a116a361d458473142af65512536d78b7fbb2be7ce"
+    },
+    {
+      "path": "entity-render-3d/minecraft_stray.png",
+      "sha256": "423072e8d124c25d6fe58e508419e642715245b7cbb4c468c6d26043a7445ec7"
+    },
+    {
+      "path": "entity-render-3d/minecraft_strider.png",
+      "sha256": "018f53d7981d9e81f24c87768a2fa96cadc03841d76449656ee8d7b34ffb60c2"
+    },
+    {
+      "path": "entity-render-3d/minecraft_tadpole.png",
+      "sha256": "b1b1ffaa5f29b917877de6b407d1e7aa0a0969a57ce67d6c04d2047216474012"
+    },
+    {
+      "path": "entity-render-3d/minecraft_trader_llama.png",
+      "sha256": "88b03d398269627ac7810fcdfcdd6f369d63112489ec26b802c79ec9f4a21363"
+    },
+    {
+      "path": "entity-render-3d/minecraft_tropical_fish.png",
+      "sha256": "d66bcded8064fae356000e56748b1fef2fc2bb35046c5995f3eba87932a1cc6d"
+    },
+    {
+      "path": "entity-render-3d/minecraft_turtle.png",
+      "sha256": "616e3eba841375e31abd2cc2acbbb3e847d65e9d4e110f8ca5a7daedbf2751bf"
+    },
+    {
+      "path": "entity-render-3d/minecraft_vex.png",
+      "sha256": "503d080175d8d16708e5654f4db091bd08bec5f7bcb6dfbd1a700a30de958985"
+    },
+    {
+      "path": "entity-render-3d/minecraft_villager.png",
+      "sha256": "653f5c09213d130ed9f75d5793e18034951822bf3d8d4dff88263dd978fa0f20"
+    },
+    {
+      "path": "entity-render-3d/minecraft_vindicator.png",
+      "sha256": "9da312196107f4b0282428997eec49da434f50ddd0642e15190a551813123a6a"
+    },
+    {
+      "path": "entity-render-3d/minecraft_wandering_trader.png",
+      "sha256": "db3a564c2c34c035756c38385e021812a3942088bf9e19157187d8e5c4338d6b"
+    },
+    {
+      "path": "entity-render-3d/minecraft_warden.png",
+      "sha256": "4434d22dd5461efd31f6a40416db3a364c17b69e33114f5d05f846d5dee123fb"
+    },
+    {
+      "path": "entity-render-3d/minecraft_witch.png",
+      "sha256": "57227526bef15b5a58414f639d463c278f29e869d4d19e13f4113807bdb8dbb7"
+    },
+    {
+      "path": "entity-render-3d/minecraft_wither.png",
+      "sha256": "06cbab13e9a8c0ae9da3224852afecd839552e3e1cbdcff2b7c5b56c01b7a2e5"
+    },
+    {
+      "path": "entity-render-3d/minecraft_wither_skeleton.png",
+      "sha256": "5168aedd7c8dcd84199b4d0a5b6a5f33ae1abc427eb79ccd319533d3c6659cf4"
+    },
+    {
+      "path": "entity-render-3d/minecraft_wolf.png",
+      "sha256": "2f0155febaa582f1924c723322df181919757f52ce75c95151ae00132c7ca607"
+    },
+    {
+      "path": "entity-render-3d/minecraft_zoglin.png",
+      "sha256": "ada2f38a312753d5b8a840dff2ccf7f1cacc63ff17ba3faba4dabc66b66f7b6a"
+    },
+    {
+      "path": "entity-render-3d/minecraft_zombie.png",
+      "sha256": "54b6feca23378275874ded4ec11c62fb6eedfa7e168f9ba579f125af9a87be77"
+    },
+    {
+      "path": "entity-render-3d/minecraft_zombie_horse.png",
+      "sha256": "4a97a03ef0a884a3f0309c48f59012d32b5a1fa029012b32e277d5e6c78fd3e7"
+    },
+    {
+      "path": "entity-render-3d/minecraft_zombie_nautilus.png",
+      "sha256": "c290820ea5e6834e4ea0f866aa9ca78a6d595d2ebfe111558b704904f9d0899f"
+    },
+    {
+      "path": "entity-render-3d/minecraft_zombie_villager.png",
+      "sha256": "86ac5b806fcc565012ed44e2cc628eef3d1113ecb1e5615d9ee565ca0789e5dd"
+    },
+    {
+      "path": "entity-render-3d/minecraft_zombified_piglin.png",
+      "sha256": "ea496ff6cd4accbd647e1985fbd2789652d9fe09ade13ee52a769d816d8e2733"
+    },
+    {
+      "path": "item-day-cycle/minecraft_clock.gif",
+      "sha256": "abfce580a8c51e19a0b236157cfcd1cf767049dd5b12c1d29225391b1d499ebc"
+    },
+    {
+      "path": "item-day-cycle/minecraft_clock_f000.png",
+      "sha256": "8c7abaed2b7a10a01dca2df3b49ce3e5de0efe28985d0cb83ba1f48ac4c1d371"
+    },
+    {
+      "path": "item-day-cycle/minecraft_clock_f016.png",
+      "sha256": "ba95090e9c37e586f4ceef3239c94db70027a20f613fd8cecece0d77c5213419"
+    },
+    {
+      "path": "item-day-cycle/minecraft_clock_f032.png",
+      "sha256": "7c8df934d1dce5d67bf2f4aa1cea458d7b3f7249648edf517117b9da8911fce9"
+    },
+    {
+      "path": "item-day-cycle/minecraft_clock_f048.png",
+      "sha256": "79d7175bacf1dfc4a73053ab48f9ff6e873b23cfac1cf8d88f79eaa844959705"
+    },
+    {
+      "path": "item-day-cycle/minecraft_compass.png",
+      "sha256": "a5cacfa3cd55bd6f6f2ef3d900351316d958a2969f754c53338c5f5aa40b25a3"
+    },
+    {
+      "path": "item-day-cycle/minecraft_diamond_sword.png",
+      "sha256": "7db1989ab14e5d0f7640ed95aac06e241c689ef82de527042df7bd0580aec9e0"
+    },
+    {
+      "path": "item-render-2d/minecraft_bow.png",
+      "sha256": "5b539f67ee89a16dd65e6644e77bbedbbe7335bd8151a33602b574dea5ce4aa6"
+    },
+    {
+      "path": "item-render-2d/minecraft_compass.png",
+      "sha256": "a5cacfa3cd55bd6f6f2ef3d900351316d958a2969f754c53338c5f5aa40b25a3"
+    },
+    {
+      "path": "item-render-2d/minecraft_diamond_boots_gold_trim.png",
+      "sha256": "8ef9dc104a2bc2c839dcdb4788f18b4c6e4264e9c2b898d05b9bc104bf7f43f9"
+    },
+    {
+      "path": "item-render-2d/minecraft_diamond_sword.png",
+      "sha256": "7db1989ab14e5d0f7640ed95aac06e241c689ef82de527042df7bd0580aec9e0"
+    },
+    {
+      "path": "item-render-2d/minecraft_golden_apple.png",
+      "sha256": "ca8d9f141d8698a1e06d6ce209e20fe692e8904edbbbbb922ccf4d6377134cf5"
+    },
+    {
+      "path": "item-render-2d/minecraft_iron_chestplate.png",
+      "sha256": "0b6a4ca4e78675faa701d8750ecad9df66f3e637a1371114d47d7f771c227be1"
+    },
+    {
+      "path": "item-render-2d/minecraft_iron_chestplate_amethyst_trim.png",
+      "sha256": "863fdaa6db11746eba6b516ee9353c3a92f20990f05ef15f1c9054cbb567ba6e"
+    },
+    {
+      "path": "item-render-2d/minecraft_netherite_helmet_redstone_trim.png",
+      "sha256": "22a0f5b90e9582c31571cdf644d2f52a858e28022ded61469768601a2afef9bb"
+    },
+    {
+      "path": "lore-tooltip/accessory.png",
+      "sha256": "e48751da45e38e848e385fc62fec893c164d2a944a006e30c7fca08f066845b9"
+    },
+    {
+      "path": "lore-tooltip/gradient_band1.png",
+      "sha256": "db54f43c3fe21e4d9afba4b628463d6f30ad601bb73e034b26af8e013c900b58"
+    },
+    {
+      "path": "lore-tooltip/gradient_band8.png",
+      "sha256": "9b7eeeb7f0aad0b56ad81b13cd800ec3b8a4ee80497b370699defc3184e6182a"
+    },
+    {
+      "path": "lore-tooltip/gradient_italic_shear.png",
+      "sha256": "5558466d2783e7c9441ae879944df95f61434c29419ed6b87a833d8fa4b090ba"
+    },
+    {
+      "path": "lore-tooltip/gradient_perletter.png",
+      "sha256": "0bdcfab83d7b709bbe80de597ec66453657535d314d9384d203b8f496f251c56"
+    },
+    {
+      "path": "lore-tooltip/gradient_scroll.gif",
+      "sha256": "ca144c4dde339c1a941d75d560abd25fd45ebc8e70b227535826e9faf0f9776c"
+    },
+    {
+      "path": "lore-tooltip/weapon.gif",
+      "sha256": "f046d1d6ea346875ed76a281a9868d72de7226342d5a053d6e6a9405039f6327"
+    },
+    {
+      "path": "lore-tooltip/weapon.webp",
+      "sha256": "a44dadabd190ac2c45cdb345037e5d6682e84e99d77b4ec4cd0dbb0ea640367f"
+    },
+    {
+      "path": "lore-tooltip/weapon_lossy.webp",
+      "sha256": "4f929db7c1628efb13e03e2a864226af939b345948d35cbc6b7a14f446a663c7"
+    },
+    {
+      "path": "lore-tooltip/weapon_static.webp",
+      "sha256": "d429c15aa08e9715d3ca47c37351e2270a3e445e347ff782c02601e5222fcbd3"
+    },
+    {
+      "path": "menu-render/glinted_crafting.webp",
+      "sha256": "fe45959177d4e5e61ebaa644dec94ccfca2fd5b43e8ddad8e298bb6fcb7def27"
+    },
+    {
+      "path": "menu-render/skyblock_crafting.png",
+      "sha256": "cc9a370fdb80be4eaebddfc677c22ab66e5d848643a554fbbbc8a51b6439c350"
+    },
+    {
+      "path": "menu-render/vanilla_crafting.png",
+      "sha256": "fb415fa91d5b012ab01fe40d0920d3607be00002cdb83326d89fa214b003c3ab"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__CABINET__base.png",
+      "sha256": "927686f811486cc7457d6d5f1a99200159b679c67b189da0bf79143be6995a93"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__CAVALIER__base.png",
+      "sha256": "04a448e7a7030b4af5341867c8f983c73dfb3ecdf71fb686578fc5b9d1bd13b1"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__DIMETRIC__base.png",
+      "sha256": "1591c991177c61a6fec6db806b83a927cb6265ad68ebb71b1674dc2ee5c07276"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ISOMETRIC__base.png",
+      "sha256": "be7c641099a92d1ac1fada22e1d92441dbe9c400de2898835b46cfb87a941347"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ISOMETRIC__pitch_plus_45.png",
+      "sha256": "134a0a90b4b7208f651733e821ea6f41a2792bbf2fe499705d44fb61b6230780"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ISOMETRIC__roll_plus_30.png",
+      "sha256": "0bc9484bf5058bd9888b0796d5bc02e33a72bb0a06546319cfb1a12f3fdd20b1"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ISOMETRIC__yaw_minus_90.png",
+      "sha256": "33fdd85710a8d21015b2ea46c91f89faff8d4d12a03f5fb35ec1c4889970204a"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ISOMETRIC__yaw_plus_90.png",
+      "sha256": "89f40d9bd136703a3a81864ee4eccac0bf63bbb904ecc64bf9a09c54d100eb92"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__MILITARY__base.png",
+      "sha256": "77f75c7df09c5868594c02e981a2cae0e3000338e4cbb0d14a8322acfe2fc732"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ONE_POINT__base.png",
+      "sha256": "c06f783de4dcf371df3406b074b8d495c0765ce39d56c9df5845fe016cae1978"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__PORTRAIT__base.png",
+      "sha256": "68b2f880e5021448c123b50cb9f00a0a703c4c76ab080d71c7e3d8f3c719a44c"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__THREE_POINT__base.png",
+      "sha256": "69c65a6af5057edd86481438545e745a97ea768363624ced8968cfcd1c3b55b0"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__TRIMETRIC__base.png",
+      "sha256": "296a79fed410bed058f5764cb6254d944a37b8166e9b02234f9e3a15ea5c8d72"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__TWO_POINT__base.png",
+      "sha256": "63917185f35a260a980620f2e705aa090974bae6f6bc39725b26434fb9d9755b"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__VANILLA_GUI_ITEM__base.png",
+      "sha256": "2fe4205323c4150317adb9ac869bcc025854400c204ef096eeab6fb35fb5099c"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__VANILLA_ISO__base.png",
+      "sha256": "ea12046ed7eab567ac344feda7a97841386b8c3a1072085f75579cbdae6c59d3"
+    }
+  ],
+  "format": 1,
+  "key": "path",
+  "kind": "manifest",
+  "provenance": {
+    "artifact": "manifest.visual",
+    "asset_dirty": false,
+    "asset_sha": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+    "counts": {
+      "files": 199
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "moving",
+    "population_changed": true,
+    "producer": "visualSweepSet",
+    "reason": "Whole-store capture on a clean tree at the end of the parity-cleanup follow-up. Twenty-three of twenty-four artifacts are byte-identical to the previous baseline, including all six sweeps after a full ground-truth re-render, so the six landed phases moved no hashed byte and the reference tree had no staleness to shed. manifest.visual gains 46 rows and moves none: its membership was widened from six sub-trees to eight, and entity-projections and projection-smoke are hashed here for the first time.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "root": "cache/visual",
+    "timestamp": "2026-08-07T16:43:08Z",
+    "tool_version": "1.0.0"
+  }
+}

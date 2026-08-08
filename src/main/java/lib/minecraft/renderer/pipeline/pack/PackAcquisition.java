@@ -2,25 +2,33 @@ package lib.minecraft.renderer.pipeline.pack;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.pack.FormatRange.FormatVersion;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.PackCapability;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.pack.FormatRange.FormatVersion;
-import lib.minecraft.renderer.pipeline.pack.PackIdDeriver.Assignment;
-import lib.minecraft.renderer.pipeline.pack.rule.CatharsisConfig;
-import lib.minecraft.renderer.pipeline.pack.rule.CatharsisOverlays;
-import lib.minecraft.renderer.pipeline.pack.rule.CatharsisTarget;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
+import lib.minecraft.renderer.pipeline.pack.rule.RuleScanner;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -36,46 +44,51 @@ import java.util.TreeSet;
  * <p>Acquisition is virtual by default: each user pack keeps the {@link PackContainer} it was detected
  * as - a zip or {@code .cats} archive serves its bytes in place, without extraction to disk - so every
  * downstream loader reads through the container SPI. The vanilla base pack is a real
- * {@link PackContainer.Directory} over the tree {@code Pipeline.extractClientJar} produces. The
- * extract-to-directory path ({@link #materialize}, with its provenance sidecar) is retained as an
- * unused fallback for a later opt-in flag.
+ * {@link PackContainer.Directory} over the tree {@code ClientAcquisition.extractClientJar} produces.
  */
+@UtilityClass
 public final class PackAcquisition {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
     private static final @NotNull String CONFIG_CATHARSIS = "config.catharsis.json";
 
-    private PackAcquisition() {}
-
     /**
-     * Acquires the full pack stack.
+     * Compiles the full, fully-indexed pack stack for the given client assets: build the vanilla base
+     * pack at the configured version, detect each user container by content, derive stable ids across
+     * the supply order (collisions resolved loudly), resolve overlay roots, assemble the stack, scan it
+     * into the texture index, and merge the pack rule layer - so callers never receive a bare stack.
      *
-     * @param userSources the user pack sources in supply (ascending priority) order
-     * @param cacheRoot the renderer cache root ({@code packs/<id>/} lives under it)
-     * @param vanillaPackRoot the extracted vanilla pack root (the base pack at priority 0)
-     * @return the resolved stack, vanilla first
-     * @throws PipelineException if a source is unreadable or a pack's metadata is malformed
+     * @param assets the extracted client assets (options + vanilla root)
+     * @return the resolved, texture-indexed, rule-carrying stack, vanilla first
+     * @throws PipelineException if a source is unreadable, a pack's metadata is malformed, or the
+     *     extracted root does not match the configured version
      */
-    public static @NotNull PackStack acquire(@NotNull List<Path> userSources, @NotNull Path cacheRoot, @NotNull Path vanillaPackRoot) {
-        String minecraftVersion = minecraftVersion(vanillaPackRoot);
-        ResourcePack vanilla = vanillaPack(vanillaPackRoot, minecraftVersion);
+    public static @NotNull PackStack acquire(@NotNull ClientAssets assets) {
+        ClientOptions options = assets.options();
+        Path vanillaRoot = assets.vanillaRoot();
+        // The directory-name version derivation is gone; the options version is authoritative.
+        String minecraftVersion = options.getVersion();
+        ResourcePack vanilla = vanillaPack(vanillaRoot, minecraftVersion);
         FormatVersion target = rendererTarget(vanilla);
 
+        List<Path> userSources = options.getTexturePacks().stream().map(File::toPath).toList();
         List<PackContainer> containers = new ArrayList<>();
-        List<PackNameSources> naming = new ArrayList<>();
+        List<PackIdDeriver.Naming> naming = new ArrayList<>();
         for (Path source : userSources) {
             PackContainer container = PackContainer.detect(source);
             containers.add(container);
-            naming.add(new PackNameSources(source, licenseTitleLine(container), description(container)));
+            naming.add(new PackIdDeriver.Naming(source, container));
         }
-        ConcurrentList<Assignment> assignments = PackIdDeriver.assign(naming);
+        ConcurrentList<PackId> ids = PackIdDeriver.assign(naming);
 
         List<ResourcePack> packs = new ArrayList<>();
         packs.add(vanilla);
         for (int i = 0; i < userSources.size(); i++)
-            packs.add(userPack(containers.get(i), assignments.get(i), target, minecraftVersion));
+            packs.add(userPack(containers.get(i), ids.get(i), target, minecraftVersion));
 
-        return PackStack.of(Concurrent.adoptList(packs).toUnmodifiable());
+        PackStack base = PackStack.of(Concurrent.adoptList(packs).toUnmodifiable());
+        PackStack indexed = base.withTextureIndex(TextureIndexer.index(base));
+        return indexed.withRules(RuleScanner.mergeAll(indexed));
     }
 
     /** Builds the vanilla base pack from its already-extracted tree (in place, no materialization). */
@@ -84,99 +97,26 @@ public final class PackAcquisition {
             throw new PipelineException("Vanilla pack root '%s' does not exist or is not a directory", vanillaPackRoot);
         PackContainer container = new PackContainer.Directory(vanillaPackRoot);
         MCMeta meta = readMeta(container, PackId.VANILLA);
-        Set<Capability> capabilities = detectCapabilities(container, meta);
+        Set<PackCapability> capabilities = detectCapabilities(container, meta);
         ConcurrentList<PackRoot> roots = resolveRoots(container, meta, rendererTargetFrom(meta), minecraftVersion, capabilities);
         return new ResourcePack(PackId.VANILLA, container, meta, roots, namespaces(container, roots), capabilities);
     }
 
     /**
      * Assembles one user pack's {@link ResourcePack} straight off its detected container - virtual by
-     * default: a zip / {@code .cats} pack serves its bytes in place, without extraction to disk. The
-     * extract-to-directory path ({@link #materialize}) is retained as an unused fallback for a later
-     * opt-in flag.
+     * default: a zip / {@code .cats} pack serves its bytes in place, without extraction to disk.
      */
-    private static @NotNull ResourcePack userPack(@NotNull PackContainer container, @NotNull Assignment assignment,
+    private static @NotNull ResourcePack userPack(@NotNull PackContainer container, @NotNull PackId id,
                                                   @NotNull FormatVersion target, @NotNull String minecraftVersion) {
-        PackId id = assignment.id();
         MCMeta meta = readMeta(container, id);
-        Set<Capability> capabilities = detectCapabilities(container, meta);
+        Set<PackCapability> capabilities = detectCapabilities(container, meta);
         ConcurrentList<PackRoot> roots = resolveRoots(container, meta, target, minecraftVersion, capabilities);
         return new ResourcePack(id, container, meta, roots, namespaces(container, roots), capabilities);
     }
 
     /**
-     * Extracts a zip / {@code .cats} container into {@code <cacheRoot>/packs/<id>/}, or returns a
-     * directory source in place. Reuses an existing extraction whose provenance matches the source
-     * mtime and heuristic version.
-     */
-    private static @NotNull Path materialize(@NotNull PackContainer container, @NotNull Path source,
-                                             @NotNull PackId id, @NotNull Path cacheRoot, long sourceMtime) {
-        if (container instanceof PackContainer.Directory dir) return dir.root();
-
-        Path dest = cacheRoot.resolve("packs").resolve(id.value());
-        if (upToDate(dest.resolve(".pack.provenance.json"), sourceMtime)) return dest;
-
-        try {
-            if (Files.isDirectory(dest)) deleteTree(dest);
-            Files.createDirectories(dest);
-            container.entries("").forEach(entry -> writeEntry(container, entry, dest, id));
-            // Ensure the authoritative pack.mcmeta lands even when it is an outer .cats.zip decoy
-            // (decoys are not enumerated by entries()).
-            container.bytes("pack.mcmeta").ifPresent(bytes -> writeBytes(dest.resolve("pack.mcmeta"), bytes, dest, id));
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to materialize pack '%s' into '%s'", id, dest);
-        }
-        return dest;
-    }
-
-    /** Writes one container entry into the destination tree, guarding against zip-slip. */
-    private static void writeEntry(@NotNull PackContainer container, @NotNull String entry, @NotNull Path dest, @NotNull PackId id) {
-        container.bytes(entry).ifPresent(bytes -> writeBytes(dest.resolve(entry), bytes, dest, id));
-    }
-
-    private static void writeBytes(@NotNull Path target, byte @NotNull [] bytes, @NotNull Path dest, @NotNull PackId id) {
-        Path normalized = target.normalize();
-        if (!normalized.startsWith(dest))
-            throw new PipelineException("Pack '%s' contains an entry escaping its root: '%s'", id, target);
-        try {
-            Files.createDirectories(normalized.getParent());
-            Files.write(normalized, bytes);
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to write pack '%s' entry '%s'", id, normalized);
-        }
-    }
-
-    /** Whether an extraction is current: provenance exists, records this heuristic version, and is not older than the source. */
-    private static boolean upToDate(@NotNull Path provenanceFile, long sourceMtime) {
-        if (!Files.isRegularFile(provenanceFile)) return false;
-        try {
-            PackProvenance provenance = PackProvenance.parse(Files.readString(provenanceFile));
-            return provenance.heuristicVersion() == PackIdDeriver.HEURISTIC_VERSION
-                && provenance.sourceModifiedMillis() >= sourceMtime;
-        } catch (IOException | PipelineException ex) {
-            return false;
-        }
-    }
-
-    /** Writes the provenance sidecar - inside the extracted tree for archives, beside it for in-place directory sources. */
-    private static void writeProvenance(@NotNull Assignment assignment, @NotNull Path source, long sourceMtime,
-                                        @NotNull Path cacheRoot, @NotNull PackContainer container) {
-        PackProvenance provenance = PackProvenance.of(assignment, source, sourceMtime);
-        Path packsDir = cacheRoot.resolve("packs");
-        Path file = container instanceof PackContainer.Directory
-            ? packsDir.resolve(assignment.id().value() + ".provenance.json")
-            : packsDir.resolve(assignment.id().value()).resolve(".pack.provenance.json");
-        try {
-            Files.createDirectories(file.getParent());
-            Files.writeString(file, provenance.toJson());
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to write provenance for pack '%s'", assignment.id());
-        }
-    }
-
-    /**
      * Resolves the active roots: base first, then every vanilla {@code overlays.entries} overlay whose
-     * format range contains the target, then - for a pack carrying {@link Capability#CATHARSIS_CONVENTIONS}
+     * format range contains the target, then - for a pack carrying {@link PackCapability#CATHARSIS_CONVENTIONS}
      * - every Catharsis {@code fabric:overlays} entry whose condition holds under the pack's config
      * defaults. Each active overlay's directory must exist. Both overlay families stack
      * over the root in list order (later wins), the vanilla {@code CompositePackResources} semantics
@@ -184,7 +124,7 @@ public final class PackAcquisition {
      */
     private static @NotNull ConcurrentList<PackRoot> resolveRoots(@NotNull PackContainer container,
                                                                   @NotNull MCMeta meta, @NotNull FormatVersion target,
-                                                                  @NotNull String minecraftVersion, @NotNull Set<Capability> capabilities) {
+                                                                  @NotNull String minecraftVersion, @NotNull Set<PackCapability> capabilities) {
         ArrayList<PackRoot> roots = new ArrayList<>();
         roots.add(PackRoot.BASE);
         meta.pack().ifPresent(pack -> {
@@ -193,7 +133,7 @@ public final class PackAcquisition {
                 if (containsAny(container, overlay.directory())) roots.add(PackRoot.overlay(overlay.directory()));
             }
         });
-        if (capabilities.contains(Capability.CATHARSIS_CONVENTIONS))
+        if (capabilities.contains(PackCapability.CATHARSIS_CONVENTIONS))
             addCatharsisOverlays(container, target, minecraftVersion, roots);
         return Concurrent.adoptList(roots).toUnmodifiable();
     }
@@ -217,7 +157,7 @@ public final class PackAcquisition {
         // InvalidPathException on resolve, ...) must degrade to no Catharsis overlays, never break the
         // acquisition of this or any other pack (overlays inert, never error).
         try {
-            Optional<JsonObject> mcmeta = readJsonObject(container, "pack.mcmeta");
+            Optional<JsonTree> mcmeta = readJsonObject(container, "pack.mcmeta");
             if (mcmeta.isEmpty()) return;
             CatharsisConfig config = CatharsisOverlays.loadConfig(readJson(container, CONFIG_CATHARSIS), mcmeta.get());
             CatharsisTarget catharsisTarget = new CatharsisTarget(target.major(), minecraftVersion);
@@ -228,26 +168,21 @@ public final class PackAcquisition {
         }
     }
 
-    /** Reads and parses a container entry as a JSON object, empty when absent or malformed (Catharsis never errors). */
-    private static @NotNull Optional<JsonObject> readJsonObject(@NotNull PackContainer container, @NotNull String path) {
-        return readJson(container, path).filter(JsonElement::isJsonObject).map(JsonElement::getAsJsonObject);
+    /** Reads and parses a container entry as a JSON object node, empty when absent or malformed (Catharsis never errors). */
+    private static @NotNull Optional<JsonTree> readJsonObject(@NotNull PackContainer container, @NotNull String path) {
+        return readJson(container, path).filter(JsonTree::isObject);
     }
 
-    /** Reads and parses a container entry as a JSON element, empty when absent or malformed. */
-    private static @NotNull Optional<JsonElement> readJson(@NotNull PackContainer container, @NotNull String path) {
+    /** Reads and parses a container entry as a JSON node, empty when absent or malformed. */
+    private static @NotNull Optional<JsonTree> readJson(@NotNull PackContainer container, @NotNull String path) {
         return container.bytes(path).flatMap(bytes -> {
             try {
-                return Optional.ofNullable(GSON.fromJson(new String(bytes, StandardCharsets.UTF_8), JsonElement.class));
+                JsonElement parsed = GSON.fromJson(new String(bytes, StandardCharsets.UTF_8), JsonElement.class);
+                return parsed == null ? Optional.empty() : Optional.of(JsonTree.wrap(parsed));
             } catch (JsonSyntaxException ex) {
                 return Optional.empty();
             }
         });
-    }
-
-    /** The renderer's target Minecraft version - the vanilla pack root's directory name ({@code <cache>/vanilla/<version>}). */
-    private static @NotNull String minecraftVersion(@NotNull Path vanillaPackRoot) {
-        Path name = vanillaPackRoot.getFileName();
-        return name == null ? "" : name.toString();
     }
 
     /**
@@ -255,6 +190,13 @@ public final class PackAcquisition {
      * the container's file entries so a zip / {@code .cats} pack enumerates identically to an exploded
      * directory. A namespace directory that ships no files contributes nothing to rendering and is not
      * reported (it was inert under the old directory listing too).
+     *
+     * <p>Returned in natural (sorted) namespace order, not via {@code Set.copyOf}: a {@code Set.copyOf}
+     * snapshot is a {@code java.util.ImmutableCollections} set whose iteration order is salted from
+     * {@code System.nanoTime()} at class-init, which would discard this sort and let downstream
+     * last-write-wins consumers - {@code TextureSynthesizer} over colliding {@code <base>_<permutation>}
+     * keys, {@link ResourcePack#primaryNamespace()}'s {@code findFirst} - pick a different winner per
+     * JVM run.
      */
     private static @NotNull Set<String> namespaces(@NotNull PackContainer container, @NotNull ConcurrentList<PackRoot> roots) {
         TreeSet<String> namespaces = new TreeSet<>();
@@ -266,7 +208,7 @@ public final class PackAcquisition {
                 if (slash > 0) namespaces.add(rest.substring(0, slash));
             });
         }
-        return Set.copyOf(namespaces);
+        return Collections.unmodifiableSortedSet(namespaces);
     }
 
     /**
@@ -277,15 +219,15 @@ public final class PackAcquisition {
      * condition). MCMeta's typed parse does not retain the Catharsis / Fabric sections, so the mcmeta
      * signals are read from the raw JSON (degrade-safe - a malformed mcmeta simply contributes no signal).
      */
-    private static @NotNull Set<Capability> detectCapabilities(@NotNull PackContainer container, @NotNull MCMeta meta) {
-        LinkedHashSet<Capability> capabilities = new LinkedHashSet<>();
+    private static @NotNull Set<PackCapability> detectCapabilities(@NotNull PackContainer container, @NotNull MCMeta meta) {
+        LinkedHashSet<PackCapability> capabilities = new LinkedHashSet<>();
         if (container.entries("").anyMatch(p -> p.startsWith("assets/") || p.contains("/assets/")))
-            capabilities.add(Capability.VANILLA_CORE);
+            capabilities.add(PackCapability.VANILLA_CORE);
         if (container.entries("").anyMatch(p -> p.contains("/optifine/") || p.contains("/mcpatcher/")))
-            capabilities.add(Capability.OPTIFINE_RULES);
+            capabilities.add(PackCapability.OPTIFINE_RULES);
         if (container.entries("").anyMatch(PackAcquisition::isCatharsisPathSignal)
             || readJsonObject(container, "pack.mcmeta").filter(PackAcquisition::hasCatharsisMcmetaSignal).isPresent())
-            capabilities.add(Capability.CATHARSIS_CONVENTIONS);
+            capabilities.add(PackCapability.CATHARSIS_CONVENTIONS);
         return Set.copyOf(capabilities);
     }
 
@@ -295,17 +237,18 @@ public final class PackAcquisition {
     }
 
     /** Whether the pack mcmeta carries a {@code catharsis:pack/v1} section or a {@code fabric:overlays} entry gated on a {@code catharsis:*} condition. */
-    private static boolean hasCatharsisMcmetaSignal(@NotNull JsonObject mcmetaRoot) {
-        if (mcmetaRoot.keySet().stream().anyMatch(key -> key.startsWith("catharsis:pack"))) return true;
-        if (!mcmetaRoot.has("fabric:overlays") || !mcmetaRoot.get("fabric:overlays").isJsonObject()) return false;
-        JsonObject overlays = mcmetaRoot.getAsJsonObject("fabric:overlays");
-        if (!overlays.has("entries") || !overlays.get("entries").isJsonArray()) return false;
-        for (JsonElement entryElement : overlays.getAsJsonArray("entries")) {
-            if (!entryElement.isJsonObject()) continue;
-            JsonObject entry = entryElement.getAsJsonObject();
-            if (!entry.has("condition") || !entry.get("condition").isJsonObject()) continue;
-            JsonElement condition = entry.getAsJsonObject("condition").get("condition");
-            if (condition != null && condition.isJsonPrimitive() && condition.getAsString().startsWith("catharsis:")) return true;
+    private static boolean hasCatharsisMcmetaSignal(@NotNull JsonTree mcmetaRoot) {
+        if (mcmetaRoot.keys().anyMatch(key -> key.startsWith("catharsis:pack"))) return true;
+        Optional<JsonTree> overlays = mcmetaRoot.findObject("fabric:overlays");
+        if (overlays.isEmpty()) return false;
+        Optional<JsonTree> entries = overlays.get().findArray("entries");
+        if (entries.isEmpty()) return false;
+        for (JsonTree entry : entries.get().elements().toList()) {
+            if (!entry.isObject()) continue;
+            Optional<JsonTree> conditionObj = entry.findObject("condition");
+            if (conditionObj.isEmpty()) continue;
+            String condition = conditionObj.get().findString("condition").orElse(null);
+            if (condition != null && condition.startsWith("catharsis:")) return true;
         }
         return false;
     }
@@ -323,42 +266,6 @@ public final class PackAcquisition {
         return container.bytes("pack.mcmeta")
             .map(bytes -> MCMeta.parse(new String(bytes, StandardCharsets.UTF_8), new ResourceId(id.value(), "pack")))
             .orElse(MCMeta.EMPTY);
-    }
-
-    private static @NotNull Optional<String> description(@NotNull PackContainer container) {
-        return container.bytes("pack.mcmeta")
-            .map(bytes -> MCMeta.parse(new String(bytes, StandardCharsets.UTF_8), new ResourceId("probe", "pack")))
-            .flatMap(MCMeta::pack)
-            .map(pack -> pack.description().plain())
-            .filter(plain -> !plain.isBlank());
-    }
-
-    private static @NotNull Optional<String> licenseTitleLine(@NotNull PackContainer container) {
-        return container.bytes("LICENSE")
-            .map(bytes -> new String(bytes, StandardCharsets.UTF_8))
-            .flatMap(text -> text.lines().map(String::strip).filter(line -> !line.isEmpty()).findFirst());
-    }
-
-    private static long lastModified(@NotNull Path source) {
-        try {
-            return Files.getLastModifiedTime(source).toMillis();
-        } catch (IOException ex) {
-            return 0L;
-        }
-    }
-
-    private static void deleteTree(@NotNull Path root) throws IOException {
-        try (var walk = Files.walk(root)) {
-            walk.sorted((a, b) -> b.getNameCount() - a.getNameCount()).forEach(path -> {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (IOException ex) {
-                    throw new java.io.UncheckedIOException(ex);
-                }
-            });
-        } catch (java.io.UncheckedIOException ex) {
-            throw ex.getCause();
-        }
     }
 
 }

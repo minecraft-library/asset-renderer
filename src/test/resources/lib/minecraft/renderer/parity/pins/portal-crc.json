@@ -1,0 +1,43 @@
+{
+  "//": "parity.pin.portal-crc · regen: ./gradlew parityCapture -Partifacts=pin.portal-crc",
+  "artifact": "pin.portal-crc",
+  "format": 1,
+  "key": "pin_key",
+  "kind": "pin-set",
+  "provenance": {
+    "artifact": "pin.portal-crc",
+    "asset_dirty": false,
+    "asset_sha": "00a006307ac6443e243d30caf238849e20cd9c60",
+    "counts": {
+      "values": 2
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "slowTest",
+    "reason": "P12: the eight render CRCs, the forty golden floats and the two corpus counts move out of Java literals into the store, carried across verbatim - every value equals the literal deleted at 00a00630^. pin.fluid-crc's thirteen values are new: the test compared run A to run B and pinned nothing",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "timestamp": "2026-08-01T11:35:38Z",
+    "tool_version": "1.0.0"
+  },
+  "values": {
+    "end_gateway_face_2d": {
+      "crc32": "0x6A1994F8",
+      "subject": "Portal.END_GATEWAY, PORTAL_FACE_2D, canvas 128",
+      "type": "crc32"
+    },
+    "end_portal_face_2d": {
+      "crc32": "0x102F6A01",
+      "subject": "Portal.END_PORTAL, PORTAL_FACE_2D, canvas 128",
+      "type": "crc32"
+    }
+  }
+}

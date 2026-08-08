@@ -1,0 +1,39 @@
+{
+  "required": true,
+  "package": "lib.minecraft.refharness.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "ArmorStandSpawnFlagsMixin",
+    "BannerFlagModelMixin",
+    "BeeStateMixin",
+    "DegenerateUvPolygonMixin",
+    "DonkeyModelMixin",
+    "EnchantTableRendererMixin",
+    "EnderDragonModelMixin",
+    "FlipFaceShadingMixin",
+    "FreezeAnimationStateMixin",
+    "FreezeSpriteAnimationMixin",
+    "GlintTexturingMixin",
+    "GuardianStateMixin",
+    "HeadlessWindowMixin",
+    "HideCloudsMixin",
+    "HideHandMixin",
+    "HideSkyMixin",
+    "LlamaModelMixin",
+    "PhantomStateMixin",
+    "PufferfishStateMixin",
+    "ShadeFalseFullBrightMixin",
+    "SilenceAudioMixin",
+    "SkipSetupAnimMixin",
+    "SuppressShakingMixin",
+    "TurtleEggBellyMixin",
+    "WitherBossModelMixin",
+    "ZombieVillagerStateMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

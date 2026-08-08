@@ -1,16 +1,17 @@
 package lib.minecraft.renderer.visual;
 
-import lib.minecraft.renderer.PortalRenderer;
-import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.option.PortalOptions;
-import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.webp.WebPWriteOptions;
+import lib.minecraft.renderer.PortalRenderer;
+import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.option.PortalOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
+import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,9 +29,9 @@ import java.util.Locale;
  * diagonal streak artefacts, so WebP's full RGB output is the correct choice for the end-portal
  * shader output. Covers the full matrix of {@link PortalOptions.Portal} (end_portal / end_gateway)
  * {@code x} {@link PortalOptions.Type} ({@link PortalOptions.Type#ISOMETRIC_3D} / 2D) {@code x}
- * (static / animated) - 8 outputs.
+ * (static / animated / animated-smooth) - 12 outputs.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:portalRenderer}. Takes no {@code -P} flags; sizes are
+ * Usage: {@code ./gradlew portalRenderer}. Takes no {@code -P} flags; sizes are
  * fixed at {@link #STATIC_SIZE} / {@link #ANIMATED_SIZE}.
  */
 @UtilityClass
@@ -41,6 +42,12 @@ public final class TestPortalRenderer {
 
     /** Square edge length (pixels) used for static renders. */
     private static final int STATIC_SIZE = 512;
+
+    /**
+     * Sub-tick steps used for the smooth animated variants - each tick sampled as this many frames, so
+     * the loop plays at 60 rather than 20 frames a second over the same span of game time.
+     */
+    private static final int SMOOTH_SUB_TICK_STEPS = 3;
 
     /** Square edge length (pixels) used for animated renders. */
     private static final int ANIMATED_SIZE = 256;
@@ -60,11 +67,11 @@ public final class TestPortalRenderer {
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
 
@@ -100,6 +107,26 @@ public final class TestPortalRenderer {
                     .animation(
                         PortalOptions.DEFAULT_ANIMATION.mutate()
                             .frameCount(ANIMATED_FRAME_COUNT)
+                            .build()
+                    )
+                    .build());
+
+                // The same loop sampled between ticks. Covers the same span of game time at the same
+                // speed, so the two play identically apart from smoothness - a frame per tick caps the
+                // plain loop at 20 a second, which reads as a visible stutter on drifting stars.
+                render(renderer, imageFactory, portalSlug + "_" + typeSlug + "_animated_smooth", PortalOptions.builder()
+                    .portal(portal)
+                    .type(type)
+                    .output(
+                        OutputOptions.builder()
+                            .canvasSize(ANIMATED_SIZE)
+                            .supersample(2)
+                            .build()
+                    )
+                    .animation(
+                        PortalOptions.DEFAULT_ANIMATION.mutate()
+                            .frameCount(ANIMATED_FRAME_COUNT)
+                            .subTickSteps(SMOOTH_SUB_TICK_STEPS)
                             .build()
                     )
                     .build());

@@ -1,0 +1,36 @@
+# gradle
+.gradle/
+build/
+out/
+classes/
+
+# IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse
+*.launch
+.settings/
+.classpath
+.project
+
+# VS Code
+.vscode/
+
+# macOS
+*.DS_Store
+
+# Fabric's game directory is not here: the renderReferences run config sets runDir to
+# ../cache/run, which the repo root's own `cache/` rule already covers at any depth.
+# Loom still creates an empty run/resources/ beside this file whatever runDir says, and
+# git does not track an empty directory, so nothing is hidden by leaving it unignored -
+# whereas a run/ that fills with config/, mods/ and logs/ means the runDir setting was
+# lost, and that is precisely the case worth seeing in git status.
+
+# Java crash + flight recorder
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr

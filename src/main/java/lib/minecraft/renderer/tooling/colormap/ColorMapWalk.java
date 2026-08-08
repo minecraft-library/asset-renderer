@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.tooling.colormap;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import org.jetbrains.annotations.NotNull;
@@ -35,10 +35,10 @@ public final class ColorMapWalk {
      * @param session the live session
      * @param root the envelope root
      */
-    public static void run(@NotNull ToolingSession session, @NotNull JsonNode root) {
+    public static void run(@NotNull ToolingSession session, @NotNull JsonTree root) {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("maps");
-        JsonNode maps = root.childArray("maps");
+        JsonTree maps = root.childArray("maps");
 
         int read = 0;
         for (ColorMapPolicies policy : ColorMapPolicies.values()) {
@@ -48,7 +48,7 @@ public final class ColorMapWalk {
                 continue;
             }
             String pixels = Base64.getEncoder().encodeToString(pack(decode(png, policy.entryPath())));
-            maps.add(JsonNode.object()
+            maps.add(JsonTree.object()
                 .put("type", policy.type().name())
                 .put("source", policy.entryPath())
                 .put("pixels", pixels));

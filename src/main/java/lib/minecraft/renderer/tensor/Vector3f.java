@@ -91,8 +91,8 @@ public record Vector3f(float x, float y, float z) {
 
     /**
      * Returns the component at the given axis index ({@code 0=x, 1=y, 2=z}). Useful when an
-     * algorithm picks an axis at runtime, e.g. an {@code EntityFace.Layout} that maps a face's
-     * {@code widthAxis}/{@code heightAxis} to one of the three components.
+     * algorithm picks an axis at runtime, e.g. a face's {@code widthAxis} / {@code heightAxis}
+     * naming which of the three components an unwrap reads.
      *
      * @param axis the axis index, must be {@code 0}, {@code 1}, or {@code 2}
      * @return the component value

@@ -9,10 +9,11 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>The class coordinate is a JVM internal name, never a zip entry path; the inflate
  * pre-seed is the 3-component {@code grow} (a lossy scalar average would lose per-axis
- * detail); {@code subjectId} is provenance (the first requesting subject, powering
- * diagnostics + the {@code source} twin), not an output key - keys are minted by the
- * manifest. Texture-dimension overrides ride as components so the skull-wrapper unwrap can
- * stamp {@code texture_size} through them.
+ * detail); {@code subjectId} is provenance alone - the first requesting subject, named in
+ * every parse diagnostic so a failure points at a subject rather than at a bare factory - and
+ * it reaches neither the minted key nor the emitted {@code source} twin, both of which are
+ * built from the factory coordinate and the discriminators. Texture-dimension overrides ride
+ * as components so the skull-wrapper unwrap can stamp {@code texture_size} through them.
  *
  * @param factoryClass the factory class's JVM internal name
  * @param factoryMethod the factory method to parse
@@ -35,6 +36,12 @@ import org.jetbrains.annotations.Nullable;
  *     in the factory body; {@code 1f} = no external scale
  * @param refParam binds an object-reference parameter slot to a concrete enum constant so
  *     the parser can evaluate {@code if (param == Enum.CONST)} branches, or {@code null}
+ * @param poseParam binds a {@code PartPose} parameter slot to a concrete offset so the parser
+ *     can fold the factory's reads of it, or {@code null}
+ * @param babyTransform the {@link BabyMeshTransform} a {@code LayerDefinitions}-level
+ *     {@code .apply} chain wraps the factory result in, or {@code null} for the meshes vanilla
+ *     registers untransformed. It rides beside {@code appliedMeshTransformerScale} rather than
+ *     folding into it because it is seven values and two operators, not a factor
  */
 public record GeometryRequest(
     @NotNull String factoryClass,
@@ -47,11 +54,30 @@ public record GeometryRequest(
     float @Nullable [] paramFloatValues,
     float @NotNull [] grow,
     float appliedMeshTransformerScale,
-    @Nullable RefParam refParam
+    @Nullable RefParam refParam,
+    @Nullable PoseParam poseParam,
+    @Nullable BabyMeshTransform babyTransform
 ) {
 
     /** The no-grow pre-seed. */
     public static final float @NotNull [] NO_GROW = {0f, 0f, 0f};
+
+    /**
+     * Returns a copy carrying the aged-down whole-mesh transformer its registration applies.
+     *
+     * <p>A copy rather than a parameter on each factory because only two of the six recipes can
+     * reach one - the size axis's mesh option and the armor row - and vanilla registers every other
+     * mesh untransformed.
+     *
+     * @param transform the transformer the registration applies, or {@code null} for none
+     * @return this request when there is no transformer, else a copy carrying it
+     */
+    public @NotNull GeometryRequest withBabyTransform(@Nullable BabyMeshTransform transform) {
+        if (transform == null) return this;
+        return new GeometryRequest(this.factoryClass, this.factoryMethod, this.subjectId, this.yAxis,
+            this.texWidthOverride, this.texHeightOverride, this.paramIntValues, this.paramFloatValues,
+            this.grow, this.appliedMeshTransformerScale, this.refParam, this.poseParam, transform);
+    }
 
     /**
      * Binds an object-reference parameter slot to a concrete enum constant, letting the
@@ -63,6 +89,21 @@ public record GeometryRequest(
      * @param value the enum constant field name the slot is bound to
      */
     public record RefParam(int slot, @NotNull String ownerInternal, @NotNull String value) {}
+
+    /**
+     * Binds a {@code PartPose} parameter slot to a concrete offset, so a factory that seats a part
+     * by reading its pose argument folds those reads to literals rather than to the non-literal
+     * marker.
+     *
+     * <p>The pose reaches the mesh through its three offset accessors rather than through
+     * arithmetic on a float parameter, so it needs a binding of its own: a factory taking one is
+     * building a different mesh at each pose it is called with, which is what separates the baby
+     * piglin's armor shell from the generic baby one.
+     *
+     * @param slot the JVM local-variable slot holding the pose parameter
+     * @param offset the 3-component offset the bound pose answers
+     */
+    public record PoseParam(int slot, float @NotNull [] offset) {}
 
     // ------------------------------------------------------------------------------------
     // static factories - one per entity recipe shape. Every entity recipe shares
@@ -94,7 +135,7 @@ public record GeometryRequest(
     ) {
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, YAxis.DOWN,
             texWidthOverride, texHeightOverride, null, seededParams(floatParam), NO_GROW,
-            appliedMeshTransformerScale, null);
+            appliedMeshTransformerScale, null, null, null);
     }
 
     /**
@@ -123,7 +164,7 @@ public record GeometryRequest(
     ) {
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, YAxis.DOWN,
             texWidthOverride, texHeightOverride, null, seededParams(floatParam), grow,
-            appliedMeshTransformerScale, null);
+            appliedMeshTransformerScale, null, null, null);
     }
 
     /**
@@ -147,7 +188,32 @@ public record GeometryRequest(
         float @NotNull [] grow
     ) {
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, YAxis.DOWN,
-            texWidthOverride, texHeightOverride, null, new float[8], grow, 1f, null);
+            texWidthOverride, texHeightOverride, null, new float[8], grow, 1f, null, null, null);
+    }
+
+    /**
+     * A worn-armor shell request: an {@link #overlay} that is never grown - the shell's two
+     * deformations ride the wearer's row, not the mesh - carrying the pose binding a baby shell's
+     * factory seats its arms through.
+     *
+     * @param factoryClass the factory class's internal name
+     * @param factoryMethod the factory method
+     * @param subjectId the requesting subject
+     * @param texWidthOverride the texture-width override, or {@code null}
+     * @param texHeightOverride the texture-height override, or {@code null}
+     * @param poseParam the bound pose parameter, or {@code null} when the factory takes none
+     * @return the request
+     */
+    public static @NotNull GeometryRequest armor(
+        @NotNull String factoryClass,
+        @NotNull String factoryMethod,
+        @NotNull String subjectId,
+        @Nullable Integer texWidthOverride,
+        @Nullable Integer texHeightOverride,
+        @Nullable PoseParam poseParam
+    ) {
+        return new GeometryRequest(factoryClass, factoryMethod, subjectId, YAxis.DOWN,
+            texWidthOverride, texHeightOverride, null, new float[8], NO_GROW, 1f, null, poseParam, null);
     }
 
     /**
@@ -181,7 +247,7 @@ public record GeometryRequest(
         int[] intParams = factoryDesc.startsWith("(Z") || factoryDesc.startsWith("(I") ? new int[8] : null;
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, YAxis.DOWN,
             texWidthOverride, texHeightOverride, intParams, seededParams(floatParam), grow,
-            appliedMeshTransformerScale, null);
+            appliedMeshTransformerScale, null, null, null);
     }
 
     /**
@@ -214,7 +280,7 @@ public record GeometryRequest(
         @Nullable RefParam refParam
     ) {
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, yAxis,
-            texWidthOverride, texHeightOverride, paramIntValues, null, NO_GROW, 1f, refParam);
+            texWidthOverride, texHeightOverride, paramIntValues, null, NO_GROW, 1f, refParam, null, null);
     }
 
     /**

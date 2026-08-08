@@ -1,5 +1,14 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import dev.simplified.collection.Concurrent;
+import lib.minecraft.renderer.asset.PackStack;
+import lib.minecraft.renderer.asset.pack.PackCapability;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -44,7 +53,11 @@ class PackAcquisitionTest {
         // ov_gone is declared but never created on disk -> inactive
 
         Path cache = dir.resolve("cache");
-        PackStack stack = PackAcquisition.acquire(List.of(user), cache, vanilla);
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(cache.toFile())
+            .texturePacks(Concurrent.adoptList(List.of(user.toFile())))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, vanilla));
 
         assertThat(stack.size(), is(2));
         assertThat(stack.vanilla().id(), is(PackId.VANILLA));
@@ -53,7 +66,7 @@ class PackAcquisitionTest {
         assertThat("only the format-matching, on-disk overlay activates",
             mypack.roots(), contains(PackRoot.BASE, PackRoot.overlay("ov_hi")));
         assertThat(mypack.namespaces(), containsInAnyOrder("minecraft", "testns"));
-        assertThat(mypack.capabilities(), containsInAnyOrder(Capability.VANILLA_CORE, Capability.OPTIFINE_RULES));
+        assertThat(mypack.capabilities(), containsInAnyOrder(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES));
 
         // directory source is served in place (virtual - no extraction, no cache copy)
         assertThat(mypack.container(), is(org.hamcrest.Matchers.instanceOf(PackContainer.Directory.class)));
@@ -81,10 +94,14 @@ class PackAcquisitionTest {
         write(user.resolve("theme_dark/assets/minecraft/textures/block/dirt.png"), "png");  // condition fails -> inactive
         // never_built: condition holds but the directory is not on disk -> inactive
 
-        PackStack stack = PackAcquisition.acquire(List.of(user), dir.resolve("cache"), vanilla);
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(dir.resolve("cache").toFile())
+            .texturePacks(Concurrent.adoptList(List.of(user.toFile())))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, vanilla));
         ResourcePack catpack = stack.byId(new PackId("catpack")).orElseThrow();
 
-        assertThat(catpack.capabilities(), hasItem(Capability.CATHARSIS_CONVENTIONS));
+        assertThat(catpack.capabilities(), hasItem(PackCapability.CATHARSIS_CONVENTIONS));
         assertThat("only the config-active, on-disk Catharsis overlay stacks over the base root",
             catpack.roots(), contains(PackRoot.BASE, PackRoot.overlay("block_ore")));
     }
@@ -104,9 +121,13 @@ class PackAcquisitionTest {
             + "\"fabric:overlays\":{\"entries\":[{\"directory\":\"block_ore\",\"condition\":{\"condition\":\"catharsis:config\",\"id\":\"block.ore\",\"value\":\"on\"}}]}}");
         write(user.resolve("block_ore/assets/minecraft/textures/block/stone.png"), "png");
 
-        PackStack stack = PackAcquisition.acquire(List.of(user), dir.resolve("cache"), vanilla);
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(dir.resolve("cache").toFile())
+            .texturePacks(Concurrent.adoptList(List.of(user.toFile())))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, vanilla));
         ResourcePack catpack = stack.byId(new PackId("catpack")).orElseThrow();
-        assertThat("detected via the mcmeta signal (no path signal present)", catpack.capabilities(), hasItem(Capability.CATHARSIS_CONVENTIONS));
+        assertThat("detected via the mcmeta signal (no path signal present)", catpack.capabilities(), hasItem(PackCapability.CATHARSIS_CONVENTIONS));
         assertThat("overlay activated from the mcmeta catharsis:pack/v1.config fallback",
             catpack.roots(), contains(PackRoot.BASE, PackRoot.overlay("block_ore")));
     }
@@ -126,9 +147,13 @@ class PackAcquisitionTest {
         write(user.resolve("config.catharsis.json"), "{ this is : not, valid json ]");
         write(user.resolve("block_ore/assets/minecraft/textures/block/stone.png"), "png");
 
-        PackStack stack = PackAcquisition.acquire(List.of(user), dir.resolve("cache"), vanilla); // must not throw
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(dir.resolve("cache").toFile())
+            .texturePacks(Concurrent.adoptList(List.of(user.toFile())))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, vanilla)); // must not throw
         ResourcePack catpack = stack.byId(new PackId("catpack")).orElseThrow();
-        assertThat("mcmeta fabric:overlays catharsis condition is a detection signal", catpack.capabilities(), hasItem(Capability.CATHARSIS_CONVENTIONS));
+        assertThat("mcmeta fabric:overlays catharsis condition is a detection signal", catpack.capabilities(), hasItem(PackCapability.CATHARSIS_CONVENTIONS));
         assertThat("no config defaults -> the condition fails -> no overlays activate", catpack.roots(), contains(PackRoot.BASE));
     }
 
@@ -147,7 +172,11 @@ class PackAcquisitionTest {
         write(user.resolve("config.catharsis.json"), "[{\"type\":\"boolean\",\"id\":\"block.ore\",\"default\":true}]");
         write(user.resolve("assets/skyblock/items/foo.json"), "{}");
 
-        PackStack stack = PackAcquisition.acquire(List.of(user), dir.resolve("cache"), vanilla); // must not throw
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(dir.resolve("cache").toFile())
+            .texturePacks(Concurrent.adoptList(List.of(user.toFile())))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, vanilla)); // must not throw
         ResourcePack catpack = stack.byId(new PackId("catpack")).orElseThrow();
         assertThat("illegal overlay directory is skipped, base root survives", catpack.roots(), contains(PackRoot.BASE));
     }
