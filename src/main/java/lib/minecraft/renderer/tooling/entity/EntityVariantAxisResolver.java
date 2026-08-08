@@ -199,7 +199,7 @@ final class EntityVariantAxisResolver {
         String layerField = modelTypeLayers.get(variant.model().toUpperCase(Locale.ROOT));
         if (layerField == null) {
             layerField = (variant.model() + "_" + this.subject.localId()).toUpperCase(Locale.ROOT);
-            this.diagnostics.info("variant '%s' model '%s' resolved by P20 naming convention -> ModelLayers.%s",
+            this.diagnostics.info("variant '%s' model '%s' resolved by <MODEL>_<STEM> naming convention -> ModelLayers.%s",
                 variant.variantId(), variant.model(), layerField);
         }
         LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(layerField);

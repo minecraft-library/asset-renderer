@@ -55,37 +55,32 @@ That is evidence, not the review. It says the cross-checks and the store still a
 they share; it does not say anyone has read the first promotion and judged it sound, which is what
 their deletion was gated on.
 
-## Phase numbers from earlier efforts survive in two places `CLAUDE.md`'s citation rule forbids
+## The blindness map's `source` column cites a working note `CLAUDE.md`'s citation rule forbids
 
 `CLAUDE.md`'s *Skip these* states the rule: a tracked file cites no working note, by path or by entry
-number. It binds what is authored from here, and the tree it landed in carries a residue of the
+number. It binds what is authored from here, and the tree it landed in carried a residue of the
 `P<n>` phase spelling two earlier efforts used. `git ls-files | xargs grep -nE '\bP-?[0-9]{1,2}\b' |
-grep -vE 'P[0-9]+[a-zA-Z]'` finds them, among two kinds of noise: the promoted artifacts under
+grep -vE 'P[0-9]+[a-zA-Z]'` finds what is left, among two kinds of noise: the promoted artifacts under
 `src/test/resources/lib/minecraft/renderer/parity/`, whose `provenance.reason` is the exemption
 `CLAUDE.md` states, and the two Gradle wrapper jars, which answer as binaries. The second `grep` also
 swallows any line that spells a phase with a letter suffix beside the one it was looking for, so a
 hit is a floor rather than a total.
 
-Two families, and what clearing each costs is not the same.
+The entity tooling's strings were the other family and are cleared - the eight resolver diagnostics
+by re-running the flow and promoting the moved log digest, the policy string with them. One family
+is left, and it is the harder one.
 
-The **entity tooling's strings** are the first, and they divide. The `tooling/entity/*Resolver`
-citations are in diagnostics the entity flow can emit, and `manifest.tooling-tables` carries a `logs`
-member digesting that flow's diagnostics log as its `(severity, path, message)` triples - so
-rewording one is a tooling-flow change, measured by re-running the flow and comparing emitted bytes
-and the log against a capture from the clean tree, and then promoted. No test asserts any of those
-strings, so
-`./gradlew test` says nothing either way. `EntityOverlayPolicies`' relocation note is different: a
-policy's `provenance` is read by `PolicyPurityTest` for non-blankness and by nothing else, never
-reaching a log or a table, so that one really is a one-line edit - held back only because it would
-put the whole tooling reach class into a gate for a string, and it should ride the next tooling
-commit. Two test display names of the same vintage were the free half and are already cleared.
+The column lives in `blindness.json` and in the `references/blindness.md` the skill renders from it,
+and across 41 rules it divides three ways. **Nine rows spell a phase number. Twenty cite the design
+pack by document and entry** - `07/blindness#N`, with one row also naming an audit the same way. The
+remaining twelve already describe their own derivation and would survive untouched.
 
-The **blindness map's `source` column** is the other, in `blindness.json` and in the
-`references/blindness.md` the skill renders from it. Some rows carry a phase number, and a larger set
-cites the design pack by document and entry number instead, so clearing the phase numbers alone
-leaves the column naming the same unresolvable place in a different spelling; clearing the column
-means deciding what each row's derivation is called once the pack it came from is gone.
-`BlindnessMapTest` requires the column non-blank on every rule, so no row can simply lose it.
+So scrubbing the nine changes nothing about what the column resolves to: twenty rows go on naming the
+same unresolvable place in a spelling the grep above does not even look for. Clearing the column
+means deciding what each of those twenty-nine rows' derivation is called once the pack it came from
+is gone, and `BlindnessMapTest` requires the column non-blank on every rule, so no row can simply
+lose it. That is a rewrite of the map's provenance, not a scrub, which is why it is open rather than
+done.
 
 ## Most of the blindness map is unmeasured, and the first measurement falsified a rule
 

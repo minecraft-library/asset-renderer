@@ -100,20 +100,18 @@ than a pattern. The entry-number half has no one pattern to grep for, a note's i
 that note chose, so it is read rather than matched. An id a tracked file defines itself is not a
 citation at all: `blindness.json`'s rules carry their own `B<n>` in an `id` member.
 
-The rule binds what is authored from here; the tree it landed in is not clean. Phase numbers from
-earlier efforts survive in the entity tooling's diagnostic and policy strings and in the blindness
-map's `source` column, each held back for its own reason. The tooling-tables manifest digests the
-entity flow's diagnostics log by `(severity, path, message)`, so rewording a diagnostic is a
-tooling-flow change measured by re-running the flow rather than by the suite; the policy string
-beside them reaches no log and no table and is a one-line edit, held back only because making it
-would put the whole tooling reach class into a gate for a string, so it rides the next tooling
-commit; and
-the phase numbers in the `source` column sit beside a larger set of citations of the same pack in
-another spelling, so clearing them alone changes nothing about what that column resolves to.
-[KNOWN-OPEN.md] carries both, with the grep that finds them. The other note-id spellings this tree
-carried - in test display names, assertion messages and javadoc, and in the benchmark javadocs under
-`src/jmh` - are text nothing digests and nothing asserts on, so they went with the rule rather than
-into that record.
+The rule binds what is authored from here; the tree it landed in was not clean. Phase numbers from
+earlier efforts survived in the entity tooling's diagnostic and policy strings and in the blindness
+map's `source` column, each held back for its own reason. The tooling strings are cleared. The
+tooling-tables manifest digests the entity flow's diagnostics log by `(severity, path, message)`, so
+rewording a diagnostic was a tooling-flow change - measured by re-running the flow and promoting a
+moved log digest, never by the suite, which asserts on none of those strings and so stays green
+either way. The `source` column is what is left, and the phase numbers in it sit beside a larger set
+of citations of the same pack in another spelling, so clearing them alone changes nothing about what
+that column resolves to. [KNOWN-OPEN.md] carries it, with the grep that finds them and the count of
+each spelling. The other note-id spellings this tree carried - in test display names, assertion
+messages and javadoc, and in the benchmark javadocs under `src/jmh` - are text nothing digests and
+nothing asserts on, so they went with the rule rather than into that record.
 
 A `provenance.reason` **already in the store** is the exemption, and more than one is: they name the
 capture a baseline was diffed against, the question that widened it, or the phase that moved the

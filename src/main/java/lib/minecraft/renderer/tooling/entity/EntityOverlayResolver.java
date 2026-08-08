@@ -1033,7 +1033,7 @@ final class EntityOverlayResolver {
 
         float alpha = evaluateFrozenAlpha(providers.get(1));
         if (alpha <= 0f) {
-            this.diagnostics.info("provider layer '%s' frozen-frame alpha 0 - pass drops (P12)", simpleName(site.layerClass()));
+            this.diagnostics.info("provider layer '%s' frozen-frame alpha 0 - pass drops", simpleName(site.layerClass()));
             return List.of();
         }
         ProviderTexture texture = resolveProviderTexture(providers.getFirst());

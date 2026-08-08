@@ -88,7 +88,7 @@ final class EntityShapeAxisResolver {
             this.diagnostics.info("shape axis: option '%s' mesh ModelLayers.%s -> %s", option, field, key);
         }
         if (options == null) {
-            this.diagnostics.warn("P37 declares a shape axis but no second body mesh resolved");
+            this.diagnostics.warn("policy declares a shape axis but no second body mesh resolved");
             return null;
         }
 

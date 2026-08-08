@@ -73,14 +73,14 @@ final class EntitySizeAxisResolver {
     private @Nullable JsonTree naturalSizeForm(@NotNull List<Integer> naturalSizes) {
         List<String> domain = EntityAxisPolicies.SIZE_DOMAIN.strings();
         if (naturalSizes.size() > domain.size()) {
-            this.diagnostics.warn("P1 natural-size set %s exceeds the P28 domain %s - size axis omitted", naturalSizes, domain);
+            this.diagnostics.warn("natural-size set %s exceeds the size domain %s - size axis omitted", naturalSizes, domain);
             return null;
         }
         Map<String, JsonTree> options = new LinkedHashMap<>();
         int base = naturalSizes.getFirst();
         for (int index = 1; index < naturalSizes.size(); index++)
             options.put(domain.get(index), JsonTree.object().put("scale", (float) naturalSizes.get(index) / base));
-        this.diagnostics.info("size axis via P1 natural sizes %s (scale-per-size proportional)", naturalSizes);
+        this.diagnostics.info("size axis via natural sizes %s (scale-per-size proportional)", naturalSizes);
         return sizeNode(domain, options);
     }
 
@@ -102,14 +102,14 @@ final class EntitySizeAxisResolver {
             if (field.equals(primaryField)) continue;
             String option = field.substring(field.lastIndexOf('_') + 1).toLowerCase(Locale.ROOT);
             if (!domain.contains(option)) {
-                this.diagnostics.info("extra body mesh ModelLayers.%s outside the P28 domain - not a size option", field);
+                this.diagnostics.info("extra body mesh ModelLayers.%s outside the size domain - not a size option", field);
                 continue;
             }
             LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(field);
             if (entry != null) candidates.put(option, entry);
         }
         if (candidates.isEmpty()) {
-            this.diagnostics.warn("P37 declares a size axis but no domain-suffixed body meshes resolved");
+            this.diagnostics.warn("policy declares a size axis but no domain-suffixed body meshes resolved");
             return null;
         }
 
@@ -123,7 +123,7 @@ final class EntitySizeAxisResolver {
                 .withBabyTransform(entry.appliedBabyTransform()));
             options.put(candidate.getKey(), JsonTree.object().put("geometry", key));
         }
-        this.diagnostics.info("size axis via P37 membership: options %s", options.keySet());
+        this.diagnostics.info("size axis via declared membership: options %s", options.keySet());
         return sizeNode(domain, options);
     }
 
