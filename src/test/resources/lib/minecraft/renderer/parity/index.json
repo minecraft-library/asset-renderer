@@ -89,8 +89,9 @@
       "entries": 10,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
-      "sha256": "bd99fd7d0edb80a042c346cfb14bc6f4a5a6b3637f229d3e358bf3f42122c362"
+      "last_duration_ms": 2696,
+      "promoted_at": "0bcb42335c9f472169445099c348bceaf2b92e58",
+      "sha256": "8e93940c34d27516b5deaadc1b76e0c065542f0210485f6ee095e648557aadc9"
     },
     "manifest.visual": {
       "baselined": true,
