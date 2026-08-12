@@ -51,7 +51,8 @@ public final class BlockEntityRegistryWalk {
 
             List<String> splitIds = new ArrayList<>();
             for (BlockGeometrySourceResolver.Split split : splits) splitIds.add(split.splitId());
-            BlockCatalogResolver catalog = new BlockCatalogResolver(session, blockRegistry, subject, splitIds);
+            BlockCatalogResolver catalog =
+                new BlockCatalogResolver(session, blockRegistry, layerDefinitions, subject, splitIds);
 
             for (BlockGeometrySourceResolver.Split split : splits)
                 models.put(split.splitId(), new BlockEntityRendererResolver(subject, split, tint, gui, catalog, transform).resolve());

@@ -9,6 +9,7 @@ import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
@@ -22,6 +23,7 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TableSwitchInsnNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.ArrayList;
@@ -35,7 +37,8 @@ import java.util.Map;
  * every split renders. Built once per subject; each split queries its rows by id.
  *
  * <p>Block ids come from {@link BlockRegistryIndex}; the split partition follows the block id
- * family (standing vs wall, skull type). Every texture base is DERIVED from the owning
+ * family (standing vs wall, skull type), and which split a skull type lands in is read from the
+ * model dispatch. Every texture base is DERIVED from the owning
  * {@code <clinit>} - the chest variants, copper oxidation, skull skins, conduit and bell from their
  * own renderer, the per-family sheet bases from the sheet field {@link BlockFamilyPolicies}
  * ({@code SHEET_TEXTURE_BASES}) names. Which field a family reads is the authored half of that row;
@@ -50,8 +53,14 @@ final class BlockCatalogResolver {
     private static final @NotNull String SHULKER_BASE_LOCAL = "shulker_box";
     private static final @NotNull String HASHMAP_CONSUMER_DESC = "(Ljava/util/HashMap;)V";
 
+    /** Descriptor of the switch-map array an enum {@code tableswitch} indexes (JDK shape, kit-local). */
+    private static final @NotNull String SWITCH_MAP_DESC = "[I";
+
     /** The caller label a stale player-skull coordinate is reported under. */
     private static final @NotNull String PLAYER_SKIN = "the PLAYER skull skin";
+
+    /** The caller label a stale skull model-dispatch coordinate is reported under. */
+    private static final @NotNull String SKULL_DISPATCH = "the skull model dispatch";
 
     /** The caller label a stale sheet coordinate is reported under. */
     private static final @NotNull String SHEET_BASE = "a catalog family's sheet texture base";
@@ -64,6 +73,7 @@ final class BlockCatalogResolver {
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull BlockRegistryIndex blockRegistry;
+    private final @NotNull LayerDefinitionIndex layerDefinitions;
     private final @NotNull BlockEntitySubject subject;
     private final @NotNull List<String> splitIds;
     private final @NotNull Diagnostics diagnostics;
@@ -73,11 +83,13 @@ final class BlockCatalogResolver {
     BlockCatalogResolver(
         @NotNull ToolingSession session,
         @NotNull BlockRegistryIndex blockRegistry,
+        @NotNull LayerDefinitionIndex layerDefinitions,
         @NotNull BlockEntitySubject subject,
         @NotNull List<String> splitIds
     ) {
         this.cache = session.cache();
         this.blockRegistry = blockRegistry;
+        this.layerDefinitions = layerDefinitions;
         this.subject = subject;
         this.splitIds = splitIds;
         this.diagnostics = session.diagnostics().child(subject.beTypeId());
@@ -263,10 +275,11 @@ final class BlockCatalogResolver {
     /** Skull: partition the 14 skull blocks across the 4 splits by SkullBlock$Types (from the id prefix). */
     private void skull(@NotNull Map<String, List<Row>> rows) {
         Map<String, String> skins = skullSkins();
+        Map<String, String> splits = skullTypeSplits();
         String playerSkin = playerSkullSkin();
         for (String field : this.subject.blockFields()) {
             String type = skullType(blockLocal(field));
-            String split = BlockFamilyPolicies.skullTypeSplit(type);
+            String split = splits.get(type.toUpperCase(Locale.ROOT));
             if (split == null) {
                 this.diagnostics.warn("skull block '%s' has unknown type prefix '%s' - dropped", field, type);
                 continue;
@@ -279,6 +292,46 @@ final class BlockCatalogResolver {
             rows.computeIfAbsent(split, key -> new ArrayList<>())
                 .add(new Row(blockId(field), skin, null, null));
         }
+    }
+
+    /**
+     * Partitions the skull types across the catalog splits. The model dispatch bakes one layer per
+     * type and the layer registers one mesh factory, so the types sharing a factory share a split
+     * and the split is the one that factory names.
+     *
+     * @return type enum-constant name to split id
+     * @throws ToolingException if the dispatch carries no type switch
+     */
+    private @NotNull Map<String, String> skullTypeSplits() {
+        ClassNode renderer = ClassKit.requireClass(this.cache, VanillaSourceClasses.Types.SKULL_BLOCK_RENDERER, SKULL_DISPATCH);
+        MethodNode createModel = ClassKit.requireMethod(renderer, VanillaSourceClasses.Methods.CREATE_MODEL, SKULL_DISPATCH);
+        TableSwitchInsnNode cases = AsmWalker.over(createModel).first(Insn.ofType(TableSwitchInsnNode.class));
+        FieldInsnNode switchMap = AsmWalker.over(createModel).first(Insn.of(FieldInsnNode.class,
+            array -> array.getOpcode() == Opcodes.GETSTATIC && SWITCH_MAP_DESC.equals(array.desc)));
+        if (cases == null || switchMap == null)
+            throw new ToolingException(
+                "Method '%s.%s' carries no type switch for %s - the jar is either obfuscated or from an unsupported version",
+                renderer.name, VanillaSourceClasses.Methods.CREATE_MODEL, SKULL_DISPATCH
+            );
+        Map<String, String> out = new LinkedHashMap<>();
+        // The switch map keys each type to a branch; the branch reads the layer the type bakes.
+        AsmWalker.clinit(this.cache, switchMap.owner)
+            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.SKULL_BLOCK_TYPES)
+                && in instanceof FieldInsnNode type ? type.name : null)
+            .commitOn(AsmWalker::intLiteral)
+            .toMapFirstWins()
+            .forEach((type, key) -> {
+                int branch = key - cases.min;
+                if (branch < 0 || branch >= cases.labels.size()) return;
+                FieldInsnNode layer = AsmWalker.after(cases.labels.get(branch))
+                    .getStatic(VanillaSourceClasses.Types.MODEL_LAYERS)
+                    .first();
+                LayerDefinitionIndex.Entry entry = layer == null ? null : this.layerDefinitions.get(layer.name);
+                String split = entry == null ? null
+                    : BlockFamilyPolicies.methodSplitId(this.subject.localId(), entry.factoryMethod());
+                if (split != null) out.put(type, split);
+            });
+        return out;
     }
 
     /** Banner: split standing vs wall by id suffix; shared banner_base texture; per-block dye tint. */

@@ -31,6 +31,12 @@ enum BlockFamilyPolicies implements NavigationPolicy {
      * meshes) splits into one model per layer; the split id is keyed on
      * {@code <baseLocalId>#<factoryMethod>}. Bases without an entry keep the subject id
      * unchanged (the single-mesh families - shulker, chest, conduit, copper_golem_statue).
+     *
+     * <p>The split NAMES are the authored half - an id is our output convention and no walk sees
+     * one. Which subjects land under each is the read half, this side of the table and the catalog
+     * side alike: {@link BlockCatalogResolver} walks the skull model dispatch for the factory every
+     * skull type bakes and joins here at that factory, so the seven-type partition is measured and
+     * only the four labels it lands on are declared.
      */
     METHOD_SPLIT_NAMING(
         Map.ofEntries(
@@ -83,25 +89,6 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             "WALL_BANNER_FLAG", new BannerVariant("minecraft:wall_banner_flag", 0)),
         "banner ModelLayers field -> (split id, withStick); the ICONST split is baked in createRoots, and the"
             + " flag/pole split is the _FLAG field suffix, matched against a BannerFlagModel endsWith test"),
-
-    /**
-     * The {@code SkullBlock$Types} to catalog split-id map. Vanilla has ONE
-     * {@code BlockEntityType.SKULL}; our 4-way split groups the seven skull types by shared mesh
-     * + texture dims (skeleton/wither/creeper = mob head; zombie/player = humanoid; dragon;
-     * piglin ears). Keyed by the block-id type prefix ({@code skeleton_skull} -> {@code skeleton}).
-     */
-    SKULL_TYPE_SPLIT(
-        Map.ofEntries(
-            Map.entry("skeleton", "minecraft:skull_head"),
-            Map.entry("wither_skeleton", "minecraft:skull_head"),
-            Map.entry("creeper", "minecraft:skull_head"),
-            Map.entry("zombie", "minecraft:skull_humanoid_head"),
-            Map.entry("player", "minecraft:skull_humanoid_head"),
-            Map.entry("dragon", "minecraft:skull_dragon_head"),
-            Map.entry("piglin", "minecraft:skull_piglin_head")),
-        "the 4-way skull split grouping the seven SkullBlock$Types by shared mesh + texture dims (mob 64x32 /"
-            + " humanoid 64x64 / dragon mesh / piglin ears); vanilla registers one BlockEntityType.SKULL, so the"
-            + " split is ours"),
 
     /**
      * The catalog family-dispatch roster: which subjects emit a {@code blocks[]} catalog and
@@ -282,18 +269,6 @@ enum BlockFamilyPolicies implements NavigationPolicy {
     @SuppressWarnings("unchecked")
     static @Nullable BannerVariant bannerVariant(@NotNull String modelLayersField) {
         return ((Map<String, BannerVariant>) BANNER_FIELDS.value).get(modelLayersField);
-    }
-
-    /**
-     * The catalog split id for a skull block's type prefix, or {@code null} when the prefix is
-     * not a known skull type.
-     *
-     * @param typePrefix the block-id type prefix ({@code skeleton}, {@code wither_skeleton})
-     * @return the declared split id, or {@code null}
-     */
-    @SuppressWarnings("unchecked")
-    static @Nullable String skullTypeSplit(@NotNull String typePrefix) {
-        return ((Map<String, String>) SKULL_TYPE_SPLIT.value).get(typePrefix);
     }
 
     /**

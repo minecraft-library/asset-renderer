@@ -388,6 +388,9 @@ public final class VanillaSourceClasses {
         /** {@code EntityRendererProvider$Context.bakeLayer(ModelLayerLocation)} - the mesh bake call. */
         public static final @NotNull String BAKE_LAYER = "bakeLayer";
 
+        /** {@code SkullBlockRenderer.createModel(EntityModelSet, SkullBlock$Type)} - the per-type mesh dispatch. */
+        public static final @NotNull String CREATE_MODEL = "createModel";
+
         /** {@code PartPose.offset(F, F, F)} - the pivot factory the block y-axis band heuristic reads. */
         public static final @NotNull String OFFSET = "offset";
 
