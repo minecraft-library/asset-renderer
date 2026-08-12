@@ -5,7 +5,6 @@ import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,16 +32,6 @@ enum EntityOverlayPolicies implements NavigationPolicy {
     DECOR_SKIP_BOUNDS(
         Boolean.TRUE,
         "harness NO_RENDER_LAYER_SUFFIXES contract for LlamaDecorLayer - a harness-side fact, not vanilla bytecode"),
-
-    /**
-     * The eye-texture stem suffixes plus the first-literal default: a state-driven
-     * emissive texture provider's zero-state texture is the FIRST {@code *_eyes.png} /
-     * {@code *_eye.png} literal in the reachable {@code <clinit>}s (enum-like data classes
-     * allocate their default-state instance first - copper golem UNAFFECTED).
-     */
-    EYE_STEM_FIRST_LITERAL(
-        List.of("_eyes", "_eye"),
-        "naming convention + enum-decl-order default-first assumption for the copper-golem zero-state pick"),
 
     /**
      * The frozen-frame contract the alpha evaluation runs at: {@code ageInTicks == 0}
@@ -103,14 +92,6 @@ enum EntityOverlayPolicies implements NavigationPolicy {
      */
     boolean booleanValue() {
         return (Boolean) this.value;
-    }
-
-    /**
-     * The declared string-list fact of the eye-texture stem suffix row.
-     */
-    @SuppressWarnings("unchecked")
-    @NotNull List<String> strings() {
-        return (List<String>) this.value;
     }
 
     /**

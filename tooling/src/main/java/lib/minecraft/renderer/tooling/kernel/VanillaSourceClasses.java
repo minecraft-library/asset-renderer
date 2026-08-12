@@ -433,6 +433,13 @@ public final class VanillaSourceClasses {
         /** {@code RenderLayer.submit} - the per-layer render entry the structural gates walk. */
         public static final @NotNull String SUBMIT = "submit";
 
+        /**
+         * {@code RenderTypes.eyes(Identifier)} / {@code RenderTypes.breezeEyes(Identifier)} - the two
+         * factories vanilla names an eye / glow overlay for, and the whole of what marks a pre-built
+         * binding as one.
+         */
+        public static final @NotNull List<String> EYE_RENDER_TYPES = List.of("eyes", "breezeEyes");
+
         /** {@code EntityRenderer.extractRenderState} - the state-population hook (block / gate binds). */
         public static final @NotNull String EXTRACT_RENDER_STATE = "extractRenderState";
 
