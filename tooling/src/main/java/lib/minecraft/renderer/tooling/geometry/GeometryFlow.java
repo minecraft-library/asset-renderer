@@ -2,10 +2,13 @@ package lib.minecraft.renderer.tooling.geometry;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -23,6 +26,32 @@ import java.util.Map;
 public final class GeometryFlow {
 
     private GeometryFlow() {
+    }
+
+    /**
+     * Asserts the client jar carries both sides of the package gate the parser applies to an
+     * {@code invokestatic} target - the model package it follows into, and the
+     * geometry-primitive package it decodes in place. A listing answers empty rather than
+     * failing, so this assertion is what turns a relocated package into a stopped run instead
+     * of geometry that quietly loses every shared mesh helper.
+     *
+     * <p>Runs once, before the flow's first table is written: the strict gate reads its counters
+     * after every write, so an entry recorded there and carried on would leave a table on disk
+     * that no walk stands behind.
+     *
+     * @param session the live session
+     * @throws ToolingException if either package lists no class
+     */
+    public static void requireModelPackage(@NotNull ToolingSession session) {
+        List<String> roots = List.of(
+            VanillaSourceClasses.Types.CLIENT_MODEL_ROOT,
+            VanillaSourceClasses.Types.CLIENT_MODEL_GEOM_ROOT);
+        for (String packageRoot : roots) {
+            if (session.cache().list(packageRoot, ".class").isEmpty())
+                throw new ToolingException(
+                    "Client jar lists no class under '%s' - the invokestatic-follow package gate has nothing to match",
+                    packageRoot);
+        }
     }
 
     /**
