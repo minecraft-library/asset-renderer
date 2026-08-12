@@ -1,22 +1,38 @@
 plugins {
-    id 'net.fabricmc.fabric-loom' version "${loom_version}"
-    id 'maven-publish'
+    // Version resolved in settings.gradle.kts, where the gradle.properties entry is readable.
+    id("net.fabricmc.fabric-loom")
+    id("maven-publish")
 }
 
-version = project.mod_version
-group = project.maven_group
+val minecraft_version: String by project
+val loader_version: String by project
+val fabric_api_version: String by project
+val mod_version: String by project
+val maven_group: String by project
+val archives_base_name: String by project
+
+version = mod_version
+group = maven_group
 
 base {
-    archivesName = project.archives_base_name
+    archivesName = archives_base_name
 }
+
+/**
+ * Reads an optional `-P` switch this build forwards into the run config as a system property.
+ *
+ * @param name the property name
+ * @return its value, or null when it was not supplied
+ */
+fun optionalProperty(name: String): String? = providers.gradleProperty(name).orNull
 
 loom {
     splitEnvironmentSourceSets()
 
     mods {
-        "refharness" {
-            sourceSet sourceSets.main
-            sourceSet sourceSets.client
+        create("refharness") {
+            sourceSet(sourceSets["main"])
+            sourceSet(sourceSets["client"])
         }
     }
 
@@ -28,60 +44,41 @@ loom {
         //
         // Filter to a specific subset with:
         //   ./gradlew runRenderReferences -PrefharnessTargets=minecraft:stone,minecraft:cow
-        renderReferences {
+        create("renderReferences") {
             client()
-            configName = 'Render References'
+            configName = "Render References"
             // The Minecraft game directory. Loom defaults it to run/ inside this project;
             // pointing it at asset-renderer's cache/ keeps every untracked runtime artifact
             // this build produces under the one cache root, covered by the root .gitignore.
-            runDir = '../cache/run'
-            property 'refharness.headless', 'true'
-            property 'refharness.outputDir', project.hasProperty('refharnessOutputDir')
-                ? project.property('refharnessOutputDir').toString()
-                : "${rootProject.layout.buildDirectory.get().asFile}/refharness-output"
-            property 'refharness.size', '512'
-            if (project.hasProperty('refharnessTargets')) {
-                property 'refharness.targets', project.property('refharnessTargets').toString()
-            }
-            if (project.hasProperty('refharnessPitchRollSweep')) {
-                property 'refharness.pitchRollSweep', project.property('refharnessPitchRollSweep').toString()
-            }
+            runDir = "../cache/run"
+            property("refharness.headless", "true")
+            property("refharness.outputDir", optionalProperty("refharnessOutputDir")
+                ?: "${rootProject.layout.buildDirectory.get().asFile}/refharness-output")
+            property("refharness.size", "512")
+            optionalProperty("refharnessTargets")?.let { property("refharness.targets", it) }
+            optionalProperty("refharnessPitchRollSweep")?.let { property("refharness.pitchRollSweep", it) }
             // Depth-quantum probe: two overlapping quads a swept distance apart, measuring how
             // finely the depth test can tell two surfaces apart. Writes outside the reference tree
             // and re-renders nothing.
             //   ./gradlew runRenderReferences -PrefharnessDepthQuantumProbe=true
-            if (project.hasProperty('refharnessDepthQuantumProbe')) {
-                property 'refharness.depthQuantumProbe', project.property('refharnessDepthQuantumProbe').toString()
-            }
+            optionalProperty("refharnessDepthQuantumProbe")?.let { property("refharness.depthQuantumProbe", it) }
             // Glint-only fast path: render just the animated-glint references under glint/,
             // skipping the full block/item/entity sweep. Driven by renderVanillaGlintReferences.
-            if (project.hasProperty('refharnessGlintOnly')) {
-                property 'refharness.glintOnly', project.property('refharnessGlintOnly').toString()
-            }
+            optionalProperty("refharnessGlintOnly")?.let { property("refharness.glintOnly", it) }
             // Players-only fast path: render just the vanilla player references under players/,
             // skipping the full block/item/entity sweep. Driven by renderVanillaPlayerReferences.
-            if (project.hasProperty('refharnessPlayersOnly')) {
-                property 'refharness.playersOnly', project.property('refharnessPlayersOnly').toString()
-            }
+            optionalProperty("refharnessPlayersOnly")?.let { property("refharness.playersOnly", it) }
             // Armor-only fast path: render just the armored-mob diagnostics under armor/,
             // skipping the full block/item/entity sweep. Driven by renderVanillaArmorReferences.
-            if (project.hasProperty('refharnessArmorOnly')) {
-                property 'refharness.armorOnly', project.property('refharnessArmorOnly').toString()
-            }
+            optionalProperty("refharnessArmorOnly")?.let { property("refharness.armorOnly", it) }
             // Whole-tree sweep: every reference sweep in one client boot, so a change to a
             // renderer two sweeps share cannot leave one of them behind. Driven by
             // renderVanillaAllReferences.
-            if (project.hasProperty('refharnessEverySweep')) {
-                property 'refharness.everySweep', project.property('refharnessEverySweep').toString()
-            }
-            if (project.hasProperty('refharnessBoundsDump')) {
-                property 'refharness.boundsDump', project.property('refharnessBoundsDump').toString()
-            }
+            optionalProperty("refharnessEverySweep")?.let { property("refharness.everySweep", it) }
+            optionalProperty("refharnessBoundsDump")?.let { property("refharness.boundsDump", it) }
             // Per-triangle screen-coord dump - mirror of asset-renderer ModelEngine's prop.
             // Usage: -PentityPixelDump=21,0,21,800 (one column slice for witch x=21 hunt)
-            if (project.hasProperty('entityPixelDump')) {
-                property 'entity.pixel.dump', project.property('entityPixelDump').toString()
-            }
+            optionalProperty("entityPixelDump")?.let { property("entity.pixel.dump", it) }
         }
     }
 }
@@ -91,22 +88,22 @@ repositories {
 }
 
 dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    "minecraft"("com.mojang:minecraft:$minecraft_version")
     // No `mappings` line: Minecraft 26.1+ ships unobfuscated.
-    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    implementation("net.fabricmc:fabric-loader:$loader_version")
+    implementation("net.fabricmc.fabric-api:fabric-api:$fabric_api_version")
 }
 
-processResources {
-    def v = project.version
-    inputs.property "version", v
+tasks.processResources {
+    val v = version
+    inputs.property("version", v)
     filesMatching("fabric.mod.json") {
-        expand "version": v
+        expand("version" to v)
     }
 }
 
-tasks.withType(JavaCompile).configureEach {
-    it.options.release = 25
+tasks.withType<JavaCompile>().configureEach {
+    options.release = 25
 }
 
 java {
@@ -121,10 +118,10 @@ java {
 // Wipe the render world before each renderReferences run so the mod can always
 // createFreshLevel(...) without colliding with stale state. The path tracks the run
 // config's runDir above; the two are the same directory and must move together.
-def resetRefharnessWorld = tasks.register('resetRefharnessWorld', Delete) {
-    group = 'refharness'
-    description = 'Removes the refharness_world save so the next renderReferences starts clean.'
-    delete layout.projectDirectory.dir('../cache/run/saves/refharness_world')
+val resetRefharnessWorld = tasks.register<Delete>("resetRefharnessWorld") {
+    group = "refharness"
+    description = "Removes the refharness_world save so the next renderReferences starts clean."
+    delete(layout.projectDirectory.dir("../cache/run/saves/refharness_world"))
 }
 
 // A run directory Minecraft has never started in gets a fresh options.txt carrying
@@ -136,30 +133,30 @@ def resetRefharnessWorld = tasks.register('resetRefharnessWorld', Delete) {
 // precondition of the harness working at all. The two settings the harness actually depends
 // on are tracked beside this file and seeded when the file is absent; everything else
 // Minecraft fills in with its own defaults and rewrites on exit.
-def seedRunProfile = tasks.register('seedRunProfile', Copy) {
-    group = 'refharness'
-    description = 'Seeds options.txt into the run directory when absent, so a cold run directory reaches the title screen.'
-    from layout.projectDirectory.file('run-profile/options.txt')
-    into layout.projectDirectory.dir('../cache/run')
+val seedRunProfile = tasks.register<Copy>("seedRunProfile") {
+    group = "refharness"
+    description = "Seeds options.txt into the run directory when absent, so a cold run directory reaches the title screen."
+    from(layout.projectDirectory.file("run-profile/options.txt"))
+    into(layout.projectDirectory.dir("../cache/run"))
     // Fires when the run directory has not cleared Minecraft's first-run onboarding - either
     // no options.txt at all, or one still asking for it. Seeding only on absence would leave a
     // directory that already hung once permanently stuck, because the hung client writes the
     // very file that would suppress the seed. Once onboarding is cleared Minecraft owns the
     // file and its own values win.
     onlyIf {
-        def opts = layout.projectDirectory.file('../cache/run/options.txt').asFile
-        !opts.exists() || opts.text.contains('onboardAccessibility:true')
+        val opts = layout.projectDirectory.file("../cache/run/options.txt").asFile
+        !opts.exists() || opts.readText().contains("onboardAccessibility:true")
     }
 }
 
-tasks.matching { it.name == 'runRenderReferences' }.configureEach {
-    dependsOn resetRefharnessWorld, seedRunProfile
+tasks.matching { it.name == "runRenderReferences" }.configureEach {
+    dependsOn(resetRefharnessWorld, seedRunProfile)
 }
 
 publishing {
     publications {
-        create("mavenJava", MavenPublication) {
-            from components.java
+        create<MavenPublication>("mavenJava") {
+            from(components["java"])
         }
     }
 }

@@ -374,7 +374,7 @@ These are message and constructor shapes on throwables. Nothing renders differen
 ## B29 - A harness render change rewrites the ground truth every sweep diffs against
 
 - **mode** select
-- **triggers** `harness/src/**`, `harness/build.gradle`, `harness/settings.gradle`, `harness/gradle.properties`, `harness/gradle/**`, `harness/gradlew`, `harness/gradlew.bat`, `harness/run-profile/**`
+- **triggers** `harness/src/**`, `harness/build.gradle.kts`, `harness/settings.gradle.kts`, `harness/gradle.properties`, `harness/gradle/**`, `harness/gradlew`, `harness/gradlew.bat`, `harness/run-profile/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.references`, `manifest.player-raw`
 - **blind** -
 - **source** measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'

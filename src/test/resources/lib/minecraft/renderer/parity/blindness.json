@@ -616,8 +616,8 @@
       "source": "measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'",
       "trigger_paths": [
         "harness/src/**",
-        "harness/build.gradle",
-        "harness/settings.gradle",
+        "harness/build.gradle.kts",
+        "harness/settings.gradle.kts",
         "harness/gradle.properties",
         "harness/gradle/**",
         "harness/gradlew",
