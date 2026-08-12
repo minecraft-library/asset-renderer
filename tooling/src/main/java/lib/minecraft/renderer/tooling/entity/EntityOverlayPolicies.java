@@ -15,18 +15,6 @@ import java.util.Map;
 enum EntityOverlayPolicies implements NavigationPolicy {
 
     /**
-     * The collar side-channel routing: a collar-shaped layer (submit reads a
-     * null-gated {@code DyeColor} state field and re-renders the PARENT model) is a
-     * {@code layers[]} row tinted at render from {@code collar_color}, never a composite
-     * overlay - the generic gate would emit a coloured collar at zero state where vanilla
-     * draws none.
-     */
-    COLLAR_ROUTING(
-        Boolean.TRUE,
-        "CatCollarLayer bakes ModelLayers.CAT_COLLAR; state.collarColor == null draws none in vanilla, so the"
-            + " collar rides the option-gated layers row"),
-
-    /**
      * The warden full-mesh-reuse judgment plus its frozen-alpha epsilon: an
      * emissive-provider layer whose frozen-frame alpha is {@code >= 0.999f} reuses the
      * FAMILY mesh (no subset, no alpha node) - exact only because the glow texture is

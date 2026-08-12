@@ -187,6 +187,10 @@ final class EntityOverlayResolver {
      * undercoat's WHITE-compare gate is {@code if_acmp*}, never {@code ifnull}). The read
      * may pass through a local ({@code astore; aload}) before the null branch, so the probe
      * scans a small forward window over store / load / dup shuffles.
+     *
+     * <p>A match routes the site to that row, tinted at render from {@code collar_color}, rather
+     * than to the composite-overlay arm: vanilla draws no collar at a null collar colour, where a
+     * composite overlay paints a coloured one at the zero state.
      */
     static boolean isCollarShaped(@NotNull ClassNode cn) {
         MethodNode submit = typedSubmit(cn);

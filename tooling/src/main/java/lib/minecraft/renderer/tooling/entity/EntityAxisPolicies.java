@@ -47,18 +47,6 @@ enum EntityAxisPolicies implements NavigationPolicy {
         "render-default state pick, wild->primary->first"),
 
     /**
-     * The alpha-first-unconditional default-variant tiebreak used when a data-variant
-     * holder class declares no {@code DEFAULT}: variants whose {@code spawn_conditions}
-     * entries all lack a {@code condition} sub-object, ordered alphabetically, first wins.
-     * This mirrors vanilla fresh-spawn selection at a zero state, where structure / moon /
-     * biome gated variants drop out.
-     */
-    ALPHA_FIRST_UNCONDITIONAL_TIEBREAK(
-        "alphabetical-unconditional",
-        "mirrors vanilla runtime selection at a fresh-spawn zero state - cat all_black carries structure+moon"
-            + " conditions, black wins"),
-
-    /**
      * The size-axis option domain, in declared order, plus the default-pick rule: the
      * default is the option-less domain member (the mesh the family's base {@code geometry}
      * already renders - pufferfish {@code large}, salmon {@code medium}, slime {@code small}).

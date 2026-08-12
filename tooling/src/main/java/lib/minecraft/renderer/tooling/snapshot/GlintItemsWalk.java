@@ -20,7 +20,7 @@ import java.util.TreeSet;
  * Walks {@code Items.<clinit>} and populates the {@code items} node with the always-foil
  * items, those whose registration sets {@code DataComponents.ENCHANTMENT_GLINT_OVERRIDE = true}.
  * <ul>
- *   <li>A {@code GETSTATIC ENCHANTMENT_GLINT_OVERRIDE} followed by {@code iconst_1} is
+ *   <li>A {@code GETSTATIC ENCHANTMENT_GLINT_OVERRIDE} immediately followed by {@code iconst_1} is
  *       {@code component(..., true)};</li>
  *   <li>the {@code PUTSTATIC Items.<field>:LItem;} registration terminator commits the pending
  *       {@code (id, glint)} pair and resets, so glint set on one item never bleeds into the

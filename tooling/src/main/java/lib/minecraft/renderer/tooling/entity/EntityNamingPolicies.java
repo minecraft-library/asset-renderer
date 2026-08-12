@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -10,30 +9,10 @@ import java.util.List;
 
 /**
  * Declared naming conventions and tuning epsilons for the entity tooling flow - Mojang naming
- * conventions with no more-principled source, declared fallbacks behind derivations, and
- * heuristic thresholds. Never fetches ({@code PolicyPurityTest}).
+ * conventions with no more-principled source, and the thresholds a derivation is judged
+ * against. Never fetches ({@code PolicyPurityTest}).
  */
 enum EntityNamingPolicies implements NavigationPolicy {
-
-    /**
-     * The synthetic geometry-source id scheme ({@code #large} / {@code #baby} /
-     * {@code __overlay_<FIELD>}), retired now that factory-coordinate keys generate ids
-     * instead. The entry is kept so the retirement is recorded, not silent.
-     */
-    SYNTHETIC_SOURCE_IDS(
-        "retired-by-key-grammar",
-        "legacy tooling-own id vocabulary - dissolved by GeometryIds factory-coordinate keys; no runtime consumer"),
-
-    /**
-     * The entity {@link GeometryRequest} coordinate
-     * convention: {@code YAxis.DOWN}, no inventory rotation, {@code null} refParam. A vanilla
-     * authoring convention, not per-class bytecode - baked into the entity request factories
-     * ({@code GeometryRequest.body} / {@code shape} / {@code overlay} / {@code equipment}),
-     * declared here.
-     */
-    ENTITY_REQUEST_CONVENTION(
-        "YAxis.DOWN, inventoryYRotation=0, refParam=null",
-        "vanilla entity models author Y-down with no GUI facts"),
 
     /**
      * The uniform-scale tolerance for {@code poseStack.scale(F,F,F)} triples: vanilla
@@ -45,30 +24,12 @@ enum EntityNamingPolicies implements NavigationPolicy {
         "heuristic epsilon"),
 
     /**
-     * The baby naming fallbacks: the {@code _BABY} {@code ModelLayers} field-name suffix
-     * (when the isBaby dataflow misses) and the {@code <adult>_baby} texture-sibling suffix
-     * (existence-probed). Declared fallback, never silent - each take logs at INFO.
-     */
-    BABY_NAMING_FALLBACK(
-        "_BABY / _baby",
-        "vanilla baby naming convention, demoted to a fallback behind the isBaby dataflow and the"
-            + " texture-sibling existence probe"),
-
-    /**
      * The {@code $Variant;} descriptor suffix + {@code DEFAULT} constant selection the
      * block-overlay resolver anchors on.
      */
     VARIANT_DESCRIPTOR_SUFFIX(
         "$Variant;",
         "stable Mojang naming convention"),
-
-    /**
-     * The {@code XP} / {@code XN} / {@code YP} / {@code YN} axis field-name parsing on
-     * block-overlay transforms; a {@code Z}-axis name is diagnosed, never silently skipped.
-     */
-    AXIS_FIELD_NAMES(
-        List.of("XP", "XN", "YP", "YN"),
-        "vanilla direction-constant naming"),
 
     /**
      * The {@code "DEFAULT"} enum-field anchor: variant holder classes
@@ -79,13 +40,6 @@ enum EntityNamingPolicies implements NavigationPolicy {
     ENUM_DEFAULT_FIELD(
         "DEFAULT",
         "Mojang naming convention baked into a kit parameter"),
-
-    /**
-     * The getter-name / snake_case bone-name fallbacks when the {@code getChild} trace fails.
-     */
-    BONE_NAME_FALLBACKS(
-        "get<Bone>() / snake_case",
-        "declared fallback behind the getChild trace"),
 
     /**
      * The data-driven-variant detection suffix policy: the state field's owner class ends
@@ -115,24 +69,6 @@ enum EntityNamingPolicies implements NavigationPolicy {
     VARIANT_ENUM_CONVENTIONS(
         List.of("Variants", "$ModelType", "Variant"),
         "naming-convention family"),
-
-    /**
-     * The entityId-basename texture match for shared renderers: a {@code <clinit>} texture
-     * field whose path basename equals {@code /<entityId>.png} is that entity's branch
-     * (PiglinRenderer serves piglin + piglin_brute).
-     */
-    ENTITY_ID_BASENAME_MATCH(
-        "/<entityId>.png",
-        "id-to-texture naming convention"),
-
-    /**
-     * The enum-default stem texture convention: {@code <entity>/<entity>_<default_lowercase>}
-     * names the canonical texture of a pure-enum-DEFAULT entity (axolotl {@code lucy}).
-     * Existence-gated at the consult site, so only conforming entities take it.
-     */
-    ENUM_DEFAULT_STEM(
-        "<entity>/<entity>_<default>",
-        "naming convention, self-limiting via the jar existence gate"),
 
     /**
      * The {@code left_} / {@code right_} toggle-stem grouping: vanilla names symmetric bones

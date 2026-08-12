@@ -22,12 +22,12 @@ import java.util.TreeMap;
  * Walks {@code MobEffects.<clinit>} and populates the {@code effects} node. Three shape
  * heuristics decode the effect colour table:
  * <ol>
- *   <li>{@code POTION_EFFECT_ID_FIRST_LDC} - the first LDC string since the last {@code register}
- *       is the effect id; later strings are attribute-modifier ids;</li>
- *   <li>{@code POTION_NEW_RESETS_STACK} - a fresh {@code NEW net/minecraft/world/effect/*} resets
- *       the int stack so only literals up to its {@code <init>} count as colour candidates;</li>
- *   <li>{@code POTION_COLOR_CTOR} - the colour rides the {@code (MobEffectCategory, int)V} ctor's
- *       trailing int, prefix-owner matched for {@code MobEffect} subclasses.</li>
+ *   <li>the first LDC string since the last {@code register} is the effect id; every later string
+ *       is an attribute-modifier id ({@code effect.speed});</li>
+ *   <li>a fresh {@code NEW net/minecraft/world/effect/*} resets the int stack, so only the
+ *       literals up to its {@code <init>} count as colour candidates;</li>
+ *   <li>the colour rides the {@code (MobEffectCategory, int)V} ctor's trailing int, matched on the
+ *       owner prefix so {@code MobEffect} subclasses decode too.</li>
  * </ol>
  *
  * <p>An effect whose colour was never captured (a non-standard ctor) emits a

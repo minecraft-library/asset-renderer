@@ -8,20 +8,18 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Set;
 
 /**
- * The tint / potion / glint walks' complete policy roster - the renderer-capability drops
- * recorded in {@code dropped[]} (never silent) and the bytecode-shape judgments the three walks
- * pattern-match on. Never fetches ({@code PolicyPurityTest}): the walks do the fetching; these
+ * The tint walk's complete policy roster - the renderer-capability drops recorded in
+ * {@code dropped[]} (never silent) and the argument a two-colour {@code constant} registration
+ * resolves to. Never fetches ({@code PolicyPurityTest}): the walk does the fetching; these
  * constants home the declared facts + their hard-won provenance so every hard-coded judgment
  * lives in one place.
  *
  * <p>Everything derivable - tint colormap targets (from the source body's
  * {@code BiomeColors.getAverage*Color} call), stem colour (symbolic eval at age 0), block ids
- * ({@code BlockRegistryIndex}) - ships as derivation with NO policy fallback and is absent from
- * this roster.
+ * ({@code BlockRegistryIndex}), and the bytecode shapes the potion and glint walks match on -
+ * ships as derivation with NO policy fallback and is absent from this roster.
  */
 enum SnapshotShapePolicies implements NavigationPolicy {
-
-    // renderer-capability drops (recorded in dropped[], never silent)
 
     /**
      * The tint sources the static GUI/parity render cannot sample: their colour is
@@ -52,57 +50,7 @@ enum SnapshotShapePolicies implements NavigationPolicy {
      */
     TINT_CONSTANT_IN_HAND(
         0,
-        "constant(colorInHand, colorInWorld): the GUI icon uses vanilla's no-context in-hand colour = the first arg"),
-
-    // bytecode-shape knowledge (declared shapes with their hard-won comments)
-
-    /**
-     * The first LDC string since the last {@code register} is the effect id; later strings
-     * are attribute-modifier ids ({@code "effect.speed"}). Pure shape marker.
-     */
-    POTION_EFFECT_ID_FIRST_LDC(
-        Boolean.TRUE,
-        "the first LDC string since the last register is the effect id; later strings are attribute-modifier ids"
-            + " ('effect.speed')"),
-
-    /**
-     * Only int literals between {@code NEW net/minecraft/world/effect/*} and its
-     * {@code <init>} are colour candidates; a fresh {@code NEW} resets the int stack. Pure shape
-     * marker.
-     */
-    POTION_NEW_RESETS_STACK(
-        Boolean.TRUE,
-        "only int literals between NEW net/minecraft/world/effect/* and its <init> are colour candidates; a fresh"
-            + " NEW resets the int stack"),
-
-    /**
-     * The colour-carrying effect constructor is {@code (MobEffectCategory, int)V}; the
-     * trailing int literal is the ARGB colour. Prefix-owner match handles {@code MobEffect}
-     * subclasses. Pure shape marker.
-     */
-    POTION_COLOR_CTOR(
-        Boolean.TRUE,
-        "the colour-carrying MobEffect ctor is (MobEffectCategory, int)V; the trailing int is the ARGB colour,"
-            + " prefix-owner matched for subclasses"),
-
-    /**
-     * {@code GETSTATIC DataComponents.ENCHANTMENT_GLINT_OVERRIDE} immediately followed by
-     * {@code iconst_1} means {@code component(..., true)} - the item is always-foil. Pure shape
-     * marker.
-     */
-    GLINT_TRUE_ADJACENCY(
-        Boolean.TRUE,
-        "GETSTATIC ENCHANTMENT_GLINT_OVERRIDE followed by iconst_1 == component(.., true)"),
-
-    /**
-     * {@code PUTSTATIC Items.<field>:LItem;} terminates one registration and resets the
-     * pending glint flag so a glint set on one item never bleeds into the next. Pure shape
-     * marker.
-     */
-    GLINT_ITEM_FIELD_RESET(
-        Boolean.TRUE,
-        "PUTSTATIC Items.<field>:LItem; terminates a registration; the reset prevents glint bleeding across"
-            + " registrations");
+        "constant(colorInHand, colorInWorld): the GUI icon uses vanilla's no-context in-hand colour = the first arg");
 
     /** The reason recorded for {@link #TINT_DYNAMIC_SOURCE_DROPS} rows. */
     static final @NotNull String REASON_DYNAMIC_SOURCE = "dynamic_source";
