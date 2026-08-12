@@ -50,7 +50,7 @@ public final class ColorMapWalk {
         int read = 0;
         int declared = ColorMapPolicies.values().length;
         for (ColorMapPolicies policy : ColorMapPolicies.values()) {
-            AsmContext context = new AsmContext(session, policy.name().toLowerCase(Locale.ROOT), null, diagnostics);
+            AsmContext context = AsmContext.keyless(session, diagnostics);
             if (!(policy.navigate(context) instanceof Navigation.AtResource resource))
                 throw new ToolingException("Colormap '%s' declares no jar resource to read", policy);
             String entryPath = resource.entryPath();
