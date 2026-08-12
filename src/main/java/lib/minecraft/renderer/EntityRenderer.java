@@ -1064,9 +1064,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // the eye cannot follow; and what the cube loses is concentrated on its camera-facing
             // side, which is the half a viewer actually reads. A quantization vanilla either does or
             // does not apply cannot be right for the planes and wrong for the cube, so the residual
-            // both sides share is a second difference this path has not modelled - most likely the
-            // carried block tracking the carrier's arm, which the layer's transform chain holds no
-            // animation state for.
+            // both sides share is a second difference nobody has named yet.
+            //
+            // It is not the carried block's pose, which was the first guess and is wrong.
+            // CarriedBlockLayer#submit works in the entity root frame: it never calls
+            // ModelPart.translateAndRotate, so the block hangs off no bone and does not follow the
+            // arms. EntityBlockOverlayResolver latches attached_bone on exactly that call, which is
+            // why the shipped table gives the iron golem's flower right_arm and the snow golem's
+            // pumpkin head, and gives the enderman's block nothing. Vanilla's six-op chain matches
+            // the table one-for-one, both negatives of scale(-0.5, -0.5, 0.5) included, and reads no
+            // animation state at all. EndermanModel#setupAnim does pose the arms while a block is
+            // carried - xRot -0.5 on both, zRot +-0.05 - but the block is independent of them, and
+            // the harness no-ops setupAnim, so that pose is absent from the reference as well and is
+            // symmetric across the gate rather than a difference it could explain.
             Vector3f shadingNormal = Turn.MIRROR_Y.apply(transformedNormal);
             float shading = entityLighting.shade(shadingNormal, true);
             // Force back-face culling, matching vanilla's block render types (all bind GL culling)
