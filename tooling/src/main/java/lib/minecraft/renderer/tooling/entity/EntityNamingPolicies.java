@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -8,20 +9,25 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 
 /**
- * Declared naming conventions and tuning epsilons for the entity tooling flow - Mojang naming
+ * The entity tooling flow's declared naming conventions and tuning thresholds - Mojang naming
  * conventions with no more-principled source, and the thresholds a derivation is judged
- * against. Never fetches ({@code PolicyPurityTest}).
+ * against - alongside the coordinate of the one epsilon vanilla carries itself. Never fetches
+ * ({@code PolicyPurityTest}).
+ *
+ * <p>A row whose fact sits at a walkable member declares that {@link Navigation} coordinate in
+ * place of a value; the consuming resolver re-enters the engine there and reads it.
  */
 enum EntityNamingPolicies implements NavigationPolicy {
 
     /**
      * The uniform-scale tolerance for {@code poseStack.scale(F,F,F)} triples: vanilla
      * writes literal uniform triples; drift beyond this implies a non-uniform expression
-     * treated as identity.
+     * treated as identity. The coordinate names the field the tolerance is read off.
      */
     UNIFORM_SCALE_TOLERANCE(
-        1e-5f,
-        "heuristic epsilon"),
+        new Navigation.At(VanillaSourceClasses.Types.MTH, "EPSILON", "F"),
+        "the float ConstantValue on Mth.EPSILON - the tolerance vanilla's own Mth.equal comparison holds a"
+            + " difference to"),
 
     /**
      * The {@code $Variant;} descriptor suffix + {@code DEFAULT} constant selection the
@@ -89,6 +95,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {
+        if (this.value instanceof Navigation coordinate) return coordinate;
         return new Navigation.Value<>(this.value, this.provenance);
     }
 
@@ -108,10 +115,10 @@ enum EntityNamingPolicies implements NavigationPolicy {
     }
 
     /**
-     * The declared float fact of a float-valued row.
+     * The declared bytecode coordinate of a coordinate-valued row.
      */
-    float floatValue() {
-        return (Float) this.value;
+    Navigation.@NotNull At coordinate() {
+        return (Navigation.At) this.value;
     }
 
     /**

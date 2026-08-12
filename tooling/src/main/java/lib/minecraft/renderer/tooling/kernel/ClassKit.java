@@ -54,12 +54,11 @@ import java.util.regex.Pattern;
  *       {@code missing()} ERROR arms are the reporting shape that keeps it.</li>
  * </ul>
  *
- * <p>That inventory is capability, not a call graph. Seven of the names it lists have no
+ * <p>That inventory is capability, not a call graph. Six of the names it lists have no
  * production caller and are kept deliberately, a bytecode primitive being cheaper to carry
- * than to re-derive on a Minecraft version bump: the name-only {@code requireMethod} form,
- * {@link #findFieldInHierarchy}, {@link #argSlotCount}, and all four {@code diag*}
- * formatters. Of those, only {@code findFieldInHierarchy} is reached at all, by this kit's
- * own unit test.
+ * than to re-derive on a Minecraft version bump: {@link #findFieldInHierarchy},
+ * {@link #argSlotCount}, and all four {@code diag*} formatters. Of those, only
+ * {@code findFieldInHierarchy} is reached at all, by this kit's own unit test.
  *
  * <p>None of the helpers here know about the vanilla semantic patterns the callers are
  * hunting for (tint sources, effect colours, cube literals, layer dispatch, lambda targets).

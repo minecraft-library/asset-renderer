@@ -159,6 +159,9 @@ public final class VanillaSourceClasses {
         /** {@code ModelPart} - the entity model bone primitive (its {@code visible:Z} field gates bones). */
         public static final @NotNull String MODEL_PART = CLIENT_MODEL_GEOM_ROOT + "ModelPart";
 
+        /** {@code Model} - the base class every renderer-submitted mesh extends. */
+        public static final @NotNull String MODEL = CLIENT_MODEL_ROOT + "Model";
+
         /** {@code EntityModel} - the model-hierarchy walk sentinel (never walked past). */
         public static final @NotNull String ENTITY_MODEL = CLIENT_MODEL_ROOT + "EntityModel";
 

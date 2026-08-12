@@ -19,6 +19,9 @@ import java.util.Map;
  * ModelLayers x {@code LayerDefinitionIndex} detection first); this enum only supplies the
  * split-id vocabulary and the branch-parameter values (banner / sign {@code withStick}, hanging-sign
  * attachment enum) the manifest requests carry.
+ *
+ * <p>A row whose fact sits at a walkable member declares that {@link Navigation} coordinate in
+ * place of a value; the consuming resolver re-enters the engine there and reads it.
  */
 enum BlockFamilyPolicies implements NavigationPolicy {
 
@@ -138,16 +141,15 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " one walkable site"),
 
     /**
-     * Which of a tint-bearing renderer's meshes takes the dye: the {@code *FlagModel} factory
-     * (the banner flag); the wood-brown pole / bar never tints. An escape hatch - the honest
-     * derivation would need data-flow analysis of which submitted buffer receives the DyeColor.
+     * The coordinate of the mesh a tint-bearing renderer dyes. The banner renderer's submit method
+     * hands a model to three submits; only the one whose callee reads
+     * {@code DyeColor.getTextureDiffuseColor} routes the dye, and the model that submit receives is
+     * the dye-taking mesh. The pole and the flag base submit untinted.
      */
     BANNER_DYE_TARGET(
-        "FlagModel",
-        "the dye-taking mesh is the *FlagModel factory, matched as a class name containing \"Flag\" and ending"
-            + " \"Model.class\"; the honest derivation would need renderer data-flow analysis of which submitted"
-            + " buffer receives the DyeColor, so this stays a declared escape hatch. Consulted by"
-            + " BlockTintFlagResolver"),
+        new Navigation.At("net/minecraft/client/renderer/blockentity/BannerRenderer", "submitBanner", null),
+        "the dye-taking mesh is the model argument of the submit whose callee reads"
+            + " DyeColor.getTextureDiffuseColor; BlockTintFlagResolver re-enters the coordinate and reads it"),
 
     /**
      * The fixed sheet texture stems ({@code = Sheets.<X>} sprite prefixes) per catalog
@@ -170,14 +172,14 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " 21-28); Sheets.<clinit> derivation deferred post-bridge"),
 
     /**
-     * The PLAYER skull skin stem - {@code DefaultPlayerSkin.getDefaultSkin} resolves through
-     * its array-index shape to this stable value; declared here since the resolution bottoms
-     * out in a constant.
+     * The coordinate of the PLAYER skull skin stem. The default-skin accessor indexes one element
+     * of the class's skin array, and the element built at that index carries the stem; every other
+     * skull type reads its skin from the {@code SkullBlockRenderer} populate lambda instead.
      */
     PLAYER_SKULL_SKIN(
-        "entity/player/slim/steve",
-        "the DefaultPlayerSkin.getDefaultSkin chase result - the stable default skin the PLAYER SkullBlock$Types"
-            + " entry renders; every other type reads SKIN_BY_TYPE from the SkullBlockRenderer populate lambda");
+        new Navigation.At("net/minecraft/client/resources/DefaultPlayerSkin", "getDefaultSkin", null),
+        "the PLAYER skull skin is the default-skin array element getDefaultSkin indexes;"
+            + " BlockCatalogResolver re-enters the coordinate, reads the index and the stem bound at it");
 
     /**
      * One sign / hanging-sign variant: the split id plus the branch parameter selecting it -
@@ -223,6 +225,7 @@ enum BlockFamilyPolicies implements NavigationPolicy {
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {
+        if (this.value instanceof Navigation coordinate) return coordinate;
         return new Navigation.Value<>(this.value, this.provenance);
     }
 
@@ -303,9 +306,9 @@ enum BlockFamilyPolicies implements NavigationPolicy {
         return ((ChestVariants) CHEST_VARIANT.value).copperFieldPrefix();
     }
 
-    /** The factory-class suffix marking the dye-taking mesh (the banner {@code *FlagModel}). */
-    static @NotNull String dyeTargetModelSuffix() {
-        return (String) BANNER_DYE_TARGET.value;
+    /** The coordinate the dye-taking mesh is recovered at. */
+    static Navigation.@NotNull At dyeTargetCoordinate() {
+        return (Navigation.At) BANNER_DYE_TARGET.value;
     }
 
     /**
@@ -321,9 +324,9 @@ enum BlockFamilyPolicies implements NavigationPolicy {
         return base;
     }
 
-    /** The declared PLAYER skull skin stem (the DefaultPlayerSkin chase result). */
-    static @NotNull String playerSkullSkin() {
-        return (String) PLAYER_SKULL_SKIN.value;
+    /** The coordinate the PLAYER skull skin stem is recovered at. */
+    static Navigation.@NotNull At playerSkullCoordinate() {
+        return (Navigation.At) PLAYER_SKULL_SKIN.value;
     }
 
 }

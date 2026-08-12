@@ -1,10 +1,13 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Cells;
@@ -43,6 +46,9 @@ final class BlockCatalogResolver {
 
     private static final @NotNull String SHULKER_BASE_LOCAL = "shulker_box";
     private static final @NotNull String HASHMAP_CONSUMER_DESC = "(Ljava/util/HashMap;)V";
+
+    /** The caller label a stale player-skull coordinate is reported under. */
+    private static final @NotNull String PLAYER_SKIN = "the PLAYER skull skin";
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull BlockRegistryIndex blockRegistry;
@@ -238,6 +244,7 @@ final class BlockCatalogResolver {
     /** Skull: partition the 14 skull blocks across the 4 splits by SkullBlock$Types (from the id prefix). */
     private void skull(@NotNull Map<String, List<Row>> rows) {
         Map<String, String> skins = skullSkins();
+        String playerSkin = playerSkullSkin();
         for (String field : this.subject.blockFields()) {
             String type = skullType(blockLocal(field));
             String split = BlockFamilyPolicies.skullTypeSplit(type);
@@ -245,7 +252,7 @@ final class BlockCatalogResolver {
                 this.diagnostics.warn("skull block '%s' has unknown type prefix '%s' - dropped", field, type);
                 continue;
             }
-            String skin = "player".equals(type) ? BlockFamilyPolicies.playerSkullSkin() : skins.get(type.toUpperCase(Locale.ROOT));
+            String skin = "player".equals(type) ? playerSkin : skins.get(type.toUpperCase(Locale.ROOT));
             if (skin == null) {
                 this.diagnostics.warn("no skull skin for type '%s' (block '%s') - dropped", type, field);
                 continue;
@@ -319,6 +326,34 @@ final class BlockCatalogResolver {
                     ? stripTexturePath(literal) : null;
             })
             .toMapFirstWins();
+    }
+
+    /**
+     * Reads the PLAYER skull skin stem at the coordinate the family policy declares. The accessor
+     * pushes the array index it loads, and the class's static initialiser binds a stem to each index
+     * as it fills the array, so the stem is the one bound at that index.
+     *
+     * @return the skin stem the PLAYER skull renders
+     * @throws ToolingException if the coordinate binds no stem at the index it loads
+     */
+    private @NotNull String playerSkullSkin() {
+        Navigation.At coordinate = BlockFamilyPolicies.playerSkullCoordinate();
+        ClassNode owner = ClassKit.requireClass(this.cache, coordinate.owner(), PLAYER_SKIN);
+        Integer ordinal = AsmWalker.over(ClassKit.requireMethod(owner, coordinate.member(), PLAYER_SKIN))
+            .latch(AsmWalker::intLiteral)
+            .commitAt(Insn.opcode(Opcodes.AALOAD))
+            .firstNotNull(CommitWalk.Commit::value);
+        Map<Integer, String> stems = AsmWalker.over(ClassKit.requireClinit(owner, PLAYER_SKIN))
+            .latch(AsmWalker::intLiteral)
+            .commitOn(AsmWalker::stringLiteral)
+            .toMapFirstWins();
+        String stem = ordinal == null ? null : stems.get(ordinal);
+        if (stem == null)
+            throw new ToolingException(
+                "Class '%s' binds no stem at the index '%s' loads for %s - the jar is either obfuscated or from an unsupported version",
+                owner.name, coordinate.member(), PLAYER_SKIN
+            );
+        return stem;
     }
 
     /**
