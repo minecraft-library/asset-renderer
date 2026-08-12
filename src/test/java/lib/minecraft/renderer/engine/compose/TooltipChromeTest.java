@@ -22,6 +22,8 @@ import lib.minecraft.renderer.option.TextOptions;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
+import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -335,13 +337,13 @@ class TooltipChromeTest {
         private StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta.GuiScaling> scalings) {
             this(textures, scalings, Map.of());
         }
-        @Override public Optional<Block> findBlock(String id) { return Optional.empty(); }
-        @Override public Optional<ColorMap> findColorMap(ColorMap.Type type) { return Optional.empty(); }
-        @Override public Optional<Entity> findEntity(String id) { return Optional.empty(); }
-        @Override public Optional<Item> findItem(String id) { return Optional.empty(); }
-        @Override public Optional<PixelBuffer> resolveTexture(String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }
-        @Override public Optional<MCMeta.GuiScaling> findGuiScaling(String textureId) { return Optional.ofNullable(this.scalings.get(textureId)); }
-        @Override public Optional<AnimationData> findAnimation(String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
+        @Override public @NotNull Optional<Block> findBlock(@NotNull String id) { return Optional.empty(); }
+        @Override public @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type) { return Optional.empty(); }
+        @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) { return Optional.empty(); }
+        @Override public @NotNull Optional<Item> findItem(@NotNull String id) { return Optional.empty(); }
+        @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NonNull String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }
+        @Override public @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) { return Optional.ofNullable(this.scalings.get(textureId)); }
+        @Override public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
     }
 
     /**
@@ -470,9 +472,14 @@ class TooltipChromeTest {
 
         ConcurrentList<LineSegment> lines = Concurrent.newList();
         lines.add(LineSegment.builder().withSegments(ColorSegment.builder().withText("Styled Tooltip").build()).build());
-        ImageData image = new TextRenderer().render(TextOptions.builder()
-            .style(TextOptions.Style.LORE).lines(lines)
-            .chrome(TooltipChrome.Vanilla.SPRITE).chromeSprites(Optional.of(sprites.get())).build());
+        ImageData image = new TextRenderer().render(
+            TextOptions.builder()
+                .style(TextOptions.Style.LORE)
+                .lines(lines)
+                .chrome(TooltipChrome.Vanilla.SPRITE)
+                .chromeSprites(sprites)
+                .build()
+        );
         PixelBuffer buf = image.getFrames().getFirst().pixels();
 
         // The gold-recoloured ring drove the render: ring top carries alpha 0x50 with the gold rgb.
