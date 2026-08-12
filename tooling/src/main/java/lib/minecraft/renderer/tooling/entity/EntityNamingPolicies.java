@@ -30,14 +30,6 @@ enum EntityNamingPolicies implements NavigationPolicy {
             + " difference to"),
 
     /**
-     * The {@code $Variant;} descriptor suffix + {@code DEFAULT} constant selection the
-     * block-overlay resolver anchors on.
-     */
-    VARIANT_DESCRIPTOR_SUFFIX(
-        "$Variant;",
-        "stable Mojang naming convention"),
-
-    /**
      * The {@code "DEFAULT"} enum-field anchor: variant holder classes
      * ({@code WolfVariants.DEFAULT}) and variant enums ({@code Axolotl$Variant.DEFAULT})
      * bind their canonical default under this static name. Supplied as a parameter to the

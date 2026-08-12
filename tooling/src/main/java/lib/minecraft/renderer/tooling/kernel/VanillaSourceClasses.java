@@ -138,11 +138,14 @@ public final class VanillaSourceClasses {
         /** {@code LivingEntityRenderer} - the base declarer of {@code setupRotations}, below every override. */
         public static final @NotNull String LIVING_ENTITY_RENDERER = "net/minecraft/client/renderer/entity/LivingEntityRenderer";
 
+        /** The render-state package root - the per-subject state classes a layer's {@code submit} reads through. */
+        public static final @NotNull String ENTITY_RENDER_STATE_PACKAGE = "net/minecraft/client/renderer/entity/state/";
+
         /** {@code LivingEntityRenderState} - the parameter type on renderer state methods. */
-        public static final @NotNull String LIVING_ENTITY_RENDER_STATE = "net/minecraft/client/renderer/entity/state/LivingEntityRenderState";
+        public static final @NotNull String LIVING_ENTITY_RENDER_STATE = ENTITY_RENDER_STATE_PACKAGE + "LivingEntityRenderState";
 
         /** {@code EntityRenderState} - the parameter type on layer {@code submit} methods. */
-        public static final @NotNull String ENTITY_RENDER_STATE = "net/minecraft/client/renderer/entity/state/EntityRenderState";
+        public static final @NotNull String ENTITY_RENDER_STATE = ENTITY_RENDER_STATE_PACKAGE + "EntityRenderState";
 
         /** {@code PoseStack} - the render-transform stack the {@code scale} override chains on. */
         public static final @NotNull String POSE_STACK = "com/mojang/blaze3d/vertex/PoseStack";
@@ -571,6 +574,12 @@ public final class VanillaSourceClasses {
 
         /** Descriptor of a no-argument {@code float} accessor - {@code PartPose}'s three offsets. */
         public static final @NotNull String FLOAT_ACCESSOR_DESC = of("F");
+
+        /**
+         * The field-descriptor suffix of a variant inner enum ({@code L<owner>$Variant;}) - what
+         * marks a render-state field as the variant a block source is keyed on.
+         */
+        public static final @NotNull String VARIANT_SUFFIX = "$Variant;";
 
         /**
          * Composes a method descriptor from already-valid type descriptors.

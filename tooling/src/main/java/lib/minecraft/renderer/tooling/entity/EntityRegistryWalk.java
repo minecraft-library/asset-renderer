@@ -32,6 +32,7 @@ public final class EntityRegistryWalk {
         @NotNull GeometryManifest manifest,
         @NotNull JsonTree root
     ) {
+        EntityBlockOverlayResolver.requireVariantRenderStates(session.cache());
         EntityIndexes indexes = EntityIndexes.build(session, manifest);
 
         JsonTree models = root.child("models");
