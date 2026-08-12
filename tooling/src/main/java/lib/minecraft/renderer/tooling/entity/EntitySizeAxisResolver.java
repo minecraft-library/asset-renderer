@@ -11,6 +11,7 @@ import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
 import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
@@ -18,8 +19,11 @@ import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -57,7 +61,11 @@ final class EntitySizeAxisResolver {
     /** The caller label a stale natural-size coordinate is reported under. */
     private static final @NotNull String NATURAL_SIZES = "the natural-size set";
 
+    /** The caller label a stale size-domain coordinate is reported under. */
+    private static final @NotNull String OPTION_DOMAIN = "the size-axis option domain";
+
     private final @NotNull ClassNodeCache cache;
+    private final @NotNull List<String> sizeDomain;
     private final @NotNull EntitySubject subject;
     private final @NotNull LayerDefinitionIndex layerDefinitions;
     private final @NotNull EntityGeometryRefResolver geometryRef;
@@ -66,11 +74,62 @@ final class EntitySizeAxisResolver {
 
     EntitySizeAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
         this.cache = context.cache();
+        this.sizeDomain = sizeDomain(this.cache);
         this.subject = context.subject();
         this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
         this.manifest = context.indexes().manifest();
         this.diagnostics = context.diagnostics();
+    }
+
+    /**
+     * The size-axis option domain, in the order the coordinate's enum declares its members. Each
+     * member is allocated with its constant name pushed first and its serialized id second, so the
+     * id is the second string its allocation pushes; a member bound by aliasing another pushes none
+     * and is no part of the domain. The recovered count is held against the enum-member count the
+     * same class's field table carries, which is an independent reading of the same class, so a
+     * member the walk fails to read is loud rather than a silently shorter domain.
+     *
+     * @param cache the session's jar cache
+     * @return the option domain in declaration order
+     * @throws ToolingException if the coordinate binds a serialized id to no member, or to fewer
+     *     members than it declares
+     */
+    static @NotNull List<String> sizeDomain(@NotNull ClassNodeCache cache) {
+        Navigation.At coordinate = EntityAxisPolicies.sizeDomainCoordinate();
+        ClassNode owner = ClassKit.requireClass(cache, coordinate.owner(), OPTION_DOMAIN);
+        List<String> domain = new ArrayList<>();
+        // The cell holds the strings pushed since the member's NEW - position 0 the constant name,
+        // position 1 the serialized id. The store hook manages its own reset: an emitting store
+        // clears the cell, a store with no second string keeps it.
+        Cells.ListCell<String> pushed = Cells.list();
+        AsmWalker.over(ClassKit.requireMethod(owner, coordinate.member(), OPTION_DOMAIN))
+            .feed(pushed)
+            .on(Insn.of(TypeInsnNode.class, type -> type.getOpcode() == Opcodes.NEW
+                && type.desc.equals(owner.name)), type -> pushed.clear())
+            .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String), ldc -> pushed.add((String) ldc.cst))
+            .on(Insn.putStatic(owner.name), put -> {
+                List<String> held = pushed.values();
+                if (held.size() >= 2) {
+                    domain.add(held.get(1));
+                    pushed.clear();
+                }
+            })
+            .run();
+        if (domain.isEmpty())
+            throw new ToolingException(
+                "Class '%s' declares no member carrying a serialized id for %s - the jar is either obfuscated or from an unsupported version",
+                owner.name, OPTION_DOMAIN
+            );
+        int declared = 0;
+        for (FieldNode field : owner.fields)
+            if ((field.access & Opcodes.ACC_ENUM) != 0) declared++;
+        if (domain.size() != declared)
+            throw new ToolingException(
+                "Class '%s' declares '%s' enum members but binds a serialized id to only '%s' for %s - the jar is either obfuscated or from an unsupported version",
+                owner.name, declared, domain.size(), OPTION_DOMAIN
+            );
+        return domain;
     }
 
     /**
@@ -125,7 +184,7 @@ final class EntitySizeAxisResolver {
      * option-less), named into the size domain positionally.
      */
     private @Nullable JsonTree naturalSizeForm(@NotNull List<Integer> naturalSizes) {
-        List<String> domain = EntityAxisPolicies.SIZE_DOMAIN.strings();
+        List<String> domain = this.sizeDomain;
         if (naturalSizes.size() > domain.size()) {
             this.diagnostics.warn("natural-size set %s exceeds the size domain %s - size axis omitted", naturalSizes, domain);
             return null;
@@ -149,7 +208,7 @@ final class EntitySizeAxisResolver {
     private @Nullable JsonTree meshForm() {
         String primaryField = this.geometryRef.primaryFieldName();
         if (this.geometryRef.resolvedEntry() == null || primaryField == null) return null;
-        List<String> domain = EntityAxisPolicies.SIZE_DOMAIN.strings();
+        List<String> domain = this.sizeDomain;
 
         Map<String, LayerDefinitionIndex.Entry> candidates = new LinkedHashMap<>();
         for (String field : new LinkedHashSet<>(this.geometryRef.tripleSites())) {

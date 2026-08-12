@@ -47,15 +47,19 @@ enum EntityAxisPolicies implements NavigationPolicy {
         "render-default state pick, wild->primary->first"),
 
     /**
-     * The size-axis option domain, in declared order, plus the default-pick rule: the
-     * default is the option-less domain member (the mesh the family's base {@code geometry}
-     * already renders - pufferfish {@code large}, salmon {@code medium}, slime {@code small}).
-     * This is invented vocabulary; the emitted {@code options} key order follows this domain
+     * The coordinate the size-axis option domain is read at. The vocabulary is this pipeline's own
+     * and the coordinate names one of its consumers - a vanilla enum spelling the same three ids as
+     * its members' serialized names - so the walk reads those ids in the enum's declaration order.
+     * That order carries the default-pick rule: the default is the option-less domain member, the
+     * mesh the family's base {@code geometry} already renders (pufferfish {@code large}, salmon
+     * {@code medium}, slime {@code small}). The emitted {@code options} key order follows the domain
      * order and IS the domain, with no per-family {@code values} list.
      */
     SIZE_DOMAIN(
-        List.of("small", "medium", "large"),
-        "invented size vocabulary + default = option-less member"),
+        new Navigation.At("net/minecraft/world/entity/animal/fish/Salmon$Variant", "<clinit>", null),
+        "the option vocabulary is this pipeline's own and the coordinate's enum spells the same three ids;"
+            + " the walk reads each member's serialized id in declaration order, and a member bound by"
+            + " aliasing another pushes no id and is no part of it"),
 
     /**
      * The shape / size axis membership plus option naming: which entities carry a
@@ -93,11 +97,18 @@ enum EntityAxisPolicies implements NavigationPolicy {
 
     /**
      * The declared string-list fact of a list-valued constant ({@link #AXIS_NAME_VOCABULARY},
-     * {@link #STATE_PRECEDENCE}, {@link #SIZE_DOMAIN}).
+     * {@link #STATE_PRECEDENCE}).
      */
     @SuppressWarnings("unchecked")
     @NotNull List<String> strings() {
         return (List<String>) this.value;
+    }
+
+    /**
+     * The coordinate the size-axis option domain is read at ({@link #SIZE_DOMAIN}).
+     */
+    static Navigation.@NotNull At sizeDomainCoordinate() {
+        return (Navigation.At) SIZE_DOMAIN.value;
     }
 
     /**
