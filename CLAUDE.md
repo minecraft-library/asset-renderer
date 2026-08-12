@@ -16,17 +16,13 @@ Gate questions go through the `parity-gate` skill, `.claude/skills/parity-gate/S
   wired because the flag belongs everywhere it is read, not because the task becomes usable.
 - ASM 9.8 reads Java 25 class files; the tooling flows walk client-jar bytecode with it. It is
   declared in the tooling build alone, so it is on no renderer classpath and in no published JAR.
-- Three builds sit beside this one. It includes `client` and `tooling`; both are leaves of it and
-  neither includes it back. **Do not make `tooling` depend on this build** - it is what the client
-  extraction exists to avoid, and Gradle answers the attempt with a cycle rather than a diagnosis.
-  The harness is the third and is included by nothing: this build reaches it, and the generator
-  flows, by shelling into their wrappers.
+- Three builds sit beside this one: `client` and `tooling`, which it includes, and the harness, which
+  it reaches by shelling into that wrapper, as it does the generator flows.
 - `client/` is a leaf holding client-jar acquisition - `ClientAcquisition`, `ClientOptions`,
   `ClientAssets`, `VanillaSourcePaths` - under `lib.minecraft.renderer.client`. Both this build and
-  the generators read it and it reads neither, which is what leaves the generators nothing here to
-  reach for. It is the one place in the repo that touches the network, and it raises
-  `ClientException` off `RuntimeException` rather than `RendererException`, so a batch renderer's
-  skip-and-continue cannot swallow a client that failed to acquire.
+  the generators read it and it reads neither. It is the one place in the repo that touches the
+  network, and it raises `ClientException` off `RuntimeException` rather than `RendererException`, so
+  a batch renderer's skip-and-continue cannot swallow a client that failed to acquire.
 - The generators are their own Gradle build at `tooling/`, a sibling of the harness - see
   [tooling/CLAUDE.md]. This build knows it only as an `Exec` into its wrapper.
 - JitPack dependencies are `strictly()`-pinned inline in `build.gradle.kts`; bump by editing the
@@ -81,9 +77,8 @@ wrapper. Internals live in [tooling/CLAUDE.md]. The renderer drives the eight fl
 that wrapper under the same task names, which is what keeps the parity artifact table's producer
 list resolving.
 
-- The edge is one-directional and Gradle enforces it: `tooling/settings.gradle.kts` includes this
-  build, so nothing here can name a tooling type without a cycle Gradle refuses. ASM is declared over
-  there alone and is on no renderer classpath and in no published JAR.
+- Nothing here names a tooling type; the generators read `client` and this build reads them not at
+  all. ASM is declared over there alone and is on no renderer classpath and in no published JAR.
 - A flow writes to `src/main/resources/lib/minecraft/renderer/` by default and dirties tracked files -
   that is the signal. `-PtoolingOut=<dir>` redirects the whole set, which is how an A/B is taken
   without touching the tree.

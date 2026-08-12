@@ -20,7 +20,7 @@ repositories {
 dependencies {
     // The client-jar acquisition leaf, resolved through the included build rather than a repository.
     // This is the whole of what the generators share with the renderer; the vocabulary the shipped
-    // tables are written in travels as values, which is what lets the renderer include this build.
+    // tables are written in travels as values.
     implementation("lib.minecraft:asset-renderer-client:0.1.0")
 
     // 9.8 added support for Java 25 class files (major version 69), which the Minecraft version named

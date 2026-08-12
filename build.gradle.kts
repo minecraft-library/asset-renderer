@@ -33,10 +33,8 @@ java {
 
 // The bytecode-walking generators are their own Gradle build under tooling/, a sibling of the
 // harness. Nothing here reads them: ASM and the walkers are on no renderer classpath and in no
-// published JAR, and the edge is one-directional in both graphs - tooling includes this build for
-// client-jar acquisition, and this build reaches tooling only by shelling into its wrapper, the
-// shape harnessClasses already uses. Gradle forbids the cycle that would let it be otherwise, which
-// is the property the split holds.
+// published JAR, and this build reaches them only by shelling into their wrapper, the shape
+// harnessClasses already uses.
 //
 // The directory that tooling writes its tables into is tooling's own `-PtoolingOut`, defaulting to
 // this project's resource tree. Every flow task below forwards it.
