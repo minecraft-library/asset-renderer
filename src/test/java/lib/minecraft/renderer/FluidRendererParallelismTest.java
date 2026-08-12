@@ -88,6 +88,14 @@ class FluidRendererParallelismTest {
         assertDeterministicAndPinned(FluidOptions.Fluid.LAVA, LAVA_FRAMES, LAVA_TICKS_PER_FRAME);
     }
 
+    /**
+     * Bakes the animation twice, asserts the two bakes agree frame for frame and carry the requested
+     * frame count, then holds every frame's CRC32 against its pinned value.
+     *
+     * @param fluid the fluid to bake
+     * @param frames how many frames to bake
+     * @param ticksPerFrame the tick step between frames
+     */
     private void assertDeterministicAndPinned(FluidOptions.Fluid fluid, int frames, int ticksPerFrame) {
         FluidOptions options = options(fluid, frames, ticksPerFrame);
         List<Long> first = RenderDigest.frameCrcs(renderer.render(options));
@@ -133,10 +141,23 @@ class FluidRendererParallelismTest {
             .build();
     }
 
+    /**
+     * Spells one frame's pin key, the one place its {@code <fluid>_frame_<index>} shape is formed, so
+     * the declared keys and the asserted keys cannot drift apart.
+     *
+     * @param fluid the fluid the frame belongs to
+     * @param frame the frame's index in its animation
+     * @return the pin key
+     */
     private static String key(FluidOptions.Fluid fluid, int frame) {
         return fluid.name().toLowerCase(Locale.ROOT) + "_frame_" + frame;
     }
 
+    /**
+     * Enumerates every frame of both animations, in bake order.
+     *
+     * @return the pin key to subject description map both fluids contribute to
+     */
     private static Map<String, String> subjects() {
         Map<String, String> out = new LinkedHashMap<>();
         put(out, FluidOptions.Fluid.WATER, WATER_FRAMES, WATER_TICKS_PER_FRAME);
@@ -144,6 +165,14 @@ class FluidRendererParallelismTest {
         return out;
     }
 
+    /**
+     * Adds one fluid's frames to the subject map, each described by the parameters it is baked under.
+     *
+     * @param out the map being built
+     * @param fluid the fluid to describe
+     * @param frames how many frames that fluid bakes
+     * @param ticksPerFrame the tick step between its frames
+     */
     private static void put(Map<String, String> out, FluidOptions.Fluid fluid, int frames, int ticksPerFrame) {
         for (int frame = 0; frame < frames; frame++)
             out.put(key(fluid, frame), "Fluid.%s, FLUID_FACE_2D, canvas %d, frameCount %d, "

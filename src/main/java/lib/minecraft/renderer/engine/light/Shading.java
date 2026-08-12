@@ -37,12 +37,24 @@ public class Shading {
 
     /**
      * Multiplies an ARGB pixel's RGB channels by a shading factor, preserving the alpha channel.
+     * <p>
+     * {@link #DISABLED} is honoured here as full-bright, which is what the sentinel means everywhere
+     * else: vanilla's {@code getShade(direction, false)} returns {@code 1.0}. Without that branch the
+     * sentinel is a negative multiplier, every channel rounds below zero, and the clamp renders the
+     * face BLACK with its alpha intact. No production path reaches it today - the block-icon path
+     * rewrites the sentinel in {@link #relightForItems3d}, the carried-block path re-shades every
+     * triangle against the entity Lambertian and so discards whatever the kit baked, and no vanilla
+     * item model carries a {@code "shade": false} element - so this branch changes no rendered byte.
+     * It exists because the sentinel is baked at quad-emit time and consumed three call sites away,
+     * and a fourth consumer that forgot to relight would otherwise draw black rather than the
+     * full-bright face the flag asks for.
      *
      * @param argb the source ARGB pixel
-     * @param factor the shading factor in {@code [0, 1]}
+     * @param factor the shading factor in {@code [0, 1]}, or {@link #DISABLED} for full-bright
      * @return the shaded ARGB pixel
      */
     public static int apply(int argb, float factor) {
+        if (factor == DISABLED) factor = 1f;
         // Vanilla GLSL quantizes via `floor(min(1, v) * 255 + 0.5)` (round-half-up), so match it with
         // Math.round. A plain (int) truncation would bias every shaded channel ~0.5 LSB low and leave
         // a single-LSB precision floor across un-tinted entities (goat / husk / zombie / skeleton etc).

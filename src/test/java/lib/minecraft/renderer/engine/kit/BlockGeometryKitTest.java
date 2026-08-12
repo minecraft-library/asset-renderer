@@ -35,10 +35,10 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Pins {@link BlockGeometryKit#buildFromElements} triangle generation from resolved
+ * Coverage of {@link BlockGeometryKit#buildFromElements} triangle generation from resolved
  * {@link ModelElement} boxes: 12 triangles (2 per face) for a full cube with tint and texture
- * threaded through, per-direction skipping of absent or unresolvable faces, 0-16 &rarr; 0-1 UV
- * normalization, and the vanilla 0-16 &rarr; engine {@code [-0.5, +0.5]} bounds mapping. Face
+ * threaded through, per-direction skipping of absent or unresolvable faces, 0-16 {@code ->} 0-1 UV
+ * normalization, and the vanilla 0-16 {@code ->} engine {@code [-0.5, +0.5]} bounds mapping. Face
  * fixtures set private {@link ModelFace} / {@link ModelElement} fields by reflection since those
  * types are parser-populated and expose no test constructor.
  */
@@ -219,7 +219,7 @@ class BlockGeometryKitTest {
     }
 
     @Test
-    @DisplayName("light_emission 0 leaves the inventory cardinal shade untouched (byte-neutral baseline)")
+    @DisplayName("light_emission 0 leaves the inventory cardinal shade untouched")
     void lightEmissionZero_isBaseline() throws ReflectiveOperationException {
         ConcurrentList<VisibleTriangle> triangles = cubeWithEmission(true, 0);
         for (VisibleTriangle t : triangles)

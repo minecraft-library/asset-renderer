@@ -92,7 +92,7 @@ public class Textures {
      * Vanilla redstone-wire ARGB tints indexed by power level {@code 0..15}, transcribed byte-for-byte
      * from {@code net.minecraft.world.level.block.RedstoneWireBlock.COLORS} - the 16-step gradient the
      * wire renderer applies to {@code redstone_dust_dot} / {@code redstone_dust_line0/1}.
-     * Package-private so {@code RedstoneTintTest} can pin the table content.
+     * Package-private so {@code TexturesTest} can pin the table content.
      */
     static final int @NotNull [] REDSTONE_TINTS = {
         0xFF4B0000, 0xFF6F0000, 0xFF790000, 0xFF820000,

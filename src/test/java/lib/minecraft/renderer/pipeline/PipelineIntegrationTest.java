@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.pipeline;
 
-
 import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
@@ -34,7 +33,16 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * End-to-end asset pipeline integration test that downloads the Minecraft 26.1 client jar,
@@ -51,6 +59,9 @@ import static org.hamcrest.Matchers.*;
  * survives across sessions - offline vanilla-source lookups depend on having the
  * extracted 26.1 source available on disk after the test runs. {@code .gitignore} already excludes
  * {@code asset-renderer/cache/}, so nothing leaks into commits.
+ * <p>
+ * The version spelled out above is the one {@link #downloadAndExtract()} asks {@link ClientOptions}
+ * for by literal, so a version bump moves this prose with that literal.
  */
 @Tag("slow")
 @DisplayName("ClientAcquisition end-to-end integration")
@@ -189,42 +200,15 @@ class PipelineIntegrationTest {
     @Test
     @DisplayName("BlockTintsLoader loads the bundled block_tints.json into Block.Tint entries")
     void parsesBlockColors() {
-        var tints = blockTints;
-
-        // Print the full table once so the slowTest log captures what the bundled JSON contains
-        // - useful when refreshing the table via the `blockTints` Gradle task and verifying nothing
-        // silently dropped.
-        System.out.println("Loaded " + tints.size() + " Block.Tint entries from block_tints.json:");
-        tints.forEach((blockId, tint) -> {
-            String constant = tint.constant()
-                .map(v -> String.format(" 0x%08X", v.getRGB()))
-                .orElse("");
-            System.out.println("  " + blockId + " -> " + tint.target() + constant);
-        });
-
-        assertThat("at least 15 tints loaded", tints.size(), is(greaterThanOrEqualTo(15)));
-
-        var grassBlock = tints.get("minecraft:grass_block");
-        assertThat(grassBlock, is(notNullValue()));
-        assertThat(grassBlock.target(), equalTo(Block.TintTarget.GRASS));
-
-        var oakLeaves = tints.get("minecraft:oak_leaves");
-        assertThat(oakLeaves, is(notNullValue()));
-        assertThat(oakLeaves.target(), equalTo(Block.TintTarget.FOLIAGE));
-
-        var spruceLeaves = tints.get("minecraft:spruce_leaves");
-        assertThat(spruceLeaves, is(notNullValue()));
-        assertThat(spruceLeaves.target(), equalTo(Block.TintTarget.CONSTANT));
-        assertThat(spruceLeaves.constant().isPresent(), is(true));
-        assertThat("spruce constant ARGB", spruceLeaves.constant().get().getRGB(), equalTo(0xFF619961));
-
-        var leafLitter = tints.get("minecraft:leaf_litter");
+        // The colormap-target and constant rows are asserted in the fast suite by BlockTintsLoaderTest;
+        // DRY_FOLIAGE is the one target no fast-suite case reaches.
+        Block.Tint leafLitter = blockTints.get("minecraft:leaf_litter");
         assertThat(leafLitter, is(notNullValue()));
         assertThat(leafLitter.target(), equalTo(Block.TintTarget.DRY_FOLIAGE));
     }
 
     @Test
-    @DisplayName("stack-resolved colormaps byte-match the digests pinned in the parity store (D10)")
+    @DisplayName("stack-resolved colormaps byte-match the digests pinned in the parity store")
     void colormapsByteMatchBundledLut() {
         // The byte-parity probe: sha256 of the raw big-endian ARGB bytes of each bundled colormap.
         // The re-point resolves vanilla's own extracted PNG through the stack and must decode to

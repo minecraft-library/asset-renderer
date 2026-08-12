@@ -13,6 +13,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -201,7 +202,7 @@ class NineSliceKitTest {
     @DisplayName("degenerate rect clamps borders so slices never overlap or overrun")
     void degenerateRectClamps() {
         int[] px = new int[20 * 20];
-        java.util.Arrays.fill(px, 0xFF808080);
+        Arrays.fill(px, 0xFF808080);
         PixelBuffer sprite = PixelBuffer.of(px, 20, 20);
         MCMeta.GuiScaling gui = new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(9, 9, 9, 9), false);
         PixelBuffer dest = PixelBuffer.create(10, 10);

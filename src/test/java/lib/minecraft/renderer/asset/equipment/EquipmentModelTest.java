@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.asset.equipment;
 
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.EquipmentModel.Layer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -12,11 +13,11 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Exercises {@link EquipmentModel}, its {@link EquipmentModel.Layer#textureLocation(LayerType) texture
- * path derivation}, and the {@link EquipmentModel#MISSING} absent-lookup
+ * Coverage of {@link EquipmentModel}, of the texture-path derivation in
+ * {@link Layer#textureLocation(LayerType)}, and of the {@link EquipmentModel#MISSING} absent-lookup
  * fallbacks.
  */
-@DisplayName("EquipmentModel + Layer")
+@DisplayName("EquipmentModel and Layer")
 class EquipmentModelTest {
 
     @Test

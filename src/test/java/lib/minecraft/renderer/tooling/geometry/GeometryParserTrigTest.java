@@ -6,8 +6,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Pins the tooling parser's nested {@code FastTrig} to vanilla {@code Mth.sin / Mth.cos}
- * bit-parity - the table-vs-libm gap (~1.8e-5) crosses pixel rounding for
+ * Pins for the tooling parser's nested {@link GeometryParser.FastTrig} against vanilla
+ * {@code Mth.sin / Mth.cos} bit-parity - the table-vs-libm gap (~1.8e-5) crosses pixel rounding for
  * WitherBoss-class entities, so the pin converts a silent drift into a loud failure.
  * The expected values re-derive the table build and the index math independently,
  * with no shared code between the assertion and the implementation under test.

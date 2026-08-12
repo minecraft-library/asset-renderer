@@ -10,10 +10,10 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins the {@link SpecialTransform} decomposition to vanilla's {@code T . Rleft . S . Rright} order
+ * The {@link SpecialTransform} decomposition pinned to vanilla's {@code T . Rleft . S . Rright} order
  * under this codebase's {@code v_row x M} convention (the transpose the fluent {@code Matrix4f} chain
- * bakes in, matching the item {@code display} transform). Uses convention-robust probes - translation,
- * scale, and 180-degree flips - so the assertions do not hinge on a rotation-handedness convention.
+ * bakes in, matching the item {@code display} transform). The probes are convention-robust - translation,
+ * scale, and 180-degree flips - so no assertion hinges on a rotation-handedness convention.
  */
 @DisplayName("SpecialTransform decomposition")
 class SpecialTransformTest {

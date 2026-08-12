@@ -86,7 +86,7 @@ where it lives and how to re-derive it, and carries no value.
 | artifact | home | re-derive |
 |---|---|---|
 | `pin.armor-span` | `lib.minecraft.renderer.engine.kit.ArmorKitCitCompositeTest` | inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation |
-| `roster.appearance-axes` | `lib.minecraft.renderer.visual.AppearanceKey` | AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset |
+| `roster.appearance-axes` | `lib.minecraft.renderer.parity.AppearanceKey` | AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset |
 | `roster.armor-subjects` | `lib.minecraft.renderer.visual.TestArmorParityVanilla` | must match the harness ArmorSweep roster byte for byte or the sweep finds no reference |
 | `roster.dump-sections` | `lib.minecraft.renderer.pipeline.dump.PipelineParityDump` | PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated |
 | `roster.face-phase` | `lib.minecraft.renderer.face.FacePhaseTest` | vanilla's own corner order per face, read off the bakery and the polygon paths |

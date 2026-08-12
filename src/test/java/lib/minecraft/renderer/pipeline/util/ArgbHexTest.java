@@ -8,11 +8,11 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Pins for {@link ArgbHex}: the one hex policy reproduces every value the four legacy per-loader
- * parsers produced ({@code EntityModelLoader.parseTintArgb}, {@code BlockModelLoader.resolveTint},
- * {@code PotionColorLoader}, {@code BlockTintsLoader}), and falls back to white on malformed input.
+ * Pins for {@link ArgbHex}: the one hex policy every tint-bearing loader parses through, over the
+ * three accepted prefixes ({@code 0x} / {@code #} / bare) and both digit widths - a 6-digit form
+ * forces opaque alpha, an 8-digit form carries its own - falling back to white on malformed input.
  */
-@DisplayName("ArgbHex one-policy subsumption of the four legacy parsers")
+@DisplayName("ArgbHex prefix and digit-width value contract")
 class ArgbHexTest {
 
     private static @NotNull Diagnostics diagnostics() {
@@ -20,7 +20,7 @@ class ArgbHexTest {
     }
 
     @Test
-    @DisplayName("6-digit forms force alpha FF across 0x / # / bare prefixes (EML + BML shape)")
+    @DisplayName("6-digit forms force alpha FF across 0x / # / bare prefixes")
     void sixDigitForcesOpaque() {
         assertEquals(0xFFFF00FF, ArgbHex.parse("0xFF00FF"));
         assertEquals(0xFFFF00FF, ArgbHex.parse("FF00FF"));
@@ -29,7 +29,7 @@ class ArgbHexTest {
     }
 
     @Test
-    @DisplayName("8-digit forms carry their own alpha across 0x / # / bare prefixes (PotionColor + BlockTints shape)")
+    @DisplayName("8-digit forms carry their own alpha across 0x / # / bare prefixes")
     void eightDigitKeepsAlpha() {
         assertEquals(0x7F00FF00, ArgbHex.parse("0x7F00FF00"));
         assertEquals(0x7F00FF00, ArgbHex.parse("7F00FF00"));

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.asset.pack.rule;
 
 import lib.minecraft.nbt.tag.Tag;
+import lib.minecraft.renderer.pipeline.dump.PipelineParityDump;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -12,7 +13,7 @@ import org.jetbrains.annotations.NotNull;
  * byte-comparison oracle must not rest on. Re-implementing the SNBT rendering in the dump would be
  * worse: it would be a second copy of the production rule, free to drift from it silently.
  *
- * @see lib.minecraft.renderer.pipeline.dump.PipelineParityDump
+ * @see PipelineParityDump
  */
 public final class NbtLiteralText {
 

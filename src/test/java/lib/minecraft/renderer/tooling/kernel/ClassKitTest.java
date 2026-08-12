@@ -15,6 +15,7 @@ import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -32,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link ClassNodeCache} surface, and the {@link AsmWalker} static-table dissolvers, over a
  * synthesized jar of generated class files - no network, no client jar.
  */
-@DisplayName("tooling ClassKit lookups + hierarchy walks and AsmWalker dissolvers against the cache surface")
+@DisplayName("tooling ClassKit lookups, hierarchy walks, the cache surface, the AsmWalker dissolvers")
 class ClassKitTest {
 
     private static final @NotNull String BASE = "test/Base";
@@ -53,7 +55,7 @@ class ClassKitTest {
     @BeforeAll
     static void openFixtureJar() throws IOException {
         Path jar = tempDir.resolve("fixture.jar");
-        try (ZipOutputStream zip = new ZipOutputStream(java.nio.file.Files.newOutputStream(jar))) {
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(jar))) {
             write(zip, BASE, baseClass());
             write(zip, MID, midClass());
             write(zip, LEAF, leafClass());
@@ -83,8 +85,7 @@ class ClassKitTest {
         assertNull(cache.load("test/Absent"));
         assertNull(cache.load("test/Absent"), "absence is cached, second lookup identical");
         assertEquals("Missing class 'test/Absent' (unit)",
-            org.junit.jupiter.api.Assertions.assertThrows(ToolingException.class,
-                () -> cache.require("test/Absent", "unit")).getMessage());
+            assertThrows(ToolingException.class, () -> cache.require("test/Absent", "unit")).getMessage());
         assertTrue(cache.hasEntry("assets/test/some.png"));
         assertFalse(cache.hasEntry("assets/test/other.png"));
         assertEquals(List.of("assets/test/some.png"), cache.list("assets/", ".png"));

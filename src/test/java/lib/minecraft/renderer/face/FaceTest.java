@@ -10,13 +10,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Verifies {@link Face} - the six cardinal faces and their metadata.
+ * The six cardinal faces and their metadata.
  * <p>
  * Covers name lookup ({@link Face#fromName} is case-insensitive and null-safe, unknown names
  * return {@code null}), each face's lowercase {@link Face#direction} JSON key, the pre-baked
  * inventory {@link Face#lighting} shade factors matching the vanilla {@code Lighting.ITEMS_3D}
- * bake (UP 1.0, DOWN 0.5, N/S 0.6, E/W 0.8 - E/W deliberately brighter than N/S), and the outward
- * unit {@link Face#normal}s.
+ * bake (UP 1.0, DOWN 0.5, N/S 0.6, E/W 0.8 - E/W deliberately brighter than N/S), the outward
+ * unit {@link Face#normal}s, the {@link Face#axis} read off each face's normal, and the
+ * {@link Face#opposite} the declaration order makes one bit of the ordinal.
  * <p>
  * The {@link Face#fromNormal} cases pin the closest-cardinal resolver: it depends only on
  * component-magnitude ordering (so an un-normalized normal resolves the same face), ties break in
@@ -64,6 +65,28 @@ class FaceTest {
         assertThat(Face.SOUTH.normal(), equalTo(new Vector3f(0, 0, 1)));
         assertThat(Face.EAST.normal(), equalTo(new Vector3f(1, 0, 0)));
         assertThat(Face.WEST.normal(), equalTo(new Vector3f(-1, 0, 0)));
+    }
+
+    @Test
+    @DisplayName("each face reads its own axis off its normal's one non-zero component")
+    void axes() {
+        assertThat(Face.DOWN.axis(), is(1));
+        assertThat(Face.UP.axis(), is(1));
+        assertThat(Face.NORTH.axis(), is(2));
+        assertThat(Face.SOUTH.axis(), is(2));
+        assertThat(Face.WEST.axis(), is(0));
+        assertThat(Face.EAST.axis(), is(0));
+    }
+
+    @Test
+    @DisplayName("opposite pairs each face with the other face on its own axis")
+    void opposites() {
+        assertThat(Face.DOWN.opposite(), is(Face.UP));
+        assertThat(Face.UP.opposite(), is(Face.DOWN));
+        assertThat(Face.NORTH.opposite(), is(Face.SOUTH));
+        assertThat(Face.SOUTH.opposite(), is(Face.NORTH));
+        assertThat(Face.WEST.opposite(), is(Face.EAST));
+        assertThat(Face.EAST.opposite(), is(Face.WEST));
     }
 
     @Test

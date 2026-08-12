@@ -217,10 +217,19 @@ public class RasterMath {
 
     /**
      * Tests whether the sample {@code (px, py)} lies inside the triangle described by the
-     * precomputed {@link EdgeCoefficients}. Per-pixel hot path: 3 long mul-adds + sign
-     * checks. Bit-identical inside-test outcome to
-     * {@link #isInsideTriangle(Vector2f, Vector2f, Vector2f, float, float)} - the algebra is
-     * an exact factoring; integer arithmetic guarantees no precision drift.
+     * precomputed {@link EdgeCoefficients}. Per-pixel hot path: 3 long mul-adds + sign checks.
+     * <p>
+     * {@link #isInsideTriangle(Vector2f, Vector2f, Vector2f, float, float)} agrees with this by
+     * construction rather than by a second algebra - it builds the coefficients and delegates here -
+     * so the two overloads cannot drift and neither one is evidence about the rasterizer.
+     * <p>
+     * <b>The real second implementation of this rule is not an overload.</b> {@code ModelEngine}'s
+     * coverage loop does not call this method: it steps the three edge functions incrementally across
+     * a scanline off the same {@link EdgeCoefficients}, because re-evaluating three mul-adds per pixel
+     * is the cost this class exists to avoid. That stepping recurrence and this fresh evaluation are
+     * two spellings of one rule, and nothing in the type system holds them together - the fence is
+     * {@code RasterMathTest}, which drives the stepping form the loop uses and asserts it reaches what
+     * a fresh evaluation computes. Change either side and run it.
      *
      * @param ec the triangle's precomputed edge coefficients
      * @param px the sample point's x coordinate (typically pixel-center {@code px + 0.5f})

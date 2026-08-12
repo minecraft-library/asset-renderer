@@ -275,7 +275,7 @@ new AssetPipeline().run(options)
   -> AssetPipeline.downloadJarToCache(options)   # MojangContract via simplified-api/mojang
   -> AssetPipeline.extractClientJar(jarPath, packRoot)
   -> TexturePackLoader.stack(user packs)
-  -> BlockStateLoader / ItemDefinitionLoader / EntityModelLoader / ...
+  -> BlockStateLoader / ItemModelTreeLoader / EntityModelLoader / ...
   -> PipelineRendererContext
   -> Renderer<O>.render(options) -> ImageData
 ```

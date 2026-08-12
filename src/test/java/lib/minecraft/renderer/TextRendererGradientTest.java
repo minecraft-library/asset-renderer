@@ -16,14 +16,22 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins {@link TextRenderer}'s scrolling-gradient loop sizing: the frame count covers a
- * whole number of scroll cycles AND lands the wrap frame on phase 0 - {@code lcm(cycleTicks,
- * ticksPerFrame) / ticksPerFrame} - so the animation loops without a mid-cycle seam even when the
- * frame cadence is coarser than the tick rate ({@code fps < 20}).
+ * Loop-sizing pin for {@link TextRenderer}'s scrolling gradient: the frame count covers a whole number
+ * of scroll cycles AND lands the wrap frame on phase 0 - {@code lcm(cycleTicks, ticksPerFrame) /
+ * ticksPerFrame} - so the animation loops without a mid-cycle seam even when the frame cadence is
+ * coarser than the tick rate ({@code fps < 20}).
  */
 @ExtendWith(MinecraftFontsExtension.class)
 class TextRendererGradientTest {
 
+    /**
+     * Builds LORE options carrying one left-scrolling gradient segment, the two arguments being what
+     * the loop sizing is a function of.
+     *
+     * @param cycleTicks the ticks one scroll cycle spans
+     * @param fps the output frame rate, which fixes the ticks per frame
+     * @return the options whose baked frame count is asserted
+     */
     private static TextOptions scrollOptions(int cycleTicks, int fps) {
         GradientSpec spec = GradientSpec.builder(GradientSpec.Mode.START_END)
             .addStop(0x000000).addStop(0xFFFFFF)
@@ -52,7 +60,8 @@ class TextRendererGradientTest {
     @DisplayName("a coarse fps sizes the loop to lcm(cycleTicks, ticksPerFrame)/ticksPerFrame")
     void coarseFpsSizesToLcm() {
         // fps 10 -> ticksPerFrame 2; cycleTicks 5 -> lcm(5,2)/2 = 5 frames (spanning two full cycles),
-        // wrap frame at tick 10 == phase 0. The pre-fix (int)(5/2) = 2 frames would seam mid-cycle.
+        // wrap frame at tick 10 == phase 0. A truncating cycleTicks / ticksPerFrame divide drops the
+        // partial cycle - 2 frames here - and seams mid-cycle.
         ImageData image = new TextRenderer().render(scrollOptions(5, 10));
         assertThat(image.getFrames().size(), is(5));
     }

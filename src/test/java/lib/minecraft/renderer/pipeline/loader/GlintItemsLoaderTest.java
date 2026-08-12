@@ -9,19 +9,19 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link GlintItemsLoader} against the bundled {@code glint_items.json} snapshot. The
+ * Coverage of {@link GlintItemsLoader} against the bundled {@code glint_items.json} snapshot. The
  * vanilla MC 26.1 set is the seven intrinsically-foil items; the test pins those ids and a couple of
  * non-glint negatives so regressions in either the ASM tooling or the JSON loader get caught early.
  * <p>
  * The set's SIZE is not asserted here: it is one key of {@code pin.corpus-count}, whose other key
- * comes from a different loader, so both are captured and asserted in {@code CorpusCountPinTest}.
+ * comes from a different loader, so both are captured and asserted in {@link CorpusCountPinTest}.
  * The ids below are a deliberate second copy of shipped data and stay in Java.
  */
 class GlintItemsLoaderTest {
 
     @Test
     @DisplayName("loads the bundled snapshot with the vanilla always-glinted items, by id")
-    void loadsTheSevenGlintItems() {
+    void loadsTheAlwaysGlintedItemsById() {
         Set<String> ids = GlintItemsLoader.load();
         assertThat(ids.contains("minecraft:enchanted_book"), is(true));
         assertThat(ids.contains("minecraft:written_book"), is(true));

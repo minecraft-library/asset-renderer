@@ -20,11 +20,15 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Verifies {@link MCMeta} - the umbrella parser over every {@code .mcmeta} section. Covers the five
- * on-disk pack.mcmeta shapes (defrosted, hypixel-skyblock, both {@code .cats} decoys, vanilla synth)
- * as parse fixtures, the format-tolerance rows (absent pack_format, int/array format bounds,
- * coexisting generations, string/component/§ descriptions, tab indentation), and each sidecar section
- * (animation, texture, gui.scaling, villager) plus overlay/filter parsing.
+ * Coverage of {@link MCMeta}, the umbrella parser over every {@code .mcmeta} section: the five on-disk
+ * pack.mcmeta shapes (defrosted, hypixel-skyblock, both {@code .cats} decoys, vanilla synth) as
+ * description fixtures - plain string, component object, component array, {@code extra} nesting, §
+ * formatting codes, tab indentation - each sidecar section (animation, texture, gui.scaling, villager),
+ * overlay and filter parsing, and the unreadable-JSON hard error.
+ * <p>
+ * One format row is kept, on the defrosted fixture where all three generations coexist, to pin that the
+ * umbrella delegates to {@link FormatRange} at all. Every other normalization row is owned row-by-row by
+ * {@link FormatRangeTest}, against the same fixture strings.
  */
 @DisplayName("MCMeta umbrella parsing")
 class MCMetaTest {
@@ -40,10 +44,10 @@ class MCMetaTest {
         return parse(json).pack().orElseThrow();
     }
 
-    // --- the five on-disk pack.mcmeta shapes ---
+    // the five on-disk pack.mcmeta shapes
 
     @Test
-    @DisplayName("defrosted: legacy+modern coexist (newest wins), § description preserved, tabs tolerated")
+    @DisplayName("defrosted: legacy and modern coexist (newest wins), § description preserved, tabs tolerated")
     void defrosted() {
         String json = "{\n"
             + "  \"pack\": {\n"
@@ -60,40 +64,34 @@ class MCMetaTest {
     }
 
     @Test
-    @DisplayName("hypixel-skyblock: compact one-line, int min/max, clean name")
+    @DisplayName("hypixel-skyblock: compact one-line, clean name")
     void hypixelSkyblock() {
         Pack pack = pack("{\"pack\":{\"pack_format\":88,\"min_format\":88,\"max_format\":88,\"description\":\"Hypixel SkyBlock\"}}");
-        assertThat(pack.formats(), is(new FormatRange(new FormatVersion(88, 0), new FormatVersion(88, MAX))));
         assertThat(pack.description().plain(), equalTo("Hypixel SkyBlock"));
     }
 
     @Test
-    @DisplayName("eureka.cats: no pack_format, component-object description flattens to its text")
+    @DisplayName("eureka.cats: a component-object description flattens to its text")
     void eurekaCats() {
         String json = "{\"pack\":{\"description\":{\"text\":\"Use Catharsis-1.0.0-beta.20 or higher!\",\"color\":\"red\",\"bold\":true},\"min_format\":69,\"max_format\":255}}";
-        Pack pack = pack(json);
-        assertThat(pack.formats(), is(new FormatRange(new FormatVersion(69, 0), new FormatVersion(255, MAX))));
-        assertThat(pack.description().plain(), equalTo("Use Catharsis-1.0.0-beta.20 or higher!"));
+        assertThat(pack(json).description().plain(), equalTo("Use Catharsis-1.0.0-beta.20 or higher!"));
     }
 
     @Test
     @DisplayName("FurSky Reborn.cats: same shape, no bold")
     void furSkyCats() {
         String json = "{\"pack\":{\"description\":{\"text\":\"Requires Catharsis Mod v1.0.0-beta.17 or higher\",\"color\":\"red\"},\"min_format\":69,\"max_format\":255}}";
-        Pack pack = pack(json);
-        assertThat(pack.formats(), is(new FormatRange(new FormatVersion(69, 0), new FormatVersion(255, MAX))));
-        assertThat(pack.description().plain(), equalTo("Requires Catharsis Mod v1.0.0-beta.17 or higher"));
+        assertThat(pack(json).description().plain(), equalTo("Requires Catharsis Mod v1.0.0-beta.17 or higher"));
     }
 
     @Test
-    @DisplayName("vanilla synth: bare pack_format, provenance-string description")
+    @DisplayName("vanilla synth: provenance-string description")
     void vanillaSynth() {
         Pack pack = pack("{\"pack\":{\"pack_format\":84,\"description\":\"Minecraft 26.1 vanilla resources (synthesised by asset-renderer ClientAcquisition.extractClientJar)\"}}");
-        assertThat(pack.formats(), is(new FormatRange(new FormatVersion(84, 0), new FormatVersion(84, MAX))));
         assertThat(pack.description().plain(), equalTo("Minecraft 26.1 vanilla resources (synthesised by asset-renderer ClientAcquisition.extractClientJar)"));
     }
 
-    // --- description normalization forms ---
+    // description normalization forms
 
     @Test
     @DisplayName("description as an array or a component with extra flattens depth-first")
@@ -102,8 +100,15 @@ class MCMetaTest {
         assertThat(pack("{\"pack\":{\"pack_format\":1,\"description\":{\"text\":\"a\",\"extra\":[{\"text\":\"b\"},\"c\"]}}}").description().plain(), equalTo("abc"));
     }
 
-    // --- overlays + filters ---
+    // overlays and filters
 
+    /**
+     * Verifies a malformed overlay entry is skipped with a diagnostic rather than failing the parse.
+     * <p>
+     * Swaps {@link System#err} process-wide to capture that diagnostic, which is safe only because the
+     * suite ships no {@code junit-platform.properties}, so JUnit runs one test at a time. Adding one that
+     * enables parallel execution would let this method steal every concurrent test's stderr.
+     */
     @Test
     @DisplayName("overlay entries parse; a malformed entry is skipped WITH a diagnostic, not fatal")
     void overlaysSkipMalformed() {
@@ -132,7 +137,7 @@ class MCMetaTest {
         assertThat(pack.filters().getFirst().path().orElseThrow().matcher("stone_bricks").matches(), is(true));
     }
 
-    // --- sidecar sections ---
+    // sidecar sections
 
     @Test
     @DisplayName("animation frames normalize bare ints and explicit objects")
@@ -224,13 +229,12 @@ class MCMetaTest {
         assertThat(MCMeta.EMPTY.villager().isPresent(), is(false));
     }
 
-    // --- hard errors ---
+    // hard errors
 
     @Test
-    @DisplayName("unreadable JSON and malformed format encodings throw")
+    @DisplayName("unreadable JSON throws")
     void hardErrors() {
         assertThrows(PipelineException.class, () -> parse("{ bad json"));
-        assertThrows(PipelineException.class, () -> parse("{\"pack\":{\"supported_formats\":[1,2,3]}}"));
     }
 
 }

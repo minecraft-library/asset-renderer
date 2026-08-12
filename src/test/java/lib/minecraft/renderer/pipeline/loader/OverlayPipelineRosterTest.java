@@ -14,16 +14,18 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins the three pass declarations vanilla makes independently - the {@code EMISSIVE} shader define,
- * {@code DepthStencilState.writeDepth} and {@code RenderSetup.sortOnUpload} - against the shipped
- * overlay corpus, so a tooling walk that stops resolving one of them cannot silently collapse it
- * back onto another.
- *
- * <p>The collapse this guards against is a real one that shipped: keying the depth-write skip on
+ * Pin on the pass declarations vanilla makes independently of one another - the {@code EMISSIVE}
+ * shader define, {@code DepthStencilState.writeDepth}, {@code RenderSetup.sortOnUpload} and the
+ * {@link BlendMode} a pipeline's blend function resolves to - taken over every
+ * {@link Entity.OverlayLayer} {@link EntityModelLoader} ships, so a tooling walk that stops
+ * resolving one of them cannot silently collapse it back onto another.
+ * <p>
+ * The collapse this guards against is a real one that shipped: keying the depth-write skip on
  * {@code emissive} suppressed it for the energy swirl, which vanilla registers with
  * {@code DepthStencilState.DEFAULT} and therefore writes. The corpus contains every disagreement
- * needed to catch that - an emissive pass that writes, an emissive pass that does not, and a
- * non-emissive pass that sorts - so any rule inferring one flag from another fails at least one row.
+ * needed to catch that - an emissive pass that writes, an emissive pass that does not, a
+ * non-emissive pass that sorts, and an additive pass that is emissive too - so any rule inferring
+ * one declaration from another fails at least one row.
  */
 @DisplayName("overlay pipeline declarations")
 class OverlayPipelineRosterTest {

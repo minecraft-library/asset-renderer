@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.pack.item;
 
+import lib.minecraft.renderer.asset.pack.item.ItemModelNode.Special;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -9,7 +10,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins the {@link ItemModelNode.Special} classifier: every vanilla 26.1 special kind is renderable
+ * Kind-classification pins for {@link Special}: every vanilla 26.1 special kind is renderable
  * (maps onto an existing dispatcher), while an unrecognised kind is dropped - the no-fallback contract
  * for special nodes.
  */

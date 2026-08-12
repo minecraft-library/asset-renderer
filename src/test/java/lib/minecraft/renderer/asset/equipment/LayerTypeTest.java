@@ -9,7 +9,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Exercises {@link LayerType}: the serialized-id round-trip and the vanilla-parity constant count.
+ * Coverage of {@link LayerType}: the serialized-id round-trip and the vanilla-parity constant count.
  */
 @DisplayName("LayerType serialized ids")
 class LayerTypeTest {
@@ -22,8 +22,8 @@ class LayerTypeTest {
     }
 
     @Test
-    @DisplayName("there are 19 layer types, matching the vanilla enum")
-    void hasNineteen() {
+    @DisplayName("the constant count matches the vanilla enum")
+    void constantCountMatchesVanilla() {
         assertThat(LayerType.values().length, is(19));
     }
 

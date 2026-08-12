@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link BannerKit#composite2D} banner / shield compositing against in-memory fixture
+ * Coverage of {@link BannerKit#composite2D} banner / shield compositing against in-memory fixture
  * textures, plus {@link BannerKit.Variant#textureFor} path building. A {@link StubContext} serves
  * fixture textures by id so the tests assert on output pixels directly: base-dye fill with no
  * layers, a single dye-tinted pattern mask blitted over the base, and the

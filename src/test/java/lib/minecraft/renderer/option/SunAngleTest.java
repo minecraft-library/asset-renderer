@@ -15,9 +15,9 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Pins the {@link SunAngle} day curve and the {@link ItemModelContext#atTick(int)} view built on it -
- * the noon phase anchor the item parity reference is captured at, the eased (non-linear) shape of the
- * day, and the neutrality the baked fast path depends on.
+ * The {@link SunAngle} day curve and the {@link ItemModelContext#atTick(int)} view built on it - the
+ * noon phase anchor the item parity reference is captured at, the eased (non-linear) shape of the day,
+ * and the neutrality the baked fast path depends on.
  */
 @DisplayName("SunAngle day curve")
 class SunAngleTest {
@@ -29,9 +29,12 @@ class SunAngleTest {
     private static final int CLOCK_FACES = 64;
 
     /**
-     * The clock face vanilla's {@code range_dispatch} table selects at a day-time tick: the highest
-     * threshold at or below the scaled angle, over entries {@code 0.0, 0.5, 1.5, ... 63.5}. The final
-     * entry wraps back onto the first face, so the result is taken modulo the face count.
+     * Selects the clock face vanilla's {@code range_dispatch} table answers at a day-time tick - the
+     * highest threshold at or below the scaled angle, over entries {@code 0.0, 0.5, 1.5, ... 63.5}. The
+     * final entry wraps back onto the first face, so the result is taken modulo the face count.
+     *
+     * @param dayTime the day-time tick to sample the curve at
+     * @return the index of the selected clock face
      */
     private static int face(long dayTime) {
         float scaled = SunAngle.at(dayTime) * CLOCK_FACES;

@@ -18,11 +18,12 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link RuleSet#glintFor(ItemContext)} - the CIT glint decision: the highest-precedence
+ * Coverage of {@link RuleSet#glintFor(ItemContext)}, the CIT glint decision: the highest-precedence
  * matching {@code type=enchantment} rule wins with {@link GlintPolicy.Replaced}, else a merged
  * {@code useGlint == false} suppresses, else the default vanilla glint. Also pins the
  * empty-{@code items} match that a {@code type=enchantment} glint rule relies on.
  */
+@DisplayName("RuleSet.glintFor CIT glint decision")
 class RuleSetGlintForTest {
 
     @Test
@@ -94,8 +95,8 @@ class RuleSetGlintForTest {
     @Test
     @DisplayName("useGlint=false suppresses even for the default EMPTY context (global, context-independent)")
     void useGlintSuppressesEmptyContext() {
-        // Regression pin for the resolveCit fix: a plainly-enchanted item renders with the default
-        // ItemContext.EMPTY (no item NBT), yet the global useGlint=false must still suppress.
+        // A plainly-enchanted item renders with the default ItemContext.EMPTY (no item NBT), yet the
+        // global useGlint=false must still suppress.
         assertThat(rules(Optional.of(false)).glintFor(ItemContext.EMPTY), is(GlintPolicy.SUPPRESSED));
     }
 

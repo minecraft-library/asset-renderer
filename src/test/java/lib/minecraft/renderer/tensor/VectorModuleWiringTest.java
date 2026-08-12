@@ -48,8 +48,8 @@ final class VectorModuleWiringTest {
 
     /**
      * The build bullet's consumer list, captured as one run so a narrowed one is read, not missed.
-     *
-     * <p>A per-name containment test would answer the same on a sentence naming four of the five,
+     * <p>
+     * A per-name containment test would answer the same on a sentence naming four of the five,
      * which is the state this exists to catch.
      */
     private static final Pattern STATED_CONSUMERS =
@@ -61,12 +61,12 @@ final class VectorModuleWiringTest {
 
     /**
      * Each consumer, against the statement that gives it the flag, whitespace collapsed.
-     *
-     * <p>Read as whole statements rather than as the flag alone: the string appears in the build
+     * <p>
+     * Read as whole statements rather than as the flag alone: the string appears in the build
      * file wherever it is defined, and a containment test on it passes on a build that defines it
      * and applies it to nothing.
-     *
-     * <p>Keyed by the task type as the build bullet spells it, because the bullet's list is checked
+     * <p>
+     * Keyed by the task type as the build bullet spells it, because the bullet's list is checked
      * against these keys - so a consumer added here without a word in that file fails rather than
      * shipping undocumented.
      */

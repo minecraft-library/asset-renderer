@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.is;
  * can drive the merged loop past {@link Timeline#MAX_LOOP_MS}. Both are pinned below, the second
  * because it is a way the merge can now degrade that uniform 50 ms periods could not reach.
  */
+@DisplayName("FrameCompositor.merge - result-type dispatch and merged loop length")
 class FrameCompositorTest {
 
     @Test

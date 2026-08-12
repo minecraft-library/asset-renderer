@@ -21,13 +21,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link ColorMapLoader}: colormaps resolve through the pack stack like any
- * texture, and each PNG decodes to row-major big-endian ARGB bytes - bit-identical to the bundled
+ * Coverage of {@link ColorMapLoader}: colormaps resolve through the pack stack like any texture, and
+ * each PNG decodes to row-major big-endian ARGB bytes - bit-identical to the bundled
  * {@code color_maps.json} snapshot generation.
  */
 class ColorMapLoaderTest {
@@ -42,10 +42,10 @@ class ColorMapLoaderTest {
         ImageIO.write(image, "PNG", png.toFile());
 
         byte[] pixels = ColorMapLoader.decode(Files.readAllBytes(png));
-        assertArrayEquals(new byte[]{
+        assertThat(pixels, is(new byte[]{
             (byte) 0xFF, (byte) 0x7F, (byte) 0xB2, (byte) 0x38,
             (byte) 0xFF, 0x01, 0x02, 0x03
-        }, pixels);
+        }));
     }
 
     @Test
@@ -63,12 +63,13 @@ class ColorMapLoaderTest {
 
         ConcurrentMap<ColorMap.Type, ColorMap> maps = ColorMapLoader.load(stack);
 
-        assertEquals(3, maps.size());
-        assertTrue(maps.containsKey(ColorMap.Type.GRASS));
-        assertTrue(maps.containsKey(ColorMap.Type.FOLIAGE));
-        assertTrue(maps.containsKey(ColorMap.Type.DRY_FOLIAGE));
-        assertEquals("vanilla", maps.get(ColorMap.Type.GRASS).packId());
-        assertTrue(maps.get(ColorMap.Type.GRASS).pixels().length > 0, "decoded pixels must be non-empty");
+        assertThat(maps.size(), is(3));
+        assertThat(maps.containsKey(ColorMap.Type.GRASS), is(true));
+        assertThat(maps.containsKey(ColorMap.Type.FOLIAGE), is(true));
+        assertThat(maps.containsKey(ColorMap.Type.DRY_FOLIAGE), is(true));
+        assertThat(maps.get(ColorMap.Type.GRASS).packId(), is("vanilla"));
+        assertThat("decoded pixels must be non-empty",
+            maps.get(ColorMap.Type.GRASS).pixels().length, is(greaterThan(0)));
     }
 
     @Test
@@ -83,8 +84,8 @@ class ColorMapLoaderTest {
         PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
 
         ConcurrentMap<ColorMap.Type, ColorMap> maps = ColorMapLoader.load(stack);
-        assertEquals(1, maps.size());
-        assertTrue(maps.containsKey(ColorMap.Type.GRASS));
+        assertThat(maps.size(), is(1));
+        assertThat(maps.containsKey(ColorMap.Type.GRASS), is(true));
     }
 
     private static void png(Path path) throws IOException {

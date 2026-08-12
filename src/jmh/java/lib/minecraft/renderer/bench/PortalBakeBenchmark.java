@@ -44,7 +44,7 @@ public class PortalBakeBenchmark extends AbstractRendererBenchmark {
     @Override
     protected void onSetupTrial() {
         this.renderer = new PortalRenderer(context());
-        // Matches TestPortalRenderer's static-output footprint (512 px). Animated-frame bake is
+        // Matches PortalRenderDriver's static-output footprint (512 px). Animated-frame bake is
         // intentionally out of scope - measurement variance across frames is better captured in
         // a dedicated multi-frame benchmark.
         this.options = PortalOptions.builder()

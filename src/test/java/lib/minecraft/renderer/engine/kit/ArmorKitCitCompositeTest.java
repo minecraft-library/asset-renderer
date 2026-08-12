@@ -44,10 +44,16 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Verifies {@link ArmorKit}'s per-layer texture resolution against the CIT override: a hit
- * {@link CitResult} retextures each layer through {@code textureFor("layerN")}, while
- * {@link CitResult#NONE} (and the empty-items-map default) falls through to the equipment model's own
- * texture paths unchanged - the byte-neutral proof for the dormant seam.
+ * Coverage of {@link ArmorKit}'s texture resolution and of the shell it builds. Per-layer resolution is
+ * held against the CIT override: a hit {@link CitResult} retextures each layer through
+ * {@code textureFor("layerN")}, while {@link CitResult#NONE} (and the empty-items-map default) falls
+ * through to the equipment model's own texture paths unchanged.
+ * <p>
+ * The geometry half pins the vertical span a built helmet occupies - the adult shell's grown head
+ * overlay, that span doubling with the {@link RenderFrame}'s model scale, and the baby shell's own head
+ * box, which shares no span with it - alongside the {@code humanoid_baby} sheet a baby's armour is read
+ * from and the fact that a baby draws no trim. Both trim resolve paths, the entity one and the item one,
+ * are held to the same three ids in the same order, differing only in the base id.
  */
 class ArmorKitCitCompositeTest {
 

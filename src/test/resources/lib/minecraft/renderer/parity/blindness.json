@@ -720,6 +720,13 @@
       ],
       "source": "measured by perturbing ParityMetrics.java: 6 of 11 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java",
+        "src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepReport.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java",
         "src/test/java/lib/minecraft/renderer/visual/**"
       ]
     },
@@ -807,7 +814,7 @@
         "pin.kit-corners",
         "pin.vanilla-iso-pose"
       ],
-      "claim": "These are the parity package's own suites and the two renderers of its markdown views; none of them writes a byte any artifact digests",
+      "claim": "These are the parity package's own suites, the two renderers of its markdown views, and the sweep-side machinery the visual mains measure and report through; none of them writes a byte any artifact B37 names digests",
       "id": "B39",
       "mode": "demote",
       "probe": "edit any one of them and capture any artifact B37 names; every stored byte is identical, and the only thing that fails is the suite that gates the file",
@@ -815,12 +822,19 @@
       "sees": [],
       "source": "measured by perturbing ParityViews.java: 0 of 0 declared sees moved, and 11 declared blind held; the readers inside B37's write-path packages",
       "trigger_paths": [
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java",
         "src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java",
         "src/test/java/lib/minecraft/renderer/parity/ParityIndexTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java",
         "src/test/java/lib/minecraft/renderer/parity/ParityReferences.java",
         "src/test/java/lib/minecraft/renderer/parity/ParityReferencesTest.java",
         "src/test/java/lib/minecraft/renderer/parity/ParityViews.java",
-        "src/test/java/lib/minecraft/renderer/parity/ParityViewsTest.java"
+        "src/test/java/lib/minecraft/renderer/parity/ParityViewsTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepReport.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java"
       ]
     },
     {

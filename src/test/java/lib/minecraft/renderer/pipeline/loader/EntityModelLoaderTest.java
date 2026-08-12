@@ -112,14 +112,11 @@ class EntityModelLoaderTest {
     @DisplayName("the worn-armor shell is joined off the layers armor row")
     void humanoidArmorFromLayersRow() {
         // The armor row lives under `layers`: the reader joins its geometry reference against the
-        // geometry table (absence IS none). Skeleton/zombie wear a shell; cow/sheep wear none.
+        // geometry table (absence IS none). Which entities land on the roster is asserted exhaustively
+        // by HumanoidArmorRosterTest; what the joined shell carries is asserted here.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
-        assertThat("skeleton is humanoid-armored", defs.get("minecraft:skeleton").humanoidArmor().isPresent(), is(true));
-        assertThat("zombie is humanoid-armored", defs.get("minecraft:zombie").humanoidArmor().isPresent(), is(true));
         assertThat("the derived accessor reads the layers row",
             defs.get("minecraft:zombie").layers().humanoidArmor().isPresent(), is(true));
-        assertThat("cow is not humanoid-armored", defs.get("minecraft:cow").humanoidArmor().isPresent(), is(false));
-        assertThat("sheep is not humanoid-armored", defs.get("minecraft:sheep").humanoidArmor().isPresent(), is(false));
 
         // The shell is the mesh vanilla hands the wearer, not the wearer's own: the boxes must be the
         // armor unwrap's 64x32 tree, and the two layer deformations must travel with it.
@@ -142,11 +139,6 @@ class EntityModelLoaderTest {
             equalTo(new Vector3f(1.02f, 1.02f, 1.02f)));
     }
 
-    /** The option-encoded coat sub-definition for a variant family's option. */
-    private static Entity coat(ConcurrentMap<String, Entity> defs, String familyId, String option) {
-        return defs.get(familyId).axes().variants().get(option);
-    }
-
     @Test
     @DisplayName("a base-mesh-inheriting grow-less overlay is auto-skipped from canvas bounds")
     void depthClearanceOnGeometryInheritance() {
@@ -163,7 +155,7 @@ class EntityModelLoaderTest {
         // it contributes to bounds; the same-mesh undercoat (SheepModel) is skipped.
         List<OverlayLayer> sheep = defs.get("minecraft:sheep").overlays();
         assertThat("sheep declares undercoat + wool overlays", sheep.size(), greaterThan(1));
-        assertThat("same-mesh wool undercoat skips bounds", sheep.get(0).skipBounds(), is(true));
+        assertThat("same-mesh wool undercoat skips bounds", sheep.getFirst().skipBounds(), is(true));
         assertThat("distinct-mesh wool layer contributes to bounds", sheep.get(1).skipBounds(), is(false));
     }
 
@@ -499,5 +491,10 @@ class EntityModelLoaderTest {
             .filter(overlay -> overlay.textureBy().filter(textureBy::equals).isPresent())
             .findFirst()
             .orElseThrow(() -> new AssertionError("entity '" + entityId + "' has no '" + textureBy + "' category pass"));
+    }
+
+    /** The option-encoded coat sub-definition for a variant family's option. */
+    private static Entity coat(ConcurrentMap<String, Entity> defs, String familyId, String option) {
+        return defs.get(familyId).axes().variants().get(option);
     }
 }

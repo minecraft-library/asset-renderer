@@ -16,8 +16,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Pins both corner phases - the one thing a merge of the two face vocabularies would most easily
- * destroy, and the one thing nothing else in the suite covers.
+ * Both corner phases - what a merge of the two face vocabularies would most easily destroy, and what
+ * nothing else in the suite covers.
  * <p>
  * A face's corner phase is which of its four corners the quad starts at. That single choice fixes two
  * downstream facts at once: the diagonal the {@code (0,1,2)+(0,2,3)} fan splits the quad on, and which

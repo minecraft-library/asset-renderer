@@ -32,9 +32,9 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Byte-identity pin for the {@link ModelEngine#rasterizeFitted} auto-fit path, whose only production
- * consumer is {@link PlayerRenderer} (its 3D body render at {@code PlayerRenderer.rasterize3D}). No
- * other byte-pinned test covers this method: {@link ModelEngineParallelismTest} exercises the plain
- * {@code rasterize} block path, and {@code TestPlayerRender} is a visual sweep that asserts nothing.
+ * consumer is {@link PlayerRenderer} (its 3D body render at {@code PlayerRenderer.rasterize3D}).
+ * {@link ModelEngineParallelismTest} pins the plain {@code rasterize} block path instead, and the
+ * player's own visual sweep is {@code TestPlayerRender}.
  *
  * <p>Both fitted arms are covered so a refactor that unifies the lens fork can prove it:
  * <ul>
@@ -44,9 +44,9 @@ import static org.hamcrest.Matchers.is;
  * <li><b>Perspective arm</b> - a SKULL under {@link Projection#PORTRAIT}
  *     ({@link Lens.Kind#PERSPECTIVE}), the 2D post-projection {@code Fit2D} path.</li>
  * <li><b>The armoured skin path</b> - the same FULL body in a full iron set. The other two carry no
- *     armour at all, so nothing pinned the player's <em>own</em> armour build: neither the boxes
- *     {@code ArmorKit.buildHumanoidArmor3D} adds around each body part, nor the order it adds them in,
- *     nor which of the shell's parts each slot reaches. It is the only byte gate on that path.</li>
+ *     armour at all, so this case is the one covering the player's <em>own</em> armour build: the boxes
+ *     {@code ArmorKit.buildHumanoidArmor3D} adds around each body part, the order it adds them in, and
+ *     which of the shell's parts each slot reaches.</li>
  * </ul>
  * Each case asserts render-twice determinism (parallel Pass 1 + tiled Pass 2 must be stable) then
  * pins a CRC32 over the ARGB pixels. A future rasterization-math change that silently drifts the
@@ -151,6 +151,13 @@ class PlayerRasterizeFittedGoldenTest {
         assertDeterministicAndPinned(options, "armored_full_vanilla_iso");
     }
 
+    /**
+     * Renders the player twice, asserts the two renders are byte-identical, then holds the first
+     * render's CRC32 against the value pinned under {@code key}.
+     *
+     * @param options the player render to compare and pin
+     * @param key the pin key in {@code pin.player-crc} this render is recorded under
+     */
     private void assertDeterministicAndPinned(PlayerOptions options, String key) {
         int[] first = RenderDigest.firstFramePixels(playerRenderer.render(options));
         int[] second = RenderDigest.firstFramePixels(playerRenderer.render(options));

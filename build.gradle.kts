@@ -1012,7 +1012,7 @@ dependencies {
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)
     testImplementation(libs.junit.platform.launcher)
-    // JOML for precision-hunt tests: side-by-side bit-comparisons of our tensor math vs
+    // JOML for tensor/Matrix4fTest: its 0-ULP parity assertion compares our matrix math against
     // vanilla's actual matrix backend, since vanilla's PoseStack.Pose.pose is org.joml.Matrix4f.
     // Test-only - production code uses our own lib.minecraft.renderer.tensor.Matrix4f.
     testImplementation(libs.joml)
@@ -1217,9 +1217,9 @@ tasks {
     // Run with `./gradlew tasks --group visual` to list. Outputs land under cache/visual/.
 
     register<JavaExec>("blockRender3D") {
-        description = "Renders blocks to cache/visual/block-render-3d/ for visual inspection. -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2"
+        description = "Renders blocks to cache/visual/block-render-3d/ for visual inspection. -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2. -PrenderSize and -Pssaa are only forwarded when -PblockId is also supplied; with no block id the task runs its default list at the built-in defaults."
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestBlockRender3D")
+        mainClass.set("lib.minecraft.renderer.visual.BlockRenderDriver")
         classpath = sourceSets["test"].runtimeClasspath
         val blockId = project.findProperty("blockId") as String?
         val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
@@ -1228,9 +1228,9 @@ tasks {
     }
 
     register<JavaExec>("blockFlipbook") {
-        description = "Renders the vanilla animated-texture blocks (fire/magma/prismarine/sea_lantern/water) with animation opted in (deriveTimeline AUTO) to cache/visual/block-flipbook/ as GIFs - the phase-4 flipbook LOOK gate. -PrenderSize=256"
+        description = "Renders the vanilla animated-texture blocks (fire/magma/prismarine/sea_lantern/water) with animation opted in (deriveTimeline AUTO) to cache/visual/block-flipbook/ as GIFs - the flipbook LOOK gate. -PrenderSize=256"
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestBlockFlipbook")
+        mainClass.set("lib.minecraft.renderer.visual.BlockFlipbookDriver")
         classpath = sourceSets["test"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
         args = listOf(renderSize)
@@ -1239,7 +1239,7 @@ tasks {
     register<JavaExec>("itemDayCycle") {
         description = "Bakes a whole in-game day for the time-driven item icons (clock, plus the bearing-driven compass and a plain sword as controls) to cache/visual/item-day-cycle/ as GIFs + quarter-day stills - the animated-clock LOOK gate. -PrenderSize=256 -PdayFrames=<n> overrides the frame count; the default is 0, which derives it per item from the item's own dispatch table and is the more faithful path."
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestItemDayCycle")
+        mainClass.set("lib.minecraft.renderer.visual.ItemDayCycleDriver")
         classpath = sourceSets["test"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
         val dayFrames = (project.findProperty("dayFrames") as String?) ?: "0"
@@ -1249,7 +1249,7 @@ tasks {
     register<JavaExec>("projectionSmoke") {
         description = "Renders a block under every GraphicalProjection + facing to cache/visual/projection-smoke/. -PblockId=minecraft:tnt -PrenderSize=512"
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestProjectionSmoke")
+        mainClass.set("lib.minecraft.renderer.visual.BlockProjectionsDriver")
         classpath = sourceSets["test"].runtimeClasspath
         val blockId = (project.findProperty("blockId") as String?) ?: "minecraft:tnt"
         val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
@@ -1259,7 +1259,7 @@ tasks {
     register<JavaExec>("itemRender2D") {
         description = "Renders items to cache/visual/item-render-2d/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256 -Ptype=gui|held -Psupersample=2 -PantiAlias=true. -Psupersample only affects -Ptype=held (the GUI icon is a sprite blit and ignores it); -PantiAlias (FXAA) applies to both."
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestItemRender2D")
+        mainClass.set("lib.minecraft.renderer.visual.ItemRenderDriver")
         classpath = sourceSets["test"].runtimeClasspath
         val itemId = project.findProperty("itemId") as String?
         val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
@@ -1294,21 +1294,21 @@ tasks {
     register<JavaExec>("loreTooltip") {
         description = "Renders a pair of SkyBlock-style lore tooltips to cache/visual/lore-tooltip/ for visual inspection."
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestLoreTooltip")
+        mainClass.set("lib.minecraft.renderer.visual.LoreTooltipDriver")
         classpath = sourceSets["test"].runtimeClasspath
     }
 
     register<JavaExec>("menuRender") {
         description = "Renders the vanilla-style chest chrome menus (SkyBlock crafting + vanilla crafting) to cache/visual/menu-render/ for visual inspection."
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestMenuRender")
+        mainClass.set("lib.minecraft.renderer.visual.MenuRenderDriver")
         classpath = sourceSets["test"].runtimeClasspath
     }
 
     register<JavaExec>("stackCountBadge") {
         description = "Renders ItemStackKit.drawStackCount over a grey backdrop at several sizes. Use -Plabel=<tag> to write to cache/visual/stack-count-badge/<tag>/ or -Pdiff=A,B to pixel-diff two labels."
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestStackCountBadge")
+        mainClass.set("lib.minecraft.renderer.visual.StackCountBadgeDriver")
         classpath = sourceSets["test"].runtimeClasspath
         val label = project.findProperty("label") as String?
         val diff = project.findProperty("diff") as String?
@@ -1316,9 +1316,9 @@ tasks {
     }
 
     register<JavaExec>("entityRender3D") {
-        description = "Renders every entity in entity_models.json via EntityRenderer (3D) to cache/visual/entity-render-3d/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie -Pprojection=ISOMETRIC"
+        description = "Renders every entity in entity_models.json via EntityRenderer (3D) to cache/visual/entity-render-3d/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie -Pprojection=ISOMETRIC. The -Dasset.entity.* appearance, lighting and dump knobs it reads are listed in EntityRenderDriver's javadoc."
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestEntityRender3D")
+        mainClass.set("lib.minecraft.renderer.visual.EntityRenderDriver")
         classpath = sourceSets["test"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
         val entityId = project.findProperty("entityId") as String?
@@ -1333,7 +1333,7 @@ tasks {
     register<JavaExec>("entityProjections") {
         description = "Renders one entity under every Projection as a labelled contact sheet to cache/visual/entity-projections/. -PentityId=minecraft:zombie -PrenderSize=256"
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestEntityProjections")
+        mainClass.set("lib.minecraft.renderer.visual.EntityProjectionsDriver")
         classpath = sourceSets["test"].runtimeClasspath
         val entityId = project.findProperty("entityId") as String?
         val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
@@ -1402,14 +1402,14 @@ tasks {
     register<JavaExec>("fluidRenderer") {
         description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/visual/fluid-renderer/ for visual inspection."
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestFluidRenderer")
+        mainClass.set("lib.minecraft.renderer.visual.FluidRenderDriver")
         classpath = sourceSets["test"].runtimeClasspath
     }
 
     register<JavaExec>("portalRenderer") {
         description = "Renders every PortalRenderer code path (end_portal/end_gateway, iso/2D, static/animated) to cache/visual/portal-renderer/ for visual inspection."
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestPortalRenderer")
+        mainClass.set("lib.minecraft.renderer.visual.PortalRenderDriver")
         classpath = sourceSets["test"].runtimeClasspath
     }
 
@@ -1425,7 +1425,7 @@ tasks {
     register<JavaExec>("redstoneTints") {
         description = "Renders the 16 redstone power-level swatches twice (vanilla / synthetic-override pack) to cache/visual/redstone-tints/. -PrenderSize=64"
         group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestRedstoneTints")
+        mainClass.set("lib.minecraft.renderer.visual.RedstoneTintsDriver")
         classpath = sourceSets["test"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "64"
         args = listOf(renderSize)

@@ -92,6 +92,9 @@ class PortalRendererParallelismTest {
      * </ol>
      * A new case is added by naming it in {@code PINS}, running, and promoting the capture - never by
      * reading a value out of a failure message and pasting it back.
+     *
+     * @param options the portal render to compare and pin
+     * @param key the pin key in {@code pin.portal-crc} this render is recorded under
      */
     private void assertIdenticalAndMatchesHash(PortalOptions options, String key) {
         int[] first = RenderDigest.firstFramePixels(renderer.render(options));

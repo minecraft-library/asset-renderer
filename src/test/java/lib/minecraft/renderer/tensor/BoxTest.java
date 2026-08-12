@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tensor;
 
-import lib.minecraft.renderer.tensor.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -8,12 +7,19 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Verifies {@link Box}'s AABB factories and extent accessor: the direct min/max copies
- * ({@link Box#of(Vector3f, Vector3f)}, {@link Box#of(float[], float[])}), the tight-enclosing
- * point-cloud factories ({@link Box#of(float[][])}, {@link Box#of(Vector3f[])}) that reduce a set
- * of points to their bounding box, and {@link Box#maxExtent()} returning the largest per-axis span.
+ * {@link Box}'s AABB factories, its extent accessor and the operand order a grown cube is formed in:
+ * the direct min/max copies ({@link Box#of(Vector3f, Vector3f)}, {@link Box#of(float[], float[])}), the
+ * tight-enclosing point-cloud factories ({@link Box#of(float[][])}, {@link Box#of(Vector3f[])}) that
+ * reduce a set of points to their bounding box, {@link Box#maxExtent()} returning the largest per-axis
+ * span, and {@link Box#grown(Vector3f, Vector3f, Vector3f)}, the one place a cube box is formed and the
+ * one case here whose arithmetic is not re-associable.
+ * <p>
+ * It also pins the two composition primitives: {@link Box#union(Box)}, which the armour path folds each
+ * equipped slot's screen bounds through, and {@link Box#expand(float)}, the one inflate every clearance
+ * constant rides. Both are bare per-corner arithmetic with no well-formedness check, and the negative
+ * case below records what that actually produces rather than assuming a clamp.
  */
-@DisplayName("Box factories + extent")
+@DisplayName("Box factories, extent, grown operand order, union and expand")
 class BoxTest {
 
     @Test
@@ -80,6 +86,64 @@ class BoxTest {
         float reassociated = ((origin - grow) + size) + grow + grow;
         assertThat(Float.floatToRawIntBits(box.maxX()), equalTo(0xC0133333));
         assertThat(Float.floatToRawIntBits(reassociated), equalTo(0xC0133332));
+    }
+
+    @Test
+    @DisplayName("union of two disjoint boxes spans both, in either order")
+    void unionOfDisjointBoxes() {
+        Box left = new Box(0, 0, 0, 1, 1, 1);
+        Box right = new Box(5, 4, 3, 6, 6, 6);
+
+        assertThat(left.union(right), equalTo(new Box(0, 0, 0, 6, 6, 6)));
+        assertThat(right.union(left), equalTo(new Box(0, 0, 0, 6, 6, 6)));
+    }
+
+    @Test
+    @DisplayName("union with a fully contained box answers the container, in either order")
+    void unionOfContainedBox() {
+        Box outer = new Box(-8, -8, -8, 8, 8, 8);
+        Box inner = new Box(-1, 0, 2, 3, 4, 5);
+
+        assertThat(outer.union(inner), equalTo(outer));
+        assertThat(inner.union(outer), equalTo(outer));
+    }
+
+    @Test
+    @DisplayName("union with itself is the identity")
+    void unionWithSelfIsIdentity() {
+        Box box = new Box(-3.5f, 0, 1.25f, 4, 12, 16);
+        assertThat(box.union(box), equalTo(box));
+    }
+
+    @Test
+    @DisplayName("expand moves each minimum down and each maximum up, adding twice the amount to every span")
+    void expandGrowsEverySideByTheSameAmount() {
+        Box box = new Box(0, 0, 0, 2, 5, 1);
+        Box grown = box.expand(0.5f);
+
+        assertThat(grown, equalTo(new Box(-0.5f, -0.5f, -0.5f, 2.5f, 5.5f, 1.5f)));
+        assertThat(grown.maxExtent(), equalTo(box.maxExtent() + 1f));
+    }
+
+    @Test
+    @DisplayName("expand by zero returns an equal box")
+    void expandByZeroIsIdentity() {
+        Box box = new Box(1, 2, 3, 4, 5, 6);
+        assertThat(box.expand(0f), equalTo(box));
+    }
+
+    @Test
+    @DisplayName("expand by a negative amount shrinks and is not clamped - past the half-span the corners invert")
+    void expandByANegativeAmountShrinksAndIsNotClamped() {
+        Box box = new Box(0, 0, 0, 4, 4, 4);
+        assertThat(box.expand(-1f), equalTo(new Box(1, 1, 1, 3, 3, 3)));
+
+        // Observed, not assumed: expand is six independent adds with nothing asserting min <= max,
+        // so shrinking by more than half the span leaves every minimum ABOVE its own maximum rather
+        // than collapsing the box to a point. maxExtent then reports a negative span.
+        Box inverted = box.expand(-3f);
+        assertThat(inverted, equalTo(new Box(3, 3, 3, 1, 1, 1)));
+        assertThat(inverted.maxExtent(), equalTo(-2f));
     }
 
 }

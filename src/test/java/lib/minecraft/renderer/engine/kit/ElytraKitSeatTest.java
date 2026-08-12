@@ -13,9 +13,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Verifies the elytra's baby re-seat, which lives in the MESH so the canvas-bounds walk and the render
- * read one seat - canvas sizing runs before any geometry is built, so a seat applied to built triangles
- * would size the canvas for wings drawn somewhere else and crop them.
+ * Coverage of the elytra's baby re-seat, which lives in the mesh so the canvas-bounds walk and the
+ * render read one seat - canvas sizing runs before any geometry is built, so a seat applied to built
+ * triangles would size the canvas for wings drawn somewhere else and crop them.
  */
 @DisplayName("ElytraKit baby wing seat")
 class ElytraKitSeatTest {

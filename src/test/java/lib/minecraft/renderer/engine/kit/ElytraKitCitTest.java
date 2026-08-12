@@ -29,10 +29,10 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies the {@link ElytraKit} pack-rule (CIT) {@code type=elytra} consumer: a hit override
+ * Coverage of the {@link ElytraKit} pack-rule (CIT) {@code type=elytra} consumer: a hit override
  * retextures the wings through {@code textureFor("layer0")} in preference to the equipment-model
  * texture, while {@link CitResult#NONE} (and the empty-item default) leaves the wings on the
- * {@code equipment/elytra.json} texture - the byte-neutral proof for the dormant seam.
+ * {@code equipment/elytra.json} texture.
  */
 class ElytraKitCitTest {
 

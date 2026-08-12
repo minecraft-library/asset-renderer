@@ -29,8 +29,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Verifies that an entity's conditional overlays - worn equipment and elytra wings - are folded into
- * the canvas fit as what they DRAW, so the fit reserves no room for geometry that never appears.
+ * Canvas-fit coverage for an entity's conditional overlays - worn equipment and elytra wings - which
+ * are folded into the fit as what they DRAW, so the fit reserves no room for geometry that never
+ * appears.
  *
  * <p>Both failure modes this guards are invisible to the parity sweep, which renders one default
  * appearance per entity and therefore equips nothing and renders no babies:
@@ -95,8 +96,8 @@ class EntityOverlayFitTest {
     /**
      * One equipped subject.
      *
-     * @param entityId the entity to render
-     * @param slot the equipment slot to fill with its default material
+     * @param entityId the entity this row renders
+     * @param slot the equipment slot this row fills with its default material
      */
     private record Equipped(@NotNull String entityId, @NotNull String slot) {
         @Override
@@ -162,7 +163,12 @@ class EntityOverlayFitTest {
             .build()).getFrames().getFirst().pixels();
     }
 
-    /** Count of non-transparent pixels. */
+    /**
+     * Counts the non-transparent pixels in a rendered frame.
+     *
+     * @param buffer the rendered frame
+     * @return the number of pixels carrying a non-zero alpha
+     */
     private static int coverage(@NotNull PixelBuffer buffer) {
         int n = 0;
         for (int y = 0; y < buffer.height(); y++)

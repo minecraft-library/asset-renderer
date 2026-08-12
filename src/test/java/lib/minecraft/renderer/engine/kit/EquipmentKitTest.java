@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link EquipmentKit}'s dye handling on the two shapes the vanilla corpus ships: a dyeable
+ * Coverage of {@link EquipmentKit}'s dye handling on the two shapes the vanilla corpus ships: a dyeable
  * base with an undyed fallback colour (leather body armor) and a dyeable overlay with none (the wolf's
  * armadillo scute). The second is the load-bearing one - undyed it resolves to colour 0 and must be
  * skipped, so the overlay draws only once the wearer supplies a dye.

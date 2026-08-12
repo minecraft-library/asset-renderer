@@ -434,7 +434,7 @@ A task registration, a finalizer edge or a property read moves no rendered byte:
 ## B32 - The visual mains are the producers, so a change to one changes what its artifact holds
 
 - **mode** select
-- **triggers** `src/test/java/lib/minecraft/renderer/visual/**`
+- **triggers** `src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java`, `src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java`, `src/test/java/lib/minecraft/renderer/parity/SweepReport.java`, `src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java`, `src/test/java/lib/minecraft/renderer/visual/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.visual`, `manifest.player-sheets`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing ParityMetrics.java: 6 of 11 declared sees moved, and 2 declared blind held
@@ -479,10 +479,10 @@ B37 covers the mechanism that writes a self-captured file; none of the values in
 
 *Probe:* change what one of them measures - a render option, a subject list, the table set a digest is taken over - and re-run it; the artifact it declares moves and no other does
 
-## B39 - These are the parity package's own suites and the two renderers of its markdown views; none of them writes a byte any artifact digests
+## B39 - These are the parity package's own suites, the two renderers of its markdown views, and the sweep-side machinery the visual mains measure and report through; none of them writes a byte any artifact B37 names digests
 
 - **mode** demote
-- **triggers** `src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityIndexTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityReferences.java`, `src/test/java/lib/minecraft/renderer/parity/ParityReferencesTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityViews.java`, `src/test/java/lib/minecraft/renderer/parity/ParityViewsTest.java`
+- **triggers** `src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java`, `src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityIndexTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java`, `src/test/java/lib/minecraft/renderer/parity/ParityReferences.java`, `src/test/java/lib/minecraft/renderer/parity/ParityReferencesTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityViews.java`, `src/test/java/lib/minecraft/renderer/parity/ParityViewsTest.java`, `src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java`, `src/test/java/lib/minecraft/renderer/parity/SweepReport.java`, `src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java`
 - **sees** -
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
 - **source** measured by perturbing ParityViews.java: 0 of 0 declared sees moved, and 11 declared blind held; the readers inside B37's write-path packages

@@ -12,7 +12,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins the exact size of each shipped corpus a loader reads.
+ * Pin on the exact size of each shipped corpus a loader reads.
  *
  * <p>Both counts live in one artifact, {@code pin.corpus-count}, so both are captured here rather
  * than one in each loader's own test. A pin-set is written only once every key it declares has a
@@ -20,9 +20,9 @@ import static org.hamcrest.Matchers.is;
  * alone - a partial capture that then promoted as a smaller population is exactly the false green
  * the completeness contract exists to prevent.
  *
- * <p>The loader tests keep the assertions that are about <em>their</em> loader - the empty-versus
- * -absent distinction, the parsed property map, the seven ids by name - and no longer restate a
- * number this pin holds.
+ * <p>The loader tests keep the assertions that are about <em>their</em> loader - the
+ * empty-versus-absent distinction, the parsed property map, the seven ids by name - and no longer
+ * restate a number this pin holds.
  *
  * <p>A number moving here is a real event: the corpus is shipped data, so a count that drifts means
  * a tooling flow emitted a different population. Re-baselining is a promotion of the capture this

@@ -1,8 +1,10 @@
 package lib.minecraft.renderer.pipeline.util;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.BlockStateKey;
@@ -21,9 +23,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -32,7 +39,7 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Exercises the block-entity geometry override channel: {@link BlockRendererOverrides}
+ * Pins for the block-entity geometry override channel: {@link BlockRendererOverrides}
  * gathering pack-root {@code renderer/*.json} files through the format-2 envelope with per-entry
  * later-wins, and {@link BlockModelLoader} / {@link BlockDefaultsLoader} overlaying them onto the
  * classpath snapshot. Uses {@code minecraft:conduit} (a clean single-block block entity) as the
@@ -104,7 +111,7 @@ class BlockRendererOverridesTest {
     void missingSubObjectIgnored() throws IOException {
         Path pack = writePack("empty", "renderer/block_models.json", envelope("//", null));
         BlockRendererOverrides overrides = BlockRendererOverrides.gather(stack(pack), NONE);
-        assertThat(overrides.models().size() == 0, is(true));
+        assertThat(overrides.models().size(), is(0));
         assertThat(overrides.isEmpty(), is(true));
     }
 
@@ -125,7 +132,7 @@ class BlockRendererOverridesTest {
     @DisplayName("a structurally-broken model override (no geometry) fails with a clear model-id message, not a bare NPE")
     void missingGeometryRejectsClearly() {
         JsonObject entry = new JsonObject();
-        com.google.gson.JsonArray blocks = new com.google.gson.JsonArray();
+        JsonArray blocks = new JsonArray();
         JsonObject block = new JsonObject();
         block.addProperty("block", "minecraft:foo");
         block.addProperty("texture", "minecraft:textures/x.png");
@@ -135,8 +142,7 @@ class BlockRendererOverridesTest {
         models.add("minecraft:foo", entry);
 
         var overrides = new BlockRendererOverrides(JsonTree.wrap(models), JsonTree.object(), JsonTree.object());
-        lib.minecraft.renderer.exception.PipelineException ex = org.junit.jupiter.api.Assertions.assertThrows(
-            lib.minecraft.renderer.exception.PipelineException.class, () -> BlockModelLoader.load(NONE, overrides));
+        PipelineException ex = assertThrows(PipelineException.class, () -> BlockModelLoader.load(NONE, overrides));
         assertThat(ex.getMessage().contains("minecraft:foo"), is(true));
         assertThat(ex.getMessage().toLowerCase().contains("geometry"), is(true));
     }
@@ -148,16 +154,16 @@ class BlockRendererOverridesTest {
         blocks.addProperty("minecraft:conduit", "facing=east"); // flat string, not {property:value}
         var overrides = new BlockRendererOverrides(JsonTree.object(), JsonTree.object(), JsonTree.wrap(blocks));
 
-        java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
-        java.io.PrintStream original = System.err;
-        dev.simplified.collection.ConcurrentMap<String, dev.simplified.collection.ConcurrentMap<String, String>> defaults;
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        PrintStream original = System.err;
+        ConcurrentMap<String, ConcurrentMap<String, String>> defaults;
         try {
-            System.setErr(new java.io.PrintStream(buffer, true, java.nio.charset.StandardCharsets.UTF_8));
+            System.setErr(new PrintStream(buffer, true, StandardCharsets.UTF_8));
             defaults = BlockDefaultsLoader.load(NONE, overrides);
         } finally {
             System.setErr(original);
         }
-        assertThat(buffer.toString(java.nio.charset.StandardCharsets.UTF_8).contains("minecraft:conduit"), is(true));
+        assertThat(buffer.toString(StandardCharsets.UTF_8).contains("minecraft:conduit"), is(true));
         // The classpath default is untouched (the malformed override was ignored, not applied).
         assertThat(BlockStateKey.join(defaults.get("minecraft:conduit")), is(not("facing=east")));
     }
@@ -168,7 +174,13 @@ class BlockRendererOverridesTest {
         return object;
     }
 
-    /** Wraps a sub-object in the internal format-2 envelope; a null sub-object omits the key. */
+    /**
+     * Wraps a sub-object in the internal format-2 envelope; a null sub-object omits the key.
+     *
+     * @param key the envelope member the sub-object is filed under
+     * @param sub the payload, null to omit the member entirely
+     * @return the wrapped envelope
+     */
     private static JsonObject envelope(String key, JsonObject sub) {
         JsonObject root = new JsonObject();
         root.addProperty("format", 2);
@@ -190,9 +202,14 @@ class BlockRendererOverridesTest {
         return root;
     }
 
-    /** Builds a stack led by the vanilla pack; each user pack's id is its directory basename. */
+    /**
+     * Builds a stack led by the vanilla pack; each user pack's id is its directory basename.
+     *
+     * @param userPackRoots the user pack directories, in ascending precedence
+     * @return the assembled stack
+     */
     private PackStack stack(Path... userPackRoots) {
-        java.util.List<ResourcePack> packs = new java.util.ArrayList<>();
+        List<ResourcePack> packs = new ArrayList<>();
         packs.add(pack(PackId.VANILLA, tmp.resolve("vanilla")));
         for (Path root : userPackRoots)
             packs.add(pack(new PackId(root.getFileName().toString()), root));

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.support;
 
+import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.tooling.ToolingFonts;
 import org.jetbrains.annotations.NotNull;
@@ -24,16 +25,14 @@ import java.util.stream.Stream;
  * <p>
  * Needed because the cached JitPack build of {@code com.github.minecraft-library:text} predates
  * the in-source {@code MinecraftFont} runtime bootstrap that would otherwise call
- * {@code ToolingFonts.generate} automatically on a classpath miss. Until JitPack rebuilds, we
- * pre-warm the cache from the test side by invoking {@link ToolingFonts#main} - the only public
+ * {@code ToolingFonts.generate} automatically on a classpath miss. Until JitPack rebuilds, the
+ * cache is pre-warmed from the test side by invoking {@link ToolingFonts#main} - the only public
  * entry point in the cached JAR - which writes the generator's output to
  * {@code cache/fonts/*.otf} at the module root.
  * <p>
  * Host requirements match {@link ToolingFonts}: {@code git} and a Python 3.10+ interpreter on
  * {@code PATH} for the first bootstrap. Subsequent runs reuse the cloned repo and venv under
  * {@code cache/font-generator/}.
- *
- * @see ToolingFonts
  */
 public final class MinecraftFontsExtension implements BeforeAllCallback {
 
@@ -62,7 +61,7 @@ public final class MinecraftFontsExtension implements BeforeAllCallback {
     /**
      * Provisions the OTFs onto the test classpath exactly once per JVM, before the first annotated
      * test class runs. Uses double-checked locking on {@link #bootstrapped} so concurrent test
-     * classes don't re-run the generator. On the first uncached call: if the classpath sentinel is
+     * classes do not re-run the generator. On the first uncached call: if the classpath sentinel is
      * already present nothing is done; otherwise the generator is invoked (unless its
      * {@code cache/fonts} output already exists) and the OTFs are copied onto the classpath.
      *
@@ -95,6 +94,7 @@ public final class MinecraftFontsExtension implements BeforeAllCallback {
      *
      * @param source the directory holding the generator's OTF output
      * @throws IOException if the target directory cannot be created or a source directory listing fails
+     * @throws RendererException if one of the OTFs cannot be copied
      */
     private static void copyOtfsToClasspath(@NotNull Path source) throws IOException {
         Files.createDirectories(CLASSPATH_FONTS_DIR);
@@ -105,7 +105,7 @@ public final class MinecraftFontsExtension implements BeforeAllCallback {
                         Files.copy(otf, CLASSPATH_FONTS_DIR.resolve(otf.getFileName()),
                             StandardCopyOption.REPLACE_EXISTING);
                     } catch (IOException ex) {
-                        throw new RuntimeException("Failed to copy " + otf + " onto test classpath", ex);
+                        throw new RendererException(ex, "Failed to copy '%s' onto the test classpath", otf);
                     }
                 });
         }

@@ -23,8 +23,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Regression coverage for Tasks 7 + 8 - parallel Pass 1 and tiled Pass 2 in {@link
- * ModelEngine}. Covers two correctness invariants:
+ * Regression coverage for parallel Pass 1 and tiled Pass 2 in {@link ModelEngine}. Covers two
+ * correctness invariants:
  * <ol>
  * <li><b>Tiled output matches serial output byte-for-byte.</b> Both the {@code renderSize=256}
  *     (tiled; 512-row buffer after SSAA=2) and {@code renderSize=128} (serial; below the
@@ -115,6 +115,13 @@ class ModelEngineParallelismTest {
         assertDeterministicAndPinned(options, "piston_serial");
     }
 
+    /**
+     * Renders the block twice, asserts the two renders are byte-identical, then holds the first
+     * render's CRC32 against the value pinned under {@code key}.
+     *
+     * @param options the block render to compare and pin
+     * @param key the pin key in {@code pin.block-crc} this render is recorded under
+     */
     private void assertDeterministicAndPinned(BlockOptions options, String key) {
         int[] first = RenderDigest.firstFramePixels(blockRenderer.render(options));
         int[] second = RenderDigest.firstFramePixels(blockRenderer.render(options));

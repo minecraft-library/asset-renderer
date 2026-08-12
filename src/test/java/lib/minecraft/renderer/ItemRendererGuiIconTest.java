@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Equivalence coverage for the {@link ItemOptions.Type#GUI_ICON} faithful-inventory-icon dispatch.
- * Pins that the mode is a pure router with no new rendering of its own:
+ * Asserts that the mode is a pure router with no new rendering of its own:
  * <ul>
  * <li>a flat-sprite item (in the item index) is byte-identical to its {@link ItemOptions.Type#GUI_2D}
  * render;</li>
@@ -106,8 +106,12 @@ class ItemRendererGuiIconTest {
     }
 
     /**
-     * Builds item options for {@code id} in the given render {@code type}, pinned to the small test
+     * Builds item options for {@code id} in the given render {@code type}, fixed to the small test
      * canvas so the slow render stays cheap.
+     *
+     * @param id the item id to render
+     * @param type the render mode to dispatch through
+     * @return the item options
      */
     private static ItemOptions item(String id, ItemOptions.Type type) {
         return ItemOptions.builder()
@@ -120,6 +124,9 @@ class ItemRendererGuiIconTest {
     /**
      * Builds the isometric block options the {@link ItemOptions.Type#GUI_ICON} block branch adapts
      * to: the default iso output frame at the shared test canvas size.
+     *
+     * @param id the block id to render
+     * @return the block options
      */
     private static BlockOptions block(String id) {
         return BlockOptions.builder()

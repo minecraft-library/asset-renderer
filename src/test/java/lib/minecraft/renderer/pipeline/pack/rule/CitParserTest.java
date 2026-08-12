@@ -3,15 +3,18 @@ package lib.minecraft.renderer.pipeline.pack.rule;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.rule.CitRule;
+import lib.minecraft.renderer.asset.pack.rule.CitType;
 import lib.minecraft.renderer.asset.pack.rule.DamageSpec;
 import lib.minecraft.renderer.asset.pack.rule.EnchantmentSpec;
 import lib.minecraft.renderer.asset.pack.rule.Hand;
 import lib.minecraft.renderer.asset.pack.rule.NbtPath;
 import lib.minecraft.renderer.asset.pack.rule.NbtPredicate;
+import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 
@@ -21,9 +24,15 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link CitParser} - the four-form texture path resolution (incl. the filename default),
- * the fail-closed parse polarity, and each parse edge case as a regression. With only vanilla loaded
- * the whole rule layer is inert, so these fixtures are the sole exercise of the CIT grammar.
+ * Coverage of {@link CitParser} - the four-form texture path resolution (including the filename
+ * default), the fail-closed parse polarity, and each parse edge case as a regression. A
+ * concrete-retexture rule naming no items is rejected rather than left silently over-matching, on
+ * every subject that retextures a concrete item; {@code type=enchantment} is exempt, a glint-only
+ * rule legitimately carrying no item filter.
+ *
+ * <p>CIT rules do reach a render - {@code PipelineRendererContext} reads a {@link RuleSet} - but a
+ * vanilla-only stack ships no {@code optifine/cit} tree, so with only vanilla loaded these fixtures
+ * are the sole exercise of the CIT grammar.
  */
 class CitParserTest {
 
@@ -41,7 +50,7 @@ class CitParserTest {
     }
 
     @Test
-    @DisplayName("a bare name resolves under optifine/cit, NOT to minecraft:<name> (defect #7)")
+    @DisplayName("a bare name resolves under optifine/cit, NOT to minecraft:<name>")
     void bareName() {
         assertThat(CitParser.resolveTexturePath("blade", PROPS_DIR, CIT_ROOT, "excalibur").id(),
             equalTo("minecraft:optifine/cit/blade"));
@@ -71,7 +80,7 @@ class CitParserTest {
     }
 
     @Test
-    @DisplayName("a rule with no texture, no model, and items still gets the filename-default layer0 (defect #7)")
+    @DisplayName("a rule with no texture, no model, and items still gets the filename-default layer0")
     void ruleWithoutTextureGetsFilenameDefault() {
         Properties props = props("items", "diamond_sword");
         CitRule rule = parse(props).orElseThrow();
@@ -82,7 +91,7 @@ class CitParserTest {
     // --- parse edge cases -----------------------------------------------------------------
 
     @Test
-    @DisplayName("#5 damage is a value/range list with % and mask, not a single range")
+    @DisplayName("damage is a value/range list with % and mask, not a single range")
     void damageListPercentMask() {
         CitRule rule = parse(props("items", "diamond_sword", "damage", "1,3,5-7", "damageMask", "0xF")).orElseThrow();
         DamageSpec damage = rule.damage().orElseThrow();
@@ -97,24 +106,24 @@ class CitParserTest {
     }
 
     @Test
-    @DisplayName("#2/#3 enchantments read the modern list and enchantmentLevels is a plain range list")
+    @DisplayName("enchantments read the modern list and enchantmentLevels is a plain range list")
     void enchantmentModernAndLevels() {
         CitRule rule = parse(props("items", "diamond_sword", "enchantments", "sharpness looting", "enchantmentLevels", "3-5")).orElseThrow();
         EnchantmentSpec ench = rule.enchantments().orElseThrow();
-        assertThat(ench.ids().stream().map(ResourceId::id).toList(), equalTo(java.util.List.of("minecraft:sharpness", "minecraft:looting")));
+        assertThat(ench.ids().stream().map(ResourceId::id).toList(), equalTo(List.of("minecraft:sharpness", "minecraft:looting")));
         assertThat(ench.levels().orElseThrow().contains(4), is(true));
         assertThat(ench.levels().orElseThrow().contains(2), is(false));
     }
 
     @Test
-    @DisplayName("#3 legacy enchantmentIDs is read as an alias for enchantments")
+    @DisplayName("legacy enchantmentIDs is read as an alias for enchantments")
     void enchantmentLegacyAlias() {
         CitRule rule = parse(props("items", "diamond_sword", "enchantmentIDs", "unbreaking")).orElseThrow();
         assertThat(rule.enchantments().orElseThrow().ids().getFirst().id(), equalTo("minecraft:unbreaking"));
     }
 
     @Test
-    @DisplayName("#9 nbt prefixes parse to first-class predicates, and ! negates")
+    @DisplayName("nbt prefixes parse to first-class predicates, and ! negates")
     void nbtPredicatePrefixes() {
         CitRule range = parse(props("items", "diamond_sword", "nbt.foo", "range:1-5")).orElseThrow();
         assertThat(range.nbtRules().getFirst().predicate(), instanceOf(NbtPredicate.Range.class));
@@ -130,7 +139,7 @@ class CitParserTest {
     }
 
     @Test
-    @DisplayName("#9 a bracketed-negative range predicate parses without dropping the rule")
+    @DisplayName("a bracketed-negative range predicate parses without dropping the rule")
     void bracketedNegativeRangeKeepsRule() {
         CitRule rule = parse(props("items", "diamond_sword", "nbt.foo", "range:(-10)-10")).orElseThrow();
         assertThat(rule.nbtRules().getFirst().predicate(), instanceOf(NbtPredicate.Range.class));
@@ -186,6 +195,43 @@ class CitParserTest {
     @DisplayName("an item rule matching no items is rejected")
     void noItemsRejected() {
         assertThat(parse(props("texture", "blade")).isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("type=armor naming no items is rejected")
+    void armorWithoutItemsRejected() {
+        assertThat(parse(props("type", "armor", "texture", "custom_iron")).isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("a valid type=armor rule parses and keeps its ARMOR subject")
+    void armorWithItemsParses() {
+        CitRule rule = parse(props("type", "armor", "items", "iron_chestplate", "texture", "custom_iron")).orElseThrow();
+        assertThat(rule.type(), equalTo(CitType.ARMOR));
+        assertThat(rule.items().getFirst().id(), equalTo("minecraft:iron_chestplate"));
+        assertThat(rule.output().texture().isPresent(), is(true));
+    }
+
+    @Test
+    @DisplayName("type=elytra naming no items is rejected too")
+    void elytraWithoutItemsRejected() {
+        assertThat(parse(props("type", "elytra", "texture", "custom_wings")).isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("a valid type=elytra rule parses and keeps its ELYTRA subject")
+    void elytraWithItemsParses() {
+        CitRule rule = parse(props("type", "elytra", "items", "elytra", "texture", "custom_wings")).orElseThrow();
+        assertThat(rule.type(), equalTo(CitType.ELYTRA));
+        assertThat(rule.items().getFirst().id(), equalTo("minecraft:elytra"));
+    }
+
+    @Test
+    @DisplayName("type=enchantment stays exempt: a glint-only rule with no items still parses")
+    void enchantmentWithoutItemsStillParses() {
+        CitRule rule = parse(props("type", "enchantment", "enchantments", "sharpness", "texture", "custom_glint")).orElseThrow();
+        assertThat(rule.type(), equalTo(CitType.ENCHANTMENT));
+        assertThat(rule.items().isEmpty(), is(true));
     }
 
     // --- potion synthesis ----------------------------------------------------------------

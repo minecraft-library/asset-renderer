@@ -18,19 +18,21 @@ import java.util.function.Predicate;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Regression coverage for parallel {@link AtlasRenderer} dispatch. Asserts that the parallel
- * implementation preserves tile encounter order (required by the sidecar JSON and the grid
- * layout) and produces identical output across runs. Order-preservation is the critical
- * invariant - a parallelStream().forEach implementation would shuffle tiles.
+ * implementation preserves tile encounter order, which the sidecar JSON and the grid layout both
+ * require, and that every filtered id owns exactly one tile. Order-preservation is the critical
+ * invariant - a parallelStream().forEach implementation would shuffle tiles. No pixel or digest is
+ * compared: the composed atlas PNG does not reproduce byte-for-byte by design, so there is nothing
+ * for a digest to hold it to.
  * <p>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
  * {@code ./gradlew slowTest}.
  */
 @Tag("slow")
-@DisplayName("AtlasRenderer parallel dispatch order + determinism")
+@DisplayName("AtlasRenderer parallel dispatch order")
 class AtlasRendererParallelismTest {
 
     private static final File CACHE_ROOT = new File("cache/it");
@@ -50,15 +52,13 @@ class AtlasRendererParallelismTest {
     @Test
     @DisplayName("tile list preserves encounter order across parallel dispatch runs")
     void atlasTileOrderIsStable() {
-        // Small filter keeps the test under ~5s on cache hit. The filter covers two blocks and
-        // two items that render via different dispatch paths (BlockRenderer, FluidRenderer,
-        // ItemRenderer) so any ordering bug affects multiple source tags.
-        Predicate<String> filter = id ->
-            id.equals("minecraft:stone")
-                || id.equals("minecraft:oak_planks")
-                || id.equals("minecraft:water")
-                || id.equals("minecraft:diamond_sword")
-                || id.equals("minecraft:golden_apple");
+        // Small filter keeps the test under ~5s on cache hit. The ids render via different dispatch
+        // paths (BlockRenderer, FluidRenderer, ItemRenderer) so any ordering bug affects multiple
+        // source tags. Each owns exactly one tile: the block pass skips an id whose faithful icon is a
+        // flat item sprite and the item pass renders that one instead, so no id lands twice.
+        List<String> filtered = List.of("minecraft:stone", "minecraft:oak_planks", "minecraft:water",
+            "minecraft:diamond_sword", "minecraft:golden_apple");
+        Predicate<String> filter = filtered::contains;
         AtlasOptions options = AtlasOptions.builder()
             .filter(Optional.of(filter))
             .tileSize(64)
@@ -73,8 +73,8 @@ class AtlasRendererParallelismTest {
 
         assertThat("parallel atlas dispatch must be order-stable",
             secondIds, equalTo(firstIds));
-        assertThat("filter must match at least one block and one item",
-            firstIds.size(), greaterThan(2));
+        assertThat("every filtered id must produce exactly one tile",
+            firstIds.size(), is(filtered.size()));
     }
 
 }

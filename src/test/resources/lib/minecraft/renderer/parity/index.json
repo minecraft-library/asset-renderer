@@ -332,14 +332,14 @@
     "roster.appearance-axes": {
       "cross_repo": true,
       "re_derive": "AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset",
-      "test_class": "lib.minecraft.renderer.visual.AppearanceKey"
+      "test_class": "lib.minecraft.renderer.parity.AppearanceKey"
     },
     "roster.armor-subjects": {
       "anchor": [
         "SUBJECTS = List.of("
       ],
       "cross_repo": true,
-      "lines": "129-136",
+      "lines": "131-138",
       "re_derive": "must match the harness ArmorSweep roster byte for byte or the sweep finds no reference",
       "test_class": "lib.minecraft.renderer.visual.TestArmorParityVanilla"
     },
@@ -364,7 +364,7 @@
         "LEATHER_ARMOR_ITEMS = List.of("
       ],
       "cross_repo": true,
-      "lines": "107-115, 125-130",
+      "lines": "109-117, 127-132",
       "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
       "test_class": "lib.minecraft.renderer.visual.TestGlintParityVanilla"
     },
@@ -401,7 +401,7 @@
         "List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL)"
       ],
       "cross_repo": false,
-      "lines": "102",
+      "lines": "104",
       "re_derive": "the scopes the harness PlayerSweep renders",
       "test_class": "lib.minecraft.renderer.visual.TestPlayerParityVanilla"
     },

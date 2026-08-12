@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.pack.item;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.JsonTree;
@@ -31,10 +32,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Exercises the legacy {@code overrides} tolerate-and-map: the mechanical 1.21.4
- * translation of pre-format-46 {@code models/item} {@code overrides} onto the items-tree node
- * vocabulary, the {@link LegacyOverrideMapper#isLegacyPack} format gate, threshold-order preservation,
- * and the unmapped-predicate skip-with-diagnostic contract.
+ * Coverage of the legacy {@code overrides} tolerate-and-map: the mechanical 1.21.4 translation of
+ * pre-format-46 {@code models/item} {@code overrides} onto the items-tree node vocabulary, the
+ * {@link LegacyOverrideMapper#isLegacyPack} format gate, threshold-order preservation, and the
+ * unmapped-predicate skip-with-diagnostic contract.
  */
 @DisplayName("LegacyOverrideMapper 1.21.4 predicate translation")
 class LegacyOverrideMapperTest {
@@ -184,7 +185,7 @@ class LegacyOverrideMapperTest {
 
     private static JsonTree overrides(String... entries) {
         JsonArray array = new JsonArray();
-        for (String entry : entries) array.add(GSON.fromJson(entry, com.google.gson.JsonObject.class));
+        for (String entry : entries) array.add(GSON.fromJson(entry, JsonObject.class));
         return JsonTree.wrap(array);
     }
 

@@ -6,25 +6,25 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
- * Verifies the {@link EntityModelData} schema - the entity-model DTO produced by the
- * bytecode-walk tooling and read back through Gson.
+ * Coverage of the {@link EntityModelData} schema - the entity-model DTO the bytecode-walk tooling
+ * produces and Gson reads back.
  * <p>
  * Focused on the texture-atlas dimensions and value semantics: the no-arg constructor defaults to a
  * {@code 64 x 64} atlas with no bones, Gson populates the {@code texture_size} array through the
- * {@link TextureSize} adapter, a deserialise &rarr; serialise &rarr; deserialise roundtrip is stable
- * under {@code equals}/{@code hashCode}, and equality discriminates on texture dimensions. Uses the
- * shared {@link GsonSettings#defaults()} configuration so the test exercises the same adapter set
- * as the runtime loader.
+ * {@link TextureSize} adapter, a deserialise, serialise and deserialise roundtrip is stable under
+ * {@code equals} and {@code hashCode}, and equality discriminates on texture dimensions. Built from the
+ * shared {@link GsonSettings#defaults()} configuration so the test exercises the same adapter set as the
+ * runtime loader.
  */
+@DisplayName("EntityModelData schema")
 class EntityModelDataTest {
 
-    /**
-     * Shared serializer built from the runtime {@link GsonSettings#defaults()} so the schema is
-     * exercised under the same adapters the production loader uses.
-     */
+    /** Serializer over the runtime adapter set */
     private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test

@@ -15,27 +15,29 @@ import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Smoke tests for the tooling {@link GeometryParser}: a plain factory (wolf) and a gnarly
- * one (ghast - MeshTransformer 4.5, seeded RandomSource tentacles, string-concat bone names)
- * must value-match the checked-in {@code entity_geometry.json} entries with floats EXACT -
+ * Exact-float value parity for the tooling {@link GeometryParser}: a plain factory (wolf) and a
+ * gnarly one (ghast - MeshTransformer 4.5, seeded RandomSource tentacles, string-concat bone
+ * names) must value-match the checked-in {@code entity_geometry.json} entries with floats EXACT -
  * any ULP delta is a different computation path, a finding, never noise (the match-vanilla
  * rule). A live parse must still reproduce the committed bytes exactly (a regen-drift guard).
- * Plus the manifest dedupe / key-identity contract.
+ *
+ * <p>Tagged {@code slow}: the parse runs against the real client jar, which is downloaded and
+ * ASM-opened here.
  */
-@DisplayName("tooling GeometryParser smoke: exact-float value parity vs checked-in entries")
+@Tag("slow")
+@DisplayName("tooling GeometryParser exact-float value parity vs checked-in entries")
 class GeometryParserTest {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
@@ -80,37 +82,6 @@ class GeometryParserTest {
         assertParsesExactly(request, "GhastModel#createBodyLayer");
     }
 
-    @Test
-    @DisplayName("manifest: dedupe identity IS the key; discriminators split parses; collisions fail loud")
-    void manifestDedupeAndKeys() {
-        GeometryManifest manifest = new GeometryManifest();
-        GeometryRequest plain = GeometryRequest.body("a/b/WolfModel", "createBodyLayer", "minecraft:wolf", null, null, null, 1f);
-        String key = manifest.register(plain);
-        assertEquals("WolfModel#createBodyLayer", key);
-        assertEquals(key, manifest.register(GeometryRequest.body("a/b/WolfModel", "createBodyLayer", "minecraft:sheep", null, null, null, 1f)),
-            "same coordinate dedupes; first subject retained");
-        assertEquals(1, manifest.size());
-        assertEquals("minecraft:wolf", manifest.entries().get(key).subjectId(), "first-request provenance");
-
-        String grown = manifest.register(GeometryRequest.overlay("a/b/WolfModel", "createBodyLayer", "minecraft:wolf", null, null, new float[]{0.25f, 0.25f, 0.25f}));
-        assertEquals("WolfModel#createBodyLayer@grow=0.25", grown);
-        String asymmetric = manifest.register(GeometryRequest.overlay("a/b/WolfModel", "createBodyLayer", "minecraft:wolf", null, null, new float[]{0.5f, 0.25f, 0.25f}));
-        assertEquals("WolfModel#createBodyLayer@grow=0.5,0.25,0.25", asymmetric);
-        String scaled = manifest.register(GeometryRequest.body("a/b/WolfModel", "createBodyLayer", "minecraft:wolf", null, null, null, 4.5f));
-        assertEquals("WolfModel#createBodyLayer@scaled=4.5", scaled);
-        String fparam = manifest.register(GeometryRequest.body("a/b/WolfModel", "createBodyLayer", "minecraft:wolf", null, null, 0.87f, 1f));
-        assertEquals("WolfModel#createBodyLayer@fparam=0.87", fparam);
-        String bound = manifest.register(GeometryRequest.equipment("a/b/WolfModel", "createBodyLayer", "(ZF)V", "minecraft:wolf", null, null, null, GeometryRequest.NO_GROW, 1f));
-        assertEquals("WolfModel#createBodyLayer@iparam=0:0", bound);
-        assertNotEquals(key, grown);
-        assertEquals(6, manifest.size());
-
-        // simple-name collision across packages fails loud, never merges meshes
-        org.junit.jupiter.api.Assertions.assertThrows(
-            lib.minecraft.renderer.tooling.kernel.ToolingException.class,
-            () -> manifest.register(GeometryRequest.body("other/pkg/WolfModel", "createBodyLayer", "minecraft:x", null, null, null, 1f)));
-    }
-
     // ------------------------------------------------------------------------------------
 
     private static void assertParsesExactly(@NotNull GeometryRequest request, @NotNull String key) {
@@ -152,7 +123,7 @@ class GeometryParserTest {
                 assertEquals(growMean(expectedCube), growMean(actualCube), at + ".grow vs reference grow");
                 assertEquals(expectedCube.has("mirror") && expectedCube.get("mirror").getAsBoolean(),
                     actualCube.has("mirror") && actualCube.get("mirror").getAsBoolean(), at + ".mirror");
-                assertTrue(!actualCube.has("face_uv"), at + ": face_uv deleted from the emitted geometry [X1]");
+                assertFalse(actualCube.has("face_uv"), at + ": the emitted geometry carries no face_uv");
             }
         }
     }
@@ -181,26 +152,6 @@ class GeometryParserTest {
 
     private static @Nullable String optString(@NotNull JsonObject node, @NotNull String key) {
         return node.has(key) ? node.get(key).getAsString() : null;
-    }
-
-    @Test
-    @DisplayName("mechanical gate: zero java.util.zip imports outside ClassNodeCache")
-    void zipImportGate() throws Exception {
-        java.nio.file.Path root = java.nio.file.Path.of("src/main/java/lib/minecraft/renderer/tooling");
-        try (var sources = java.nio.file.Files.walk(root)) {
-            var offenders = sources.filter(path -> path.toString().endsWith(".java"))
-                .filter(path -> !path.getFileName().toString().equals("ClassNodeCache.java"))
-                .filter(path -> {
-                    try {
-                        return java.nio.file.Files.readString(path).contains("import java.util.zip");
-                    } catch (java.io.IOException ex) {
-                        return true;
-                    }
-                })
-                .map(java.nio.file.Path::toString)
-                .toList();
-            assertEquals(java.util.List.of(), offenders, "java.util.zip is ILLEGAL outside ClassNodeCache");
-        }
     }
 
 }

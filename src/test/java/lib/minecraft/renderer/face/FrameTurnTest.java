@@ -12,21 +12,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins {@link Turn} against the frame relations the renderer performs, and against the values the
- * three separate spellings of the half turn about X each carried before there was one symbol for it.
+ * {@link Turn} against the frame relations the renderer performs, and against the point turn each of
+ * them is the face-level shadow of.
  * <p>
  * A shell's unwrap is authored in vanilla's Y-down model frame while the boxes built from it are
  * upright, so a site that builds geometry with one enum's corner order and textures it with the
- * other's unwrap has to name that turn. Three did, in three syntaxes, in two packages, with no shared
- * symbol: a six-entry map in the armour kit, a {@code switch} in the shield kit, and the armour kit's
- * own {@code (x, -y, -z)} point turn. The six pairings below are those tables' contents transcribed,
- * so this test still fails if the one surviving definition drifts from what all three agreed on.
+ * other's unwrap has to name that turn. The two halves of the enum cannot drift apart: on all eight
+ * turns and all six faces, turning a face and reading its normal agrees with turning that face's
+ * normal directly, so the face map is pinned by the arithmetic rather than by a table beside it.
  * <p>
- * The group properties are checked as well, because they are what let one symbol replace six tables:
- * closure under {@link Turn#then}, so a mirrored shell cube can read {@code HALF_X.then(MIRROR_X)}
- * rather than needing a relation minted for the combination; the identity and inverse laws; and that
- * {@link Turn#reflects} agrees with the determinant. <b>Reflections are not excluded</b> - four of the
- * relations in use are reflections, so a rotation-only set would express none of them.
+ * The group properties are checked as well, because they are what let one symbol serve every
+ * combination: closure under {@link Turn#then}, so a mirrored shell cube can read
+ * {@code HALF_X.then(MIRROR_X)} rather than needing a relation minted for the combination; the
+ * identity and inverse laws; and that {@link Turn#reflects} agrees with the determinant.
+ * <b>Reflections are not excluded</b> - four of the relations in use are reflections, so a
+ * rotation-only set would express none of them.
  * <p>
  * An opposite is one bit of the ordinal, so {@link Face} declaring its constants in opposing pairs is
  * load-bearing and is asserted here rather than assumed.
@@ -52,8 +52,8 @@ class FrameTurnTest {
     }
 
     @Test
-    @DisplayName("HALF_X crosses to the model frame exactly as the three deleted tables did")
-    void halfTurnCrossesFramesAsTheTablesDid() {
+    @DisplayName("HALF_X maps the model frame onto the upright frame")
+    void halfTurnCrossesToTheModelFrame() {
         assertThat(Turn.HALF_X.apply(Face.DOWN), is(Face.UP));
         assertThat(Turn.HALF_X.apply(Face.UP), is(Face.DOWN));
         assertThat(Turn.HALF_X.apply(Face.NORTH), is(Face.SOUTH));

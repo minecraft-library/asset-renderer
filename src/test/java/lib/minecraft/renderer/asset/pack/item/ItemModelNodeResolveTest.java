@@ -147,7 +147,7 @@ class ItemModelNodeResolveTest {
     }
 
     @Nested
-    @DisplayName("component-driven dispatch (rung 3)")
+    @DisplayName("component-driven dispatch")
     class ComponentDispatch {
 
         @Test

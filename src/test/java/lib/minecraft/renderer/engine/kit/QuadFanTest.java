@@ -22,8 +22,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Pins the fan diagonal every quad this renderer emits is split on, and the UV slot each vertex is
- * paired with.
+ * Coverage of the fan diagonal every quad this renderer emits is split on, and of the UV slot each
+ * vertex is paired with.
  * <p>
  * A quad becomes two triangles {@code (0, 1, 2)} and {@code (0, 2, 3)}, so the pair meets along the
  * corner-0 / corner-2 diagonal. Two coplanar quads split on opposite diagonals fight along the seam
