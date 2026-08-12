@@ -339,6 +339,9 @@ public final class VanillaSourceClasses {
         /** {@code Byte.valueOf} - the box a synched flags default is registered through. */
         public static final @NotNull String VALUE_OF = "valueOf";
 
+        /** {@code RandomSource.nextInt(I)} - the bounded integer draw. */
+        public static final @NotNull String NEXT_INT = "nextInt";
+
         /** {@code Identifier.withDefaultNamespace(String)} - the texture-path wrapping factory. */
         public static final @NotNull String WITH_DEFAULT_NAMESPACE = "withDefaultNamespace";
 

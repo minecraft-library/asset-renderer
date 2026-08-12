@@ -1578,7 +1578,7 @@ public final class GeometryParser {
         if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKEINTERFACE
             && methodInsn.owner.equals(VanillaSourceClasses.Types.RANDOM_SOURCE)
-            && methodInsn.name.equals("nextInt")
+            && methodInsn.name.equals(VanillaSourceClasses.Methods.NEXT_INT)
             && methodInsn.desc.equals("(I)I")
             && !state.numStack.isEmpty()) {
             Number bound = state.numStack.popLiteral();

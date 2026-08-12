@@ -3,11 +3,25 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
+import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
+import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.CommitWalk;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -32,13 +46,18 @@ import java.util.Map;
  *       squish 0). These have no per-size mesh - vanilla scales the one model at render.</li>
  * </ul>
  *
- * <p>Membership is declared per entity (pufferfish / salmon carry a body-mesh axis; slime / magma_cube
- * a natural-size set); the concrete meshes / factors are derived. Option names come from the candidate
- * field's suffix matched against the size domain ({@code PUFFERFISH_MEDIUM} to {@code medium}); default =
- * the option-less domain member; option members emit in domain order.
+ * <p>Body-mesh membership is declared per entity (pufferfish / salmon); natural-size membership is
+ * the subject deriving from the class the natural-size coordinate names, and the concrete meshes /
+ * factors are derived either way. Option names come from the candidate field's suffix matched
+ * against the size domain ({@code PUFFERFISH_MEDIUM} to {@code medium}); default = the option-less
+ * domain member; option members emit in domain order.
  */
 final class EntitySizeAxisResolver {
 
+    /** The caller label a stale natural-size coordinate is reported under. */
+    private static final @NotNull String NATURAL_SIZES = "the natural-size set";
+
+    private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
     private final @NotNull LayerDefinitionIndex layerDefinitions;
     private final @NotNull EntityGeometryRefResolver geometryRef;
@@ -46,6 +65,7 @@ final class EntitySizeAxisResolver {
     private final @NotNull Diagnostics diagnostics;
 
     EntitySizeAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
+        this.cache = context.cache();
         this.subject = context.subject();
         this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
@@ -60,10 +80,44 @@ final class EntitySizeAxisResolver {
      * @return the node, or {@code null} to omit
      */
     @Nullable JsonTree resolve() {
-        List<Integer> naturalSizes = EntityAxisPolicies.naturalSizesFor(this.subject.entityId());
+        List<Integer> naturalSizes = naturalSizes();
         if (naturalSizes != null) return naturalSizeForm(naturalSizes);
         if (!"size".equals(EntityAxisPolicies.shapeSizeAxisFor(this.subject.entityId()))) return null;
         return meshForm();
+    }
+
+    /**
+     * The natural sizes the subject spawns at, or {@code null} when it neither is nor derives from
+     * the class the coordinate names. The spawn finaliser draws one value below a literal bound and
+     * shifts a literal base left by it, so the set is that base shifted by each value the bound
+     * admits.
+     *
+     * @return the ordered natural sizes, or {@code null} when the subject carries none
+     * @throws ToolingException if the coordinate carries no bounded draw and no shift
+     */
+    private @Nullable List<Integer> naturalSizes() {
+        Navigation.At coordinate = EntityAxisPolicies.naturalSizeCoordinate();
+        if (!ClassKit.extendsClass(this.cache, this.subject.entityClass(), coordinate.owner())) return null;
+        ClassNode owner = ClassKit.requireClass(this.cache, coordinate.owner(), NATURAL_SIZES);
+        MethodNode spawn = ClassKit.requireMethod(owner, coordinate.member(), NATURAL_SIZES);
+        Integer draws = AsmWalker.over(spawn).real()
+            .latch(AsmWalker::intLiteral)
+            .commitAt(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKEINTERFACE
+                && VanillaSourceClasses.Types.RANDOM_SOURCE.equals(call.owner)
+                && VanillaSourceClasses.Methods.NEXT_INT.equals(call.name)))
+            .firstNotNull(CommitWalk.Commit::value);
+        AbstractInsnNode shift = AsmWalker.over(spawn).real().first(Insn.opcode(Opcodes.ISHL));
+        Integer base = shift == null
+            ? null
+            : AsmWalker.intLiteral(AsmWalker.previousReal(AsmWalker.previousReal(shift)));
+        if (draws == null || draws < 1 || base == null)
+            throw new ToolingException(
+                "Method '%s.%s' carries no bounded draw shifted into a size for %s - the jar is either obfuscated or from an unsupported version",
+                owner.name, spawn.name, NATURAL_SIZES
+            );
+        List<Integer> sizes = new ArrayList<>(draws);
+        for (int draw = 0; draw < draws; draw++) sizes.add(base << draw);
+        return sizes;
     }
 
     /**

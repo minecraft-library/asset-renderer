@@ -16,14 +16,14 @@ import java.util.Map;
 enum EntityAxisPolicies implements NavigationPolicy {
 
     /**
-     * The slime / magma_cube natural-size set {1, 2, 4} plus the size-axis membership of the
-     * two entities. The set comes from server-side spawn logic ({@code 1 << rand(3)}) that
-     * the client jar this pipeline reads cannot see, so it is declared here rather than
-     * derived.
+     * The coordinate of the natural-size set. The spawn finaliser draws one value below a literal
+     * bound and shifts a literal base left by it, so the set is that base shifted by each value the
+     * bound admits; the entities carrying it are the coordinate's owner and everything deriving from
+     * it, which inherits the same finaliser.
      */
     NATURAL_SIZE_SET(
-        Map.of("minecraft:slime", List.of(1, 2, 4), "minecraft:magma_cube", List.of(1, 2, 4)),
-        "natural sizes 1<<rand(3) live in server world-entity code, not the client jar; scale-per-size is"
+        new Navigation.At("net/minecraft/world/entity/monster/Slime", "finalizeSpawn", null),
+        "the sizes are the bounded draw and the shift the spawn finaliser applies to it; scale-per-size is"
             + " proportional per SlimeRenderer.scale at squish 0"),
 
     /**
@@ -87,6 +87,7 @@ enum EntityAxisPolicies implements NavigationPolicy {
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {
+        if (this.value instanceof Navigation coordinate) return coordinate;
         return new Navigation.Value<>(this.value, this.provenance);
     }
 
@@ -100,15 +101,11 @@ enum EntityAxisPolicies implements NavigationPolicy {
     }
 
     /**
-     * The natural-size set for an entity ({@link #NATURAL_SIZE_SET}), or {@code null} when
-     * the entity is not a declared member.
-     *
-     * @param entityId the namespaced entity id
-     * @return the ordered natural sizes, or {@code null}
+     * The coordinate the natural-size set and its membership are recovered at
+     * ({@link #NATURAL_SIZE_SET}).
      */
-    @SuppressWarnings("unchecked")
-    static @Nullable List<Integer> naturalSizesFor(@NotNull String entityId) {
-        return ((Map<String, List<Integer>>) NATURAL_SIZE_SET.value).get(entityId);
+    static Navigation.@NotNull At naturalSizeCoordinate() {
+        return (Navigation.At) NATURAL_SIZE_SET.value;
     }
 
     /**
