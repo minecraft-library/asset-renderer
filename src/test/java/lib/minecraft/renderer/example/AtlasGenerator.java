@@ -13,7 +13,6 @@ import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -120,7 +119,7 @@ public final class AtlasGenerator {
      *     {@code build/atlas}, plus any of {@code --diagnose}, {@code --source-filter=<source>} and
      *     {@code --skip-render}
      * @throws IOException if the atlas image, sidecar or diagnostic outputs cannot be read or written
-     * @throws ToolingException if the sidecar is unparseable, does not read back as it was written,
+     * @throws AtlasException if the sidecar is unparseable, does not read back as it was written,
      *     is missing entirely, or the source filter is not a simple directory name
      */
     public static void main(String @NotNull [] args) throws IOException {
@@ -189,7 +188,7 @@ public final class AtlasGenerator {
      * @param outputDir the directory the atlas image and its sidecar are written to
      * @throws IOException if the atlas image cannot be written or the sidecar cannot be read back
      * @throws JsonException if the sidecar cannot be written
-     * @throws ToolingException if the sidecar does not read back as the value it was written from
+     * @throws AtlasException if the sidecar does not read back as the value it was written from
      */
     private static void renderAtlas(@NotNull Path outputDir) throws IOException {
         Files.createDirectories(outputDir);
@@ -224,9 +223,9 @@ public final class AtlasGenerator {
         // and can hold a token no reader resolves to a constant.
         AtlasSidecar written = readSidecar(jsonFile);
         if (written.count() != written.tiles().size())
-            throw new ToolingException("Atlas sidecar '%s' declares %d tiles and carries %d", jsonFile.toAbsolutePath(), written.count(), written.tiles().size());
+            throw new AtlasException("Atlas sidecar '%s' declares %d tiles and carries %d", jsonFile.toAbsolutePath(), written.count(), written.tiles().size());
         if (!written.equals(sidecar))
-            throw new ToolingException("Atlas sidecar '%s' does not read back as the %d tiles it was written from", jsonFile.toAbsolutePath(), sidecar.tiles().size());
+            throw new AtlasException("Atlas sidecar '%s' does not read back as the %d tiles it was written from", jsonFile.toAbsolutePath(), sidecar.tiles().size());
         log("wrote atlas: %d tiles -> %s (%dx%d px)",
             sidecar.tiles().size(), outputFile.getAbsolutePath(), atlas.image().getWidth(), atlas.image().getHeight());
         log("wrote sidecar: %s", jsonFile.toAbsolutePath());
@@ -244,7 +243,7 @@ public final class AtlasGenerator {
      * @param root the directory holding {@code atlas.png} and {@code atlas.json}
      * @return the decoded atlas and its sidecar, or empty when the tree holds an animated atlas only
      * @throws IOException if the atlas PNG or its sidecar cannot be read
-     * @throws ToolingException if either file is missing, the sidecar is unparseable or names a kind
+     * @throws AtlasException if either file is missing, the sidecar is unparseable or names a kind
      *     or source no constant answers to, or the PNG cannot be decoded
      */
     private static @NotNull Optional<LoadedAtlas> loadAtlas(@NotNull Path root) throws IOException {
@@ -255,15 +254,15 @@ public final class AtlasGenerator {
                 logError("animated atlas (atlas.webp) - slice diagnostics need the raster atlas.png, and no webp decoder is wired");
                 return Optional.empty();
             }
-            throw new ToolingException("Missing atlas image '%s'", atlasPng.toAbsolutePath());
+            throw new AtlasException("Missing atlas image '%s'", atlasPng.toAbsolutePath());
         }
         if (!Files.isRegularFile(atlasJson))
-            throw new ToolingException("Missing atlas sidecar '%s'", atlasJson.toAbsolutePath());
+            throw new AtlasException("Missing atlas sidecar '%s'", atlasJson.toAbsolutePath());
 
         AtlasSidecar sidecar = readSidecar(atlasJson);
         BufferedImage atlas = ImageIO.read(atlasPng.toFile());
         if (atlas == null)
-            throw new ToolingException("Could not decode atlas PNG '%s'", atlasPng.toAbsolutePath());
+            throw new AtlasException("Could not decode atlas PNG '%s'", atlasPng.toAbsolutePath());
         return Optional.of(new LoadedAtlas(atlas, sidecar));
     }
 
@@ -272,13 +271,13 @@ public final class AtlasGenerator {
      *
      * <p>Both failure modes are the file's, not the caller's: bytes that are not JSON, and a row
      * whose kind or source token {@link AtlasSidecar} resolves against no constant. Each arrives as
-     * the same {@link ToolingException} naming the path, so a hand-edited or foreign sidecar reports
+     * the same {@link AtlasException} naming the path, so a hand-edited or foreign sidecar reports
      * which file the run choked on.
      *
      * @param file the sidecar to read
      * @return the typed sidecar
      * @throws IOException if the file cannot be read
-     * @throws ToolingException if the bytes are not JSON, or a row names a kind or source no
+     * @throws AtlasException if the bytes are not JSON, or a row names a kind or source no
      *     constant answers to
      */
     private static @NotNull AtlasSidecar readSidecar(@NotNull Path file) throws IOException {
@@ -286,7 +285,7 @@ public final class AtlasGenerator {
         try {
             return AtlasSidecar.parse(JsonTree.parse(bytes));
         } catch (JsonException | IllegalArgumentException ex) {
-            throw new ToolingException(ex, "Failed to parse atlas sidecar '%s'", file.toAbsolutePath());
+            throw new AtlasException(ex, "Failed to parse atlas sidecar '%s'", file.toAbsolutePath());
         }
     }
 
@@ -496,16 +495,16 @@ public final class AtlasGenerator {
      * @param base the directory the name must resolve inside
      * @param name the untrusted directory name
      * @return the contained directory
-     * @throws ToolingException if the name is empty, carries a separator, a parent reference or an
+     * @throws AtlasException if the name is empty, carries a separator, a parent reference or an
      *     absolute path, or resolves to the base itself or outside it
      */
     private static @NotNull Path resolveContained(@NotNull Path base, @NotNull String name) {
         if (name.isEmpty() || name.contains("/") || name.contains("\\") || name.contains("..") || Path.of(name).isAbsolute())
-            throw new ToolingException("--source-filter '%s' must be a simple directory name (no separators, parent refs, or absolute paths)", name);
+            throw new AtlasException("--source-filter '%s' must be a simple directory name (no separators, parent refs, or absolute paths)", name);
         Path normalizedBase = base.toAbsolutePath().normalize();
         Path resolved = normalizedBase.resolve(name).normalize();
         if (!resolved.startsWith(normalizedBase) || resolved.equals(normalizedBase))
-            throw new ToolingException("--source-filter '%s' resolves outside the base directory", name);
+            throw new AtlasException("--source-filter '%s' resolves outside the base directory", name);
         return resolved;
     }
 

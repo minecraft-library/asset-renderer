@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("policy purity: *Policies sources never import the fetch surface, zip stays in the jar reader")
 class PolicyPurityTest {
 
-    private static final @NotNull Path TOOLING_MAIN = Path.of("src/main/java/lib/minecraft/renderer/tooling");
+    private static final @NotNull Path TOOLING_MAIN = Path.of("tooling/src/main/java/lib/minecraft/renderer/tooling");
 
     /** Filename suffix selecting the flow-local policy enums. */
     private static final @NotNull String POLICY_SOURCE = "Policies.java";

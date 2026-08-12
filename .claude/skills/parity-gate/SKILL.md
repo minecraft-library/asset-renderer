@@ -1,6 +1,6 @@
 ---
 name: parity-gate
-description: Gate a change against the parity store immediately before a commit. Auto-invoked when the next act is a commit ("commit this", "land this", "ready to commit", "gate this", "run the gate", "is this byte-neutral", "did anything move", "re-baseline", "promote the baseline") AND the working tree touches src/main/java/lib/minecraft/renderer/**, src/test/java/lib/minecraft/renderer/**, src/main/resources/lib/minecraft/renderer/*.json, src/main/resources/META-INF/services/**, build.gradle.kts, scripts/parity/manifest.py or harness/**. Resolves which artifacts in the parity store can SEE the change and which are structurally BLIND, runs the cheapest sufficient bundle via parityPlan / parityCapture / parityCompare, and reports moved rows against the last known baseline. Do NOT invoke mid-edit, mid-diagnosis, for a scoped single-subject sweep (-PentityId / -PblockId / -PitemId), for a reference re-render, or for a docs-only / notes-only / CLAUDE.md-only commit.
+description: Gate a change against the parity store immediately before a commit. Auto-invoked when the next act is a commit ("commit this", "land this", "ready to commit", "gate this", "run the gate", "is this byte-neutral", "did anything move", "re-baseline", "promote the baseline") AND the working tree touches src/main/java/lib/minecraft/renderer/**, src/test/java/lib/minecraft/renderer/**, tooling/**, src/main/resources/lib/minecraft/renderer/*.json, src/main/resources/META-INF/services/**, build.gradle.kts, scripts/parity/manifest.py or harness/**. Resolves which artifacts in the parity store can SEE the change and which are structurally BLIND, runs the cheapest sufficient bundle via parityPlan / parityCapture / parityCompare, and reports moved rows against the last known baseline. Do NOT invoke mid-edit, mid-diagnosis, for a scoped single-subject sweep (-PentityId / -PblockId / -PitemId), for a reference re-render, or for a docs-only / notes-only / CLAUDE.md-only commit.
 auto_invoke: true
 tags: [parity, gate, baseline, verification, pre-commit, asset-renderer]
 ---
@@ -16,7 +16,8 @@ All three must hold:
 
 1. **The next act is a commit.** Said out loud, or a `git commit` is about to run.
 2. **The tree touches a trigger path** - `src/main/java/lib/minecraft/renderer/**`,
-   `src/test/java/lib/minecraft/renderer/**`, `src/main/resources/lib/minecraft/renderer/*.json`,
+   `src/test/java/lib/minecraft/renderer/**`, `tooling/**`,
+   `src/main/resources/lib/minecraft/renderer/*.json`,
    `src/main/resources/META-INF/services/**`, `build.gradle.kts`, `scripts/parity/manifest.py`, or
    `harness/**` - the same list the frontmatter carries, and a `BlindnessMapTest` case holds the two
    to each other and to the map. It is a coarse prefix list and not an exact one: every path some
@@ -174,6 +175,13 @@ whole cost. In the first two states, read the producer list instead.
   row whose value moved is still a mover.
 - `-Pclass={neutral,shaped,moving}` on `parityPromote` - defaults to `moving`, because forgetting it
   cannot then understate a change.
+- `-PtoolingOut=<dir>` on any of the eight generator flows - where that flow writes its table,
+  forwarded through to the tooling build. Defaults there to this project's resource tree, which is
+  what makes a flow run dirty tracked files and is the signal `manifest.tooling-tables` reads. Point
+  it at a scratch directory to take an A/B without touching the tree: the clean side into one, the
+  changed side into another, then diff. A capture must not pass it - the artifact's source is the
+  resource tree, so a redirected run would leave the shipped bytes unregenerated and the gate green
+  over nothing.
 - `-Preason=<text>` - mandatory on `parityPromote`, and on a `parityExpect` that registers a row.
 - `-PpythonExe=<path>` - which interpreter runs the toolkit, when the one this build resolves off
   `PATH` is the wrong one. `PARITY_PYTHON` in the environment does the same. Not a gate knob: it is

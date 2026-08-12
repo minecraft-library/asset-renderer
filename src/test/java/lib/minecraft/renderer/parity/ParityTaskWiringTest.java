@@ -278,7 +278,7 @@ final class ParityTaskWiringTest {
 
     /** The edge that puts this build's two cheap gates on a default verification run. */
     private static final String CHECK_SCHEDULES_THE_CHEAP_GATES =
-        "named(\"check\") { dependsOn(\"paritySelfTest\", \"harnessClasses\") }";
+        "named(\"check\") { dependsOn(\"paritySelfTest\", \"harnessClasses\", \"toolingTest\") }";
 
     /** That edge's operand list, for reading back which tasks it actually names. */
     private static final Pattern CHECK_SCHEDULES =
@@ -666,17 +666,18 @@ final class ParityTaskWiringTest {
     }
 
     @Test
-    @DisplayName("a verification run schedules both cheap gates the fast suite does not reach")
+    @DisplayName("a verification run schedules every cheap gate the fast suite does not reach")
     void checkSchedulesTheGatesNothingElseSchedules() {
         String build = collapsed(buildFile());
 
-        assertThat("the edge WHOLE, both operands included. Without it `check` reached `test` and "
+        assertThat("the edge WHOLE, every operand included. Without it `check` reached `test` and "
                 + "nothing else: the toolkit's own suite ran only when a parity task pulled it in - "
-                + "the very run the toolkit is being trusted to compute - and the harness, a "
+                + "the very run the toolkit is being trusted to compute - the harness, a "
                 + "separate Gradle build, was compiled by nothing in this one, so an edit to it that "
-                + "does not compile waited for a client boot. Each is one line and each was written "
-                + "as one, so what a deletion leaves behind is a suite that stays green over the "
-                + "hole it opened",
+                + "does not compile waited for a client boot, and the tooling source set's own suite "
+                + "is a separate compilation `test` cannot reach at all. Each is one line and each "
+                + "was written as one, so what a deletion leaves behind is a suite that stays green "
+                + "over the hole it opened",
             build, containsString(CHECK_SCHEDULES_THE_CHEAP_GATES));
 
         Set<String> scheduled = new TreeSet<>();

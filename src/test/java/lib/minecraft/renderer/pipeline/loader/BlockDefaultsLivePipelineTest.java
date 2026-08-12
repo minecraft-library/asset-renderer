@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling;
+package lib.minecraft.renderer.pipeline.loader;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;

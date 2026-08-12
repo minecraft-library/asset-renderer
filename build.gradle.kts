@@ -31,6 +31,17 @@ java {
     }
 }
 
+// The bytecode-walking generators are their own Gradle build under tooling/, a sibling of the
+// harness. Nothing here reads them: ASM and the walkers are on no renderer classpath and in no
+// published JAR, and the edge is one-directional in both graphs - tooling includes this build for
+// client-jar acquisition, and this build reaches tooling only by shelling into its wrapper, the
+// shape harnessClasses already uses. Gradle forbids the cycle that would let it be otherwise, which
+// is the property the split holds.
+//
+// The directory that tooling writes its tables into is tooling's own `-PtoolingOut`, defaulting to
+// this project's resource tree. Every flow task below forwards it.
+val toolingDir: Directory = layout.projectDirectory.dir("tooling")
+
 // JDK 21 Vector API (jdk.incubator.vector) unlocks FloatVector SIMD math used by
 // lib.minecraft.renderer.tensor.Vector3fOps / Matrix4fOps - the package-private SIMD
 // implementations that Vector3f.transform / Matrix4f.multiply silently dispatch to in
@@ -288,6 +299,7 @@ val parityTriggerRoots: FileCollection = files(
     "gradle.properties", "gradlew", "gradlew.bat", "settings.gradle.kts",
     fileTree("gradle") { exclude(parityWalkSkips) },
     fileTree("src/jmh") { exclude(parityWalkSkips) },
+    fileTree("tooling") { exclude(parityWalkSkips) },
     fileTree("scripts/parity") { exclude(parityWalkSkips) },
     fileTree("harness") { exclude(parityWalkSkips) }
 )
@@ -1050,15 +1062,6 @@ dependencies {
     // the built-in getPath is compound-only, so the rule layer supplies its own list/wildcard walker.
     api("com.github.minecraft-library:nbt-factory") { version { strictly("f8b5f52") } }
 
-    // ASM - used by the `blockTints` tooling flow (ToolingBlockTints -> TintWalk) to parse
-    // net.minecraft.client.color.block.BlockColors straight from the extracted client jar into
-    // block_tints.json, replacing the previously hand-curated tint table. The runtime reads that
-    // table through BlockTintsLoader and needs no jar.
-    // 9.8 added support for Java 25 class files (major version 69), which the Minecraft version
-    // named by the harness's gradle.properties emits.
-    implementation("org.ow2.asm:asm:9.8")
-    implementation("org.ow2.asm:asm-tree:9.8")
-
     // Gson
     api(libs.gson)
 }
@@ -1088,6 +1091,23 @@ tasks {
         testClassesDirs = sourceSets["test"].output.classesDirs
         classpath = sourceSets["test"].runtimeClasspath
         outputs.upToDateWhen { false }
+    }
+
+    // The tooling build's own suite, through its wrapper. Nothing in this build compiles or runs
+    // those sources, so without this edge a mistake in them waits for a version bump - the same hole
+    // harnessClasses closes for the harness, and the reason `check` schedules both.
+    register<Exec>("toolingTest") {
+        description = "Runs the tooling build's unit tests through its own wrapper - the ASM walkers, the kernel and the policy purity check."
+        group = "verification"
+        workingDir = toolingDir.asFile
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val gradlew = toolingDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
+        commandLine = buildList {
+            if (isWindows) { add("cmd"); add("/c") }
+            add(gradlew)
+            add("test")
+            add("--no-daemon")
+        }
     }
 
     register<JavaExec>("parityDump") {
@@ -1134,64 +1154,60 @@ tasks {
         exclude("lib/minecraft/renderer/parity/**")
     }
 
-    // tooling - the generator flows; every output lands under
-    // src/main/resources/lib/minecraft/renderer/.
+    // tooling - the generator flows, each an Exec into the tooling build's own wrapper. The task
+    // NAMES are the contract: parityArtifacts lists them as manifest.tooling-tables' producers and
+    // the parity graph resolves each with named(<string>), so a shim under the same name is what
+    // keeps the artifact table, the producer tee and the wall-time stamp working unchanged.
+    //
+    // -PtoolingOut forwards through to where the flows write, defaulting on the far side to this
+    // project's resource tree. Every -Dasset.* switch in force forwards with it, so a flag armed
+    // here reaches the flow.
 
-    register<JavaExec>("entityModels") {
-        description = "tooling: walks the client jar and generates src/main/resources/lib/minecraft/renderer/entity_models.json + entity_geometry.json."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingEntityModels")
-        classpath = sourceSets["main"].runtimeClasspath
+    /**
+     * Registers one generator flow as a shell into the tooling build.
+     *
+     * @param name the flow's task name on both sides
+     * @param description what the flow walks and what it emits
+     */
+    fun registerToolingFlow(name: String, description: String) {
+        register<Exec>(name) {
+            this.description = description
+            group = "tooling"
+            workingDir = toolingDir.asFile
+            val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+            val gradlew = toolingDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
+            val forwarded = assetPropertiesInForce().map { (key, value) -> "-P$key=$value" }
+            val outDir = parityProperty("toolingOut")
+            commandLine = buildList {
+                if (isWindows) { add("cmd"); add("/c") }
+                add(gradlew)
+                add(name)
+                if (outDir != null) add("-PtoolingOut=$outDir")
+                addAll(forwarded)
+                // As the harness runs are launched, and for the same reason: a separate build with
+                // its own toolchain must not leave a second daemon behind it.
+                add("--no-daemon")
+            }
+        }
     }
 
-    register<JavaExec>("blockModels") {
-        description = "tooling: walks the client jar and generates src/main/resources/lib/minecraft/renderer/block_models.json + block_geometry.json."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockModels")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
+    registerToolingFlow("entityModels",
+        "tooling: walks the client jar and generates src/main/resources/lib/minecraft/renderer/entity_models.json + entity_geometry.json.")
+    registerToolingFlow("blockModels",
+        "tooling: walks the client jar and generates src/main/resources/lib/minecraft/renderer/block_models.json + block_geometry.json.")
+    registerToolingFlow("blockDefaults",
+        "tooling: bytewalks registerDefaultState and generates src/main/resources/lib/minecraft/renderer/block_defaults.json (default blockstate per block + unresolved[]).")
+    registerToolingFlow("blockItems",
+        "tooling: walks Items.<clinit> and generates src/main/resources/lib/minecraft/renderer/block_items.json (secondary block -> standing block item alias map).")
+    registerToolingFlow("blockTints",
+        "tooling: walks BlockColors.createDefault() and generates src/main/resources/lib/minecraft/renderer/block_tints.json (tints + dropped[]).")
+    registerToolingFlow("potionColors",
+        "tooling: walks MobEffects.<clinit> and generates src/main/resources/lib/minecraft/renderer/potion_colors.json (effect colours, sorted by id).")
+    registerToolingFlow("glintItems",
+        "tooling: walks Items.<clinit> and generates src/main/resources/lib/minecraft/renderer/glint_items.json (always-glinted item ids, sorted).")
+    registerToolingFlow("colorMaps",
+        "tooling: reads the biome colormap PNGs from the jar and generates src/main/resources/lib/minecraft/renderer/color_maps.json (base64 big-endian ARGB pixels).")
 
-    register<JavaExec>("blockDefaults") {
-        description = "tooling: bytewalks registerDefaultState and generates src/main/resources/lib/minecraft/renderer/block_defaults.json (default blockstate per block + unresolved[])."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockDefaults")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("blockItems") {
-        description = "tooling: walks Items.<clinit> and generates src/main/resources/lib/minecraft/renderer/block_items.json (secondary block -> standing block item alias map)."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockItems")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("blockTints") {
-        description = "tooling: walks BlockColors.createDefault() and generates src/main/resources/lib/minecraft/renderer/block_tints.json (tints + dropped[])."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockTints")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("potionColors") {
-        description = "tooling: walks MobEffects.<clinit> and generates src/main/resources/lib/minecraft/renderer/potion_colors.json (effect colours, sorted by id)."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingPotionColors")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("glintItems") {
-        description = "tooling: walks Items.<clinit> and generates src/main/resources/lib/minecraft/renderer/glint_items.json (always-glinted item ids, sorted)."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingGlintItems")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("colorMaps") {
-        description = "tooling: reads the biome colormap PNGs from the jar and generates src/main/resources/lib/minecraft/renderer/color_maps.json (base64 big-endian ARGB pixels)."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingColorMaps")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
 
     // atlas render job - a render over the texture pack, not a client-jar extraction, so it is not a
     // tooling flow and nothing wires it; output stays scratch under build/atlas/. One manual task,
@@ -1529,9 +1545,19 @@ tasks {
     // artifact table's producer list, so it is one rule rather than eight copies.
     parityArtifacts.single { it.artifact == "manifest.tooling-tables" }.producers.forEach { flow ->
         named(flow) {
+            // Read at configuration time so the action captures a String rather than the project.
+            val redirected = parityProperty("toolingOut")
             doLast {
-                logger.lifecycle("parity: $name rewrote tracked tables under src/main/resources/lib/minecraft/renderer/.")
-                logger.lifecycle("  restore with: git restore ':(glob)src/main/resources/lib/minecraft/renderer/*.json'")
+                if (redirected == null) {
+                    logger.lifecycle("parity: $name rewrote tracked tables under src/main/resources/lib/minecraft/renderer/.")
+                    logger.lifecycle("  restore with: git restore ':(glob)src/main/resources/lib/minecraft/renderer/*.json'")
+                } else {
+                    // A redirected run leaves the tracked tables alone, so there is nothing to restore
+                    // and saying otherwise would send a reader to undo a change nobody made. It also
+                    // regenerates nothing the store reads, which is what the second line is for.
+                    logger.lifecycle("parity: $name wrote to $redirected, leaving the tracked tables untouched.")
+                    logger.lifecycle("  manifest.tooling-tables reads src/main/resources - a capture over this run would gate unregenerated bytes.")
+                }
             }
         }
     }
@@ -1580,7 +1606,7 @@ tasks {
     // this task as the gate instead. `harnessClasses` is the only task here that compiles the
     // harness at all, and off this edge it runs only when it is asked for by name, so a harness edit
     // that does not compile waits minutes for a client boot rather than the seconds this costs.
-    named("check") { dependsOn("paritySelfTest", "harnessClasses") }
+    named("check") { dependsOn("paritySelfTest", "harnessClasses", "toolingTest") }
 
     register<Exec>(parityCaptureBeginTask) {
         // No group: it is parityCapture's first act rather than an entry point. It exists as a task

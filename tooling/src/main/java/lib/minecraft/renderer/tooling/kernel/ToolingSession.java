@@ -23,8 +23,15 @@ public record ToolingSession(
     @NotNull Diagnostics diagnostics
 ) implements AutoCloseable {
 
-    /** The bundled resource directory every flow writes its table into. */
-    private static final @NotNull Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
+    /**
+     * The directory every flow writes its table into, defaulting to the renderer's bundled resource
+     * tree. {@code -Dasset.tooling.out} redirects the whole set, which is how an A/B is taken: the
+     * clean side into one directory, the changed side into another, then diff. Relative either way,
+     * and resolved against the working directory the build pins to the renderer root, so the default
+     * names the same place from either build.
+     */
+    private static final @NotNull Path RESOURCE_DIR = Path.of(
+        System.getProperty("asset.tooling.out", "src/main/resources/lib/minecraft/renderer"));
 
     @Override
     public void close() {

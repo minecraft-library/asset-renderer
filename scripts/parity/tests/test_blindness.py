@@ -277,7 +277,7 @@ class TheShippedMap(unittest.TestCase):
 
     def test_a_tooling_change_empties_every_sweep(self):
         reach = blindness.resolve(
-            ["src/main/java/lib/minecraft/renderer/tooling/entity/EntityBoneResolver.java"],
+            ["tooling/src/main/java/lib/minecraft/renderer/tooling/entity/EntityBoneResolver.java"],
             self.rules, self.no_reach)
         self.assertEqual([a for a in reach.sees if a.startswith("sweep.")], [])
         self.assertIn("manifest.tooling-tables", reach.sees)

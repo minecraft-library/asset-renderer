@@ -220,42 +220,6 @@
       ]
     },
     {
-      "blind": [
-        "sweep.block",
-        "sweep.item"
-      ],
-      "claim": "Blocks and items are structurally immune to a DEPTH change: 0 of 1055 and 0 of 479 rows move",
-      "id": "B11a",
-      "mode": "select",
-      "probe": "-Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved",
-      "reason": "Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.",
-      "sees": [],
-      "source": "measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; CLAUDE.md 'Depth: the contract'",
-      "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
-      ]
-    },
-    {
-      "blind": [],
-      "claim": "The block and item immunity is to DEPTH only and does not generalise",
-      "id": "B11b",
-      "mode": "select",
-      "probe": "-Dasset.snap.grid=N and a texel-fetch perturbation both move block rows where -Dasset.depth.range=N does not",
-      "reason": "A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.",
-      "sees": [
-        "sweep.entity",
-        "sweep.block",
-        "sweep.item",
-        "sweep.armor",
-        "pin.player-crc",
-        "manifest.player-raw"
-      ],
-      "source": "measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; CLAUDE.md 'Depth: the contract'; audit 09/G7",
-      "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
-      ]
-    },
-    {
       "blind": [],
       "claim": "A short -Psheets= list is a hole rather than a sample",
       "id": "B12",
@@ -297,7 +261,7 @@
       ],
       "source": "measured by perturbing ToolingPotionColors.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/tooling/**"
+        "tooling/src/main/java/**"
       ]
     },
     {
@@ -313,7 +277,7 @@
       ],
       "source": "measured by perturbing GlintItemsWalk.java: 0 of 2 declared sees moved; CLAUDE.md 'Tooling'",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/tooling/**"
+        "tooling/src/main/java/**"
       ]
     },
     {
@@ -418,20 +382,18 @@
     },
     {
       "blind": [],
-      "claim": "The dump is blind to the Diagnostics scope tree",
+      "claim": "The dump serialises what a pipeline read layer loaded, so every read layer reaches it",
       "id": "B20",
       "mode": "select",
-      "probe": "drop a child(name) call in a loader and confirm all 30 dump files are byte-identical while the flow log's scope prefixes change",
-      "reason": "A read layer that lost its child(name) scoping would move no dumped byte, because the scope tree is a property of how the diagnostics were recorded rather than of the data that was read.",
+      "probe": "perturb a value a read layer resolves and confirm the dump files move while no render artifact does",
+      "reason": "The dump is a serialisation of the loaded pipeline state, so a read layer that resolves a different value moves a dumped byte. This is the catch-all beside the narrower rules that name a package each - B5 for index and loader, B4 for the pack readers, B7 for the blockstate loader - and what it covers alone is pipeline/util/ and the context class. It reaches no render, so the sweeps and the CRC pins are not on it; B19 carries those.",
       "sees": [
         "manifest.dump.vanilla",
-        "manifest.dump.packs",
-        "report.diagnostics-log"
+        "manifest.dump.packs"
       ],
-      "source": "measured by perturbing BlockTagLoader.java: 2 of 3 declared sees moved; CLAUDE.md 'Tooling'",
+      "source": "measured by perturbing BlockTagLoader.java: both declared sees moved",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/**",
-        "src/main/java/lib/minecraft/renderer/tooling/kernel/Diagnostics.java"
+        "src/main/java/lib/minecraft/renderer/pipeline/**"
       ]
     },
     {
@@ -746,6 +708,67 @@
     },
     {
       "blind": [],
+      "claim": "The parity store's own files are the baseline a comparison reads, never something a run produces",
+      "id": "B34",
+      "mode": "select",
+      "probe": "hand-edit a promoted artifact and run ./gradlew test: ParityIndexTest names the row whose file no longer hashes to its recorded digest. The compare says nothing, which is why the check lives in the suite",
+      "reason": "Editing a stored artifact by hand does not change what a producer emits; it changes what the emitted bytes are compared against, which is the one thing a capture cannot detect. index.json carries each file's digest over its normalized bytes for exactly this, and the reader is ./gradlew test - ParityIndexTest re-derives every row's digest from the file it names. The compare is NOT that reader: it opens the base payload directly and never index.json, so a hand-edited baseline reaches it as agreement about the edited value.",
+      "sees": [],
+      "source": "declares no store artifact, so its reason names the gate that answers instead; the store is the oracle rather than an output",
+      "trigger_paths": [
+        "src/test/resources/lib/minecraft/renderer/parity/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The ten shipped tables are pipeline INPUT, so a change to one reaches every render that loads it",
+      "id": "B35",
+      "mode": "select",
+      "probe": "edit one value in block_tints.json and re-run the block sweep and parityDump; both move, and manifest.tooling-tables moves whether or not a generator ran",
+      "reason": "src/main/resources/lib/minecraft/renderer/ holds exactly the ten ASM-derived tables the tooling flows emit and the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files and digest.shipped-tables digests the same ten, so both see any edit directly; the sweeps and the dumps see it through the index the loaders build. Two of the ten are counted as well as read - block_defaults.json and glint_items.json - and pin.corpus-count holds exactly those two sizes, so adding or dropping a row moves it directly rather than through an index. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything.",
+      "sees": [
+        "manifest.tooling-tables",
+        "digest.shipped-tables",
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "sweep.glint",
+        "pin.corpus-count",
+        "manifest.player-raw",
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "source": "measured by perturbing block_tints.json: 3 of 11 declared sees moved; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over",
+      "trigger_paths": [
+        "src/main/resources/lib/minecraft/renderer/*.json"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The GsonContributor service registration configures every pipeline decode, so nothing that loads is blind to it",
+      "id": "B36",
+      "mode": "select",
+      "probe": "delete the registration and run any sweep; the pipeline fails to decode outright rather than decoding differently, which is what makes this a load-time reach rather than a per-value one",
+      "reason": "META-INF/services/dev.simplified.gson.GsonContributor is how PipelineGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on B35.",
+      "sees": [
+        "digest.shipped-tables",
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "sweep.glint",
+        "manifest.player-raw",
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "source": "measured by perturbing dev.simplified.gson.GsonContributor: 0 of 9 declared sees moved, 2 not measurable in that run; the second uncovered path under src/main/resources/",
+      "trigger_paths": [
+        "src/main/resources/META-INF/services/**"
+      ]
+    },
+    {
+      "blind": [],
       "claim": "The dump sections and every self-captured file are written by these two packages, so a change to one rewrites the FORM of everything below it",
       "id": "B37",
       "mode": "select",
@@ -839,67 +862,6 @@
     },
     {
       "blind": [],
-      "claim": "The parity store's own files are the baseline a comparison reads, never something a run produces",
-      "id": "B34",
-      "mode": "select",
-      "probe": "hand-edit a promoted artifact and run ./gradlew test: ParityIndexTest names the row whose file no longer hashes to its recorded digest. The compare says nothing, which is why the check lives in the suite",
-      "reason": "Editing a stored artifact by hand does not change what a producer emits; it changes what the emitted bytes are compared against, which is the one thing a capture cannot detect. index.json carries each file's digest over its normalized bytes for exactly this, and the reader is ./gradlew test - ParityIndexTest re-derives every row's digest from the file it names. The compare is NOT that reader: it opens the base payload directly and never index.json, so a hand-edited baseline reaches it as agreement about the edited value.",
-      "sees": [],
-      "source": "declares no store artifact, so its reason names the gate that answers instead; the store is the oracle rather than an output",
-      "trigger_paths": [
-        "src/test/resources/lib/minecraft/renderer/parity/**"
-      ]
-    },
-    {
-      "blind": [],
-      "claim": "The ten shipped tables are pipeline INPUT, so a change to one reaches every render that loads it",
-      "id": "B35",
-      "mode": "select",
-      "probe": "edit one value in block_tints.json and re-run the block sweep and parityDump; both move, and manifest.tooling-tables moves whether or not a generator ran",
-      "reason": "src/main/resources/lib/minecraft/renderer/ holds exactly the ten ASM-derived tables the tooling flows emit and the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files and digest.shipped-tables digests the same ten, so both see any edit directly; the sweeps and the dumps see it through the index the loaders build. Two of the ten are counted as well as read - block_defaults.json and glint_items.json - and pin.corpus-count holds exactly those two sizes, so adding or dropping a row moves it directly rather than through an index. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything.",
-      "sees": [
-        "manifest.tooling-tables",
-        "digest.shipped-tables",
-        "sweep.entity",
-        "sweep.block",
-        "sweep.item",
-        "sweep.armor",
-        "sweep.glint",
-        "pin.corpus-count",
-        "manifest.player-raw",
-        "manifest.dump.vanilla",
-        "manifest.dump.packs"
-      ],
-      "source": "measured by perturbing block_tints.json: 3 of 11 declared sees moved; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over",
-      "trigger_paths": [
-        "src/main/resources/lib/minecraft/renderer/*.json"
-      ]
-    },
-    {
-      "blind": [],
-      "claim": "The GsonContributor service registration configures every pipeline decode, so nothing that loads is blind to it",
-      "id": "B36",
-      "mode": "select",
-      "probe": "delete the registration and run any sweep; the pipeline fails to decode outright rather than decoding differently, which is what makes this a load-time reach rather than a per-value one",
-      "reason": "META-INF/services/dev.simplified.gson.GsonContributor is how PipelineGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on B35.",
-      "sees": [
-        "digest.shipped-tables",
-        "sweep.entity",
-        "sweep.block",
-        "sweep.item",
-        "sweep.armor",
-        "sweep.glint",
-        "manifest.player-raw",
-        "manifest.dump.vanilla",
-        "manifest.dump.packs"
-      ],
-      "source": "measured by perturbing dev.simplified.gson.GsonContributor: 0 of 9 declared sees moved, 2 not measurable in that run; the second uncovered path under src/main/resources/",
-      "trigger_paths": [
-        "src/main/resources/META-INF/services/**"
-      ]
-    },
-    {
-      "blind": [],
       "claim": "The root package's documentation declares nothing, so it is read by a reader and by no producer",
       "id": "B40",
       "mode": "select",
@@ -926,6 +888,87 @@
       "trigger_paths": [
         "build.gradle.kts",
         "scripts/parity/manifest.py"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The tooling source set's own tests assert over hand-built bytecode and emit nothing",
+      "id": "B42",
+      "mode": "select",
+      "probe": "run ./gradlew toolingTest, then capture any artifact and confirm it is byte-identical",
+      "reason": "Every test here drives hand-built ASM nodes, a ZipOutputStream jar under @TempDir, or reflection over the tooling classes themselves. None runs a flow, so none writes a shipped table or a flow log, and no stored artifact can see one change. The gate is the suite, which `check` schedules by shelling into the tooling wrapper, because a separate build is one this one compiles nothing of. This is the tooling half of what B33 says for src/test/java.",
+      "sees": [],
+      "source": "declares no store artifact, so its reason names the gate that answers instead",
+      "trigger_paths": [
+        "tooling/src/test/java/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The tooling build's own script decides what the flows emit and where",
+      "id": "B43",
+      "mode": "select",
+      "probe": "change the flow classpath or the output default and re-run a flow; the emitted table moves with no Java source having changed",
+      "reason": "The generators are a separate Gradle build, so its build script is what puts ASM and the renderer on their classpath, what registers each flow against its entry point, and what decides the directory a table lands in. An edit here moves emitted bytes with no walker having changed, which is the same reach B13 and B14 carry for the walkers themselves.",
+      "sees": [
+        "manifest.tooling-tables",
+        "report.diagnostics-log"
+      ],
+      "source": "declared from what the script wires; the flows resolve their classpath and output directory from it and from nothing else",
+      "trigger_paths": [
+        "tooling/build.gradle.kts",
+        "tooling/settings.gradle.kts"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The tooling wrapper selects a Gradle version and emits nothing",
+      "id": "B44",
+      "mode": "select",
+      "probe": "bump the wrapper distribution and re-run a flow; the emitted tables are byte-identical",
+      "reason": "A wrapper script and its distribution pin decide which Gradle runs the tooling build, not what any flow walks or writes. The gate for an edit here is that the build still starts, which `toolingTest` answers on every verification run. This is the tooling half of what B31 says for the renderer's own wrapper.",
+      "sees": [],
+      "source": "declares no store artifact, so its reason names the gate that answers instead",
+      "trigger_paths": [
+        "tooling/gradlew",
+        "tooling/gradlew.bat",
+        "tooling/gradle/**"
+      ]
+    },
+    {
+      "blind": [
+        "sweep.block",
+        "sweep.item"
+      ],
+      "claim": "Blocks and items are structurally immune to a DEPTH change: 0 of 1055 and 0 of 479 rows move",
+      "id": "B11a",
+      "mode": "select",
+      "probe": "-Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved",
+      "reason": "Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.",
+      "sees": [],
+      "source": "measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; CLAUDE.md 'Depth: the contract'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The block and item immunity is to DEPTH only and does not generalise",
+      "id": "B11b",
+      "mode": "select",
+      "probe": "-Dasset.snap.grid=N and a texel-fetch perturbation both move block rows where -Dasset.depth.range=N does not",
+      "reason": "A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.",
+      "sees": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "pin.player-crc",
+        "manifest.player-raw"
+      ],
+      "source": "measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; CLAUDE.md 'Depth: the contract'; audit 09/G7",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
       ]
     }
   ]
