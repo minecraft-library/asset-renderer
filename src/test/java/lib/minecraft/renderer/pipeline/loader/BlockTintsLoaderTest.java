@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -21,7 +20,6 @@ class BlockTintsLoaderTest {
     void loadsColormapTargets() {
         Map<String, Block.Tint> tints = BlockTintsLoader.load();
 
-        assertThat("the bundled tint table must be non-empty", tints.size(), is(greaterThan(0)));
         Block.Tint grass = tints.get("minecraft:grass_block");
         assertThat(grass.target(), is(Block.TintTarget.GRASS));
         assertThat("a colormap-target tint carries no constant", grass.constant().isEmpty(), is(true));

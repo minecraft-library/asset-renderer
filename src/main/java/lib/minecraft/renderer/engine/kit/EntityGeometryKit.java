@@ -277,7 +277,7 @@ public class EntityGeometryKit {
                     // {@code signedArea < 0} check correctly classifies these as front-facing.
                     String debugTag = boneName + ":" + face.direction();
                     BlockGeometryKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, pass), debugTag);
+                        new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass), debugTag);
                 }
             }
         }

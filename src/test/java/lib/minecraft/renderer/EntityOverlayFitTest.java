@@ -7,18 +7,15 @@ import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.File;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,9 +49,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 @Tag("slow")
 @DisplayName("Entity overlay canvas fit")
+@ExtendWith(ClientAssetsExtension.class)
 class EntityOverlayFitTest {
 
-    private static final File CACHE_ROOT = new File("cache/it");
     /**
      * Canvas size. Deliberately generous: the leftover slack a mismeasured union leaves scales with the
      * canvas while the rasterizer rounding it is measured against does not, so a larger canvas separates
@@ -108,11 +105,9 @@ class EntityOverlayFitTest {
 
     @BeforeAll
     static void bootstrap() {
-        ClientAssets result = ClientAcquisition.acquire(
-            ClientOptions.builder().version("26.1").cacheRoot(CACHE_ROOT).build());
         ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
         assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
-        entityRenderer = new EntityRenderer(PipelineRendererContext.of(result), entities);
+        entityRenderer = new EntityRenderer(ClientAssetsExtension.context(), entities);
     }
 
     @Test

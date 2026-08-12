@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.is;
  * one declaration from another fails at least one row.
  */
 @DisplayName("overlay pipeline declarations")
-class OverlayPipelineRosterTest {
+class EntityModelLoaderOverlayPassTest {
 
     /**
      * Entities carrying an overlay whose pipeline declares no depth write - vanilla's eyes-style

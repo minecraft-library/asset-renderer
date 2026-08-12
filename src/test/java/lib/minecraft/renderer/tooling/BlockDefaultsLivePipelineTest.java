@@ -5,17 +5,14 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -36,7 +33,7 @@ import static org.hamcrest.Matchers.is;
  * Live-pipeline cross-check for {@code block_defaults.json}.
  * <p>
  * The byte-level integrity digest is pinned alongside the other bundled JSON in
- * {@code digest.shipped-tables} and asserted by {@code ResourceShaTest}. This {@code slow}-tagged test cross-checks the
+ * {@code digest.shipped-tables} and asserted by {@code BundledResourceShaTest}. This {@code slow}-tagged test cross-checks the
  * committed snapshot against a live pipeline: each non-empty {@code default} key must subset-resolve
  * to one of the block's runtime {@code block.variants().keySet()} variants. This catches the
  * ASM-derived default drifting away from the live blockstate parse.
@@ -46,7 +43,7 @@ import static org.hamcrest.Matchers.is;
  * object exactly as {@code BlockDefaultsLoader} does at load.
  * <p>
  * Regeneration workflow: run {@code ./gradlew blockDefaults} to refresh the snapshot,
- * then re-pin its digest per {@code ResourceShaTest}. No digest is transcribed by hand.
+ * then re-pin its digest per {@code BundledResourceShaTest}. No digest is transcribed by hand.
  */
 @DisplayName("block_defaults.json agrees with the live pipeline")
 class BlockDefaultsLivePipelineTest {
@@ -64,11 +61,9 @@ class BlockDefaultsLivePipelineTest {
     @Tag("slow")
     @DisplayName("each default resolves to a live-pipeline variant")
     void crossCheckAgainstLivePipeline() throws IOException {
-        ClientAssets result = ClientAcquisition.acquire(ClientOptions.builder()
-            .version("26.1")
-            .cacheRoot(new File("cache/it"))
-            .build());
-        PipelineRendererContext context = PipelineRendererContext.of(result);
+        // Acquired here rather than through the extension because this class carries its slow tag on the
+        // one method, so a class-level extension would boot the pipeline for the fast suite too.
+        PipelineRendererContext context = ClientAssetsExtension.context();
 
         String raw = Files.readString(JSON_PATH, StandardCharsets.UTF_8);
         JsonObject blocks = GSON.fromJson(raw, JsonObject.class).getAsJsonObject("blocks");

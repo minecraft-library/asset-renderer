@@ -241,7 +241,7 @@ def shipped_tables_agreement(digests: dict, tables: dict) -> list[str]:
     adds or drops shows up as a name in one artifact and not the other.
 
     The two populations are discovered independently and by different walks, which is what gives the
-    check something to find. `ResourceShaTest` lists the directory's top level; `manifest.build`
+    check something to find. `BundledResourceShaTest` lists the directory's top level; `manifest.build`
     rglobs it. They agree today because nothing lives in a sub-directory, and the day something does
     the manifest gains `sub/foo.json` and the digest set does not.
 

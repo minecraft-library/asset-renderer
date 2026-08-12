@@ -4,10 +4,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
@@ -15,7 +11,6 @@ import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
-import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
@@ -27,6 +22,7 @@ import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.support.StubRendererContext;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -34,7 +30,6 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
  * from and the fact that a baby draws no trim. Both trim resolve paths, the entity one and the item one,
  * are held to the same three ids in the same order, differing only in the base id.
  */
-class ArmorKitCitCompositeTest {
+class ArmorKitTest {
 
     @Test
     @DisplayName("a hit CitResult retextures layer0 (base) and layer1 (overlay) via textureFor")
@@ -64,19 +59,19 @@ class ArmorKitCitCompositeTest {
         subs.put("layer1", new ResourceId("minecraft", "cit/overlay"));
         CitResult hit = new CitResult(Optional.of(new ResourceId("minecraft", "cit/base")), subs, Optional.empty(), GlintPolicy.DEFAULT);
 
-        RecordingContext ctx = new RecordingContext(leatherLayers(), hit);
+        StubRendererContext ctx = recording(leatherLayers(), hit);
         buildHelmet(ctx, Map.of(ArmorSlot.HELMET, ItemContext.ofItem("minecraft:leather_helmet")));
 
-        assertThat(ctx.resolved, equalTo(List.of("minecraft:cit/base", "minecraft:cit/overlay")));
+        assertThat(ctx.getResolved(), equalTo(List.of("minecraft:cit/base", "minecraft:cit/overlay")));
     }
 
     @Test
     @DisplayName("a NONE override falls through to the equipment model's own layer paths")
     void noneFallsThroughToModel() {
-        RecordingContext ctx = new RecordingContext(leatherLayers(), CitResult.NONE);
+        StubRendererContext ctx = recording(leatherLayers(), CitResult.NONE);
         buildHelmet(ctx, Map.of(ArmorSlot.HELMET, ItemContext.ofItem("minecraft:leather_helmet")));
 
-        assertThat(ctx.resolved, equalTo(List.of(
+        assertThat(ctx.getResolved(), equalTo(List.of(
             "minecraft:entity/equipment/humanoid/leather",
             "minecraft:entity/equipment/humanoid/leather_overlay")));
     }
@@ -84,10 +79,10 @@ class ArmorKitCitCompositeTest {
     @Test
     @DisplayName("the empty-items default never consults the override and resolves the model paths")
     void emptyItemsMapStaysOnModel() {
-        RecordingContext ctx = new RecordingContext(leatherLayers(), CitResult.NONE);
+        StubRendererContext ctx = recording(leatherLayers(), CitResult.NONE);
         buildHelmet(ctx, Map.of());
 
-        assertThat(ctx.resolved, equalTo(List.of(
+        assertThat(ctx.getResolved(), equalTo(List.of(
             "minecraft:entity/equipment/humanoid/leather",
             "minecraft:entity/equipment/humanoid/leather_overlay")));
     }
@@ -95,14 +90,12 @@ class ArmorKitCitCompositeTest {
     @Test
     @DisplayName("a single flat layer with no override fast-returns the one model texture")
     void singleFlatLayerFastReturn() {
-        List<EquipmentModel.Layer> iron = List.of(
-            new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
-        RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
+        StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
         ArmorKit.buildHumanoidArmor3D(headBounds(),
             Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), new Textures(ctx));
 
-        assertThat(ctx.resolved, equalTo(List.of("minecraft:entity/equipment/humanoid/iron")));
+        assertThat(ctx.getResolved(), equalTo(List.of("minecraft:entity/equipment/humanoid/iron")));
     }
 
     @Test
@@ -142,27 +135,23 @@ class ArmorKitCitCompositeTest {
     @Test
     @DisplayName("a baby draws its armor from the baby sheet and never a trim")
     void babyArmorReadsBabySheet() {
-        List<EquipmentModel.Layer> iron = List.of(
-            new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
-        RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
+        StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
         ArmorKit.buildEntityArmor3D(babyShell(), RenderFrame.IDENTITY,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), new Textures(ctx));
 
-        assertThat(ctx.resolved, equalTo(List.of("minecraft:entity/equipment/humanoid_baby/iron")));
+        assertThat(ctx.getResolved(), equalTo(List.of("minecraft:entity/equipment/humanoid_baby/iron")));
     }
 
     @Test
     @DisplayName("an adult draws its trim from the humanoid atlas")
     void adultArmorReadsTrimAtlas() {
-        List<EquipmentModel.Layer> iron = List.of(
-            new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
-        RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
+        StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
         ArmorKit.buildEntityArmor3D(genericShell(), RenderFrame.IDENTITY,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), new Textures(ctx));
 
-        assertThat(ctx.resolved.contains("minecraft:trims/entity/humanoid/coast"), equalTo(true));
+        assertThat(ctx.getResolved().contains("minecraft:trims/entity/humanoid/coast"), equalTo(true));
     }
 
     @Test
@@ -171,27 +160,45 @@ class ArmorKitCitCompositeTest {
         // The two paths share one resolve, so what has to be pinned is that only the first of the three
         // ids is the caller's. The entity half is reachable from a render; the item half is reachable
         // from no sweep and no other test, which is why it is asserted here rather than measured.
-        RecordingContext entity = new RecordingContext(List.of(), CitResult.NONE);
+        StubRendererContext entity = recording(List.of(), CitResult.NONE);
         ArmorKit.resolveTrimTexture(new Textures(entity), LayerType.HUMANOID.getId(),
             ArmorTrim.Pattern.COAST, ArmorTrim.Color.COPPER);
 
-        RecordingContext item = new RecordingContext(List.of(), CitResult.NONE);
+        StubRendererContext item = recording(List.of(), CitResult.NONE);
         TrimKit.resolve(new Textures(item),
             ArmorSlot.CHESTPLATE.getKey(), ArmorTrim.Color.COPPER.getKey());
 
-        RecordingContext parsed = new RecordingContext(List.of(), CitResult.NONE);
+        StubRendererContext parsed = recording(List.of(), CitResult.NONE);
         TrimKit.resolveFromTextureRef(new Textures(parsed), "minecraft:trims/items/chestplate_trim_copper");
 
-        assertThat(entity.resolved, equalTo(List.of(
+        assertThat(entity.getResolved(), equalTo(List.of(
             "minecraft:trims/entity/humanoid/coast",
             "minecraft:trims/color_palettes/trim_palette",
             "minecraft:trims/color_palettes/copper")));
-        assertThat(item.resolved, equalTo(List.of(
+        assertThat(item.getResolved(), equalTo(List.of(
             "minecraft:trims/items/chestplate_trim",
             "minecraft:trims/color_palettes/trim_palette",
             "minecraft:trims/color_palettes/copper")));
         // The filename round trip lands on the same three ids as the (slot, material) call it parses to.
-        assertThat(parsed.resolved, equalTo(item.resolved));
+        assertThat(parsed.getResolved(), equalTo(item.getResolved()));
+    }
+
+    /**
+     * A context recording each resolved texture id, serving fixed equipment layers and a fixed CIT
+     * override so the resolution order and per-layer id selection are observable.
+     */
+    private static @NotNull StubRendererContext recording(
+        @NotNull List<EquipmentModel.Layer> layers, @NotNull CitResult cit) {
+        return StubRendererContext.builder()
+            .equipmentLayers(layers)
+            .armorOverride(cit)
+            .everyTexture(() -> PixelBuffer.create(64, 32))
+            .build();
+    }
+
+    /** The one flat layer an iron piece resolves to. */
+    private static @NotNull List<EquipmentModel.Layer> ironLayer() {
+        return List.of(new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
     }
 
     /** An iron helmet carrying a trim, so the trim pass is reached for whichever form is dressed. */
@@ -218,9 +225,7 @@ class ArmorKitCitCompositeTest {
      * scale.
      */
     private static float[] helmetYSpan(@NotNull Shell shell, float modelScale) {
-        List<EquipmentModel.Layer> iron = List.of(
-            new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
-        RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
+        StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
         ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(shell,
             new RenderFrame(Vector3f.ZERO, 1f, modelScale),
@@ -237,7 +242,7 @@ class ArmorKitCitCompositeTest {
         return new float[]{ minY, maxY };
     }
 
-    private static void buildHelmet(@NotNull RecordingContext ctx, @NotNull Map<ArmorSlot, ItemContext> items) {
+    private static void buildHelmet(@NotNull StubRendererContext ctx, @NotNull Map<ArmorSlot, ItemContext> items) {
         ArmorKit.buildHumanoidArmor3D(headBounds(),
             Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.LEATHER)), items, new Textures(ctx));
     }
@@ -251,60 +256,6 @@ class ArmorKitCitCompositeTest {
 
     private static @NotNull Map<HumanoidPart, Box> headBounds() {
         return Map.of(HumanoidPart.HEAD, new Box(0f, 0f, 0f, 1f, 1f, 1f));
-    }
-
-    /**
-     * A minimal context recording each resolved texture id, serving fixed equipment layers and a fixed
-     * CIT override so the resolution order and per-layer id selection are observable.
-     */
-    private static final class RecordingContext implements RendererContext {
-
-        private final @NotNull List<String> resolved = new ArrayList<>();
-        private final @NotNull List<EquipmentModel.Layer> layers;
-        private final @NotNull CitResult cit;
-
-        private RecordingContext(@NotNull List<EquipmentModel.Layer> layers, @NotNull CitResult cit) {
-            this.layers = layers;
-            this.cit = cit;
-        }
-
-        @Override
-        public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-            this.resolved.add(textureId);
-            return Optional.of(PixelBuffer.create(64, 32));
-        }
-
-        @Override
-        public @NotNull List<EquipmentModel.Layer> resolveEquipmentLayers(@NotNull ResourceId assetId, @NotNull LayerType layerType) {
-            return this.layers;
-        }
-
-        @Override
-        public @NotNull CitResult resolveArmorTextureOverride(
-            @NotNull ArmorMaterial material, @NotNull LayerType layerType, @NotNull ItemContext item) {
-            return this.cit;
-        }
-
-        @Override
-        public @NotNull Optional<Block> findBlock(@NotNull String id) {
-            return Optional.empty();
-        }
-
-        @Override
-        public @NotNull Optional<ColorMap> findColorMap(ColorMap.@NotNull Type type) {
-            return Optional.empty();
-        }
-
-        @Override
-        public @NotNull Optional<Entity> findEntity(@NotNull String id) {
-            return Optional.empty();
-        }
-
-        @Override
-        public @NotNull Optional<Item> findItem(@NotNull String id) {
-            return Optional.empty();
-        }
-
     }
 
 }

@@ -6,6 +6,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
@@ -24,6 +25,9 @@ import static org.hamcrest.Matchers.not;
  * tooltip sprites (background border 9 / frame border 10 + stretch_inner) at the exact blit geometry
  * the tooltip chrome uses, plus the pure-algorithm cases (stretch, tile, nominal downsample,
  * degenerate-rect clamp, alpha multiplier) on synthetic sprites so they run without the extraction.
+ * <p>
+ * The real-sprite cases are tagged per method rather than per class, so they run in the suite the
+ * extraction is present for while the synthetic ones stay in the fast one.
  */
 class NineSliceKitTest {
 
@@ -69,6 +73,7 @@ class NineSliceKitTest {
     }
 
     @Test
+    @Tag("slow")
     @DisplayName("real background border-9: corner notched, fill flush to canvas edges")
     void backgroundNineSliceNotchAndFill() {
         assumeSprites();
@@ -87,6 +92,7 @@ class NineSliceKitTest {
     }
 
     @Test
+    @Tag("slow")
     @DisplayName("real frame border-10 + stretch_inner: ring 1 mcPx in, open corners, stretched gradient")
     void frameNineSliceRingAndGradient() {
         assumeSprites();
@@ -112,6 +118,7 @@ class NineSliceKitTest {
     }
 
     @Test
+    @Tag("slow")
     @DisplayName("alpha multiplier scales the frame ring alpha, leaving rgb untouched")
     void alphaMultiplierScalesRingAlpha() {
         assumeSprites();

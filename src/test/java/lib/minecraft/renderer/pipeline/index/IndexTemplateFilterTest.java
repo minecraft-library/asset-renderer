@@ -7,9 +7,7 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder.BlockTables;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockItemsLoader;
@@ -22,13 +20,14 @@ import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.File;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +37,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Membership coverage of the structural empty-model filter, over the real 26.1 corpus. The filter
+ * Membership coverage of the structural empty-model filter, over the real vanilla corpus. The filter
  * decides by structure rather than by name - an id whose model resolves neither geometry nor a
  * texture drops, and so does an intentionally-invisible id - and this asserts it keeps every model
  * that actually renders a tile while dropping only the parent / template models that render nothing.
@@ -54,10 +53,8 @@ import static org.hamcrest.Matchers.is;
  */
 @Tag("slow")
 @DisplayName("Structural empty-model filter parity")
+@ExtendWith(ClientAssetsExtension.class)
 class IndexTemplateFilterTest {
-
-    /** Shared cache root with {@code PipelineIntegrationTest} so both slow tests reuse one extracted jar. */
-    private static final File CACHE_ROOT = new File("cache/it");
 
     /** Block-entity model + variant maps the index loaders consume. */
     private static BlockModelLoader.LoadResult be;
@@ -73,11 +70,10 @@ class IndexTemplateFilterTest {
     private static ConcurrentMap<String, ModelData> itemModels;
     private static ConcurrentMap<String, ItemModelTree> itemTrees;
 
-    /** Runs the real 26.1 pipeline and computes every index-loader input once for both filter tests. */
+    /** Runs the real pipeline and computes every index-loader input once for both filter tests. */
     @BeforeAll
     static void setup() {
-        ClientAssets assets = ClientAcquisition.acquire(ClientOptions.builder().version("26.1").cacheRoot(CACHE_ROOT).build());
-        PackStack stack = PackAcquisition.acquire(assets);
+        PackStack stack = PackAcquisition.acquire(ClientAssetsExtension.assets());
 
         ResolvedModels models = ResolvedModels.load(stack);
         blockStates = BlockStateLoader.load(stack);

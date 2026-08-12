@@ -151,7 +151,7 @@ TestPlayerParityVanilla is a main that alpha-crops AND rescales both sides to a 
 - **blind** -
 - **source** measured by perturbing HumanoidPart.java: 4 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
-The player byte pin is the three CRC32 values PlayerRasterizeFittedGoldenTest reads out of the store and compares its own renders against: FULL and SKULL bare, and FULL again in a full iron set. None of the three wears a cape. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.
+The player byte pin is the three CRC32 values PlayerRendererFittedGoldenTest reads out of the store and compares its own renders against: FULL and SKULL bare, and FULL again in a full iron set. None of the three wears a cape. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.
 
 *Probe:* perturb the wing build's fit frame and re-render -Psheets=toggles: elytra_only_3_4_ and elytra_cape_3_4_ move and none of the other eleven cells do
 
@@ -163,7 +163,7 @@ The player byte pin is the three CRC32 values PlayerRasterizeFittedGoldenTest re
 - **blind** `sweep.block`, `sweep.item`
 - **source** measured by perturbing BlockGeometryKit.java: 4 of 6 declared sees moved, and 2 declared blind held; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
-The block and item parity sums are structurally blind to the box BUILDER, so a clean block sum is not evidence about buildBox. The gates that see it are the 14 armoured entity rows, the armour sweep, the player CRC pin, the player contact sheets, the raw player and armour renders, the portal manifest - PortalRenderer builds its end-portal slab with buildBox and its gateway cube through unitCube, which is a buildBox call - and QuadFanTest, which calls buildBox directly and is the only one of them that runs in the fast suite. The blindness is to that one method: the same file also holds the block element path and the single fan emitter, which BlockRenderer does reach, so B19 correctly keeps the block and item sums in SEES for a change anywhere else in it and this rule's blind list surfaces only when nothing else selects them.
+The block and item parity sums are structurally blind to the box BUILDER, so a clean block sum is not evidence about buildBox. The gates that see it are the 14 armoured entity rows, the armour sweep, the player CRC pin, the player contact sheets, the raw player and armour renders, the portal manifest - PortalRenderer builds its end-portal slab with buildBox and its gateway cube through unitCube, which is a buildBox call - and BlockGeometryKitQuadFanTest, which calls buildBox directly and is the only one of them that runs in the fast suite. The blindness is to that one method: the same file also holds the block element path and the single fan emitter, which BlockRenderer does reach, so B19 correctly keeps the block and item sums in SEES for a change anywhere else in it and this rule's blind list surfaces only when nothing else selects them.
 
 *Probe:* ./gradlew playerRender -Psheets=core-matrix,toggles,armor-per-slot and hash either side with git stash push -- src between the two renders
 
@@ -331,7 +331,7 @@ blocks.json carries every block row's id, digest, textures, variants, tags, tint
 - **blind** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.player-raw`
 - **source** measured by perturbing TrimKit.java: 1 of 2 declared sees moved, and 7 declared blind held
 
-A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the item sweep renders untrimmed icons and its 18 trim-named rows are flat smithing-template sprites that permute nothing, and the armour sweep's seven subjects carry no trim. The gates are ArmorKitCitCompositeTest and the trims sheet group's 11 cells.
+A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the item sweep renders untrimmed icons and its 18 trim-named rows are flat smithing-template sprites that permute nothing, and the armour sweep's seven subjects carry no trim. The gates are ArmorKitTest and the trims sheet group's 11 cells.
 
 *Probe:* throw from TrimKit.permuteFrom and run all five sweeps; none of them fires it
 
@@ -379,9 +379,9 @@ Matrix4f and Vector3f are on the path of every vertex the engine projects, and t
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing CornerPhase.java: 11 of 14 declared sees moved, and 2 declared blind held
 
-CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. Every 3D render goes through them, which is why the three render CRC pins, the glint sweep and the cache/visual producers are on the list beside the sums. FacePhaseTest and HumanoidPartCropTest pin the tables themselves.
+CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. Every 3D render goes through them, which is why the three render CRC pins, the glint sweep and the cache/visual producers are on the list beside the sums. CornerPhaseTest and HumanoidPartCropTest pin the tables themselves.
 
-*Probe:* flip one CornerPhase index array and confirm FacePhaseTest fails while all 30 dump files are byte-identical
+*Probe:* flip one CornerPhase index array and confirm CornerPhaseTest fails while all 30 dump files are byte-identical
 
 ## B28 - The exception types carry no behaviour a parity artifact can observe
 
@@ -470,10 +470,10 @@ B33's claim - that the test tree asserts rather than emits - is false for these 
 ## B38 - Each of these tests declares a self-captured artifact and computes the value stored under it, so its own edit is what moves that value
 
 - **mode** select
-- **triggers** `src/test/java/lib/minecraft/renderer/ModelEngineParallelismTest.java`, `src/test/java/lib/minecraft/renderer/FluidRendererParallelismTest.java`, `src/test/java/lib/minecraft/renderer/PortalRendererParallelismTest.java`, `src/test/java/lib/minecraft/renderer/PlayerRasterizeFittedGoldenTest.java`, `src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/util/ResourceShaTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/PipelineIntegrationTest.java`
+- **triggers** `src/test/java/lib/minecraft/renderer/BlockRendererRasterPinTest.java`, `src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java`, `src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/util/BundledResourceShaTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/ClientAcquisitionIntegrationTest.java`
 - **sees** `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
 - **blind** -
-- **source** measured by perturbing FluidRendererParallelismTest.java: 1 of 9 declared sees moved; the ARTIFACT declarations B37's two globs do not contain
+- **source** measured by perturbing FluidRendererFrameBakePinTest.java: 1 of 9 declared sees moved; the ARTIFACT declarations B37's two globs do not contain
 
 B37 covers the mechanism that writes a self-captured file; none of the values in one is decided there. Each artifact below is named by an ARTIFACT constant in one of these tests, which builds the payload and hands it to SelfCapture, directly or through PinSet - the four CRC pins off a render the class configures, pin.corpus-count and pin.kit-corners and pin.vanilla-iso-pose off what it measures, and both digest sets off the collection it walks. Under B33 alone every one of them resolved to reaching nothing, which is the same false answer B37 was written for one level up. The sees list is the union across the eight, because a rule answers per glob set rather than per file: an edit to one of them plans the others too, and over-selecting costs a run where under-selecting costs an unnoticed regression.
 

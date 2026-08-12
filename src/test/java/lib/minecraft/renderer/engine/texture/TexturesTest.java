@@ -1,12 +1,10 @@
 package lib.minecraft.renderer.engine.texture;
 
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.support.StubRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -14,7 +12,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -524,31 +521,10 @@ class TexturesTest {
         @NotNull Map<String, Integer> overrides,
         @NotNull Map<ColorMap.Type, ColorMap> colorMaps
     ) {
-        return new RendererContext() {
-            @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-                return Optional.empty();
-            }
-
-            @Override public @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type) {
-                return Optional.ofNullable(colorMaps.get(type));
-            }
-
-            @Override public @NotNull Optional<Block> findBlock(@NotNull String id) {
-                return Optional.empty();
-            }
-
-            @Override public @NotNull Optional<Item> findItem(@NotNull String id) {
-                return Optional.empty();
-            }
-
-            @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) {
-                return Optional.empty();
-            }
-
-            @Override public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
-                return Optional.ofNullable(overrides.get(key));
-            }
-        };
+        return StubRendererContext.builder()
+            .colorOverrides(overrides)
+            .colorMaps(colorMaps)
+            .build();
     }
 
 }

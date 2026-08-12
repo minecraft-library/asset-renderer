@@ -6,16 +6,13 @@ import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.parity.PinSet;
 import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.parity.RenderDigest;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.File;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -42,9 +39,8 @@ import static org.hamcrest.Matchers.is;
  */
 @Tag("slow")
 @DisplayName("ModelEngine parallel Pass 1 + tiled Pass 2 determinism")
-class ModelEngineParallelismTest {
-
-    private static final File CACHE_ROOT = new File("cache/it");
+@ExtendWith(ClientAssetsExtension.class)
+class BlockRendererRasterPinTest {
 
     private static final String ARTIFACT = "pin.block-crc";
 
@@ -61,13 +57,7 @@ class ModelEngineParallelismTest {
 
     @BeforeAll
     static void bootstrapPipeline() {
-        ClientAssets result = ClientAcquisition.acquire(
-            ClientOptions.builder()
-                .version("26.1")
-                .cacheRoot(CACHE_ROOT)
-                .build()
-        );
-        blockRenderer = new BlockRenderer(PipelineRendererContext.of(result));
+        blockRenderer = new BlockRenderer(ClientAssetsExtension.context());
     }
 
     @Test

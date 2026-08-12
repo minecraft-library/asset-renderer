@@ -470,9 +470,9 @@ data class ParityArtifact(
 // shipped-tables directory does. Row 16 is one of them and not an exception: `table-canonical` is
 // Gson's number formatting, which Python cannot reproduce for the seven float-bearing tables, so no
 // reader outside the test JVM can take that digest at all.
-// Row 16 is `test` and row 17 is `slowTest` because ResourceShaTest runs in the fast suite while
-// PipelineIntegrationTest is @Tag("slow") - naming `test` for the latter would let a fast-suite run
-// credit itself with a value it never computed.
+// Row 16 is `test` and row 17 is `slowTest` because BundledResourceShaTest runs in the fast suite
+// while ClientAcquisitionIntegrationTest is @Tag("slow") - naming `test` for the latter would let a
+// fast-suite run credit itself with a value it never computed.
 //
 // manifest.references names ONE producer where five tasks write into that tree: the four narrow runs
 // leave sub-trees stale, and a whole-tree manifest taken after one of them hashes a mix of fresh and
@@ -1411,15 +1411,6 @@ tasks {
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.PortalRenderDriver")
         classpath = sourceSets["test"].runtimeClasspath
-    }
-
-    register<JavaExec>("packOverlay") {
-        description = "Downloads the Defrosted 16x pack and renders items / tools / armor side-by-side (vanilla vs pack) at cache/visual/pack-overlay/. -PrenderSize=256"
-        group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestPackOverlay")
-        classpath = sourceSets["test"].runtimeClasspath
-        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
-        args = listOf(renderSize)
     }
 
     register<JavaExec>("redstoneTints") {

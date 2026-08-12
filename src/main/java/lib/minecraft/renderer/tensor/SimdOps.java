@@ -21,8 +21,8 @@ import org.jetbrains.annotations.NotNull;
  * sequence of the corresponding scalar implementation - no fused multiply-add is used, and the
  * column-vector mul-adds are grouped in the same right-associated order the scalar code writes
  * them (innermost term first) - so results are bit-identical under IEEE-754
- * round-to-nearest-even. The CRC32-pinned regression tests ({@code ModelEngineParallelismTest},
- * {@code PortalRendererParallelismTest}, {@code FluidRendererParallelismTest}) stay valid
+ * round-to-nearest-even. The CRC32-pinned regression tests ({@code BlockRendererRasterPinTest},
+ * {@code PortalRendererFrameBakePinTest}, {@code FluidRendererFrameBakePinTest}) stay valid
  * whichever path runs.
  *
  * @see Vector3f

@@ -10,7 +10,6 @@ import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.engine.light.Lighting;
-import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -31,7 +30,6 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -199,12 +197,15 @@ class BlockGeometryKitTest {
     }
 
     @Test
-    @DisplayName("light_emission 15 (shade:true) bakes a full-bright 1.0 floor, NOT the black-rendering DISABLED sentinel")
+    @DisplayName("light_emission 15 (shade:true) bakes a full-bright 1.0 floor and stays directionally lit")
     void lightEmission15_bakesFullBrightFloor() throws ReflectiveOperationException {
         ConcurrentList<VisibleTriangle> triangles = cubeWithEmission(true, 15);
         for (VisibleTriangle t : triangles) {
-            assertThat("not the DISABLED sentinel (renders black on un-relit Held3D)", t.shading(), not(equalTo(Shading.DISABLED)));
             assertThat("full-bright floor", t.shading(), equalTo(Math.max(Lighting.inventory(t.normal()), 1f)));
+            // The emission floor is a shade, not a declination: the face still asks for directional
+            // light, so the block-icon relight recomputes it and drops the floor. Raising the floor
+            // and clearing the flag are two different claims and this element makes only the first.
+            assertThat("still directionally lit", t.traits().directionalLight(), equalTo(true));
         }
     }
 
@@ -227,11 +228,23 @@ class BlockGeometryKitTest {
     }
 
     @Test
-    @DisplayName("a shade:false element stays full-bright regardless of light_emission")
-    void shadeFalse_staysDisabled() throws ReflectiveOperationException {
+    @DisplayName("a shade:false element declines directional light and bakes the full-bright scalar")
+    void shadeFalse_declinesDirectionalLight() throws ReflectiveOperationException {
         ConcurrentList<VisibleTriangle> triangles = cubeWithEmission(false, 0);
+        for (VisibleTriangle t : triangles) {
+            // The declination is the flag. The scalar is vanilla's own getShade(dir, false) == 1.0, a
+            // real factor a rasterizer can multiply by without knowing anything about the flag.
+            assertThat(t.traits().directionalLight(), equalTo(false));
+            assertThat(t.shading(), equalTo(1f));
+        }
+    }
+
+    @Test
+    @DisplayName("a shade:true element takes directional light on every face")
+    void shadeTrue_takesDirectionalLight() throws ReflectiveOperationException {
+        ConcurrentList<VisibleTriangle> triangles = cubeWithEmission(true, 0);
         for (VisibleTriangle t : triangles)
-            assertThat(t.shading(), equalTo(Shading.DISABLED));
+            assertThat(t.traits().directionalLight(), equalTo(true));
     }
 
     /** Builds a full unit cube with a given {@code shade} flag and {@code light_emission} level. */

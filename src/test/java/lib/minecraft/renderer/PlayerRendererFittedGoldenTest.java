@@ -13,16 +13,13 @@ import lib.minecraft.renderer.option.spec.TextureOptions;
 import lib.minecraft.renderer.parity.PinSet;
 import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.parity.RenderDigest;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.File;
 import java.util.Map;
 import java.util.Optional;
 
@@ -33,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Byte-identity pin for the {@link ModelEngine#rasterizeFitted} auto-fit path, whose only production
  * consumer is {@link PlayerRenderer} (its 3D body render at {@code PlayerRenderer.rasterize3D}).
- * {@link ModelEngineParallelismTest} pins the plain {@code rasterize} block path instead, and the
+ * {@link BlockRendererRasterPinTest} pins the plain {@code rasterize} block path instead, and the
  * player's own visual sweep is {@code TestPlayerRender}.
  *
  * <p>Both fitted arms are covered so a refactor that unifies the lens fork can prove it:
@@ -58,9 +55,8 @@ import static org.hamcrest.Matchers.is;
  */
 @Tag("slow")
 @DisplayName("ModelEngine.rasterizeFitted (player auto-fit) byte-identity pin")
-class PlayerRasterizeFittedGoldenTest {
-
-    private static final File CACHE_ROOT = new File("cache/it");
+@ExtendWith(ClientAssetsExtension.class)
+class PlayerRendererFittedGoldenTest {
 
     /** Offline, pack-resolvable default skin texture id (matches {@code TestPlayerRender}). */
     private static final String SKIN_ID = "minecraft:entity/player/wide/steve";
@@ -84,13 +80,7 @@ class PlayerRasterizeFittedGoldenTest {
 
     @BeforeAll
     static void bootstrapPipeline() {
-        ClientAssets result = ClientAcquisition.acquire(
-            ClientOptions.builder()
-                .version("26.1")
-                .cacheRoot(CACHE_ROOT)
-                .build()
-        );
-        playerRenderer = new PlayerRenderer(PipelineRendererContext.of(result));
+        playerRenderer = new PlayerRenderer(ClientAssetsExtension.context());
     }
 
     @Test

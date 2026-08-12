@@ -6,16 +6,13 @@ import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.parity.PinSet;
 import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.parity.RenderDigest;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -41,9 +38,8 @@ import static org.hamcrest.Matchers.is;
  */
 @Tag("slow")
 @DisplayName("FluidRenderer parallel frame bake determinism")
-class FluidRendererParallelismTest {
-
-    private static final File CACHE_ROOT = new File("cache/it");
+@ExtendWith(ClientAssetsExtension.class)
+class FluidRendererFrameBakePinTest {
 
     private static final String ARTIFACT = "pin.fluid-crc";
 
@@ -67,13 +63,7 @@ class FluidRendererParallelismTest {
 
     @BeforeAll
     static void bootstrapPipeline() {
-        ClientAssets result = ClientAcquisition.acquire(
-            ClientOptions.builder()
-                .version("26.1")
-                .cacheRoot(CACHE_ROOT)
-                .build()
-        );
-        renderer = new FluidRenderer(PipelineRendererContext.of(result));
+        renderer = new FluidRenderer(ClientAssetsExtension.context());
     }
 
     @Test

@@ -327,7 +327,7 @@
     "pin.armor-span": {
       "cross_repo": false,
       "re_derive": "inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation",
-      "test_class": "lib.minecraft.renderer.engine.kit.ArmorKitCitCompositeTest"
+      "test_class": "lib.minecraft.renderer.engine.kit.ArmorKitTest"
     },
     "roster.appearance-axes": {
       "cross_repo": true,
@@ -351,12 +351,12 @@
     "roster.face-phase": {
       "cross_repo": false,
       "re_derive": "vanilla's own corner order per face, read off the bakery and the polygon paths",
-      "test_class": "lib.minecraft.renderer.face.FacePhaseTest"
+      "test_class": "lib.minecraft.renderer.face.CornerPhaseTest"
     },
     "roster.frame-turn": {
       "cross_repo": false,
       "re_derive": "the order-8 diagonal group; each constant is which axes it negates",
-      "test_class": "lib.minecraft.renderer.face.FrameTurnTest"
+      "test_class": "lib.minecraft.renderer.face.TurnTest"
     },
     "roster.glint-subjects": {
       "anchor": [
@@ -375,7 +375,7 @@
       "cross_repo": false,
       "lines": "30-34",
       "re_derive": "EntityModelLoader.load() filtered on humanoidArmor().isPresent()",
-      "test_class": "lib.minecraft.renderer.pipeline.loader.HumanoidArmorRosterTest"
+      "test_class": "lib.minecraft.renderer.pipeline.loader.EntityModelLoaderArmorRosterTest"
     },
     "roster.humanoid-part-crop": {
       "anchor": [
@@ -389,7 +389,7 @@
     "roster.overlay-pipeline": {
       "cross_repo": false,
       "re_derive": "EntityPipelineTraits over the extracted client jar's layer classes",
-      "test_class": "lib.minecraft.renderer.pipeline.loader.OverlayPipelineRosterTest"
+      "test_class": "lib.minecraft.renderer.pipeline.loader.EntityModelLoaderOverlayPassTest"
     },
     "roster.pack-fixtures": {
       "cross_repo": false,

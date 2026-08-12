@@ -85,16 +85,16 @@ where it lives and how to re-derive it, and carries no value.
 
 | artifact | home | re-derive |
 |---|---|---|
-| `pin.armor-span` | `lib.minecraft.renderer.engine.kit.ArmorKitCitCompositeTest` | inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation |
+| `pin.armor-span` | `lib.minecraft.renderer.engine.kit.ArmorKitTest` | inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation |
 | `roster.appearance-axes` | `lib.minecraft.renderer.parity.AppearanceKey` | AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset |
 | `roster.armor-subjects` | `lib.minecraft.renderer.visual.TestArmorParityVanilla` | must match the harness ArmorSweep roster byte for byte or the sweep finds no reference |
 | `roster.dump-sections` | `lib.minecraft.renderer.pipeline.dump.PipelineParityDump` | PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated |
-| `roster.face-phase` | `lib.minecraft.renderer.face.FacePhaseTest` | vanilla's own corner order per face, read off the bakery and the polygon paths |
-| `roster.frame-turn` | `lib.minecraft.renderer.face.FrameTurnTest` | the order-8 diagonal group; each constant is which axes it negates |
+| `roster.face-phase` | `lib.minecraft.renderer.face.CornerPhaseTest` | vanilla's own corner order per face, read off the bakery and the polygon paths |
+| `roster.frame-turn` | `lib.minecraft.renderer.face.TurnTest` | the order-8 diagonal group; each constant is which axes it negates |
 | `roster.glint-subjects` | `lib.minecraft.renderer.visual.TestGlintParityVanilla` | the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders |
-| `roster.humanoid-armor` | `lib.minecraft.renderer.pipeline.loader.HumanoidArmorRosterTest` | EntityModelLoader.load() filtered on humanoidArmor().isPresent() |
+| `roster.humanoid-armor` | `lib.minecraft.renderer.pipeline.loader.EntityModelLoaderArmorRosterTest` | EntityModelLoader.load() filtered on humanoidArmor().isPresent() |
 | `roster.humanoid-part-crop` | `lib.minecraft.renderer.face.HumanoidPartCropTest` | Unwrap.Atlas.rect at each part's atlas origin under Turn.HALF_X |
-| `roster.overlay-pipeline` | `lib.minecraft.renderer.pipeline.loader.OverlayPipelineRosterTest` | EntityPipelineTraits over the extracted client jar's layer classes |
+| `roster.overlay-pipeline` | `lib.minecraft.renderer.pipeline.loader.EntityModelLoaderOverlayPassTest` | EntityPipelineTraits over the extracted client jar's layer classes |
 | `roster.pack-fixtures` | `lib.minecraft.renderer.pipeline.dump.PipelineParityDump` | PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere |
 | `roster.player-scopes` | `lib.minecraft.renderer.visual.TestPlayerParityVanilla` | the scopes the harness PlayerSweep renders |
 | `roster.sheet-groups` | `lib.minecraft.renderer.visual.TestPlayerRender` | the -Psheets groups TestPlayerRender accepts; ten offline plus the network-only account group |

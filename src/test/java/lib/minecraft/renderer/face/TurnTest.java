@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.is;
  * load-bearing and is asserted here rather than assumed.
  */
 @DisplayName("Turn - the frame relations, their group laws, and the half turn about X")
-class FrameTurnTest {
+class TurnTest {
 
     @Test
     @DisplayName("the six faces are declared in opposing pairs, which is what makes ordinal ^ 1 the opposite")

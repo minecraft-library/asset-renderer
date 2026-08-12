@@ -30,13 +30,11 @@ import static org.hamcrest.Matchers.sameInstance;
  * {@code floor(v * 255 + 0.5)} does, and a truncating rewrite would bias every shaded channel about
  * half a least-significant bit low without failing anything coarser.
  * <p>
- * {@link Shading#DISABLED} is read as full bright by both of its consumers, and both are asserted
- * here because they arrive at that answer differently. {@link Shading#relightForItems3d} rewrites the
- * sentinel to {@code 1.0f} and never evaluates the Lambertian for that face; {@link Shading#apply}
- * resolves it to unity directly, so a face that reaches the rasterizer still carrying the sentinel
- * keeps its colour instead of clamping to black. The second half is the one worth pinning: the value
- * is baked at quad-emit time and consumed several call sites away, and read as a bare multiplier it
- * would take every channel negative.
+ * A face declaring {@link SurfaceTraits#directionalLight()} {@code false} is left full bright.
+ * {@link Shading#relightForItems3d} writes {@code 1.0f} and never evaluates the Lambertian for it,
+ * which is the same answer vanilla's {@code getShade(direction, false)} gives. The flag is what the
+ * relight reads, so a face carrying it keeps its colour whatever scalar the kit happened to bake, and
+ * {@link Shading#apply} sees only real {@code [0, 1]} factors.
  * <p>
  * {@link Shading#relightForItems3d} carries four branches that are each easy to get wrong and none
  * of which a compiler protects: the outward normal is taken from the winding only when the winding
@@ -94,37 +92,40 @@ class ShadingTest {
     }
 
     @Test
-    @DisplayName("apply reads the DISABLED sentinel as full bright rather than as the factor -1")
-    void disabledSentinelIsFullBrightThroughApply() {
-        assertThat(Shading.DISABLED, equalTo(-1f));
+    @DisplayName("relight leaves a non-directional face full bright rather than lighting it")
+    void relightLeavesANonDirectionalFaceFullBright() {
+        SurfaceTraits traits = SurfaceTraits.OPAQUE_BODY.withCullBackFaces(false).withDirectionalLight(false);
+        // The kit bakes 1.0 for such a face, so the relight has nothing to correct - it has to leave
+        // the value alone. Handing it a shade it could not have baked is what tells "left alone" from
+        // "recomputed and happened to land on 1.0": the Lambertian of this normal is not 0.25.
+        VisibleTriangle unshaded = triangle(new Vector3f(0f, 1f, 0f), new Vector3f(0f, 0f, 1f),
+            new Vector3f(1f, 0f, 0f), 0.25f, traits);
+        VisibleTriangle relit = Shading.relightForItems3d(Concurrent.newList(unshaded), FLAT, true).getFirst();
 
-        // The sentinel means "this face skips directional darkening", and vanilla's
-        // getShade(direction, false) answers 1.0 for it, so apply resolves it to unity and every
-        // channel survives. Read as a bare multiplier it would take each channel negative and clamp
-        // the face to black, which is what this pins against - the value is baked at quad-emit time
-        // and consumed several call sites away.
-        assertThat(Shading.apply(0xFF804020, Shading.DISABLED), equalTo(0xFF804020));
-        assertThat(Shading.apply(0x40FFFFFF, Shading.DISABLED), equalTo(0x40FFFFFF));
+        // Full bright, and the Lambertian is never evaluated for this face.
+        assertThat(relit.shading(), equalTo(1.0f));
 
-        // Unity and the sentinel are the same answer, which is the whole claim.
-        assertThat(Shading.apply(0xFF123456, Shading.DISABLED), equalTo(Shading.apply(0xFF123456, 1f)));
+        // Which makes the pair an identity end to end: the face keeps the colour it sampled.
+        assertThat(Shading.apply(0xFF804020, relit.shading()), equalTo(0xFF804020));
+
+        // Not an early exit from the cull composition - the forced flag still applies.
+        assertThat(relit.traits().cullBackFaces(), is(true));
+
+        // And the flag rides through, so a second pass over the same triangles answers the same way.
+        assertThat(relit.traits().directionalLight(), is(false));
     }
 
     @Test
-    @DisplayName("relight rewrites the DISABLED sentinel to full bright, which is where its identity comes from")
-    void relightRewritesDisabledToFullBright() {
-        VisibleTriangle unshaded = triangle(new Vector3f(0f, 1f, 0f), new Vector3f(0f, 0f, 1f),
-            new Vector3f(1f, 0f, 0f), Shading.DISABLED, SurfaceTraits.OPAQUE_BODY.withCullBackFaces(false));
-        VisibleTriangle relit = Shading.relightForItems3d(Concurrent.newList(unshaded), FLAT, true).getFirst();
+    @DisplayName("relight lights a directional face carrying the same baked shade")
+    void relightLightsADirectionalFaceCarryingTheSameBakedShade() {
+        // The same geometry and the same baked scalar as the non-directional case above, differing in
+        // the flag alone - so the flag is what decides, not the shade the kit happened to bake.
+        VisibleTriangle directional = triangle(new Vector3f(0f, 1f, 0f), new Vector3f(0f, 0f, 1f),
+            new Vector3f(1f, 0f, 0f), 0.25f, SurfaceTraits.OPAQUE_BODY.withCullBackFaces(false));
+        VisibleTriangle relit = Shading.relightForItems3d(Concurrent.newList(directional), FLAT, true).getFirst();
 
-        // The sentinel is replaced outright - the Lambertian is never evaluated for this face.
-        assertThat(relit.shading(), equalTo(1.0f));
-
-        // Which is what makes the pair an identity end to end: the face keeps the colour it sampled.
-        assertThat(Shading.apply(0xFF804020, relit.shading()), equalTo(0xFF804020));
-
-        // The sentinel path is not an early exit from the cull composition - the forced flag applies.
-        assertThat(relit.traits().cullBackFaces(), is(true));
+        assertThat(relit.shading(), not(equalTo(1.0f)));
+        assertThat(relit.shading(), equalTo(0.4f));
     }
 
     @Test
@@ -216,7 +217,7 @@ class ShadingTest {
     @Test
     @DisplayName("relight rebuilds each triangle changing only its shade and its cull flag")
     void relightCarriesEverythingElseThrough() {
-        SurfaceTraits twoSidedGlinted = new SurfaceTraits(false, true, true, PassDeclaration.DEFAULT);
+        SurfaceTraits twoSidedGlinted = new SurfaceTraits(false, true, true, true, PassDeclaration.DEFAULT);
         VisibleTriangle input = new VisibleTriangle(
             ORIGIN, new Vector3f(0f, 1f, 0f), new Vector3f(0f, 0f, 1f),
             new Vector2f(0.1f, 0.2f), new Vector2f(0.3f, 0.4f), new Vector2f(0.5f, 0.6f),
@@ -242,10 +243,11 @@ class ShadingTest {
         // downstream passes still need the direction the model declared.
         assertThat(got.normal(), equalTo(new Vector3f(1f, 0f, 0f)));
 
-        // Only the cull bit moves inside the traits; the other three ride through.
+        // Only the cull bit moves inside the traits; the other four ride through.
         assertThat(got.traits().cullBackFaces(), is(true));
         assertThat(got.traits().translucent(), is(true));
         assertThat(got.traits().glinted(), is(true));
+        assertThat(got.traits().directionalLight(), is(true));
         assertThat(got.traits().pass(), sameInstance(PassDeclaration.DEFAULT));
 
         // The source list and its triangles are left as they were - the pass builds a new list.

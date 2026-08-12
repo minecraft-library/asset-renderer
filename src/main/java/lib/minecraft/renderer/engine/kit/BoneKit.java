@@ -365,16 +365,23 @@ public class BoneKit {
      * UP painted x=133-135 strip at shade 1.0 over the body's WEST shade 0.45). Caller uses this
      * predicate to skip emitting these triangles entirely.
      *
+     * <p>
+     * The test is on the two axes the face SPANS rather than on the first zero extent found, so a cube
+     * flat on two axes answers for all six faces. A {@code (0, 0, 8)} cube is a line along Z: reading
+     * only the first zero would call its WEST and EAST faces full-area, when a face spanning Y and Z
+     * has no more area than one spanning X and Y. No shipped cube has two zero extents, so this differs
+     * from a first-zero reading on nothing the renderer draws today.
+     *
      * @param size the cube's size vector
      * @param face the geometric face being rendered
      * @return {@code true} if the polygon collapses to a line; {@code false} when the face has
      *     full plane area
      */
     public static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull Face face) {
-        if (size.x() == 0f) return face.axis() != 0;
-        if (size.y() == 0f) return face.axis() != 1;
-        if (size.z() == 0f) return face.axis() != 2;
-        return false;
+        int axis = face.axis();
+        if (axis != 0 && size.x() == 0f) return true;
+        if (axis != 1 && size.y() == 0f) return true;
+        return axis != 2 && size.z() == 0f;
     }
 
     /**

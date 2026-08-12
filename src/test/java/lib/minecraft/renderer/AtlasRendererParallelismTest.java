@@ -2,16 +2,13 @@ package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.option.AtlasOptions;
 import lib.minecraft.renderer.option.AtlasTile;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.File;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -33,20 +30,14 @@ import static org.hamcrest.Matchers.is;
  */
 @Tag("slow")
 @DisplayName("AtlasRenderer parallel dispatch order")
+@ExtendWith(ClientAssetsExtension.class)
 class AtlasRendererParallelismTest {
 
-    private static final File CACHE_ROOT = new File("cache/it");
     private static AtlasRenderer atlasRenderer;
 
     @BeforeAll
     static void bootstrapPipeline() {
-        ClientAssets result = ClientAcquisition.acquire(
-            ClientOptions.builder()
-                .version("26.1")
-                .cacheRoot(CACHE_ROOT)
-                .build()
-        );
-        atlasRenderer = new AtlasRenderer(PipelineRendererContext.of(result));
+        atlasRenderer = new AtlasRenderer(ClientAssetsExtension.context());
     }
 
     @Test

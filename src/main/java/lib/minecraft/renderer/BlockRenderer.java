@@ -499,9 +499,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
         /**
          * Applies a rotation matrix to all triangles in a list, transforming vertex positions
-         * and surface normals. Preserves each triangle's {@code cullBackFaces} and {@code emissive}
-         * traits while resetting {@code translucent} / {@code glinted} to {@code false} - block
-         * geometry carries neither.
+         * and surface normals. Preserves each triangle's {@code cullBackFaces},
+         * {@code directionalLight} and {@code emissive} traits while resetting {@code translucent} /
+         * {@code glinted} to {@code false} - block geometry carries neither. The directional-light
+         * flag has to survive because the block-icon relight runs after this, and it is what tells
+         * the relight to leave a {@code "shade": false} face full-bright.
          */
         private static @NotNull ConcurrentList<VisibleTriangle> applyRotation(@NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull Matrix4f rotation) {
             ConcurrentList<VisibleTriangle> rotated = Concurrent.newList();
@@ -515,6 +517,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     tri.texture(), tri.tintArgb(),
                     tri.normal().transformNormal(rotation),
                     tri.shading(), new SurfaceTraits(tri.traits().cullBackFaces(), false, false,
+                        tri.traits().directionalLight(),
                         PassDeclaration.DEFAULT.withEmissive(tri.traits().pass().emissive()))
                 ));
             }
@@ -642,6 +645,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                             new Vector3f(t.position2().x() + dx, t.position2().y() + dy, t.position2().z() + dz),
                             t.uv0(), t.uv1(), t.uv2(),
                             t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                                t.traits().directionalLight(),
                                 PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
                         ));
                     }
@@ -815,6 +819,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     new Vector3f((t.position2().x() - cx) * scale, (t.position2().y() - cy) * scale, (t.position2().z() - cz) * scale),
                     t.uv0(), t.uv1(), t.uv2(),
                     t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                                t.traits().directionalLight(),
                                 PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
                 ));
             }

@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.sameInstance;
  * one quad which does <b>not</b> route through the emitter - a fluid's sloped top, whose four corners
  * are not coplanar - so its agreement is pinned rather than assumed.
  */
-class QuadFanTest {
+class BlockGeometryKitQuadFanTest {
 
     /** ARGB tint threaded through each build so a triangle can be attributed to its call. */
     private static final int TINT_ARGB = 0xFFAABBCC;

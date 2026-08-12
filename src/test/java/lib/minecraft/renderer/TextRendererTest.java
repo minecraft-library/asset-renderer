@@ -24,10 +24,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * background fill {@code 0xF0100010}, gradient top {@code 0x505000FF}, gradient bottom
  * {@code 0x5028007F}, and the interpolated left edge bracketed between them.
  * <p>
- * Two cases here assert the vanilla background / border alpha defaults ({@code 240} / {@code 80}) on
- * {@link TextOptions#defaults()} and never reach the renderer at all; they sit here for want of an
- * options-level home.
- * <p>
  * {@link MinecraftFontsExtension} supplies the loaded Minecraft font atlas so the renderer can lay
  * out glyphs and size the tooltip canvas.
  */
@@ -49,20 +45,6 @@ class TextRendererTest {
             .style(TextOptions.Style.LORE)
             .lines(lines)
             .build();
-    }
-
-    @Test
-    @DisplayName("default background alpha is 240 (0xF0) matching vanilla")
-    void defaultBackgroundAlphaIsVanilla() {
-        TextOptions opts = TextOptions.defaults();
-        assertThat(opts.getBackgroundAlpha(), is(240));
-    }
-
-    @Test
-    @DisplayName("default border alpha is 80 (0x50) matching vanilla")
-    void defaultBorderAlphaIsVanilla() {
-        TextOptions opts = TextOptions.defaults();
-        assertThat(opts.getBorderAlpha(), is(80));
     }
 
     @Test

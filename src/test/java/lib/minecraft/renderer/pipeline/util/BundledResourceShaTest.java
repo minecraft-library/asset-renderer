@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.is;
  * comparison to apply. No value is transcribed by hand.
  */
 @DisplayName("bundled JSON resources match the digests pinned in the parity store")
-class ResourceShaTest {
+class BundledResourceShaTest {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 

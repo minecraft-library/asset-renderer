@@ -113,7 +113,7 @@ class EntityModelLoaderTest {
     void humanoidArmorFromLayersRow() {
         // The armor row lives under `layers`: the reader joins its geometry reference against the
         // geometry table (absence IS none). Which entities land on the roster is asserted exhaustively
-        // by HumanoidArmorRosterTest; what the joined shell carries is asserted here.
+        // by EntityModelLoaderArmorRosterTest; what the joined shell carries is asserted here.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         assertThat("the derived accessor reads the layers row",
             defs.get("minecraft:zombie").layers().humanoidArmor().isPresent(), is(true));

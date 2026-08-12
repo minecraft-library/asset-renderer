@@ -24,37 +24,16 @@ import org.jetbrains.annotations.NotNull;
 @UtilityClass
 public class Shading {
 
-    /**
-     * Sentinel shade value marking a {@code "shade": false} model element (coral fans, cross/crop
-     * plants, ladder, vine, tripwire, redstone dust, torches). Vanilla's
-     * {@code getShade(direction, shade=false)} returns {@code 1.0} - the face skips directional
-     * darkening - so {@link #relightForItems3d} renders these full-bright instead of applying the
-     * {@code Lighting.ITEMS_3D} Lambertian. Block kits bake this scalar at quad-emit time.
-     */
-    public static final float DISABLED = -1f;
-
     // --- shading ---
 
     /**
      * Multiplies an ARGB pixel's RGB channels by a shading factor, preserving the alpha channel.
-     * <p>
-     * {@link #DISABLED} is honoured here as full-bright, which is what the sentinel means everywhere
-     * else: vanilla's {@code getShade(direction, false)} returns {@code 1.0}. Without that branch the
-     * sentinel is a negative multiplier, every channel rounds below zero, and the clamp renders the
-     * face BLACK with its alpha intact. No production path reaches it today - the block-icon path
-     * rewrites the sentinel in {@link #relightForItems3d}, the carried-block path re-shades every
-     * triangle against the entity Lambertian and so discards whatever the kit baked, and no vanilla
-     * item model carries a {@code "shade": false} element - so this branch changes no rendered byte.
-     * It exists because the sentinel is baked at quad-emit time and consumed three call sites away,
-     * and a fourth consumer that forgot to relight would otherwise draw black rather than the
-     * full-bright face the flag asks for.
      *
      * @param argb the source ARGB pixel
-     * @param factor the shading factor in {@code [0, 1]}, or {@link #DISABLED} for full-bright
+     * @param factor the shading factor in {@code [0, 1]}
      * @return the shaded ARGB pixel
      */
     public static int apply(int argb, float factor) {
-        if (factor == DISABLED) factor = 1f;
         // Vanilla GLSL quantizes via `floor(min(1, v) * 255 + 0.5)` (round-half-up), so match it with
         // Math.round. A plain (int) truncation would bias every shaded channel ~0.5 LSB low and leave
         // a single-LSB precision floor across un-tinted entities (goat / husk / zombie / skeleton etc).
@@ -117,10 +96,10 @@ public class Shading {
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle t : triangles) {
             boolean cull = forceCullBackFaces || t.traits().cullBackFaces();
-            // DISABLED marks a "shade": false element (see the field doc): vanilla's
+            // A face that takes no directional light is a "shade": false element: vanilla's
             // getShade(direction, false) returns 1.0, so render it full-bright rather than applying
             // the ITEMS_3D Lambertian. Cull / two-sided handling is unchanged; only the shade differs.
-            if (t.shading() == DISABLED) {
+            if (!t.traits().directionalLight()) {
                 out.add(new VisibleTriangle(
                     t.position0(), t.position1(), t.position2(),
                     t.uv0(), t.uv1(), t.uv2(),

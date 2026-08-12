@@ -450,21 +450,36 @@ class BoneKitTest {
     }
 
     /**
-     * Pins the observed answer for a cube with two zero axes, which the class javadoc does not cover:
-     * the first zero axis found decides alone, so the two faces on <em>that</em> axis are reported as
-     * full-area even though a cube with a second zero extent collapses those faces to a line too. The
-     * ordering is X, then Y, then Z.
+     * Pins that a cube flat on two axes collapses every face, not just the four a single zero extent
+     * accounts for. A {@code (0, 0, 8)} cube is a line along Z, so a face spanning Y and Z has exactly
+     * as little area as one spanning X and Y - reading only the first zero extent would call WEST and
+     * EAST full-area and emit two triangles the rasterizer then paints as a thin wrong-shade strip.
      */
     @Test
-    @DisplayName("two zero axes are answered by the first of them alone")
-    void twoZeroAxesAreAnsweredByTheFirstAxisAlone() {
+    @DisplayName("a cube flat on two axes collapses every face, not only the first zero axis")
+    void twoZeroAxesCollapseEveryFace() {
         Vector3f lineAlongZ = new Vector3f(0f, 0f, 8f);
 
-        assertThat("WEST reads as full-area although its own extent is zero on Y",
-            BoneKit.isDegeneratePlaneFace(lineAlongZ, Face.WEST), is(false));
-        assertThat("EAST likewise", BoneKit.isDegeneratePlaneFace(lineAlongZ, Face.EAST), is(false));
-        assertThat("UP collapses", BoneKit.isDegeneratePlaneFace(lineAlongZ, Face.UP), is(true));
-        assertThat("NORTH collapses", BoneKit.isDegeneratePlaneFace(lineAlongZ, Face.NORTH), is(true));
+        for (Face face : Face.CACHED_VALUES)
+            assertThat(face + " spans an axis of zero extent, so it has no area",
+                BoneKit.isDegeneratePlaneFace(lineAlongZ, face), is(true));
+    }
+
+    /**
+     * Pins that a single zero extent still spares the two faces normal to it, which is the case every
+     * shipped plane cube takes and the one the two-zero reading must not disturb.
+     */
+    @Test
+    @DisplayName("a single zero extent collapses four faces and spares the two normal to it")
+    void singleZeroExtentSparesItsOwnPair() {
+        Vector3f planeYZ = new Vector3f(0f, 6f, 8f);
+
+        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.WEST), is(false));
+        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.EAST), is(false));
+        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.UP), is(true));
+        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.DOWN), is(true));
+        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.NORTH), is(true));
+        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.SOUTH), is(true));
     }
 
     /**

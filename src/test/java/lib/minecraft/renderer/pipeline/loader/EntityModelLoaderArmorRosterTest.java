@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.is;
  * geometry reference that stops resolving, drops that wearer off the roster here.
  */
 @DisplayName("humanoidArmor roster")
-class HumanoidArmorRosterTest {
+class EntityModelLoaderArmorRosterTest {
 
     /** The vanilla {@code HumanoidArmorLayer} wearers; {@link PlayerRenderer} arms the player */
     private static final Set<String> EXPECTED = Set.of(

@@ -143,6 +143,25 @@ public final class Pins {
     }
 
     /**
+     * Returns whether a pin-set already holds a value under a key.
+     * <p>
+     * The per-key counterpart of {@link SelfCapture#requireBaseline}, which answers for a whole
+     * artifact. A key ADDED to a pin-set the store has already baselined is the one case neither
+     * covers: the artifact is baselined, so the whole-artifact guard passes, and the key is absent, so
+     * {@link #count} raises - which fails the very capture that would give the key its first value.
+     * A producer asks this first and skips its assertion on the round that bootstraps the key.
+     *
+     * @param artifactId the pin-set artifact id
+     * @param key the counted thing's name
+     * @return {@code true} when the store holds a value under that key
+     */
+    public static boolean holds(@NotNull String artifactId, @NotNull String key) {
+        if (!ParityStore.isBaselined(artifactId)) return false;
+        JsonObject values = ParityStore.read(artifactId).getAsJsonObject("values");
+        return values != null && values.has(key);
+    }
+
+    /**
      * Returns every key a pin-set or digest-set holds, in sorted order.
      *
      * @param artifactId the artifact id

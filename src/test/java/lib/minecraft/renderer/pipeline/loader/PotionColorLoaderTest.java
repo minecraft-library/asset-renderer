@@ -8,7 +8,6 @@ import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -18,15 +17,6 @@ import static org.hamcrest.Matchers.is;
  * byte-for-byte.
  */
 class PotionColorLoaderTest {
-
-    @Test
-    @DisplayName("loads the bundled snapshot with at least the vanilla 26.1 effect set")
-    void loadsEntries() {
-        Map<String, Color> colors = PotionColorLoader.load();
-        // Vanilla MC 26.1 ships 30+ effects; subsequent versions add more. Anything less than 20
-        // points at a parser regression or a stripped-down JSON.
-        assertThat(colors.size(), greaterThan(20));
-    }
 
     @Test
     @DisplayName("fire_resistance effect resolves to the MC 26.1 orange colour")

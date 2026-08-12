@@ -20,12 +20,13 @@ import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.pack.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -45,10 +46,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end asset pipeline integration test that downloads the Minecraft 26.1 client jar,
- * extracts it into a persistent cache directory, runs the full pipeline, and asserts that every
- * critical artefact (block models, item models, texture catalogue, vanilla pack entity) is
- * populated.
+ * End-to-end asset pipeline integration test that downloads the client jar for the Minecraft version
+ * {@link ClientAssetsExtension#VERSION} names, extracts it into a persistent cache directory, runs the
+ * full pipeline, and asserts that every critical artefact (block models, item models, texture
+ * catalogue, vanilla pack entity) is populated.
  * <p>
  * This test is tagged {@code slow} and is skipped by the default {@code test} task. Run it
  * explicitly with {@code ./gradlew slowTest}. The first run downloads ~25MB
@@ -56,19 +57,18 @@ import static org.hamcrest.Matchers.notNullValue;
  * {@code asset-renderer/cache/it} and complete in seconds.
  * <p>
  * The cache root is deliberately stable (not a temporary directory) so the extracted client jar
- * survives across sessions - offline vanilla-source lookups depend on having the
- * extracted 26.1 source available on disk after the test runs. {@code .gitignore} already excludes
+ * survives across sessions - offline vanilla-source lookups depend on having the extracted source
+ * available on disk after the test runs. {@code .gitignore} already excludes
  * {@code asset-renderer/cache/}, so nothing leaks into commits.
  * <p>
- * The version spelled out above is the one {@link #downloadAndExtract()} asks {@link ClientOptions}
- * for by literal, so a version bump moves this prose with that literal.
+ * Neither the version nor the cache root is written down here: both are
+ * {@link ClientAssetsExtension}'s, which is what makes the acquisition shared with every other test
+ * that needs it and a version bump a one-line edit.
  */
 @Tag("slow")
 @DisplayName("ClientAcquisition end-to-end integration")
-class PipelineIntegrationTest {
-
-    /** Stable, non-temporary cache root so the extracted client jar survives across sessions. */
-    private static final File CACHE_ROOT = new File("cache/it");
+@ExtendWith(ClientAssetsExtension.class)
+class ClientAcquisitionIntegrationTest {
 
     /** The digest-set the colormap byte-parity assertion both writes and reads. */
     private static final String COLORMAP_ARTIFACT = "digest.colormap-lut";
@@ -76,7 +76,7 @@ class PipelineIntegrationTest {
     /** The canonical form those digests are taken over: the raw big-endian ARGB buffer. */
     private static final String COLORMAP_FORM = "raw-argb-bytes";
 
-    /** Client assets (options + vanilla root) shared across every test, built once in {@link #downloadAndExtract()}. */
+    /** Client assets (options + vanilla root) shared across every test, taken once in {@link #downloadAndExtract()}. */
     private static ClientAssets result;
 
     /** The compiled pack stack, probed by the stack / texture-index assertions. */
@@ -95,17 +95,12 @@ class PipelineIntegrationTest {
     private static Path packRoot;
 
     /**
-     * Runs the full 26.1 pipeline once for the class - downloads and extracts the client jar (or
-     * reuses the cached copy) and publishes the shared {@link #result} / {@link #packRoot}.
+     * Runs the full pipeline once for the class over the extension's extracted client jar and publishes
+     * the shared {@link #result} / {@link #packRoot}.
      */
     @BeforeAll
     static void downloadAndExtract() {
-        ClientOptions options = ClientOptions.builder()
-            .version("26.1")
-            .cacheRoot(CACHE_ROOT)
-            .build();
-
-        result = ClientAcquisition.acquire(options);
+        result = ClientAssetsExtension.assets();
         packRoot = result.vanillaRoot();
         stack = PackAcquisition.acquire(result);
         models = ResolvedModels.load(stack);

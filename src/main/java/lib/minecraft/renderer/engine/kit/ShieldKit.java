@@ -110,7 +110,7 @@ public class ShieldKit {
                 t.position0(), t.position1(), t.position2(),
                 t.uv0(), t.uv1(), t.uv2(),
                 t.texture(), t.tintArgb(), t.normal(), shading,
-                new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                new SurfaceTraits(t.traits().cullBackFaces(), false, false, t.traits().directionalLight(),
                     PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }

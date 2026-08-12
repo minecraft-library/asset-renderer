@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.loader;
 import lib.minecraft.renderer.parity.PinSet;
 import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -39,7 +40,13 @@ class CorpusCountPinTest {
             + "entry, which is disjoint from unresolved{}",
         "glint_items",
         "GlintItemsLoader.load().size() over the bundled glint_items.json - the intrinsically-foil "
-            + "items, those declaring ENCHANTMENT_GLINT_OVERRIDE=true"));
+            + "items, those declaring ENCHANTMENT_GLINT_OVERRIDE=true",
+        "block_tints",
+        "BlockTintsLoader.load().size() over the bundled block_tints.json - every block declaring a "
+            + "constant or biome tint target",
+        "potion_colors",
+        "PotionColorLoader.load().size() over the bundled potion_colors.json - every potion id "
+            + "carrying a bottle colour"));
 
     @Test
     @DisplayName("block_defaults.json holds the pinned number of resolved default states")
@@ -55,9 +62,27 @@ class CorpusCountPinTest {
         assertPinned("glint_items", GlintItemsLoader.load().size());
     }
 
+    @Test
+    @DisplayName("block_tints.json holds the pinned number of tinted blocks")
+    void blockTintsCorpusIsPinned() {
+        assertPinned("block_tints", BlockTintsLoader.load().size());
+    }
+
+    @Test
+    @DisplayName("potion_colors.json holds the pinned number of coloured potions")
+    void potionColorsCorpusIsPinned() {
+        assertPinned("potion_colors", PotionColorLoader.load().size());
+    }
+
     private static void assertPinned(String key, int actual) {
         PINS.count(key, actual);
         PINS.requireBaseline();
+        // A key added to an already-baselined pin-set has no stored value on its first capture, and
+        // raising here would fail the run that is about to give it one. Skip loudly instead, so the
+        // count still reaches the working root and the promote below has something to promote.
+        Assumptions.assumeTrue(Pins.holds(ARTIFACT, key),
+            () -> "corpus size " + key + " has no baseline yet, so there is nothing to assert against. "
+                + "Give it one: " + Pins.bootstrapCommand(ARTIFACT));
         assertThat("corpus size " + key + "; a moved count means a flow emitted a different "
                 + "population. If intentional, re-baseline it: " + Pins.rebaselineCommand(ARTIFACT),
             actual, is(Pins.count(ARTIFACT, key)));

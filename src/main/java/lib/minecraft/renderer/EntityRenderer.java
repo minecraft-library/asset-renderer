@@ -1050,6 +1050,17 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // snow-golem carved_pumpkin top rendered at the 0.4 ambient floor instead of ~1.0.
             // Mushroom-cross overlays are unaffected: their plane normals are horizontal (y ~= 0), so
             // the flip is a no-op and mooshroom parity is unchanged.
+            // No signed-byte SNORM round trip here, unlike both GUI relights, and that is measured
+            // rather than overlooked. Adding one is bit-identical on a cardinal normal, so it changes
+            // nothing on the snow golem's carved_pumpkin, and nothing on the iron golem's poppy either
+            // - all four of that model's cross-plane normals saturate the Lambertian at the 0.4 floor
+            // or the 1.0 ceiling, so the quantization never escapes a clamp. On the two subjects whose
+            // normals do sit unsaturated it pulls in opposite directions: the mooshroom's cross planes
+            // improve (brown 0.164 -> 0.133 mean delta, red 0.211 -> 0.199) while the enderman's
+            // rotated grass_block cube degrades (0.042 -> 0.060, differing pixels 4140 -> 8619). A
+            // quantization vanilla either does or does not apply cannot be right for the planes and
+            // wrong for the cube, so the difference between these subjects is something else and the
+            // round trip is not it.
             Vector3f shadingNormal = Turn.MIRROR_Y.apply(transformedNormal);
             float shading = entityLighting.shade(shadingNormal, true);
             // Force back-face culling, matching vanilla's block render types (all bind GL culling)
@@ -1069,7 +1080,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 tri.uv0(), tri.uv1(), tri.uv2(),
                 tri.texture(), tri.tintArgb(),
                 transformedNormal,
-                shading, new SurfaceTraits(true, false, false,
+                shading, new SurfaceTraits(true, false, false, true,
                     PassDeclaration.DEFAULT.withEmissive(tri.traits().pass().emissive()))
             ));
         }

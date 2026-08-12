@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.not;
  * </ul>
  */
 @DisplayName("Face corner phase, winding, fan diagonal and UV pairing")
-class FacePhaseTest {
+class CornerPhaseTest {
 
     /**
      * A deliberately asymmetric element box - three distinct extents, so no two axes can stand in for
