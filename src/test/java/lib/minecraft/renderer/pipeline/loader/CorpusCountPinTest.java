@@ -2,7 +2,6 @@ package lib.minecraft.renderer.pipeline.loader;
 
 import lib.minecraft.renderer.parity.PinSet;
 import lib.minecraft.renderer.parity.Pins;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,7 +51,7 @@ class CorpusCountPinTest {
     @DisplayName("block_defaults.json holds the pinned number of resolved default states")
     void blockDefaultsCorpusIsPinned() {
         int actual = BlockDefaultsLoader.load(
-            Diagnostics.root("test", Diagnostics.Output.NONE, null)).size();
+            ).size();
         assertPinned("block_defaults_states", actual);
     }
 

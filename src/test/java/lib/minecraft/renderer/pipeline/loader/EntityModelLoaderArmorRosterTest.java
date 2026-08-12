@@ -3,7 +3,6 @@ package lib.minecraft.renderer.pipeline.loader;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +35,7 @@ class EntityModelLoaderArmorRosterTest {
     @Test
     @DisplayName("humanoidArmor entities are exactly the vanilla HumanoidArmorLayer wearers")
     void rosterMatches() {
-        ConcurrentMap<String, Entity> index = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> index = EntityModelLoader.load();
         Set<String> flagged = new TreeSet<>();
         index.forEach((id, entity) -> {
             if (entity.humanoidArmor().isPresent()) flagged.add(id);

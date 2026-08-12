@@ -12,7 +12,6 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.loader.BlockModelReader.BlockModelEntry;
 import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -68,16 +67,6 @@ public class BlockModelLoader {
     }
 
     /**
-     * Loads block-entity geometry from the classpath snapshot with no pack override channel applied.
-     *
-     * @return the primary models keyed by block id plus any per-variant state-conditional models
-     * @throws PipelineException if the resource is missing or cannot be parsed
-     */
-    public static @NotNull LoadResult load() {
-        return load(Diagnostics.root("blockModels", Diagnostics.Output.CONSOLE, null));
-    }
-
-    /**
      * Loads block-entity geometry from the classpath snapshot with the pack {@code renderer/*.json}
      * override channel applied, then reports any pack shipping a vanilla-form model / blockstate for a
      * code-rendered block entity. A vanilla-only stack ships no override, so the result is
@@ -89,8 +78,7 @@ public class BlockModelLoader {
      *     fails format-2 envelope validation
      */
     public static @NotNull LoadResult load(@NotNull PackStack stack) {
-        Diagnostics diagnostics = Diagnostics.root("blockModels", Diagnostics.Output.CONSOLE, null);
-        LoadResult result = load(diagnostics, BlockRendererOverrides.gather(stack, diagnostics));
+        LoadResult result = load(BlockRendererOverrides.gather(stack));
         reportShadowedIds(stack, result.blockEntityBackedIds());
         return result;
     }
@@ -146,12 +134,11 @@ public class BlockModelLoader {
      * Reads the block-entity model catalog natively from the bundled classpath snapshot, with no pack
      * override channel applied.
      *
-     * @param diagnostics the scope envelope and read warnings are recorded to
      * @return the primary models keyed by block id plus any per-variant state-conditional models
      * @throws PipelineException if a resource is missing, malformed, or a geometry coordinate dangles
      */
-    public static @NotNull LoadResult load(@NotNull Diagnostics diagnostics) {
-        return load(diagnostics, BlockRendererOverrides.EMPTY);
+    public static @NotNull LoadResult load() {
+        return load(BlockRendererOverrides.EMPTY);
     }
 
     /**
@@ -161,16 +148,15 @@ public class BlockModelLoader {
      * the classpath bone tree at the same coordinate. An overridden id still renders through
      * {@link BlockGeometryKit#buildFromBones} - same kit, same lighting, same parity locks.
      *
-     * @param diagnostics the scope envelope and read warnings are recorded to
      * @param overrides the gathered pack override channel; {@link BlockRendererOverrides#EMPTY} for a
      *     vanilla-only stack, which leaves the result byte-identical to the classpath snapshot
      * @return the primary models keyed by block id plus any per-variant state-conditional models
      * @throws PipelineException if a resource is missing, malformed, or a geometry coordinate dangles
      */
-    public static @NotNull LoadResult load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
-        Map<String, BlockModelEntry> models = BlockModelReader.load(diagnostics, overrides);
-        Map<String, EntityModelData> geometries = BlockGeometryReader.load(diagnostics, overrides);
-        return BlockEntityAssembler.assemble(models, geometries, diagnostics);
+    public static @NotNull LoadResult load(@NotNull BlockRendererOverrides overrides) {
+        Map<String, BlockModelEntry> models = BlockModelReader.load(overrides);
+        Map<String, EntityModelData> geometries = BlockGeometryReader.load(overrides);
+        return BlockEntityAssembler.assemble(models, geometries);
     }
 
 }

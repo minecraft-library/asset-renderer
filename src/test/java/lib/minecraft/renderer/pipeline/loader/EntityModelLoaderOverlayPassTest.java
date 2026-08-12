@@ -3,7 +3,6 @@ package lib.minecraft.renderer.pipeline.loader;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -44,7 +43,7 @@ class EntityModelLoaderOverlayPassTest {
     private static final Set<String> ADDITIVE = Set.of("minecraft:creeper", "minecraft:wither");
 
     private static ConcurrentMap<String, Entity> index() {
-        return EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        return EntityModelLoader.load();
     }
 
     @Test

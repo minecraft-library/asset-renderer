@@ -6,7 +6,6 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -31,14 +30,13 @@ public final class BlockModelReader {
      * Reads the raw model catalog from {@code block_models.json} and overlays the pack override channel
      * per model id.
      *
-     * @param diagnostics the scope envelope warnings are recorded to
      * @param overrides the gathered pack override channel; {@link BlockRendererOverrides#EMPTY} for a
      *     vanilla-only stack
      * @return model id to its raw model entry, base-first with later packs winning per model id
      * @throws PipelineException if the resource is missing or malformed
      */
-    static @NotNull Map<String, BlockModelEntry> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
-        ResourceDocument document = BundledResource.require(RESOURCE_NAME, diagnostics);
+    static @NotNull Map<String, BlockModelEntry> load(@NotNull BlockRendererOverrides overrides) {
+        ResourceDocument document = BundledResource.require(RESOURCE_NAME);
         Map<String, BlockModelEntry> models = new LinkedHashMap<>(document.as(BlockModelsFile.class).models());
         for (Map.Entry<String, JsonTree> override : overrides.models().members().toList())
             models.put(override.getKey(), override.getValue().as(BlockModelEntry.class));

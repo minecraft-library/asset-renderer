@@ -9,7 +9,6 @@ import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -43,7 +42,7 @@ class EntityModelLoaderTest {
     @Test
     @DisplayName("wolf base texture ref equals the default variant option's wild texture")
     void wolfWildEqualsTextureRef() {
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity pale = coat(defs, "minecraft:wolf", "pale");
         assertThat(pale.axes().stateTextures().get("wild"), is("wolf/wolf"));
         assertThat("wild state equals the default texture_ref",
@@ -55,7 +54,7 @@ class EntityModelLoaderTest {
     @Test
     @DisplayName("baby texture resolves via the three-source chain (variant baby_texture / isBaby binding / <adult>_baby)")
     void babyThreeSourceChain() {
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         // 1) variant-table per-option baby_texture (per coat sub-definition)
         assertThat(coat(defs, "minecraft:cow", "temperate").axes().stateTextures().get("baby"), is("cow/cow_temperate_baby"));
         assertThat(coat(defs, "minecraft:cow", "warm").axes().stateTextures().get("baby"), is("cow/cow_warm_baby"));
@@ -72,7 +71,7 @@ class EntityModelLoaderTest {
         // The collar renders only when a collar colour is supplied (the truthful collar_color gate); the
         // load contract pins the collar texture presence that gate resolves against. A bare wolf / cat
         // with no collar colour therefore renders no collar band.
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         assertThat(coat(defs, "minecraft:wolf", "pale").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
         assertThat("every wolf variant shares the family collar",
             coat(defs, "minecraft:wolf", "ashen").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
@@ -84,7 +83,7 @@ class EntityModelLoaderTest {
     @Test
     @DisplayName("option-encoded variant family loads one base row + a coat map the resolver fold selects")
     void variantOptionEncoding() {
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity cow = defs.get("minecraft:cow");
         assertThat("one base row, no coat pseudo-ids", cow != null && defs.get("minecraft:cow_cold") == null, is(true));
         assertThat("the coat map carries every option", cow.axes().variants().keySet(), hasItems("cold", "temperate", "warm"));
@@ -114,7 +113,7 @@ class EntityModelLoaderTest {
         // The armor row lives under `layers`: the reader joins its geometry reference against the
         // geometry table (absence IS none). Which entities land on the roster is asserted exhaustively
         // by EntityModelLoaderArmorRosterTest; what the joined shell carries is asserted here.
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         assertThat("the derived accessor reads the layers row",
             defs.get("minecraft:zombie").layers().humanoidArmor().isPresent(), is(true));
 
@@ -142,7 +141,7 @@ class EntityModelLoaderTest {
     @Test
     @DisplayName("a base-mesh-inheriting grow-less overlay is auto-skipped from canvas bounds")
     void depthClearanceOnGeometryInheritance() {
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         // enderman eyes re-submit the base mesh (same geometry coordinate) with no tint - our auto-emitted
         // depth-clearance inflate wins the coplanar tie, and the overlay is excluded from canvas bounds
         // because the base already covers its silhouette. Keyed on the overlay inheriting the base mesh,
@@ -166,7 +165,7 @@ class EntityModelLoaderTest {
         // than from a second geometry coordinate. Expressing it as its own coordinate would flip
         // sameGeometry false, dropping the depth-clearance inflate (z-fighting the base body) and
         // un-setting the derived bounds skip - which moves the villager AND wandering_trader canvas.
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         assertThat("villager type pass skips bounds", defs.get("minecraft:villager").overlays().getFirst().skipBounds(), is(true));
         assertThat("zombie villager type pass skips bounds", defs.get("minecraft:zombie_villager").overlays().getFirst().skipBounds(), is(true));
     }
@@ -179,7 +178,7 @@ class EntityModelLoaderTest {
         // gives only one of them a baby form, because SheepWoolUndercoatLayer.submit returns outright on a
         // baby while SheepWoolLayer swaps to its baby mesh. A list that fell back would dress a lamb in the
         // undercoat vanilla never draws on it.
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity sheep = defs.get("minecraft:sheep");
         assertThat("the sheep has a baby mesh", sheep.axes().babyModel().isPresent(), is(true));
         assertThat("the sheep carries an undercoat pass and a wool pass", sheep.overlays().size(), is(2));
@@ -201,7 +200,7 @@ class EntityModelLoaderTest {
         // instead of driving them off the parameter - so the shell is NOT the baby body grown by the row's
         // 0.25 and the delta has to name a mesh. Inheriting the row's grow instead would land the adult
         // inflate a second time on top of the baby factory's own.
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity drowned = defs.get("minecraft:drowned");
         assertThat("the adult outer layer is the adult shell",
             drowned.overlays().getFirst().textureRef(), is(Optional.of("zombie/drowned_outer_layer")));
@@ -223,7 +222,7 @@ class EntityModelLoaderTest {
         // End-to-end canary over the shipped resource: vanilla dresses a baby trader llama in a distinct
         // baby caparison, and the parity harness renders no babies, so a lost `baby` decor node would
         // silently strip it with the suite still green. The adult decor stays the adult caparison.
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity llama = defs.get("minecraft:trader_llama");
         assertThat("the trader llama has a baby mesh", llama.axes().babyModel().isPresent(), is(true));
         assertThat("the adult decor is the adult caparison",
@@ -246,7 +245,7 @@ class EntityModelLoaderTest {
         // pass and the loader must bind it into the baby overlay list. Nothing else covers it - the parity
         // harness renders no babies, so a lost node or an unbound delta would silently strip the robe off
         // every baby villager with the suite still green.
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         assertShippedBabyTypePass(defs, "minecraft:villager", "villager", "bb_main");
         assertShippedBabyTypePass(defs, "minecraft:zombie_villager", "zombie_villager", "nose");
     }
@@ -312,7 +311,7 @@ class EntityModelLoaderTest {
         // type pass and the loader must derive the alternate mesh from it. A regenerated resource that
         // lost the key, or a loader that stopped deriving the mesh, fails here rather than silently
         // rendering a hat through a hat-bearing profession's headwear.
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         assertHeadStrippedTypePass(defs, "minecraft:villager", List.of("head", "hat", "hat_rim", "nose"));
         assertHeadStrippedTypePass(defs, "minecraft:zombie_villager", List.of("head", "hat", "hat_rim"));
     }
@@ -365,7 +364,7 @@ class EntityModelLoaderTest {
         // `material_assets` table, and the loader must decode both. A material mapped to the wrong asset
         // id resolves to no equipment layers and silently drops the texture, and the parity harness
         // equips nothing, so an inert table would leave the suite green with every saddle untextured.
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
 
         // The three shapes the table exists for: the shared saddle asset, the identity-named armor
         // tier, and the llama carpet whose asset name is NOT its material name.
@@ -400,7 +399,7 @@ class EntityModelLoaderTest {
         // resolver keyed off the renderer CLASS instead of the entity would silently give both members of
         // a pair the same layer and the same mesh, and the parity harness saddles nothing, so the suite
         // would stay green with a mule wearing a donkey's saddle.
-        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
 
         assertEquipmentAsset(defs, "minecraft:donkey", "saddle", LayerType.DONKEY_SADDLE, "saddle", "minecraft:saddle");
         assertEquipmentAsset(defs, "minecraft:mule", "saddle", LayerType.MULE_SADDLE, "saddle", "minecraft:saddle");

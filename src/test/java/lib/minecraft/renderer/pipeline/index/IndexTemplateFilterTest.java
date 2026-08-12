@@ -21,7 +21,6 @@ import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -86,10 +85,9 @@ class IndexTemplateFilterTest {
         glintItems = GlintItemsLoader.load();
         blockTags = BlockTagLoader.load(stack);
 
-        Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.NONE, null);
         ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates =
-            BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));
-        Map<String, String> blockItemAliases = BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.NONE, null));
+            BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack));
+        Map<String, String> blockItemAliases = BlockItemsLoader.load();
 
         be = BlockModelLoader.load();
 

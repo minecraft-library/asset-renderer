@@ -6,7 +6,6 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -18,7 +17,7 @@ import java.util.Optional;
  * {@code lib/minecraft/renderer/} so a vanilla client ignores them) to deliberately replace
  * classpath-bundled block-entity geometry.
  *
- * <p>{@link #gather(PackStack, Diagnostics)} walks the stack ascending and overlays each pack's
+ * <p>{@link #gather(PackStack)} walks the stack ascending and overlays each pack's
  * {@code renderer/block_models.json} / {@code renderer/block_geometry.json} /
  * {@code renderer/block_defaults.json} onto three accumulators, keyed by top-level entry (model id,
  * geometry coordinate, block id) - the per-block-id granularity that lets a pack replace one chest
@@ -65,18 +64,17 @@ public record BlockRendererOverrides(
      * Gathers the block-entity geometry overrides across the whole pack stack.
      *
      * @param stack the resolved pack stack
-     * @param diagnostics the scope envelope warnings are recorded to
      * @return the merged overlay accumulators, {@link #EMPTY} when no pack ships a {@code renderer/*.json}
      * @throws PipelineException if a pack's override file fails format-2 envelope validation
      */
-    public static @NotNull BlockRendererOverrides gather(@NotNull PackStack stack, @NotNull Diagnostics diagnostics) {
+    public static @NotNull BlockRendererOverrides gather(@NotNull PackStack stack) {
         JsonTree models = JsonTree.object();
         JsonTree geometries = JsonTree.object();
         JsonTree defaults = JsonTree.object();
         for (ResourcePack pack : stack.ascending()) {
-            overlay(pack, MODELS_PATH, "models", models, diagnostics);
-            overlay(pack, GEOMETRY_PATH, "geometries", geometries, diagnostics);
-            overlay(pack, DEFAULTS_PATH, "blocks", defaults, diagnostics);
+            overlay(pack, MODELS_PATH, "models", models);
+            overlay(pack, GEOMETRY_PATH, "geometries", geometries);
+            overlay(pack, DEFAULTS_PATH, "blocks", defaults);
         }
         return new BlockRendererOverrides(models, geometries, defaults);
     }
@@ -97,13 +95,13 @@ public record BlockRendererOverrides(
      * warning rather than treated as an error - a pack may ship any subset of the three files.
      */
     private static void overlay(@NotNull ResourcePack pack, @NotNull String path, @NotNull String key,
-                                @NotNull JsonTree accumulator, @NotNull Diagnostics diagnostics) {
+                                @NotNull JsonTree accumulator) {
         Optional<byte[]> bytes = readAcrossRoots(pack, path);
         if (bytes.isEmpty()) return;
 
         ResourceDocument document;
         try {
-            document = ResourceDocument.open(bytes.get(), diagnostics.child(pack.id() + "/" + path));
+            document = ResourceDocument.open(bytes.get());
         } catch (PipelineException ex) {
             // A deliberate opt-in feature file: reject loudly with pack attribution rather than
             // silently ignoring a broken override the author expects to take effect.

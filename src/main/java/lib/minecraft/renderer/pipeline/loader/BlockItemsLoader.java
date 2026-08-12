@@ -3,7 +3,6 @@ package lib.minecraft.renderer.pipeline.loader;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -27,13 +26,12 @@ public final class BlockItemsLoader {
     /**
      * Reads the secondary-to-standing block-item alias map from {@code block_items.json}.
      *
-     * @param diagnostics the scope envelope warnings are recorded to
      * @return secondary block id to the standing block id whose item it shares; blocks that own their
      *     own item are absent
      * @throws PipelineException if the resource is missing or has no {@code aliases} object
      */
-    public static @NotNull Map<String, String> load(@NotNull Diagnostics diagnostics) {
-        ResourceDocument document = BundledResource.require(RESOURCE_NAME, diagnostics);
+    public static @NotNull Map<String, String> load() {
+        ResourceDocument document = BundledResource.require(RESOURCE_NAME);
         AliasDoc doc = document.as(AliasDoc.class);
         if (doc.aliases() == null)
             throw new PipelineException("Block-items resource '%s' has no 'aliases' object", RESOURCE_NAME);

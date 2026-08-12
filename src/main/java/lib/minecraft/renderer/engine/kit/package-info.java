@@ -17,7 +17,7 @@
  *       {@code AmbientOcclusionFace} lighting scalar baked in.</li>
  *   <li>{@link lib.minecraft.renderer.engine.kit.EntityGeometryKit EntityGeometryKit} - the entity {@code ModelPart}
  *       chain builder. Consumes the
- *       {@link lib.minecraft.renderer.tooling.ToolingEntityModels ToolingEntityModels}-produced
+ *       {@code ToolingEntityModels}-produced
  *       {@code entity_geometry.json} and walks bone hierarchies, cube inflations, pivot
  *       rotations, and {@link lib.minecraft.renderer.face.Unwrap.Atlas atlas} UV
  *       strips. Carries the per-face lighting frame {@code L_kit = FLIP_Y * M_view^T *
@@ -83,6 +83,6 @@
  *
  * @see lib.minecraft.renderer.face
  * @see lib.minecraft.renderer.engine
- * @see lib.minecraft.renderer.tooling.ToolingEntityModels
+ * @see lib.minecraft.renderer.pipeline.loader.EntityModelLoader
  */
 package lib.minecraft.renderer.engine.kit;

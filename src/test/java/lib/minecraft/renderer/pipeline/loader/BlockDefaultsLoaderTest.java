@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 class BlockDefaultsLoaderTest {
 
     private static @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> load() {
-        return BlockDefaultsLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        return BlockDefaultsLoader.load();
     }
 
     @Test

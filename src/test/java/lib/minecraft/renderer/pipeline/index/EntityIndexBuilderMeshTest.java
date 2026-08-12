@@ -5,7 +5,6 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -25,11 +24,6 @@ import static org.hamcrest.Matchers.is;
 class EntityIndexBuilderMeshTest {
 
     private static final String ENTITY = "minecraft:test_villager";
-
-    private static Diagnostics diagnostics() {
-        return Diagnostics.root("test", Diagnostics.Output.NONE, null);
-    }
-
     /**
      * The villager bone shape: {@code head} carries {@code hat} (which carries {@code hat_rim}) and
      * {@code nose}, alongside an untouched {@code body} / {@code right_leg} pair. Every bone owns one
@@ -55,7 +49,7 @@ class EntityIndexBuilderMeshTest {
     @DisplayName("clearSubtreeCubes empties the root bone and every descendant, sparing the rest")
     void clearSubtreeCubesEmptiesTheSubtree() {
         EntityModelData source = fixture();
-        EntityModelData cleared = EntityIndexBuilder.clearSubtreeCubes(source, "head", ENTITY, diagnostics()).orElseThrow();
+        EntityModelData cleared = EntityIndexBuilder.clearSubtreeCubes(source, "head", ENTITY).orElseThrow();
 
         for (String name : new String[]{"head", "hat", "hat_rim", "nose"})
             assertThat("the " + name + " subtree bone is emptied", cleared.getBones().get(name).getCubes().isEmpty(), is(true));
@@ -67,7 +61,7 @@ class EntityIndexBuilderMeshTest {
     @DisplayName("clearSubtreeCubes keeps every bone, its pose and its parent link")
     void clearSubtreeCubesKeepsTheHierarchy() {
         EntityModelData source = fixture();
-        EntityModelData cleared = EntityIndexBuilder.clearSubtreeCubes(source, "head", ENTITY, diagnostics()).orElseThrow();
+        EntityModelData cleared = EntityIndexBuilder.clearSubtreeCubes(source, "head", ENTITY).orElseThrow();
 
         assertThat("the clear empties cubes, it never drops a bone",
             Set.copyOf(cleared.getBones().keySet()), equalTo(Set.copyOf(source.getBones().keySet())));
@@ -86,7 +80,7 @@ class EntityIndexBuilderMeshTest {
     @DisplayName("clearSubtreeCubes copies rather than mutates - the source keeps its head cubes")
     void clearSubtreeCubesLeavesTheSourceIntact() {
         EntityModelData source = fixture();
-        EntityIndexBuilder.clearSubtreeCubes(source, "head", ENTITY, diagnostics()).orElseThrow();
+        EntityIndexBuilder.clearSubtreeCubes(source, "head", ENTITY).orElseThrow();
 
         assertThat("the primary mesh still draws its head", source.getBones().get("head").getCubes().isEmpty(), is(false));
         assertThat("the primary mesh still draws its hat", source.getBones().get("hat").getCubes().isEmpty(), is(false));
@@ -95,7 +89,7 @@ class EntityIndexBuilderMeshTest {
     @Test
     @DisplayName("a root bone absent from the mesh yields empty rather than a partial mesh")
     void clearSubtreeCubesRejectsAnUnknownRoot() {
-        assertThat(EntityIndexBuilder.clearSubtreeCubes(fixture(), "snout", ENTITY, diagnostics()), is(Optional.empty()));
+        assertThat(EntityIndexBuilder.clearSubtreeCubes(fixture(), "snout", ENTITY), is(Optional.empty()));
     }
 
 }

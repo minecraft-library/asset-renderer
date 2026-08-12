@@ -3,8 +3,6 @@ package lib.minecraft.renderer.pipeline.loader;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
-import lib.minecraft.renderer.tooling.ToolingGlintItems;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -16,7 +14,7 @@ import java.util.Set;
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
  * {@code net.minecraft.world.item.Items} static initializer as parsed by
- * {@link ToolingGlintItems} {@code .Parser} - the items registered with the default data component
+ * {@code ToolingGlintItems.Parser} - the items registered with the default data component
  * {@code minecraft:enchantment_glint_override = true}. To refresh it on a Minecraft version bump,
  * run the {@code glintItems} Gradle task; the runtime pipeline never invokes the ASM walker directly.
  * <p>
@@ -32,25 +30,14 @@ public class GlintItemsLoader {
     private static final @NotNull String RESOURCE_NAME = "glint_items.json";
 
     /**
-     * Loads the bundled always-glinted item set natively.
+     * Reads the always-glinted item set from {@code glint_items.json} natively through the shared
+     * read layer.
      *
      * @return the set of namespaced item ids that carry an always-on glint override
      * @throws PipelineException if the classpath resource is missing or malformed
      */
     public static @NotNull Set<String> load() {
-        return loadNative(Diagnostics.root("glintItems", Diagnostics.Output.CONSOLE, null));
-    }
-
-    /**
-     * Reads the always-glinted item set from {@code glint_items.json} natively through the shared
-     * read layer.
-     *
-     * @param diagnostics the scope envelope warnings are recorded to
-     * @return the set of namespaced item ids
-     * @throws PipelineException if the resource is missing or malformed
-     */
-    private static @NotNull Set<String> loadNative(@NotNull Diagnostics diagnostics) {
-        ResourceDocument document = BundledResource.require(RESOURCE_NAME, diagnostics);
+        ResourceDocument document = BundledResource.require(RESOURCE_NAME);
         return document.as(GlintItemTable.class).items();
     }
 

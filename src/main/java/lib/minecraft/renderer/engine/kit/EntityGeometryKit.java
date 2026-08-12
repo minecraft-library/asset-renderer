@@ -23,7 +23,6 @@ import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
-import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,7 +33,7 @@ import java.util.Optional;
 /**
  * Load-bearing bone/cube {@literal ->} triangle assembler. Builds rasterizer-ready triangles
  * from a Java-derived {@link EntityModelData} in vanilla's native {@code ModelPart}-style
- * coordinate frame. Consumes geometry produced by {@link ToolingEntityModels}
+ * coordinate frame. Consumes geometry produced by {@code ToolingEntityModels}
  * (entity_geometry.json) which ships in this frame natively (no parse-time conversion).
  * <p>
  * Authoring convention (input):

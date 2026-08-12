@@ -18,7 +18,6 @@ import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -49,7 +48,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class BlockRendererOverridesTest {
 
     private static final Gson GSON = GsonSettings.defaults().create();
-    private static final Diagnostics NONE = Diagnostics.root("test", Diagnostics.Output.NONE, null);
     private static final Path BUNDLED_MODELS = Path.of("src/main/resources/lib/minecraft/renderer/block_models.json");
 
     @TempDir
@@ -68,7 +66,7 @@ class BlockRendererOverridesTest {
         Path low = writePack("low", "renderer/block_models.json", envelope("models", lowModels));
         Path high = writePack("high", "renderer/block_models.json", envelope("models", highModels));
 
-        BlockRendererOverrides overrides = BlockRendererOverrides.gather(stack(low, high), NONE);
+        BlockRendererOverrides overrides = BlockRendererOverrides.gather(stack(low, high));
         assertThat(overrides.models().has("only_low"), is(true));
         assertThat(overrides.models().has("only_high"), is(true));
         assertThat("higher pack wins per entry",
@@ -78,7 +76,7 @@ class BlockRendererOverridesTest {
     @Test
     @DisplayName("a renderer/block_models.json entry swaps the block-entity geometry through the reader")
     void readerAppliesModelEntrySwap() throws IOException {
-        BlockModelLoader.LoadResult base = BlockModelLoader.load(NONE);
+        BlockModelLoader.LoadResult base = BlockModelLoader.load();
         String baseTexture = base.models().get("minecraft:conduit").textureId();
 
         JsonObject conduit = bundledModelEntry("minecraft:conduit").deepCopy();
@@ -88,7 +86,7 @@ class BlockRendererOverridesTest {
         models.add("minecraft:conduit", conduit);
 
         Path pack = writePack("swap", "renderer/block_models.json", envelope("models", models));
-        BlockModelLoader.LoadResult loaded = BlockModelLoader.load(NONE, BlockRendererOverrides.gather(stack(pack), NONE));
+        BlockModelLoader.LoadResult loaded = BlockModelLoader.load(BlockRendererOverrides.gather(stack(pack)));
 
         assertThat(loaded.models().get("minecraft:conduit").textureId(), is("minecraft:entity/conduit/overridden"));
         assertThat(loaded.models().get("minecraft:conduit").textureId(), is(not(baseTexture)));
@@ -101,7 +99,7 @@ class BlockRendererOverridesTest {
         bad.addProperty("format", 3);
         Path pack = writePack("bad", "renderer/block_models.json", bad);
 
-        PipelineException ex = assertThrows(PipelineException.class, () -> BlockRendererOverrides.gather(stack(pack), NONE));
+        PipelineException ex = assertThrows(PipelineException.class, () -> BlockRendererOverrides.gather(stack(pack)));
         assertThat(ex.getMessage().contains("bad"), is(true));
         assertThat(ex.getMessage().contains("renderer/block_models.json"), is(true));
     }
@@ -110,7 +108,7 @@ class BlockRendererOverridesTest {
     @DisplayName("a valid envelope missing its named sub-object is ignored, not fatal")
     void missingSubObjectIgnored() throws IOException {
         Path pack = writePack("empty", "renderer/block_models.json", envelope("//", null));
-        BlockRendererOverrides overrides = BlockRendererOverrides.gather(stack(pack), NONE);
+        BlockRendererOverrides overrides = BlockRendererOverrides.gather(stack(pack));
         assertThat(overrides.models().size(), is(0));
         assertThat(overrides.isEmpty(), is(true));
     }
@@ -124,7 +122,7 @@ class BlockRendererOverridesTest {
         blocks.add("minecraft:conduit", state);
         Path pack = writePack("defaults", "renderer/block_defaults.json", envelope("blocks", blocks));
 
-        var defaults = BlockDefaultsLoader.load(NONE, BlockRendererOverrides.gather(stack(pack), NONE));
+        var defaults = BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack(pack)));
         assertThat(BlockStateKey.join(defaults.get("minecraft:conduit")), is("facing=east"));
     }
 
@@ -142,7 +140,7 @@ class BlockRendererOverridesTest {
         models.add("minecraft:foo", entry);
 
         var overrides = new BlockRendererOverrides(JsonTree.wrap(models), JsonTree.object(), JsonTree.object());
-        PipelineException ex = assertThrows(PipelineException.class, () -> BlockModelLoader.load(NONE, overrides));
+        PipelineException ex = assertThrows(PipelineException.class, () -> BlockModelLoader.load(overrides));
         assertThat(ex.getMessage().contains("minecraft:foo"), is(true));
         assertThat(ex.getMessage().toLowerCase().contains("geometry"), is(true));
     }
@@ -159,7 +157,7 @@ class BlockRendererOverridesTest {
         ConcurrentMap<String, ConcurrentMap<String, String>> defaults;
         try {
             System.setErr(new PrintStream(buffer, true, StandardCharsets.UTF_8));
-            defaults = BlockDefaultsLoader.load(NONE, overrides);
+            defaults = BlockDefaultsLoader.load(overrides);
         } finally {
             System.setErr(original);
         }

@@ -4,8 +4,6 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
-import lib.minecraft.renderer.tooling.ToolingBlockTints;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -18,7 +16,7 @@ import java.util.Map;
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
  * {@code net.minecraft.client.color.block.BlockColors.createDefault()} as parsed by
- * {@link ToolingBlockTints} {@code .Parser}. To refresh it on a Minecraft version bump, run the
+ * {@code ToolingBlockTints.Parser}. To refresh it on a Minecraft version bump, run the
  * {@code blockTints} Gradle task; the runtime pipeline never invokes the ASM walker directly. Older
  * Minecraft versions reuse the same 26.1 tint set - blocks that don't exist in their era simply never
  * match a lookup, which the renderer treats as untinted.
@@ -39,26 +37,14 @@ public class BlockTintsLoader {
     private static final @NotNull String RESOURCE_NAME = "block_tints.json";
 
     /**
-     * Loads the bundled vanilla tint table into a map of block id to {@link Block.Tint}. Iteration
-     * order mirrors the on-disk JSON.
+     * Reads the tint table from {@code block_tints.json} natively through the shared read layer, each
+     * value reflecting straight into a {@link Block.Tint}. Iteration order mirrors the on-disk JSON.
      *
      * @return a map keyed by namespaced block id
      * @throws PipelineException if the resource is missing or cannot be parsed
      */
     public static @NotNull Map<String, Block.Tint> load() {
-        return loadNative(Diagnostics.root("blockTints", Diagnostics.Output.CONSOLE, null));
-    }
-
-    /**
-     * Reads the tint table from {@code block_tints.json} natively through the shared read layer, each
-     * value reflecting straight into a {@link Block.Tint}.
-     *
-     * @param diagnostics the scope envelope warnings are recorded to
-     * @return a map keyed by namespaced block id
-     * @throws PipelineException if the resource is missing or malformed
-     */
-    private static @NotNull Map<String, Block.Tint> loadNative(@NotNull Diagnostics diagnostics) {
-        ResourceDocument document = BundledResource.require(RESOURCE_NAME, diagnostics);
+        ResourceDocument document = BundledResource.require(RESOURCE_NAME);
         return document.as(TintTable.class).tints();
     }
 

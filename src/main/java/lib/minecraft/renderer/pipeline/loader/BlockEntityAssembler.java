@@ -12,7 +12,6 @@ import lib.minecraft.renderer.pipeline.loader.BlockModelReader.BlockModelEntry;
 import lib.minecraft.renderer.pipeline.loader.BlockModelReader.BlockRef;
 import lib.minecraft.renderer.pipeline.loader.BlockModelReader.InventoryDto;
 import lib.minecraft.renderer.pipeline.loader.BlockModelReader.PartRef;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -42,14 +41,12 @@ public final class BlockEntityAssembler {
      *
      * @param models the raw model catalog keyed by model id
      * @param geometries the geometry table keyed by coordinate
-     * @param diagnostics the scope tint warnings are recorded to
      * @return the primary models keyed by block id plus any per-variant state-conditional models
      * @throws PipelineException if a geometry coordinate dangles or a model entry has no coordinate
      */
     static @NotNull BlockModelLoader.LoadResult assemble(
             @NotNull Map<String, BlockModelEntry> models,
-            @NotNull Map<String, EntityModelData> geometries,
-            @NotNull Diagnostics diagnostics) {
+            @NotNull Map<String, EntityModelData> geometries) {
         HashMap<String, Block.Entity> result = new HashMap<>();
         HashMap<String, HashMap<String, Block.Variant>> variantModels = new HashMap<>();
 
@@ -79,7 +76,7 @@ public final class BlockEntityAssembler {
                 }
 
                 ArrayList<Block.Entity.Part> parts = buildParts(models, model, geometries, textureId);
-                int tintArgb = block.tint() != null ? resolveTint(block.tint(), diagnostics) : ColorMath.WHITE;
+                int tintArgb = block.tint() != null ? resolveTint(block.tint()) : ColorMath.WHITE;
                 result.put(blockId, new Block.Entity(boneModel, textureId, tintArgb, iconRotation, Concurrent.adoptList(parts), additive));
             }
         }
@@ -156,13 +153,14 @@ public final class BlockEntityAssembler {
     }
 
     /**
-     * Resolves a banner {@code tint} DyeColor name to its ARGB; an unknown name warns and falls back to
-     * white. The {@code tint} is always a DyeColor name, never a hex.
+     * Resolves a banner {@code tint} DyeColor name to its ARGB; an unknown name falls back to white. The
+     * {@code tint} is always a DyeColor name, never a hex.
      */
-    private static int resolveTint(@NotNull String name, @NotNull Diagnostics diagnostics) {
+    private static int resolveTint(@NotNull String name) {
         DyeColor dye = DyeColor.ofName(name);
         if (dye != null) return dye.argb();
-        diagnostics.warn("unknown block tint dye '%s' - using white", name);
+        // TODO: restore pipeline diagnostics
+        // diagnostics.warn("unknown block tint dye '%s' - using white", name);
         return ColorMath.WHITE;
     }
 }

@@ -9,7 +9,6 @@ import lib.minecraft.renderer.pipeline.index.EntityIndexBuilder;
 import lib.minecraft.renderer.pipeline.index.RawEntityModelsFile;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -36,28 +35,16 @@ public final class EntityModelLoader {
     private EntityModelLoader() {}
 
     /**
-     * Loads the bundled entity definitions with a default console diagnostics scope.
-     *
-     * @return definitions keyed by namespaced entity id (empty when the geometry resource is absent)
-     * @throws PipelineException when a resource file is present but unparseable, or when an entity
-     *     references a geometry id not in the geometry file
-     */
-    public static @NotNull ConcurrentMap<String, Entity> load() {
-        return load(Diagnostics.root("entity_models", Diagnostics.Output.CONSOLE, null));
-    }
-
-    /**
      * Reads the entity model catalog natively from the bundled resources, then hands the two raw reads to
      * {@link EntityIndexBuilder} for the join, surgery, pivot, and grouping.
      *
-     * @param diagnostics the scope envelope and read warnings are recorded to
      * @return definitions keyed by namespaced entity id (empty when the geometry resource is absent)
      * @throws PipelineException if a resource is malformed, or an entity references a geometry
      *     coordinate absent from the geometry file
      */
-    public static @NotNull ConcurrentMap<String, Entity> load(@NotNull Diagnostics diagnostics) {
-        Optional<ResourceDocument> geometryDoc = BundledResource.read(GEOMETRY_RESOURCE, diagnostics);
-        Optional<ResourceDocument> modelsDoc = BundledResource.read(MODELS_RESOURCE, diagnostics);
+    public static @NotNull ConcurrentMap<String, Entity> load() {
+        Optional<ResourceDocument> geometryDoc = BundledResource.read(GEOMETRY_RESOURCE);
+        Optional<ResourceDocument> modelsDoc = BundledResource.read(MODELS_RESOURCE);
         if (geometryDoc.isEmpty() || modelsDoc.isEmpty()) return Concurrent.newMap();
 
         Map<String, EntityModelData> geometries = parseGeometries(geometryDoc.get());
@@ -65,7 +52,7 @@ public final class EntityModelLoader {
         RawEntityModelsFile raw = modelsDoc.get().as(RawEntityModelsFile.class);
         if (raw == null || raw.models() == null) return Concurrent.newMap();
 
-        return EntityIndexBuilder.assemble(geometries, raw, diagnostics);
+        return EntityIndexBuilder.assemble(geometries, raw);
     }
 
     /** Reads the {@code geometries} coordinate map straight into {@link EntityModelData} values. */

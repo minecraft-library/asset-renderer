@@ -374,7 +374,7 @@
         "EXPECTED = Set.of("
       ],
       "cross_repo": false,
-      "lines": "30-34",
+      "lines": "29-33",
       "re_derive": "EntityModelLoader.load() filtered on humanoidArmor().isPresent()",
       "test_class": "lib.minecraft.renderer.pipeline.loader.EntityModelLoaderArmorRosterTest"
     },

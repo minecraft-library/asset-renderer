@@ -7,7 +7,6 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -38,13 +37,12 @@ public final class BlockDefaultsLoader {
      * Reads the per-block default-state map natively from {@code block_defaults.json}, with no pack
      * override channel applied.
      *
-     * @param diagnostics the scope envelope warnings are recorded to
      * @return block id to its parsed default-state {@code property -> value} map (empty when the block
      *     declares no properties), wrapped unmodifiable; {@code unresolved} ids are absent
      * @throws PipelineException if the resource is missing or has no {@code blocks} object
      */
-    public static @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> load(@NotNull Diagnostics diagnostics) {
-        return load(diagnostics, BlockRendererOverrides.EMPTY);
+    public static @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> load() {
+        return load(BlockRendererOverrides.EMPTY);
     }
 
     /**
@@ -54,15 +52,14 @@ public final class BlockDefaultsLoader {
      * a pack can change a default state that a vanilla-format pack cannot). This is the only way
      * any pack can override an ASM-derived default state.
      *
-     * @param diagnostics the scope envelope warnings are recorded to
      * @param overrides the gathered pack override channel; {@link BlockRendererOverrides#EMPTY} for a
      *     vanilla-only stack, which leaves the result byte-identical to the classpath snapshot
      * @return block id to its parsed default-state {@code property -> value} map, wrapped unmodifiable;
      *     {@code unresolved} ids are absent unless a pack override resolves them
      * @throws PipelineException if the resource is missing or has no {@code blocks} object
      */
-    public static @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
-        ResourceDocument document = BundledResource.require(RESOURCE_NAME, diagnostics);
+    public static @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> load(@NotNull BlockRendererOverrides overrides) {
+        ResourceDocument document = BundledResource.require(RESOURCE_NAME);
         DefaultsDoc doc = document.as(DefaultsDoc.class);
         if (doc.blocks() == null)
             throw new PipelineException("Block-defaults resource '%s' has no 'blocks' object", RESOURCE_NAME);
