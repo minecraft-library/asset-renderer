@@ -9,7 +9,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins every rectangle {@link HumanoidPart} reads out of a sheet - all six faces of all six body parts on
+ * Every rectangle {@link HumanoidPart} reads out of a sheet - all six faces of all six body parts on
  * both layers, on a 64x64 player skin and on the 64x32 sheet the armour atlases ship as.
  * <p>
  * The sheets are synthetic: each texel encodes its own coordinates, so a cropped face's texels name

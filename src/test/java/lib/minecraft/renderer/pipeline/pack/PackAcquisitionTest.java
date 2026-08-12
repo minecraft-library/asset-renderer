@@ -23,12 +23,13 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link PackAcquisition} over synthetic directory packs: renderer-target overlay activation
- * (match the game format, not the pack's own), namespace discovery across active roots, and capability
- * detection. Acquisition is virtual - a directory source is served in place through its
+ * Coverage of {@link PackAcquisition} over synthetic directory packs: renderer-target overlay
+ * activation (matching the game format, not the pack's own), namespace discovery across active roots,
+ * and capability detection. Acquisition is virtual - a directory source is served in place through its
  * {@link PackContainer.Directory}, with no extraction or cache copy.
  */
 @DisplayName("PackAcquisition over synthetic directory packs")
@@ -69,7 +70,7 @@ class PackAcquisitionTest {
         assertThat(mypack.capabilities(), containsInAnyOrder(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES));
 
         // directory source is served in place (virtual - no extraction, no cache copy)
-        assertThat(mypack.container(), is(org.hamcrest.Matchers.instanceOf(PackContainer.Directory.class)));
+        assertThat(mypack.container(), is(instanceOf(PackContainer.Directory.class)));
         assertThat(((PackContainer.Directory) mypack.container()).root(), is(user));
     }
 

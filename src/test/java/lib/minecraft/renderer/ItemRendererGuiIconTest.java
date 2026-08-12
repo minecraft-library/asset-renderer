@@ -6,16 +6,12 @@ import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.parity.RenderDigest;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-
-import java.io.File;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -23,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Equivalence coverage for the {@link ItemOptions.Type#GUI_ICON} faithful-inventory-icon dispatch.
- * Pins that the mode is a pure router with no new rendering of its own:
+ * Asserts that the mode is a pure router with no new rendering of its own:
  * <ul>
  * <li>a flat-sprite item (in the item index) is byte-identical to its {@link ItemOptions.Type#GUI_2D}
  * render;</li>
@@ -37,9 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 @Tag("slow")
 @DisplayName("ItemRenderer GUI_ICON faithful-icon dispatch")
+@ExtendWith(ClientAssetsExtension.class)
 class ItemRendererGuiIconTest {
 
-    private static final File CACHE_ROOT = new File("cache/it");
     private static final int SIZE = 64;
 
     private static RendererContext context;
@@ -48,13 +44,7 @@ class ItemRendererGuiIconTest {
 
     @BeforeAll
     static void bootstrapPipeline() {
-        ClientAssets result = ClientAcquisition.acquire(
-            ClientOptions.builder()
-                .version("26.1")
-                .cacheRoot(CACHE_ROOT)
-                .build()
-        );
-        context = PipelineRendererContext.of(result);
+        context = ClientAssetsExtension.context();
         itemRenderer = new ItemRenderer(context);
         blockRenderer = new BlockRenderer(context);
     }
@@ -106,8 +96,12 @@ class ItemRendererGuiIconTest {
     }
 
     /**
-     * Builds item options for {@code id} in the given render {@code type}, pinned to the small test
+     * Builds item options for {@code id} in the given render {@code type}, fixed to the small test
      * canvas so the slow render stays cheap.
+     *
+     * @param id the item id to render
+     * @param type the render mode to dispatch through
+     * @return the item options
      */
     private static ItemOptions item(String id, ItemOptions.Type type) {
         return ItemOptions.builder()
@@ -120,6 +114,9 @@ class ItemRendererGuiIconTest {
     /**
      * Builds the isometric block options the {@link ItemOptions.Type#GUI_ICON} block branch adapts
      * to: the default iso output frame at the shared test canvas size.
+     *
+     * @param id the block id to render
+     * @return the block options
      */
     private static BlockOptions block(String id) {
         return BlockOptions.builder()

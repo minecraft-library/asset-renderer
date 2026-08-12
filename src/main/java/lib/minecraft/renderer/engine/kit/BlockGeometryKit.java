@@ -254,7 +254,7 @@ public class BlockGeometryKit {
                     boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
                     addQuad(triangles, corners, uv,
                         texture, tintArgb, normal, Lighting.inventory(normal),
-                        new SurfaceTraits(!isPlaneCube, translucent, false, PassDeclaration.DEFAULT), null);
+                        new SurfaceTraits(!isPlaneCube, translucent, false, true, PassDeclaration.DEFAULT), null);
                 }
             }
         }
@@ -472,6 +472,10 @@ public class BlockGeometryKit {
             // Flat planes (zero thickness on any axis) must disable backface culling so
             // both sides render - used by brewing stand bottles, banners, item frames, etc.
             boolean twoSided = x0 == x1 || y0 == y1 || z0 == z1;
+            // A "shade": false element declines directional shading outright. The scalar baked below
+            // is then vanilla's own getShade(dir, false) == 1.0, and the flag on the traits is what
+            // stops a GUI relight from recomputing a Lambertian over it.
+            boolean directionalLight = element.isShade();
 
             for (Map.Entry<String, ModelFace> entry : element.getFaces().entrySet()) {
                 Face blockFace = Face.fromName(entry.getKey());
@@ -508,8 +512,8 @@ public class BlockGeometryKit {
                     triangles, corners, uv,
                     texture, faceTint,
                     faceNormal,
-                    elementShade(faceNormal, element.isShade(), element.getLightEmission()),
-                    new SurfaceTraits(!twoSided, translucent, false, PassDeclaration.DEFAULT),
+                    elementShade(faceNormal, directionalLight, element.getLightEmission()),
+                    new SurfaceTraits(!twoSided, translucent, false, directionalLight, PassDeclaration.DEFAULT),
                     null
                 );
             }
@@ -640,24 +644,24 @@ public class BlockGeometryKit {
 
     /**
      * Bakes the shade one face of a block element carries - the {@link Lighting#inventory} cardinal
-     * shade, {@link Shading#DISABLED} for a {@code "shade": false} element, or an emission-raised
-     * floor.
+     * shade, full-bright for a {@code "shade": false} element, or an emission-raised floor.
      * <p>
      * {@link Lighting#inventory} resolves the dominant cardinal of the (post-element-rotation) face
      * normal and returns the matching vanilla {@code Lighting.ITEMS_3D} approximation -
      * cardinal-aligned faces reproduce the per-face values on {@link Face#lighting}
      * ({@code 1.0}/{@code 0.5}/{@code 0.6}/{@code 0.8}), and faces tipped by {@code element.rotation}
-     * resolve to the closest cardinal's shade. A {@code "shade": false} element takes
-     * {@link Shading#DISABLED} instead, so the relight pass renders it full-bright to match vanilla's
-     * in-world {@code getShade(dir, false) == 1.0}.
+     * resolve to the closest cardinal's shade. A {@code "shade": false} element bakes {@code 1.0}, the
+     * scalar vanilla's own {@code getShade(dir, false)} answers, and the caller declares
+     * {@link SurfaceTraits#directionalLight()} {@code false} on that face so a GUI relight leaves the
+     * baked value alone rather than recomputing a Lambertian for it. Every consumer therefore reads a
+     * real {@code [0, 1]} scalar, whatever it does with the flag.
      * <p>
      * {@code light_emission} folds on top by raising the shade <b>floor</b> to {@code emission / 15},
-     * never by mapping to the {@link Shading#DISABLED} sentinel - which renders BLACK on the
-     * no-relight Held3D item path ({@code apply(-1)}). So an emissive {@code shade: true} face bakes a
-     * real {@code [0,1]} scalar that renders full-bright on Held3D and, on the block-icon path, is
-     * recomputed by {@link Shading#relightForItems3d}, where the floor is a documented Held3D-side
-     * effect. Vanilla's only emissive elements are {@code shade: false}, so they take the disabled
-     * branch unchanged and the fold is a no-op on vanilla content.
+     * so an emissive {@code shade: true} face bakes a real scalar that renders full-bright on the
+     * no-relight Held3D item path and, on the block-icon path, is recomputed by
+     * {@link Shading#relightForItems3d}, where the floor is a documented Held3D-side effect. Vanilla's
+     * only emissive elements are {@code shade: false}, whose {@code 1.0} already sits at or above any
+     * floor, so the fold is a no-op on vanilla content.
      * <p>
      * <b>Only the element path asks this.</b> A box, a bone cube, a fluid face and the shield have no
      * element, no {@code shade} flag and no emission, so they bake {@link Lighting#inventory} directly
@@ -672,7 +676,7 @@ public class BlockGeometryKit {
      * @return the shade scalar every triangle of the face carries
      */
     private static float elementShade(@NotNull Vector3f normal, boolean directionalLight, int lightEmission) {
-        if (!directionalLight) return Shading.DISABLED;
+        if (!directionalLight) return 1f;
         if (lightEmission > 0) {
             float emissionFloor = Math.min(lightEmission, FULL_LIGHT_EMISSION) / (float) FULL_LIGHT_EMISSION;
             return Math.max(Lighting.inventory(normal), emissionFloor);

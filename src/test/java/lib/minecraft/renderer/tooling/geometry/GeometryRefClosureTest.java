@@ -13,13 +13,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * The geometry ref-integrity gate: every {@code geometry} reference in a models file
@@ -28,8 +26,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * ref (a registered-but-unreferenced entry means a resolver registered a request and then
  * dropped the key).
  *
- * <p>A missing pair is assumption-skipped, never a pass. {@code legacy_id} is never
- * required.
+ * <p>Every pair ships, so a missing file is read as the failure it is rather than skipped.
  */
 @DisplayName("geometry ref closure: models refs resolve, versions match, no orphan geometry")
 class GeometryRefClosureTest {
@@ -49,23 +46,9 @@ class GeometryRefClosureTest {
         assertPairCloses("block_models.json", "models", "block_geometry.json");
     }
 
-    @Test
-    @DisplayName("legacy_id is never emitted in either geometry file")
-    void noLegacyIdInGeometryFiles() throws IOException {
-        // The legacy_id fallback is never activated, so both geometry files must carry zero occurrences.
-        for (String name : List.of("entity_geometry.json", "block_geometry.json")) {
-            Path path = RESOURCE_DIR.resolve(name);
-            assumeTrue(Files.exists(path), name + " not yet emitted (activates with its flow session)");
-            assertTrue(!Files.readString(path).contains("legacy_id"),
-                name + " must not contain legacy_id; the PRIMARY key-replay arm was selected");
-        }
-    }
-
     private static void assertPairCloses(@NotNull String modelsName, @NotNull String payloadKey, @NotNull String geometryName) throws IOException {
         Path modelsPath = RESOURCE_DIR.resolve(modelsName);
         Path geometryPath = RESOURCE_DIR.resolve(geometryName);
-        assumeTrue(Files.exists(modelsPath) && Files.exists(geometryPath),
-            "pair not yet emitted (activates with its flow session)");
 
         JsonObject models = GSON.fromJson(Files.readString(modelsPath), JsonElement.class).getAsJsonObject();
         JsonObject geometry = GSON.fromJson(Files.readString(geometryPath), JsonElement.class).getAsJsonObject();
@@ -75,7 +58,7 @@ class GeometryRefClosureTest {
         Set<String> geometryKeys = geometry.getAsJsonObject("geometries").keySet();
         Set<String> referenced = new LinkedHashSet<>();
         collectGeometryRefs(models.get(payloadKey), referenced);
-        assertTrue(!referenced.isEmpty(), "no geometry refs found under '" + payloadKey + "'");
+        assertFalse(referenced.isEmpty(), "no geometry refs found under '" + payloadKey + "'");
 
         Set<String> dangling = new LinkedHashSet<>(referenced);
         dangling.removeAll(geometryKeys);

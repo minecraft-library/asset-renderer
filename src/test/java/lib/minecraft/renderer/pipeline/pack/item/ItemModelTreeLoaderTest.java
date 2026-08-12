@@ -29,8 +29,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Exercises the {@link ItemModelTreeLoader} pack-stack merge and its two derived projections: the
- * block-item inventory-model map (root-plain-block-ref only, byte-identical to the former loader) and
+ * Coverage of the {@link ItemModelTreeLoader} pack-stack merge and its two derived projections: the
+ * block-item inventory-model map, which projects a root plain model reference and nothing else, and
  * the neutral-walk tint capture. Also covers namespace-qualified item ids, the multi-namespace scan,
  * and the namespace-agnostic block-item filter.
  */
@@ -97,8 +97,8 @@ class ItemModelTreeLoaderTest {
     @Test
     @DisplayName("a dispatch-rooted item is not a block-item override even when it resolves to a block model")
     void dispatchRootedBlockItemNotProjected() throws IOException {
-        // Mirrors vanilla beehive.json: select(block_state) -> fallback block/beehive_empty. The former
-        // root-only scan never captured it, so the block-item projection must not either.
+        // Mirrors vanilla beehive.json: select(block_state) -> fallback block/beehive_empty. Only a
+        // root plain model reference projects, so a dispatch root never does however it resolves.
         Path van = tmp.resolve("vanilla");
         write(van.resolve("assets/minecraft/items/beehive.json"),
             "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:block_state\","

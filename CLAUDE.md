@@ -42,6 +42,18 @@ writes a capture, `parityCompare` reports movers, `parityPromote` makes a captur
 - `BlockGeometryKitTest` builds fixtures by reflection into private parser-populated fields, so a
   rename compiles clean and fails at runtime.
 
+**A test class's own name and path are store state.** `index.json` homes fourteen rows at a
+`sources[*].test_class` or `external[*].home` FQN and `ParityIndexTest` resolves each against the
+source tree; `blindness.json` announces ten test paths verbatim as `B38` trigger paths and
+`BlindnessMapTest` asserts every announced trigger path is a tracked path. So renaming or moving one of
+those files is a promote, not a rename, and the cheapest way to find out is to grep both files for the
+class before touching it. Five files go further and pin a LINE NUMBER: `ParityIndexTest`'s
+`everyLinesCitationBracketsItsRoster` requires a cited range to open on the line carrying its anchor, so
+in `HumanoidArmorRosterTest`, `HumanoidPartCropTest`, `TestArmorParityVanilla`, `TestGlintParityVanilla`
+and `TestPlayerParityVanilla` every edit above the anchor - a javadoc line included - must be
+line-count neutral. Rewriting a store row to satisfy a naming rule falsifies the record the rule exists
+to keep; the name is the thing that gives way.
+
 Task inventories: `./gradlew tasks --group visual`, `--group tooling`, `--group parity`, `--group
 build`. The last holds `generateAtlas`, a worked example of driving a renderer rather than a
 resource-regenerator, which is why it is not in `tooling`.

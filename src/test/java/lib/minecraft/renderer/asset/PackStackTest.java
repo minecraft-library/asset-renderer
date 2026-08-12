@@ -27,9 +27,10 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Verifies {@link PackStack} assembly and the {@link ResourcePack} accessors: vanilla-first
- * validation, id/namespace lookups, primary-namespace resolution of the kebab/snake duality, the
- * capability query, and the base-first / last-wins overlay-root stacking on an overlapping texture path.
+ * Coverage of {@link PackStack} assembly, and of the two {@link ResourcePack} accessors that are the sole
+ * subject of a test here rather than a stack fixture: vanilla-first validation, id and namespace lookups,
+ * primary-namespace resolution of the kebab/snake duality, the capability query, and the base-first /
+ * last-wins overlay-root stacking on an overlapping texture path.
  */
 @DisplayName("PackStack assembly + ResourcePack accessors")
 class PackStackTest {

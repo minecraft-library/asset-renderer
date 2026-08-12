@@ -41,7 +41,7 @@ class AssetGsonAdaptersTest {
     }
 
     @Test
-    @DisplayName("Color surfaces a JsonException on malformed input - the codec no longer substitutes a default")
+    @DisplayName("Color surfaces a JsonException on malformed input - a malformed value is a hard error, never a default")
     void colorMalformedThrows() {
         assertThrows(JsonException.class, () -> GSON.fromJson("\"zzz\"", Color.class));
     }

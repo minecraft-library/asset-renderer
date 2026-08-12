@@ -6,7 +6,13 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Sanity checks on {@link Biome}. Sweeps {@link Biome.Vanilla} for plausible metadata (every entry
@@ -16,6 +22,7 @@ import static org.hamcrest.Matchers.*;
  * {@link Biome#of(String, float, float)} shorthand and {@link Biome#builder(String)} custom
  * factories, plus the {@link Biome.Vanilla#byId(String)} id round-trip and its empty miss.
  */
+@DisplayName("Biome - vanilla metadata and custom factories")
 class BiomeTest {
 
     @Test
@@ -73,7 +80,6 @@ class BiomeTest {
     @DisplayName("Biome.of() creates a Custom record with empty overrides and NONE modifier")
     void customFactoryReturnsSensibleDefaults() {
         Biome custom = Biome.of("mymod:crystal_plains", 0.6f, 0.7f);
-        assertThat(custom, is(not(sameInstance(null))));
         assertThat(custom.id(), equalTo("mymod:crystal_plains"));
         assertThat(custom.temperature(), equalTo(0.6f));
         assertThat(custom.downfall(), equalTo(0.7f));

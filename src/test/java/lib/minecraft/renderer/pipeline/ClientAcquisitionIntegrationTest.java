@@ -1,0 +1,235 @@
+package lib.minecraft.renderer.pipeline;
+
+import com.google.gson.JsonObject;
+import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.ColorMap;
+import lib.minecraft.renderer.asset.PackStack;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.ResolvedTexture;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.parity.ParityJson;
+import lib.minecraft.renderer.parity.Pins;
+import lib.minecraft.renderer.parity.SelfCapture;
+import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
+import lib.minecraft.renderer.pipeline.pack.ColorMapLoader;
+import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
+import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+
+/**
+ * End-to-end asset pipeline integration test that downloads the client jar for the Minecraft version
+ * {@link ClientAssetsExtension#VERSION} names, extracts it into a persistent cache directory, runs the
+ * full pipeline, and asserts that every critical artefact (block models, item models, texture
+ * catalogue, vanilla pack entity) is populated.
+ * <p>
+ * This test is tagged {@code slow} and is skipped by the default {@code test} task. Run it
+ * explicitly with {@code ./gradlew slowTest}. The first run downloads ~25MB
+ * from {@code piston-data.mojang.com}; subsequent runs reuse the cached copy in
+ * {@code asset-renderer/cache/it} and complete in seconds.
+ * <p>
+ * The cache root is deliberately stable (not a temporary directory) so the extracted client jar
+ * survives across sessions - offline vanilla-source lookups depend on having the extracted source
+ * available on disk after the test runs. {@code .gitignore} already excludes
+ * {@code asset-renderer/cache/}, so nothing leaks into commits.
+ * <p>
+ * Neither the version nor the cache root is written down here: both are
+ * {@link ClientAssetsExtension}'s, which is what makes the acquisition shared with every other test
+ * that needs it and a version bump a one-line edit.
+ */
+@Tag("slow")
+@DisplayName("ClientAcquisition end-to-end integration")
+@ExtendWith(ClientAssetsExtension.class)
+class ClientAcquisitionIntegrationTest {
+
+    /** The digest-set the colormap byte-parity assertion both writes and reads. */
+    private static final String COLORMAP_ARTIFACT = "digest.colormap-lut";
+
+    /** The canonical form those digests are taken over: the raw big-endian ARGB buffer. */
+    private static final String COLORMAP_FORM = "raw-argb-bytes";
+
+    /** Client assets (options + vanilla root) shared across every test, taken once in {@link #downloadAndExtract()}. */
+    private static ClientAssets result;
+
+    /** The compiled pack stack, probed by the stack / texture-index assertions. */
+    private static PackStack stack;
+
+    /** The resolved block + item model sets, probed by the model-count assertions. */
+    private static ResolvedModels models;
+
+    /** The loaded block-tint table, probed by the {@code block_tints.json} assertion. */
+    private static Map<String, Block.Tint> blockTints;
+
+    /** The stack-resolved biome colormaps, probed by the colormap byte-parity assertion. */
+    private static ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
+
+    /** Extracted pack root ({@code cache/it/.../vanilla}) that the on-disk assertions probe. */
+    private static Path packRoot;
+
+    /**
+     * Runs the full pipeline once for the class over the extension's extracted client jar and publishes
+     * the shared {@link #result} / {@link #packRoot}.
+     */
+    @BeforeAll
+    static void downloadAndExtract() {
+        result = ClientAssetsExtension.assets();
+        packRoot = result.vanillaRoot();
+        stack = PackAcquisition.acquire(result);
+        models = ResolvedModels.load(stack);
+        blockTints = BlockTintsLoader.load();
+        colorMaps = ColorMapLoader.load(stack);
+    }
+
+    @Test
+    @DisplayName("extracts the client jar assets to a real directory")
+    void extractsClientJarAssets() {
+        assertThat("pack root exists", Files.isDirectory(packRoot), is(true));
+        assertThat("assets/minecraft subtree exists",
+            Files.isDirectory(packRoot.resolve("assets/minecraft")), is(true));
+        assertThat("assets/minecraft/models/block exists",
+            Files.isDirectory(packRoot.resolve("assets/minecraft/models/block")), is(true));
+        assertThat("assets/minecraft/models/item exists",
+            Files.isDirectory(packRoot.resolve("assets/minecraft/models/item")), is(true));
+        assertThat("assets/minecraft/textures/block exists",
+            Files.isDirectory(packRoot.resolve("assets/minecraft/textures/block")), is(true));
+    }
+
+    @Test
+    @DisplayName("populates the vanilla pack at the base of the stack")
+    void populatesVanillaPack() {
+        ResourcePack vanilla = stack.vanilla();
+        assertThat(vanilla.id(), equalTo(PackId.VANILLA));
+        assertThat(vanilla.namespaces(), hasItem("minecraft"));
+        assertThat(vanilla.container(), instanceOf(PackContainer.Directory.class));
+        assertThat(((PackContainer.Directory) vanilla.container()).root().toString(), containsString("vanilla"));
+        assertThat(stack.ascending().getFirst(), is(vanilla));
+    }
+
+    @Test
+    @DisplayName("loads every block model under models/block")
+    void loadsBlockModels() {
+        assertThat("block model count", models.blocks().size(), is(greaterThan(500)));
+        assertThat(models.blocks(), hasKey("minecraft:block/grass_block"));
+        assertThat(models.blocks(), hasKey("minecraft:block/cobblestone"));
+        assertThat(models.blocks(), hasKey("minecraft:block/stone"));
+
+        ModelData grass = models.blocks().get("minecraft:block/grass_block");
+        assertThat("grass block model resolved", grass, is(notNullValue()));
+    }
+
+    @Test
+    @DisplayName("loads every item model under models/item")
+    void loadsItemModels() {
+        assertThat("item model count", models.items().size(), is(greaterThan(500)));
+        assertThat(models.items(), hasKey("minecraft:item/diamond_sword"));
+        assertThat(models.items(), hasKey("minecraft:item/iron_pickaxe"));
+        assertThat(models.items(), hasKey("minecraft:item/apple"));
+
+        ModelData sword = models.items().get("minecraft:item/diamond_sword");
+        assertThat("diamond sword model resolved", sword, is(notNullValue()));
+    }
+
+    @Test
+    @DisplayName("catalogues every texture under assets/minecraft/textures")
+    void cataloguesTextures() {
+        assertThat("texture catalogue is populated", stack.textureIndex().size(), is(greaterThan(500)));
+
+        ResolvedTexture grassTop = stack.textureIndex().get(ResourceId.parse("minecraft:block/grass_block_top"));
+        assertThat("grass_block_top texture catalogued", grassTop, is(notNullValue()));
+        PixelBuffer grassBuffer = new ImageFactory().fromByteArray(grassTop.bytes()).toPixelBuffer();
+        assertThat(grassBuffer.width(), is(greaterThanOrEqualTo(16)));
+        assertThat(grassBuffer.height(), is(greaterThanOrEqualTo(16)));
+        assertThat(grassTop.path(), allOf(
+            containsString("block"),
+            containsString("grass_block_top"),
+            containsString(".png")
+        ));
+    }
+
+    @Test
+    @DisplayName("extracts the enchanted glint textures (item and armor)")
+    void extractsGlintTextures() {
+        Path glintItem = packRoot.resolve("assets/minecraft/textures/misc/enchanted_glint_item.png");
+        Path glintArmor = packRoot.resolve("assets/minecraft/textures/misc/enchanted_glint_armor.png");
+        assertThat("enchanted_glint_item.png present", Files.isRegularFile(glintItem), is(true));
+        assertThat("enchanted_glint_armor.png present", Files.isRegularFile(glintArmor), is(true));
+    }
+
+    @Test
+    @DisplayName("extracts the grass/foliage colormaps")
+    void extractsColormaps() {
+        Path grass = packRoot.resolve("assets/minecraft/textures/colormap/grass.png");
+        Path foliage = packRoot.resolve("assets/minecraft/textures/colormap/foliage.png");
+        assertThat("colormap/grass.png present", Files.isRegularFile(grass), is(true));
+        assertThat("colormap/foliage.png present", Files.isRegularFile(foliage), is(true));
+    }
+
+    @Test
+    @DisplayName("BlockTintsLoader loads the bundled block_tints.json into Block.Tint entries")
+    void parsesBlockColors() {
+        // The colormap-target and constant rows are asserted in the fast suite by BlockTintsLoaderTest;
+        // DRY_FOLIAGE is the one target no fast-suite case reaches.
+        Block.Tint leafLitter = blockTints.get("minecraft:leaf_litter");
+        assertThat(leafLitter, is(notNullValue()));
+        assertThat(leafLitter.target(), equalTo(Block.TintTarget.DRY_FOLIAGE));
+    }
+
+    @Test
+    @DisplayName("stack-resolved colormaps byte-match the digests pinned in the parity store")
+    void colormapsByteMatchBundledLut() {
+        // The byte-parity probe: sha256 of the raw big-endian ARGB bytes of each bundled colormap.
+        // The re-point resolves vanilla's own extracted PNG through the stack and must decode to
+        // the identical bytes. The form is `raw-argb-bytes`, which - unlike the shipped tables'
+        // `table-canonical` - encodes no library's formatting, so no dependency version rides with
+        // it.
+        Map<String, JsonObject> entries = new TreeMap<>();
+        Map<String, String> observed = new TreeMap<>();
+        for (ColorMap.Type type : List.of(ColorMap.Type.GRASS, ColorMap.Type.FOLIAGE,
+            ColorMap.Type.DRY_FOLIAGE)) {
+            String digest = ParityJson.sha256(colorMaps.get(type).pixels());
+            observed.put(type.name(), digest);
+            JsonObject entry = new JsonObject();
+            entry.addProperty("form", COLORMAP_FORM);
+            entry.addProperty("sha256", digest);
+            entries.put(type.name(), entry);
+        }
+        SelfCapture.write(COLORMAP_ARTIFACT, entries);
+
+        SelfCapture.requireBaseline(COLORMAP_ARTIFACT);
+
+        assertThat("the pinned LUT set and the LUTs actually resolved must be the same names",
+            Pins.keys(COLORMAP_ARTIFACT), equalTo(List.copyOf(observed.keySet())));
+        observed.forEach((name, digest) -> assertThat(name + " colormap LUT bytes; if intentional, "
+                + "re-baseline it: " + Pins.rebaselineCommand(COLORMAP_ARTIFACT),
+            digest, equalTo(Pins.digest(COLORMAP_ARTIFACT, name))));
+    }
+
+}

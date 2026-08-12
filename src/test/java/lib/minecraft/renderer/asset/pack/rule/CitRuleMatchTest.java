@@ -14,10 +14,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link CitRule#matches} end-to-end from parsed rules: item-id membership, percentage damage,
- * the two enchantment modes, the stack-size filter, and the {@code hand=off} never-matches rule
+ * End-to-end coverage of {@link CitRule#matches} from parsed rules: item-id membership, percentage
+ * damage, the two enchantment modes, the stack-size filter, and the {@code hand=off} never-matches rule
  * (GUI rendering is the main hand).
+ * <p>
+ * Every fixture is built by the real {@link CitParser}, so a parse regression reddens this file too - it
+ * is a parse-and-match pair rather than a pure unit test of {@code matches}.
  */
+@DisplayName("CitRule.matches over parsed rules")
 class CitRuleMatchTest {
 
     @Test

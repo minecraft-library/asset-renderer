@@ -4,11 +4,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
- * Pins {@link TextKit}'s obfuscation glyph scrambling for the {@code §k} effect: seed-determinism
- * (same seed &rarr; same output, different seeds &rarr; different output), whitespace passthrough,
+ * Coverage of {@link TextKit}'s obfuscation glyph scrambling for the {@code §k} effect:
+ * seed-determinism (one seed answers one output, two seeds answer two), whitespace passthrough,
  * empty-string passthrough, and length preservation - the invariants that let a deterministic
  * per-frame scramble stand in for vanilla's per-tick glyph shuffle.
  */

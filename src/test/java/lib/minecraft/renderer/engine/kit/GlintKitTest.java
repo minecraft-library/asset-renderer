@@ -9,15 +9,18 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
- * Verifies {@link GlintKit} constants against the MC 26.1 deobfuscated client source (loop periods,
- * per-type scales, rotation, texture ids) and pins the {@link GlintKit.GlintOptions} preset split -
+ * {@link GlintKit}'s constants against the MC 26.1 deobfuscated client source (loop periods, per-type
+ * scales, rotation, texture ids), the {@link GlintKit.GlintOptions} preset split -
  * {@link GlintKit.GlintOptions#itemDefault item} and {@link GlintKit.GlintOptions#armorDefault armor}
- * each route to vanilla's texture and scale. Also pins {@link GlintKit#applyGlint} output: a 2-second frame count that tracks
- * {@code framesPerSecond}, preserved canvas dimensions, and the foil being masked to the base
- * image's opaque pixels.
+ * each routing to vanilla's texture and scale - and {@link GlintKit#applyGlint} output: a 2-second
+ * frame count that tracks {@code framesPerSecond}, preserved canvas dimensions, and the foil masked
+ * to the base image's opaque pixels.
  */
 class GlintKitTest {
 
@@ -108,7 +111,7 @@ class GlintKitTest {
         PixelBuffer glint = solidBuffer(32, 32, 0xFFFFFFFF);
 
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(base, glint, GlintKit.GlintOptions.itemDefault(1));
-        PixelBuffer first = frames.get(0);
+        PixelBuffer first = frames.getFirst();
 
         // Left half must be opaque (base red possibly brightened by glint).
         assertThat(ColorMath.alpha(first.getPixel(0, 0)), is(0xFF));

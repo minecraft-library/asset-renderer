@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipEntry;
@@ -20,13 +21,14 @@ import java.util.zip.ZipOutputStream;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Verifies {@link PackContainer} - content-sniff detection and the three container kinds - against a
- * hand-built CATS archive (stored + GZIP entries), a real directory, and a plain zip. Exercises the
- * {@code .cats.zip} unwrap with inner-over-decoy {@code pack.mcmeta} priority and the hard, named
+ * Synthetic coverage of {@link PackContainer} - content-sniff detection and the three container kinds -
+ * against a hand-built CATS archive (stored and GZIP entries), a real directory, and a plain zip. Covers
+ * the {@code .cats.zip} unwrap with inner-over-decoy {@code pack.mcmeta} priority and the hard, named
  * error on an unrecognised source.
  */
 @DisplayName("PackContainer detection + byte access")
@@ -42,7 +44,7 @@ class PackContainerTest {
         Files.write(cats, buildCats(Optional.of(INNER_MCMETA)));
 
         PackContainer container = PackContainer.detect(cats);
-        assertThat(container, is(org.hamcrest.Matchers.instanceOf(PackContainer.Cats.class)));
+        assertThat(container, is(instanceOf(PackContainer.Cats.class)));
         assertThat(((PackContainer.Cats) container).index().size(), is(2));
         assertThat(container.entries("").toList(), hasItem("assets/hello.txt"));
         assertThat(container.exists("assets/hello.txt"), is(true));
@@ -67,7 +69,7 @@ class PackContainerTest {
         writeZip(zip, "assets/minecraft/a.txt", "A".getBytes(StandardCharsets.UTF_8),
             "assets/minecraft_hd/b.txt", "B".getBytes(StandardCharsets.UTF_8));
         PackContainer zipped = PackContainer.detect(zip);
-        assertThat(zipped.entries("assets/minecraft").toList(), equalTo(java.util.List.of("assets/minecraft/a.txt")));
+        assertThat(zipped.entries("assets/minecraft").toList(), equalTo(List.of("assets/minecraft/a.txt")));
 
         // directory (same tree exploded): identical result
         Path exploded = dir.resolve("exploded");
@@ -75,7 +77,7 @@ class PackContainerTest {
         Files.createDirectories(exploded.resolve("assets/minecraft_hd"));
         Files.write(exploded.resolve("assets/minecraft/a.txt"), "A".getBytes(StandardCharsets.UTF_8));
         Files.write(exploded.resolve("assets/minecraft_hd/b.txt"), "B".getBytes(StandardCharsets.UTF_8));
-        assertThat(PackContainer.detect(exploded).entries("assets/minecraft").toList(), equalTo(java.util.List.of("assets/minecraft/a.txt")));
+        assertThat(PackContainer.detect(exploded).entries("assets/minecraft").toList(), equalTo(List.of("assets/minecraft/a.txt")));
     }
 
     @Test
@@ -85,7 +87,7 @@ class PackContainerTest {
         writeZip(zip, "pack.cats", buildCats(Optional.of(INNER_MCMETA)), "pack.mcmeta", DECOY_MCMETA);
 
         PackContainer container = PackContainer.detect(zip);
-        assertThat(container, is(org.hamcrest.Matchers.instanceOf(PackContainer.Cats.class)));
+        assertThat(container, is(instanceOf(PackContainer.Cats.class)));
         assertThat(container.bytes("pack.mcmeta").orElseThrow(), equalTo(INNER_MCMETA));
     }
 
@@ -107,9 +109,9 @@ class PackContainerTest {
         Files.write(dir.resolve("pack.mcmeta"), INNER_MCMETA);
 
         PackContainer container = PackContainer.detect(dir);
-        assertThat(container, is(org.hamcrest.Matchers.instanceOf(PackContainer.Directory.class)));
+        assertThat(container, is(instanceOf(PackContainer.Directory.class)));
         assertThat(container.entries("").toList(), hasItem("assets/x.txt"));
-        assertThat(container.entries("assets").toList(), equalTo(java.util.List.of("assets/x.txt")));
+        assertThat(container.entries("assets").toList(), equalTo(List.of("assets/x.txt")));
         assertThat(container.exists("assets/x.txt"), is(true));
         assertThat(container.exists("nope.txt"), is(false));
         assertThat(new String(container.bytes("assets/x.txt").orElseThrow(), StandardCharsets.UTF_8), equalTo("X"));
@@ -122,7 +124,7 @@ class PackContainerTest {
         writeZip(zip, "assets/y.txt", "Y".getBytes(StandardCharsets.UTF_8), null, null);
 
         PackContainer container = PackContainer.detect(zip);
-        assertThat(container, is(org.hamcrest.Matchers.instanceOf(PackContainer.Zip.class)));
+        assertThat(container, is(instanceOf(PackContainer.Zip.class)));
         assertThat(container.exists("assets/y.txt"), is(true));
         assertThat(container.entries("assets").toList(), hasItem("assets/y.txt"));
         assertThat(new String(container.bytes("assets/y.txt").orElseThrow(), StandardCharsets.UTF_8), equalTo("Y"));
@@ -137,7 +139,7 @@ class PackContainerTest {
         assertThrows(PipelineException.class, () -> PackContainer.detect(dir.resolve("does-not-exist")));
     }
 
-    // --- fixtures ---
+    // fixtures
 
     /**
      * Builds a minimal CATS blob: an optional stored {@code pack.mcmeta} at the root plus a GZIP

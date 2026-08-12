@@ -16,10 +16,15 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Exercises the {@link AppearanceGate} render conditions through {@link Entity#resolve} for the
- * non-default appearances the (default-only) parity sweep cannot reach: the creeper charged gate and
- * the sheep sheared flag gate. Pins that resolve drops flag / charged-gated overlays that fail while
- * deferring the tint gate to the render stage.
+ * Two readings of the {@link AppearanceGate} render conditions for the non-default appearances the
+ * default-only parity sweep cannot reach: the creeper charged gate and the sheep sheared flag gate seen
+ * through {@link Entity#resolve}, which drops a flag- or charged-gated overlay that fails while deferring
+ * the tint gate to the render stage, and each gate's own arms evaluated directly against an
+ * {@link EntityAppearance}, the only coverage those arms have.
+ * <p>
+ * The class initialiser builds the whole shipped entity index through
+ * {@link EntityModelLoader#load(Diagnostics)} to reach two subjects, so the class costs a full index load
+ * and carries no slow tag.
  */
 @DisplayName("Entity.resolve appearance gates")
 class EntityResolveTest {

@@ -2,8 +2,13 @@ package lib.minecraft.renderer.asset.pack.rule;
 
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.Tag;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.rule.CitParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.util.Properties;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -11,10 +16,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Verifies {@link ItemContext} display-name synthesis - the {@link ItemContext.Builder} synthesises a
+ * Coverage of {@link ItemContext} display-name synthesis - the {@link ItemContext.Builder} synthesises a
  * minimal NBT compound from the display-name scalar (at {@code components.minecraft:custom_name}) so a
  * display-name CIT rule keeps matching a caller that supplied no explicit NBT.
  */
+@DisplayName("ItemContext display-name synthesis")
 class ItemContextTest {
 
     @Test
@@ -33,9 +39,9 @@ class ItemContextTest {
     void displayNameRuleMatchesScalarContext() {
         ItemContext context = ItemContext.builder().itemId("minecraft:diamond_sword").displayName("Legendary Thunderbolt Blade").build();
 
-        NbtPath path = componentsCustomName();
-        CitRule rule = ruleOn("minecraft:diamond_sword",
-            new NbtRule(path, NbtPredicate.glob("*Thunderbolt*", false), false));
+        // nbt.display.Name is the CIT spelling for a display-name match; the parser rewrites it onto the
+        // modern components.minecraft:custom_name path the builder synthesises.
+        CitRule rule = ruleOn("items", "diamond_sword", "nbt.display.Name", "pattern:*Thunderbolt*");
         assertThat(rule.matches(context), is(true));
 
         ItemContext other = ItemContext.builder().itemId("minecraft:diamond_sword").displayName("Plain Sword").build();
@@ -50,24 +56,11 @@ class ItemContextTest {
         assertThat(context.effectiveNbt().isEmpty(), is(true));
     }
 
-    private static NbtPath componentsCustomName() {
-        return new NbtPath(dev.simplified.collection.Concurrent.<NbtPath.Step>newList(
-            new NbtPath.Key("components"), new NbtPath.Key("minecraft:custom_name")).toUnmodifiable());
-    }
-
-    private static CitRule ruleOn(String itemId, NbtRule nbtRule) {
-        return new CitRule(
-            new lib.minecraft.renderer.asset.ResourceId("minecraft", "x.properties"),
-            lib.minecraft.renderer.asset.pack.PackId.VANILLA,
-            CitType.ITEM,
-            dev.simplified.collection.Concurrent.newList(lib.minecraft.renderer.asset.ResourceId.parse(itemId)),
-            java.util.Optional.empty(),
-            java.util.Optional.empty(),
-            java.util.Optional.empty(),
-            Hand.ANY,
-            dev.simplified.collection.Concurrent.newList(nbtRule),
-            CitOutput.EMPTY,
-            0);
+    private static CitRule ruleOn(String... keyValues) {
+        Properties props = new Properties();
+        for (int i = 0; i < keyValues.length; i += 2) props.setProperty(keyValues[i], keyValues[i + 1]);
+        return CitParser.parse(props, new ResourceId("minecraft", "optifine/cit/x.properties"),
+            PackId.VANILLA, "optifine/cit", "optifine/cit").orElseThrow();
     }
 
 }

@@ -7,18 +7,15 @@ import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.File;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,8 +26,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Verifies that an entity's conditional overlays - worn equipment and elytra wings - are folded into
- * the canvas fit as what they DRAW, so the fit reserves no room for geometry that never appears.
+ * Canvas-fit coverage for an entity's conditional overlays - worn equipment and elytra wings - which
+ * are folded into the fit as what they DRAW, so the fit reserves no room for geometry that never
+ * appears.
  *
  * <p>Both failure modes this guards are invisible to the parity sweep, which renders one default
  * appearance per entity and therefore equips nothing and renders no babies:
@@ -51,9 +49,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 @Tag("slow")
 @DisplayName("Entity overlay canvas fit")
+@ExtendWith(ClientAssetsExtension.class)
 class EntityOverlayFitTest {
 
-    private static final File CACHE_ROOT = new File("cache/it");
     /**
      * Canvas size. Deliberately generous: the leftover slack a mismeasured union leaves scales with the
      * canvas while the rasterizer rounding it is measured against does not, so a larger canvas separates
@@ -95,8 +93,8 @@ class EntityOverlayFitTest {
     /**
      * One equipped subject.
      *
-     * @param entityId the entity to render
-     * @param slot the equipment slot to fill with its default material
+     * @param entityId the entity this row renders
+     * @param slot the equipment slot this row fills with its default material
      */
     private record Equipped(@NotNull String entityId, @NotNull String slot) {
         @Override
@@ -107,11 +105,9 @@ class EntityOverlayFitTest {
 
     @BeforeAll
     static void bootstrap() {
-        ClientAssets result = ClientAcquisition.acquire(
-            ClientOptions.builder().version("26.1").cacheRoot(CACHE_ROOT).build());
         ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
         assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
-        entityRenderer = new EntityRenderer(PipelineRendererContext.of(result), entities);
+        entityRenderer = new EntityRenderer(ClientAssetsExtension.context(), entities);
     }
 
     @Test
@@ -162,7 +158,12 @@ class EntityOverlayFitTest {
             .build()).getFrames().getFirst().pixels();
     }
 
-    /** Count of non-transparent pixels. */
+    /**
+     * Counts the non-transparent pixels in a rendered frame.
+     *
+     * @param buffer the rendered frame
+     * @return the number of pixels carrying a non-zero alpha
+     */
     private static int coverage(@NotNull PixelBuffer buffer) {
         int n = 0;
         for (int y = 0; y < buffer.height(); y++)

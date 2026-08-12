@@ -127,8 +127,17 @@ public record Box(float minX, float minY, float minZ, float maxX, float maxY, fl
      * armour piece's clearance over the player's own skin geometry, and the hat overlay's clearance
      * over the head. Each caller keeps its own constant - the amounts are calibrated per frame and per
      * scope and are not interchangeable - and shares only the arithmetic.
+     * <p>
+     * Six unguarded adds, and deliberately so. Shrinking by more than half a span carries each minimum
+     * past its own maximum, after which {@link #maxExtent()} answers a negative number and
+     * {@link #union(Box)} mixes the inverted corners into whatever it is composed with. That is not
+     * clamped, because an inverted box is legitimate input to this type rather than a corrupt one - a
+     * block model's inner-faces cube authors {@code from > to} to reverse its winding, and
+     * {@link #of(float[], float[])} builds it as authored. A clamp here would be a second, silent
+     * convention for what an inverted box means. Every renderer caller passes a small positive
+     * clearance; a caller that shrinks owns the check.
      *
-     * @param amount the per-side growth, negative to shrink
+     * @param amount the per-side growth, negative to shrink, unclamped in both directions
      * @return the grown box
      */
     public @NotNull Box expand(float amount) {

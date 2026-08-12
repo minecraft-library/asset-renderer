@@ -2,22 +2,17 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
-import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.option.spec.DyeColor;
+import lib.minecraft.renderer.support.StubRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -27,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link EquipmentKit}'s dye handling on the two shapes the vanilla corpus ships: a dyeable
+ * Coverage of {@link EquipmentKit}'s dye handling on the two shapes the vanilla corpus ships: a dyeable
  * base with an undyed fallback colour (leather body armor) and a dyeable overlay with none (the wolf's
  * armadillo scute). The second is the load-bearing one - undyed it resolves to colour 0 and must be
  * skipped, so the overlay draws only once the wearer supplies a dye.
@@ -42,7 +37,7 @@ class EquipmentKitTest {
     @Test
     @DisplayName("a dyeable layer with no undyed fallback is skipped when the wearer supplies no dye")
     void undyedSkipsTheFallbackLessLayer() {
-        StubContext context = new StubContext(scuteLayers());
+        StubRendererContext context = greyContext(scuteLayers());
         Optional<PixelBuffer> composited = EquipmentKit.composite(
             new Textures(context), ASSET, LayerType.WOLF_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty());
 
@@ -54,12 +49,12 @@ class EquipmentKitTest {
     @Test
     @DisplayName("a dyeable layer with no undyed fallback draws tinted by the wearer's dye")
     void dyedTintsTheFallbackLessLayer() {
-        StubContext context = new StubContext(scuteLayers());
+        StubRendererContext context = greyContext(scuteLayers());
         Optional<PixelBuffer> composited = EquipmentKit.composite(
             new Textures(context), ASSET, LayerType.WOLF_BODY,
             Optional.of(DyeColor.Vanilla.RED.argb()), CitResult.NONE, OptionalInt.empty());
 
-        assertThat("both layer textures were resolved", context.resolved, equalTo(List.of(
+        assertThat("both layer textures were resolved", context.getResolved(), equalTo(List.of(
             "minecraft:entity/equipment/wolf_body/armadillo_scute",
             "minecraft:entity/equipment/wolf_body/armadillo_scute_overlay")));
         assertThat("the overlay lands tinted over the base",
@@ -70,7 +65,7 @@ class EquipmentKitTest {
     @DisplayName("a dyeable layer with an undyed fallback takes that colour when the wearer supplies no dye")
     void undyedTakesTheLayerFallbackColour() {
         int fallback = 0xFFA06540;
-        StubContext context = new StubContext(List.of(dyeable(Optional.of(fallback))));
+        StubRendererContext context = greyContext(List.of(dyeable(Optional.of(fallback))));
         Optional<PixelBuffer> composited = EquipmentKit.composite(
             new Textures(context), ASSET, LayerType.HORSE_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty());
 
@@ -80,7 +75,7 @@ class EquipmentKitTest {
     @Test
     @DisplayName("the wearer's dye overrides a layer's own undyed fallback")
     void dyeOverridesTheLayerFallbackColour() {
-        StubContext context = new StubContext(List.of(dyeable(Optional.of(0xFFA06540))));
+        StubRendererContext context = greyContext(List.of(dyeable(Optional.of(0xFFA06540))));
         Optional<PixelBuffer> composited = EquipmentKit.composite(
             new Textures(context), ASSET, LayerType.HORSE_BODY,
             Optional.of(DyeColor.Vanilla.CYAN.argb()), CitResult.NONE, OptionalInt.empty());
@@ -92,7 +87,7 @@ class EquipmentKitTest {
     @Test
     @DisplayName("an asset declaring no layers for the render layer composites nothing")
     void noLayersCompositesNothing() {
-        StubContext context = new StubContext(List.of());
+        StubRendererContext context = greyContext(List.of());
         assertThat(EquipmentKit.composite(new Textures(context), ASSET, LayerType.WOLF_BODY,
             Optional.empty(), CitResult.NONE, OptionalInt.empty()).isPresent(), is(false));
     }
@@ -119,47 +114,11 @@ class EquipmentKitTest {
     }
 
     /** Serves the declared layers and a flat grey for every texture, recording resolution order. */
-    private static final class StubContext implements RendererContext {
-
-        private final @NotNull List<String> resolved = new ArrayList<>();
-        private final @NotNull List<EquipmentModel.Layer> layers;
-
-        private StubContext(@NotNull List<EquipmentModel.Layer> layers) {
-            this.layers = layers;
-        }
-
-        @Override
-        public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-            this.resolved.add(textureId);
-            return Optional.of(grey());
-        }
-
-        @Override
-        public @NotNull List<EquipmentModel.Layer> resolveEquipmentLayers(
-            @NotNull ResourceId assetId, @NotNull LayerType layerType) {
-            return this.layers;
-        }
-
-        @Override
-        public @NotNull Optional<Block> findBlock(@NotNull String id) {
-            return Optional.empty();
-        }
-
-        @Override
-        public @NotNull Optional<ColorMap> findColorMap(ColorMap.@NotNull Type type) {
-            return Optional.empty();
-        }
-
-        @Override
-        public @NotNull Optional<Entity> findEntity(@NotNull String id) {
-            return Optional.empty();
-        }
-
-        @Override
-        public @NotNull Optional<Item> findItem(@NotNull String id) {
-            return Optional.empty();
-        }
-
+    private static @NotNull StubRendererContext greyContext(@NotNull List<EquipmentModel.Layer> layers) {
+        return StubRendererContext.builder()
+            .equipmentLayers(layers)
+            .everyTexture(EquipmentKitTest::grey)
+            .build();
     }
 
 }

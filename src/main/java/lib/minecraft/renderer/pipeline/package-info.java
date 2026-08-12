@@ -22,14 +22,13 @@
  * <ul>
  *   <li>{@link lib.minecraft.renderer.pipeline.pack pack} - the resource-pack model: the
  *       {@code PackStack} / {@code ResourcePack} / {@code PackContainer} types, the {@code MCMeta} /
- *       {@code FormatRange} parsers, the {@code PackId} heuristic, and the {@code PackAcquisition}
- *       materialization + {@code TextureIndexer} resolution seam.</li>
+ *       {@code FormatRange} parsers, the {@code PackId} heuristic, the {@code PackAcquisition}
+ *       materialization + {@code TextureIndexer} resolution seam, and {@code ResolvedModels}, which
+ *       folds a model's {@code parent} chain across the stack.</li>
  *   <li>{@link lib.minecraft.renderer.pipeline.loader loader} - one loader per asset family
  *       (JSON / NBT / PNG), each with its own pack-stack merge precedence.</li>
- *   <li>{@link lib.minecraft.renderer.asset.rule rule} - immutable parsed-rule records and
+ *   <li>{@link lib.minecraft.renderer.asset.pack.rule rule} - immutable parsed-rule records and
  *       matchers for OptiFine features (CIT / CTM / colormap) and the value types they consume.</li>
- *   <li>{@link lib.minecraft.renderer.pipeline.resolver resolver} - cross-loader resolvers: model
- *       parent inheritance ({@code ModelResolver}).</li>
  * </ul>
  *
  * <p><b>Gson.</b> {@link lib.minecraft.renderer.pipeline.util.PipelineGsonContributor

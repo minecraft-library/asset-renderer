@@ -4,21 +4,27 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Verifies {@link DyeColor}. Pins a few of the sixteen {@link DyeColor.Vanilla} colours (WHITE, RED,
- * BLACK) against the {@code textureDiffuseColor} values shipped by
- * {@code net.minecraft.world.item.DyeColor} in MC 26.1 - stable across every version since 1.8 - and
- * asserts every vanilla dye is fully opaque ({@code alpha == 0xFF}). Also covers the lookup helpers
- * ({@link DyeColor.Vanilla#ofName(String)} hit / null miss, and {@link DyeColor#ofName(String)}
- * delegating to it) and {@link DyeColor#of(int)} wrapping a caller RGB as an opaque
+ * The sixteen {@link DyeColor.Vanilla} colours, their wool variants and the lookup helpers around
+ * them. A few of the colours (WHITE, RED, BLACK) are pinned against the {@code textureDiffuseColor}
+ * values shipped by {@code net.minecraft.world.item.DyeColor} in MC 26.1 - stable across every version
+ * since 1.8 - and every vanilla dye is asserted fully opaque ({@code alpha == 0xFF}). The helpers are
+ * {@link DyeColor.Vanilla#ofName(String)} on a hit and on a null miss, {@link DyeColor#ofName(String)}
+ * delegating to it, and {@link DyeColor#of(int)} wrapping a caller RGB as an opaque
  * {@link DyeColor.Custom}.
- *
- * <p>The wool colours are pinned against the vanilla reference renders rather than against the
- * formula that produces them, so the assertions can fail: a scale that drifted would still agree with
- * itself. Each is the full-lit top face of the matching {@code sheep~wool_color=*} reference.
+ * <p>
+ * The wool colours are pinned against the vanilla reference renders rather than against the formula
+ * that produces them, so the assertions can fail: a scale that drifted would still agree with itself.
+ * Each is the full-lit top face of the matching {@code sheep~wool_color=*} reference.
  */
+@DisplayName("DyeColor vanilla colours, wool scale and name lookup")
 class DyeColorTest {
 
     @Test

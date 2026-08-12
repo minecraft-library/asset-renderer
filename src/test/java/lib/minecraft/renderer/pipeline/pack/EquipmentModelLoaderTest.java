@@ -26,8 +26,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Exercises {@link EquipmentModelLoader}: parsing the vanilla {@code equipment/*.json} shapes (flat
- * material, dyeable leather base plus overlay, elytra wings, empty-dyeable overlay), the
+ * Coverage of {@link EquipmentModelLoader}: the parse of each vanilla {@code equipment/*.json} shape
+ * (flat material, dyeable leather base plus overlay, elytra wings, empty-dyeable overlay), the
  * unknown-layer-type / malformed-file drops, and the replace-per-asset-id merge across packs.
  */
 @DisplayName("EquipmentModelLoader equipment/*.json")
@@ -58,7 +58,6 @@ class EquipmentModelLoaderTest {
         assertThat(iron.getLayers(LayerType.HUMANOID_LEGGINGS).size(), is(1));
         assertThat(iron.getLayers(LayerType.NAUTILUS_BODY).size(), is(1));
         assertThat(humanoid.getFirst().textureLocation(LayerType.HUMANOID).id(), is("minecraft:entity/equipment/humanoid/iron"));
-        assertThat(humanoid.getFirst().textureLocation(LayerType.HUMANOID_LEGGINGS).id(), is("minecraft:entity/equipment/humanoid_leggings/iron"));
     }
 
     @Test

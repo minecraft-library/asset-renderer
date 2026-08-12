@@ -4,14 +4,14 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The surface concerns the rasterizer reads off each {@link VisibleTriangle}, grouped into one value
- * carried by the triangle: the three flags decided per cube by the builder, plus the
+ * carried by the triangle: the four flags decided per cube by the builder, plus the
  * {@link PassDeclaration} the whole pass was submitted under.
  * <p>
  * A triangle's surface character is declared once at construction rather than threaded as loose
- * flags. {@link #withCullBackFaces} composes a new traits value for a derived triangle; it never
- * mutates a built {@code VisibleTriangle}. Every body, block and item surface carries
- * {@link PassDeclaration#DEFAULT}; only an overlay declaring an explicit {@code pipeline} node in
- * {@code entity_models.json} carries anything else.
+ * flags. {@link #withCullBackFaces} and {@link #withDirectionalLight} compose a new traits value for
+ * a derived triangle; neither mutates a built {@code VisibleTriangle}. Every body, block and item
+ * surface carries {@link PassDeclaration#DEFAULT}; only an overlay declaring an explicit
+ * {@code pipeline} node in {@code entity_models.json} carries anything else.
  *
  * @param cullBackFaces when {@code true} the engine's back-face culling pass may discard this
  *     triangle; set to {@code false} for two-sided geometry such as leaves, glass panes, banners, and
@@ -25,19 +25,25 @@ import org.jetbrains.annotations.NotNull;
  *     fragment wins the depth test, and the glint compositor applies the foil only on those pixels, so
  *     it lands on the armor rather than the whole silhouette. Always {@code false} for bare skin,
  *     blocks, items, and entity bodies
+ * @param directionalLight when {@code true} the face takes directional shading; {@code false} is
+ *     vanilla's {@code getShade(direction, false)}, which answers {@code 1.0}, and is what a model
+ *     element declaring {@code "shade": false} asks for (coral fans, cross/crop plants, ladder, vine,
+ *     tripwire, redstone dust, torches). The kit bakes {@code 1.0} into the shade scalar of such a
+ *     face, so the rasterizer needs no branch; the flag is what lets a GUI relight leave that face
+ *     full-bright instead of recomputing a Lambertian for it
  * @param pass what the whole pass declared about how a surviving fragment is shaded, composited,
  *     scaled in opacity, depth-written and ordered - shared by every triangle one build emits, so it
  *     is one value rather than five repeated per triangle
  */
 public record SurfaceTraits(boolean cullBackFaces, boolean translucent, boolean glinted,
-                            @NotNull PassDeclaration pass) {
+                            boolean directionalLight, @NotNull PassDeclaration pass) {
 
     /**
-     * Opaque, back-face-culled body geometry drawn through the {@link PassDeclaration#DEFAULT default
-     * pass} - skin, blocks, and entity bodies.
+     * Opaque, back-face-culled, directionally lit body geometry drawn through the
+     * {@link PassDeclaration#DEFAULT default pass} - skin, blocks, and entity bodies.
      */
     public static final SurfaceTraits OPAQUE_BODY =
-        new SurfaceTraits(true, false, false, PassDeclaration.DEFAULT);
+        new SurfaceTraits(true, false, false, true, PassDeclaration.DEFAULT);
 
     /**
      * Worn-armour geometry - two-sided and glinted. It differs from {@link #OPAQUE_BODY} in exactly
@@ -58,7 +64,7 @@ public record SurfaceTraits(boolean cullBackFaces, boolean translucent, boolean 
      * test, and the compositor applies the foil only there.
      */
     public static final SurfaceTraits WORN_SHELL =
-        new SurfaceTraits(false, false, true, PassDeclaration.DEFAULT);
+        new SurfaceTraits(false, false, true, true, PassDeclaration.DEFAULT);
 
     /**
      * Returns a copy of these traits with {@link #cullBackFaces()} set to the given value.
@@ -67,7 +73,21 @@ public record SurfaceTraits(boolean cullBackFaces, boolean translucent, boolean 
      * @return a copy with the given cull-back-faces flag
      */
     public @NotNull SurfaceTraits withCullBackFaces(boolean value) {
-        return new SurfaceTraits(value, this.translucent, this.glinted, this.pass);
+        return value == this.cullBackFaces
+            ? this
+            : new SurfaceTraits(value, this.translucent, this.glinted, this.directionalLight, this.pass);
+    }
+
+    /**
+     * Returns a copy of these traits with {@link #directionalLight()} set to the given value.
+     *
+     * @param value the directional-light flag for the copy
+     * @return a copy with the given directional-light flag
+     */
+    public @NotNull SurfaceTraits withDirectionalLight(boolean value) {
+        return value == this.directionalLight
+            ? this
+            : new SurfaceTraits(this.cullBackFaces, this.translucent, this.glinted, value, this.pass);
     }
 
 }

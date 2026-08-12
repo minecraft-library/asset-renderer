@@ -19,16 +19,20 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
- * Pins {@link GradientKit}'s pure color evaluator (sRGB piecewise / HSV rainbow, per-mode position
- * handling), the scroll phase / shear math, the surrogate-safe advance measurement, and the
+ * Coverage of {@link GradientKit}'s pure color evaluator (sRGB piecewise / HSV rainbow, per-mode
+ * position handling), the scroll phase / shear math, the surrogate-safe advance measurement, and the
  * per-letter advance-center draw.
  */
 class GradientKitTest {
+
+    /** Column the draws start at, in Minecraft pixels, shared by every draw and the reads that check it. */
+    private static final int DRAW_COLUMN_MC_PX = 1;
 
     private static GradientSpec startEnd(int from, int to) {
         return GradientSpec.builder(GradientSpec.Mode.START_END).addStop(from).addStop(to).build();
     }
 
+    /** Cases for the pure color evaluator, one per {@link GradientSpec.Mode}. */
     @Nested
     @DisplayName("sample(t)")
     class Sample {
@@ -83,6 +87,7 @@ class GradientKitTest {
         }
     }
 
+    /** Cases for the scroll phase, the sampled position it slides, and the italic shear. */
     @Nested
     @DisplayName("scroll + shear math")
     class Motion {
@@ -126,6 +131,7 @@ class GradientKitTest {
         }
     }
 
+    /** Cases for per-column band quantisation, its baseline-anchored shear, and the swept draw. */
     @Nested
     @DisplayName("per-pixel banding + shear")
     class PerPixel {
@@ -165,8 +171,8 @@ class GradientKitTest {
             GradientSpec spec = GradientSpec.builder(GradientSpec.Mode.START_END)
                 .addStop(0x000000).addStop(0xFFFFFF).bandPx(1).build();
             ColorSegment segment = ColorSegment.builder().withText("WWWW").withGradient(spec).build();
-            int baseX = 1 * MinecraftFont.MC_PIXEL_SCALE;
-            GradientKit.drawSegment(g, segment, spec, "WWWW", 1, 16, 0L);
+            int baseX = DRAW_COLUMN_MC_PX * MinecraftFont.MC_PIXEL_SCALE;
+            GradientKit.drawSegment(g, segment, spec, "WWWW", DRAW_COLUMN_MC_PX, 16, 0L);
 
             int leftMax = maxRed(buffer, baseX, baseX + advW);
             int rightMax = maxRed(buffer, baseX + 3 * advW, baseX + 4 * advW);
@@ -204,8 +210,8 @@ class GradientKitTest {
             .withText("MM")
             .withGradient(startEnd(0x000000, 0xFFFFFF)) // bandPx 0 = per-letter, black -> white
             .build();
-        int baseX = 1 * MinecraftFont.MC_PIXEL_SCALE;
-        GradientKit.drawSegment(g, segment, segment.getGradient().orElseThrow(), "MM", 1, 16, 0L);
+        int baseX = DRAW_COLUMN_MC_PX * MinecraftFont.MC_PIXEL_SCALE;
+        GradientKit.drawSegment(g, segment, segment.getGradient().orElseThrow(), "MM", DRAW_COLUMN_MC_PX, 16, 0L);
 
         // Left M samples ~0.25 (gray ~64), right M ~0.75 (gray ~191): left strictly darker.
         int leftMax = maxRed(buffer, baseX, baseX + advM);

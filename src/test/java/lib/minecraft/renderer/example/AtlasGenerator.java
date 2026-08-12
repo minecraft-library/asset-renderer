@@ -122,7 +122,7 @@ public final class AtlasGenerator {
      * @throws ToolingException if the sidecar is unparseable, does not read back as it was written,
      *     is missing entirely, or the source filter is not a simple directory name
      */
-    public static void main(String[] args) throws IOException {
+    public static void main(String @NotNull [] args) throws IOException {
         Diagnostics diagnostics = Diagnostics.root("generateAtlas", Diagnostics.Output.CONSOLE, null);
         Path parsedDir = Path.of(DEFAULT_OUTPUT_DIR);
         Optional<String> source = Optional.empty();
@@ -234,7 +234,7 @@ public final class AtlasGenerator {
         Path atlasJson = root.resolve("atlas.json");
         if (!Files.isRegularFile(atlasPng)) {
             if (Files.isRegularFile(root.resolve("atlas.webp"))) {
-                diagnostics.error("animated atlas (atlas.webp) - slice diagnostics need the raster atlas.png; webp decode is rewrite-era");
+                diagnostics.error("animated atlas (atlas.webp) - slice diagnostics need the raster atlas.png, and no webp decoder is wired");
                 return Optional.empty();
             }
             throw new ToolingException("Missing atlas image '%s'", atlasPng.toAbsolutePath());

@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins for the tooling {@link Diagnostics} scopes: path shapes, subtree aggregation, entry
- * timestamps, and the Output modes.
+ * timestamps, and the {@link Diagnostics.Output} modes.
  */
 @DisplayName("tooling Diagnostics scopes, subtree counts, output modes")
 class DiagnosticsTest {

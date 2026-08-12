@@ -114,11 +114,12 @@
     "pin.corpus-count": {
       "baselined": true,
       "determinism_floor": 1,
-      "entries": 2,
+      "entries": 4,
       "file": "pins/corpus-count.json",
       "kind": "pin-set",
-      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
-      "sha256": "d5efe7cf0b7eac1b3bb7fe75618f33e770b9e8b78a52a6ff65e92f1b40099310"
+      "last_duration_ms": 6718,
+      "promoted_at": "6db0412c6e1274b594cf85015af4175fbd5b474c",
+      "sha256": "04b203bbe4a9aefa8e8cd6e44c63cdf2b6076726589a995dafb54fa2ebd3469d"
     },
     "pin.fluid-crc": {
       "baselined": true,
@@ -327,19 +328,19 @@
     "pin.armor-span": {
       "cross_repo": false,
       "re_derive": "inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation",
-      "test_class": "lib.minecraft.renderer.engine.kit.ArmorKitCitCompositeTest"
+      "test_class": "lib.minecraft.renderer.engine.kit.ArmorKitTest"
     },
     "roster.appearance-axes": {
       "cross_repo": true,
       "re_derive": "AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset",
-      "test_class": "lib.minecraft.renderer.visual.AppearanceKey"
+      "test_class": "lib.minecraft.renderer.parity.AppearanceKey"
     },
     "roster.armor-subjects": {
       "anchor": [
         "SUBJECTS = List.of("
       ],
       "cross_repo": true,
-      "lines": "129-136",
+      "lines": "131-138",
       "re_derive": "must match the harness ArmorSweep roster byte for byte or the sweep finds no reference",
       "test_class": "lib.minecraft.renderer.visual.TestArmorParityVanilla"
     },
@@ -351,12 +352,12 @@
     "roster.face-phase": {
       "cross_repo": false,
       "re_derive": "vanilla's own corner order per face, read off the bakery and the polygon paths",
-      "test_class": "lib.minecraft.renderer.face.FacePhaseTest"
+      "test_class": "lib.minecraft.renderer.face.CornerPhaseTest"
     },
     "roster.frame-turn": {
       "cross_repo": false,
       "re_derive": "the order-8 diagonal group; each constant is which axes it negates",
-      "test_class": "lib.minecraft.renderer.face.FrameTurnTest"
+      "test_class": "lib.minecraft.renderer.face.TurnTest"
     },
     "roster.glint-subjects": {
       "anchor": [
@@ -364,7 +365,7 @@
         "LEATHER_ARMOR_ITEMS = List.of("
       ],
       "cross_repo": true,
-      "lines": "107-115, 125-130",
+      "lines": "109-117, 127-132",
       "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
       "test_class": "lib.minecraft.renderer.visual.TestGlintParityVanilla"
     },
@@ -375,7 +376,7 @@
       "cross_repo": false,
       "lines": "30-34",
       "re_derive": "EntityModelLoader.load() filtered on humanoidArmor().isPresent()",
-      "test_class": "lib.minecraft.renderer.pipeline.loader.HumanoidArmorRosterTest"
+      "test_class": "lib.minecraft.renderer.pipeline.loader.EntityModelLoaderArmorRosterTest"
     },
     "roster.humanoid-part-crop": {
       "anchor": [
@@ -389,7 +390,7 @@
     "roster.overlay-pipeline": {
       "cross_repo": false,
       "re_derive": "EntityPipelineTraits over the extracted client jar's layer classes",
-      "test_class": "lib.minecraft.renderer.pipeline.loader.OverlayPipelineRosterTest"
+      "test_class": "lib.minecraft.renderer.pipeline.loader.EntityModelLoaderOverlayPassTest"
     },
     "roster.pack-fixtures": {
       "cross_repo": false,
@@ -401,7 +402,7 @@
         "List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL)"
       ],
       "cross_repo": false,
-      "lines": "102",
+      "lines": "104",
       "re_derive": "the scopes the harness PlayerSweep renders",
       "test_class": "lib.minecraft.renderer.visual.TestPlayerParityVanilla"
     },

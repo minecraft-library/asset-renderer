@@ -27,10 +27,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Exercises the shadowed-model diagnostic: a non-vanilla pack shipping a
- * vanilla-form {@code models/block/<id>.json} or {@code blockstates/<id>.json} for a block-entity-backed
- * id is named and pointed at the override channel, while the vanilla pack and non-block-entity ids stay
- * silent (byte-neutral - the pass emits only stderr).
+ * Coverage of the shadowed-model diagnostic, {@link BlockModelLoader#reportShadowedIds}: a non-vanilla
+ * pack shipping a vanilla-form {@code models/block/<id>.json} or {@code blockstates/<id>.json} for a
+ * block-entity-backed id is named and pointed at the override channel, while the vanilla pack and
+ * non-block-entity ids stay silent. The pass writes to stderr and returns nothing, so its stderr is
+ * the whole observable outcome and every case here reads it back.
  */
 @DisplayName("BlockModelLoader shadowed-model warnings")
 class BlockModelLoaderShadowWarningTest {

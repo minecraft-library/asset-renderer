@@ -4,30 +4,24 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.BannerPattern;
-import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.option.spec.BannerLayer;
 import lib.minecraft.renderer.option.spec.DyeColor;
-import org.jetbrains.annotations.NotNull;
+import lib.minecraft.renderer.support.StubRendererContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link BannerKit#composite2D} banner / shield compositing against in-memory fixture
- * textures, plus {@link BannerKit.Variant#textureFor} path building. A {@link StubContext} serves
- * fixture textures by id so the tests assert on output pixels directly: base-dye fill with no
+ * Coverage of {@link BannerKit#composite2D} banner / shield compositing against in-memory fixture
+ * textures, plus {@link BannerKit.Variant#textureFor} path building. A
+ * {@link StubRendererContext} serves fixture textures by id - and answers empty for every id absent
+ * from the fixture map - so the tests assert on output pixels directly: base-dye fill with no
  * layers, a single dye-tinted pattern mask blitted over the base, and the
  * {@link BannerKit.Variant#SHIELD_ITEM} variant pulling the {@code entity/shield/} atlas rather
  * than {@code entity/banner/}.
@@ -38,7 +32,7 @@ class BannerKitTest {
     @DisplayName("composite with zero layers returns a canvas filled with the base dye")
     void baseDyeOnly() {
         PixelBuffer bannerBase = solid(4, 4, 0xFFFFFFFF);
-        Textures engine = new Textures(new StubContext(Map.of(
+        Textures engine = new Textures(fixtures(Map.of(
             "minecraft:entity/banner_base", bannerBase
         )));
 
@@ -63,7 +57,7 @@ class BannerKitTest {
             0xFFFFFFFF, 0x00000000,
             0x00000000, 0x00000000
         }, 2, 2);
-        Textures engine = new Textures(new StubContext(Map.of(
+        Textures engine = new Textures(fixtures(Map.of(
             "minecraft:entity/banner_base", base,
             "minecraft:entity/banner/creeper", mask
         )));
@@ -91,7 +85,7 @@ class BannerKitTest {
     void shieldVariantUsesShieldAtlas() {
         PixelBuffer base = solid(2, 2, 0xFFFFFFFF);
         PixelBuffer shieldMask = solid(2, 2, 0xFFFFFFFF);
-        Textures engine = new Textures(new StubContext(Map.of(
+        Textures engine = new Textures(fixtures(Map.of(
             "minecraft:entity/banner_base", base,
             // Only the shield variant is registered - the banner variant would miss.
             "minecraft:entity/shield/creeper", shieldMask
@@ -156,45 +150,10 @@ class BannerKitTest {
     }
 
     /**
-     * A lightweight {@link RendererContext} stub backed by an in-memory texture map. Only
-     * {@link #resolveTexture} is wired (to the fixture map); every other lookup returns empty, which
-     * is all {@link BannerKit#composite2D} needs.
+     * Serves the given fixture textures by id, which is all {@link BannerKit#composite2D} needs.
      */
-    private static final class StubContext implements RendererContext {
-
-        private final @NotNull Map<String, PixelBuffer> textures;
-
-        StubContext(@NotNull Map<String, PixelBuffer> textures) {
-            this.textures = new HashMap<>(textures);
-        }
-
-        @Override
-        public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-            return Optional.ofNullable(this.textures.get(textureId));
-        }
-
-        @Override
-        public @NotNull Optional<ColorMap> findColorMap(
-            ColorMap.@NotNull Type type
-        ) {
-            return Optional.empty();
-        }
-
-        @Override
-        public @NotNull Optional<Block> findBlock(@NotNull String id) {
-            return Optional.empty();
-        }
-
-        @Override
-        public @NotNull Optional<Item> findItem(@NotNull String id) {
-            return Optional.empty();
-        }
-
-        @Override
-        public @NotNull Optional<Entity> findEntity(@NotNull String id) {
-            return Optional.empty();
-        }
-
+    private static StubRendererContext fixtures(Map<String, PixelBuffer> textures) {
+        return StubRendererContext.builder().texturesById(textures).build();
     }
 
 }

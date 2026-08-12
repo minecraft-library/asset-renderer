@@ -8,23 +8,23 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Pins the {@link Projection} catalog's base-pose and {@link Projection#resolve() resolve} contract:
- * each member's documented vanilla angle, that an unrotated resolve preserves the base pose as the
- * lighting pose, and that resolve bundles the member's {@link Lens} into the {@link Camera} (swappable
- * via {@link Camera#withLens}). Guards the invariant that {@code Projection} is the sole owner of the
- * vanilla iso angles - facing is applied per-renderer as a {@code Placement}, never baked into the pose.
+ * Coverage of the {@link Projection} catalog's base-pose and {@link Projection#resolve() resolve}
+ * contract: the two {@code VANILLA_*} members carry the angles vanilla itself defines, an unrotated
+ * resolve preserves every member's base pose as its lighting pose, and resolve bundles the member's
+ * {@link Lens} into the {@link Camera} (swappable via {@link Camera#withLens}). Only that pair has an
+ * external angle to answer to; the other members' angles are this catalog's own graphical projections,
+ * so asserting them would restate the declaration. Guards the invariant that {@code Projection} is the
+ * sole owner of the vanilla iso angles - facing is applied per-renderer as a {@code Placement}, never
+ * baked into the pose.
  */
 @DisplayName("Projection base poses + resolve")
 class ProjectionTest {
 
     @Test
     @DisplayName("VANILLA_* base poses carry the documented vanilla angles")
-    void vanillaBasePoses() {
-        // Projection is the sole home of the vanilla iso angles (moved off EulerRotation). VANILLA_ISO is
-        // the single facing-neutral block-icon [30,225,0] pose shared by blocks, players, and entities;
-        // each renderer applies its own facing as a Placement (block IDENTITY; player R_Y(180); entity
-        // R_Y(180)·flip180 = diag(-1,-1,1)), so every projection presents the subject's front. The harness
-        // [210,45,0] lives on only as the entity kit's lighting frame (EntityGeometryKit.DEFAULT_ENTITY_LIGHTING).
+    void vanillaBasePosesCarryDocumentedAngles() {
+        // Only the VANILLA_* pair answers to an angle vanilla defines; every other member's angles are
+        // this catalog's own, so pinning them would restate the declaration.
         assertThat(Projection.VANILLA_ISO.basePose(), equalTo(new EulerRotation(30f, 225f, 0f)));
         assertThat(Projection.VANILLA_GUI_ITEM.basePose(), equalTo(new EulerRotation(0f, 180f, 0f)));
     }

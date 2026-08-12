@@ -15,9 +15,7 @@ import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
-import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
@@ -58,10 +56,11 @@ public class ShieldKit {
      * Builds the plate + handle triangles for a plain (no-pattern) shield, textured with the
      * supplied {@code shield_base_nopattern} atlas. Output is in the Y-up block-model frame (the
      * special {@code scale(1, -1, -1)} already baked in); the caller applies the {@code display.gui}
-     * pose, scale, and translation and runs the {@link Shading#relightForItems3d} pass.
+     * pose, scale, and translation and runs {@link #relightShield}, which lights through
+     * {@link Lighting#itemsFlat} rather than the block icon's {@code ITEMS_3D}.
      *
      * @param texture the resolved {@code entity/shield/shield_base_nopattern} atlas
-     * @return the shield triangle list, ready for the block-icon relight + rasterize path
+     * @return the shield triangle list, ready for the relight + rasterize path
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildShield3D(@NotNull PixelBuffer texture) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
@@ -98,40 +97,24 @@ public class ShieldKit {
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull LightingFrame lighting
     ) {
-        EulerRotation rotation = lighting.rotation();
-        float mirrorX = lighting.mirror() == LightingFrame.Mirror.HORIZONTAL ? -1f : 1f;
-        Matrix4f normalTransform = Matrix4f.IDENTITY
-            .scale(mirrorX, -1f, 1f)
-            .rotate(Quaternionf.rotationXYZ(
-                rotation.pitchRadians(), rotation.yawRadians(), rotation.rollRadians()));
+        Matrix4f normalTransform = Shading.guiNormalTransform(lighting);
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle t : triangles) {
             Vector3f rendered = t.normal().transformNormal(normalTransform).normalize();
-            // Match vanilla's signed-byte SNORM normal round-trip (see Shading.packAsSnormByte).
-            Vector3f packed = new Vector3f(snorm(rendered.x()), snorm(rendered.y()), snorm(rendered.z()));
+            // Vanilla's signed-byte SNORM normal round-trip, which the shield needs and the block-icon
+            // relight needs identically - the shield's plate and handle are axis-aligned, but the pose
+            // rotation tilts every normal off its cardinal before this runs.
+            Vector3f packed = Shading.packAsSnormByte(rendered);
             float shading = Lighting.itemsFlat(packed);
             out.add(new VisibleTriangle(
                 t.position0(), t.position1(), t.position2(),
                 t.uv0(), t.uv1(), t.uv2(),
                 t.texture(), t.tintArgb(), t.normal(), shading,
-                new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                new SurfaceTraits(t.traits().cullBackFaces(), false, false, t.traits().directionalLight(),
                     PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }
         return out;
-    }
-
-    /**
-     * Quantizes a normal component onto vanilla's signed-byte SNORM grid, matching the
-     * {@code clamp * 127 -> (byte) -> / 127} round-trip vanilla's vertex format applies before the
-     * lighting dot product. Mirrors {@code Shading.packAsSnormByte} so the shield's re-shade sees
-     * the same truncated normal the vanilla GPU does.
-     *
-     * @param component the raw normal component in {@code [-1, 1]}
-     * @return the SNORM-quantized component
-     */
-    private static float snorm(float component) {
-        return ((int) (Math.clamp(component, -1f, 1f) * 127f)) / 127f;
     }
 
     /**

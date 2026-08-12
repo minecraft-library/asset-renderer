@@ -24,15 +24,6 @@ import org.jetbrains.annotations.NotNull;
 @UtilityClass
 public class Shading {
 
-    /**
-     * Sentinel shade value marking a {@code "shade": false} model element (coral fans, cross/crop
-     * plants, ladder, vine, tripwire, redstone dust, torches). Vanilla's
-     * {@code getShade(direction, shade=false)} returns {@code 1.0} - the face skips directional
-     * darkening - so {@link #relightForItems3d} renders these full-bright instead of applying the
-     * {@code Lighting.ITEMS_3D} Lambertian. Block kits bake this scalar at quad-emit time.
-     */
-    public static final float DISABLED = -1f;
-
     // --- shading ---
 
     /**
@@ -101,22 +92,14 @@ public class Shading {
         @NotNull LightingFrame lighting,
         boolean forceCullBackFaces
     ) {
-        EulerRotation rotation = lighting.rotation();
-        float mirrorX = lighting.mirror() == LightingFrame.Mirror.HORIZONTAL ? -1f : 1f;
-        Matrix4f normalTransform = Matrix4f.IDENTITY
-            .scale(mirrorX, -1f, 1f)
-            .rotate(Quaternionf.rotationXYZ(
-                rotation.pitchRadians(),
-                rotation.yawRadians(),
-                rotation.rollRadians()
-            ));
+        Matrix4f normalTransform = guiNormalTransform(lighting);
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle t : triangles) {
             boolean cull = forceCullBackFaces || t.traits().cullBackFaces();
-            // DISABLED marks a "shade": false element (see the field doc): vanilla's
+            // A face that takes no directional light is a "shade": false element: vanilla's
             // getShade(direction, false) returns 1.0, so render it full-bright rather than applying
             // the ITEMS_3D Lambertian. Cull / two-sided handling is unchanged; only the shade differs.
-            if (t.shading() == DISABLED) {
+            if (!t.traits().directionalLight()) {
                 out.add(new VisibleTriangle(
                     t.position0(), t.position1(), t.position2(),
                     t.uv0(), t.uv1(), t.uv2(),
@@ -191,13 +174,48 @@ public class Shading {
     }
 
     /**
+     * Builds the matrix carrying a model normal into the frame a GUI relight shades against - the
+     * {@code display.gui} pose rotation behind the PoseStack's {@code scale(W, -H, W)} Y-flip, with a
+     * {@link LightingFrame.Mirror#HORIZONTAL} frame flipping the leading scale's X sign for a screen
+     * left / right swap.
+     * <p>
+     * The frame both GUI relights shade in - {@link #relightForItems3d} and
+     * {@code ShieldKit.relightShield}. It is <b>not</b> {@link Lighting#resolveEntity}'s chain, which
+     * looks alike at the {@code mirrorX} line and differs everywhere that matters: that one carries
+     * vanilla's camera-frame lights into the kit frame through five ops and ends
+     * {@code scale(mirrorX, 1, -1)}, two signs away from the {@code scale(mirrorX, -1, 1)} here.
+     * Unifying on the shared line is how those two signs come to be flipped without anybody deciding to.
+     *
+     * @param lighting the frame the transform is built from
+     * @return the model-normal to shading-frame transform
+     */
+    public static @NotNull Matrix4f guiNormalTransform(@NotNull LightingFrame lighting) {
+        EulerRotation rotation = lighting.rotation();
+        float mirrorX = lighting.mirror() == LightingFrame.Mirror.HORIZONTAL ? -1f : 1f;
+        return Matrix4f.IDENTITY
+            .scale(mirrorX, -1f, 1f)
+            .rotate(Quaternionf.rotationXYZ(
+                rotation.pitchRadians(),
+                rotation.yawRadians(),
+                rotation.rollRadians()
+            ));
+    }
+
+    /**
      * Replicates vanilla's {@code BufferBuilder.normalIntValue} byte-packing followed by
      * the shader's SNORM unpacking. Each component {@code c} is mapped to
      * {@code (int)(clamp(c, -1, 1) * 127.0F) / 127.0F}, with the integer cast truncating
      * toward zero (so {@code 0.6124 -> 77/127 = 0.6063}, not {@code 78/127 = 0.6142}).
      * The result is not unit length - vanilla's shader doesn't renormalize either.
+     * <p>
+     * The identity on an axis-aligned normal, every cardinal component landing exactly on the grid, so
+     * it moves nothing on a cube face and quantizes visibly on a rotated one - a 45-degree plane's
+     * {@code 0.7071} truncates to {@code 89/127}, about a percent low.
+     *
+     * @param n the raw normal
+     * @return the normal with each component on vanilla's signed-byte grid
      */
-    private static @NotNull Vector3f packAsSnormByte(@NotNull Vector3f n) {
+    public static @NotNull Vector3f packAsSnormByte(@NotNull Vector3f n) {
         return new Vector3f(
             ((int) (Math.clamp(n.x(), -1f, 1f) * 127.0f)) / 127.0f,
             ((int) (Math.clamp(n.y(), -1f, 1f) * 127.0f)) / 127.0f,

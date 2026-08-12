@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 
@@ -22,17 +23,17 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link CtmParser} - range expansion, correct {@code top} / {@code bottom} face mapping,
+ * Coverage of {@link CtmParser} - range expansion, correct {@code top} / {@code bottom} face mapping,
  * per-method fail-closed tile-count validation, filename inference, and {@code matchBlocks}
- * state-filter parsing. CTM renders nothing, so these fixtures are the sole exercise of the CTM
- * grammar.
+ * state-filter parsing. A render resolves a rule through one neighbourhood only, the isolated block,
+ * so every other arm of the grammar the parser accepts is exercised here and nowhere else.
  */
 class CtmParserTest {
 
     private static final @NotNull String PROPS_DIR = "optifine/ctm/stone";
 
     @Test
-    @DisplayName("#1 tiles=0-46 unrolls to 47 texture entries for method=ctm")
+    @DisplayName("tiles=0-46 unrolls to 47 texture entries for method=ctm")
     void rangeExpansion() {
         CtmRule rule = parse("stone", "method", "ctm", "matchTiles", "stone", "tiles", "0-46").orElseThrow();
         assertThat(rule.tiles().size(), equalTo(47));
@@ -40,7 +41,7 @@ class CtmParserTest {
     }
 
     @Test
-    @DisplayName("#4 faces=top maps to the TOP face only, never ALL")
+    @DisplayName("faces=top maps to the TOP face only, never ALL")
     void facesTopIsNotAll() {
         CtmRule rule = parse("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", "top").orElseThrow();
         assertThat(rule.faces(), equalTo(EnumSet.of(Face.UP)));
@@ -95,7 +96,7 @@ class CtmParserTest {
     }
 
     @Test
-    @DisplayName("#8 filename inference: block_<name> is a block target, <name> is a tile target")
+    @DisplayName("filename inference: block_<name> is a block target, <name> is a tile target")
     void filenameInference() {
         CtmRule block = parse("block_stone", "method", "fixed", "tiles", "custom").orElseThrow();
         assertThat(block.target(), instanceOf(CtmTarget.Blocks.class));
@@ -114,17 +115,17 @@ class CtmParserTest {
         CtmTarget.Blocks blocks = (CtmTarget.Blocks) rule.target();
         BlockMatch match = blocks.blocks().getFirst();
         assertThat(match.block().id(), equalTo("minecraft:oak_stairs"));
-        assertThat(match.properties().getOptional("facing").orElseThrow(), equalTo(java.util.List.of("east", "west")));
-        assertThat(match.properties().getOptional("half").orElseThrow(), equalTo(java.util.List.of("bottom")));
+        assertThat(match.properties().getOptional("facing").orElseThrow(), equalTo(List.of("east", "west")));
+        assertThat(match.properties().getOptional("half").orElseThrow(), equalTo(List.of("bottom")));
     }
 
     @Test
     @DisplayName("<skip> and <default> tile sentinels resolve to their marker refs")
     void tileSentinels() {
         CtmRule rule = parse("stone", "method", "random", "matchTiles", "stone", "tiles", "<skip> tex <default>").orElseThrow();
-        assertThat(rule.tiles().get(0), instanceOf(TileRef.Skip.class));
+        assertThat(rule.tiles().getFirst(), instanceOf(TileRef.Skip.class));
         assertThat(rule.tiles().get(1), instanceOf(TileRef.Texture.class));
-        assertThat(rule.tiles().get(2), instanceOf(TileRef.Default.class));
+        assertThat(rule.tiles().getLast(), instanceOf(TileRef.Default.class));
     }
 
     /** The face set one {@code faces=} token parses to, through a rule that is otherwise minimal. */

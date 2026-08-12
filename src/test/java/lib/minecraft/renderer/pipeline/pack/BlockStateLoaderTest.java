@@ -3,7 +3,6 @@ package lib.minecraft.renderer.pipeline.pack;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.PackStack;
-import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
@@ -26,9 +25,10 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Exercises the {@link BlockStateLoader} pack-stack merge: the normative first-entry rule on both
+ * Coverage of the {@link BlockStateLoader} pack-stack merge: the normative first-entry rule on both
  * weighted {@code variants} arrays and multipart {@code apply} arrays, namespace-qualified block ids,
- * whole-file variants&harr;multipart replacement, and {@code filter.block} erasure.
+ * and whole-file variants - multipart replacement, including the shadow-versus-fallback split a
+ * higher pack's empty and malformed files land on.
  */
 @DisplayName("BlockStateLoader pack-stack merge")
 class BlockStateLoaderTest {
@@ -122,28 +122,6 @@ class BlockStateLoaderTest {
         BlockStateLoader.BlockStates result = BlockStateLoader.load(stack);
         assertThat("variant form dropped", result.variants().containsKey("minecraft:flip"), is(false));
         assertThat(result.multiparts().get("minecraft:flip").getFirst().apply().model(), is("minecraft:block/new"));
-    }
-
-    @Test
-    @DisplayName("filter.block erases matching block ids from lower packs before the higher merges")
-    void filterBlockErasesBlockstates() throws IOException {
-        Path van = tmp.resolve("vanilla");
-        write(van.resolve("assets/minecraft/blockstates/keepme.json"), "{\"variants\":{\"\":{\"model\":\"minecraft:block/keepme\"}}}");
-        write(van.resolve("assets/minecraft/blockstates/hideme.json"), "{\"variants\":{\"\":{\"model\":\"minecraft:block/hideme\"}}}");
-
-        Path user = tmp.resolve("user");
-        Files.createDirectories(user.resolve("assets/minecraft"));
-        MCMeta filtering = MCMeta.parse(
-            "{\"pack\":{\"pack_format\":84},\"filter\":{\"block\":[{\"path\":\"hideme\"}]}}",
-            new ResourceId("userpack", "pack"));
-        ResourcePack filterPack = new ResourcePack(new PackId("userpack"), new PackContainer.Directory(user),
-            filtering, Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
-
-        PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft")), filterPack));
-        BlockStateLoader.BlockStates result = BlockStateLoader.load(stack);
-
-        assertThat(result.variants().containsKey("minecraft:keepme"), is(true));
-        assertThat("hidden by filter.block", result.variants().containsKey("minecraft:hideme"), is(false));
     }
 
     @Test

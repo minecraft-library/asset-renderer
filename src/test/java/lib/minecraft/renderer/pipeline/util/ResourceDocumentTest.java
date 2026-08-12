@@ -20,6 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @DisplayName("ResourceDocument envelope validation + DTO surface")
 class ResourceDocumentTest {
 
+    /** The version stamp the fixtures declare, re-stated here so an MC bump fails loudly */
+    private static final @NotNull String SOURCE_VERSION = "26.1";
+
     private static @NotNull Diagnostics diagnostics() {
         return Diagnostics.root("test", Diagnostics.Output.NONE, null);
     }
@@ -33,7 +36,7 @@ class ResourceDocumentTest {
     void acceptsFormatTwo() {
         Diagnostics diag = diagnostics();
         ResourceDocument.open(
-            bytes("{\"//\":\"provenance\",\"format\":2,\"source_version\":\"26.1\",\"effects\":[]}"), diag);
+            bytes("{\"//\":\"provenance\",\"format\":2,\"source_version\":\"" + SOURCE_VERSION + "\",\"effects\":[]}"), diag);
 
         assertEquals(0, diag.count(Diagnostics.Severity.WARN), "a matching source_version must not warn");
     }
@@ -42,14 +45,14 @@ class ResourceDocumentTest {
     @DisplayName("rejects a resource with no format member")
     void rejectsMissingFormat() {
         assertThrows(PipelineException.class,
-            () -> ResourceDocument.open(bytes("{\"source_version\":\"26.1\"}"), diagnostics()));
+            () -> ResourceDocument.open(bytes("{\"source_version\":\"" + SOURCE_VERSION + "\"}"), diagnostics()));
     }
 
     @Test
     @DisplayName("rejects a resource declaring a non-2 format")
     void rejectsWrongFormat() {
         assertThrows(PipelineException.class,
-            () -> ResourceDocument.open(bytes("{\"format\":1,\"source_version\":\"26.1\"}"), diagnostics()));
+            () -> ResourceDocument.open(bytes("{\"format\":1,\"source_version\":\"" + SOURCE_VERSION + "\"}"), diagnostics()));
     }
 
     @Test
@@ -81,7 +84,7 @@ class ResourceDocumentTest {
     @DisplayName("as() deserialises the payload into a typed DTO, ignoring envelope members")
     void asDeserialisesDto() {
         ResourceDocument doc = ResourceDocument.open(
-            bytes("{\"format\":2,\"source_version\":\"26.1\",\"count\":7,\"label\":\"glint\"}"), diagnostics());
+            bytes("{\"format\":2,\"source_version\":\"" + SOURCE_VERSION + "\",\"count\":7,\"label\":\"glint\"}"), diagnostics());
 
         Payload payload = doc.as(Payload.class);
         assertEquals(7, payload.count());

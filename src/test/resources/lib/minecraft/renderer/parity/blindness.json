@@ -181,7 +181,7 @@
       "id": "B9",
       "mode": "select",
       "probe": "perturb the wing build's fit frame and re-render -Psheets=toggles: elytra_only_3_4_ and elytra_cape_3_4_ move and none of the other eleven cells do",
-      "reason": "The player byte pin is the three CRC32 values PlayerRasterizeFittedGoldenTest reads out of the store and compares its own renders against: FULL and SKULL bare, and FULL again in a full iron set. None of the three wears a cape. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.",
+      "reason": "The player byte pin is the three CRC32 values PlayerRendererFittedGoldenTest reads out of the store and compares its own renders against: FULL and SKULL bare, and FULL again in a full iron set. None of the three wears a cape. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.",
       "sees": [
         "pin.player-crc",
         "manifest.player-sheets",
@@ -205,7 +205,7 @@
       "id": "B10",
       "mode": "select",
       "probe": "./gradlew playerRender -Psheets=core-matrix,toggles,armor-per-slot and hash either side with git stash push -- src between the two renders",
-      "reason": "The block and item parity sums are structurally blind to the box BUILDER, so a clean block sum is not evidence about buildBox. The gates that see it are the 14 armoured entity rows, the armour sweep, the player CRC pin, the player contact sheets, the raw player and armour renders, the portal manifest - PortalRenderer builds its end-portal slab with buildBox and its gateway cube through unitCube, which is a buildBox call - and QuadFanTest, which calls buildBox directly and is the only one of them that runs in the fast suite. The blindness is to that one method: the same file also holds the block element path and the single fan emitter, which BlockRenderer does reach, so B19 correctly keeps the block and item sums in SEES for a change anywhere else in it and this rule's blind list surfaces only when nothing else selects them.",
+      "reason": "The block and item parity sums are structurally blind to the box BUILDER, so a clean block sum is not evidence about buildBox. The gates that see it are the 14 armoured entity rows, the armour sweep, the player CRC pin, the player contact sheets, the raw player and armour renders, the portal manifest - PortalRenderer builds its end-portal slab with buildBox and its gateway cube through unitCube, which is a buildBox call - and BlockGeometryKitQuadFanTest, which calls buildBox directly and is the only one of them that runs in the fast suite. The blindness is to that one method: the same file also holds the block element path and the single fan emitter, which BlockRenderer does reach, so B19 correctly keeps the block and item sums in SEES for a change anywhere else in it and this rule's blind list surfaces only when nothing else selects them.",
       "sees": [
         "sweep.entity",
         "sweep.armor",
@@ -485,7 +485,7 @@
       "id": "B23",
       "mode": "select",
       "probe": "throw from TrimKit.permuteFrom and run all five sweeps; none of them fires it",
-      "reason": "A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the item sweep renders untrimmed icons and its 18 trim-named rows are flat smithing-template sprites that permute nothing, and the armour sweep's seven subjects carry no trim. The gates are ArmorKitCitCompositeTest and the trims sheet group's 11 cells.",
+      "reason": "A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the item sweep renders untrimmed icons and its 18 trim-named rows are flat smithing-template sprites that permute nothing, and the armour sweep's seven subjects carry no trim. The gates are ArmorKitTest and the trims sheet group's 11 cells.",
       "sees": [
         "manifest.player-sheets",
         "pin.armor-span"
@@ -590,8 +590,8 @@
       "claim": "The face vocabulary decides winding, UV pairing and per-face shade, so it reaches every 3D render",
       "id": "B27",
       "mode": "select",
-      "probe": "flip one CornerPhase index array and confirm FacePhaseTest fails while all 30 dump files are byte-identical",
-      "reason": "CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. Every 3D render goes through them, which is why the three render CRC pins, the glint sweep and the cache/visual producers are on the list beside the sums. FacePhaseTest and HumanoidPartCropTest pin the tables themselves.",
+      "probe": "flip one CornerPhase index array and confirm CornerPhaseTest fails while all 30 dump files are byte-identical",
+      "reason": "CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. Every 3D render goes through them, which is why the three render CRC pins, the glint sweep and the cache/visual producers are on the list beside the sums. CornerPhaseTest and HumanoidPartCropTest pin the tables themselves.",
       "sees": [
         "sweep.entity",
         "sweep.block",
@@ -720,6 +720,13 @@
       ],
       "source": "measured by perturbing ParityMetrics.java: 6 of 11 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java",
+        "src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepReport.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java",
         "src/test/java/lib/minecraft/renderer/visual/**"
       ]
     },
@@ -781,16 +788,16 @@
         "pin.kit-corners",
         "pin.vanilla-iso-pose"
       ],
-      "source": "measured by perturbing FluidRendererParallelismTest.java: 1 of 9 declared sees moved; the ARTIFACT declarations B37's two globs do not contain",
+      "source": "measured by perturbing FluidRendererFrameBakePinTest.java: 1 of 9 declared sees moved; the ARTIFACT declarations B37's two globs do not contain",
       "trigger_paths": [
-        "src/test/java/lib/minecraft/renderer/ModelEngineParallelismTest.java",
-        "src/test/java/lib/minecraft/renderer/FluidRendererParallelismTest.java",
-        "src/test/java/lib/minecraft/renderer/PortalRendererParallelismTest.java",
-        "src/test/java/lib/minecraft/renderer/PlayerRasterizeFittedGoldenTest.java",
+        "src/test/java/lib/minecraft/renderer/BlockRendererRasterPinTest.java",
+        "src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java",
+        "src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java",
+        "src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java",
-        "src/test/java/lib/minecraft/renderer/pipeline/util/ResourceShaTest.java",
-        "src/test/java/lib/minecraft/renderer/pipeline/PipelineIntegrationTest.java"
+        "src/test/java/lib/minecraft/renderer/pipeline/util/BundledResourceShaTest.java",
+        "src/test/java/lib/minecraft/renderer/pipeline/ClientAcquisitionIntegrationTest.java"
       ]
     },
     {
@@ -807,7 +814,7 @@
         "pin.kit-corners",
         "pin.vanilla-iso-pose"
       ],
-      "claim": "These are the parity package's own suites and the two renderers of its markdown views; none of them writes a byte any artifact digests",
+      "claim": "These are the parity package's own suites, the two renderers of its markdown views, and the sweep-side machinery the visual mains measure and report through; none of them writes a byte any artifact B37 names digests",
       "id": "B39",
       "mode": "demote",
       "probe": "edit any one of them and capture any artifact B37 names; every stored byte is identical, and the only thing that fails is the suite that gates the file",
@@ -815,12 +822,19 @@
       "sees": [],
       "source": "measured by perturbing ParityViews.java: 0 of 0 declared sees moved, and 11 declared blind held; the readers inside B37's write-path packages",
       "trigger_paths": [
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java",
         "src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java",
         "src/test/java/lib/minecraft/renderer/parity/ParityIndexTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java",
         "src/test/java/lib/minecraft/renderer/parity/ParityReferences.java",
         "src/test/java/lib/minecraft/renderer/parity/ParityReferencesTest.java",
         "src/test/java/lib/minecraft/renderer/parity/ParityViews.java",
-        "src/test/java/lib/minecraft/renderer/parity/ParityViewsTest.java"
+        "src/test/java/lib/minecraft/renderer/parity/ParityViewsTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepReport.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java"
       ]
     },
     {

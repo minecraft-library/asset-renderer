@@ -26,8 +26,8 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Verifies {@link PackIdDeriver} - the four-rung id ladder and the cross-pack collision resolution.
- * Covers the filename/license/description/synthetic rungs, the reserved-id pre-seeding, letter-ordinal
+ * Coverage of {@link PackIdDeriver} - the four-rung id ladder and the cross-pack collision resolution:
+ * the filename/license/description/synthetic rungs, the reserved-id pre-seeding, letter-ordinal
  * collision suffixes with their loud warning, and the same-source-twice error.
  */
 @DisplayName("PackIdDeriver ladder + collision resolution")

@@ -13,11 +13,10 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Verifies {@link FormatRange} - the one normalization of all three pack-format generations. Covers
- * every row of the tolerance table: legacy {@code pack_format}, the three {@code supported_formats}
- * encodings, the modern int and {@code [major,minor]} {@code min_format}/{@code max_format} forms,
- * the minor-widened bare-int max, newest-generation-wins when keys coexist, and inclusive
- * containment.
+ * Row-by-row coverage of {@link FormatRange}, the one normalization of all three pack-format
+ * generations: legacy {@code pack_format}, the three {@code supported_formats} encodings, the modern int
+ * and {@code [major,minor]} {@code min_format}/{@code max_format} forms, the minor-widened bare-int max,
+ * newest-generation-wins when keys coexist, and inclusive containment.
  */
 @DisplayName("FormatRange three-generation normalization")
 class FormatRangeTest {
@@ -48,7 +47,7 @@ class FormatRangeTest {
     }
 
     @Test
-    @DisplayName("modern min_format/max_format as ints minor-widen the max (D5)")
+    @DisplayName("modern min_format/max_format as ints minor-widen the max")
     void modernInts() {
         assertThat(fromPack("{\"pack\":{\"min_format\":88,\"max_format\":88}}"), is(expect(88, 0, 88, MAX)));
         assertThat(fromPack("{\"pack\":{\"min_format\":69,\"max_format\":255}}"), is(expect(69, 0, 255, MAX)));

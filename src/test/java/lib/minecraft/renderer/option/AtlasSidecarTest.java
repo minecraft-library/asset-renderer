@@ -12,11 +12,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins the {@link AtlasSidecar} typed schema: {@code parse(toJson(x)) == x} (record structural
- * equality), the concrete JSON shape / member order against a mini fixture, and the failure a row
+ * The {@link AtlasSidecar} typed schema - {@code parse(toJson(x)) == x} under record structural
+ * equality, the concrete JSON shape and member order against a mini fixture, and the failure a row
  * naming no {@link AtlasTile.Kind} or {@link AtlasTile.Source} constant raises.
  */
-@DisplayName("AtlasSidecar: typed sidecar round-trips and pins the schema shape")
+@DisplayName("AtlasSidecar typed round-trip and schema shape")
 class AtlasSidecarTest {
 
     private static final AtlasSidecar FIXTURE = new AtlasSidecar(64, 2, 3, List.of(

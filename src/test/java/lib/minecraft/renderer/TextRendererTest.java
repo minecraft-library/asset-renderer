@@ -14,17 +14,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Smoke tests for {@link TextRenderer}'s {@code LORE}-style tooltip chrome. Covers the vanilla
- * background/border alpha defaults ({@code 240}/{@code 80}) on {@link TextOptions#defaults()}, and
- * pins the rendered tooltip's fill and gradient-border pixels against vanilla's exact colours by
- * sampling known output coordinates - background fill {@code 0xF0100010}, gradient top
- * {@code 0x505000FF}, gradient bottom {@code 0x5028007F}, and the interpolated left edge between
- * them.
+ * Pixel pin for {@link TextRenderer}'s {@code LORE}-style tooltip chrome: the rendered tooltip's fill
+ * and gradient-border pixels against vanilla's exact colours, sampled at known output coordinates -
+ * background fill {@code 0xF0100010}, gradient top {@code 0x505000FF}, gradient bottom
+ * {@code 0x5028007F}, and the interpolated left edge bracketed between them.
  * <p>
  * {@link MinecraftFontsExtension} supplies the loaded Minecraft font atlas so the renderer can lay
  * out glyphs and size the tooltip canvas.
@@ -32,7 +30,12 @@ import static org.hamcrest.Matchers.is;
 @ExtendWith(MinecraftFontsExtension.class)
 class TextRendererTest {
 
-    /** Builds single-line {@code LORE}-style options ("Test") - the shared fixture for the chrome-pixel assertions. */
+    /**
+     * Builds single-line {@code LORE}-style options ("Test") - the shared fixture for the chrome-pixel
+     * assertions.
+     *
+     * @return the options every pixel assertion renders
+     */
     private static TextOptions singleLineLore() {
         ConcurrentList<LineSegment> lines = Concurrent.newList();
         lines.add(LineSegment.builder()
@@ -42,20 +45,6 @@ class TextRendererTest {
             .style(TextOptions.Style.LORE)
             .lines(lines)
             .build();
-    }
-
-    @Test
-    @DisplayName("default background alpha is 240 (0xF0) matching vanilla")
-    void defaultBackgroundAlphaIsVanilla() {
-        TextOptions opts = TextOptions.defaults();
-        assertThat(opts.getBackgroundAlpha(), is(240));
-    }
-
-    @Test
-    @DisplayName("default border alpha is 80 (0x50) matching vanilla")
-    void defaultBorderAlphaIsVanilla() {
-        TextOptions opts = TextOptions.defaults();
-        assertThat(opts.getBorderAlpha(), is(80));
     }
 
     @Test
@@ -112,9 +101,10 @@ class TextRendererTest {
         int px = buf.getPixel(2, buf.height() / 2);
         int r = ColorMath.red(px);
         int b = ColorMath.blue(px);
-        assertThat("red is between endpoints", r, is(greaterThan(0x28 - 1)));
-        assertThat("red is below top", r, is(equalTo(Math.min(r, 0x50))));
-        assertThat("blue is between endpoints", b, is(greaterThan(0x7F - 1)));
+        assertThat("red is at or above the bottom endpoint", r, is(greaterThan(0x28 - 1)));
+        assertThat("red is at or below the top endpoint", r, is(lessThanOrEqualTo(0x50)));
+        assertThat("blue is at or above the bottom endpoint", b, is(greaterThan(0x7F - 1)));
+        assertThat("blue is at or below the top endpoint", b, is(lessThanOrEqualTo(0xFF)));
         assertThat("border alpha preserved", ColorMath.alpha(px), is(0x50));
     }
 

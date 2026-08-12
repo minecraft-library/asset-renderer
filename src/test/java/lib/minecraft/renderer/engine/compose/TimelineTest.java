@@ -31,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * {@code .mcmeta} shapes, and the {@code bake} / {@code wrap} terminals including the trimming and
  * playback-swapping {@code Finish} seams.
  */
+@DisplayName("Timeline permits, factories and bake/wrap terminals")
 class TimelineTest {
 
     // ---- constants + conversions ---------------------------------------------------------------
@@ -44,7 +45,7 @@ class TimelineTest {
 
     @Test
     @DisplayName("ticks per second is the reciprocal of the 50 ms tick")
-    void ticksPerSecond() {
+    void ticksPerSecondIsTheTickReciprocal() {
         assertThat(Timeline.TICKS_PER_SECOND, is(20));
     }
 
@@ -59,7 +60,7 @@ class TimelineTest {
 
     @Test
     @DisplayName("lcm divides before multiplying and propagates a zero operand")
-    void lcm() {
+    void lcmDividesBeforeMultiplying() {
         assertThat(Timeline.lcm(8, 12), is(24L));
         assertThat(Timeline.lcm(0, 5), is(0L));
         assertThat(Timeline.lcm(5, 0), is(0L));
@@ -110,6 +111,13 @@ class TimelineTest {
         Timeline.TickLoop timeline = new Timeline.TickLoop(3, 6, 2, 100);
         for (int f = 0; f < timeline.frames(); f++)
             assertThat(timeline.millisAt(f), is(timeline.tickAt(f) * 50.0));
+    }
+
+    @Test
+    @DisplayName("the game-time factory loops over ticks, and stills at a single frame")
+    void gameTimeForksOnFrameCount() {
+        assertThat(Timeline.gameTime(0, 8, 120), is(instanceOf(Timeline.TickLoop.class)));
+        assertThat(Timeline.gameTime(5, 1, 8), is(instanceOf(Timeline.Static.class)));
     }
 
     // ---- ageInTicks (the off-lattice view) ------------------------------------------------------

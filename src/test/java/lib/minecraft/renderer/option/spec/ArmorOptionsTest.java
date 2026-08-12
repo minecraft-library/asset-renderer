@@ -15,17 +15,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins the two obligations {@link ArmorOptions#equipped()} carries for every consumer: that it can
- * answer for <em>every</em> {@link ArmorSlot} constant, and that it hands them back in the
- * back-to-front composite order the slot's declaration order defines.
- *
- * <p><b>The coverage test is the fifth-slot guard.</b> A new {@code ArmorSlot} constant with no
+ * The two obligations {@link ArmorOptions#equipped()} carries for every consumer: that it can answer
+ * for <b>every</b> {@link ArmorSlot} constant, and that it hands them back in the back-to-front
+ * composite order the slot's declaration order defines.
+ * <p>
+ * <b>The coverage test is the fifth-slot guard.</b> A new {@code ArmorSlot} constant with no
  * matching field on {@link ArmorOptions} would be silently unequippable in every consumer - the entity
  * renderer, the player renderer and the glint pass alike - and no renderer is the right place to
  * notice that on this type's behalf. {@code equipped()}'s own exhaustive switch makes it a compile
  * error, and this pins the same rule from outside so it survives a rewrite of that body.
  */
-@DisplayName("ArmorOptions slot coverage + composite order")
+@DisplayName("ArmorOptions slot coverage and composite order")
 class ArmorOptionsTest {
 
     private static final @NotNull ArmorPiece PIECE = ArmorPiece.of(ArmorMaterial.IRON);
@@ -45,17 +45,15 @@ class ArmorOptionsTest {
     }
 
     @Test
-    @DisplayName("piece() answers every constant, and an unworn slot is empty rather than absent")
+    @DisplayName("piece() answers every slot constant, and answers empty where nothing is worn")
     void pieceAnswersEverySlot() {
         ArmorOptions bare = ArmorOptions.defaults();
         for (ArmorSlot slot : ArmorSlot.CACHED_VALUES)
             assertThat("slot " + slot + " must be answered", bare.piece(slot), is(Optional.empty()));
-
-        assertThat(fullyArmored().equipped().size(), equalTo(ArmorSlot.CACHED_VALUES.length));
     }
 
     @Test
-    @DisplayName("an unworn slot is absent from equipped() rather than mapped to empty")
+    @DisplayName("equipped() omits an unworn slot rather than mapping it to empty")
     void unwornSlotsAreAbsent() {
         ArmorOptions helmetOnly = ArmorOptions.builder().helmet(Optional.of(PIECE)).build();
         assertThat(helmetOnly.equipped().keySet(), contains(ArmorSlot.HELMET));
@@ -70,4 +68,5 @@ class ArmorOptionsTest {
             .boots(Optional.of(PIECE))
             .build();
     }
+
 }

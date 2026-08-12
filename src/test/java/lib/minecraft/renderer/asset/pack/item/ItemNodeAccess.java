@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.pack.item;
 
+import lib.minecraft.renderer.pipeline.dump.PipelineParityDump;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -14,11 +15,10 @@ import java.util.List;
  * serializer in another package cannot name their type or call their accessors.
  * <p>
  * This bridge lives in the test source set, in their package, and hands their contents back as public
- * types. Widening the records themselves would be the tidier fix and provably moves no pixel - but the
- * gate's whole claim is that it adds two test classes and a task and touches no production source, so
- * it is not the dump's place to spend that claim. This is the workaround that keeps it true.
+ * types. Widening the records themselves would be the tidier fix and provably moves no pixel; this
+ * workaround is what lets the dump read them without touching production source.
  *
- * @see lib.minecraft.renderer.pipeline.dump.PipelineParityDump
+ * @see PipelineParityDump
  */
 public final class ItemNodeAccess {
 

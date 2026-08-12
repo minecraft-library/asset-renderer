@@ -31,9 +31,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link RuleScanner#mergeAll(PackStack)} over on-disk Directory packs - the deterministic CIT
- * order (weight DESC, then FILENAME, then higher-priority pack), the CTM tile-before-block partition,
- * and the per-key highest-pack-wins colour merge.
+ * Coverage of {@link RuleScanner#mergeAll(PackStack)} over on-disk Directory packs - the deterministic
+ * CIT order (weight DESC, then FILENAME, then higher-priority pack), the CTM tile-before-block
+ * partition, and the per-key highest-pack-wins colour merge.
  */
 class RuleScannerMergeTest {
 
@@ -99,7 +99,7 @@ class RuleScannerMergeTest {
         RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))));
         assertThat(merged.ctmRules().size(), equalTo(2));
         assertThat(merged.ctmRules().getFirst().isTileTarget(), is(true));
-        assertThat(merged.ctmRules().get(1).isTileTarget(), is(false));
+        assertThat(merged.ctmRules().getLast().isTileTarget(), is(false));
     }
 
     @Test

@@ -27,7 +27,7 @@ class FacingTest {
 
     @Test
     @DisplayName("MIRRORED reflects yaw (360 - yaw); FLIPPED negates pitch; roll untouched")
-    void poseReflections() {
+    void poseReflectionsRewriteYawAndPitchNotRoll() {
         EulerRotation base = new EulerRotation(15f, 205f, 30f);
 
         EulerRotation mirrored = Facing.MIRRORED.apply(base);
@@ -90,7 +90,7 @@ class FacingTest {
 
     @Test
     @DisplayName("with* derive a new facing without mutating")
-    void withers() {
+    void withersDeriveWithoutMutating() {
         assertEquals(Facing.MIRRORED, Facing.DEFAULT.withMirrored(true));
         assertEquals(Facing.FLIPPED, Facing.DEFAULT.withFlipped(true));
         assertEquals(Facing.MIRRORED_FLIPPED, Facing.MIRRORED.withFlipped(true));

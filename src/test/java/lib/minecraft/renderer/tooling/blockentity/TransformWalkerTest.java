@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Pins {@link TransformWalker} against synthetic classes mirroring the exact 26.1 bytecode of
+ * Pins for {@link TransformWalker} against synthetic classes mirroring the exact 26.1 bytecode of
  * each known block-entity transform site (verified against {@code javap -c -p} of the extracted
  * client classes) - the expected tuples are the checked-in {@code block_models.json} values,
  * byte-for-byte. Covers the eight factory shapes plus the walker's guard rails: poison-on-unknown,

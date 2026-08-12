@@ -12,7 +12,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Verifies {@link PackId} - the normalized pack identity: its {@link PackId#normalize} transform
+ * Coverage of {@link PackId}, the normalized pack identity: its {@link PackId#normalize} transform
  * (formatting-code strip, lowercase, hyphen-collapse, letter-led digit widening), the reserved
  * constants, and the alphabet-validating constructor.
  */

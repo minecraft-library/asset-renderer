@@ -52,7 +52,13 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Unit tests for {@link PipelineRendererContext}.
@@ -163,8 +169,8 @@ class PipelineRendererContextTest {
                 ModelData.class
             )
         );
-        // Real vanilla-named blocks used by the tint pass-through tests. The bundled
-        // block_tints.json table maps grass_block -> GRASS and spruce_leaves -> CONSTANT 0xFF619961.
+        // Real vanilla-named blocks used by the tint pass-through tests. The synthetic table above
+        // maps grass_block -> GRASS and spruce_leaves -> CONSTANT 0xFF619961.
         blockModels.put(
             "minecraft:block/grass_block",
             gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", ModelData.class)
@@ -408,8 +414,8 @@ class PipelineRendererContextTest {
         assertThat(a.frames().size(), equalTo(4));
 
         // Bare-integer frames carry the -1 sentinel so AnimationKit can fall back to frametime.
-        assertThat(a.frames().get(0).index(), equalTo(0));
-        assertThat(a.frames().get(0).time(), equalTo(-1));
+        assertThat(a.frames().getFirst().index(), equalTo(0));
+        assertThat(a.frames().getFirst().time(), equalTo(-1));
         assertThat(a.frames().get(1).index(), equalTo(1));
         assertThat(a.frames().get(1).time(), equalTo(-1));
 
@@ -435,18 +441,8 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("Synthetic block tint map is wired through to ClientAssets")
-    void blockTintsExposedFromResult() {
-        ConcurrentMap<String, Block.Tint> tints = blockTints;
-        assertThat(tints.size(), equalTo(3));
-        assertThat(tints.containsKey("minecraft:grass_block"), is(true));
-        assertThat(tints.containsKey("minecraft:oak_leaves"), is(true));
-        assertThat(tints.containsKey("minecraft:spruce_leaves"), is(true));
-    }
-
-    @Test
     @DisplayName("Block.tint.target is populated for known vanilla colormap-tinted blocks")
-    void blockTintTargetPopulatedFromVanillaTintsTable() {
+    void blockTintTargetPopulatedFromTheTintTable() {
         Block grassBlock = context.findBlock("minecraft:grass_block").orElseThrow();
         assertThat(grassBlock.tint().target(), equalTo(Block.TintTarget.GRASS));
         assertThat(grassBlock.tint().constant().isPresent(), is(false));
@@ -454,7 +450,7 @@ class PipelineRendererContextTest {
 
     @Test
     @DisplayName("Block.tint.constant is populated for known vanilla constant-tinted blocks")
-    void blockTintConstantPopulatedFromVanillaTintsTable() {
+    void blockTintConstantPopulatedFromTheTintTable() {
         Block spruceLeaves = context.findBlock("minecraft:spruce_leaves").orElseThrow();
         assertThat(spruceLeaves.tint().target(), equalTo(Block.TintTarget.CONSTANT));
         assertThat(spruceLeaves.tint().constant().isPresent(), is(true));
@@ -462,7 +458,7 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("Untinted blocks (not in the tints table) keep tint.target=NONE")
+    @DisplayName("Untinted blocks (not in the synthetic tint table) keep tint.target=NONE")
     void blockTintTargetDefaultsForUntintedBlocks() {
         Block stone = context.findBlock("minecraft:stone").orElseThrow();
         assertThat(stone.tint().target(), equalTo(Block.TintTarget.NONE));

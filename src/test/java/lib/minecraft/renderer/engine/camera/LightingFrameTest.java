@@ -15,9 +15,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
- * Pins {@link LightingFrame}'s factory contract and the {@linkplain LightingFrame.Mirror#HORIZONTAL
- * horizontal mirror}'s effect through {@link Shading#relightForItems3d}: the light swaps its left and
- * right lit sides while leaving the top / bottom unchanged, decoupled from the geometry.
+ * Coverage of {@link LightingFrame}'s factory contract and of the
+ * {@linkplain LightingFrame.Mirror#HORIZONTAL horizontal mirror}'s effect through
+ * {@link Shading#relightForItems3d}: the light swaps its left and right lit sides while leaving the
+ * top / bottom unchanged, decoupled from the geometry.
  */
 @DisplayName("LightingFrame - decoupled inventory relight frame")
 class LightingFrameTest {
@@ -27,7 +28,7 @@ class LightingFrameTest {
 
     @Test
     @DisplayName("factories carry the right mirror and preserve the rotation")
-    void factories() {
+    void factoriesCarryMirrorAndRotation() {
         EulerRotation r = new EulerRotation(30f, 225f, 0f);
         assertEquals(LightingFrame.Mirror.NONE, LightingFrame.tracking(r).mirror());
         assertEquals(r, LightingFrame.tracking(r).rotation());
@@ -44,7 +45,7 @@ class LightingFrameTest {
 
     @Test
     @DisplayName("rotated() composes for a tracking frame and no-ops for a fixed frame")
-    void rotationPolicy() {
+    void rotatedComposesOnlyWhenTracking() {
         EulerRotation base = new EulerRotation(30f, 225f, 0f);
         EulerRotation delta = new EulerRotation(10f, -20f, 5f);
 
@@ -94,9 +95,10 @@ class LightingFrameTest {
     }
 
     /**
-     * A triangle whose winding (geometric) normal equals {@code n} - positions {@code (0, e1, e2)} for a
-     * perpendicular pair {@code e1 ⊥ n}, {@code e2 = n × e1}, so {@code e1 × e2 = n}. The relight then
-     * shades against {@code n} directly (its authored normal, which agrees with the geometry).
+     * Builds a triangle whose winding (geometric) normal equals {@code n} - positions {@code (0, e1, e2)}
+     * for a pair {@code e1}, {@code e2} each perpendicular to {@code n}, chosen so their cross product
+     * {@code e1 x e2} is {@code n}. The relight then shades against {@code n} directly (its authored
+     * normal, which agrees with the geometry).
      */
     private static VisibleTriangle triangleFacing(Vector3f n) {
         Vector3f seed = Math.abs(n.y()) < 0.9f ? new Vector3f(0f, 1f, 0f) : new Vector3f(1f, 0f, 0f);

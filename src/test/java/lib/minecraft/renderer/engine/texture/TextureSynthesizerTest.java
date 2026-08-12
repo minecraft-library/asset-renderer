@@ -15,7 +15,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins {@link TextureSynthesizer}: a registered {@code <base>_<permutation>} id synthesises to the
+ * Coverage of {@link TextureSynthesizer}: a registered {@code <base>_<permutation>} id synthesises to the
  * exact {@link TrimKit#permute} output of its resolved inputs (byte-identical to the trim path by
  * construction), an unregistered id returns empty, and a missing input aborts cleanly.
  */
@@ -85,6 +85,8 @@ class TextureSynthesizerTest {
         // synthesis through the miss-seam-style resolver. The registry-key input guard must break it.
         TextureSynthesizer synth = new TextureSynthesizer(List.of(
             new PalettedPermutationSource(PALETTE_KEY, Map.of("amethyst", SYNTH_ID), List.of(BASE))));
+        // A local cannot forward-reference its own initialiser, so the self-naming resolver rides a
+        // one-element raw array - which is what the unchecked suppression covers.
         Function<String, Optional<PixelBuffer>>[] recursive = new Function[1];
         recursive[0] = ref -> {
             PixelBuffer real = TEXTURES.get(ref);

@@ -159,7 +159,7 @@ public final class TestBedParity {
                 t.texture(), t.tintArgb(),
                 Vector3f.normalize(
                     Vector3f.transformNormal(t.normal(), rotY)),
-                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false, t.traits().directionalLight(),
                     PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }
@@ -212,7 +212,7 @@ public final class TestBedParity {
                 t.texture(), t.tintArgb(),
                 Vector3f.normalize(
                     Vector3f.transformNormal(t.normal(), rotY)),
-                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false, t.traits().directionalLight(),
                     PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }
@@ -308,7 +308,7 @@ public final class TestBedParity {
                 scaleV(t.position1(), cx, cy, cz, scale),
                 scaleV(t.position2(), cx, cy, cz, scale),
                 t.uv0(), t.uv1(), t.uv2(),
-                t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false, t.traits().directionalLight(),
                     PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }
