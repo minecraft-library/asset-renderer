@@ -166,7 +166,6 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ./gradlew playerRender      -PrenderSize=256
 ./gradlew entityRender3D    -PentityId=minecraft:zombie -PrenderSize=512 -Pprojection=ISOMETRIC
 ./gradlew entityProjections -PentityId=minecraft:zombie -PrenderSize=256   # one entity under every projection
-./gradlew bedCompare        -PrenderSize=1024
 ./gradlew loreTooltip
 ./gradlew stackCountBadge   -Plabel=experiment1                            # or -Pdiff=A,B to pixel-diff two labels
 ./gradlew fluidRenderer

@@ -190,7 +190,7 @@ still-texture icon in the atlas.
   ./gradlew slowTest
   ```
 
-- **Visual inspection** - required when your change touches a renderer, kit, or engine. Run the relevant task from the `visual` group (`blockRender3D`, `itemRender2D`, `bedCompare`, `loreTooltip`, `stackCountBadge`, `entityRender3D`, `fluidRenderer`, `portalRenderer`) and diff the output under `cache/visual/<task>/` against `master` before and after:
+- **Visual inspection** - required when your change touches a renderer, kit, or engine. Run the relevant task from the `visual` group (`blockRender3D`, `itemRender2D`, `loreTooltip`, `stackCountBadge`, `entityRender3D`, `fluidRenderer`, `portalRenderer`) and diff the output under `cache/visual/<task>/` against `master` before and after:
 
   ```bash
   ./gradlew blockRender3D -PblockId=minecraft:tnt -PrenderSize=512

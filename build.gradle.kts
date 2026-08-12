@@ -1282,15 +1282,6 @@ tasks {
         args = argv
     }
 
-    register<JavaExec>("bedCompare") {
-        description = "Renders beds and chest via pipeline vs mc-assets ground truth side-by-side at cache/visual/bed-parity/. -PrenderSize=1024"
-        group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestBedParity")
-        classpath = sourceSets["test"].runtimeClasspath
-        val renderSize = (project.findProperty("renderSize") as String?) ?: "1024"
-        args = listOf(renderSize)
-    }
-
     register<JavaExec>("loreTooltip") {
         description = "Renders a pair of SkyBlock-style lore tooltips to cache/visual/lore-tooltip/ for visual inspection."
         group = "visual"
@@ -1437,7 +1428,7 @@ tasks {
     // writes build/atlas/, outside the root entirely, and its parallel tile dispatch makes its
     // output permanently unhashable.
     //
-    // Two more are non-members for reasons of their own, written down rather than left as an
+    // One more is a non-member for a reason of its own, written down rather than left as an
     // omission, because an unrecorded exclusion is indistinguishable from an oversight:
     //
     //  - `blockFlipbook` is an authoring tool: it opts the animation in for four blocks, writing an
@@ -1450,9 +1441,6 @@ tasks {
     //    prints it and carries on, so the task exits 0 having written nothing for that subject; a
     //    capture over it can be short while the build is green, and a row here needs that made loud
     //    first.
-    //  - `bedCompare` renders half its output from the mc-assets checkout under cache/, an untracked
-    //    third-party tree treated as ground truth. A baseline over it would move whenever that
-    //    checkout moved and name nothing in this repository.
     register<Delete>("visualSweepClean") {
         // No group: it is visualSweepSet's first act. A TASK rather than a doFirst on the aggregator,
         // because a doFirst runs after that task's dependencies - which are the very producers whose
