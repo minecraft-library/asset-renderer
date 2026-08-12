@@ -114,11 +114,12 @@
     "pin.corpus-count": {
       "baselined": true,
       "determinism_floor": 1,
-      "entries": 2,
+      "entries": 4,
       "file": "pins/corpus-count.json",
       "kind": "pin-set",
-      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
-      "sha256": "d5efe7cf0b7eac1b3bb7fe75618f33e770b9e8b78a52a6ff65e92f1b40099310"
+      "last_duration_ms": 6718,
+      "promoted_at": "6db0412c6e1274b594cf85015af4175fbd5b474c",
+      "sha256": "04b203bbe4a9aefa8e8cd6e44c63cdf2b6076726589a995dafb54fa2ebd3469d"
     },
     "pin.fluid-crc": {
       "baselined": true,

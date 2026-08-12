@@ -7,16 +7,17 @@
   "provenance": {
     "artifact": "pin.corpus-count",
     "asset_dirty": false,
-    "asset_sha": "00a006307ac6443e243d30caf238849e20cd9c60",
+    "asset_sha": "6db0412c6e1274b594cf85015af4175fbd5b474c",
     "counts": {
-      "values": 2
+      "values": 4
     },
-    "determinism_runs": 2,
+    "determinism_runs": 1,
     "flags": {},
     "mc_version": "26.1.2",
     "parity_class": "neutral",
+    "population_changed": true,
     "producer": "test",
-    "reason": "P12: the eight render CRCs, the forty golden floats and the two corpus counts move out of Java literals into the store, carried across verbatim - every value equals the literal deleted at 00a00630^. pin.fluid-crc's thirteen values are new: the test compared run A to run B and pinned nothing",
+    "reason": "block_tints and potion_colors join the corpus-count pin at 22 and 33, retiring a size() > 0 floor in BlockTintsLoaderTest and a > 20 floor in PotionColorLoaderTest; the two existing keys are unchanged and no producer ran",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -25,8 +26,9 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-01T11:35:36Z",
-    "tool_version": "1.0.0"
+    "timestamp": "2026-08-12T06:26:36Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 6718
   },
   "values": {
     "block_defaults_states": {
@@ -34,9 +36,19 @@
       "subject": "BlockDefaultsLoader.load().size() over the bundled block_defaults.json - every blocks{} entry, which is disjoint from unresolved{}",
       "type": "int"
     },
+    "block_tints": {
+      "count": 22,
+      "subject": "BlockTintsLoader.load().size() over the bundled block_tints.json - every block declaring a constant or biome tint target",
+      "type": "int"
+    },
     "glint_items": {
       "count": 7,
       "subject": "GlintItemsLoader.load().size() over the bundled glint_items.json - the intrinsically-foil items, those declaring ENCHANTMENT_GLINT_OVERRIDE=true",
+      "type": "int"
+    },
+    "potion_colors": {
+      "count": 33,
+      "subject": "PotionColorLoader.load().size() over the bundled potion_colors.json - every potion id carrying a bottle colour",
       "type": "int"
     }
   }

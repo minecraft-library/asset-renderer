@@ -28,7 +28,7 @@ Values this store holds, one file each.
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 10 | 10 entries | `0bcb42335c9f472169445099c348bceaf2b92e58` | yes |
 | `manifest.visual` | `manifests/visual.json` | 199 | 199 entries | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
-| `pin.corpus-count` | `pins/corpus-count.json` | 2 | 2 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
+| `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `pin.kit-corners` | `pins/kit-corners.json` | 1 | 1 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `pin.player-crc` | `pins/player-crc.json` | 3 | 3 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |

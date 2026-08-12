@@ -54,7 +54,7 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `digest.dump-sections` | - | EXTERNAL | - | - | - | - | - | - |
 | `pin.vanilla-iso-pose` | pin-set | STORE | `test` | 1 | 2 | 1 | - | yes |
 | `pin.kit-corners` | pin-set | STORE | `test` | 1 | 2 | 1 | - | yes |
-| `pin.corpus-count` | pin-set | STORE | `test` | 1 | 2 | 2 | - | yes |
+| `pin.corpus-count` | pin-set | STORE | `test` | 1 | 1 | 4 | 6718 ms | yes |
 | `pin.player-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 3 | - | yes |
 | `pin.block-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 3 | - | yes |
 | `pin.portal-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 2 | - | yes |
