@@ -759,6 +759,12 @@ public class ModelEngine {
                 long e01 = row01;
                 for (int px = bounds[0]; px <= bounds[2]; px++,
                         e12 += ec.stepX12(), e20 += ec.stepX20(), e01 += ec.stepX01()) {
+                    // Computed for every sample of the bounding box, covered or not, and deliberately
+                    // so. Moving it behind the coverage test to save the two divisions on an uncovered
+                    // pixel was benchmarked and is SLOWER: the piston micro went 0.212 to 0.224 ms/op
+                    // (+5.7%, 10 runs over 2 forks, error bars 0.008 and 0.009). The divisions overlap
+                    // the long edge tests in the pipeline where a branch does not, so the work this
+                    // looks like it wastes is cheaper than the branch that would skip it.
                     RasterMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
                     boolean inside = !degenerate
                         && e12 >= 0L && e20 >= 0L && e01 >= 0L

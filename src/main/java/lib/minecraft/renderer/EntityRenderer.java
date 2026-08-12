@@ -1050,17 +1050,23 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // snow-golem carved_pumpkin top rendered at the 0.4 ambient floor instead of ~1.0.
             // Mushroom-cross overlays are unaffected: their plane normals are horizontal (y ~= 0), so
             // the flip is a no-op and mooshroom parity is unchanged.
-            // No signed-byte SNORM round trip here, unlike both GUI relights, and that is measured
-            // rather than overlooked. Adding one is bit-identical on a cardinal normal, so it changes
-            // nothing on the snow golem's carved_pumpkin, and nothing on the iron golem's poppy either
-            // - all four of that model's cross-plane normals saturate the Lambertian at the 0.4 floor
-            // or the 1.0 ceiling, so the quantization never escapes a clamp. On the two subjects whose
-            // normals do sit unsaturated it pulls in opposite directions: the mooshroom's cross planes
-            // improve (brown 0.164 -> 0.133 mean delta, red 0.211 -> 0.199) while the enderman's
-            // rotated grass_block cube degrades (0.042 -> 0.060, differing pixels 4140 -> 8619). A
-            // quantization vanilla either does or does not apply cannot be right for the planes and
-            // wrong for the cube, so the difference between these subjects is something else and the
-            // round trip is not it.
+            // No signed-byte SNORM round trip here, unlike both GUI relights, and that is a measured
+            // refusal rather than an oversight. Adding one is the identity on a cardinal normal, so it
+            // moves nothing on the snow golem's carved_pumpkin, and nothing on the iron golem's poppy
+            // either - all four of that model's cross-plane normals saturate the Lambertian at the 0.4
+            // ambient floor or the 1.0 ceiling, so the quantization never escapes a clamp. It reaches
+            // only the two subjects whose normals sit unsaturated, and it pulls them apart: the
+            // mooshroom's cross planes improve on the metric (brown 0.164 -> 0.133 mean delta, red
+            // 0.211 -> 0.199) while the enderman's rotated grass_block cube degrades (0.042 -> 0.060).
+            //
+            // Declined on the renders rather than on the sum, which is net -0.025 and would have
+            // argued for it. Neither mooshroom looks any different with it, so the metric moves where
+            // the eye cannot follow; and what the cube loses is concentrated on its camera-facing
+            // side, which is the half a viewer actually reads. A quantization vanilla either does or
+            // does not apply cannot be right for the planes and wrong for the cube, so the residual
+            // both sides share is a second difference this path has not modelled - most likely the
+            // carried block tracking the carrier's arm, which the layer's transform chain holds no
+            // animation state for.
             Vector3f shadingNormal = Turn.MIRROR_Y.apply(transformedNormal);
             float shading = entityLighting.shade(shadingNormal, true);
             // Force back-face culling, matching vanilla's block render types (all bind GL culling)
