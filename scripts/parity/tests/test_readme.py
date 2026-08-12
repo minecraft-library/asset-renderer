@@ -127,10 +127,14 @@ class TheLayoutTable(unittest.TestCase):
 
 
 class TheAutomationNote(unittest.TestCase):
-    """Which commands run themselves, against the build file and the hook that run them."""
+    """Which commands run themselves, against the build scripts and the hook that run them."""
 
     def setUp(self):
-        self.build = read_text(_REPO / "build.gradle.kts")
+        # Every build script, not the root alone: the build is split by concern and the toolkit
+        # invocations live in the parity one, so reading the root would find no command at all.
+        scripts = [_REPO / "build.gradle.kts"]
+        scripts += sorted((_REPO / "gradle").glob("*.gradle.kts"))
+        self.build = "\n".join(read_text(script) for script in scripts)
         self.hook = read_text(_REPO / ".claude/hooks/parity-gate-precommit.js")
         self.heads = _ARGV_HEAD.findall(self.build) + _DIRECT_ARGV.findall(self.build)
 

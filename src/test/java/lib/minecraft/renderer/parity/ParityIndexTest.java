@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import lib.minecraft.renderer.support.BuildScripts;
 
 /**
  * Relates the Java artifact roster to the store's own index.
@@ -343,7 +344,7 @@ final class ParityIndexTest {
             + "producers of every row it captures, and the step only orders itself after them. A "
             + "step that DEPENDED on its producers would widen a hand run of one of them into all "
             + "of them: a tooling flow is finalized by its row's step, so running one flow of an "
-            + "eight-flow row would run the other seven", read(Path.of("build.gradle.kts")),
+            + "eight-flow row would run the other seven", BuildScripts.all(),
             containsString("mustRunAfter(spec.producers)"));
         assertThat("root files the build file's capture table now holds a row for. The pair below is "
             + "merged over that table, so a row arriving for one would be silently overwritten by the "
@@ -531,7 +532,7 @@ final class ParityIndexTest {
     private static Map<String, List<String>> buildFileArtifactRows() {
         Map<String, List<String>> rows = new TreeMap<>();
         Matcher row = Pattern.compile("ParityArtifact\\(\"([^\"]+)\",\\s*listOf\\(([^)]*)\\)")
-            .matcher(read(Path.of("build.gradle.kts")));
+            .matcher(BuildScripts.all());
         while (row.find()) {
             rows.put(row.group(1), Pattern.compile("\"([^\"]+)\"").matcher(row.group(2))
                 .results().map(hit -> hit.group(1)).toList());
@@ -929,7 +930,7 @@ final class ParityIndexTest {
      * @return the directory names, sorted
      */
     private static List<String> buildFileVisualMembers() {
-        String body = declarationBody(read(Path.of("build.gradle.kts")),
+        String body = declarationBody(BuildScripts.all(),
             "val visualSweepProducers = mapOf(", "\n)");
         List<String> out = new ArrayList<>();
         Matcher matcher = Pattern.compile("\"[^\"]+\"\\s+to\\s+\"([^\"]+)\"").matcher(body);

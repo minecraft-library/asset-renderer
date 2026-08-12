@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import lib.minecraft.renderer.support.BuildScripts;
 
 /**
  * Proves the {@code parity-gate} skill's two generated reference files are still what their JSON
@@ -315,15 +316,9 @@ final class ParityReferencesTest {
      * @return its literal value
      */
     private static String buildFileValue(String name) {
-        String build;
-        try {
-            build = Files.readString(Path.of("build.gradle.kts"));
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
         Matcher matcher = Pattern.compile("val " + Pattern.quote(name) + "[^=\\n]*= \"([^\"]+)\"")
-            .matcher(build);
-        if (!matcher.find()) throw new AssertionError("build.gradle.kts declares no " + name);
+            .matcher(BuildScripts.all());
+        if (!matcher.find()) throw new AssertionError("the build scripts declare no " + name);
         return matcher.group(1);
     }
 

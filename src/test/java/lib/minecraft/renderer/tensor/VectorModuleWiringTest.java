@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import lib.minecraft.renderer.support.BuildScripts;
 
 /**
  * The incubator module flag, on every task type that resolves {@code jdk.incubator.vector}.
@@ -97,7 +98,7 @@ final class VectorModuleWiringTest {
     @Test
     @DisplayName("the build file gives the flag to each of the task types that reads it")
     void everyConsumerIsWiredInTheBuildFile() {
-        String build = collapsed(read(Path.of("build.gradle.kts")));
+        String build = collapsed(BuildScripts.all());
 
         List<String> unwired = new ArrayList<>();
         CONSUMERS.forEach((consumer, statement) -> {

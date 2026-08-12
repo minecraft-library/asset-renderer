@@ -8,6 +8,18 @@ Gate questions go through the `parity-gate` skill, `.claude/skills/parity-gate/S
 
 ## Build
 
+- `build.gradle.kts` keeps what every task needs - the toolchain, the vector flag, the asset-property
+  forwarding, the dependencies - and applies three scripts from `gradle/` for the rest:
+  `tooling.gradle.kts` (the flow shims), `visual.gradle.kts` (the render drivers) and
+  `parity.gradle.kts` (the store, the harness runs, the capture steps). They are applied at the END
+  of the root script and in that order, because each resolves tasks by name and `named` answers only
+  for one already registered.
+  - An applied script sees no declaration of the root's and gets no type-safe accessors. Both are why
+    `val sourceSets = the<SourceSetContainer>()` opens two of them, and why the one value they need
+    from the root - the resolved `-Dasset.*` set - crosses as `extra["assetFlagsInForce"]` rather
+    than as the function that computes it.
+  - The guards read all four as one text through `BuildScripts.all()`, so what they pin is what the
+    build declares rather than which file declares it.
 - JDK 21 with the **Vector API incubator** (`--add-modules=jdk.incubator.vector`), wired into
   JavaCompile, Test, JavaExec, JMH and Javadoc in `build.gradle.kts`. Missing it on a JVM launch is a
   class-not-found at load, never a silent fallback; missing it on `javadoc` is `SimdOps` reporting
