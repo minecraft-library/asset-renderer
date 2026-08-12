@@ -1,8 +1,10 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
+import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
+import lib.minecraft.renderer.tooling.policy.Trace;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
@@ -10,9 +12,9 @@ import java.util.Set;
 /**
  * The tint walk's complete policy roster - the renderer-capability drops recorded in
  * {@code dropped[]} (never silent) and the argument a two-colour {@code constant} registration
- * resolves to. Never fetches ({@code PolicyPurityTest}): the walk does the fetching; these
- * constants home the declared facts + their hard-won provenance so every hard-coded judgment
- * lives in one place.
+ * resolves to. Never fetches ({@code PolicyPurityTest}): the walk does the fetching, and a row
+ * naming a coordinate and the steps to replay from it is DATA the walk executes, not a walk of its
+ * own. Every hard-coded judgment and its hard-won provenance lives in one place here.
  *
  * <p>Everything derivable - tint colormap targets (from the source body's
  * {@code BiomeColors.getAverage*Color} call), stem colour (symbolic eval at age 0), block ids
@@ -44,13 +46,20 @@ enum SnapshotShapePolicies implements NavigationPolicy {
             + " [BLANK_LAYER, grass()])"),
 
     /**
-     * {@code constant(colorInHand, colorInWorld)}: the GUI block icon uses vanilla's
-     * no-context in-hand colour ({@code BlockTintSource.color(state)}), which is the FIRST arg.
-     * The value is the picked argument index.
+     * The coordinate of the {@code constant(colorInHand, colorInWorld)} argument the GUI block icon
+     * reads. The source that factory builds captures both colours as constructor parameters, and its
+     * no-context {@code color(state)} returns one of them, so the field that accessor reads names the
+     * capture and the capture's constructor position is the argument the walk keeps. The anonymous
+     * class is named off its outer, so the outer keeps one spelling and a drifted ordinal fails at
+     * the invoke the walk checks for rather than silently.
      */
     TINT_CONSTANT_IN_HAND(
-        0,
-        "constant(colorInHand, colorInWorld): the GUI icon uses vanilla's no-context in-hand colour = the first arg");
+        new Navigation.Dataflow(VanillaSourceClasses.Types.BLOCK_TINT_SOURCES + "$1", "color",
+            Trace.of(new Trace.Step.FollowGetField(null), new Trace.Step.MapParamSlot())),
+        "the GUI icon uses vanilla's no-context in-hand colour, which is the capture color(state) reads;"
+            + " TintWalk replays the trace to the constructor parameter that field is assigned from, and"
+            + " separately proves constant forwards its own parameters to that constructor in order, which is"
+            + " what makes the recovered constructor index the factory argument index the walk keeps");
 
     /** The reason recorded for {@link #TINT_DYNAMIC_SOURCE_DROPS} rows. */
     static final @NotNull String REASON_DYNAMIC_SOURCE = "dynamic_source";
@@ -65,6 +74,7 @@ enum SnapshotShapePolicies implements NavigationPolicy {
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {
+        if (this.value instanceof Navigation coordinate) return coordinate;
         return new Navigation.Value<>(this.value, this.provenance);
     }
 
@@ -77,11 +87,6 @@ enum SnapshotShapePolicies implements NavigationPolicy {
     /** The reason recorded for a composed multi-source registration. */
     static @NotNull String multiSourceReason() {
         return (String) TINT_MULTI_SOURCE_DROP.value;
-    }
-
-    /** The {@code constant(colorInHand, colorInWorld)} argument index the GUI icon uses (the first). */
-    static int constantInHandArg() {
-        return (int) TINT_CONSTANT_IN_HAND.value;
     }
 
 }

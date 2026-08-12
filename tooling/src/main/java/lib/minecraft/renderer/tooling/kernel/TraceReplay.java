@@ -15,7 +15,9 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -63,7 +65,7 @@ public final class TraceReplay {
             throw new ToolingException("Trace at '%s.%s' declares no steps", coordinate.owner(), coordinate.member());
 
         ClassNode owner = ClassKit.requireClass(this.cache, coordinate.owner(), CONTEXT);
-        MethodNode member = ClassKit.requireMethod(owner, coordinate.member(), CONTEXT);
+        MethodNode member = requireSoleMember(owner, coordinate);
         AbstractInsnNode entry = member.instructions.getFirst();
         if (entry == null)
             throw new ToolingException(
@@ -77,6 +79,26 @@ public final class TraceReplay {
 
         if (value == null) throw drift(coordinate, steps.size() - 1, "leaves the replay with no recovered value");
         return value;
+    }
+
+    /**
+     * Answers the entered member, refusing a name the anchor class overloads. A coordinate carries
+     * no descriptor, so where a class declares the name twice there is nothing in the trace that
+     * picks one, and taking the first would answer whichever the compiler happened to emit first.
+     *
+     * @param owner the anchor class
+     * @param coordinate the coordinate naming the member
+     * @return the sole member of that name
+     * @throws ToolingException if the class declares no member of that name, or declares several
+     */
+    private static @NotNull MethodNode requireSoleMember(@NotNull ClassNode owner, @NotNull Navigation.Dataflow coordinate) {
+        MethodNode member = ClassKit.requireMethod(owner, coordinate.member(), CONTEXT);
+        long declared = owner.methods.stream().filter(candidate -> candidate.name.equals(coordinate.member())).count();
+        if (declared > 1)
+            throw new ToolingException(
+                "Trace at '%s.%s' enters a member class '%s' declares %d times - a coordinate carries no descriptor to tell them apart",
+                coordinate.owner(), coordinate.member(), owner.name, declared);
+        return member;
     }
 
     /** Applies one step, moving the cursor and answering the running value the next step sees. */
@@ -135,22 +157,35 @@ public final class TraceReplay {
         return decoded;
     }
 
-    /** Moves the cursor from the entered member's read of a static field to that field's binding. */
+    /**
+     * Moves the cursor from the entered member's read of a static field to that field's binding. The
+     * read is what names the owning class, so a member reading that name on two classes is refused -
+     * the step names no owner, and picking the first would pick a class at random.
+     */
     private void followPutStatic(@NotNull Cursor cursor, @NotNull String name, @NotNull Navigation.Dataflow coordinate, int index) {
-        FieldInsnNode read = AsmWalker.over(cursor.member)
-            .first(Insn.of(FieldInsnNode.class, field -> field.getOpcode() == Opcodes.GETSTATIC && field.name.equals(name)));
-        if (read == null) throw drift(coordinate, index, "enters a member reading no static field '" + name + "'");
+        Set<String> owners = AsmWalker.over(cursor.member)
+            .ofType(FieldInsnNode.class)
+            .where(field -> field.getOpcode() == Opcodes.GETSTATIC && field.name.equals(name))
+            .map(read -> read.owner)
+            .toSet();
+        if (owners.isEmpty()) throw drift(coordinate, index, "enters a member reading no static field '" + name + "'");
+        if (owners.size() > 1) throw drift(coordinate, index, "reads static field '" + name + "' on several classes");
 
-        ClassNode owner = ClassKit.requireClass(this.cache, read.owner, CONTEXT);
+        String fieldOwner = owners.iterator().next();
+        ClassNode owner = ClassKit.requireClass(this.cache, fieldOwner, CONTEXT);
         MethodNode initialiser = ClassKit.requireClinit(owner, CONTEXT);
-        FieldInsnNode binding = AsmWalker.over(initialiser).first(Insn.putStatic(read.owner, name));
-        if (binding == null) throw drift(coordinate, index, "finds no binding of static field '" + read.owner + "." + name + "'");
+        FieldInsnNode binding = AsmWalker.over(initialiser).first(Insn.putStatic(fieldOwner, name));
+        if (binding == null) throw drift(coordinate, index, "finds no binding of static field '" + fieldOwner + "." + name + "'");
 
         cursor.member = initialiser;
         cursor.node = binding;
     }
 
-    /** Moves the cursor to an instance-field read in the entered member. */
+    /**
+     * Moves the cursor to an instance-field read in the entered member. The read names the class
+     * {@link Trace.Step.MapParamSlot} would enter, so an unnamed step meeting several reads and a
+     * named one meeting that name on several classes are both refused.
+     */
     private static void followGetField(@NotNull Cursor cursor, @Nullable String name, @NotNull Navigation.Dataflow coordinate, int index) {
         List<FieldInsnNode> reads = AsmWalker.over(cursor.member)
             .ofType(FieldInsnNode.class)
@@ -159,6 +194,8 @@ public final class TraceReplay {
         if (reads.isEmpty()) throw drift(coordinate, index, "enters a member reading no instance field");
         if (name == null && reads.size() > 1)
             throw drift(coordinate, index, "names no field where the member reads several");
+        if (reads.stream().map(read -> read.owner).distinct().count() > 1)
+            throw drift(coordinate, index, "reads a field of that name on several classes");
         cursor.node = reads.getFirst();
     }
 
@@ -195,16 +232,32 @@ public final class TraceReplay {
      * Answers the constructor parameter index the field at the cursor is assigned from. The
      * constructor's own descriptor is what the slot divides by - an anonymous class's printed
      * signature elides its captured parameters and the descriptor does not.
+     *
+     * <p>{@code <init>} is the one member name every class may declare several times, so the
+     * constructor is selected by the ASSIGNMENT rather than by the name: the one whose body binds the
+     * field. A telescoping constructor delegates instead of re-assigning, so exactly one binds it,
+     * and a class where two do is refused rather than resolved to whichever came first.
      */
     private @NotNull Integer mapParamSlot(@NotNull Cursor cursor, @NotNull Navigation.Dataflow coordinate, int index) {
         if (!(cursor.node instanceof FieldInsnNode field))
             throw drift(coordinate, index, "maps a parameter slot with the cursor off a field access");
 
         ClassNode owner = ClassKit.requireClass(this.cache, field.owner, CONTEXT);
-        MethodNode constructor = ClassKit.requireMethod(owner, ClassKit.INIT, CONTEXT);
-        FieldInsnNode assignment = AsmWalker.over(constructor).first(Insn.putField(field.owner, field.name));
+        List<MethodNode> binding = new ArrayList<>();
+        FieldInsnNode assignment = null;
+        for (MethodNode candidate : owner.methods) {
+            if (!ClassKit.INIT.equals(candidate.name)) continue;
+            FieldInsnNode found = AsmWalker.over(candidate).first(Insn.putField(field.owner, field.name));
+            if (found == null) continue;
+            binding.add(candidate);
+            assignment = found;
+        }
         if (assignment == null)
             throw drift(coordinate, index, "finds no constructor assignment of field '" + field.name + "'");
+        if (binding.size() > 1)
+            throw drift(coordinate, index, "finds field '" + field.name + "' assigned by several constructors");
+
+        MethodNode constructor = binding.getFirst();
         if (!(AsmWalker.previousReal(assignment) instanceof VarInsnNode load))
             throw drift(coordinate, index, "finds no variable load feeding the assignment of field '" + field.name + "'");
 

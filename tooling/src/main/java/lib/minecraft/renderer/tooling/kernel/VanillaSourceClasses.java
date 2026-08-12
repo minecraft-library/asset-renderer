@@ -280,6 +280,9 @@ public final class VanillaSourceClasses {
         /** {@code BlockTintSources} - the static tint-source factory ({@code grass}/{@code foliage}/{@code constant}/{@code stem}/...). */
         public static final @NotNull String BLOCK_TINT_SOURCES = "net/minecraft/client/color/block/BlockTintSources";
 
+        /** {@code BlockTintSource} - the tint-source interface every factory on the plural class returns. */
+        public static final @NotNull String BLOCK_TINT_SOURCE = "net/minecraft/client/color/block/BlockTintSource";
+
         /** {@code BiomeColors} - the biome-average colour helper the tint-source bodies call, deriving the colormap target. */
         public static final @NotNull String BIOME_COLORS = "net/minecraft/client/renderer/BiomeColors";
 
@@ -593,6 +596,14 @@ public final class VanillaSourceClasses {
          * marks a render-state field as the variant a block source is keyed on.
          */
         public static final @NotNull String VARIANT_SUFFIX = "$Variant;";
+
+        /**
+         * Descriptor of the two-colour tint factory
+         * {@code (int colorInHand, int colorInWorld)BlockTintSource}. The name is overloaded - a
+         * one-colour {@code constant(int)} is declared first and builds its source through a lambda -
+         * so the two-colour shape is reached by descriptor and never by name.
+         */
+        public static final @NotNull String CONSTANT_TINT_DESC = of(ref(Types.BLOCK_TINT_SOURCE), "I", "I");
 
         /**
          * Composes a method descriptor from already-valid type descriptors.
