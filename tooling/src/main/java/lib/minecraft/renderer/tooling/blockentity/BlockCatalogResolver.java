@@ -16,9 +16,11 @@ import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
@@ -33,11 +35,12 @@ import java.util.Map;
  * every split renders. Built once per subject; each split queries its rows by id.
  *
  * <p>Block ids come from {@link BlockRegistryIndex}; the split partition follows the block id
- * family (standing vs wall, skull type). Texture bases the vanilla bytecode carries are DERIVED
- * from the owning {@code <clinit>} (chest variants, copper oxidation, skull skins, conduit / bell);
- * the fixed sheet prefixes (shulker / bed / signs / banner / decorated_pot) are declared in
- * {@link BlockFamilyPolicies} ({@code SHEET_TEXTURE_BASES}). The colour / wood / weather / type
- * discriminators ride the block id directly, without walking constructor enum arguments.
+ * family (standing vs wall, skull type). Every texture base is DERIVED from the owning
+ * {@code <clinit>} - the chest variants, copper oxidation, skull skins, conduit and bell from their
+ * own renderer, the per-family sheet bases from the sheet field {@link BlockFamilyPolicies}
+ * ({@code SHEET_TEXTURE_BASES}) names. Which field a family reads is the authored half of that row;
+ * the string bound to it is read. The colour / wood / weather / type discriminators ride the block
+ * id directly, without walking constructor enum arguments.
  */
 final class BlockCatalogResolver {
 
@@ -49,6 +52,15 @@ final class BlockCatalogResolver {
 
     /** The caller label a stale player-skull coordinate is reported under. */
     private static final @NotNull String PLAYER_SKIN = "the PLAYER skull skin";
+
+    /** The caller label a stale sheet coordinate is reported under. */
+    private static final @NotNull String SHEET_BASE = "a catalog family's sheet texture base";
+
+    /**
+     * The separator between a sprite mapper's prefix and a sprite path. Authored here, reproducing
+     * the one the mapper's own composition carries.
+     */
+    private static final @NotNull String SHEET_SEPARATOR = "/";
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull BlockRegistryIndex blockRegistry;
@@ -92,11 +104,11 @@ final class BlockCatalogResolver {
                 case SHULKER_BOX -> shulker(rows);
                 case CHEST -> chest(rows);
                 case BED -> bed(rows);
-                case SIGN -> signs(rows, BlockFamilyPolicies.sheetTextureBase(family));
+                case SIGN -> signs(rows, sheetBase(family));
                 case HANGING_SIGN -> hangingSigns(rows);
                 case CONDUIT -> single(rows, conduitTexture());
                 case BELL -> single(rows, bellTexture());
-                case DECORATED_POT -> single(rows, BlockFamilyPolicies.sheetTextureBase(family));
+                case DECORATED_POT -> single(rows, sheetBase(family));
                 case COPPER_GOLEM_STATUE -> copperGolem(rows);
                 case SKULL -> skull(rows);
                 case BANNER -> banner(rows);
@@ -113,11 +125,12 @@ final class BlockCatalogResolver {
 
     /** Shulker: the uncolored box first, then the 16 dyed boxes in DyeColor declaration order. */
     private void shulker(@NotNull Map<String, List<Row>> rows) {
+        String sheet = sheetBase(BlockFamilyPolicies.CatalogFamily.SHULKER_BOX);
         Map<String, Row> byColour = new LinkedHashMap<>();
         Row uncolored = null;
         for (String field : this.subject.blockFields()) {
             String local = blockLocal(field);
-            Row row = new Row(blockId(field), shulkerTextureStem(local), null, null);
+            Row row = new Row(blockId(field), shulkerTextureStem(sheet, local), null, null);
             if (local.equals(SHULKER_BASE_LOCAL)) uncolored = row;
             else byColour.put(stripSuffix(local, SHULKER_BASE_LOCAL), row);
         }
@@ -127,20 +140,26 @@ final class BlockCatalogResolver {
         rows.put(primarySplit(), list);
     }
 
-    /** The shulker texture stem: the bare sheet for the uncolored box, {@code shulker_<color>} for the dyed. */
-    private static @NotNull String shulkerTextureStem(@NotNull String blockLocal) {
-        String sheet = BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.SHULKER_BOX);
+    /**
+     * The shulker texture stem: the bare sheet for the uncolored box, {@code shulker_<color>} for
+     * the dyed.
+     *
+     * @param sheet the family's sheet texture base
+     * @param blockLocal the block's namespace-less id
+     * @return the stem the block renders
+     */
+    private static @NotNull String shulkerTextureStem(@NotNull String sheet, @NotNull String blockLocal) {
         if (blockLocal.equals(SHULKER_BASE_LOCAL)) return sheet;
         return sheet + "_" + stripSuffix(blockLocal, SHULKER_BASE_LOCAL);
     }
 
     /** Bed: the 16 dyed beds under bed_head in DyeColor declaration order, texture entity/bed/<color>. */
     private void bed(@NotNull Map<String, List<Row>> rows) {
+        String sheet = sheetBase(BlockFamilyPolicies.CatalogFamily.BED);
         Map<String, Row> byColour = new LinkedHashMap<>();
         for (String field : this.subject.blockFields()) {
             String colour = stripSuffix(blockLocal(field), "bed");
-            byColour.put(colour,
-                new Row(blockId(field), BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.BED) + colour, null, null));
+            byColour.put(colour, new Row(blockId(field), sheet + colour, null, null));
         }
         List<Row> list = new ArrayList<>();
         orderByDye(byColour, list);
@@ -163,6 +182,7 @@ final class BlockCatalogResolver {
      */
     private void chest(@NotNull Map<String, List<Row>> rows) {
         Map<String, String> bases = chestVariantBases();
+        String sheet = sheetBase(BlockFamilyPolicies.CatalogFamily.CHEST);
         List<Row> main = new ArrayList<>();
         Row trapped = null;
         Row ender = null;
@@ -174,8 +194,7 @@ final class BlockCatalogResolver {
                 this.diagnostics.warn("no ChestSpecialRenderer texture base bound for field '%s' (block '%s') - empty base", variantField, field);
                 base = "";
             }
-            Row row = new Row(blockId(field),
-                BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.CHEST) + base, null, null);
+            Row row = new Row(blockId(field), sheet + base, null, null);
             switch (local) {
                 case "trapped_chest" -> trapped = row;
                 case "ender_chest" -> ender = row;
@@ -229,7 +248,7 @@ final class BlockCatalogResolver {
 
     /** Hanging signs: standing / wall by suffix, plus the hanging_sign_attached alternate (same blocks + variant). */
     private void hangingSigns(@NotNull Map<String, List<Row>> rows) {
-        signs(rows, BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.HANGING_SIGN));
+        signs(rows, sheetBase(BlockFamilyPolicies.CatalogFamily.HANGING_SIGN));
         // hanging_sign_attached re-lists the ceiling hanging sign's rows under variant attached=true.
         String source = splitEndingWith("hanging_sign");
         String attached = splitEndingWith("hanging_sign_attached");
@@ -264,13 +283,14 @@ final class BlockCatalogResolver {
 
     /** Banner: split standing vs wall by id suffix; shared banner_base texture; per-block dye tint. */
     private void banner(@NotNull Map<String, List<Row>> rows) {
+        String sheet = sheetBase(BlockFamilyPolicies.CatalogFamily.BANNER);
         for (String field : this.subject.blockFields()) {
             String blockLocal = blockLocal(field);
             String split = assignBySuffix(blockLocal);
             if (split == null) continue;
             String tint = stripSuffix(blockLocal, localId(split)).toUpperCase(Locale.ROOT);
             rows.computeIfAbsent(split, key -> new ArrayList<>())
-                .add(new Row(blockId(field), BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.BANNER), null, tint));
+                .add(new Row(blockId(field), sheet, null, tint));
         }
     }
 
@@ -357,6 +377,64 @@ final class BlockCatalogResolver {
     }
 
     /**
+     * Reads a catalog family's sheet texture base at the coordinate the family policy declares.
+     *
+     * @param family the catalog family whose base is wanted
+     * @return the base every block of the family prefixes its texture with
+     * @throws ToolingException if the coordinate binds no sprite mapper or sprite id
+     */
+    private @NotNull String sheetBase(@NotNull BlockFamilyPolicies.CatalogFamily family) {
+        Navigation.At coordinate = BlockFamilyPolicies.sheetCoordinate(family);
+        ClassNode sheets = ClassKit.requireClass(this.cache, coordinate.owner(), SHEET_BASE);
+        return sheetBaseAt(sheets, ClassKit.requireClinit(sheets, SHEET_BASE), coordinate.member());
+    }
+
+    /**
+     * The base bound to one sheet field. A sprite-mapper construction answers the prefix it is
+     * built with followed by the separator; a {@code defaultNamespaceApply} answers the base of the
+     * mapper it reads followed by the stem it is handed. The second arm recurses only into a field
+     * of mapper type, whose binding is a construction, so the walk closes at depth one.
+     *
+     * @param sheets the sheet class
+     * @param clinit its static initialiser
+     * @param field the field whose base is wanted
+     * @return the base bound to the field
+     * @throws ToolingException if the field is bound by neither shape
+     */
+    private static @NotNull String sheetBaseAt(
+        @NotNull ClassNode sheets,
+        @NotNull MethodNode clinit,
+        @NotNull String field
+    ) {
+        FieldInsnNode store = AsmWalker.over(clinit).putStatic(sheets.name, field).first();
+        AbstractInsnNode source = store == null ? null : AsmWalker.previousReal(store);
+        if (source instanceof MethodInsnNode built
+            && built.getOpcode() == Opcodes.INVOKESPECIAL
+            && VanillaSourceClasses.Types.SPRITE_MAPPER.equals(built.owner)
+            && ClassKit.INIT.equals(built.name)) {
+            String prefix = AsmWalker.stringLiteral(AsmWalker.previousReal(built));
+            if (prefix != null) return prefix + SHEET_SEPARATOR;
+        }
+        if (source instanceof MethodInsnNode applied
+            && applied.getOpcode() == Opcodes.INVOKEVIRTUAL
+            && VanillaSourceClasses.Types.SPRITE_MAPPER.equals(applied.owner)
+            && VanillaSourceClasses.Methods.DEFAULT_NAMESPACE_APPLY.equals(applied.name)) {
+            AbstractInsnNode stemPush = AsmWalker.previousReal(applied);
+            String stem = AsmWalker.stringLiteral(stemPush);
+            if (stem != null
+                && AsmWalker.previousReal(stemPush) instanceof FieldInsnNode mapper
+                && mapper.getOpcode() == Opcodes.GETSTATIC
+                && sheets.name.equals(mapper.owner)
+                && VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.SPRITE_MAPPER).equals(mapper.desc))
+                return sheetBaseAt(sheets, clinit, mapper.name) + stem;
+        }
+        throw new ToolingException(
+            "Class '%s' binds no sprite base to its '%s' field for %s - the jar is either obfuscated or from an unsupported version",
+            sheets.name, field, SHEET_BASE
+        );
+    }
+
+    /**
      * ConduitRenderer: the mapper base path ({@code entity/conduit}, the first path-like LDC) plus
      * the {@code SHELL_TEXTURE} stem ({@code base}) -> {@code entity/conduit/base}.
      */
@@ -384,7 +462,7 @@ final class BlockCatalogResolver {
             .latch(AsmWalker::stringLiteral)
             .commitAt(Insn.putStatic(VanillaSourceClasses.Types.BELL_RENDERER, "BELL_TEXTURE"))
             .firstNotNull(CommitWalk.Commit::value);
-        return stem == null ? "" : BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.BELL) + stem;
+        return stem == null ? "" : sheetBase(BlockFamilyPolicies.CatalogFamily.BELL) + stem;
     }
 
     /**

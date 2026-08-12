@@ -152,24 +152,29 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " DyeColor.getTextureDiffuseColor; BlockTintFlagResolver re-enters the coordinate and reads it"),
 
     /**
-     * The fixed sheet texture stems ({@code = Sheets.<X>} sprite prefixes) per catalog
-     * family. Deriving them from {@code Sheets.<clinit>} instead remains a future option.
+     * The sheet field each catalog family's texture base is bound to. Two halves meet here. The
+     * ROUTING - which family reads which field - is authored, because no naming rule derives it:
+     * six families name a mapper of their own, the bell names the generic block-entity mapper, and
+     * "the first sprite this mapper composes" would hand the chest the ender-chest stem rather than
+     * the bare prefix the resolver appends its own discriminator to. The BASE STRINGS are read at
+     * the fields: a sprite-mapper field carries its base as the prefix its composition prepends, a
+     * sprite-id field carries the mapper's own base followed by the stem it was composed with.
      * Conduit is absent - its base derives from {@code ConduitRenderer.<clinit>}.
      */
     SHEET_TEXTURE_BASES(
         Map.ofEntries(
-            Map.entry(CatalogFamily.SHULKER_BOX, "entity/shulker/shulker"),
-            Map.entry(CatalogFamily.CHEST, "entity/chest/"),
-            Map.entry(CatalogFamily.BED, "entity/bed/"),
-            Map.entry(CatalogFamily.SIGN, "entity/signs/"),
-            Map.entry(CatalogFamily.HANGING_SIGN, "entity/signs/hanging/"),
-            Map.entry(CatalogFamily.BELL, "entity/"),
-            Map.entry(CatalogFamily.DECORATED_POT, "entity/decorated_pot/decorated_pot_base"),
-            Map.entry(CatalogFamily.BANNER, "entity/banner/banner_base")),
-        "D54: the Sheets.<X> sprite stems the legacy flow hard-codes (BlockListDiscovery constants;"
-            + " shulker colorToShulkerSprite concat base, bed/sign/hanging/banner/pot sheet prefixes,"
-            + " chest special-renderer sheet dir, bell BLOCK_ENTITIES_MAPPER entity/ base - 08 A5 rows"
-            + " 21-28); Sheets.<clinit> derivation deferred post-bridge"),
+            sheetEntry(CatalogFamily.SHULKER_BOX, "DEFAULT_SHULKER_TEXTURE_LOCATION"),
+            sheetEntry(CatalogFamily.CHEST, "CHEST_MAPPER"),
+            sheetEntry(CatalogFamily.BED, "BED_MAPPER"),
+            sheetEntry(CatalogFamily.SIGN, "SIGN_MAPPER"),
+            sheetEntry(CatalogFamily.HANGING_SIGN, "HANGING_SIGN_MAPPER"),
+            sheetEntry(CatalogFamily.BELL, "BLOCK_ENTITIES_MAPPER"),
+            sheetEntry(CatalogFamily.DECORATED_POT, "DECORATED_POT_BASE"),
+            sheetEntry(CatalogFamily.BANNER, "BANNER_BASE")),
+        "the field each family's base is bound to, authored because no naming rule derives it - six"
+            + " families name a mapper of their own, the bell names the generic block-entity mapper, and"
+            + " the shulker / decorated_pot / banner name a sprite id composed from a mapper plus a stem;"
+            + " every base string is read at the field the family names"),
 
     /**
      * The coordinate of the PLAYER skull skin stem. The default-skin accessor indexes one element
@@ -180,6 +185,19 @@ enum BlockFamilyPolicies implements NavigationPolicy {
         new Navigation.At("net/minecraft/client/resources/DefaultPlayerSkin", "getDefaultSkin", null),
         "the PLAYER skull skin is the default-skin array element getDefaultSkin indexes;"
             + " BlockCatalogResolver re-enters the coordinate, reads the index and the stem bound at it");
+
+    /**
+     * Pairs a catalog family with the sheet coordinate its texture base is read at, so a row names
+     * the sheet class once.
+     *
+     * @param family the catalog family
+     * @param field the sheet field the base is bound to - a sprite mapper or a sprite id
+     * @return the roster row
+     */
+    private static @NotNull Map.Entry<CatalogFamily, Navigation.At> sheetEntry(
+        @NotNull CatalogFamily family, @NotNull String field) {
+        return Map.entry(family, new Navigation.At("net/minecraft/client/renderer/Sheets", field, null));
+    }
 
     /**
      * One sign / hanging-sign variant: the split id plus the branch parameter selecting it -
@@ -312,16 +330,17 @@ enum BlockFamilyPolicies implements NavigationPolicy {
     }
 
     /**
-     * The declared sheet texture stem for a catalog family.
+     * The coordinate a catalog family's sheet texture base is read at.
      *
      * @param family the catalog family token
-     * @return the {@code Sheets.<X>} stem
+     * @return the sheet-field coordinate
+     * @throws IllegalArgumentException if the family names no sheet field
      */
     @SuppressWarnings("unchecked")
-    static @NotNull String sheetTextureBase(@NotNull CatalogFamily family) {
-        String base = ((Map<CatalogFamily, String>) SHEET_TEXTURE_BASES.value).get(family);
-        if (base == null) throw new IllegalArgumentException("No declared sheet base for family " + family);
-        return base;
+    static Navigation.@NotNull At sheetCoordinate(@NotNull CatalogFamily family) {
+        Navigation.At coordinate = ((Map<CatalogFamily, Navigation.At>) SHEET_TEXTURE_BASES.value).get(family);
+        if (coordinate == null) throw new IllegalArgumentException("No sheet coordinate for family " + family);
+        return coordinate;
     }
 
     /** The coordinate the PLAYER skull skin stem is recovered at. */
