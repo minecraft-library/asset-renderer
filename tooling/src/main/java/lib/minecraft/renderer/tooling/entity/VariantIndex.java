@@ -5,6 +5,7 @@ import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -48,10 +49,10 @@ final class VariantIndex {
 
     /**
      * The holder-class file-name suffix ({@code WolfVariants.class}) - the holder stem
-     * convention ({@link EntityNamingPolicies#VARIANT_ENUM_CONVENTIONS}, first member).
+     * convention plus the class-file extension.
      */
     private static final @NotNull String VARIANTS_CLASS_SUFFIX =
-        EntityNamingPolicies.VARIANT_ENUM_CONVENTIONS.strings().getFirst() + ".class";
+        VanillaSourceClasses.Types.VARIANT_HOLDER_STEM + ".class";
 
     /**
      * One variant entry parsed from a variant JSON file. Carries either a single
@@ -216,12 +217,22 @@ final class VariantIndex {
     /**
      * Walks every {@code <X>Variants.class} holder for its {@code DEFAULT} initialiser and
      * returns the {@code stem -> default id} map ({@code wolf -> pale}). Holders without a
-     * {@code DEFAULT} field ({@code CatVariants}) don't appear.
+     * {@code DEFAULT} field ({@code CatVariants}) don't appear, which is what narrows the
+     * listing's over-match ({@code WolfSoundVariants}, {@code PaintingVariants}) to the
+     * entity holders.
+     *
+     * <p>A listing answers empty rather than failing, so an empty one throws: the holder-stem
+     * grammar matching nothing is a renamed convention, and every variant default silently
+     * going missing is the shape a run must stop on rather than emit.
      */
     private static @NotNull Map<String, String> loadHolderDefaults(@NotNull ClassNodeCache cache) {
         Map<String, String> out = new LinkedHashMap<>();
-        String holderStem = EntityNamingPolicies.VARIANT_ENUM_CONVENTIONS.strings().getFirst();
-        for (String entryPath : cache.list(VanillaSourceClasses.Types.MINECRAFT_ROOT, VARIANTS_CLASS_SUFFIX)) {
+        String holderStem = VanillaSourceClasses.Types.VARIANT_HOLDER_STEM;
+        List<String> holders = cache.list(VanillaSourceClasses.Types.MINECRAFT_ROOT, VARIANTS_CLASS_SUFFIX);
+        if (holders.isEmpty())
+            throw new ToolingException("Client jar lists no '%s' class under '%s' - the variant holder-class grammar matches nothing",
+                VARIANTS_CLASS_SUFFIX, VanillaSourceClasses.Types.MINECRAFT_ROOT);
+        for (String entryPath : holders) {
             String simple = entryPath.substring(entryPath.lastIndexOf('/') + 1, entryPath.length() - ".class".length());
             String stem = StringUtil.toSnakeCase(simple.substring(0, simple.length() - holderStem.length()));
             String holderInternal = entryPath.substring(0, entryPath.length() - ".class".length());

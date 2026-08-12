@@ -229,7 +229,7 @@ final class EntityVariantAxisResolver {
     private @NotNull Map<String, String> modelTypeToModelLayerField() {
         ClassNode cn = this.cache.load(this.subject.rendererClass());
         if (cn == null) return Map.of();
-        String modelTypeSuffix = EntityNamingPolicies.VARIANT_ENUM_CONVENTIONS.strings().get(1);
+        String modelTypeSuffix = VanillaSourceClasses.Types.VARIANT_MODEL_TYPE_SUFFIX;
         Map<String, String> out = new LinkedHashMap<>();
         for (MethodNode method : cn.methods)
             AsmWalker.over(method)

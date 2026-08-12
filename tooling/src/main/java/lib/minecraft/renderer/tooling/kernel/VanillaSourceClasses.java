@@ -234,6 +234,19 @@ public final class VanillaSourceClasses {
         /** {@code Holder} - the registry-entry wrapper data-class accessors return (villager type / profession). */
         public static final @NotNull String HOLDER = "net/minecraft/core/Holder";
 
+        /**
+         * The {@code <X>Variants} holder-class stem - the class-name grammar the data-driven
+         * variant holders are listed by, and the text trimmed off a simple name to leave the
+         * entity stem.
+         */
+        public static final @NotNull String VARIANT_HOLDER_STEM = "Variants";
+
+        /**
+         * The {@code <X>Variant$ModelType} inner-enum suffix - the owner grammar marking a
+         * variant's model discriminator, paired with a {@code ModelLayers} field by the walk.
+         */
+        public static final @NotNull String VARIANT_MODEL_TYPE_SUFFIX = "$ModelType";
+
         /** {@code ChestSpecialRenderer} - its {@code <clinit>} binds the chest variant texture base names. */
         public static final @NotNull String CHEST_SPECIAL_RENDERER = "net/minecraft/client/renderer/special/ChestSpecialRenderer";
 

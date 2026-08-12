@@ -67,16 +67,6 @@ enum EntityNamingPolicies implements NavigationPolicy {
         "tuning parameter; the derivation proved set-equal to the hand-maintained 14-entry list on 26.1"),
 
     /**
-     * The variant-enum naming-convention family: the {@code <X>Variants.class} holder stem,
-     * the {@code $ModelType} inner-enum suffix, and the {@code directoryFor} class-to-data-directory
-     * mapping ({@code CowVariant} to {@code data/minecraft/cow_variant/}). One declared policy,
-     * validated against directory existence at consult sites.
-     */
-    VARIANT_ENUM_CONVENTIONS(
-        List.of("Variants", "$ModelType", "Variant"),
-        "naming-convention family"),
-
-    /**
      * The {@code left_} / {@code right_} toggle-stem grouping: vanilla names symmetric bones
      * with these prefixes, so a stripped pair flips under one toggle ({@code left_horn} +
      * {@code right_horn} to {@code horn}).
