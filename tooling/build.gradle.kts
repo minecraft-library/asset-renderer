@@ -18,9 +18,10 @@ repositories {
 }
 
 dependencies {
-    // The renderer, resolved through the included build rather than a repository. Tooling reads its
-    // client-jar acquisition plus a handful of vocabulary types; nothing in it reads tooling back.
-    implementation("lib.minecraft:asset-renderer:0.1.0")
+    // The client-jar acquisition leaf, resolved through the included build rather than a repository.
+    // This is the whole of what the generators share with the renderer; the vocabulary the shipped
+    // tables are written in travels as values, which is what lets the renderer include this build.
+    implementation("lib.minecraft:asset-renderer-client:0.1.0")
 
     // 9.8 added support for Java 25 class files (major version 69), which the Minecraft version named
     // by the harness's gradle.properties emits. It is declared here and nowhere else, which is what
@@ -40,14 +41,7 @@ dependencies {
     testAnnotationProcessor(libs.lombok)
 }
 
-// The renderer's SIMD sources reference jdk.incubator.vector, and this build both compiles against
-// and launches them. SimdSupport probes for the module and falls back bit-identically when it is
-// absent, so the flag is a dev-path choice rather than a correctness one - added for the same reason
-// the renderer adds it, that it belongs everywhere it is read.
-val addVectorModuleArg = "--add-modules=jdk.incubator.vector"
-
 tasks.withType<JavaCompile>().configureEach {
-    options.compilerArgs.add(addVectorModuleArg)
     options.encoding = "UTF-8"
 }
 
@@ -70,7 +64,6 @@ val toolingOutDir: String =
 val rendererRoot: File = layout.projectDirectory.dir("..").asFile
 
 tasks.withType<JavaExec>().configureEach {
-    jvmArgs(addVectorModuleArg)
     // Every flow resolves its output and its cache against the renderer root, so a path typed in
     // Java, in the renderer's build file and in this one all mean the same directory.
     workingDir = rendererRoot
@@ -86,7 +79,6 @@ tasks.withType<Test>().configureEach {
     useJUnitPlatform {
         excludeTags("slow")
     }
-    jvmArgs(addVectorModuleArg)
     workingDir = rendererRoot
 }
 

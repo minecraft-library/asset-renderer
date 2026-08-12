@@ -27,6 +27,7 @@ import lib.minecraft.renderer.asset.pack.rule.CtmContext;
 import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
+import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
 import lib.minecraft.renderer.face.Face;

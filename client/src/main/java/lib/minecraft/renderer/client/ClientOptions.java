@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline;
+package lib.minecraft.renderer.client;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;

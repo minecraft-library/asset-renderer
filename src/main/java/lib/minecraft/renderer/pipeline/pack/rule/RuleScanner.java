@@ -12,8 +12,8 @@ import lib.minecraft.renderer.asset.pack.rule.CitRule;
 import lib.minecraft.renderer.asset.pack.rule.ColorProperties;
 import lib.minecraft.renderer.asset.pack.rule.CtmRule;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
+import lib.minecraft.renderer.client.VanillaSourcePaths;
 import lib.minecraft.renderer.pipeline.pack.PackSubtree;
-import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

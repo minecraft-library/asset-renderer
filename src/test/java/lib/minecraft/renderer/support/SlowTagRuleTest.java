@@ -59,7 +59,7 @@ final class SlowTagRuleTest {
     private static final String SLOW_TAG = "@Tag(\"slow\")";
 
     /** How a source outside the acquisition's own package names it */
-    private static final String ACQUISITION_IMPORT = "import lib.minecraft.renderer.pipeline.ClientAcquisition;";
+    private static final String ACQUISITION_IMPORT = "import lib.minecraft.renderer.client.ClientAcquisition;";
 
     /** The acquisition's own package, whose members reach it with no import to spot it by */
     private static final String ACQUISITION_PACKAGE = "package lib.minecraft.renderer.pipeline;";

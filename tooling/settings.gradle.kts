@@ -1,13 +1,9 @@
 rootProject.name = "asset-renderer-tooling"
 
-// The renderer, as a build rather than a source set. Tooling reads its client-jar acquisition and a
-// handful of vocabulary types; nothing in the renderer reads tooling, and Gradle forbids the cycle
-// that would let it - which is the property the split exists to hold.
-//
-// The renderer drives the flows the other way through `Exec` shells into this build's wrapper, the
-// same shape `harnessClasses` uses for the harness, so the edge stays one-directional in both the
-// dependency graph and the task graph.
-includeBuild("..")
+// The client-jar acquisition leaf, and the only build this one reads. The renderer is deliberately
+// absent: the generators emit the JSON it loads and share its vocabulary by value rather than by
+// type, so nothing here resolves against it and the renderer is free to include this build.
+includeBuild("../client")
 
 // The renderer's catalogue, read rather than copied: a version pinned in one build and re-typed in
 // the other is the drift this shares a file to avoid.

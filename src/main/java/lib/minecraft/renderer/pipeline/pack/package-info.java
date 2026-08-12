@@ -13,7 +13,8 @@
  * folds the block / entity model parent chains; the per-domain loaders
  * ({@code BannerPatternLoader}, {@code BlockStateLoader}, {@code BlockTagLoader},
  * {@code ColorMapLoader}, {@code PalettedPermutationLoader}) read one resource family each.
- * {@link lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths VanillaSourcePaths} centralizes the
+ * {@link lib.minecraft.renderer.client.VanillaSourcePaths VanillaSourcePaths} centralizes the
  * vanilla asset-subdirectory templates.
  */
 package lib.minecraft.renderer.pipeline.pack;
+

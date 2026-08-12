@@ -936,6 +936,38 @@
       ]
     },
     {
+      "blind": [],
+      "claim": "Client acquisition decides which bytes both the renderer and the generators read at all",
+      "id": "B45",
+      "mode": "select",
+      "probe": "change what extractClientJar streams out and re-run the dump and a flow; both move, because both read the tree it wrote",
+      "reason": "This module downloads the client jar and lays out the extracted tree every other read in the repo starts from - the pack stack the dump serialises, and the classes the generator flows walk. A change to what it extracts or where it puts it therefore reaches both sides at once, which no other rule covers: B4 speaks for the pack readers over that tree, and B13/B14 for the walkers over the same jar, but neither for the acquisition itself. The renders are not on it - they read the pack stack, and a change that moved one would move the dump first.",
+      "sees": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs",
+        "manifest.tooling-tables",
+        "report.diagnostics-log"
+      ],
+      "source": "declared from what the module writes; both the pack stack and the class walks resolve against the tree it extracts",
+      "trigger_paths": [
+        "client/src/main/java/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The client build's script wires a leaf and emits nothing",
+      "id": "B46",
+      "mode": "select",
+      "probe": "bump a dependency pin and capture any artifact; every stored byte is identical",
+      "reason": "The client module's build script declares its dependencies and its toolchain. Neither decides a byte any producer writes - what the module DOES is B45's claim, over its sources. It carries no wrapper of its own: both dependent builds resolve it through an included build rather than invoking it, so there is no third Gradle to select. The gate for an edit here is that both of those still compile, which `check` reaches through `test` and `toolingTest`.",
+      "sees": [],
+      "source": "declares no store artifact, so its reason names the gate that answers instead",
+      "trigger_paths": [
+        "client/build.gradle.kts",
+        "client/settings.gradle.kts"
+      ]
+    },
+    {
       "blind": [
         "sweep.block",
         "sweep.item"

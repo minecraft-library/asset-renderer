@@ -49,7 +49,7 @@ public final class ColorMapWalk {
             }
             String pixels = Base64.getEncoder().encodeToString(pack(decode(png, policy.entryPath())));
             maps.add(JsonTree.object()
-                .put("type", policy.type().name())
+                .put("type", policy.type())
                 .put("source", policy.entryPath())
                 .put("pixels", pixels));
             read++;

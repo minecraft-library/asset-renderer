@@ -2,11 +2,11 @@ package lib.minecraft.renderer.visual;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.client.ClientAcquisition;
+import lib.minecraft.renderer.client.ClientAssets;
+import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.jetbrains.annotations.NotNull;
 

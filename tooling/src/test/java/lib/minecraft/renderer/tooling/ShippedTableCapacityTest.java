@@ -8,9 +8,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -33,7 +32,12 @@ import static org.hamcrest.Matchers.not;
 @DisplayName("shipped tables carry neither an array-form grow nor a rotate_z transform")
 class ShippedTableCapacityTest {
 
-    private static final @NotNull String RESOURCE_DIR = "/lib/minecraft/renderer/";
+    /**
+     * The renderer's shipped tables, read off disk rather than off this build's classpath - the
+     * renderer is not on it, and these are gated as bytes on disk in any case. Relative to the
+     * renderer root, which every task in this build pins as its working directory.
+     */
+    private static final @NotNull Path RESOURCE_DIR = Path.of("src/main/resources/lib/minecraft/renderer");
 
     @Test
     @DisplayName("grow[3]: no geometry cube carries an [x,y,z] array grow (all scalar)")
@@ -79,11 +83,13 @@ class ShippedTableCapacityTest {
     }
 
     private static @NotNull JsonObject read(@NotNull String name) {
-        try (InputStream in = ShippedTableCapacityTest.class.getResourceAsStream(RESOURCE_DIR + name)) {
-            if (in == null) throw new IllegalStateException("missing bundled resource " + name);
-            return JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+        Path table = RESOURCE_DIR.resolve(name);
+        if (!Files.isRegularFile(table))
+            throw new IllegalStateException("missing shipped table " + table.toAbsolutePath());
+        try {
+            return JsonParser.parseString(Files.readString(table)).getAsJsonObject();
         } catch (IOException failure) {
-            throw new IllegalStateException("failed to read bundled resource " + name, failure);
+            throw new IllegalStateException("failed to read shipped table " + table.toAbsolutePath(), failure);
         }
     }
 }

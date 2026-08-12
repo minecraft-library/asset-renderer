@@ -23,7 +23,6 @@ import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.engine.kit.NineSliceKit;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;

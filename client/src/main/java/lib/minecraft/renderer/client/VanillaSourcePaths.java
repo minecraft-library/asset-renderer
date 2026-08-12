@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.client;
 
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

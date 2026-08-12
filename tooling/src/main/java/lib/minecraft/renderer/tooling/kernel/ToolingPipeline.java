@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.tooling.kernel;
 
-import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientOptions;
+import lib.minecraft.renderer.client.ClientAcquisition;
+import lib.minecraft.renderer.client.exception.ClientException;
+import lib.minecraft.renderer.client.ClientOptions;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -48,7 +48,7 @@ public class ToolingPipeline {
         Path jar;
         try {
             jar = ClientAcquisition.downloadJarToCache(options);
-        } catch (PipelineException ex) {
+        } catch (ClientException ex) {
             throw new ToolingException(ex, "Failed to acquire client jar for flow '%s'", flow);
         }
         Diagnostics.Output resolved = resolveOutput(mode);

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.face;
 
-import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.PlayerOptions.Type.BodyPart2D;
+import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.tensor.Box;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

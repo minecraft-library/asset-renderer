@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.parity.ParityJson;
 import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.parity.SelfCapture;

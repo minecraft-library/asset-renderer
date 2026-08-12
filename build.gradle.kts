@@ -300,6 +300,7 @@ val parityTriggerRoots: FileCollection = files(
     fileTree("gradle") { exclude(parityWalkSkips) },
     fileTree("src/jmh") { exclude(parityWalkSkips) },
     fileTree("tooling") { exclude(parityWalkSkips) },
+    fileTree("client") { exclude(parityWalkSkips) },
     fileTree("scripts/parity") { exclude(parityWalkSkips) },
     fileTree("harness") { exclude(parityWalkSkips) }
 )
@@ -1064,6 +1065,11 @@ dependencies {
 
     // Gson
     api(libs.gson)
+
+    // Client-jar acquisition, resolved through the included build. `api` because ClientAssets is the
+    // argument PipelineRendererContext.of takes, so a consumer standing a context up names the type.
+    // It is the one module the generators share with this one, and it depends on neither.
+    api("lib.minecraft:asset-renderer-client:0.1.0")
 }
 
 idea {

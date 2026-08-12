@@ -7,7 +7,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -57,7 +56,7 @@ import java.util.Set;
  *
  * <p>Parses the {@code createSingleBodyLayer()} / {@code createBodyLayer()} methods of
  * model classes to extract cube definitions, UV offsets, pivot points, and texture
- * dimensions into {@link EntityModelData}-compatible JSON. Tracks a synthetic operand stack
+ * dimensions into {@code EntityModelData}-compatible JSON. Tracks a synthetic operand stack
  * of numeric literals plus per-slot local-variable state and recognises the canonical
  * builder-chain pattern:
  * <pre>{@code
@@ -2415,7 +2414,7 @@ public final class GeometryParser {
          * region as the left leg's outer face rather than its mirror; without propagating
          * this through to the kit, both right legs render facing the wrong way (the
          * skeleton-horse user report). The kit already consumes
-         * {@link EntityModelData.Cube#isMirror()} via {@code rect.toUvCorners(..., mirror)}.
+         * {@code EntityModelData.Cube.isMirror()} via {@code rect.toUvCorners(..., mirror)}.
          */
         boolean pendingMirror = false;
 

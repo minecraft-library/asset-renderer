@@ -563,6 +563,30 @@ A wrapper script and its distribution pin decide which Gradle runs the tooling b
 
 *Probe:* bump the wrapper distribution and re-run a flow; the emitted tables are byte-identical
 
+## B45 - Client acquisition decides which bytes both the renderer and the generators read at all
+
+- **mode** select
+- **triggers** `client/src/main/java/**`
+- **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `manifest.tooling-tables`, `report.diagnostics-log`
+- **blind** -
+- **source** declared from what the module writes; both the pack stack and the class walks resolve against the tree it extracts
+
+This module downloads the client jar and lays out the extracted tree every other read in the repo starts from - the pack stack the dump serialises, and the classes the generator flows walk. A change to what it extracts or where it puts it therefore reaches both sides at once, which no other rule covers: B4 speaks for the pack readers over that tree, and B13/B14 for the walkers over the same jar, but neither for the acquisition itself. The renders are not on it - they read the pack stack, and a change that moved one would move the dump first.
+
+*Probe:* change what extractClientJar streams out and re-run the dump and a flow; both move, because both read the tree it wrote
+
+## B46 - The client build's script wires a leaf and emits nothing
+
+- **mode** select
+- **triggers** `client/build.gradle.kts`, `client/settings.gradle.kts`
+- **sees** -
+- **blind** -
+- **source** declares no store artifact, so its reason names the gate that answers instead
+
+The client module's build script declares its dependencies and its toolchain. Neither decides a byte any producer writes - what the module DOES is B45's claim, over its sources. It carries no wrapper of its own: both dependent builds resolve it through an included build rather than invoking it, so there is no third Gradle to select. The gate for an edit here is that both of those still compile, which `check` reaches through `test` and `toolingTest`.
+
+*Probe:* bump a dependency pin and capture any artifact; every stored byte is identical
+
 ## B11a - Blocks and items are structurally immune to a DEPTH change: 0 of 1055 and 0 of 479 rows move
 
 - **mode** select

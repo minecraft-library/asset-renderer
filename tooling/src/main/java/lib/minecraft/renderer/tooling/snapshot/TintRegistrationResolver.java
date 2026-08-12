@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
-import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -50,7 +49,7 @@ final class TintRegistrationResolver {
      * The classification of one committed registration: a tint (target + optional constant) or a
      * drop (a {@code dropped[]} reason), plus the provenance source label ({@code tints[].source}).
      *
-     * @param target the {@code Block.TintTarget} name when a tint, or {@code null} on a drop
+     * @param target the tint-target name when a tint, or {@code null} on a drop
      * @param constant the ARGB constant when {@code target == CONSTANT}, else {@code null}
      * @param dropReason the {@code dropped[]} reason when a drop, or {@code null} when a tint
      * @param sourceLabel the factory-name provenance (with the {@code @age=0} note for stem)
@@ -99,7 +98,7 @@ final class TintRegistrationResolver {
 
         if (sourceName.equals(VanillaSourceClasses.Methods.CONSTANT)) {
             int value = inHandConstant != null ? inHandConstant : 0;
-            return new Resolution(Block.TintTarget.CONSTANT.name(), value, null, sourceName);
+            return new Resolution(TARGET_CONSTANT, value, null, sourceName);
         }
 
         String innerClass = resolveSourceClass(cache, sourceName);
@@ -111,12 +110,12 @@ final class TintRegistrationResolver {
         if (sourceName.equals(VanillaSourceClasses.Methods.STEM)) {
             Integer stem = evalStem(cache, innerClass, diagnostics);
             if (stem == null) return null;
-            return new Resolution(Block.TintTarget.CONSTANT.name(), stem, null, sourceName + STEM_LABEL);
+            return new Resolution(TARGET_CONSTANT, stem, null, sourceName + STEM_LABEL);
         }
 
-        Block.TintTarget target = deriveTarget(cache, innerClass);
+        String target = deriveTarget(cache, innerClass);
         if (target != null)
-            return new Resolution(target.name(), null, null, sourceName);
+            return new Resolution(target, null, null, sourceName);
 
         if (SnapshotShapePolicies.dynamicSourceDrops().contains(sourceName))
             return new Resolution(null, null, SnapshotShapePolicies.REASON_DYNAMIC_SOURCE, sourceName);
@@ -141,21 +140,32 @@ final class TintRegistrationResolver {
     }
 
     /**
+     * The tint-target names written into {@code block_tints.json}, spelled as the renderer's own
+     * {@code Block.TintTarget} constants. Held as values rather than as that enum because this build
+     * does not resolve against the renderer; the agreement is enforced where it matters, at load,
+     * where the shipped string is deserialised straight into that enum.
+     */
+    private static final @NotNull String TARGET_CONSTANT = "CONSTANT";
+    private static final @NotNull String TARGET_GRASS = "GRASS";
+    private static final @NotNull String TARGET_FOLIAGE = "FOLIAGE";
+    private static final @NotNull String TARGET_DRY_FOLIAGE = "DRY_FOLIAGE";
+
+    /**
      * Derives the colormap target by scanning the source inner class's methods for the
      * {@code BiomeColors.getAverage*Color} call that names the colormap it samples.
      */
-    private static @Nullable Block.TintTarget deriveTarget(@NotNull ClassNodeCache cache, @NotNull String innerClass) {
+    private static @Nullable String deriveTarget(@NotNull ClassNodeCache cache, @NotNull String innerClass) {
         ClassNode node = cache.load(innerClass);
         if (node == null) return null;
         for (MethodNode method : node.methods) {
             if (method.instructions == null) continue;
-            Block.TintTarget target = AsmWalker.over(method).firstNotNull(in -> {
+            String target = AsmWalker.over(method).firstNotNull(in -> {
                 if (AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_GRASS_COLOR))
-                    return Block.TintTarget.GRASS;
+                    return TARGET_GRASS;
                 if (AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_FOLIAGE_COLOR))
-                    return Block.TintTarget.FOLIAGE;
+                    return TARGET_FOLIAGE;
                 if (AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_DRY_FOLIAGE_COLOR))
-                    return Block.TintTarget.DRY_FOLIAGE;
+                    return TARGET_DRY_FOLIAGE;
                 return null;
             });
             if (target != null) return target;

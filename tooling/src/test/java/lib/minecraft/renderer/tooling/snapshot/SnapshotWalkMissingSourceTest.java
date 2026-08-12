@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pipeline.ClientOptions;
+import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;

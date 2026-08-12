@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -13,7 +12,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * The client's {@code assets/<ns>/equipment/*.json} corpus, inverted per {@link LayerType} into the
+ * The client's {@code assets/<ns>/equipment/*.json} corpus, inverted per layer type into the
  * {@code material -> asset id} table an equipment row needs to name its texture source. Read once per
  * run and shared by every subject.
  *
@@ -91,10 +90,10 @@ final class EquipmentAssetIndex {
         if (layers == null) return;
         for (Map.Entry<String, JsonTree> member : layers.members().toList()) {
             String layerTypeId = member.getKey();
-            if (LayerType.fromId(layerTypeId).isEmpty()) {
-                diagnostics.warn("equipment asset '%s' declares unknown layer type '%s' - skipped", assetId, layerTypeId);
-                continue;
-            }
+            // Every id the corpus declares is transcribed. Deciding which are modelled belongs to the
+            // consumer and is already done there - both EntityIndexBuilder and EquipmentModelLoader
+            // resolve the id through LayerType.fromId and skip what it does not answer - so a second
+            // copy of that vocabulary here would only be one that could fall behind it.
             // The base (first) layer names the material; any further layer is that material's
             // composite companion (a dyeable base's tint pass), never a material of its own.
             String material = member.getValue()

@@ -6,13 +6,13 @@ import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import dev.simplified.image.data.StaticImageData;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.client.ClientAcquisition;
+import lib.minecraft.renderer.client.ClientAssets;
+import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.jetbrains.annotations.NotNull;
 

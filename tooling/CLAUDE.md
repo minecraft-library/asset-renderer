@@ -6,10 +6,14 @@ tables the renderer loads at runtime. Its own Gradle build with its own wrapper,
 
 ## Build
 
-`tooling/settings.gradle.kts` includes the renderer build, so the dependency runs one way: tooling
-reads `ClientAcquisition`, `ClientOptions` and a handful of vocabulary types, and nothing in the
-renderer can name a tooling type without a cycle Gradle refuses. ASM is declared here alone - it is
-on no renderer classpath and in no published JAR.
+`tooling/settings.gradle.kts` includes `../client` and nothing else. That leaf holds client-jar
+acquisition and is the whole of what this build shares with the renderer; the vocabulary the shipped
+tables are written in travels as values rather than as the renderer's enums, so nothing here resolves
+against it. ASM is declared here alone - it is on no renderer classpath and in no published JAR.
+
+The renderer includes this build, so this build cannot include the renderer. Reaching for a renderer
+type here is therefore not a missing dependency to add - adding it is a cycle Gradle refuses. Either
+the type belongs in `client`, or the value it carries travels as one.
 
 The renderer drives the eight flows by shelling into this wrapper, the same shape `harnessClasses`
 uses for the harness, so `./gradlew blockTints` works from either side and the task names are what

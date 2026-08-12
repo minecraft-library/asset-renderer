@@ -8,6 +8,7 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.client.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

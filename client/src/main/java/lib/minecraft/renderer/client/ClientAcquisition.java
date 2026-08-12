@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline;
+package lib.minecraft.renderer.client;
 
 import api.simplified.mojang.MojangContract;
 import api.simplified.mojang.exception.MojangApiException;
@@ -13,9 +13,7 @@ import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.util.Lazy;
-import lib.minecraft.renderer.PlayerRenderer;
-import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
+import lib.minecraft.renderer.client.exception.ClientException;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -74,7 +72,7 @@ public class ClientAcquisition {
      *
      * @param options the client options (target version + cache root)
      * @return the extracted client assets - the options plus the vanilla pack root
-     * @throws PipelineException if the client jar cannot be downloaded or extracted
+     * @throws ClientException if the client jar cannot be downloaded or extracted
      */
     public static @NotNull ClientAssets acquire(@NotNull ClientOptions options) {
         Path vanillaRoot = options.vanillaRoot();
@@ -95,7 +93,7 @@ public class ClientAcquisition {
      *
      * @param options the client options
      * @return the path to the cached client jar
-     * @throws PipelineException if the version is absent from the Piston manifest or the download fails
+     * @throws ClientException if the version is absent from the Piston manifest or the download fails
      */
     public static @NotNull Path downloadJarToCache(@NotNull ClientOptions options) {
         Path target = options.vanillaRoot().resolve("client.jar");
@@ -111,7 +109,7 @@ public class ClientAcquisition {
                 Files.copy(stream, target, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to cache client jar at '%s'", target);
+            throw new ClientException(ex, "Failed to cache client jar at '%s'", target);
         }
 
         return target;
@@ -120,7 +118,7 @@ public class ClientAcquisition {
     /**
      * The lazily-initialised shared {@link MojangContract}. Single client per JVM via
      * {@link #MOJANG_CLIENT}, so concurrent callers ({@link #acquire}, {@link #downloadJarToCache},
-     * the player skin / cape paths in {@link PlayerRenderer}) share the same domain-aware
+     * the player skin / cape paths in {@code PlayerRenderer}) share the same domain-aware
      * rate limiter.
      *
      * @return the shared Mojang contract
@@ -131,7 +129,7 @@ public class ClientAcquisition {
 
     /**
      * Resolves the {@code Piston} client-jar entry for the given version, surfacing an
-     * {@link PipelineException} when the version id is missing from the manifest.
+     * {@link ClientException} when the version id is missing from the manifest.
      */
     private static @NotNull PistonMetadata.Downloads.Entry resolveClientEntry(@NotNull MojangContract mojang, @NotNull String version) {
         return mojang.getVersionMetadata(
@@ -140,7 +138,7 @@ public class ClientAcquisition {
                 .stream()
                 .filter(v -> v.getVersion().equals(version))
                 .findFirst()
-                .orElseThrow(() -> new PipelineException("Version '%s' is not in the Piston manifest", version))
+                .orElseThrow(() -> new ClientException("Version '%s' is not in the Piston manifest", version))
             )
             .getDownloads()
             .getClient();
@@ -166,9 +164,9 @@ public class ClientAcquisition {
      *
      * @param jarPath the cached client jar path
      * @param packRoot the destination pack root
-     * @throws PipelineException if the jar cannot be read or an extracted entry cannot be written
+     * @throws ClientException if the jar cannot be read or an extracted entry cannot be written
      */
-    static void extractClientJar(@NotNull Path jarPath, @NotNull Path packRoot) {
+    public static void extractClientJar(@NotNull Path jarPath, @NotNull Path packRoot) {
         try (ZipFile zip = new ZipFile(jarPath.toFile())) {
             boolean extractedRootMcmeta = false;
             byte[] versionJsonBytes = null;
@@ -202,7 +200,7 @@ public class ClientAcquisition {
             if (!extractedRootMcmeta && versionJsonBytes != null)
                 synthesiseVanillaPackMeta(versionJsonBytes, packRoot);
         } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to extract '%s' into '%s'", jarPath, packRoot);
+            throw new ClientException(ex, "Failed to extract '%s' into '%s'", jarPath, packRoot);
         }
     }
 
