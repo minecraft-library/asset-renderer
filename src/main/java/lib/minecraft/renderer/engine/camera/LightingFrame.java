@@ -37,6 +37,7 @@ public sealed interface LightingFrame permits LightingFrame.Tracking, LightingFr
 
         /** Screen-horizontal reflection - left and right lit sides swap; top / bottom are unchanged. */
         HORIZONTAL
+
     }
 
     /**
@@ -116,6 +117,7 @@ public sealed interface LightingFrame permits LightingFrame.Tracking, LightingFr
         public @NotNull LightingFrame mirroredHorizontally() {
             return new Tracking(this.rotation, Mirror.HORIZONTAL);
         }
+
     }
 
     /**
@@ -135,6 +137,7 @@ public sealed interface LightingFrame permits LightingFrame.Tracking, LightingFr
         public @NotNull LightingFrame mirroredHorizontally() {
             return new Fixed(this.rotation, Mirror.HORIZONTAL);
         }
+
     }
 
 }

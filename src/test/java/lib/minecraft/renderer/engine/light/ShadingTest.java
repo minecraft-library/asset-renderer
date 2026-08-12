@@ -13,6 +13,8 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -281,6 +283,51 @@ class ShadingTest {
         Vector3f seed = Math.abs(normal.y()) < 0.9f ? new Vector3f(0f, 1f, 0f) : new Vector3f(1f, 0f, 0f);
         Vector3f first = normal.cross(seed).normalize();
         return triangle(first, normal.cross(first), normal, 0.5f, traits);
+    }
+
+    @Test
+    @DisplayName("packAsSnormByte is the identity on a cardinal and quantizes a rotated normal")
+    void snormIsIdentityOnCardinalsOnly() {
+        // Every cardinal component lands exactly on the signed-byte grid, so a caller shading only
+        // axis-aligned cube faces cannot observe whether the round trip ran at all. That is why its
+        // absence on one relight path is invisible until a rotated plane goes through it.
+        for (Vector3f cardinal : List.of(
+            new Vector3f(1f, 0f, 0f), new Vector3f(0f, -1f, 0f), new Vector3f(0f, 0f, 1f)))
+            assertThat(Shading.packAsSnormByte(cardinal), equalTo(cardinal));
+
+        // A 45-degree plane is where it bites: 0.7071 * 127 truncates to 89, not 90.
+        Vector3f tilted = Shading.packAsSnormByte(new Vector3f(0.70710677f, 0f, 0.70710677f));
+        assertThat((double) tilted.x(), closeTo(89f / 127f, 1e-7));
+        assertThat((double) tilted.z(), closeTo(89f / 127f, 1e-7));
+
+        // Truncation toward zero, never rounding - the sign is carried, not folded in.
+        assertThat(Shading.packAsSnormByte(new Vector3f(-0.6124f, 0f, 0f)).x(), equalTo(-77f / 127f));
+    }
+
+    @Test
+    @DisplayName("guiNormalTransform negates Y alone, which is what tells it from the entity chain")
+    void guiNormalTransformNegatesYAlone() {
+        LightingFrame identity = LightingFrame.fixed(EulerRotation.NONE);
+
+        // All three cardinals, because the triple is what identifies the scale. At the identity frame
+        // this reduces to the PoseStack's scale(W, -H, W) upper-3x3, diag(1, -1, 1). Lighting
+        // .resolveEntity shares this method's mirrorX line and ends scale(mirrorX, 1, -1) instead -
+        // two signs away - so a refactor that unified the two on that shared line would move the Y and
+        // the Z images here and nothing else in the suite would notice.
+        assertThat(new Vector3f(1f, 0f, 0f).transformNormal(Shading.guiNormalTransform(identity)),
+            equalTo(new Vector3f(1f, 0f, 0f)));
+        assertThat(new Vector3f(0f, 1f, 0f).transformNormal(Shading.guiNormalTransform(identity)),
+            equalTo(new Vector3f(0f, -1f, 0f)));
+        assertThat(new Vector3f(0f, 0f, 1f).transformNormal(Shading.guiNormalTransform(identity)),
+            equalTo(new Vector3f(0f, 0f, 1f)));
+
+        // A HORIZONTAL frame swaps screen left / right by flipping the leading scale's X and leaves the
+        // Y flip alone, so the two reflections compose rather than replacing one another.
+        LightingFrame mirrored = LightingFrame.fixed(EulerRotation.NONE).mirroredHorizontally();
+        assertThat(new Vector3f(1f, 0f, 0f).transformNormal(Shading.guiNormalTransform(mirrored)),
+            equalTo(new Vector3f(-1f, 0f, 0f)));
+        assertThat(new Vector3f(0f, 1f, 0f).transformNormal(Shading.guiNormalTransform(mirrored)),
+            equalTo(new Vector3f(0f, -1f, 0f)));
     }
 
     /**
