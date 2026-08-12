@@ -26,25 +26,33 @@ enum BlockTransformPolicies implements NavigationPolicy {
 
     /**
      * The 8-renderer table naming which member builds each renderer's GUI
-     * {@code Transformation}. A bare method name means "walk that method"; a {@code FIELD:<name>}
-     * value means "walk {@code <clinit>} for the {@code PUTSTATIC} of that static
-     * {@code Transformation} field". The three renderers absent here (chest, bell,
-     * copper_golem_statue) draw with the raw block pose and get no {@code inventory.transform} -
-     * their flip is resolved from the item icon instead.
+     * {@code Transformation}. A method descriptor names the factory to walk; a field descriptor
+     * names the static {@code Transformation} field whose {@code PUTSTATIC} the {@code <clinit>}
+     * walk stops at. The three renderers absent here (chest, bell, copper_golem_statue) draw with
+     * the raw block pose and get no {@code inventory.transform} - their flip is resolved from the
+     * item icon instead.
      */
     RENDERER_ENTRY_METHODS(
         Map.ofEntries(
-            Map.entry("net/minecraft/client/renderer/blockentity/BedRenderer", "createModelTransform"),
-            Map.entry("net/minecraft/client/renderer/blockentity/ShulkerBoxRenderer", "createModelTransform"),
-            Map.entry("net/minecraft/client/renderer/blockentity/SkullBlockRenderer", "createGroundTransformation"),
-            Map.entry("net/minecraft/client/renderer/blockentity/DecoratedPotRenderer", "createModelTransformation"),
-            Map.entry("net/minecraft/client/renderer/blockentity/ConduitRenderer", "FIELD:DEFAULT_TRANSFORMATION"),
-            Map.entry("net/minecraft/client/renderer/blockentity/StandingSignRenderer", "bodyTransformation"),
-            Map.entry("net/minecraft/client/renderer/blockentity/HangingSignRenderer", "bodyTransformation"),
-            Map.entry("net/minecraft/client/renderer/blockentity/BannerRenderer", "modelTransformation")),
+            transformEntry("net/minecraft/client/renderer/blockentity/BedRenderer",
+                "createModelTransform", "(Lnet/minecraft/core/Direction;)Lcom/mojang/math/Transformation;"),
+            transformEntry("net/minecraft/client/renderer/blockentity/ShulkerBoxRenderer",
+                "createModelTransform", "(Lnet/minecraft/core/Direction;)Lcom/mojang/math/Transformation;"),
+            transformEntry("net/minecraft/client/renderer/blockentity/SkullBlockRenderer",
+                "createGroundTransformation", "(I)Lcom/mojang/math/Transformation;"),
+            transformEntry("net/minecraft/client/renderer/blockentity/DecoratedPotRenderer",
+                "createModelTransformation", "(Lnet/minecraft/core/Direction;)Lcom/mojang/math/Transformation;"),
+            transformEntry("net/minecraft/client/renderer/blockentity/ConduitRenderer",
+                "DEFAULT_TRANSFORMATION", "Lcom/mojang/math/Transformation;"),
+            transformEntry("net/minecraft/client/renderer/blockentity/StandingSignRenderer",
+                "bodyTransformation",
+                "(Lnet/minecraft/world/level/block/PlainSignBlock$Attachment;F)Lcom/mojang/math/Transformation;"),
+            transformEntry("net/minecraft/client/renderer/blockentity/HangingSignRenderer",
+                "bodyTransformation", "(F)Lcom/mojang/math/Transformation;"),
+            transformEntry("net/minecraft/client/renderer/blockentity/BannerRenderer",
+                "modelTransformation", "(F)Lcom/mojang/math/Transformation;")),
         "the GUI-Transformation entry coordinate per renderer: each renderer has >= 2 Transformation-returning"
-            + " members, so a return-type scan is ambiguous and this stays the sole hand-curated map. FIELD: means"
-            + " walk <clinit> for the static Transformation field's PUTSTATIC"),
+            + " members, so a return-type scan is ambiguous and this stays the sole hand-curated map"),
 
     /**
      * The nine split ids whose inventory icon faces the GUI camera at yaw 180. NOT derivable
@@ -154,8 +162,19 @@ enum BlockTransformPolicies implements NavigationPolicy {
             + " (scale(1,-1,-1)=Rx180, and (-s,-s,+s)->Rx180 by Y-symmetry), and the block-centred"
             + " rotateAround-180 = the camera-facing flip already carried by the y_rotation");
 
-    /** The {@code FIELD:} prefix on an entry marking a static {@code Transformation} field. */
-    static final @NotNull String FIELD_ENTRY_PREFIX = "FIELD:";
+    /**
+     * Pairs a renderer's internal name with the coordinate under it, so a row names its renderer
+     * once.
+     *
+     * @param owner the renderer's JVM internal name
+     * @param member the method or field building the GUI {@code Transformation}
+     * @param desc the member descriptor - a method descriptor names the factory, a field descriptor the static field
+     * @return the roster row
+     */
+    private static @NotNull Map.Entry<String, Navigation.At> transformEntry(
+        @NotNull String owner, @NotNull String member, @NotNull String desc) {
+        return Map.entry(owner, new Navigation.At(owner, member, desc));
+    }
 
     /**
      * One composed sub-model part: the part's split id, its render offset (in model pixels, or
@@ -181,15 +200,15 @@ enum BlockTransformPolicies implements NavigationPolicy {
     }
 
     /**
-     * The GUI-Transformation entry (method name or {@code FIELD:<field>}) for a renderer, or
-     * {@code null} when the renderer draws with the raw block pose (no inventory transform).
+     * The GUI-{@code Transformation} coordinate for a renderer, or {@code null} when the renderer
+     * draws with the raw block pose (no inventory transform).
      *
      * @param rendererClass the renderer's JVM internal name
      * @return the entry coordinate, or {@code null}
      */
     @SuppressWarnings("unchecked")
-    static @Nullable String rendererEntry(@NotNull String rendererClass) {
-        return ((Map<String, String>) RENDERER_ENTRY_METHODS.value).get(rendererClass);
+    static @Nullable Navigation.At rendererEntry(@NotNull String rendererClass) {
+        return ((Map<String, Navigation.At>) RENDERER_ENTRY_METHODS.value).get(rendererClass);
     }
 
     /**

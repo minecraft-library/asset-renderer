@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
+import lib.minecraft.renderer.tooling.policy.Navigation;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +13,7 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
@@ -29,13 +32,15 @@ import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Pins for {@link TransformWalker} against synthetic classes mirroring the exact 26.1 bytecode of
  * each known block-entity transform site (verified against {@code javap -c -p} of the extracted
  * client classes) - the expected tuples are the checked-in {@code block_models.json} values,
  * byte-for-byte. Covers the eight factory shapes plus the walker's guard rails: poison-on-unknown,
- * {@code Axis.XN} polarity, and the FIELD: stop-at-PUTSTATIC capture.
+ * {@code Axis.XN} polarity, the static-field arm's stop-at-PUTSTATIC capture, and the loud fail a
+ * coordinate the jar does not hold raises.
  */
 @DisplayName("TransformWalker decomposes the eight factory shapes to the tuples")
 class TransformWalkerTest {
@@ -58,6 +63,12 @@ class TransformWalkerTest {
     private static final @NotNull String ROTATE_DESC = "(Lorg/joml/Quaternionfc;)Lorg/joml/Matrix4f;";
     private static final @NotNull String ROTATE_AROUND_DESC = "(Lorg/joml/Quaternionfc;FFF)Lorg/joml/Matrix4f;";
     private static final @NotNull String VEC3_OPS_DESC = "(FFF)Lorg/joml/Matrix4f;";
+    private static final @NotNull String DIRECTION_FACTORY = "(L" + DIRECTION + ";)L" + TRANSFORMATION + ";";
+    private static final @NotNull String INT_FACTORY = "(I)L" + TRANSFORMATION + ";";
+    private static final @NotNull String FLOAT_FACTORY = "(F)L" + TRANSFORMATION + ";";
+    private static final @NotNull String ATTACHMENT_FACTORY = "(" + ATTACHMENT_DESC + "F)L" + TRANSFORMATION + ";";
+    private static final @NotNull String NO_ARG_FACTORY = "()L" + TRANSFORMATION + ";";
+    private static final @NotNull String TRANSFORMATION_FIELD = "L" + TRANSFORMATION + ";";
 
     @TempDir
     Path tempDir;
@@ -96,63 +107,63 @@ class TransformWalkerTest {
     @DisplayName("bed: translation-overwrite + X90 + dropped block-centred Z180+yaw rotateAround")
     void bedShape() {
         assertArrayEquals(new float[]{0f, 9f, 0f, 90f, 0f, 0f},
-            this.walker.decompose("fx/BedRenderer", "createModelTransform", null));
+            this.walker.decompose(at("fx/BedRenderer", "createModelTransform", DIRECTION_FACTORY), null));
     }
 
     @Test
     @DisplayName("shulker: 0.9995 fudge snaps, getRotation is reference-identity, scale(1,-1,-1) folds to Rx180")
     void shulkerShape() {
         assertArrayEquals(new float[]{8f, 24f, 8f, 180f, 0f, 0f},
-            this.walker.decompose("fx/ShulkerBoxRenderer", "createModelTransform", null));
+            this.walker.decompose(at("fx/ShulkerBoxRenderer", "createModelTransform", DIRECTION_FACTORY), null));
     }
 
     @Test
     @DisplayName("skull: int param rides convertToDegrees to the reference yaw; scale(-1,-1,1) folds to Rx180")
     void skullShape() {
         assertArrayEquals(new float[]{8f, 0f, 8f, 180f, 0f, 0f},
-            this.walker.decompose("fx/SkullBlockRenderer", "createGroundTransformation", null));
+            this.walker.decompose(at("fx/SkullBlockRenderer", "createGroundTransformation", INT_FACTORY), null));
     }
 
     @Test
     @DisplayName("banner: component ctor with static Vector3f fields + ACONST_NULL right rotation")
     void bannerShape() {
         assertArrayEquals(new float[]{8f, 0f, 8f, 180f, 0f, 0f, 0.6666667f},
-            this.walker.decompose("fx/BannerRenderer", "modelTransformation", null));
+            this.walker.decompose(at("fx/BannerRenderer", "modelTransformation", FLOAT_FACTORY), null));
     }
 
     @Test
-    @DisplayName("conduit: FIELD: entry walks <clinit> to the DEFAULT_TRANSFORMATION store")
+    @DisplayName("conduit: a field descriptor walks <clinit> to the DEFAULT_TRANSFORMATION store")
     void conduitShape() {
         assertArrayEquals(new float[]{8f, 8f, 8f, 0f, 0f, 0f},
-            this.walker.decompose("fx/ConduitRenderer", "FIELD:DEFAULT_TRANSFORMATION", null));
+            this.walker.decompose(at("fx/ConduitRenderer", "DEFAULT_TRANSFORMATION", TRANSFORMATION_FIELD), null));
     }
 
     @Test
     @DisplayName("standing sign: seeded FLOOR skips the wall branch; baseTransformation inlines")
     void standingSignFloor() {
         assertArrayEquals(new float[]{8f, 8f, 8f, 180f, 0f, 0f, 0.6666667f},
-            this.walker.decompose("fx/StandingSignRenderer", "bodyTransformation", "FLOOR"));
+            this.walker.decompose(at("fx/StandingSignRenderer", "bodyTransformation", ATTACHMENT_FACTORY), "FLOOR"));
     }
 
     @Test
     @DisplayName("wall sign: seeded WALL takes the offset branch through the shared matrix local")
     void standingSignWall() {
         assertArrayEquals(new float[]{8f, 3f, 1f, 180f, 0f, 0f, 0.6666667f},
-            this.walker.decompose("fx/StandingSignRenderer", "bodyTransformation", "WALL"));
+            this.walker.decompose(at("fx/StandingSignRenderer", "bodyTransformation", ATTACHMENT_FACTORY), "WALL"));
     }
 
     @Test
     @DisplayName("hanging sign: translation then rotate-identity then translate folds; scale(1,-1,-1)")
     void hangingSignShape() {
         assertArrayEquals(new float[]{8f, 10f, 8f, 180f, 0f, 0f},
-            this.walker.decompose("fx/HangingSignRenderer", "bodyTransformation", null));
+            this.walker.decompose(at("fx/HangingSignRenderer", "bodyTransformation", FLOAT_FACTORY), null));
     }
 
     @Test
     @DisplayName("decorated pot: the dropped block-centred Y180-yaw rotateAround leaves identity")
     void potShape() {
         assertArrayEquals(new float[]{0f, 0f, 0f, 0f, 0f, 0f},
-            this.walker.decompose("fx/DecoratedPotRenderer", "createModelTransformation", null));
+            this.walker.decompose(at("fx/DecoratedPotRenderer", "createModelTransformation", DIRECTION_FACTORY), null));
     }
 
     // ------------------------------------------------------------------------------------
@@ -163,29 +174,49 @@ class TransformWalkerTest {
     @DisplayName("Axis.XN negates the rotation sense")
     void negatedAxis() {
         assertArrayEquals(new float[]{0f, 0f, 0f, -90f, 0f, 0f},
-            this.walker.decompose("fx/NegatedAxisRenderer", "negatedTransform", null));
+            this.walker.decompose(at("fx/NegatedAxisRenderer", "negatedTransform", NO_ARG_FACTORY), null));
     }
 
     @Test
     @DisplayName("translate after a non-identity rotation poisons - null, never garbage")
     void poisonOnUnknown() {
-        assertNull(this.walker.decompose("fx/PoisonRenderer", "poisonTransform", null));
+        assertNull(this.walker.decompose(at("fx/PoisonRenderer", "poisonTransform", NO_ARG_FACTORY), null));
     }
 
     @Test
-    @DisplayName("FIELD: captures the Transformation at the target PUTSTATIC, not the first ctor")
+    @DisplayName("the field arm stops at the named field's store, not the first Transformation built")
     void fieldStopsAtTargetStore() {
-        // the conduit fixture's <clinit> builds a DECOY Transformation into another field first
+        // the conduit fixture's <clinit> builds a DECOY Transformation into another field first,
+        // so each field answers its own tuple and neither answers the other's
+        assertArrayEquals(new float[]{16f, 16f, 16f, 0f, 0f, 0f},
+            this.walker.decompose(at("fx/ConduitRenderer", "DECOY_TRANSFORMATION", TRANSFORMATION_FIELD), null));
         assertArrayEquals(new float[]{8f, 8f, 8f, 0f, 0f, 0f},
-            this.walker.decompose("fx/ConduitRenderer", "FIELD:DEFAULT_TRANSFORMATION", null));
-        assertNull(this.walker.decompose("fx/ConduitRenderer", "FIELD:NO_SUCH_FIELD", null));
+            this.walker.decompose(at("fx/ConduitRenderer", "DEFAULT_TRANSFORMATION", TRANSFORMATION_FIELD), null));
     }
 
     @Test
-    @DisplayName("missing renderer / method decompose to null")
-    void missingTargets() {
-        assertNull(this.walker.decompose("fx/NoSuchRenderer", "createModelTransform", null));
-        assertNull(this.walker.decompose("fx/BedRenderer", "noSuchMethod", null));
+    @DisplayName("the method arm matches the descriptor exactly, never the first member of that name")
+    void methodArmIsDescriptorExact() {
+        assertThrows(ToolingException.class, () ->
+            this.walker.decompose(at("fx/BedRenderer", "createModelTransform", FLOAT_FACTORY), null));
+    }
+
+    @Test
+    @DisplayName("a coordinate the jar does not hold fails loudly")
+    void missingTargetsFailLoudly() {
+        assertThrows(ToolingException.class, () ->
+            this.walker.decompose(at("fx/NoSuchRenderer", "createModelTransform", DIRECTION_FACTORY), null));
+        assertThrows(ToolingException.class, () ->
+            this.walker.decompose(at("fx/BedRenderer", "noSuchMethod", NO_ARG_FACTORY), null));
+        assertThrows(ToolingException.class, () ->
+            this.walker.decompose(at("fx/ConduitRenderer", "NO_SUCH_FIELD", TRANSFORMATION_FIELD), null));
+    }
+
+    @Test
+    @DisplayName("a coordinate carrying no descriptor picks neither arm and fails loudly")
+    void descriptorlessEntryFailsLoudly() {
+        assertThrows(ToolingException.class, () ->
+            this.walker.decompose(new Navigation.At("fx/BedRenderer", "createModelTransform", null), null));
     }
 
     // ------------------------------------------------------------------------------------
@@ -195,7 +226,7 @@ class TransformWalkerTest {
     /** {@code BedRenderer.createModelTransform(Direction)} - translation, X90 rotate, Z(180+yaw) rotateAround. */
     private static @NotNull ClassNode bedRenderer() {
         ClassNode cn = fixture("fx/BedRenderer");
-        InsnList code = method(cn, "createModelTransform", "(L" + DIRECTION + ";)L" + TRANSFORMATION + ";");
+        InsnList code = method(cn, "createModelTransform", DIRECTION_FACTORY);
         newDup(code, TRANSFORMATION);
         newDup(code, MATRIX4F);
         init(code, MATRIX4F, "()V");
@@ -218,7 +249,7 @@ class TransformWalkerTest {
     /** {@code ShulkerBoxRenderer.createModelTransform(Direction)} - the 0.9995 z-fight fudge chain. */
     private static @NotNull ClassNode shulkerRenderer() {
         ClassNode cn = fixture("fx/ShulkerBoxRenderer");
-        InsnList code = method(cn, "createModelTransform", "(L" + DIRECTION + ";)L" + TRANSFORMATION + ";");
+        InsnList code = method(cn, "createModelTransform", DIRECTION_FACTORY);
         f(code, 0.9995f);
         code.add(new VarInsnNode(Opcodes.FSTORE, 1));
         newDup(code, TRANSFORMATION);
@@ -243,7 +274,7 @@ class TransformWalkerTest {
     /** {@code SkullBlockRenderer.createGroundTransformation(int)} - convertToDegrees + FNEG + scale(-1,-1,1). */
     private static @NotNull ClassNode skullRenderer() {
         ClassNode cn = fixture("fx/SkullBlockRenderer");
-        InsnList code = method(cn, "createGroundTransformation", "(I)L" + TRANSFORMATION + ";");
+        InsnList code = method(cn, "createGroundTransformation", INT_FACTORY);
         newDup(code, TRANSFORMATION);
         newDup(code, MATRIX4F);
         init(code, MATRIX4F, "()V");
@@ -270,7 +301,7 @@ class TransformWalkerTest {
         staticVector(clinit, cn.name, "MODEL_TRANSLATION", 0.5f, 0f, 0.5f);
         clinit.add(new InsnNode(Opcodes.RETURN));
 
-        InsnList code = method(cn, "modelTransformation", "(F)L" + TRANSFORMATION + ";");
+        InsnList code = method(cn, "modelTransformation", FLOAT_FACTORY);
         newDup(code, TRANSFORMATION);
         code.add(new FieldInsnNode(Opcodes.GETSTATIC, cn.name, "MODEL_TRANSLATION", VEC3C_DESC));
         axis(code, "YP");
@@ -290,6 +321,8 @@ class TransformWalkerTest {
      */
     private static @NotNull ClassNode conduitRenderer() {
         ClassNode cn = fixture("fx/ConduitRenderer");
+        transformationField(cn, "DECOY_TRANSFORMATION");
+        transformationField(cn, "DEFAULT_TRANSFORMATION");
         InsnList code = method(cn, "<clinit>", "()V");
         newDup(code, TRANSFORMATION);
         newDup(code, VECTOR3F);
@@ -299,7 +332,7 @@ class TransformWalkerTest {
         code.add(new InsnNode(Opcodes.ACONST_NULL));
         code.add(new InsnNode(Opcodes.ACONST_NULL));
         init(code, TRANSFORMATION, CTOR_COMPONENTS);
-        code.add(new FieldInsnNode(Opcodes.PUTSTATIC, cn.name, "DECOY_TRANSFORMATION", "L" + TRANSFORMATION + ";"));
+        code.add(new FieldInsnNode(Opcodes.PUTSTATIC, cn.name, "DECOY_TRANSFORMATION", TRANSFORMATION_FIELD));
         newDup(code, TRANSFORMATION);
         newDup(code, VECTOR3F);
         f(code, 0.5f); f(code, 0.5f); f(code, 0.5f);
@@ -308,7 +341,7 @@ class TransformWalkerTest {
         code.add(new InsnNode(Opcodes.ACONST_NULL));
         code.add(new InsnNode(Opcodes.ACONST_NULL));
         init(code, TRANSFORMATION, CTOR_COMPONENTS);
-        code.add(new FieldInsnNode(Opcodes.PUTSTATIC, cn.name, "DEFAULT_TRANSFORMATION", "L" + TRANSFORMATION + ";"));
+        code.add(new FieldInsnNode(Opcodes.PUTSTATIC, cn.name, "DEFAULT_TRANSFORMATION", TRANSFORMATION_FIELD));
         code.add(new InsnNode(Opcodes.RETURN));
         return cn;
     }
@@ -339,7 +372,7 @@ class TransformWalkerTest {
         base.add(new VarInsnNode(Opcodes.ALOAD, 2));
         base.add(new InsnNode(Opcodes.ARETURN));
 
-        InsnList body = method(cn, "bodyTransformation", "(" + ATTACHMENT_DESC + "F)L" + TRANSFORMATION + ";");
+        InsnList body = method(cn, "bodyTransformation", ATTACHMENT_FACTORY);
         newDup(body, TRANSFORMATION);
         body.add(new VarInsnNode(Opcodes.FLOAD, 1));
         body.add(new VarInsnNode(Opcodes.ALOAD, 0));
@@ -369,7 +402,7 @@ class TransformWalkerTest {
         virt(base, "translate", VEC3_OPS_DESC);
         base.add(new InsnNode(Opcodes.ARETURN));
 
-        InsnList body = method(cn, "bodyTransformation", "(F)L" + TRANSFORMATION + ";");
+        InsnList body = method(cn, "bodyTransformation", FLOAT_FACTORY);
         newDup(body, TRANSFORMATION);
         body.add(new VarInsnNode(Opcodes.FLOAD, 0));
         body.add(new MethodInsnNode(Opcodes.INVOKESTATIC, cn.name, "baseTransformation", "(F)" + MATRIX4F_RET));
@@ -383,7 +416,7 @@ class TransformWalkerTest {
     /** {@code DecoratedPotRenderer.createModelTransformation(Direction)} - the lone dropped rotateAround. */
     private static @NotNull ClassNode potRenderer() {
         ClassNode cn = fixture("fx/DecoratedPotRenderer");
-        InsnList code = method(cn, "createModelTransformation", "(L" + DIRECTION + ";)L" + TRANSFORMATION + ";");
+        InsnList code = method(cn, "createModelTransformation", DIRECTION_FACTORY);
         newDup(code, TRANSFORMATION);
         newDup(code, MATRIX4F);
         init(code, MATRIX4F, "()V");
@@ -402,7 +435,7 @@ class TransformWalkerTest {
     /** A synthetic {@code Axis.XN} rotation - vanilla has no known transform site using an N axis. */
     private static @NotNull ClassNode negatedAxisRenderer() {
         ClassNode cn = fixture("fx/NegatedAxisRenderer");
-        InsnList code = method(cn, "negatedTransform", "()L" + TRANSFORMATION + ";");
+        InsnList code = method(cn, "negatedTransform", NO_ARG_FACTORY);
         newDup(code, TRANSFORMATION);
         newDup(code, MATRIX4F);
         init(code, MATRIX4F, "()V");
@@ -416,7 +449,7 @@ class TransformWalkerTest {
     /** A translate AFTER a real rotation - unmodellable, must poison to null. */
     private static @NotNull ClassNode poisonRenderer() {
         ClassNode cn = fixture("fx/PoisonRenderer");
-        InsnList code = method(cn, "poisonTransform", "()L" + TRANSFORMATION + ";");
+        InsnList code = method(cn, "poisonTransform", NO_ARG_FACTORY);
         newDup(code, TRANSFORMATION);
         newDup(code, MATRIX4F);
         init(code, MATRIX4F, "()V");
@@ -440,6 +473,17 @@ class TransformWalkerTest {
         cn.name = internalName;
         cn.superName = "java/lang/Object";
         return cn;
+    }
+
+    /** The coordinate of a fixture's transform member - the descriptor is what tells the two arms apart. */
+    private static @NotNull Navigation.At at(@NotNull String owner, @NotNull String member, @NotNull String desc) {
+        return new Navigation.At(owner, member, desc);
+    }
+
+    /** Declares a {@code public static final Transformation} field, which the field arm looks up before its walk. */
+    private static void transformationField(@NotNull ClassNode owner, @NotNull String name) {
+        owner.fields.add(new FieldNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
+            name, TRANSFORMATION_FIELD, null, null));
     }
 
     /** Adds a private static method to the fixture and returns its instruction list. */

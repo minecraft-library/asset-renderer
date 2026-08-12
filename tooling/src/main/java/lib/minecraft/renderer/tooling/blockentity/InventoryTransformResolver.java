@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
+import lib.minecraft.renderer.tooling.policy.Navigation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -43,12 +44,12 @@ final class InventoryTransformResolver {
      * @return the transform float array node, or {@code null}
      */
     @Nullable JsonTree resolve(@NotNull String rendererClass, @NotNull String splitId) {
-        String entry = BlockTransformPolicies.rendererEntry(rendererClass);
+        Navigation.At entry = BlockTransformPolicies.rendererEntry(rendererClass);
         if (entry == null) return null;
 
         String attachment = BlockTransformPolicies.signAttachment(splitId);
         String key = rendererClass + "|" + attachment;
-        float[] tuple = this.memo.computeIfAbsent(key, ignored -> this.walker.decompose(rendererClass, entry, attachment));
+        float[] tuple = this.memo.computeIfAbsent(key, ignored -> this.walker.decompose(entry, attachment));
         if (tuple == null) return null;
         JsonTree array = JsonTree.array();
         for (float value : tuple) array.add(value);
