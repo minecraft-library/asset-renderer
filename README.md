@@ -170,7 +170,6 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ./gradlew stackCountBadge   -Plabel=experiment1                            # or -Pdiff=A,B to pixel-diff two labels
 ./gradlew fluidRenderer
 ./gradlew portalRenderer
-./gradlew packOverlay       -PrenderSize=256   # vanilla vs overlay pack, side-by-side
 ./gradlew redstoneTints     -PrenderSize=64
 ```
 
