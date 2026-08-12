@@ -14,7 +14,6 @@ import lib.minecraft.renderer.option.spec.ArmorOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.tensor.Box;
 import lombok.AccessLevel;
 import lombok.Builder;

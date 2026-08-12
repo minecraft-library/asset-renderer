@@ -27,7 +27,6 @@ import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.pipeline.util.ArgbHex;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -46,7 +45,7 @@ import java.util.Set;
  * subset, {@code grow} inflate plus the auto-emitted depth-clearance bump), pivots the option axes into
  * {@link Entity.Axes}, folds each variant option into a sub-{@link Entity}, and stamps cross-entity
  * canvas-group membership. The leaf decodes (hex tint, {@code blend} token, texture strip, transform ops)
- * happen here too, where the {@link Diagnostics} handle is available - the raw records carry them verbatim.
+ * happen here too - the raw records carry them verbatim.
  *
  * <p>Every family folds to one base row: option-encoded coats live on {@code axes.variants} and are
  * measured by the group canvas union rather than expanded into member rows of their own. That is a
@@ -75,21 +74,19 @@ public final class EntityIndexBuilder {
      *
      * @param geometries the geometry coordinate to bone tree table
      * @param rawFile the raw model catalog
-     * @param diagnostics the scope read warnings are recorded to
      * @return definitions keyed by namespaced entity id, in file order
      * @throws PipelineException if an entity references a geometry coordinate absent from the geometry file
      */
     public static @NotNull ConcurrentMap<String, Entity> assemble(
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull RawEntityModelsFile rawFile,
-        @NotNull Diagnostics diagnostics
+        @NotNull RawEntityModelsFile rawFile
     ) {
         Map<String, RawModel> models = rawFile.models();
         if (models == null) return Concurrent.newMap();
         LinkedHashMap<String, Entity> definitions = new LinkedHashMap<>();
         for (Map.Entry<String, RawModel> entry : models.entrySet()) {
             if (entry.getValue() == null) continue;
-            readDefinition(entry.getKey(), entry.getValue(), geometries, definitions, diagnostics);
+            readDefinition(entry.getKey(), entry.getValue(), geometries, definitions);
         }
         attachGroupMembers(models, definitions);
         return Concurrent.adoptMap(definitions);
@@ -166,8 +163,7 @@ public final class EntityIndexBuilder {
         @NotNull String familyId,
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull Map<String, Entity> definitions,
-        @NotNull Diagnostics diagnostics
+        @NotNull Map<String, Entity> definitions
     ) {
         // The family baseline (primary geometry + adult texture) lives under the mandatory age axis'
         // options.adult, not at top level.
@@ -183,7 +179,7 @@ public final class EntityIndexBuilder {
         // from disagreeing about where the subject is.
         RawAgeOption babyAge = ageBaby(family);
         float babyYShift = babyAge == null ? 0f : babyAge.yShift();
-        int baseTint = render == null || render.tint() == null ? WHITE : ArgbHex.parse(render.tint(), diagnostics);
+        int baseTint = render == null || render.tint() == null ? WHITE : ArgbHex.parse(render.tint());
 
         RawBones bones = family.bones();
         List<String> hiddenBones = bones == null ? null : bones.hidden();
@@ -193,13 +189,13 @@ public final class EntityIndexBuilder {
         List<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null ? List.of() : loadBlockOverlays(family.blockOverlays());
 
         Optional<String> collarTexture = collarTextureOf(family);
-        List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId, diagnostics);
+        List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId);
         boolean markings = markingsOf(family);
-        Optional<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId, diagnostics);
+        Optional<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId);
         String babyCoord = babyGeometryOf(family);
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
             : Optional.ofNullable(geometries.get(babyCoord)).map(baby -> shiftModel(baby, babyYShift));
-        List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, babyCoord, babyModel, familyId, diagnostics);
+        List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, babyCoord, babyModel, familyId);
 
         RawVariantAxis variant = variantAxis(family);
         if (variant != null) {
@@ -212,7 +208,7 @@ public final class EntityIndexBuilder {
             // is built into a sub-definition; the base row IS the default coat carrying the full option map.
             LinkedHashMap<String, Entity> coats = new LinkedHashMap<>();
             for (Map.Entry<String, RawVariantOption> option : options.entrySet())
-                coats.put(option.getKey(), buildVariantRow(familyId, option.getValue(), ctx, diagnostics));
+                coats.put(option.getKey(), buildVariantRow(familyId, option.getValue(), ctx));
             Entity base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
             Entity.Axes baseAxes = base.axes();
             definitions.put(familyId, base.toBuilder()
@@ -225,12 +221,12 @@ public final class EntityIndexBuilder {
 
         // Plain family: one row. The size / shape axes attach only to plain families, so they resolve here.
         EntityModelData model = resolveModel(geometries, baseCoord, familyId);
-        Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, familyId, diagnostics);
-        model = applyHiddenBones(model, hiddenBones, familyId, diagnostics);
+        Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, familyId);
+        model = applyHiddenBones(model, hiddenBones, familyId);
         // Ahead of the overlay load so a same-geometry pass is materialised on the shifted mesh and
         // travels with it; a pass on a mesh of its OWN would not, which the shift warns about.
         model = shiftModel(model, adult.yShift());
-        List<OverlayLayer> overlays = loadOverlays(familyOverlays, geometries, baseCoord, model, familyId, diagnostics);
+        List<OverlayLayer> overlays = loadOverlays(familyOverlays, geometries, baseCoord, model, familyId);
         Optional<String> textureRef = adult.texture() == null ? Optional.empty() : Optional.of(stripEntity(adult.texture()));
 
         Map<String, String> stateTextures = new LinkedHashMap<>();
@@ -245,8 +241,8 @@ public final class EntityIndexBuilder {
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .boneToggles(toggles)
             .axes(new Entity.Axes(stateTextures, babyModel, babyOverlays,
-                buildLargeShape(family, geometries, familyId, diagnostics),
-                buildSizeModels(family, geometries, hiddenBones, familyId, diagnostics),
+                buildLargeShape(family, geometries, familyId),
+                buildSizeModels(family, geometries, hiddenBones, familyId),
                 buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
             .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
             .build());
@@ -288,14 +284,13 @@ public final class EntityIndexBuilder {
     private static @NotNull Entity buildVariantRow(
         @NotNull String rowId,
         @NotNull RawVariantOption optionObj,
-        @NotNull VariantContext ctx,
-        @NotNull Diagnostics diagnostics
+        @NotNull VariantContext ctx
     ) {
         String rowCoord = optionObj.geometry() == null ? ctx.baseCoord() : optionObj.geometry();
         EntityModelData model = resolveModel(ctx.geometries(), rowCoord, rowId);
-        Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, rowId, diagnostics);
-        model = applyHiddenBones(model, ctx.hiddenBones(), rowId, diagnostics);
-        List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), rowCoord, model, rowId, diagnostics);
+        Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, rowId);
+        model = applyHiddenBones(model, ctx.hiddenBones(), rowId);
+        List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), rowCoord, model, rowId);
         Map<String, String> stateTextures = variantStateTextures(optionObj);
         Optional<String> textureRef = variantWildTexture(optionObj);
         return Entity.builder()
@@ -341,8 +336,7 @@ public final class EntityIndexBuilder {
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String baseCoord,
         @NotNull EntityModelData baseModel,
-        @NotNull String entityId,
-        @NotNull Diagnostics diagnostics
+        @NotNull String entityId
     ) {
         List<OverlayLayer> out = new ArrayList<>();
         for (RawOverlay entry : overlays) {
@@ -354,7 +348,8 @@ public final class EntityIndexBuilder {
             } else {
                 overlayModel = geometries.get(coord);
                 if (overlayModel == null) {
-                    diagnostics.warn("entity '%s' overlay references geometry '%s' absent from entity_geometry", entityId, coord);
+                    // TODO: restore pipeline diagnostics
+                    // diagnostics.warn("entity '%s' overlay references geometry '%s' absent from entity_geometry", entityId, coord);
                     continue;
                 }
             }
@@ -373,7 +368,7 @@ public final class EntityIndexBuilder {
             EntityModelData materialised = inflate != 0f ? inflateModel(retained, inflate) : retained;
             RawPipeline pipeline = entry.pipeline();
             boolean emissive = pipeline != null && pipeline.emissive();
-            int overlayTint = hasTint ? ArgbHex.parse(entry.tint(), diagnostics) : WHITE;
+            int overlayTint = hasTint ? ArgbHex.parse(entry.tint()) : WHITE;
             // A same-geometry overlay with no deformation of its own is excluded from the canvas-sizing
             // bounds: it renders the IDENTICAL cube tree as the base, so the base already contributes its
             // full silhouette extent. An explicit grow is a real vanilla CubeDeformation that vanilla's own
@@ -388,7 +383,7 @@ public final class EntityIndexBuilder {
             Optional<AppearanceGate> gate = parseOverlayGate(entry.when(), tintBy, overlayTint);
             // blend / alpha (default NORMAL / 1.0). `additive` -> the energy-swirl glow; `translucent` /
             // `normal` -> source-over. An un-annotated overlay keeps the NORMAL / 1.0 default.
-            BlendMode blend = parseBlend(pipeline == null ? null : pipeline.blend(), diagnostics);
+            BlendMode blend = parseBlend(pipeline == null ? null : pipeline.blend());
             float alpha = pipeline == null || pipeline.alpha() == null ? 1f : pipeline.alpha();
             // depth_write / sorted are vanilla's own DepthStencilState.writeDepth and
             // RenderSetup.sortOnUpload, each omitted at its identity: an un-annotated pass writes depth
@@ -400,7 +395,7 @@ public final class EntityIndexBuilder {
             // subtree. Derived here rather than from a second geometry coordinate precisely so
             // sameGeometry, the depth-clearance inflate and the derived skipBounds above all stand.
             Optional<EntityModelData> noHatModel = entry.noHatRoot() == null ? Optional.empty()
-                : clearSubtreeCubes(materialised, entry.noHatRoot(), entityId, diagnostics);
+                : clearSubtreeCubes(materialised, entry.noHatRoot(), entityId);
             PassDeclaration pass = new PassDeclaration(emissive, blend, alpha, writesDepth, sorted);
             out.add(new OverlayLayer(materialised, overlayTexture, pass, overlayTint, skipBounds, tintBy,
                 textureBy, gate, noHatModel));
@@ -428,7 +423,6 @@ public final class EntityIndexBuilder {
      * @param babyCoord the family's {@code age.baby} geometry coordinate, or {@code null} when it has none
      * @param babyModel the baby mesh that coordinate resolved to, or empty when it is unknown
      * @param entityId the entity the rows belong to, for diagnostics
-     * @param diagnostics the scope read warnings are recorded to
      * @return the baby overlay passes, or an empty list when no row declares a baby form
      */
     private static @NotNull List<OverlayLayer> loadBabyOverlays(
@@ -436,8 +430,7 @@ public final class EntityIndexBuilder {
         @NotNull Map<String, EntityModelData> geometries,
         @Nullable String babyCoord,
         @NotNull Optional<EntityModelData> babyModel,
-        @NotNull String entityId,
-        @NotNull Diagnostics diagnostics
+        @NotNull String entityId
     ) {
         if (babyCoord == null) return List.of();
         List<RawOverlay> forms = new ArrayList<>();
@@ -461,10 +454,11 @@ public final class EntityIndexBuilder {
         // drop loadOverlays warns about for an adult pass, warned about here rather than silently
         // returning an empty list that reads as "no row declares a baby form".
         if (babyModel.isEmpty()) {
-            diagnostics.warn("entity '%s' baby overlay references geometry '%s' absent from entity_geometry", entityId, babyCoord);
+            // TODO: restore pipeline diagnostics
+            // diagnostics.warn("entity '%s' baby overlay references geometry '%s' absent from entity_geometry", entityId, babyCoord);
             return List.of();
         }
-        return loadOverlays(forms, geometries, babyCoord, babyModel.get(), entityId, diagnostics);
+        return loadOverlays(forms, geometries, babyCoord, babyModel.get(), entityId);
     }
 
     /**
@@ -507,14 +501,15 @@ public final class EntityIndexBuilder {
      * so every fragment surviving the alpha threshold is written over the destination rather than into
      * it, alpha included.
      */
-    private static @NotNull BlendMode parseBlend(@Nullable String blend, @NotNull Diagnostics diagnostics) {
+    private static @NotNull BlendMode parseBlend(@Nullable String blend) {
         if (blend == null) return BlendMode.NORMAL;
         return switch (blend.toLowerCase(Locale.ROOT)) {
             case "additive" -> BlendMode.ADD;
             case "cutout" -> BlendMode.REPLACE;
             case "translucent", "normal" -> BlendMode.NORMAL;
             default -> {
-                diagnostics.warn("unknown overlay blend '%s' (expected normal/additive/translucent/cutout); using normal", blend);
+                // TODO: restore pipeline diagnostics
+                // diagnostics.warn("unknown overlay blend '%s' (expected normal/additive/translucent/cutout); using normal", blend);
                 yield BlendMode.NORMAL;
             }
         };
@@ -651,24 +646,24 @@ public final class EntityIndexBuilder {
     private static @NotNull Optional<Shell> humanoidArmorOf(
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull String entityId,
-        @NotNull Diagnostics diagnostics
+        @NotNull String entityId
     ) {
         for (RawLayer layer : nullToEmpty(family.layers())) {
             if (!"armor".equals(layer.id())) continue;
             RawLayerOverlay overlay = layer.overlay();
             if (overlay == null) {
-                diagnostics.warn("entity '%s' armor layer carries no mesh reference or deformations - wearer dropped", entityId);
+                // TODO: restore pipeline diagnostics
+                // diagnostics.warn("entity '%s' armor layer carries no mesh reference or deformations - wearer dropped", entityId);
                 return Optional.empty();
             }
             RawArmorAlternate raw = overlay.alternate();
             Optional<Shell.Alternate> alternate = Optional.empty();
             if (raw != null) {
-                alternate = alternateShellOf(raw, geometries, entityId, diagnostics);
+                alternate = alternateShellOf(raw, geometries, entityId);
                 if (alternate.isEmpty()) return Optional.empty();
             }
             return shellOf(overlay.geometry(), overlay.grow(), overlay.scaled(), ArmorForm.ADULT, alternate,
-                geometries, entityId, diagnostics);
+                geometries, entityId);
         }
         return Optional.empty();
     }
@@ -686,24 +681,25 @@ public final class EntityIndexBuilder {
     private static @NotNull Optional<Shell.Alternate> alternateShellOf(
         @NotNull RawArmorAlternate raw,
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull String entityId,
-        @NotNull Diagnostics diagnostics
+        @NotNull String entityId
     ) {
         Optional<AppearanceGate> when = parseAlternateGate(raw.when());
         if (when.isEmpty()) {
-            diagnostics.warn("entity '%s' alternate armor shell names no appearance selection - wearer dropped", entityId);
+            // TODO: restore pipeline diagnostics
+            // diagnostics.warn("entity '%s' alternate armor shell names no appearance selection - wearer dropped", entityId);
             return Optional.empty();
         }
         Optional<ArmorForm> form = raw.form() == null
             ? Optional.of(ArmorForm.ADULT)
             : enumOf(ArmorForm.class, raw.form());
         if (form.isEmpty()) {
-            diagnostics.warn("entity '%s' alternate armor shell names unknown form '%s' - wearer dropped",
-                entityId, raw.form());
+            // TODO: restore pipeline diagnostics
+            // diagnostics.warn("entity '%s' alternate armor shell names unknown form '%s' - wearer dropped",
+            // entityId, raw.form());
             return Optional.empty();
         }
         return shellOf(raw.geometry(), raw.grow(), raw.scaled(), form.get(), Optional.empty(),
-            geometries, entityId, diagnostics)
+            geometries, entityId)
             .map(shell -> new Shell.Alternate(when.get(), shell));
     }
 
@@ -742,18 +738,19 @@ public final class EntityIndexBuilder {
         @NotNull ArmorForm form,
         @NotNull Optional<Shell.Alternate> alternate,
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull String entityId,
-        @NotNull Diagnostics diagnostics
+        @NotNull String entityId
     ) {
         if (geometry == null || grow == null || grow.inner() == null || grow.outer() == null) {
-            diagnostics.warn("entity '%s' %s armor shell carries no mesh reference or deformations - wearer dropped",
-                entityId, form.name().toLowerCase(Locale.ROOT));
+            // TODO: restore pipeline diagnostics
+            // diagnostics.warn("entity '%s' %s armor shell carries no mesh reference or deformations - wearer dropped",
+            // entityId, form.name().toLowerCase(Locale.ROOT));
             return Optional.empty();
         }
         EntityModelData mesh = geometries.get(geometry);
         if (mesh == null) {
-            diagnostics.warn("entity '%s' %s armor shell references geometry '%s' absent from entity_geometry",
-                entityId, form.name().toLowerCase(Locale.ROOT), geometry);
+            // TODO: restore pipeline diagnostics
+            // diagnostics.warn("entity '%s' %s armor shell references geometry '%s' absent from entity_geometry",
+            // entityId, form.name().toLowerCase(Locale.ROOT), geometry);
             return Optional.empty();
         }
         return Optional.of(new Shell(mesh, grow.inner(), grow.outer(),
@@ -769,8 +766,7 @@ public final class EntityIndexBuilder {
     private static @NotNull List<EquipmentOverlay> loadEquipment(
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull String entityId,
-        @NotNull Diagnostics diagnostics
+        @NotNull String entityId
     ) {
         List<EquipmentOverlay> out = new ArrayList<>();
         for (RawLayer layer : nullToEmpty(family.layers())) {
@@ -782,12 +778,14 @@ public final class EntityIndexBuilder {
             String coord = overlay.geometry();
             EntityModelData model = geometries.get(coord);
             if (model == null) {
-                diagnostics.warn("entity '%s' equipment layer references geometry '%s' absent from entity_geometry", entityId, coord);
+                // TODO: restore pipeline diagnostics
+                // diagnostics.warn("entity '%s' equipment layer references geometry '%s' absent from entity_geometry", entityId, coord);
                 continue;
             }
             Optional<LayerType> layerType = LayerType.fromId(overlay.layerType());
             if (layerType.isEmpty()) {
-                diagnostics.warn("entity '%s' equipment layer names unknown layer type '%s'", entityId, overlay.layerType());
+                // TODO: restore pipeline diagnostics
+                // diagnostics.warn("entity '%s' equipment layer names unknown layer type '%s'", entityId, overlay.layerType());
                 continue;
             }
             Map<String, ResourceId> materialAssets = new LinkedHashMap<>();
@@ -806,8 +804,7 @@ public final class EntityIndexBuilder {
     private static @NotNull Optional<LargeShape> buildLargeShape(
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull String entityId,
-        @NotNull Diagnostics diagnostics
+        @NotNull String entityId
     ) {
         RawAxes axes = family.axes();
         if (axes == null || axes.shape() == null) return Optional.empty();
@@ -816,7 +813,7 @@ public final class EntityIndexBuilder {
         String coord = large.geometry();
         EntityModelData model = geometries.get(coord);
         if (model == null) return Optional.empty();
-        List<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), geometries, coord, model, entityId, diagnostics);
+        List<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), geometries, coord, model, entityId);
         Optional<String> textureRef = large.texture() != null ? Optional.of(stripEntity(large.texture())) : Optional.of("");
         return Optional.of(new LargeShape(model, textureRef, overlays));
     }
@@ -836,8 +833,7 @@ public final class EntityIndexBuilder {
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
         @Nullable List<String> hiddenBones,
-        @NotNull String entityId,
-        @NotNull Diagnostics diagnostics
+        @NotNull String entityId
     ) {
         Map<String, RawSizeOption> options = sizeOptions(family);
         if (options == null) return Map.of();
@@ -848,7 +844,7 @@ public final class EntityIndexBuilder {
             if (body.geometry() == null) continue;
             EntityModelData mesh = geometries.get(body.geometry());
             if (mesh == null) continue;
-            mesh = shiftModel(applyHiddenBones(mesh, hiddenBones, entityId, diagnostics), yShift);
+            mesh = shiftModel(applyHiddenBones(mesh, hiddenBones, entityId), yShift);
             out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
         }
         return out;
@@ -929,8 +925,7 @@ public final class EntityIndexBuilder {
     private static @NotNull Map<String, BoneToggle> loadBoneToggles(
         @Nullable Map<String, RawToggle> toggles,
         @NotNull EntityModelData fullModel,
-        @NotNull String entityId,
-        @NotNull Diagnostics diagnostics
+        @NotNull String entityId
     ) {
         if (toggles == null) return Map.of();
         Map<String, BoneToggle> out = new LinkedHashMap<>();
@@ -943,7 +938,8 @@ public final class EntityIndexBuilder {
                 if (boneName == null) continue;
                 EntityModelData.Bone bone = fullModel.getBones().get(boneName);
                 if (bone == null) {
-                    diagnostics.warn("entity '%s' bone_toggles '%s' names bone '%s' which is not on the geometry", entityId, entry.getKey(), boneName);
+                    // TODO: restore pipeline diagnostics
+                    // diagnostics.warn("entity '%s' bone_toggles '%s' names bone '%s' which is not on the geometry", entityId, entry.getKey(), boneName);
                     continue;
                 }
                 bones.put(boneName, bone);
@@ -962,15 +958,16 @@ public final class EntityIndexBuilder {
     private static @NotNull EntityModelData applyHiddenBones(
         @NotNull EntityModelData model,
         @Nullable List<String> hiddenBones,
-        @NotNull String entityId,
-        @NotNull Diagnostics diagnostics
+        @NotNull String entityId
     ) {
         if (hiddenBones == null) return model;
         LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(model.getBones());
         for (String name : hiddenBones) {
             if (name == null) continue;
-            if (bones.remove(name) == null)
-                diagnostics.warn("entity '%s' hidden_bones names bone '%s' which is not on the geometry", entityId, name);
+            // TODO: restore pipeline diagnostics
+            // if (bones.remove(name) == null)
+            //     diagnostics.warn("entity '%s' hidden_bones names bone '%s' which is not on the geometry", entityId, name);
+            bones.remove(name);
         }
         return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(), Concurrent.adoptLinkedMap(bones), model.isCull());
     }
@@ -1012,18 +1009,17 @@ public final class EntityIndexBuilder {
      * @param source the mesh to derive from
      * @param rootBone the subtree root whose cubes (and its descendants') are emptied
      * @param entityId the entity the overlay belongs to, for the diagnostic
-     * @param diagnostics the load-time warning channel
      * @return the cleared mesh, or empty when {@code rootBone} is not on the geometry
      */
     static @NotNull Optional<EntityModelData> clearSubtreeCubes(
         @NotNull EntityModelData source,
         @NotNull String rootBone,
-        @NotNull String entityId,
-        @NotNull Diagnostics diagnostics
+        @NotNull String entityId
     ) {
         Map<String, EntityModelData.Bone> bones = source.getBones();
         if (!bones.containsKey(rootBone)) {
-            diagnostics.warn("entity '%s' overlay no_hat_root names bone '%s' which is not on the geometry", entityId, rootBone);
+            // TODO: restore pipeline diagnostics
+            // diagnostics.warn("entity '%s' overlay no_hat_root names bone '%s' which is not on the geometry", entityId, rootBone);
             return Optional.empty();
         }
         Set<String> root = Set.of(rootBone);

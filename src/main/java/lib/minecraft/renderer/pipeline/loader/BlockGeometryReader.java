@@ -6,7 +6,6 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,14 +27,13 @@ public final class BlockGeometryReader {
      * Reads the geometry table from {@code block_geometry.json} and overlays the pack override channel
      * per coordinate.
      *
-     * @param diagnostics the scope envelope warnings are recorded to
      * @param overrides the gathered pack override channel; {@link BlockRendererOverrides#EMPTY} for a
      *     vanilla-only stack
      * @return geometry coordinate to bone tree, base-first with later packs winning per coordinate
      * @throws PipelineException if the resource is missing or malformed
      */
-    static @NotNull Map<String, EntityModelData> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
-        ResourceDocument document = BundledResource.require(RESOURCE_NAME, diagnostics);
+    static @NotNull Map<String, EntityModelData> load(@NotNull BlockRendererOverrides overrides) {
+        ResourceDocument document = BundledResource.require(RESOURCE_NAME);
         Map<String, EntityModelData> geometries = new LinkedHashMap<>(document.as(BlockGeometryFile.class).geometries());
         for (Map.Entry<String, JsonTree> override : overrides.geometries().members().toList())
             geometries.put(override.getKey(), override.getValue().as(EntityModelData.class));

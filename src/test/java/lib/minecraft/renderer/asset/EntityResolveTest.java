@@ -5,7 +5,6 @@ import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,14 +22,14 @@ import static org.hamcrest.Matchers.is;
  * {@link EntityAppearance}, the only coverage those arms have.
  * <p>
  * The class initialiser builds the whole shipped entity index through
- * {@link EntityModelLoader#load(Diagnostics)} to reach two subjects, so the class costs a full index load
+ * {@link EntityModelLoader#load()} to reach two subjects, so the class costs a full index load
  * and carries no slow tag.
  */
 @DisplayName("Entity.resolve appearance gates")
 class EntityResolveTest {
 
     private static final @NotNull ConcurrentMap<String, Entity> DEFS =
-        EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        EntityModelLoader.load();
 
     @Test
     @DisplayName("charged gate: the creeper energy swirl renders only when charged")

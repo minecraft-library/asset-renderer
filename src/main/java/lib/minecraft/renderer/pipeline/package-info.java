@@ -3,8 +3,8 @@
  * pack directories into the populated DTOs the renderer reads through a
  * {@link lib.minecraft.renderer.engine.RendererContext RendererContext}.
  *
- * <p><b>Orchestrator.</b> {@link lib.minecraft.renderer.pipeline.ClientAcquisition ClientAcquisition} is the lone
- * entry point: one {@link lib.minecraft.renderer.pipeline.ClientOptions ClientOptions} call
+ * <p><b>Orchestrator.</b> {@link lib.minecraft.renderer.client.ClientAcquisition ClientAcquisition} is the lone
+ * entry point: one {@link lib.minecraft.renderer.client.ClientOptions ClientOptions} call
  * downloads the version's client jar (via the {@code MojangContract} Feign proxy with shared
  * domain-aware rate limiting), extracts the {@code assets/} + {@code data/} subtrees, walks the
  * active pack stack with each domain loader (models, blockstates, tags, textures, colormaps,
@@ -36,8 +36,9 @@
  * {@code GsonContributor} {@link java.util.ServiceLoader ServiceLoader} SPI, so any downstream
  * {@code GsonSettings.defaults()} build deserializes asset JSON automatically.
  *
- * @see lib.minecraft.renderer.pipeline.ClientAcquisition
+ * @see lib.minecraft.renderer.client.ClientAcquisition
  * @see lib.minecraft.renderer.pipeline.PipelineRendererContext
  * @see lib.minecraft.renderer.engine.RendererContext
  */
 package lib.minecraft.renderer.pipeline;
+

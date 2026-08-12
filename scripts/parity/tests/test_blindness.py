@@ -277,7 +277,7 @@ class TheShippedMap(unittest.TestCase):
 
     def test_a_tooling_change_empties_every_sweep(self):
         reach = blindness.resolve(
-            ["src/main/java/lib/minecraft/renderer/tooling/entity/EntityBoneResolver.java"],
+            ["tooling/src/main/java/lib/minecraft/renderer/tooling/entity/EntityBoneResolver.java"],
             self.rules, self.no_reach)
         self.assertEqual([a for a in reach.sees if a.startswith("sweep.")], [])
         self.assertIn("manifest.tooling-tables", reach.sees)
@@ -398,10 +398,12 @@ class TheTwoIdNamespaces(unittest.TestCase):
     """
 
     #: Where the gate's prose lives and therefore where either id can be spelled: the toolkit, the
-    #: skill, the store's Java (which renders two of the skill's reference files), and the build file
-    #: the tasks each refusal comes out of are registered in.
+    #: skill, the store's Java (which renders two of the skill's reference files), and the build
+    #: scripts the tasks each refusal comes out of are registered in - the root one and the parity one
+    #: the split moved those registrations into.
     SURFACES = ("scripts/parity", ".claude/skills/parity-gate",
-                "src/test/java/lib/minecraft/renderer/parity", "build.gradle.kts")
+                "src/test/java/lib/minecraft/renderer/parity", "build.gradle.kts",
+                "gradle/parity.gradle.kts")
 
     #: The suffixes a surface is walked for, which is the second operand of the same scan: dropping
     #: one stops reading a whole language's worth of prose and leaves every case below green.
@@ -650,6 +652,7 @@ class TheTwoIdNamespaces(unittest.TestCase):
         would land, so a drop of either is a real loss of reach and is asserted directly.
         """
         self.assertIn("build.gradle.kts", self.SURFACES)
+        self.assertIn("gradle/parity.gradle.kts", self.SURFACES)
         self.assertIn("*.kts", self.SUFFIXES)
 
     def _cited(self, text: str) -> list[str]:

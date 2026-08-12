@@ -41,12 +41,12 @@ import lib.minecraft.renderer.asset.pack.rule.NbtPredicate;
 import lib.minecraft.renderer.asset.pack.rule.NbtRule;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.asset.pack.rule.TileRef;
+import lib.minecraft.renderer.client.ClientAcquisition;
+import lib.minecraft.renderer.client.ClientAssets;
+import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.parity.CanonicalJson;
 import lib.minecraft.renderer.parity.ParityJson;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientAssets;
-import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockItemsLoader;
@@ -67,7 +67,6 @@ import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.Color;
@@ -751,9 +750,8 @@ public final class PipelineParityDump {
         root.add("potion_effect_colors", CanonicalJson.map(PotionColorLoader.load(), color -> CanonicalJson.argb(color.getRGB())));
         root.add("glint_items", CanonicalJson.strings(GlintItemsLoader.load()));
 
-        Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.NONE, null);
-        root.add("block_default_state_keys", CanonicalJson.map(BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag)), m -> new JsonPrimitive(BlockStateKey.join(m))));
-        root.add("block_item_aliases", CanonicalJson.map(BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.NONE, null)), JsonPrimitive::new));
+        root.add("block_default_state_keys", CanonicalJson.map(BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack)), m -> new JsonPrimitive(BlockStateKey.join(m))));
+        root.add("block_item_aliases", CanonicalJson.map(BlockItemsLoader.load(), JsonPrimitive::new));
 
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         // Not the parsed item definitions the name suggests, and not every item: the loader keeps an

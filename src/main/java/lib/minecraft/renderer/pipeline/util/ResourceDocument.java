@@ -5,22 +5,17 @@ import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.JsonTree;
 import dev.simplified.gson.exception.JsonException;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Envelope-aware reader for a bundled {@code *.json} asset resource.
  *
- * <p>{@link #open(byte[], Diagnostics)} parses the payload, asserts the {@code format == 2}
- * discriminator, and surfaces a {@code source_version} mismatch against the expected
- * {@value #EXPECTED_SOURCE_VERSION} to the supplied {@link Diagnostics} as a warning rather than a
- * silent proceed. The envelope members are validated and not retained - a caller learns a bad
- * {@code format} from the throw and a stale {@code source_version} from the diagnostic. The parsed
- * node is exposed through {@link #payload()} for structural reads and {@link #as(Class)} for
- * whole-document deserialisation into a typed DTO.
+ * <p>{@link #open(byte[])} parses the payload and asserts the {@code format == 2} discriminator. The
+ * envelope members are validated and not retained - a caller learns a bad {@code format} from the
+ * throw. The parsed node is exposed through {@link #payload()} for structural reads and
+ * {@link #as(Class)} for whole-document deserialisation into a typed DTO.
  *
  * <p>Reading reuses the {@link JsonTree} read surface rather than a bespoke navigator.
  */
@@ -45,12 +40,11 @@ public final class ResourceDocument {
      * Parses and envelope-validates a resource's UTF-8 bytes.
      *
      * @param utf8 the raw resource bytes
-     * @param diagnostics the scope a {@code source_version} mismatch is warned to
      * @return the validated document
      * @throws PipelineException if the bytes are not parseable JSON, or carry a {@code format} other
      *     than {@value #EXPECTED_FORMAT}
      */
-    public static @NotNull ResourceDocument open(byte @NotNull [] utf8, @NotNull Diagnostics diagnostics) {
+    public static @NotNull ResourceDocument open(byte @NotNull [] utf8) {
         JsonTree payload;
         try {
             payload = JsonTree.parse(utf8);
@@ -62,9 +56,10 @@ public final class ResourceDocument {
         if (format != EXPECTED_FORMAT)
             throw new PipelineException("Resource declares format '%d', expected '%d'", format, EXPECTED_FORMAT);
 
-        @Nullable String sourceVersion = payload.findString("source_version").orElse(null);
-        if (!EXPECTED_SOURCE_VERSION.equals(sourceVersion))
-            diagnostics.warn("Resource source_version '%s' does not match expected '%s'", sourceVersion, EXPECTED_SOURCE_VERSION);
+        // TODO: restore pipeline diagnostics
+        // @Nullable String sourceVersion = payload.findString("source_version").orElse(null);
+        // if (!EXPECTED_SOURCE_VERSION.equals(sourceVersion))
+        //     diagnostics.warn("Resource source_version '%s' does not match expected '%s'", sourceVersion, EXPECTED_SOURCE_VERSION);
 
         return new ResourceDocument(payload);
     }

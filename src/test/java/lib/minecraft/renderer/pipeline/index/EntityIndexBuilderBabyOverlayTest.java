@@ -10,7 +10,6 @@ import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -40,11 +39,6 @@ class EntityIndexBuilderBabyOverlayTest {
     private static final String CONTROL = "minecraft:test_sheep";
     private static final String ADULT_COORD = "TestVillagerModel#createBodyModel";
     private static final String BABY_COORD = "BabyTestVillagerModel#createBodyModel";
-
-    private static Diagnostics diagnostics() {
-        return Diagnostics.root("test", Diagnostics.Output.NONE, null);
-    }
-
     /**
      * A villager-shaped mesh: {@code head} carries {@code hat} / {@code hat_rim} / {@code nose} beside an
      * untouched {@code body}, plus one bone unique to this mesh so the two meshes are distinguishable by
@@ -232,7 +226,7 @@ class EntityIndexBuilderBabyOverlayTest {
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, villagerFamily());
         models.put(CONTROL, controlFamily());
-        return EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), diagnostics());
+        return EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models));
     }
 
     @Test
@@ -304,7 +298,7 @@ class EntityIndexBuilderBabyOverlayTest {
             ageAxes("minecraft:textures/entity/llama/llama_creamy.png",
                 "minecraft:textures/entity/llama/llama_creamy_baby.png"),  // axes
             null));                                      // group_of
-        Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), diagnostics()).get(ENTITY);
+        Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models)).get(ENTITY);
 
         assertThat("the adult decor inflates by its row grow",
             firstCubeGrow(llama.overlays().getFirst().model()), is(0.5f));

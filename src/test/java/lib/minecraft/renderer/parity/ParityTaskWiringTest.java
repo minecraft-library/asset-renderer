@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import lib.minecraft.renderer.support.BuildScripts;
 
 /**
  * Pins the build-file wiring the parity refusals rest on, none of which any run of the suite reaches.
@@ -278,7 +279,7 @@ final class ParityTaskWiringTest {
 
     /** The edge that puts this build's two cheap gates on a default verification run. */
     private static final String CHECK_SCHEDULES_THE_CHEAP_GATES =
-        "named(\"check\") { dependsOn(\"paritySelfTest\", \"harnessClasses\") }";
+        "named(\"check\") { dependsOn(\"paritySelfTest\", \"harnessClasses\", \"toolingTest\") }";
 
     /** That edge's operand list, for reading back which tasks it actually names. */
     private static final Pattern CHECK_SCHEDULES =
@@ -666,17 +667,18 @@ final class ParityTaskWiringTest {
     }
 
     @Test
-    @DisplayName("a verification run schedules both cheap gates the fast suite does not reach")
+    @DisplayName("a verification run schedules every cheap gate the fast suite does not reach")
     void checkSchedulesTheGatesNothingElseSchedules() {
         String build = collapsed(buildFile());
 
-        assertThat("the edge WHOLE, both operands included. Without it `check` reached `test` and "
+        assertThat("the edge WHOLE, every operand included. Without it `check` reached `test` and "
                 + "nothing else: the toolkit's own suite ran only when a parity task pulled it in - "
-                + "the very run the toolkit is being trusted to compute - and the harness, a "
+                + "the very run the toolkit is being trusted to compute - the harness, a "
                 + "separate Gradle build, was compiled by nothing in this one, so an edit to it that "
-                + "does not compile waited for a client boot. Each is one line and each was written "
-                + "as one, so what a deletion leaves behind is a suite that stays green over the "
-                + "hole it opened",
+                + "does not compile waited for a client boot, and the tooling source set's own suite "
+                + "is a separate compilation `test` cannot reach at all. Each is one line and each "
+                + "was written as one, so what a deletion leaves behind is a suite that stays green "
+                + "over the hole it opened",
             build, containsString(CHECK_SCHEDULES_THE_CHEAP_GATES));
 
         Set<String> scheduled = new TreeSet<>();
@@ -970,24 +972,34 @@ final class ParityTaskWiringTest {
             collapsed(function("assetPropertiesInForce")), equalTo(RECORDS_EVERY_ASSET_PROPERTY));
         assertThat("and no site filters on a prefix of its own beside them",
             occurrences(collapsed(build), "startsWith(\"asset"), is(equalTo(0)));
-        assertThat("the two parity roots are put on a fork AFTER the forwarder and outside it, and "
-                + "that is where a fork's flags and a record's part company. systemProperty sets a "
-                + "property in the FORKED JVM; assetPropertiesInForce reads the DAEMON's table. So a "
-                + "root is recorded when a command line put it in the daemon and not because the "
-                + "build put it on a fork - measured both ways on this tree: with no -D the daemon "
-                + "held no asset.* and a capture would record none, while a Test fork was configured "
-                + "with both roots; under -Dasset.parity.root the daemon held that one and a capture "
+        assertThat("the two parity roots, once per fork type, as a pair. systemProperty sets a "
+                + "property in the FORKED JVM; the recorder reads the DAEMON's table. So a root is "
+                + "recorded when a command line put it in the daemon and not because the build put "
+                + "it on a fork - measured both ways on this tree: with no -D the daemon held no "
+                + "asset.* and a capture would record none, while a Test fork was configured with "
+                + "both roots; under -Dasset.parity.root the daemon held that one and a capture "
                 + "records it, while asset.parity.references, which neither run set on the command "
-                + "line, stayed on the fork and out of the record both times. Pinned so that stays "
-                + "the arrangement - reordered, the forwarder overwrites the resolved roots with "
-                + "whatever the daemon held, and dropped, a fork stops carrying them at all",
+                + "line, stayed on the fork and out of the record both times. Dropped, a fork stops "
+                + "carrying them at all",
             occurrences(collapsed(build),
-                "forwardAssetProperties() systemProperty(\"asset.parity.root\", parityWorkingRoot) "
+                "systemProperty(\"asset.parity.root\", parityWorkingRoot) "
                     + "systemProperty(\"asset.parity.references\", parityReferenceRoot)"),
             is(equalTo(2)));
+        String rootScript = collapsed(BuildScripts.read(BuildScripts.ROOT));
+        assertThat("and the script that sets them is applied AFTER the forwarding, which is what "
+                + "orders the two configureEach blocks: Gradle runs their actions in registration "
+                + "order, so the resolved root still lands on a fork after the daemon's own table "
+                + "was copied onto it. Reordered, the forwarder overwrites the resolved roots with "
+                + "whatever the daemon held. Read off the root script rather than the join, because "
+                + "the join's order is this reader's and the apply order is the build's",
+            rootScript.indexOf("apply(from = \"gradle/parity.gradle.kts\")")
+                > rootScript.lastIndexOf("forwardAssetProperties()"),
+            is(true));
+        assertThat("walked once, in the script that owns the prefix, and published as a value",
+            rootScript, containsString("extra[\"assetFlagsInForce\"] = assetPropertiesInForce()"));
         assertThat("collected once, so the fork's list and the capture's cannot be two walks",
             collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
-            containsString("val assetFlags = assetPropertiesInForce()"));
+            containsString("val assetFlags = assetFlagsInForce"));
         assertThat("one --flag per resolved property. A fork inherits them from a long-lived daemon "
                 + "rather than from the command line, so two captures typed identically can "
                 + "disagree and nothing else ever writes that difference down",
@@ -1424,7 +1436,7 @@ final class ParityTaskWiringTest {
     }
 
     private static String buildFile() {
-        return read(Path.of("build.gradle.kts"));
+        return BuildScripts.all();
     }
 
     /**

@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import lib.minecraft.renderer.support.BuildScripts;
 
 /**
  * Proves a self-captured row is written into an open capture and never into a finished one.
@@ -161,7 +162,7 @@ final class SelfCaptureTest {
     @Test
     @DisplayName("the build installs the listener that carries a decline to the console")
     void theBuildForwardsTheDeclineToTheConsole() {
-        Matcher listener = FORWARDING_LISTENER.matcher(read(Path.of("build.gradle.kts")));
+        Matcher listener = FORWARDING_LISTENER.matcher(BuildScripts.all());
         assertThat("Gradle shows a test's own output to nobody, so with no listener on the test "
                 + "task the decline is written to a stream nothing reads - which is the silence "
                 + "every case in this class exists to rule out, restored by deleting four lines. "
@@ -175,7 +176,7 @@ final class SelfCaptureTest {
     @Test
     @DisplayName("the prefix the build forwards to the console is the one a decline prints")
     void theForwardedPrefixIsTheOneADeclinePrints(@TempDir Path root) {
-        Matcher declared = FORWARDED_PREFIX.matcher(read(Path.of("build.gradle.kts")));
+        Matcher declared = FORWARDED_PREFIX.matcher(BuildScripts.all());
         assertThat("the build must declare the prefix its test-output listener forwards; a listener "
                 + "filtering on a literal nothing relates to this class forwards nothing and still "
                 + "reads as wired",

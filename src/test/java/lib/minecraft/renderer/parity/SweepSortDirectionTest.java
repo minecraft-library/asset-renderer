@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import lib.minecraft.renderer.support.BuildScripts;
 
 /**
  * One sort direction across the six sweep writers, asserted on their sources.
@@ -50,7 +51,6 @@ final class SweepSortDirectionTest {
         "TestPlayerParityVanilla.java", "TestArmorParityVanilla.java", "TestGlintParityVanilla.java");
 
     /** Where the build file registers the task that runs each writer. */
-    private static final Path BUILD_FILE = Path.of("build.gradle.kts");
 
     /** The id prefix of the artifacts whose producers are the writers, which is what selects them. */
     private static final String SWEEP_ID_PREFIX = "sweep.";
@@ -104,7 +104,7 @@ final class SweepSortDirectionTest {
      * @return the writers found, beside the producers whose writer could not be read
      */
     private static ProducerWriters writersTheSweepProducersRun() {
-        String build = read(BUILD_FILE);
+        String build = BuildScripts.all();
         List<String> found = new ArrayList<>();
         List<String> unreadable = new ArrayList<>();
         for (ParityArtifacts.Registration registration : ParityArtifacts.ALL) {

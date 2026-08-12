@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bench;
 
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
-import lib.minecraft.renderer.pipeline.ClientOptions;
+import lib.minecraft.renderer.client.ClientAcquisition;
+import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;

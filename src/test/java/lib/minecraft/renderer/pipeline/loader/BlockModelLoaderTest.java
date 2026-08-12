@@ -2,7 +2,6 @@ package lib.minecraft.renderer.pipeline.loader;
 
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.option.spec.DyeColor;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,7 +18,7 @@ import static org.hamcrest.Matchers.notNullValue;
 class BlockModelLoaderTest {
 
     private static @NotNull BlockModelLoader.LoadResult load() {
-        return BlockModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        return BlockModelLoader.load();
     }
 
     @Test

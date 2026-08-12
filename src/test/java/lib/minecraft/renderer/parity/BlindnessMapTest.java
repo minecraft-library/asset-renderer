@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import lib.minecraft.renderer.support.BuildScripts;
 
 /**
  * Checks that the blindness map still refers to real things.
@@ -250,7 +251,7 @@ final class BlindnessMapTest {
      * <p>Sorted, because that comparison is against a file list and a list is ordered.
      */
     private static final List<String> MEMBERSHIP_DECLARATIONS =
-        List.of("build.gradle.kts", "scripts/parity/manifest.py");
+        List.of("gradle/visual.gradle.kts", "scripts/parity/manifest.py");
 
     /** The skill body, whose frontmatter is what decides when the gate is offered at all. */
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
@@ -1374,18 +1375,25 @@ final class BlindnessMapTest {
      */
     private static Map<String, String> testTaskInputs() {
         String build = buildFile();
-        int start = build.indexOf("tasks.withType<Test>()");
-        if (start < 0) throw new AssertionError("build.gradle.kts configures no Test task");
-        int end = build.indexOf("\n}", start);
-        if (end < 0) throw new AssertionError("the Test block has no line-initial closing brace");
         Map<String, String> out = new LinkedHashMap<>();
-        Matcher matcher = Pattern
+        Pattern declaration = Pattern
             .compile("inputs\\.(?:file|files|dir)\\(([^)]*)\\)\\.withPropertyName\\(\"([^\"]+)\"\\)"
-                + "|inputs\\.property\\(\"([^\"]+)\", ([^)]*)\\)")
-            .matcher(build.substring(start, end));
-        while (matcher.find())
-            if (matcher.group(2) != null) out.put(matcher.group(2), matcher.group(1));
-            else out.put(matcher.group(3), matcher.group(4));
+                + "|inputs\\.property\\(\"([^\"]+)\", ([^)]*)\\)");
+        // Every block, not the first: the flags a fork needs and the inputs a guard reads are two
+        // concerns and sit in two scripts, and `configureEach` is additive, so what the task declares
+        // is their union. Reading one block would answer with whichever script the join put first.
+        int found = 0;
+        for (int start = build.indexOf("tasks.withType<Test>()"); start >= 0;
+             start = build.indexOf("tasks.withType<Test>()", start + 1)) {
+            found++;
+            int end = build.indexOf("\n}", start);
+            if (end < 0) throw new AssertionError("a Test block has no line-initial closing brace");
+            Matcher matcher = declaration.matcher(build.substring(start, end));
+            while (matcher.find())
+                if (matcher.group(2) != null) out.put(matcher.group(2), matcher.group(1));
+                else out.put(matcher.group(3), matcher.group(4));
+        }
+        if (found == 0) throw new AssertionError("the build scripts configure no Test task");
         return out;
     }
 
@@ -1426,7 +1434,7 @@ final class BlindnessMapTest {
 
     /** The build file's text. */
     private static String buildFile() {
-        return text(Path.of("build.gradle.kts"));
+        return BuildScripts.all();
     }
 
     /**

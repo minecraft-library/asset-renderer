@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.client.VanillaSourcePaths;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;

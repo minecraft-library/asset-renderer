@@ -18,6 +18,7 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.model.ModelTexture;
+import lib.minecraft.renderer.client.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

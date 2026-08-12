@@ -8,13 +8,35 @@ Gate questions go through the `parity-gate` skill, `.claude/skills/parity-gate/S
 
 ## Build
 
+- `build.gradle.kts` keeps what every task needs - the toolchain, the vector flag, the asset-property
+  forwarding, the dependencies - and applies three scripts from `gradle/` for the rest:
+  `tooling.gradle.kts` (the flow shims), `visual.gradle.kts` (the render drivers) and
+  `parity.gradle.kts` (the store, the harness runs, the capture steps). They are applied at the END
+  of the root script and in that order, because each resolves tasks by name and `named` answers only
+  for one already registered.
+  - An applied script sees no declaration of the root's and gets no type-safe accessors. Both are why
+    `val sourceSets = the<SourceSetContainer>()` opens two of them, and why the one value they need
+    from the root - the resolved `-Dasset.*` set - crosses as `extra["assetFlagsInForce"]` rather
+    than as the function that computes it.
+  - The guards read all four as one text through `BuildScripts.all()`, so what they pin is what the
+    build declares rather than which file declares it.
 - JDK 21 with the **Vector API incubator** (`--add-modules=jdk.incubator.vector`), wired into
   JavaCompile, Test, JavaExec, JMH and Javadoc in `build.gradle.kts`. Missing it on a JVM launch is a
   class-not-found at load, never a silent fallback; missing it on `javadoc` is `SimdOps` reporting
   the package as not visible. `javadoc` stays red either way - every error it has left is a
   Lombok-generated builder an annotation processor produces and the doclet cannot see - so it is
   wired because the flag belongs everywhere it is read, not because the task becomes usable.
-- ASM 9.8 reads Java 25 class files; the tooling flows walk client-jar bytecode with it.
+- ASM 9.8 reads Java 25 class files; the tooling flows walk client-jar bytecode with it. It is
+  declared in the tooling build alone, so it is on no renderer classpath and in no published JAR.
+- Three builds sit beside this one: `client` and `tooling`, which it includes, and the harness, which
+  it reaches by shelling into that wrapper, as it does the generator flows.
+- `client/` is a leaf holding client-jar acquisition - `ClientAcquisition`, `ClientOptions`,
+  `ClientAssets`, `VanillaSourcePaths` - under `lib.minecraft.renderer.client`. Both this build and
+  the generators read it and it reads neither. It is the one place in the repo that touches the
+  network, and it raises `ClientException` off `RuntimeException` rather than `RendererException`, so
+  a batch renderer's skip-and-continue cannot swallow a client that failed to acquire.
+- The generators are their own Gradle build at `tooling/`, a sibling of the harness - see
+  [tooling/CLAUDE.md]. This build knows it only as an `Exec` into its wrapper.
 - JitPack dependencies are `strictly()`-pinned inline in `build.gradle.kts`; bump by editing the
   version string. `./gradlew dependencies` for the live set.
 
@@ -23,11 +45,13 @@ Gate questions go through the `parity-gate` skill, `.claude/skills/parity-gate/S
 `./gradlew test` is the fast suite, excluding `@Tag("slow")`. `./gradlew slowTest` hits the network
 and the filesystem cache and is never up-to-date-cached.
 
-`./gradlew check` is `test` plus two gates `test` does not reach: `paritySelfTest`, the parity
-toolkit's own suite, which otherwise runs only when a parity task pulls it in, and `harnessClasses`,
+`./gradlew check` is `test` plus three gates `test` does not reach: `paritySelfTest`, the parity
+toolkit's own suite, which otherwise runs only when a parity task pulls it in; `harnessClasses`,
 which compiles the harness through its own wrapper and otherwise runs only when it is asked for by
-name. The harness is a separate Gradle build, so `test` passes over one that does not compile and
-the next thing that would catch it is a client boot; the two gates together cost seconds.
+name; and `toolingTest`, which runs the tooling build's own suite through its wrapper for the same
+reason. Both the harness and the tooling flows are separate Gradle builds, so `test` passes over one
+that does not compile and the next thing that would catch it is a client boot; the three gates
+together cost seconds.
 
 **Gate once per phase, immediately before the commit, and never re-baseline.** The `parity-gate`
 skill runs it: `parityPlan` names what the change reaches and what is blind to it, `parityCapture`
@@ -60,41 +84,20 @@ resource-regenerator, which is why it is not in `tooling`.
 
 ## Tooling
 
-ASM flows walk the extracted client jar and rewrite the shipped tables under
-`src/main/resources/lib/minecraft/renderer/`, the one path `ToolingSession` holds. Re-run on an MC
-version bump.
+The generators are their own Gradle build at `tooling/`, a sibling of the harness with its own
+wrapper. Internals live in [tooling/CLAUDE.md]. The renderer drives the eight flows by shelling into
+that wrapper under the same task names, which is what keeps the parity artifact table's producer
+list resolving.
 
-- `block_defaults.json` is read by `pipeline/loader/BlockDefaultsLoader`, not `BlockStateLoader`,
-  which loads blockstate *variants* from vanilla JSON. It also applies the pack override at
-  `renderer/block_defaults.json`, the only way a pack reaches an ASM-derived default state.
-- `EntityIndexes` is session-lifetime and `EntityContext` per-subject; do not merge them. There is no
-  writer class, and the only post-pass is `EntityGroupLinker.link`.
-- `ToolingSession.envelope` builds both header segments from one `flow` local, so renaming a flow
-  rewrites every table's header.
-- Do not delete `tooling/policy/` for having no callers - `Navigation`'s javadoc is the only written
-  statement of how generator hard-coding is sanctioned, and `PolicyPurityTest` reflects on a
-  `provenance` field of every `*Policies` class, so they cannot share a superclass.
-- **Every instruction walk in `tooling/` is an `AsmWalker` chain** - the one hand-written
-  instruction loop left is `EntityGeometryRefResolver.collectBakedModelLayers`, whose body is
-  bake-triple consumer accounting rather than a fold: a constructor consuming two or more models
-  takes the last n fresh triples in argument order and always empties the fresh buffer, even when
-  it held fewer than n, and there is no chain token for that. The walker is a reusable descriptor:
-  sources `over`/`clinit`/`from`/`after`/`before`, geometry `real()`/`until`/`limit`, match stages
-  that narrow, fold stages (`gather`/`latch` + `commitAt`) that replace the old `pending*` locals,
-  and eager terminals; branch-following is `trace` with an always-on cycle guard; three of the four
-  bytecode interpreters ride one `Interp<V>` chassis, and `GeometryParser`'s stack/slot half stays
-  site-owned pending the same machine-view tokens. Do NOT reintroduce a
-  `for (AbstractInsnNode ...)` loop - the engine's cascade rules (claiming, commit-before-reset,
-  strict-adjacency) are pinned by the `tooling/walk` test suite, and a hand loop silently
-  re-derives them. One-hop neighbour reads (`AsmWalker.nextReal`/`previousReal`) are expressions,
-  not walks, and stay statics. `EntityGeometryRefResolverTest` reaches the declined member by
-  reflection under its own name, so renaming it compiles clean and fails at runtime.
-
-Every gate here reads the **shipped** JSON, which a generator refactor does not regenerate, so a
-green gate is no evidence about a `tooling/` change. Compare emitted bytes A/B against a capture from
-the clean tree before the first edit. A flow run dirties its own table - that is the signal, so
-restore before the next measurement. Diff the diagnostics log too: a byte-identical table is not an
-unchanged run.
+- Nothing here names a tooling type; the generators read `client` and this build reads them not at
+  all. ASM is declared over there alone and is on no renderer classpath and in no published JAR.
+- A flow writes to `src/main/resources/lib/minecraft/renderer/` by default and dirties tracked files -
+  that is the signal. `-PtoolingOut=<dir>` redirects the whole set, which is how an A/B is taken
+  without touching the tree.
+- Every gate here reads the **shipped** JSON, which a generator refactor does not regenerate, so a
+  green gate is no evidence about a tooling change. Re-run the flow and compare emitted bytes against
+  a capture from the clean tree taken before the first edit. Diff the diagnostics log too: a
+  byte-identical table is not an unchanged run.
 
 ## Skip these
 
@@ -587,3 +590,4 @@ Scripts live in `scripts/`, not bundled into the JAR. `scripts/parity/` is the p
 
 [vanilla-reference-harness]: harness
 [vanilla-reference-harness/CLAUDE.md]: harness/CLAUDE.md
+[tooling/CLAUDE.md]: tooling/CLAUDE.md

@@ -25,7 +25,6 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.support.StubRendererContext;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -211,7 +210,7 @@ class ArmorKitTest {
      * restated here, so these spans measure the shipped mesh and its shipped deformations.
      */
     private static @NotNull Shell genericShell() {
-        return EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null))
+        return EntityModelLoader.load()
             .get("minecraft:zombie").humanoidArmor().orElseThrow();
     }
 
