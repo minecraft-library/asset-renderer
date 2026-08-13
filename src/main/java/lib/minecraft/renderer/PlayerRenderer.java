@@ -15,8 +15,10 @@ import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.camera.View;
 import lib.minecraft.renderer.engine.compose.RasterPass;
 import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
@@ -27,6 +29,8 @@ import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.ElytraKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
+import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.Face;
@@ -80,12 +84,24 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * humanoid model's {@code +Z} {@code SOUTH} front toward the camera. Applied as a {@link Placement}
      * so the projection stays facing-neutral (see {@link Projection#VANILLA_ISO}): for any projection
      * {@code P}, {@code P.pose() · PLAYER_FACING} presents the front, so the default
-     * {@code [30,225,0] · R_Y(180) = [30,45,0]} reproduces the shipped player pose. Byte-identical because
-     * the body's block-cardinal face shading is baked per direction (pose-independent) and the total
-     * transform is unchanged.
+     * {@code [30,225,0] · R_Y(180) = [30,45,0]} is the pose a player is lit and rasterized at.
      */
     private static final @NotNull Placement PLAYER_FACING =
         new Placement(Matrix4f.IDENTITY.scale(-1f, 1f, -1f));
+
+    /**
+     * The offset from a camera pose to the {@code Lighting.ENTITY_IN_UI} frame that lights geometry
+     * presented at it - {@code [pitch + 180, yaw - 180, roll]}, which is the camera's own model-to-view
+     * rotation behind vanilla's GUI screen-Y flip. Composing it onto {@link View#lighting()} is what
+     * makes the light follow the camera through a caller's rotation and {@code Facing}: both sides are
+     * built from the one pose {@link Projection#resolve} reflected, so they cannot come apart. The
+     * shipped {@code VANILLA_ISO} camera {@code [30,225,0]} lands on {@code [210,45,0]}, both addends
+     * exact.
+     * <p>
+     * Roll passes through unchanged and is not modelled downstream - {@link Lighting#resolveEntity}
+     * builds its chain from pitch and yaw alone - so a rolled render is lit at its unrolled frame.
+     */
+    private static final @NotNull EulerRotation LIGHT_FRAME_FROM_CAMERA = new EulerRotation(180f, -180f, 0f);
 
     /**
      * Overlay (hat / hood / second layer) outset over the base cube, in the body scopes' frame.
@@ -469,7 +485,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = playerEngine(this.parent, options);
+            View view = playerView(options);
+            ModelEngine engine = playerEngine(this.parent, view);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -491,7 +508,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
             Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
-            return rasterize3D(engine, triangles, options);
+            return rasterize3D(engine, relight(triangles, view), options);
         }
 
     }
@@ -541,11 +558,46 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     }
 
     /**
-     * Builds the engine every 3D player scope rasterizes through - the caller's projection resolved
-     * against their model rotation and view facing, placed by {@link #PLAYER_FACING}.
+     * Resolves the caller's projection against their model rotation and view facing. One resolution
+     * serves both the engine and the lighting, so the camera and the light it is read against are
+     * always the same pose.
      */
-    private static @NotNull ModelEngine playerEngine(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
-        return new ModelEngine(parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()).camera(), PLAYER_FACING);
+    private static @NotNull View playerView(@NotNull PlayerOptions options) {
+        return options.getOutput().getProjection()
+            .resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
+    }
+
+    /**
+     * Builds the engine every 3D player scope rasterizes through - the resolved camera, placed by
+     * {@link #PLAYER_FACING}.
+     */
+    private static @NotNull ModelEngine playerEngine(@NotNull PlayerRenderer parent, @NotNull View view) {
+        return new ModelEngine(parent.context, view.camera(), PLAYER_FACING);
+    }
+
+    /**
+     * The {@code Lighting.ENTITY_IN_UI} frame a player presented through {@code view} is lit at -
+     * the view's own camera-tracking frame carried onto the light by {@link #LIGHT_FRAME_FROM_CAMERA}.
+     */
+    private static @NotNull LightingFrame playerLighting(@NotNull View view) {
+        return view.lighting().rotated(LIGHT_FRAME_FROM_CAMERA);
+    }
+
+    /**
+     * Re-shades an assembled player stack under the lighting entry vanilla binds for a humanoid drawn in
+     * a GUI, replacing the cardinal bucket {@link BlockGeometryKit#buildBox} bakes at emit time. Every 3D
+     * scope goes through this after its stack is folded, so body, overlay, cape, wings and armour are lit
+     * as one draw, the way the one {@code setupFor} vanilla issues per GUI entity lights them.
+     * <p>
+     * {@link Turn#MIRROR_Z} rather than the {@link Turn#MIRROR_Y} entity geometry takes: the player's
+     * boxes are built upright where a vanilla mesh is Y-down, the two frames sit a {@link Turn#HALF_X}
+     * apart, and {@code MIRROR_Y} composed with that half turn is {@code MIRROR_Z}.
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> relight(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull View view
+    ) {
+        return Shading.relightForEntityInUi(triangles, playerLighting(view), Turn.MIRROR_Z);
     }
 
     /**
@@ -563,7 +615,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull PlayerOptions.Type type
     ) {
         PixelBuffer skin = resolveSkin(parent, options);
-        ModelEngine engine = playerEngine(parent, options);
+        View view = playerView(options);
+        ModelEngine engine = playerEngine(parent, view);
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
         LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -573,7 +626,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
-        return rasterize3D(engine, triangles, options);
+        return rasterize3D(engine, relight(triangles, view), options);
     }
 
     /**

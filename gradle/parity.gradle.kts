@@ -815,6 +815,11 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     // Their rows are still rows: parityCapture -Partifacts=pins runs the suite and then the step, and
     // the step still fails on an absent file, which is the backstop a --tests-filtered run needs.
     spec.producers.forEach { producer ->
+        // Hung on the erase from OUT here rather than from inside the producer's own configuration
+        // action: `named(String, Action)` mutates the task container, which Gradle refuses while it is
+        // executing another task's action, and the refusal lands as "Could not create task ':slowTest'"
+        // on the first invocation that resolves the graph.
+        if (producer in paritySuiteProducers) named(parityCaptureBeginTask) { finalizedBy(producer) }
         named(producer) {
             // Every producer is ordered after the erase, not merely every capture step. Rows whose
             // source IS the working root are written there by the test JVM, so an erase on the far
@@ -822,6 +827,19 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
             // both tasks are in the graph, so a hand-run producer is unaffected by this edge.
             mustRunAfter(parityCaptureBeginTask)
             if (producer !in paritySuiteProducers) finalizedBy(step)
+            // A whole-suite producer is SCHEDULED by the erase rather than depended on by the index,
+            // and that is what makes an intentionally moved pin re-baselineable. A self-captured row's
+            // writer asserts on the value it just wrote, so the run a re-baseline most needs recorded
+            // is the one whose assertion fails - `SelfCapture` writes before asserting for exactly
+            // that reason. Depended on, a red suite takes every dependent down with it and the capture
+            // the promotion is meant to read never closes, so the command the failure message itself
+            // prescribes cannot answer: measured on three player CRCs, under `--continue` and without
+            // it. A finalizer is the one edge Gradle still runs after the task it finalizes failed,
+            // and the erase is the right task to hang it on: it exists only inside a capture graph, so
+            // an ordinary `./gradlew test` neither schedules a step nor meets one. Ordering the index
+            // after the suite is the other half and cannot be the whole of it - `mustRunAfter` never
+            // schedules, so on its own it drops the suite out of the graph and the step then fails on
+            // a file nothing wrote, which is the same measurement one task earlier.
             // A self-capturing producer's real output is a file in the root the erase just emptied,
             // and Gradle cannot see that: on an unchanged tree `test` is UP-TO-DATE, does not run,
             // and the capture step then fails on a file the erase deleted and nothing rewrote. So a
@@ -1165,9 +1183,19 @@ tasks {
         // any checkout carrying no plan: the same shape of refusal-at-configuration the promotion
         // reason was moved off. It still lands before the first task executes, so a missing plan
         // costs no producer.
+        // A whole-suite producer is ordered rather than depended on: the erase schedules it (see the
+        // finalizer above), and depending on it here would put _run/COMPLETE back behind a green
+        // assertion the capture exists to re-baseline. Every other producer keeps the dependency,
+        // because nothing else schedules those.
         dependsOn(Callable {
             resolveParityArtifacts(parityProperty("artifacts"))
-                .flatMap { spec -> spec.producers + parityCaptureTaskName(spec.artifact) }
+                .flatMap { spec ->
+                    spec.producers.filter { it !in paritySuiteProducers } +
+                        parityCaptureTaskName(spec.artifact)
+                }
+        })
+        mustRunAfter(Callable {
+            resolveParityArtifacts(parityProperty("artifacts")).flatMap { spec -> spec.producers }
         })
         outputs.upToDateWhen { false }
     }

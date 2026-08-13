@@ -53,8 +53,8 @@
       "entries": 18,
       "file": "manifests/player-raw.json",
       "kind": "manifest",
-      "promoted_at": "47397e979e769f009a253ea46c7d72e211f3ea9d",
-      "sha256": "be0615aaf0538c116c56ebddfc500969b6bd76c77954abbd2d36998d88c111c4"
+      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
+      "sha256": "3e98ada0a106bce9f8eabfc8127c0d4a6981a8193aee0dae20c4b25428818c6e"
     },
     "manifest.player-sheets": {
       "baselined": true,
@@ -62,8 +62,9 @@
       "entries": 104,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
-      "sha256": "e1913d22014274647c4ea6bc55389ad4cf2e970c6c956ccefe6653983ce026e3"
+      "last_duration_ms": 17186,
+      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
+      "sha256": "145f7b81ebca1e1913ef0a1d35f92dd584764504bc5636e77ff5314ff220d3ac"
     },
     "manifest.portal": {
       "baselined": true,
@@ -145,8 +146,8 @@
       "entries": 3,
       "file": "pins/player-crc.json",
       "kind": "pin-set",
-      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
-      "sha256": "b086888de3bd10d3401977e125cf2818b2685a8d870a933c548f26a43c04518a"
+      "promoted_at": "23fdf579e8e9da8054f22dc3f4a5ac09d032da8c",
+      "sha256": "3b62eb0bf517429e18a4ee3d121f39d577ad5de3fd18da3118030dfaf4a7e282"
     },
     "pin.portal-crc": {
       "baselined": true,
@@ -217,10 +218,10 @@
       "entries": 11,
       "file": "sweeps/glint.json",
       "kind": "sweep-table",
-      "last_duration_ms": 28255,
-      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
-      "sha256": "aa8ade46a1bbd8de63b471aa60be348a939f172fee21949e5426b4fc7c00aaf5",
-      "sum": "528.6236"
+      "last_duration_ms": 31712,
+      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
+      "sha256": "6e47574cbbe96d0fc6dc4ea1e962f0e4f863e89bc49f21309a9e15226723d446",
+      "sum": "528.0484"
     },
     "sweep.item": {
       "baselined": true,
@@ -239,10 +240,10 @@
       "entries": 2,
       "file": "sweeps/player.json",
       "kind": "sweep-table",
-      "last_duration_ms": 11964,
-      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
-      "sha256": "4bc2688a50ef20626a257c49c85e6dd4b6dd4052819d9f76af9681df904c0324",
-      "sum": "29.1376"
+      "last_duration_ms": 13402,
+      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
+      "sha256": "56f1f177ae2c1053a5e89050c946920bdb77b757aa64b928b465e902fae60c96",
+      "sum": "8.4315"
     }
   },
   "external": {
