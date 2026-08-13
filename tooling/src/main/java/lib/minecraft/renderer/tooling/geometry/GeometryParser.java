@@ -1578,7 +1578,7 @@ public final class GeometryParser {
         if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKEINTERFACE
             && methodInsn.owner.equals(VanillaSourceClasses.Types.RANDOM_SOURCE)
-            && methodInsn.name.equals("nextInt")
+            && methodInsn.name.equals(VanillaSourceClasses.Methods.NEXT_INT)
             && methodInsn.desc.equals("(I)I")
             && !state.numStack.isEmpty()) {
             Number bound = state.numStack.popLiteral();
@@ -1597,11 +1597,13 @@ public final class GeometryParser {
             return;
         }
         // Invokestatic-follow: recurse into model-building statics outside the builder/geom
-        // package (e.g. PiglinHeadModel.createHeadModel -> PiglinModel.addHead). The JVM
-        // resolves invokestatic through the superclass chain, so {@link ClassKit#findMethodInHierarchy}
+        // package (e.g. PiglinHeadModel.createHeadModel -> PiglinModel.addHead). Shared mesh
+        // helpers live under the model package; a call into the geometry-primitive package is a
+        // data constructor the walk decodes in place, never follows. The JVM resolves
+        // invokestatic through the superclass chain, so {@link ClassKit#findMethodInHierarchy}
         // walks {@code superName} until the method is found.
         if (opcode == Opcodes.INVOKESTATIC
-            && methodInsn.owner.startsWith(GeometryParsePolicies.INVOKESTATIC_FOLLOW_PACKAGE_GATE.value())
+            && methodInsn.owner.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_ROOT)
             && !methodInsn.owner.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_GEOM_ROOT)) {
             MethodNode inlined = ClassKit.findMethodInHierarchy(cache, methodInsn.owner, methodInsn.name, methodInsn.desc);
             if (inlined != null) inlineStaticMethodBody(inlined, methodInsn.desc, state, cache);

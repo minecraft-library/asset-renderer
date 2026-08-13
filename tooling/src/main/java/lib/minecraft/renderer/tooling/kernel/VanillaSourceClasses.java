@@ -138,11 +138,14 @@ public final class VanillaSourceClasses {
         /** {@code LivingEntityRenderer} - the base declarer of {@code setupRotations}, below every override. */
         public static final @NotNull String LIVING_ENTITY_RENDERER = "net/minecraft/client/renderer/entity/LivingEntityRenderer";
 
+        /** The render-state package root - the per-subject state classes a layer's {@code submit} reads through. */
+        public static final @NotNull String ENTITY_RENDER_STATE_PACKAGE = "net/minecraft/client/renderer/entity/state/";
+
         /** {@code LivingEntityRenderState} - the parameter type on renderer state methods. */
-        public static final @NotNull String LIVING_ENTITY_RENDER_STATE = "net/minecraft/client/renderer/entity/state/LivingEntityRenderState";
+        public static final @NotNull String LIVING_ENTITY_RENDER_STATE = ENTITY_RENDER_STATE_PACKAGE + "LivingEntityRenderState";
 
         /** {@code EntityRenderState} - the parameter type on layer {@code submit} methods. */
-        public static final @NotNull String ENTITY_RENDER_STATE = "net/minecraft/client/renderer/entity/state/EntityRenderState";
+        public static final @NotNull String ENTITY_RENDER_STATE = ENTITY_RENDER_STATE_PACKAGE + "EntityRenderState";
 
         /** {@code PoseStack} - the render-transform stack the {@code scale} override chains on. */
         public static final @NotNull String POSE_STACK = "com/mojang/blaze3d/vertex/PoseStack";
@@ -158,6 +161,9 @@ public final class VanillaSourceClasses {
 
         /** {@code ModelPart} - the entity model bone primitive (its {@code visible:Z} field gates bones). */
         public static final @NotNull String MODEL_PART = CLIENT_MODEL_GEOM_ROOT + "ModelPart";
+
+        /** {@code Model} - the base class every renderer-submitted mesh extends. */
+        public static final @NotNull String MODEL = CLIENT_MODEL_ROOT + "Model";
 
         /** {@code EntityModel} - the model-hierarchy walk sentinel (never walked past). */
         public static final @NotNull String ENTITY_MODEL = CLIENT_MODEL_ROOT + "EntityModel";
@@ -231,8 +237,32 @@ public final class VanillaSourceClasses {
         /** {@code Holder} - the registry-entry wrapper data-class accessors return (villager type / profession). */
         public static final @NotNull String HOLDER = "net/minecraft/core/Holder";
 
+        /**
+         * The {@code <X>Variants} holder-class stem - the class-name grammar the data-driven
+         * variant holders are listed by, and the text trimmed off a simple name to leave the
+         * entity stem.
+         */
+        public static final @NotNull String VARIANT_HOLDER_STEM = "Variants";
+
+        /**
+         * The {@code <X>Variant$ModelType} inner-enum suffix - the owner grammar marking a
+         * variant's model discriminator, paired with a {@code ModelLayers} field by the walk.
+         */
+        public static final @NotNull String VARIANT_MODEL_TYPE_SUFFIX = "$ModelType";
+
         /** {@code ChestSpecialRenderer} - its {@code <clinit>} binds the chest variant texture base names. */
         public static final @NotNull String CHEST_SPECIAL_RENDERER = "net/minecraft/client/renderer/special/ChestSpecialRenderer";
+
+        /**
+         * {@code BlockModelGenerators} - the datagen model writer whose chest builders bind each chest
+         * block to the special-renderer field it draws with.
+         *
+         * <p>The only class the flows read out of {@code net/minecraft/client/data/models/}, and the
+         * only datagen source they read at all - everywhere else they walk the render path. It is read
+         * because the block-to-field binding exists nowhere on the render path: the special-renderer
+         * dispatch resolves a field per block without naming the pair anywhere a render walk reaches.
+         */
+        public static final @NotNull String BLOCK_MODEL_GENERATORS = "net/minecraft/client/data/models/BlockModelGenerators";
 
         /** {@code CopperGolemOxidationLevels} - its {@code <clinit>} binds the per-weather statue texture paths. */
         public static final @NotNull String COPPER_GOLEM_OXIDATION_LEVELS = "net/minecraft/world/entity/animal/golem/CopperGolemOxidationLevels";
@@ -260,6 +290,9 @@ public final class VanillaSourceClasses {
 
         /** {@code BlockTintSources} - the static tint-source factory ({@code grass}/{@code foliage}/{@code constant}/{@code stem}/...). */
         public static final @NotNull String BLOCK_TINT_SOURCES = "net/minecraft/client/color/block/BlockTintSources";
+
+        /** {@code BlockTintSource} - the tint-source interface every factory on the plural class returns. */
+        public static final @NotNull String BLOCK_TINT_SOURCE = "net/minecraft/client/color/block/BlockTintSource";
 
         /** {@code BiomeColors} - the biome-average colour helper the tint-source bodies call, deriving the colormap target. */
         public static final @NotNull String BIOME_COLORS = "net/minecraft/client/renderer/BiomeColors";
@@ -320,6 +353,9 @@ public final class VanillaSourceClasses {
         /** {@code Byte.valueOf} - the box a synched flags default is registered through. */
         public static final @NotNull String VALUE_OF = "valueOf";
 
+        /** {@code RandomSource.nextInt(I)} - the bounded integer draw. */
+        public static final @NotNull String NEXT_INT = "nextInt";
+
         /** {@code Identifier.withDefaultNamespace(String)} - the texture-path wrapping factory. */
         public static final @NotNull String WITH_DEFAULT_NAMESPACE = "withDefaultNamespace";
 
@@ -366,6 +402,9 @@ public final class VanillaSourceClasses {
         /** {@code EntityRendererProvider$Context.bakeLayer(ModelLayerLocation)} - the mesh bake call. */
         public static final @NotNull String BAKE_LAYER = "bakeLayer";
 
+        /** {@code SkullBlockRenderer.createModel(EntityModelSet, SkullBlock$Type)} - the per-type mesh dispatch. */
+        public static final @NotNull String CREATE_MODEL = "createModel";
+
         /** {@code PartPose.offset(F, F, F)} - the pivot factory the block y-axis band heuristic reads. */
         public static final @NotNull String OFFSET = "offset";
 
@@ -407,6 +446,13 @@ public final class VanillaSourceClasses {
 
         /** {@code RenderLayer.submit} - the per-layer render entry the structural gates walk. */
         public static final @NotNull String SUBMIT = "submit";
+
+        /**
+         * {@code RenderTypes.eyes(Identifier)} / {@code RenderTypes.breezeEyes(Identifier)} - the two
+         * factories vanilla names an eye / glow overlay for, and the whole of what marks a pre-built
+         * binding as one.
+         */
+        public static final @NotNull List<String> EYE_RENDER_TYPES = List.of("eyes", "breezeEyes");
 
         /** {@code EntityRenderer.extractRenderState} - the state-population hook (block / gate binds). */
         public static final @NotNull String EXTRACT_RENDER_STATE = "extractRenderState";
@@ -452,6 +498,18 @@ public final class VanillaSourceClasses {
 
         /** {@code BlockTintSources.stem} - the age-driven stem tint-source factory (its body is symbolically evaluated at age 0). */
         public static final @NotNull String STEM = "stem";
+
+        /** {@code BlockModelGenerators.createChests} - the three non-copper chest bindings. */
+        public static final @NotNull String CREATE_CHESTS = "createChests";
+
+        /** {@code BlockModelGenerators.createCopperChests} - the four copper bindings plus the four waxed copies. */
+        public static final @NotNull String CREATE_COPPER_CHESTS = "createCopperChests";
+
+        /** {@code BlockModelGenerators.createChest} - one chest block bound to one special-renderer field (two overloads). */
+        public static final @NotNull String CREATE_CHEST = "createChest";
+
+        /** {@code BlockModelGenerators.copyModel} - a block taking another's model, which is how a waxed chest inherits its field. */
+        public static final @NotNull String COPY_MODEL = "copyModel";
 
         /** {@code BlockTintSource.color} / {@code ARGB.color} - the tint colour body + the packing helper the stem eval walks into. */
         public static final @NotNull String COLOR = "color";
@@ -555,6 +613,23 @@ public final class VanillaSourceClasses {
 
         /** Descriptor of a no-argument {@code float} accessor - {@code PartPose}'s three offsets. */
         public static final @NotNull String FLOAT_ACCESSOR_DESC = of("F");
+
+        /** Descriptor of a no-argument {@code void} member - what a private datagen builder is reached by. */
+        public static final @NotNull String NO_ARG_VOID_DESC = of("V");
+
+        /**
+         * The field-descriptor suffix of a variant inner enum ({@code L<owner>$Variant;}) - what
+         * marks a render-state field as the variant a block source is keyed on.
+         */
+        public static final @NotNull String VARIANT_SUFFIX = "$Variant;";
+
+        /**
+         * Descriptor of the two-colour tint factory
+         * {@code (int colorInHand, int colorInWorld)BlockTintSource}. The name is overloaded - a
+         * one-colour {@code constant(int)} is declared first and builds its source through a lambda -
+         * so the two-colour shape is reached by descriptor and never by name.
+         */
+        public static final @NotNull String CONSTANT_TINT_DESC = of(ref(Types.BLOCK_TINT_SOURCE), "I", "I");
 
         /**
          * Composes a method descriptor from already-valid type descriptors.

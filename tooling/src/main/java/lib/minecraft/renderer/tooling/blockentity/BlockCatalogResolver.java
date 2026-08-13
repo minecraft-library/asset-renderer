@@ -1,11 +1,17 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.kernel.TraceReplay;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.policy.AsmContext;
+import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
@@ -13,10 +19,13 @@ import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TableSwitchInsnNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.ArrayList;
@@ -30,11 +39,13 @@ import java.util.Map;
  * every split renders. Built once per subject; each split queries its rows by id.
  *
  * <p>Block ids come from {@link BlockRegistryIndex}; the split partition follows the block id
- * family (standing vs wall, skull type). Texture bases the vanilla bytecode carries are DERIVED
- * from the owning {@code <clinit>} (chest variants, copper oxidation, skull skins, conduit / bell);
- * the fixed sheet prefixes (shulker / bed / signs / banner / decorated_pot) are declared in
- * {@link BlockFamilyPolicies} ({@code SHEET_TEXTURE_BASES}). The colour / wood / weather / type
- * discriminators ride the block id directly, without walking constructor enum arguments.
+ * family (standing vs wall, skull type), and which split a skull type lands in is read from the
+ * model dispatch. Every texture base is DERIVED from the owning
+ * {@code <clinit>} - the chest variants, copper oxidation, skull skins, conduit and bell from their
+ * own renderer, the per-family sheet bases from the sheet field {@link BlockFamilyPolicies}
+ * ({@code SHEET_TEXTURE_BASES}) names. Which field a family reads is the authored half of that row;
+ * the string bound to it is read. The colour / wood / weather / type discriminators ride the block
+ * id directly, without walking constructor enum arguments.
  */
 final class BlockCatalogResolver {
 
@@ -44,22 +55,47 @@ final class BlockCatalogResolver {
     private static final @NotNull String SHULKER_BASE_LOCAL = "shulker_box";
     private static final @NotNull String HASHMAP_CONSUMER_DESC = "(Ljava/util/HashMap;)V";
 
+    /** Descriptor of the switch-map array an enum {@code tableswitch} indexes (JDK shape, kit-local). */
+    private static final @NotNull String SWITCH_MAP_DESC = "[I";
+
+    /** The caller label a stale chest block-to-field binding is reported under. */
+    private static final @NotNull String CHEST_BINDING = "the chest block-to-renderer-field binding";
+
+    /** The caller label a stale skull model-dispatch coordinate is reported under. */
+    private static final @NotNull String SKULL_DISPATCH = "the skull model dispatch";
+
+    /** The caller label a stale sheet coordinate is reported under. */
+    private static final @NotNull String SHEET_BASE = "a catalog family's sheet texture base";
+
+    /**
+     * The separator between a sprite mapper's prefix and a sprite path. Authored here, reproducing
+     * the one the mapper's own composition carries.
+     */
+    private static final @NotNull String SHEET_SEPARATOR = "/";
+
     private final @NotNull ClassNodeCache cache;
     private final @NotNull BlockRegistryIndex blockRegistry;
+    private final @NotNull LayerDefinitionIndex layerDefinitions;
     private final @NotNull BlockEntitySubject subject;
     private final @NotNull List<String> splitIds;
     private final @NotNull Diagnostics diagnostics;
+
+    /** Retained for the policy frame a consultation is made on - the cache alone cannot carry one. */
+    private final @NotNull ToolingSession session;
 
     private @Nullable Map<String, JsonTree> bySplitId;
 
     BlockCatalogResolver(
         @NotNull ToolingSession session,
         @NotNull BlockRegistryIndex blockRegistry,
+        @NotNull LayerDefinitionIndex layerDefinitions,
         @NotNull BlockEntitySubject subject,
         @NotNull List<String> splitIds
     ) {
+        this.session = session;
         this.cache = session.cache();
         this.blockRegistry = blockRegistry;
+        this.layerDefinitions = layerDefinitions;
         this.subject = subject;
         this.splitIds = splitIds;
         this.diagnostics = session.diagnostics().child(subject.beTypeId());
@@ -86,11 +122,11 @@ final class BlockCatalogResolver {
                 case SHULKER_BOX -> shulker(rows);
                 case CHEST -> chest(rows);
                 case BED -> bed(rows);
-                case SIGN -> signs(rows, BlockFamilyPolicies.sheetTextureBase(family));
+                case SIGN -> signs(rows, sheetBase(family));
                 case HANGING_SIGN -> hangingSigns(rows);
                 case CONDUIT -> single(rows, conduitTexture());
                 case BELL -> single(rows, bellTexture());
-                case DECORATED_POT -> single(rows, BlockFamilyPolicies.sheetTextureBase(family));
+                case DECORATED_POT -> single(rows, sheetBase(family));
                 case COPPER_GOLEM_STATUE -> copperGolem(rows);
                 case SKULL -> skull(rows);
                 case BANNER -> banner(rows);
@@ -107,11 +143,12 @@ final class BlockCatalogResolver {
 
     /** Shulker: the uncolored box first, then the 16 dyed boxes in DyeColor declaration order. */
     private void shulker(@NotNull Map<String, List<Row>> rows) {
+        String sheet = sheetBase(BlockFamilyPolicies.CatalogFamily.SHULKER_BOX);
         Map<String, Row> byColour = new LinkedHashMap<>();
         Row uncolored = null;
         for (String field : this.subject.blockFields()) {
             String local = blockLocal(field);
-            Row row = new Row(blockId(field), shulkerTextureStem(local), null, null);
+            Row row = new Row(blockId(field), shulkerTextureStem(sheet, local), null, null);
             if (local.equals(SHULKER_BASE_LOCAL)) uncolored = row;
             else byColour.put(stripSuffix(local, SHULKER_BASE_LOCAL), row);
         }
@@ -121,20 +158,26 @@ final class BlockCatalogResolver {
         rows.put(primarySplit(), list);
     }
 
-    /** The shulker texture stem: the bare sheet for the uncolored box, {@code shulker_<color>} for the dyed. */
-    private static @NotNull String shulkerTextureStem(@NotNull String blockLocal) {
-        String sheet = BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.SHULKER_BOX);
+    /**
+     * The shulker texture stem: the bare sheet for the uncolored box, {@code shulker_<color>} for
+     * the dyed.
+     *
+     * @param sheet the family's sheet texture base
+     * @param blockLocal the block's namespace-less id
+     * @return the stem the block renders
+     */
+    private static @NotNull String shulkerTextureStem(@NotNull String sheet, @NotNull String blockLocal) {
         if (blockLocal.equals(SHULKER_BASE_LOCAL)) return sheet;
         return sheet + "_" + stripSuffix(blockLocal, SHULKER_BASE_LOCAL);
     }
 
     /** Bed: the 16 dyed beds under bed_head in DyeColor declaration order, texture entity/bed/<color>. */
     private void bed(@NotNull Map<String, List<Row>> rows) {
+        String sheet = sheetBase(BlockFamilyPolicies.CatalogFamily.BED);
         Map<String, Row> byColour = new LinkedHashMap<>();
         for (String field : this.subject.blockFields()) {
             String colour = stripSuffix(blockLocal(field), "bed");
-            byColour.put(colour,
-                new Row(blockId(field), BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.BED) + colour, null, null));
+            byColour.put(colour, new Row(blockId(field), sheet + colour, null, null));
         }
         List<Row> list = new ArrayList<>();
         orderByDye(byColour, list);
@@ -157,19 +200,25 @@ final class BlockCatalogResolver {
      */
     private void chest(@NotNull Map<String, List<Row>> rows) {
         Map<String, String> bases = chestVariantBases();
+        Map<String, String> variantFields = chestVariantFields(this.cache);
+        String sheet = sheetBase(BlockFamilyPolicies.CatalogFamily.CHEST);
         List<Row> main = new ArrayList<>();
         Row trapped = null;
         Row ender = null;
         for (String field : this.subject.blockFields()) {
             String local = blockLocal(field);
-            String variantField = chestVariantField(local);
+            String variantField = variantFields.get(field);
+            if (variantField == null)
+                throw new ToolingException(
+                    "Chest block '%s' is bound to no '%s' field by '%s' - the jar is either obfuscated or from an unsupported version",
+                    field, ClassKit.simpleName(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER),
+                    ClassKit.simpleName(VanillaSourceClasses.Types.BLOCK_MODEL_GENERATORS));
             String base = bases.get(variantField);
             if (base == null) {
                 this.diagnostics.warn("no ChestSpecialRenderer texture base bound for field '%s' (block '%s') - empty base", variantField, field);
                 base = "";
             }
-            Row row = new Row(blockId(field),
-                BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.CHEST) + base, null, null);
+            Row row = new Row(blockId(field), sheet + base, null, null);
             switch (local) {
                 case "trapped_chest" -> trapped = row;
                 case "ender_chest" -> ender = row;
@@ -223,7 +272,7 @@ final class BlockCatalogResolver {
 
     /** Hanging signs: standing / wall by suffix, plus the hanging_sign_attached alternate (same blocks + variant). */
     private void hangingSigns(@NotNull Map<String, List<Row>> rows) {
-        signs(rows, BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.HANGING_SIGN));
+        signs(rows, sheetBase(BlockFamilyPolicies.CatalogFamily.HANGING_SIGN));
         // hanging_sign_attached re-lists the ceiling hanging sign's rows under variant attached=true.
         String source = splitEndingWith("hanging_sign");
         String attached = splitEndingWith("hanging_sign_attached");
@@ -238,14 +287,16 @@ final class BlockCatalogResolver {
     /** Skull: partition the 14 skull blocks across the 4 splits by SkullBlock$Types (from the id prefix). */
     private void skull(@NotNull Map<String, List<Row>> rows) {
         Map<String, String> skins = skullSkins();
+        Map<String, String> splits = skullTypeSplits();
+        String playerSkin = playerSkullSkin();
         for (String field : this.subject.blockFields()) {
             String type = skullType(blockLocal(field));
-            String split = BlockFamilyPolicies.skullTypeSplit(type);
+            String split = splits.get(type.toUpperCase(Locale.ROOT));
             if (split == null) {
                 this.diagnostics.warn("skull block '%s' has unknown type prefix '%s' - dropped", field, type);
                 continue;
             }
-            String skin = "player".equals(type) ? BlockFamilyPolicies.playerSkullSkin() : skins.get(type.toUpperCase(Locale.ROOT));
+            String skin = "player".equals(type) ? playerSkin : skins.get(type.toUpperCase(Locale.ROOT));
             if (skin == null) {
                 this.diagnostics.warn("no skull skin for type '%s' (block '%s') - dropped", type, field);
                 continue;
@@ -255,15 +306,56 @@ final class BlockCatalogResolver {
         }
     }
 
+    /**
+     * Partitions the skull types across the catalog splits. The model dispatch bakes one layer per
+     * type and the layer registers one mesh factory, so the types sharing a factory share a split
+     * and the split is the one that factory names.
+     *
+     * @return type enum-constant name to split id
+     * @throws ToolingException if the dispatch carries no type switch
+     */
+    private @NotNull Map<String, String> skullTypeSplits() {
+        ClassNode renderer = ClassKit.requireClass(this.cache, VanillaSourceClasses.Types.SKULL_BLOCK_RENDERER, SKULL_DISPATCH);
+        MethodNode createModel = ClassKit.requireMethod(renderer, VanillaSourceClasses.Methods.CREATE_MODEL, SKULL_DISPATCH);
+        TableSwitchInsnNode cases = AsmWalker.over(createModel).first(Insn.ofType(TableSwitchInsnNode.class));
+        FieldInsnNode switchMap = AsmWalker.over(createModel).first(Insn.of(FieldInsnNode.class,
+            array -> array.getOpcode() == Opcodes.GETSTATIC && SWITCH_MAP_DESC.equals(array.desc)));
+        if (cases == null || switchMap == null)
+            throw new ToolingException(
+                "Method '%s.%s' carries no type switch for %s - the jar is either obfuscated or from an unsupported version",
+                renderer.name, VanillaSourceClasses.Methods.CREATE_MODEL, SKULL_DISPATCH
+            );
+        Map<String, String> out = new LinkedHashMap<>();
+        // The switch map keys each type to a branch; the branch reads the layer the type bakes.
+        AsmWalker.clinit(this.cache, switchMap.owner)
+            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.SKULL_BLOCK_TYPES)
+                && in instanceof FieldInsnNode type ? type.name : null)
+            .commitOn(AsmWalker::intLiteral)
+            .toMapFirstWins()
+            .forEach((type, key) -> {
+                int branch = key - cases.min;
+                if (branch < 0 || branch >= cases.labels.size()) return;
+                FieldInsnNode layer = AsmWalker.after(cases.labels.get(branch))
+                    .getStatic(VanillaSourceClasses.Types.MODEL_LAYERS)
+                    .first();
+                LayerDefinitionIndex.Entry entry = layer == null ? null : this.layerDefinitions.get(layer.name);
+                String split = entry == null ? null
+                    : BlockFamilyPolicies.methodSplitId(this.subject.localId(), entry.factoryMethod());
+                if (split != null) out.put(type, split);
+            });
+        return out;
+    }
+
     /** Banner: split standing vs wall by id suffix; shared banner_base texture; per-block dye tint. */
     private void banner(@NotNull Map<String, List<Row>> rows) {
+        String sheet = sheetBase(BlockFamilyPolicies.CatalogFamily.BANNER);
         for (String field : this.subject.blockFields()) {
             String blockLocal = blockLocal(field);
             String split = assignBySuffix(blockLocal);
             if (split == null) continue;
             String tint = stripSuffix(blockLocal, localId(split)).toUpperCase(Locale.ROOT);
             rows.computeIfAbsent(split, key -> new ArrayList<>())
-                .add(new Row(blockId(field), BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.BANNER), null, tint));
+                .add(new Row(blockId(field), sheet, null, tint));
         }
     }
 
@@ -281,6 +373,81 @@ final class BlockCatalogResolver {
             .latch(AsmWalker::stringLiteral)
             .commitAt(Insn.putStatic(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER))
             .toMap(put -> put.name, held -> held.isEmpty() ? null : held.getFirst());
+    }
+
+    /**
+     * {@code Blocks} field name -> the {@code ChestSpecialRenderer} field that block draws with,
+     * walked out of the datagen model writer's two chest builders.
+     *
+     * <p>Each {@code createChest} call reads its chest block, then its material block, then the
+     * special-renderer field, so the binding is the FIRST {@code Blocks} read of the call paired with
+     * the renderer field read in the same window. Both {@code createChest} overloads are binding
+     * sites - the ender chest's field is an {@code Identifier} where the rest are chest resources, and
+     * the argument shape is all that differs - so the commit matches the call by name and takes
+     * either. A waxed chest is bound by no call of its own: {@code copyModel} hands it the model of
+     * the unwaxed block it copies, and with it that block's field.
+     *
+     * <p>Keyed on the binding rather than on the field set, which is what keeps a declared field no
+     * block binds - {@code CHRISTMAS} - out of the answer: it appears at no call site, so nothing
+     * puts it in the map.
+     *
+     * @param cache the session cache
+     * @return block field name to renderer field name, every chest block the builders bind
+     * @throws ToolingException if either builder is absent, or the walk recovers no binding at all
+     */
+    static @NotNull Map<String, String> chestVariantFields(@NotNull ClassNodeCache cache) {
+        ClassNode generators = ClassKit.requireClass(cache, VanillaSourceClasses.Types.BLOCK_MODEL_GENERATORS, CHEST_BINDING);
+        Map<String, String> bound = new LinkedHashMap<>();
+        Map<String, String> copies = new LinkedHashMap<>();
+        walkChestBuilder(generators, VanillaSourceClasses.Methods.CREATE_CHESTS, bound, copies);
+        walkChestBuilder(generators, VanillaSourceClasses.Methods.CREATE_COPPER_CHESTS, bound, copies);
+
+        // a copy carries the source's field, and vanilla copies only from a block already bound
+        copies.forEach((target, source) -> {
+            String field = bound.get(source);
+            if (field != null) bound.put(target, field);
+        });
+
+        if (bound.isEmpty())
+            throw new ToolingException(
+                "Class '%s' binds no chest block to a renderer field for %s - the jar is either obfuscated or from an unsupported version",
+                generators.name, CHEST_BINDING);
+        return bound;
+    }
+
+    /**
+     * Collects one chest builder's bindings and model copies into the two maps.
+     *
+     * @param generators the datagen model writer
+     * @param builder the builder method name
+     * @param bound block field name to renderer field name, appended to
+     * @param copies copying block field name to copied-from block field name, appended to
+     */
+    private static void walkChestBuilder(
+        @NotNull ClassNode generators,
+        @NotNull String builder,
+        @NotNull Map<String, String> bound,
+        @NotNull Map<String, String> copies
+    ) {
+        MethodNode method = ClassKit.requireMethod(generators, builder, VanillaSourceClasses.Descs.NO_ARG_VOID_DESC, CHEST_BINDING);
+        Cells.ListCell<String> blocks = Cells.list();
+        Cells.Latch<String> variant = Cells.latch();
+
+        AsmWalker.over(method)
+            .feed(blocks)
+            .feed(variant)
+            .on(Insn.getStatic(VanillaSourceClasses.Types.BLOCKS), get -> blocks.add(get.name))
+            .on(Insn.getStatic(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER), get -> variant.set(get.name))
+            .commitAt(Insn.invokeVirtual(generators.name, VanillaSourceClasses.Methods.CREATE_CHEST), call -> {
+                List<String> read = blocks.values();
+                String field = variant.get();
+                if (!read.isEmpty() && field != null) bound.put(read.getFirst(), field);
+            })
+            .commitAt(Insn.invokeVirtual(generators.name, VanillaSourceClasses.Methods.COPY_MODEL), call -> {
+                List<String> pair = blocks.values();
+                if (pair.size() == 2) copies.put(pair.getLast(), pair.getFirst());
+            })
+            .run();
     }
 
     /** CopperGolemOxidationLevels field name -> stripped texture path (first path LDC after each NEW). */
@@ -322,6 +489,85 @@ final class BlockCatalogResolver {
     }
 
     /**
+     * Replays the PLAYER skull skin stem at the coordinate the family policy declares. The policy is
+     * consulted through {@link Navigation} on a frame carrying this subject, the row being one the
+     * skull subject asks for rather than a session-lifetime fact, and the steps it answers with are
+     * what walk the accessor's ordinal into the array element that opens with the stem.
+     *
+     * @return the skin stem the PLAYER skull renders
+     * @throws ToolingException if the row declares no trace, or the replay recovers no stem
+     */
+    private @NotNull String playerSkullSkin() {
+        Navigation.Dataflow coordinate = BlockFamilyPolicies.PLAYER_SKULL_SKIN.requireDataflow(
+            new AsmContext(this.session, this.subject.beTypeId(), null, this.diagnostics));
+
+        Object recovered = new TraceReplay(this.cache).replay(coordinate);
+        if (!(recovered instanceof String stem))
+            throw new ToolingException(
+                "Trace at '%s.%s' recovered '%s' where the skin stem was required",
+                coordinate.owner(), coordinate.member(), recovered);
+        return stem;
+    }
+
+    /**
+     * Reads a catalog family's sheet texture base at the coordinate the family policy declares.
+     *
+     * @param family the catalog family whose base is wanted
+     * @return the base every block of the family prefixes its texture with
+     * @throws ToolingException if the coordinate binds no sprite mapper or sprite id
+     */
+    private @NotNull String sheetBase(@NotNull BlockFamilyPolicies.CatalogFamily family) {
+        Navigation.At coordinate = BlockFamilyPolicies.sheetCoordinate(family);
+        ClassNode sheets = ClassKit.requireClass(this.cache, coordinate.owner(), SHEET_BASE);
+        return sheetBaseAt(sheets, ClassKit.requireClinit(sheets, SHEET_BASE), coordinate.member());
+    }
+
+    /**
+     * The base bound to one sheet field. A sprite-mapper construction answers the prefix it is
+     * built with followed by the separator; a {@code defaultNamespaceApply} answers the base of the
+     * mapper it reads followed by the stem it is handed. The second arm recurses only into a field
+     * of mapper type, whose binding is a construction, so the walk closes at depth one.
+     *
+     * @param sheets the sheet class
+     * @param clinit its static initialiser
+     * @param field the field whose base is wanted
+     * @return the base bound to the field
+     * @throws ToolingException if the field is bound by neither shape
+     */
+    private static @NotNull String sheetBaseAt(
+        @NotNull ClassNode sheets,
+        @NotNull MethodNode clinit,
+        @NotNull String field
+    ) {
+        FieldInsnNode store = AsmWalker.over(clinit).putStatic(sheets.name, field).first();
+        AbstractInsnNode source = store == null ? null : AsmWalker.previousReal(store);
+        if (source instanceof MethodInsnNode built
+            && built.getOpcode() == Opcodes.INVOKESPECIAL
+            && VanillaSourceClasses.Types.SPRITE_MAPPER.equals(built.owner)
+            && ClassKit.INIT.equals(built.name)) {
+            String prefix = AsmWalker.stringLiteral(AsmWalker.previousReal(built));
+            if (prefix != null) return prefix + SHEET_SEPARATOR;
+        }
+        if (source instanceof MethodInsnNode applied
+            && applied.getOpcode() == Opcodes.INVOKEVIRTUAL
+            && VanillaSourceClasses.Types.SPRITE_MAPPER.equals(applied.owner)
+            && VanillaSourceClasses.Methods.DEFAULT_NAMESPACE_APPLY.equals(applied.name)) {
+            AbstractInsnNode stemPush = AsmWalker.previousReal(applied);
+            String stem = AsmWalker.stringLiteral(stemPush);
+            if (stem != null
+                && AsmWalker.previousReal(stemPush) instanceof FieldInsnNode mapper
+                && mapper.getOpcode() == Opcodes.GETSTATIC
+                && sheets.name.equals(mapper.owner)
+                && VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.SPRITE_MAPPER).equals(mapper.desc))
+                return sheetBaseAt(sheets, clinit, mapper.name) + stem;
+        }
+        throw new ToolingException(
+            "Class '%s' binds no sprite base to its '%s' field for %s - the jar is either obfuscated or from an unsupported version",
+            sheets.name, field, SHEET_BASE
+        );
+    }
+
+    /**
      * ConduitRenderer: the mapper base path ({@code entity/conduit}, the first path-like LDC) plus
      * the {@code SHELL_TEXTURE} stem ({@code base}) -> {@code entity/conduit/base}.
      */
@@ -349,7 +595,7 @@ final class BlockCatalogResolver {
             .latch(AsmWalker::stringLiteral)
             .commitAt(Insn.putStatic(VanillaSourceClasses.Types.BELL_RENDERER, "BELL_TEXTURE"))
             .firstNotNull(CommitWalk.Commit::value);
-        return stem == null ? "" : BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.BELL) + stem;
+        return stem == null ? "" : sheetBase(BlockFamilyPolicies.CatalogFamily.BELL) + stem;
     }
 
     /**
@@ -424,13 +670,6 @@ final class BlockCatalogResolver {
         if (entry != null) return entry.id();
         this.diagnostics.warn("block field '%s' not in the registry index - id derived from field name", field);
         return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + field.toLowerCase(Locale.ROOT);
-    }
-
-    /** The chest ChestSpecialRenderer variant field a block maps to (fixed binding + copper weather). */
-    private static @NotNull String chestVariantField(@NotNull String blockLocal) {
-        String fixed = BlockFamilyPolicies.chestVariantField(blockLocal);
-        if (fixed != null) return fixed;
-        return BlockFamilyPolicies.chestCopperFieldPrefix() + copperWeatherField(blockLocal, "copper_chest");
     }
 
     /**

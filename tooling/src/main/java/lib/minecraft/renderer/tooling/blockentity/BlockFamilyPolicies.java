@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
+import lib.minecraft.renderer.tooling.policy.Trace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -19,6 +20,9 @@ import java.util.Map;
  * ModelLayers x {@code LayerDefinitionIndex} detection first); this enum only supplies the
  * split-id vocabulary and the branch-parameter values (banner / sign {@code withStick}, hanging-sign
  * attachment enum) the manifest requests carry.
+ *
+ * <p>A row whose fact sits at a walkable member declares that {@link Navigation} coordinate in
+ * place of a value; the consuming resolver re-enters the engine there and reads it.
  */
 enum BlockFamilyPolicies implements NavigationPolicy {
 
@@ -28,6 +32,12 @@ enum BlockFamilyPolicies implements NavigationPolicy {
      * meshes) splits into one model per layer; the split id is keyed on
      * {@code <baseLocalId>#<factoryMethod>}. Bases without an entry keep the subject id
      * unchanged (the single-mesh families - shulker, chest, conduit, copper_golem_statue).
+     *
+     * <p>The split NAMES are the authored half - an id is our output convention and no walk sees
+     * one. Which subjects land under each is the read half, this side of the table and the catalog
+     * side alike: {@link BlockCatalogResolver} walks the skull model dispatch for the factory every
+     * skull type bakes and joins here at that factory, so the seven-type partition is measured and
+     * only the four labels it lands on are declared.
      */
     METHOD_SPLIT_NAMING(
         Map.ofEntries(
@@ -82,25 +92,6 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " flag/pole split is the _FLAG field suffix, matched against a BannerFlagModel endsWith test"),
 
     /**
-     * The {@code SkullBlock$Types} to catalog split-id map. Vanilla has ONE
-     * {@code BlockEntityType.SKULL}; our 4-way split groups the seven skull types by shared mesh
-     * + texture dims (skeleton/wither/creeper = mob head; zombie/player = humanoid; dragon;
-     * piglin ears). Keyed by the block-id type prefix ({@code skeleton_skull} -> {@code skeleton}).
-     */
-    SKULL_TYPE_SPLIT(
-        Map.ofEntries(
-            Map.entry("skeleton", "minecraft:skull_head"),
-            Map.entry("wither_skeleton", "minecraft:skull_head"),
-            Map.entry("creeper", "minecraft:skull_head"),
-            Map.entry("zombie", "minecraft:skull_humanoid_head"),
-            Map.entry("player", "minecraft:skull_humanoid_head"),
-            Map.entry("dragon", "minecraft:skull_dragon_head"),
-            Map.entry("piglin", "minecraft:skull_piglin_head")),
-        "the 4-way skull split grouping the seven SkullBlock$Types by shared mesh + texture dims (mob 64x32 /"
-            + " humanoid 64x64 / dragon mesh / piglin ears); vanilla registers one BlockEntityType.SKULL, so the"
-            + " split is ours"),
-
-    /**
      * The catalog family-dispatch roster: which subjects emit a {@code blocks[]} catalog and
      * which family builder each rides. The family SET is derivable from discovery; the
      * split/texture-source divergence per family is the declared fact. Subjects absent here
@@ -124,60 +115,71 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " split / texture-source divergence is declared; part-only pseudo families ride PART_COMPOSITION"),
 
     /**
-     * The chest block-to-{@code ChestSpecialRenderer}-texture-field binding: the three fixed
-     * classes plus the copper composition rule ({@code COPPER_ + <WeatherState>}, {@code UNAFFECTED}
-     * for the bare base, waxed sharing the unwaxed sheet). The binding is spread across vanilla's
-     * special-renderer dispatch - not one walkable site.
-     */
-    CHEST_VARIANT(
-        new ChestVariants(
-            Map.of("chest", "REGULAR", "trapped_chest", "TRAPPED", "ender_chest", "ENDER_CHEST"),
-            "COPPER_"),
-        "chest class->texture-field binding + COPPER_<weather> composition with the UNAFFECTED fallback; the"
-            + " class<->field binding is spread across vanilla's special-renderer dispatch rather than sitting at"
-            + " one walkable site"),
-
-    /**
-     * Which of a tint-bearing renderer's meshes takes the dye: the {@code *FlagModel} factory
-     * (the banner flag); the wood-brown pole / bar never tints. An escape hatch - the honest
-     * derivation would need data-flow analysis of which submitted buffer receives the DyeColor.
+     * The coordinate of the mesh a tint-bearing renderer dyes. The banner renderer's submit method
+     * hands a model to three submits; only the one whose callee reads
+     * {@code DyeColor.getTextureDiffuseColor} routes the dye, and the model that submit receives is
+     * the dye-taking mesh. The pole and the flag base submit untinted.
      */
     BANNER_DYE_TARGET(
-        "FlagModel",
-        "the dye-taking mesh is the *FlagModel factory, matched as a class name containing \"Flag\" and ending"
-            + " \"Model.class\"; the honest derivation would need renderer data-flow analysis of which submitted"
-            + " buffer receives the DyeColor, so this stays a declared escape hatch. Consulted by"
-            + " BlockTintFlagResolver"),
+        new Navigation.At("net/minecraft/client/renderer/blockentity/BannerRenderer", "submitBanner", null),
+        "the dye-taking mesh is the model argument of the submit whose callee reads"
+            + " DyeColor.getTextureDiffuseColor; BlockTintFlagResolver re-enters the coordinate and reads it"),
 
     /**
-     * The fixed sheet texture stems ({@code = Sheets.<X>} sprite prefixes) per catalog
-     * family. Deriving them from {@code Sheets.<clinit>} instead remains a future option.
+     * The sheet field each catalog family's texture base is bound to. Two halves meet here. The
+     * ROUTING - which family reads which field - is authored, because no naming rule derives it:
+     * six families name a mapper of their own, the bell names the generic block-entity mapper, and
+     * "the first sprite this mapper composes" would hand the chest the ender-chest stem rather than
+     * the bare prefix the resolver appends its own discriminator to. The BASE STRINGS are read at
+     * the fields: a sprite-mapper field carries its base as the prefix its composition prepends, a
+     * sprite-id field carries the mapper's own base followed by the stem it was composed with.
      * Conduit is absent - its base derives from {@code ConduitRenderer.<clinit>}.
      */
     SHEET_TEXTURE_BASES(
         Map.ofEntries(
-            Map.entry(CatalogFamily.SHULKER_BOX, "entity/shulker/shulker"),
-            Map.entry(CatalogFamily.CHEST, "entity/chest/"),
-            Map.entry(CatalogFamily.BED, "entity/bed/"),
-            Map.entry(CatalogFamily.SIGN, "entity/signs/"),
-            Map.entry(CatalogFamily.HANGING_SIGN, "entity/signs/hanging/"),
-            Map.entry(CatalogFamily.BELL, "entity/"),
-            Map.entry(CatalogFamily.DECORATED_POT, "entity/decorated_pot/decorated_pot_base"),
-            Map.entry(CatalogFamily.BANNER, "entity/banner/banner_base")),
-        "D54: the Sheets.<X> sprite stems the legacy flow hard-codes (BlockListDiscovery constants;"
-            + " shulker colorToShulkerSprite concat base, bed/sign/hanging/banner/pot sheet prefixes,"
-            + " chest special-renderer sheet dir, bell BLOCK_ENTITIES_MAPPER entity/ base - 08 A5 rows"
-            + " 21-28); Sheets.<clinit> derivation deferred post-bridge"),
+            sheetEntry(CatalogFamily.SHULKER_BOX, "DEFAULT_SHULKER_TEXTURE_LOCATION"),
+            sheetEntry(CatalogFamily.CHEST, "CHEST_MAPPER"),
+            sheetEntry(CatalogFamily.BED, "BED_MAPPER"),
+            sheetEntry(CatalogFamily.SIGN, "SIGN_MAPPER"),
+            sheetEntry(CatalogFamily.HANGING_SIGN, "HANGING_SIGN_MAPPER"),
+            sheetEntry(CatalogFamily.BELL, "BLOCK_ENTITIES_MAPPER"),
+            sheetEntry(CatalogFamily.DECORATED_POT, "DECORATED_POT_BASE"),
+            sheetEntry(CatalogFamily.BANNER, "BANNER_BASE")),
+        "the field each family's base is bound to, authored because no naming rule derives it - six"
+            + " families name a mapper of their own, the bell names the generic block-entity mapper, and"
+            + " the shulker / decorated_pot / banner name a sprite id composed from a mapper plus a stem;"
+            + " every base string is read at the field the family names"),
 
     /**
-     * The PLAYER skull skin stem - {@code DefaultPlayerSkin.getDefaultSkin} resolves through
-     * its array-index shape to this stable value; declared here since the resolution bottoms
-     * out in a constant.
+     * The coordinate of the PLAYER skull skin stem, and the steps that recover it. The default-skin
+     * accessor loads one ordinal out of the class's skin array, and the element the static
+     * initialiser builds at that ordinal opens with the stem; every other skull type reads its skin
+     * from the {@code SkullBlockRenderer} populate lambda instead. The ordinal is the running value
+     * the array step indexes by, so a vanilla change of default skin moves the answer on its own.
      */
     PLAYER_SKULL_SKIN(
-        "entity/player/slim/steve",
-        "the DefaultPlayerSkin.getDefaultSkin chase result - the stable default skin the PLAYER SkullBlock$Types"
-            + " entry renders; every other type reads SKIN_BY_TYPE from the SkullBlockRenderer populate lambda");
+        new Navigation.Dataflow("net/minecraft/client/resources/DefaultPlayerSkin", "getDefaultSkin",
+            Trace.of(
+                new Trace.Step.ReadIntLiteral(),
+                new Trace.Step.FollowPutStatic("DEFAULT_SKINS"),
+                new Trace.Step.IndexArrayInit(),
+                new Trace.Step.ReadStringLiteral())),
+        "the PLAYER skull skin is the default-skin array element getDefaultSkin indexes; BlockCatalogResolver"
+            + " replays the trace - the loaded ordinal, the array's binding in the static initialiser, the"
+            + " element at that ordinal, and the stem it opens with");
+
+    /**
+     * Pairs a catalog family with the sheet coordinate its texture base is read at, so a row names
+     * the sheet class once.
+     *
+     * @param family the catalog family
+     * @param field the sheet field the base is bound to - a sprite mapper or a sprite id
+     * @return the roster row
+     */
+    private static @NotNull Map.Entry<CatalogFamily, Navigation.At> sheetEntry(
+        @NotNull CatalogFamily family, @NotNull String field) {
+        return Map.entry(family, new Navigation.At("net/minecraft/client/renderer/Sheets", field, null));
+    }
 
     /**
      * One sign / hanging-sign variant: the split id plus the branch parameter selecting it -
@@ -204,15 +206,6 @@ enum BlockFamilyPolicies implements NavigationPolicy {
         DECORATED_POT, COPPER_GOLEM_STATUE, SKULL, BANNER
     }
 
-    /**
-     * The chest binding: the fixed block-to-field entries plus the copper field-name prefix
-     * the weather composition prepends.
-     *
-     * @param fixedFields block local id -> {@code ChestSpecialRenderer} texture-field name
-     * @param copperFieldPrefix the {@code COPPER_} prefix before the {@code WeatherState} name
-     */
-    record ChestVariants(@NotNull Map<String, String> fixedFields, @NotNull String copperFieldPrefix) {}
-
     private final @NotNull Object value;
     private final @NotNull String provenance;
 
@@ -223,6 +216,7 @@ enum BlockFamilyPolicies implements NavigationPolicy {
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {
+        if (this.value instanceof Navigation coordinate) return coordinate;
         return new Navigation.Value<>(this.value, this.provenance);
     }
 
@@ -264,18 +258,6 @@ enum BlockFamilyPolicies implements NavigationPolicy {
     }
 
     /**
-     * The catalog split id for a skull block's type prefix, or {@code null} when the prefix is
-     * not a known skull type.
-     *
-     * @param typePrefix the block-id type prefix ({@code skeleton}, {@code wither_skeleton})
-     * @return the declared split id, or {@code null}
-     */
-    @SuppressWarnings("unchecked")
-    static @Nullable String skullTypeSplit(@NotNull String typePrefix) {
-        return ((Map<String, String>) SKULL_TYPE_SPLIT.value).get(typePrefix);
-    }
-
-    /**
      * The catalog family a subject dispatches to, or {@code null} when the subject emits no
      * block catalog (enchanting_table / lectern).
      *
@@ -288,42 +270,17 @@ enum BlockFamilyPolicies implements NavigationPolicy {
     }
 
     /**
-     * The fixed {@code ChestSpecialRenderer} texture field for a chest block, or {@code null}
-     * when the block is a copper chest (composed as {@code COPPER_<weather>}).
-     *
-     * @param blockLocal the block's namespace-less id
-     * @return the field name, or {@code null} for the copper composition
-     */
-    static @Nullable String chestVariantField(@NotNull String blockLocal) {
-        return ((ChestVariants) CHEST_VARIANT.value).fixedFields().get(blockLocal);
-    }
-
-    /** The {@code COPPER_} field-name prefix the chest weather composition prepends. */
-    static @NotNull String chestCopperFieldPrefix() {
-        return ((ChestVariants) CHEST_VARIANT.value).copperFieldPrefix();
-    }
-
-    /** The factory-class suffix marking the dye-taking mesh (the banner {@code *FlagModel}). */
-    static @NotNull String dyeTargetModelSuffix() {
-        return (String) BANNER_DYE_TARGET.value;
-    }
-
-    /**
-     * The declared sheet texture stem for a catalog family.
+     * The coordinate a catalog family's sheet texture base is read at.
      *
      * @param family the catalog family token
-     * @return the {@code Sheets.<X>} stem
+     * @return the sheet-field coordinate
+     * @throws IllegalArgumentException if the family names no sheet field
      */
     @SuppressWarnings("unchecked")
-    static @NotNull String sheetTextureBase(@NotNull CatalogFamily family) {
-        String base = ((Map<CatalogFamily, String>) SHEET_TEXTURE_BASES.value).get(family);
-        if (base == null) throw new IllegalArgumentException("No declared sheet base for family " + family);
-        return base;
-    }
-
-    /** The declared PLAYER skull skin stem (the DefaultPlayerSkin chase result). */
-    static @NotNull String playerSkullSkin() {
-        return (String) PLAYER_SKULL_SKIN.value;
+    static Navigation.@NotNull At sheetCoordinate(@NotNull CatalogFamily family) {
+        Navigation.At coordinate = ((Map<CatalogFamily, Navigation.At>) SHEET_TEXTURE_BASES.value).get(family);
+        if (coordinate == null) throw new IllegalArgumentException("No sheet coordinate for family " + family);
+        return coordinate;
     }
 
 }

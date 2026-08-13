@@ -29,6 +29,7 @@ public final class ToolingEntityModels {
      */
     public static void main(String[] args) {
         try (ToolingSession session = ToolingPipeline.openSession("entityModels", Diagnostics.Output.CONSOLE)) {
+            GeometryFlow.requireModelPackage(session);
             List<EntitySubject> subjects = EntityRegistryDiscovery.discover(session);
             JsonTree root = session.envelope(
                 "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain");

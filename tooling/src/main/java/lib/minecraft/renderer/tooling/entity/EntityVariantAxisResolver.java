@@ -126,9 +126,10 @@ final class EntityVariantAxisResolver {
     /**
      * The alphabetically-first variant id whose {@code spawn_conditions} entries are all
      * unconditional (each carries no {@code condition} sub-object) - vanilla's fresh-spawn
-     * zero-state selection, tiebreak per
-     * {@link EntityAxisPolicies#ALPHA_FIRST_UNCONDITIONAL_TIEBREAK}. Conditions are read
-     * from the retained table - no jar re-scan.
+     * zero-state selection, and the tiebreak a data-variant holder declaring no {@code DEFAULT}
+     * falls to. Structure, moon and biome gated variants drop out, so the cat {@code all_black},
+     * gated on a structure and the moon, loses to {@code black}. Conditions are read from the
+     * retained table - no jar re-scan.
      */
     private static @Nullable String alphaFirstUnconditional(@NotNull List<VariantIndex.Variant> table) {
         TreeSet<String> unconditional = new TreeSet<>();
@@ -228,7 +229,7 @@ final class EntityVariantAxisResolver {
     private @NotNull Map<String, String> modelTypeToModelLayerField() {
         ClassNode cn = this.cache.load(this.subject.rendererClass());
         if (cn == null) return Map.of();
-        String modelTypeSuffix = EntityNamingPolicies.VARIANT_ENUM_CONVENTIONS.strings().get(1);
+        String modelTypeSuffix = VanillaSourceClasses.Types.VARIANT_MODEL_TYPE_SUFFIX;
         Map<String, String> out = new LinkedHashMap<>();
         for (MethodNode method : cn.methods)
             AsmWalker.over(method)

@@ -4,6 +4,7 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -52,6 +53,33 @@ final class EntityBlockOverlayResolver {
         this.roster = roster;
         this.blocks = context.indexes().blocks();
         this.diagnostics = context.diagnostics();
+    }
+
+    /**
+     * Asserts the jar declares a render-state field whose descriptor ends in the variant
+     * inner-enum suffix - the grammar {@link #classifyBlockSource} filters a variant-keyed
+     * block source by. That suffix is a declared constant rather than a value any walk reads
+     * off bytecode, so this scan is what holds it to the jar: the listing and the field scan
+     * both answer empty rather than failing, and a renamed convention would otherwise degrade
+     * every variant-keyed overlay to a render-selectable row in silence.
+     *
+     * <p>Runs once, before the flow's first table is written: the strict gate reads its counters
+     * after every write, so a recorded entry the run carried on past would leave a table on disk
+     * that no walk stands behind.
+     *
+     * @param cache the session's jar cache
+     * @throws ToolingException if no render-state class declares a variant-typed field
+     */
+    static void requireVariantRenderStates(@NotNull ClassNodeCache cache) {
+        String suffix = VanillaSourceClasses.Descs.VARIANT_SUFFIX;
+        for (String entryPath : cache.list(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE, ".class")) {
+            ClassNode stateCn = ClassKit.requireClass(cache,
+                entryPath.substring(0, entryPath.length() - ".class".length()), "variant render-state grammar");
+            for (FieldNode field : stateCn.fields)
+                if (field.desc != null && field.desc.endsWith(suffix)) return;
+        }
+        throw new ToolingException("Client jar declares no field ending '%s' under '%s' - the variant render-state grammar matches nothing",
+            suffix, VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE);
     }
 
     /**
@@ -120,7 +148,7 @@ final class EntityBlockOverlayResolver {
 
         ClassNode stateCn = this.cache.load(stateRead.owner);
         if (stateCn != null) {
-            String variantSuffix = EntityNamingPolicies.VARIANT_DESCRIPTOR_SUFFIX.stringValue();
+            String variantSuffix = VanillaSourceClasses.Descs.VARIANT_SUFFIX;
             for (FieldNode field : stateCn.fields) {
                 if (field.desc == null || !field.desc.startsWith("L") || !field.desc.endsWith(variantSuffix)) continue;
                 String variantClass = field.desc.substring(1, field.desc.length() - 1);

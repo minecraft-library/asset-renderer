@@ -16,14 +16,14 @@ import java.util.Map;
 enum EntityAxisPolicies implements NavigationPolicy {
 
     /**
-     * The slime / magma_cube natural-size set {1, 2, 4} plus the size-axis membership of the
-     * two entities. The set comes from server-side spawn logic ({@code 1 << rand(3)}) that
-     * the client jar this pipeline reads cannot see, so it is declared here rather than
-     * derived.
+     * The coordinate of the natural-size set. The spawn finaliser draws one value below a literal
+     * bound and shifts a literal base left by it, so the set is that base shifted by each value the
+     * bound admits; the entities carrying it are the coordinate's owner and everything deriving from
+     * it, which inherits the same finaliser.
      */
     NATURAL_SIZE_SET(
-        Map.of("minecraft:slime", List.of(1, 2, 4), "minecraft:magma_cube", List.of(1, 2, 4)),
-        "natural sizes 1<<rand(3) live in server world-entity code, not the client jar; scale-per-size is"
+        new Navigation.At("net/minecraft/world/entity/monster/Slime", "finalizeSpawn", null),
+        "the sizes are the bounded draw and the shift the spawn finaliser applies to it; scale-per-size is"
             + " proportional per SlimeRenderer.scale at squish 0"),
 
     /**
@@ -47,27 +47,19 @@ enum EntityAxisPolicies implements NavigationPolicy {
         "render-default state pick, wild->primary->first"),
 
     /**
-     * The alpha-first-unconditional default-variant tiebreak used when a data-variant
-     * holder class declares no {@code DEFAULT}: variants whose {@code spawn_conditions}
-     * entries all lack a {@code condition} sub-object, ordered alphabetically, first wins.
-     * This mirrors vanilla fresh-spawn selection at a zero state, where structure / moon /
-     * biome gated variants drop out.
-     */
-    ALPHA_FIRST_UNCONDITIONAL_TIEBREAK(
-        "alphabetical-unconditional",
-        "mirrors vanilla runtime selection at a fresh-spawn zero state - cat all_black carries structure+moon"
-            + " conditions, black wins"),
-
-    /**
-     * The size-axis option domain, in declared order, plus the default-pick rule: the
-     * default is the option-less domain member (the mesh the family's base {@code geometry}
-     * already renders - pufferfish {@code large}, salmon {@code medium}, slime {@code small}).
-     * This is invented vocabulary; the emitted {@code options} key order follows this domain
+     * The coordinate the size-axis option domain is read at. The vocabulary is this pipeline's own
+     * and the coordinate names one of its consumers - a vanilla enum spelling the same three ids as
+     * its members' serialized names - so the walk reads those ids in the enum's declaration order.
+     * That order carries the default-pick rule: the default is the option-less domain member, the
+     * mesh the family's base {@code geometry} already renders (pufferfish {@code large}, salmon
+     * {@code medium}, slime {@code small}). The emitted {@code options} key order follows the domain
      * order and IS the domain, with no per-family {@code values} list.
      */
     SIZE_DOMAIN(
-        List.of("small", "medium", "large"),
-        "invented size vocabulary + default = option-less member"),
+        new Navigation.At("net/minecraft/world/entity/animal/fish/Salmon$Variant", "<clinit>", null),
+        "the option vocabulary is this pipeline's own and the coordinate's enum spells the same three ids;"
+            + " the walk reads each member's serialized id in declaration order, and a member bound by"
+            + " aliasing another pushes no id and is no part of it"),
 
     /**
      * The shape / size axis membership plus option naming: which entities carry a
@@ -99,28 +91,17 @@ enum EntityAxisPolicies implements NavigationPolicy {
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {
+        if (this.value instanceof Navigation coordinate) return coordinate;
         return new Navigation.Value<>(this.value, this.provenance);
     }
 
     /**
      * The declared string-list fact of a list-valued constant ({@link #AXIS_NAME_VOCABULARY},
-     * {@link #STATE_PRECEDENCE}, {@link #SIZE_DOMAIN}).
+     * {@link #STATE_PRECEDENCE}).
      */
     @SuppressWarnings("unchecked")
     @NotNull List<String> strings() {
         return (List<String>) this.value;
-    }
-
-    /**
-     * The natural-size set for an entity ({@link #NATURAL_SIZE_SET}), or {@code null} when
-     * the entity is not a declared member.
-     *
-     * @param entityId the namespaced entity id
-     * @return the ordered natural sizes, or {@code null}
-     */
-    @SuppressWarnings("unchecked")
-    static @Nullable List<Integer> naturalSizesFor(@NotNull String entityId) {
-        return ((Map<String, List<Integer>>) NATURAL_SIZE_SET.value).get(entityId);
     }
 
     /**

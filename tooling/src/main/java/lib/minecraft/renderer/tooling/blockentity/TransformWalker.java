@@ -4,6 +4,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Exit;
 import lib.minecraft.renderer.tooling.walk.Insn;
@@ -15,6 +16,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -45,6 +47,10 @@ final class TransformWalker {
     /** The canonicalisation tolerance - declared as {@link BlockTransformPolicies#CANONICALISE}. */
     private static final float UNIT_EPS = BlockTransformPolicies.canonicalUnitEps();
     private static final float MCPIXEL = 16f;
+    /** The leading character of a method descriptor - what tells a factory coordinate from a static-field one. */
+    private static final char METHOD_DESCRIPTOR = '(';
+    /** The caller label the loud re-entries tag their drift message with. */
+    private static final @NotNull String ENTRY_CONTEXT = "the inventory transform decomposition";
 
     private static final @NotNull String MATRIX4F = "org/joml/Matrix4f";
     private static final @NotNull String TRANSFORMATION = "com/mojang/math/Transformation";
@@ -67,45 +73,36 @@ final class TransformWalker {
 
     /**
      * Decomposes a renderer's GUI transform into the inventory tuple, or {@code null} when the
-     * factory is unknown / unmodellable.
+     * factory is unmodellable.
      *
-     * @param rendererClass the renderer's JVM internal name
-     * @param entry a method name, or {@code FIELD:<field>} for a static transform
+     * @param entry the renderer's GUI-{@code Transformation} coordinate
      * @param attachment the standing-sign attachment constant to seed ({@code WALL} / {@code FLOOR}), or {@code null}
      * @return the {@code [tx, ty, tz, pitch, yaw, roll, scale?]} tuple, or {@code null}
+     * @throws ToolingException if the coordinate names a class, member or static initialiser the jar does not hold
      */
-    float @Nullable [] decompose(@NotNull String rendererClass, @NotNull String entry, @Nullable String attachment) {
-        ClassNode cn = this.cache.load(rendererClass);
-        if (cn == null) return null;
-
-        if (entry.startsWith(BlockTransformPolicies.FIELD_ENTRY_PREFIX)) {
-            String field = entry.substring(BlockTransformPolicies.FIELD_ENTRY_PREFIX.length());
-            MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
-            if (clinit == null) return null;
-            Frame frame = new Frame(rootMachine());
-            frame.run(cn, clinit, field);
-            // Only the Transformation live at the stop field's PUTSTATIC counts - a <clinit> may
-            // construct other Transformations before (or instead of) the target field's.
-            return frame.stopReached && frame.finalTransform != null ? canonicalise(frame.finalTransform) : null;
+    float @Nullable [] decompose(@NotNull Navigation.At entry, @Nullable String attachment) {
+        ClassNode cn = ClassKit.requireClass(this.cache, entry.owner(), ENTRY_CONTEXT);
+        String descriptor = entry.desc();
+        if (descriptor == null) {
+            throw new ToolingException(
+                "Transform entry '%s.%s' carries no descriptor - the descriptor is what tells a factory method from a static field",
+                entry.owner(), entry.member());
         }
 
-        MethodNode method = findTransformMethod(cn, entry);
-        if (method == null) return null;
-        Frame frame = new Frame(rootMachine());
-        frame.seedParameters(method, attachment);
-        frame.run(cn, method, null);
-        return frame.finalTransform == null ? null : canonicalise(frame.finalTransform);
-    }
+        if (descriptor.charAt(0) == METHOD_DESCRIPTOR) {
+            MethodNode method = ClassKit.requireMethod(cn, entry.member(), descriptor, ENTRY_CONTEXT);
+            Frame frame = new Frame(rootMachine());
+            frame.seedParameters(method, attachment);
+            frame.run(cn, method, null);
+            return frame.finalTransform == null ? null : canonicalise(frame.finalTransform);
+        }
 
-    /** The {@code Transformation}-returning overload of {@code name} (else the first of that name). */
-    private static @Nullable MethodNode findTransformMethod(@NotNull ClassNode cn, @NotNull String name) {
-        MethodNode fallback = null;
-        for (MethodNode method : cn.methods)
-            if (method.name.equals(name)) {
-                if (ClassKit.descriptorReturns(method.desc, TRANSFORMATION)) return method;
-                if (fallback == null) fallback = method;
-            }
-        return fallback;
+        FieldNode field = ClassKit.requireField(cn, entry.member(), ENTRY_CONTEXT);
+        Frame frame = new Frame(rootMachine());
+        frame.run(cn, ClassKit.requireClinit(cn, ENTRY_CONTEXT), field.name);
+        // Only the Transformation live at the stop field's PUTSTATIC counts - a <clinit> may
+        // construct other Transformations before (or instead of) the target field's.
+        return frame.stopReached && frame.finalTransform != null ? canonicalise(frame.finalTransform) : null;
     }
 
     // ------------------------------------------------------------------------------------

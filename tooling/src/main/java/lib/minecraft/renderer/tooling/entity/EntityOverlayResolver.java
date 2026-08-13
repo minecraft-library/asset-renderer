@@ -6,6 +6,7 @@ import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -21,6 +22,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -42,8 +44,8 @@ import java.util.Set;
  * detection (warden, creaking, copper golem), the villager multi-pass arm, the
  * parameterized binding (stray, bogged), and the bespoke-equipment default-decor arm
  * (trader llama, via constant-boolean predicate evaluation on the subject's entity class).
- * Eyes classify by the clinit texture-to-{@code RenderTypes}-factory SHAPE plus pipeline
- * traits, not by name.
+ * Eyes classify by the clinit texture-to-{@code RenderTypes}-factory shape, the factory vanilla
+ * names an eye overlay for, and the pipeline traits it declares - never by a layer class name.
  *
  * <p>Zero-state byte-identity is the load-bearing doctrine: every row's absent / default
  * option renders identically to vanilla (crackiness NONE draws nothing, the uncharged
@@ -72,6 +74,16 @@ final class EntityOverlayResolver {
      * The no-tint sentinel (multiplicative identity).
      */
     private static final int NO_TINT = 0xFFFFFFFF;
+
+    /**
+     * Descriptor of a no-argument {@code Identifier} accessor - the shape a texture component is
+     * read through.
+     */
+    private static final @NotNull String IDENTIFIER_ACCESSOR_DESC =
+        VanillaSourceClasses.Descs.of(VanillaSourceClasses.Descs.IDENTIFIER_REF);
+
+    /** The caller label a stale eye-overlay factory coordinate is reported under. */
+    private static final @NotNull String EYE_FACTORY = "the eye-overlay render type";
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -187,6 +199,10 @@ final class EntityOverlayResolver {
      * undercoat's WHITE-compare gate is {@code if_acmp*}, never {@code ifnull}). The read
      * may pass through a local ({@code astore; aload}) before the null branch, so the probe
      * scans a small forward window over store / load / dup shuffles.
+     *
+     * <p>A match routes the site to that row, tinted at render from {@code collar_color}, rather
+     * than to the composite-overlay arm: vanilla draws no collar at a null collar colour, where a
+     * composite overlay paints a coloured one at the zero state.
      */
     static boolean isCollarShaped(@NotNull ClassNode cn) {
         MethodNode submit = typedSubmit(cn);
@@ -360,13 +376,22 @@ final class EntityOverlayResolver {
     }
 
     /**
-     * The stem gate: a pre-built RenderType binding is an eye / glow overlay only on an eye-stem texture.
+     * The factory gate: a pre-built RenderType binding is an eye / glow overlay only through a
+     * factory vanilla names one for. Each declared name is re-entered on the class, so a rename
+     * raises rather than dropping every glow overlay in silence.
+     *
+     * @param factoryName the {@code RenderTypes} factory the binding commits at
+     * @return whether the factory is one vanilla names an eye overlay for
+     * @throws ToolingException if the class or any declared factory is absent
      */
-    private static boolean hasEyeStem(@NotNull String texturePath) {
-        String stem = texturePath.substring(0, texturePath.length() - ".png".length());
-        for (String suffix : EntityOverlayPolicies.EYE_STEM_FIRST_LITERAL.strings())
-            if (stem.endsWith(suffix)) return true;
-        return false;
+    private boolean isEyeFactory(@NotNull String factoryName) {
+        ClassNode renderTypes = ClassKit.requireClass(this.cache, VanillaSourceClasses.Types.RENDER_TYPES, EYE_FACTORY);
+        boolean match = false;
+        for (String declared : VanillaSourceClasses.Methods.EYE_RENDER_TYPES) {
+            ClassKit.requireMethod(renderTypes, declared, EYE_FACTORY);
+            if (declared.equals(factoryName)) match = true;
+        }
+        return match;
     }
 
     /**
@@ -383,7 +408,8 @@ final class EntityOverlayResolver {
     /**
      * The pre-built-RenderType eye shape: the {@code <clinit>} binds a texture literal
      * flowing into a {@code RenderTypes} factory returning a {@code RenderType} - detected
-     * by SHAPE and classified by pipeline traits, never by a class or field name match.
+     * by SHAPE, admitted by the factory vanilla names an eye overlay for, and classified by
+     * pipeline traits, never by a class or field name match.
      * Works unchanged on a renderer's own {@code <clinit>} (the dragon tail).
      */
     private @Nullable JsonTree resolveEyesBinding(@NotNull String sourceClass, int layerIndex, @NotNull ClassNode cn) {
@@ -398,11 +424,11 @@ final class EntityOverlayResolver {
                 && mi.desc.endsWith(renderTypeReturn))
             .firstNotNull(commit -> {
                 String pendingTexture = commit.value();
-                if (pendingTexture == null || !hasEyeStem(pendingTexture)) return null;
                 MethodInsnNode mi = commit.node();
+                if (pendingTexture == null || !isEyeFactory(mi.name)) return null;
                 var factoryTraits = this.traits.traitsOf(mi.name);
-                // A default-pipeline factory (the dragon's dying entityCutoutDissolve) never
-                // pre-builds a glow overlay - skip it without consuming the pending texture.
+                // A factory declaring no pipeline trait pre-builds no glow overlay - skip it
+                // without consuming the pending texture.
                 if (factoryTraits.isEmpty()) return null;
                 JsonTree node = row(sourceClass, layerIndex)
                     .putIf("geometry", this.geometryRef.primaryKey())
@@ -432,8 +458,8 @@ final class EntityOverlayResolver {
                 && mi.desc.endsWith(renderTypeReturn))
             .firstNotNull(commit -> {
                 String pendingTexture = commit.value();
-                if (pendingTexture == null || !hasEyeStem(pendingTexture)) return null;
                 MethodInsnNode mi = commit.node();
+                if (pendingTexture == null || !isEyeFactory(mi.name)) return null;
                 var factoryTraits = this.traits.traitsOf(mi.name);
                 if (factoryTraits.isEmpty()) return null;   // default pipeline - not a glow binding
                 JsonTree node = JsonTree.object()
@@ -1164,10 +1190,10 @@ final class EntityOverlayResolver {
             .names()
             .first();
         if (stateField == null) return null;
-        // State-driven dispatch: the axis token is the state field; the zero-state texture
-        // is the first eye-stem literal over the lambda's reachable classes (the data class
-        // allocates its default-state instance first).
-        String zeroState = firstEyeLiteral(owner, lambda);
+        // State-driven dispatch: the axis token is the state field; the zero-state texture is the
+        // one the first instance the dispatched data class builds carries (a holder allocates its
+        // default-state instance first).
+        String zeroState = zeroStateLiteral(lambda);
         if (zeroState == null) return null;
         String token = axisToken(stateField);
         boolean vocab = EntityAxisPolicies.AXIS_NAME_VOCABULARY.strings().contains(token);
@@ -1176,29 +1202,58 @@ final class EntityOverlayResolver {
     }
 
     /**
-     * The first eye-stem texture literal over the lambda-reachable clinits.
+     * The zero-state texture a state-driven provider dispatches from. The accessor the lambda ends
+     * on names a component of the dispatched data class, and the first instance that class's holder
+     * builds carries the literal bound to it - a holder allocates its default-state instance first.
+     *
+     * @param lambda the provider lambda body
+     * @return the zero-state texture literal, or {@code null} when the lambda ends on no component
+     *     accessor the holder builds a literal for
      */
-    private @Nullable String firstEyeLiteral(@NotNull ClassNode lambdaOwner, @NotNull MethodNode lambda) {
-        LinkedHashSet<String> candidates = new LinkedHashSet<>();
-        candidates.add(lambdaOwner.name);
-        AsmWalker.over(lambda)
+    private @Nullable String zeroStateLiteral(@NotNull MethodNode lambda) {
+        MethodInsnNode accessor = AsmWalker.over(lambda)
             .ofType(MethodInsnNode.class)
-            .where(mi -> (mi.getOpcode() == Opcodes.INVOKESTATIC || mi.getOpcode() == Opcodes.INVOKEVIRTUAL)
+            .where(mi -> mi.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && IDENTIFIER_ACCESSOR_DESC.equals(mi.desc)
                 && mi.owner.startsWith(VanillaSourceClasses.Types.MINECRAFT_ROOT))
-            .forEach(mi -> candidates.add(mi.owner));
-        List<String> stems = EntityOverlayPolicies.EYE_STEM_FIRST_LITERAL.strings();
-        for (String candidate : candidates) {
-            String found = AsmWalker.clinit(this.cache, candidate).firstNotNull(in -> {
-                String literal = readEntityTextureLiteral(in);
-                if (literal == null) return null;
-                String stem = literal.substring(0, literal.length() - ".png".length());
-                for (String suffix : stems)
-                    if (stem.endsWith(suffix)) return literal;
-                return null;
-            });
-            if (found != null) return found;
+            .last();
+        if (accessor == null) return null;
+        ClassNode dispatched = this.cache.load(accessor.owner);
+        if (dispatched == null) return null;
+        int slot = textureComponentIndex(dispatched, accessor.name);
+        if (slot < 0) return null;
+        MethodInsnNode holder = AsmWalker.over(lambda)
+            .ofType(MethodInsnNode.class)
+            .where(mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
+                && mi.desc.endsWith(")" + VanillaSourceClasses.Descs.ref(accessor.owner)))
+            .first();
+        if (holder == null) return null;
+        // Each allocation opens at its NEW and closes at its <init>, so the literals a commit
+        // carries are that instance's own, in component order.
+        return AsmWalker.clinit(this.cache, holder.owner)
+            .gather(EntityOverlayResolver::readEntityTextureLiteral)
+            .resetAt(Insn.new_(accessor.owner))
+            .commitAt(Insn.invokeSpecial(accessor.owner, ClassKit.INIT))
+            .firstNotNull(commit -> commit.values().size() > slot ? commit.values().get(slot) : null);
+    }
+
+    /**
+     * The position of a named component among a class's {@code Identifier}-typed instance fields,
+     * or {@code -1} when it declares none under that name.
+     *
+     * @param dispatched the data class the accessor is declared on
+     * @param componentName the accessor name
+     * @return the zero-based position, or {@code -1}
+     */
+    private static int textureComponentIndex(@NotNull ClassNode dispatched, @NotNull String componentName) {
+        int index = 0;
+        for (FieldNode field : dispatched.fields) {
+            if ((field.access & Opcodes.ACC_STATIC) != 0) continue;
+            if (!VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(field.desc)) continue;
+            if (field.name.equals(componentName)) return index;
+            index++;
         }
-        return null;
+        return -1;
     }
 
     /**

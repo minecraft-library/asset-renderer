@@ -32,6 +32,7 @@ public final class ToolingBlockModels {
      */
     public static void main(String[] args) {
         try (ToolingSession session = ToolingPipeline.openSession("blockModels", Diagnostics.Output.CONSOLE)) {
+            GeometryFlow.requireModelPackage(session);
             List<BlockEntitySubject> subjects = BlockEntityRegistryDiscovery.discover(session);
             JsonTree root = session.envelope(
                 "BlockEntityRenderers.<clinit> registration order x BlockFamilyPolicies split order");

@@ -4,7 +4,10 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.policy.AsmContext;
+import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.Insn;
@@ -16,6 +19,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
@@ -37,12 +41,8 @@ import java.util.Map;
  */
 final class EntityRenderTraitsResolver {
 
-    /**
-     * Tolerance for the uniform-scale check on {@code poseStack.scale(F,F,F)} args - vanilla
-     * writes literal uniform triples; drift beyond this implies a non-uniform expression
-     * treated as identity ({@link EntityNamingPolicies#UNIFORM_SCALE_TOLERANCE}).
-     */
-    private static final float UNIFORM_SCALE_TOLERANCE = EntityNamingPolicies.UNIFORM_SCALE_TOLERANCE.floatValue();
+    /** The caller label a stale uniform-scale coordinate is reported under. */
+    private static final @NotNull String UNIFORM_SCALE = "the uniform-scale tolerance";
 
     /**
      * The no-op multiplicative tint.
@@ -53,10 +53,41 @@ final class EntityRenderTraitsResolver {
     private final @NotNull EntitySubject subject;
     private final @NotNull Diagnostics diagnostics;
 
+    /**
+     * Tolerance for the uniform-scale check on {@code poseStack.scale(F,F,F)} args - vanilla
+     * writes literal uniform triples; drift beyond this implies a non-uniform expression
+     * treated as identity ({@link EntityNamingPolicies#UNIFORM_SCALE_TOLERANCE}).
+     */
+    private final float uniformScaleTolerance;
+
     EntityRenderTraitsResolver(@NotNull EntityContext context) {
         this.cache = context.cache();
         this.subject = context.subject();
         this.diagnostics = context.diagnostics();
+        this.uniformScaleTolerance = uniformScaleTolerance(context);
+    }
+
+    /**
+     * Reads the uniform-scale tolerance off the field the naming policy's coordinate names - a
+     * compile-time {@code ConstantValue}, so no static initialiser is walked. The policy is
+     * consulted through {@link Navigation} on a frame carrying the subject being resolved.
+     *
+     * @param context the resolver's frame
+     * @return the epsilon the coordinate carries
+     * @throws ToolingException if the coordinate names no constant of the declared descriptor
+     */
+    private static float uniformScaleTolerance(@NotNull EntityContext context) {
+        ClassNodeCache cache = context.cache();
+        Navigation.At coordinate = EntityNamingPolicies.UNIFORM_SCALE_TOLERANCE.requireAt(
+            new AsmContext(context.session(), context.subject().entityId(), null, context.diagnostics()));
+        ClassNode owner = ClassKit.requireClass(cache, coordinate.owner(), UNIFORM_SCALE);
+        FieldNode epsilon = ClassKit.requireField(owner, coordinate.member(), UNIFORM_SCALE);
+        if (!epsilon.desc.equals(coordinate.desc()) || !(epsilon.value instanceof Float tolerance))
+            throw new ToolingException(
+                "Field '%s.%s' carries no '%s' constant for %s - the jar is either obfuscated or from an unsupported version",
+                owner.name, epsilon.name, coordinate.desc(), UNIFORM_SCALE
+            );
+        return tolerance;
     }
 
     /**
@@ -366,7 +397,7 @@ final class EntityRenderTraitsResolver {
             .where(call -> scaleDesc.equals(call.desc))
             .mapNotNull(call -> readUniformScaleArgs(call, slotLiterals))
             .reduce(1f, (product, xyz) -> product * xyz);
-        if (Math.abs(accum - 1f) <= UNIFORM_SCALE_TOLERANCE) return null;
+        if (Math.abs(accum - 1f) <= this.uniformScaleTolerance) return null;
         this.diagnostics.info("renderer scale %.6f from poseStack.scale chain", accum);
         return accum;
     }
@@ -397,7 +428,7 @@ final class EntityRenderTraitsResolver {
      * {@code PoseStack.scale(FFF)V}, resolvable via direct literal or the pre-branch slot
      * map; {@code null} when any arg is unresolvable or the triple is non-uniform.
      */
-    private static @Nullable Float readUniformScaleArgs(@NotNull AbstractInsnNode invoke, @NotNull Map<Integer, Float> slotLiterals) {
+    private @Nullable Float readUniformScaleArgs(@NotNull AbstractInsnNode invoke, @NotNull Map<Integer, Float> slotLiterals) {
         AbstractInsnNode z = AsmWalker.previousReal(invoke);
         Float zValue = resolveFloatArg(z, slotLiterals);
         if (zValue == null) return null;
@@ -406,7 +437,7 @@ final class EntityRenderTraitsResolver {
         if (yValue == null) return null;
         Float xValue = resolveFloatArg(AsmWalker.previousReal(y), slotLiterals);
         if (xValue == null) return null;
-        if (Math.abs(xValue - yValue) > UNIFORM_SCALE_TOLERANCE || Math.abs(yValue - zValue) > UNIFORM_SCALE_TOLERANCE) return null;
+        if (Math.abs(xValue - yValue) > this.uniformScaleTolerance || Math.abs(yValue - zValue) > this.uniformScaleTolerance) return null;
         return xValue;
     }
 

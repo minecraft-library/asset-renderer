@@ -1,7 +1,10 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
+import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.policy.AsmContext;
+import lib.minecraft.renderer.tooling.policy.Navigation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,8 +33,12 @@ final class InventoryTransformResolver {
      */
     private final @NotNull Map<String, float[]> memo = new HashMap<>();
 
-    InventoryTransformResolver(@NotNull ClassNodeCache cache) {
-        this.walker = new TransformWalker(cache);
+    /** The session every per-renderer policy consultation is framed on. */
+    private final @NotNull ToolingSession session;
+
+    InventoryTransformResolver(@NotNull ToolingSession session) {
+        this.session = session;
+        this.walker = new TransformWalker(session.cache());
     }
 
     /**
@@ -43,12 +50,19 @@ final class InventoryTransformResolver {
      * @return the transform float array node, or {@code null}
      */
     @Nullable JsonTree resolve(@NotNull String rendererClass, @NotNull String splitId) {
-        String entry = BlockTransformPolicies.rendererEntry(rendererClass);
-        if (entry == null) return null;
+        // the renderer in play is the anchor class, which is the dimension this row is keyed on;
+        // a renderer the roster names no entry for answers None, which is "no GUI transform"
+        Navigation navigation = BlockTransformPolicies.RENDERER_ENTRY_METHODS.navigate(
+            AsmContext.keyless(this.session, rendererClass, this.session.diagnostics()));
+        if (navigation instanceof Navigation.None) return null;
+        if (!(navigation instanceof Navigation.At entry))
+            throw new ToolingException("Policy '%s.%s' answers '%s' where a bytecode coordinate was required",
+                BlockTransformPolicies.class.getSimpleName(), BlockTransformPolicies.RENDERER_ENTRY_METHODS,
+                navigation.getClass().getSimpleName());
 
         String attachment = BlockTransformPolicies.signAttachment(splitId);
         String key = rendererClass + "|" + attachment;
-        float[] tuple = this.memo.computeIfAbsent(key, ignored -> this.walker.decompose(rendererClass, entry, attachment));
+        float[] tuple = this.memo.computeIfAbsent(key, ignored -> this.walker.decompose(entry, attachment));
         if (tuple == null) return null;
         JsonTree array = JsonTree.array();
         for (float value : tuple) array.add(value);

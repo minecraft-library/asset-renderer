@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
+import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -9,66 +9,25 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 
 /**
- * Declared naming conventions and tuning epsilons for the entity tooling flow - Mojang naming
- * conventions with no more-principled source, declared fallbacks behind derivations, and
- * heuristic thresholds. Never fetches ({@code PolicyPurityTest}).
+ * The entity tooling flow's declared naming conventions and tuning thresholds - Mojang naming
+ * conventions with no more-principled source, and the thresholds a derivation is judged
+ * against - alongside the coordinate of the one epsilon vanilla carries itself. Never fetches
+ * ({@code PolicyPurityTest}).
+ *
+ * <p>A row whose fact sits at a walkable member declares that {@link Navigation} coordinate in
+ * place of a value; the consuming resolver re-enters the engine there and reads it.
  */
 enum EntityNamingPolicies implements NavigationPolicy {
 
     /**
-     * The synthetic geometry-source id scheme ({@code #large} / {@code #baby} /
-     * {@code __overlay_<FIELD>}), retired now that factory-coordinate keys generate ids
-     * instead. The entry is kept so the retirement is recorded, not silent.
-     */
-    SYNTHETIC_SOURCE_IDS(
-        "retired-by-key-grammar",
-        "legacy tooling-own id vocabulary - dissolved by GeometryIds factory-coordinate keys; no runtime consumer"),
-
-    /**
-     * The entity {@link GeometryRequest} coordinate
-     * convention: {@code YAxis.DOWN}, no inventory rotation, {@code null} refParam. A vanilla
-     * authoring convention, not per-class bytecode - baked into the entity request factories
-     * ({@code GeometryRequest.body} / {@code shape} / {@code overlay} / {@code equipment}),
-     * declared here.
-     */
-    ENTITY_REQUEST_CONVENTION(
-        "YAxis.DOWN, inventoryYRotation=0, refParam=null",
-        "vanilla entity models author Y-down with no GUI facts"),
-
-    /**
      * The uniform-scale tolerance for {@code poseStack.scale(F,F,F)} triples: vanilla
      * writes literal uniform triples; drift beyond this implies a non-uniform expression
-     * treated as identity.
+     * treated as identity. The coordinate names the field the tolerance is read off.
      */
     UNIFORM_SCALE_TOLERANCE(
-        1e-5f,
-        "heuristic epsilon"),
-
-    /**
-     * The baby naming fallbacks: the {@code _BABY} {@code ModelLayers} field-name suffix
-     * (when the isBaby dataflow misses) and the {@code <adult>_baby} texture-sibling suffix
-     * (existence-probed). Declared fallback, never silent - each take logs at INFO.
-     */
-    BABY_NAMING_FALLBACK(
-        "_BABY / _baby",
-        "vanilla baby naming convention, demoted to a fallback behind the isBaby dataflow and the"
-            + " texture-sibling existence probe"),
-
-    /**
-     * The {@code $Variant;} descriptor suffix + {@code DEFAULT} constant selection the
-     * block-overlay resolver anchors on.
-     */
-    VARIANT_DESCRIPTOR_SUFFIX(
-        "$Variant;",
-        "stable Mojang naming convention"),
-
-    /**
-     * The {@code XP} / {@code XN} / {@code YP} / {@code YN} axis field-name parsing on
-     * block-overlay transforms; a {@code Z}-axis name is diagnosed, never silently skipped.
-     */
-    AXIS_FIELD_NAMES(
-        List.of("XP", "XN", "YP", "YN"),
-        "vanilla direction-constant naming"),
+        new Navigation.At(VanillaSourceClasses.Types.MTH, "EPSILON", "F"),
+        "the float ConstantValue on Mth.EPSILON - the tolerance vanilla's own Mth.equal comparison holds a"
+            + " difference to"),
 
     /**
      * The {@code "DEFAULT"} enum-field anchor: variant holder classes
@@ -79,13 +38,6 @@ enum EntityNamingPolicies implements NavigationPolicy {
     ENUM_DEFAULT_FIELD(
         "DEFAULT",
         "Mojang naming convention baked into a kit parameter"),
-
-    /**
-     * The getter-name / snake_case bone-name fallbacks when the {@code getChild} trace fails.
-     */
-    BONE_NAME_FALLBACKS(
-        "get<Bone>() / snake_case",
-        "declared fallback behind the getChild trace"),
 
     /**
      * The data-driven-variant detection suffix policy: the state field's owner class ends
@@ -107,34 +59,6 @@ enum EntityNamingPolicies implements NavigationPolicy {
         "tuning parameter; the derivation proved set-equal to the hand-maintained 14-entry list on 26.1"),
 
     /**
-     * The variant-enum naming-convention family: the {@code <X>Variants.class} holder stem,
-     * the {@code $ModelType} inner-enum suffix, and the {@code directoryFor} class-to-data-directory
-     * mapping ({@code CowVariant} to {@code data/minecraft/cow_variant/}). One declared policy,
-     * validated against directory existence at consult sites.
-     */
-    VARIANT_ENUM_CONVENTIONS(
-        List.of("Variants", "$ModelType", "Variant"),
-        "naming-convention family"),
-
-    /**
-     * The entityId-basename texture match for shared renderers: a {@code <clinit>} texture
-     * field whose path basename equals {@code /<entityId>.png} is that entity's branch
-     * (PiglinRenderer serves piglin + piglin_brute).
-     */
-    ENTITY_ID_BASENAME_MATCH(
-        "/<entityId>.png",
-        "id-to-texture naming convention"),
-
-    /**
-     * The enum-default stem texture convention: {@code <entity>/<entity>_<default_lowercase>}
-     * names the canonical texture of a pure-enum-DEFAULT entity (axolotl {@code lucy}).
-     * Existence-gated at the consult site, so only conforming entities take it.
-     */
-    ENUM_DEFAULT_STEM(
-        "<entity>/<entity>_<default>",
-        "naming convention, self-limiting via the jar existence gate"),
-
-    /**
      * The {@code left_} / {@code right_} toggle-stem grouping: vanilla names symmetric bones
      * with these prefixes, so a stripped pair flips under one toggle ({@code left_horn} +
      * {@code right_horn} to {@code horn}).
@@ -153,6 +77,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {
+        if (this.value instanceof Navigation coordinate) return coordinate;
         return new Navigation.Value<>(this.value, this.provenance);
     }
 
@@ -169,13 +94,6 @@ enum EntityNamingPolicies implements NavigationPolicy {
     @SuppressWarnings("unchecked")
     @NotNull List<String> strings() {
         return (List<String>) this.value;
-    }
-
-    /**
-     * The declared float fact of a float-valued row.
-     */
-    float floatValue() {
-        return (Float) this.value;
     }
 
     /**

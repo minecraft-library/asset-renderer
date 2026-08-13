@@ -39,9 +39,9 @@ public final class BlockEntityRegistryWalk {
     ) {
         LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
         BlockRegistryIndex blockRegistry = BlockRegistryIndex.build(session);
-        BlockTintFlagResolver tint = new BlockTintFlagResolver(session.cache());
+        BlockTintFlagResolver tint = new BlockTintFlagResolver(session);
         BlockGuiResolver gui = new BlockGuiResolver(session.cache());
-        InventoryTransformResolver transform = new InventoryTransformResolver(session.cache());
+        InventoryTransformResolver transform = new InventoryTransformResolver(session);
 
         JsonTree models = root.child("models");
         for (BlockEntitySubject subject : subjects) {
@@ -51,7 +51,8 @@ public final class BlockEntityRegistryWalk {
 
             List<String> splitIds = new ArrayList<>();
             for (BlockGeometrySourceResolver.Split split : splits) splitIds.add(split.splitId());
-            BlockCatalogResolver catalog = new BlockCatalogResolver(session, blockRegistry, subject, splitIds);
+            BlockCatalogResolver catalog =
+                new BlockCatalogResolver(session, blockRegistry, layerDefinitions, subject, splitIds);
 
             for (BlockGeometrySourceResolver.Split split : splits)
                 models.put(split.splitId(), new BlockEntityRendererResolver(subject, split, tint, gui, catalog, transform).resolve());
