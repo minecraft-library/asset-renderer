@@ -105,21 +105,6 @@ enum EntityAxisPolicies implements NavigationPolicy {
     }
 
     /**
-     * The coordinate the size-axis option domain is read at ({@link #SIZE_DOMAIN}).
-     */
-    static Navigation.@NotNull At sizeDomainCoordinate() {
-        return (Navigation.At) SIZE_DOMAIN.value;
-    }
-
-    /**
-     * The coordinate the natural-size set and its membership are recovered at
-     * ({@link #NATURAL_SIZE_SET}).
-     */
-    static Navigation.@NotNull At naturalSizeCoordinate() {
-        return (Navigation.At) NATURAL_SIZE_SET.value;
-    }
-
-    /**
      * The axis membership for an entity ({@link #SHAPE_SIZE_MEMBERSHIP}): {@code "size"},
      * {@code "shape"}, or {@code null} when the entity carries neither.
      *

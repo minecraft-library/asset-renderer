@@ -97,13 +97,6 @@ enum EntityNamingPolicies implements NavigationPolicy {
     }
 
     /**
-     * The declared bytecode coordinate of a coordinate-valued row.
-     */
-    Navigation.@NotNull At coordinate() {
-        return (Navigation.At) this.value;
-    }
-
-    /**
      * The declared int fact of an int-valued row.
      */
     int intValue() {

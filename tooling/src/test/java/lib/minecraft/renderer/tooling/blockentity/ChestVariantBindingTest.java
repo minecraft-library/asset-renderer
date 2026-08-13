@@ -37,8 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * and the renderer field, the two {@code createChest} overloads, and the four {@code copyModel} calls
  * that hand each waxed chest the model of the block it copies.
  *
- * <p>The expected table is the eleven-row map the walk replaces, so a divergence in either direction
- * fails here rather than at a flow run. {@code CHRISTMAS} is the pin that the walk is strictly better
+ * <p>The expected table is the eleven bindings the shipped builders declare, so a divergence in
+ * either direction fails here rather than at a flow run. {@code CHRISTMAS} is the pin that the walk is strictly better
  * than a field-set read: it is a declared renderer field no chest block binds, and a derivation keyed
  * on the bindings cannot reach it.
  */

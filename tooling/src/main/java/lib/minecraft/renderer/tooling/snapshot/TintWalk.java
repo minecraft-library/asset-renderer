@@ -204,9 +204,8 @@ public final class TintWalk {
      * @throws ToolingException if the row declares no trace, the replay recovers no index, or the factory stops forwarding in order
      */
     static int resolveInHandArg(@NotNull ToolingSession session, @NotNull Diagnostics diagnostics) {
-        AsmContext frame = AsmContext.keyless(session, diagnostics);
-        if (!(SnapshotShapePolicies.TINT_CONSTANT_IN_HAND.navigate(frame) instanceof Navigation.Dataflow coordinate))
-            throw new ToolingException("Tint policy '%s' declares no trace to replay", SnapshotShapePolicies.TINT_CONSTANT_IN_HAND);
+        Navigation.Dataflow coordinate = SnapshotShapePolicies.TINT_CONSTANT_IN_HAND.requireDataflow(
+            AsmContext.keyless(session, diagnostics));
 
         ClassNodeCache cache = session.cache();
         Object recovered = new TraceReplay(cache).replay(coordinate);
@@ -270,7 +269,7 @@ public final class TintWalk {
         if (!forwarded.equals(declared))
             throw new ToolingException(
                 "Factory '%s.%s' loads slots '%s' before constructing '%s' where its own parameters '%s' were required -"
-                    + " the recovered constructor parameter index is no longer the factory argument index",
+                    + " the recovered constructor parameter index is not the factory argument index",
                 VanillaSourceClasses.Types.BLOCK_TINT_SOURCES, VanillaSourceClasses.Methods.CONSTANT,
                 forwarded, sourceClass, declared);
     }

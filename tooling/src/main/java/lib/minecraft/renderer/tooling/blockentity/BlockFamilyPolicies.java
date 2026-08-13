@@ -269,11 +269,6 @@ enum BlockFamilyPolicies implements NavigationPolicy {
         return ((Map<String, CatalogFamily>) FAMILY_ROSTER.value).get(subjectLocalId);
     }
 
-    /** The coordinate the dye-taking mesh is recovered at. */
-    static Navigation.@NotNull At dyeTargetCoordinate() {
-        return (Navigation.At) BANNER_DYE_TARGET.value;
-    }
-
     /**
      * The coordinate a catalog family's sheet texture base is read at.
      *

@@ -498,9 +498,8 @@ final class BlockCatalogResolver {
      * @throws ToolingException if the row declares no trace, or the replay recovers no stem
      */
     private @NotNull String playerSkullSkin() {
-        AsmContext frame = new AsmContext(this.session, this.subject.beTypeId(), null, this.diagnostics);
-        if (!(BlockFamilyPolicies.PLAYER_SKULL_SKIN.navigate(frame) instanceof Navigation.Dataflow coordinate))
-            throw new ToolingException("Skull policy '%s' declares no trace to replay", BlockFamilyPolicies.PLAYER_SKULL_SKIN);
+        Navigation.Dataflow coordinate = BlockFamilyPolicies.PLAYER_SKULL_SKIN.requireDataflow(
+            new AsmContext(this.session, this.subject.beTypeId(), null, this.diagnostics));
 
         Object recovered = new TraceReplay(this.cache).replay(coordinate);
         if (!(recovered instanceof String stem))

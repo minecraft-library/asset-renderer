@@ -45,7 +45,24 @@ public record AsmContext(
      * @return the keyless frame
      */
     public static @NotNull AsmContext keyless(@NotNull ToolingSession session, @NotNull Diagnostics diagnostics) {
-        return new AsmContext(session, KEYLESS_SUBJECT, null, diagnostics);
+        return keyless(session, null, diagnostics);
+    }
+
+    /**
+     * Builds the frame for a consultation with no subject but a class in play - a row a resolver
+     * reaches per renderer rather than per subject.
+     *
+     * @param session the live session
+     * @param anchorClass the renderer / BER / layer class in play, as an internal name
+     * @param diagnostics the consulting resolver's scope
+     * @return the keyless frame anchored at that class
+     */
+    public static @NotNull AsmContext keyless(
+        @NotNull ToolingSession session,
+        @Nullable String anchorClass,
+        @NotNull Diagnostics diagnostics
+    ) {
+        return new AsmContext(session, KEYLESS_SUBJECT, anchorClass, diagnostics);
     }
 
 }

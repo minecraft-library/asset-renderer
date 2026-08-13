@@ -8,6 +8,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -65,6 +66,10 @@ final class EntitySizeAxisResolver {
     private static final @NotNull String OPTION_DOMAIN = "the size-axis option domain";
 
     private final @NotNull ClassNodeCache cache;
+
+    /** The frame every policy consultation here is made on - this subject, no anchor class. */
+    private final @NotNull AsmContext frame;
+
     private final @NotNull List<String> sizeDomain;
     private final @NotNull EntitySubject subject;
     private final @NotNull LayerDefinitionIndex layerDefinitions;
@@ -74,7 +79,8 @@ final class EntitySizeAxisResolver {
 
     EntitySizeAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
         this.cache = context.cache();
-        this.sizeDomain = sizeDomain(this.cache);
+        this.frame = new AsmContext(context.session(), context.subject().entityId(), null, context.diagnostics());
+        this.sizeDomain = sizeDomain(this.cache, this.frame);
         this.subject = context.subject();
         this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
@@ -91,12 +97,13 @@ final class EntitySizeAxisResolver {
      * member the walk fails to read is loud rather than a silently shorter domain.
      *
      * @param cache the session's jar cache
+     * @param frame the frame the policy is consulted on
      * @return the option domain in declaration order
      * @throws ToolingException if the coordinate binds a serialized id to no member, or to fewer
      *     members than it declares
      */
-    static @NotNull List<String> sizeDomain(@NotNull ClassNodeCache cache) {
-        Navigation.At coordinate = EntityAxisPolicies.sizeDomainCoordinate();
+    static @NotNull List<String> sizeDomain(@NotNull ClassNodeCache cache, @NotNull AsmContext frame) {
+        Navigation.At coordinate = EntityAxisPolicies.SIZE_DOMAIN.requireAt(frame);
         ClassNode owner = ClassKit.requireClass(cache, coordinate.owner(), OPTION_DOMAIN);
         List<String> domain = new ArrayList<>();
         // The cell holds the strings pushed since the member's NEW - position 0 the constant name,
@@ -155,7 +162,7 @@ final class EntitySizeAxisResolver {
      * @throws ToolingException if the coordinate carries no bounded draw and no shift
      */
     private @Nullable List<Integer> naturalSizes() {
-        Navigation.At coordinate = EntityAxisPolicies.naturalSizeCoordinate();
+        Navigation.At coordinate = EntityAxisPolicies.NATURAL_SIZE_SET.requireAt(this.frame);
         if (!ClassKit.extendsClass(this.cache, this.subject.entityClass(), coordinate.owner())) return null;
         ClassNode owner = ClassKit.requireClass(this.cache, coordinate.owner(), NATURAL_SIZES);
         MethodNode spawn = ClassKit.requireMethod(owner, coordinate.member(), NATURAL_SIZES);

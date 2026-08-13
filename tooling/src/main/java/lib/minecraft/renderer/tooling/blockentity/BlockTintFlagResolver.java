@@ -4,6 +4,8 @@ import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Insn;
@@ -47,9 +49,9 @@ final class BlockTintFlagResolver {
      */
     private final @NotNull Map<String, Boolean> tintBearing = new HashMap<>();
 
-    BlockTintFlagResolver(@NotNull ClassNodeCache cache) {
-        this.cache = cache;
-        this.dyeTargetModel = resolveDyeTargetModel(cache);
+    BlockTintFlagResolver(@NotNull ToolingSession session) {
+        this.cache = session.cache();
+        this.dyeTargetModel = resolveDyeTargetModel(session);
     }
 
     /**
@@ -97,12 +99,17 @@ final class BlockTintFlagResolver {
      * loads and commits at the submit itself, and the first commit whose callee reaches
      * {@code DyeColor.getTextureDiffuseColor} names the mesh.
      *
-     * @param cache the session's jar cache
+     * <p>Consulted on a KEYLESS frame: the mesh is resolved once at construction, before the walk
+     * reaches a subject, so there is no roster id to key on and none is invented.
+     *
+     * @param session the live session
      * @return the dye-taking mesh class's JVM internal name
      * @throws ToolingException if the coordinate routes the dye through no submitted model
      */
-    private static @NotNull String resolveDyeTargetModel(@NotNull ClassNodeCache cache) {
-        Navigation.At coordinate = BlockFamilyPolicies.dyeTargetCoordinate();
+    private static @NotNull String resolveDyeTargetModel(@NotNull ToolingSession session) {
+        ClassNodeCache cache = session.cache();
+        Navigation.At coordinate = BlockFamilyPolicies.BANNER_DYE_TARGET.requireAt(
+            AsmContext.keyless(session, session.diagnostics()));
         ClassNode owner = ClassKit.requireClass(cache, coordinate.owner(), DYE_TARGET);
         MethodNode submit = ClassKit.requireMethod(owner, coordinate.member(), DYE_TARGET);
         String model = AsmWalker.over(submit)

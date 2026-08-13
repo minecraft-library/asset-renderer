@@ -39,9 +39,9 @@ public final class BlockEntityRegistryWalk {
     ) {
         LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
         BlockRegistryIndex blockRegistry = BlockRegistryIndex.build(session);
-        BlockTintFlagResolver tint = new BlockTintFlagResolver(session.cache());
+        BlockTintFlagResolver tint = new BlockTintFlagResolver(session);
         BlockGuiResolver gui = new BlockGuiResolver(session.cache());
-        InventoryTransformResolver transform = new InventoryTransformResolver(session.cache());
+        InventoryTransformResolver transform = new InventoryTransformResolver(session);
 
         JsonTree models = root.child("models");
         for (BlockEntitySubject subject : subjects) {

@@ -6,6 +6,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Cells;
@@ -63,19 +64,22 @@ final class EntityRenderTraitsResolver {
         this.cache = context.cache();
         this.subject = context.subject();
         this.diagnostics = context.diagnostics();
-        this.uniformScaleTolerance = uniformScaleTolerance(this.cache);
+        this.uniformScaleTolerance = uniformScaleTolerance(context);
     }
 
     /**
      * Reads the uniform-scale tolerance off the field the naming policy's coordinate names - a
-     * compile-time {@code ConstantValue}, so no static initialiser is walked.
+     * compile-time {@code ConstantValue}, so no static initialiser is walked. The policy is
+     * consulted through {@link Navigation} on a frame carrying the subject being resolved.
      *
-     * @param cache the session's jar cache
+     * @param context the resolver's frame
      * @return the epsilon the coordinate carries
      * @throws ToolingException if the coordinate names no constant of the declared descriptor
      */
-    private static float uniformScaleTolerance(@NotNull ClassNodeCache cache) {
-        Navigation.At coordinate = EntityNamingPolicies.UNIFORM_SCALE_TOLERANCE.coordinate();
+    private static float uniformScaleTolerance(@NotNull EntityContext context) {
+        ClassNodeCache cache = context.cache();
+        Navigation.At coordinate = EntityNamingPolicies.UNIFORM_SCALE_TOLERANCE.requireAt(
+            new AsmContext(context.session(), context.subject().entityId(), null, context.diagnostics()));
         ClassNode owner = ClassKit.requireClass(cache, coordinate.owner(), UNIFORM_SCALE);
         FieldNode epsilon = ClassKit.requireField(owner, coordinate.member(), UNIFORM_SCALE);
         if (!epsilon.desc.equals(coordinate.desc()) || !(epsilon.value instanceof Float tolerance))

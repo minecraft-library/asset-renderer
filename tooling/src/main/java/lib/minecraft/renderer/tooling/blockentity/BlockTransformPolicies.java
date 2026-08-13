@@ -194,21 +194,23 @@ enum BlockTransformPolicies implements NavigationPolicy {
         this.provenance = provenance;
     }
 
-    @Override
-    public @NotNull Navigation navigate(@NotNull AsmContext context) {
-        return new Navigation.Value<>(this.value, this.provenance);
-    }
-
     /**
-     * The GUI-{@code Transformation} coordinate for a renderer, or {@code null} when the renderer
-     * draws with the raw block pose (no inventory transform).
+     * {@inheritDoc}
      *
-     * @param rendererClass the renderer's JVM internal name
-     * @return the entry coordinate, or {@code null}
+     * <p>{@link #RENDERER_ENTRY_METHODS} is a coordinate PER RENDERER, and the frame's anchor class
+     * is the renderer in play, so the row reads it to answer the one coordinate the consultation is
+     * about. A renderer the roster names no entry for answers {@link Navigation.None} - it draws with
+     * the raw block pose and has no GUI transform, which is the default rather than a failure.
      */
+    @Override
     @SuppressWarnings("unchecked")
-    static @Nullable Navigation.At rendererEntry(@NotNull String rendererClass) {
-        return ((Map<String, Navigation.At>) RENDERER_ENTRY_METHODS.value).get(rendererClass);
+    public @NotNull Navigation navigate(@NotNull AsmContext context) {
+        if (this == RENDERER_ENTRY_METHODS) {
+            String anchor = context.anchorClass();
+            Navigation.At entry = anchor == null ? null : entryFor(anchor);
+            return entry != null ? entry : new Navigation.None();
+        }
+        return new Navigation.Value<>(this.value, this.provenance);
     }
 
     /**
@@ -219,7 +221,20 @@ enum BlockTransformPolicies implements NavigationPolicy {
      * @return {@code true} when the renderer is a transform target
      */
     static boolean isTransformTarget(@NotNull String rendererClass) {
-        return rendererEntry(rendererClass) != null;
+        return entryFor(rendererClass) != null;
+    }
+
+    /**
+     * The coordinate declared for one renderer, or {@code null} when the roster names none. Private
+     * to the roster: a consumer reaches the coordinate through {@link #navigate}, and this is the
+     * lookup that answer is selected by.
+     *
+     * @param rendererClass the renderer's JVM internal name
+     * @return the entry coordinate, or {@code null}
+     */
+    @SuppressWarnings("unchecked")
+    private static Navigation.@Nullable At entryFor(@NotNull String rendererClass) {
+        return ((Map<String, Navigation.At>) RENDERER_ENTRY_METHODS.value).get(rendererClass);
     }
 
     /**

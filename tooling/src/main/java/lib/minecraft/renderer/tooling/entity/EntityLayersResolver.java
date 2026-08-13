@@ -7,6 +7,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
@@ -84,7 +85,8 @@ final class EntityLayersResolver {
         @NotNull List<EntityRendererResolver.LayerSite> roster
     ) {
         this.cache = context.cache();
-        this.sizeDomain = EntitySizeAxisResolver.sizeDomain(this.cache);
+        this.sizeDomain = EntitySizeAxisResolver.sizeDomain(this.cache,
+            new AsmContext(context.session(), context.subject().entityId(), null, context.diagnostics()));
         this.entityId = context.subject().entityId();
         this.rendererClass = context.subject().rendererClass();
         this.registrationLayerFields = context.subject().lambdaLayerFields();
