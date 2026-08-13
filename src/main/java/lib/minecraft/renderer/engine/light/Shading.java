@@ -14,8 +14,9 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Applies a {@link Lighting} shade scalar to sampled texels and re-shades block-icon geometry for
- * vanilla's {@code Lighting.ITEMS_3D} GUI path. The shade scalar is baked into each
+ * Applies a {@link Lighting} shade scalar to sampled texels and re-shades GUI geometry against the
+ * lighting entry vanilla binds for it - {@code Lighting.ITEMS_3D} for a block icon,
+ * {@code Lighting.ENTITY_IN_UI} for a humanoid. The shade scalar is baked into each
  * {@link VisibleTriangle} at kit-build time; {@link #apply} multiplies it into the rasterized
  * texel with vanilla's round-half-up GLSL quantization.
  *
@@ -168,6 +169,53 @@ public class Shading {
                 t.uv0(), t.uv1(), t.uv2(),
                 t.texture(), t.tintArgb(), t.normal(),
                 shading, t.traits().withCullBackFaces(cull), t.debugTag()
+            ));
+        }
+        return out;
+    }
+
+    // --- entity-in-UI relighting (vanilla Lighting.ENTITY_IN_UI parity) ---
+
+    /**
+     * Re-shades every triangle with vanilla's {@code Lighting.ENTITY_IN_UI} two-directional Lambertian -
+     * the entry the client binds once per GUI entity draw, before any layer is submitted, so a wearer and
+     * everything it wears light under it alike. {@link Lighting#resolveEntity} carries the two light
+     * directions into the kit frame; {@code intoKitFrame} is the turn taking the caller's own model normal
+     * into that same frame, and it is the whole of what varies between two subjects lit by this entry.
+     * {@link Turn#MIRROR_Y} serves geometry already in vanilla's Y-down model frame and
+     * {@link Turn#MIRROR_Z} the player's upright frame, the two sitting a {@link Turn#HALF_X} apart.
+     * <p>
+     * A face declaring no directional light keeps the full-bright {@code 1.0f} scalar, as it does under
+     * {@link #relightForItems3d}. Nothing is snapped to a cardinal and nothing is packed onto vanilla's
+     * signed-byte grid by {@link #packAsSnormByte}: the Lambertian is continuous in the normal, so a
+     * rotated bone shades off its own direction rather than off the nearest cube face.
+     * <p>
+     * {@link Lighting.EntityLighting#shade} reads the cull flag to pick a face's camera-facing
+     * orientation, so a two-sided surface is shaded by whichever of its two orientations points at the
+     * camera - the {@code PER_FACE_LIGHTING} front / back choice vanilla's fragment shader makes by
+     * winding. Positions, UVs, texture, tint, authored normal and traits are carried through untouched.
+     *
+     * @param triangles the kit-built triangles carrying baked shading
+     * @param lighting the frame the two light directions are resolved through
+     * @param intoKitFrame the turn carrying a triangle's normal into the shading frame
+     * @return a new list of re-shaded triangles
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> relightForEntityInUi(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull LightingFrame lighting,
+        @NotNull Turn intoKitFrame
+    ) {
+        Lighting.EntityLighting basis = Lighting.resolveEntity(lighting);
+        ConcurrentList<VisibleTriangle> out = Concurrent.newList();
+        for (VisibleTriangle t : triangles) {
+            float shading = t.traits().directionalLight()
+                ? basis.shade(intoKitFrame.apply(t.normal()), t.traits().cullBackFaces())
+                : 1.0f;
+            out.add(new VisibleTriangle(
+                t.position0(), t.position1(), t.position2(),
+                t.uv0(), t.uv1(), t.uv2(),
+                t.texture(), t.tintArgb(), t.normal(),
+                shading, t.traits(), t.debugTag()
             ));
         }
         return out;

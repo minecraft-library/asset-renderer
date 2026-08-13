@@ -12,7 +12,6 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.camera.RenderFrame;
-import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
@@ -157,9 +156,8 @@ public class ElytraKit {
      *
      * <p>The wings are built once in the vanilla entity frame, then each triangle is folded into the
      * player frame ({@code R_X(180)} scaled about the torso's shoulder line, matching how the cape hangs
-     * on the {@code -Z} back) and its shade re-baked from the reoriented normal via
-     * {@link Lighting#inventory}, so the wings light with the same cardinal-shade model as the body and
-     * cape they sit against.
+     * on the {@code -Z} back), carrying the reoriented normal so the scope's own relight reads the wings
+     * in the frame the body and cape they sit against are read in.
      *
      * @param engine the texture engine for pack-aware texture resolution
      * @param torsoMin the player torso's minimum-corner bounds
@@ -191,12 +189,11 @@ public class ElytraKit {
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle t : wings) {
             Vector3f normal = Turn.HALF_X.apply(t.normal()).normalize();
-            float shade = Lighting.inventory(normal);
             out.add(new VisibleTriangle(
                 toPlayerFrame(t.position0(), scale, centreX, shoulderY, centreZ),
                 toPlayerFrame(t.position1(), scale, centreX, shoulderY, centreZ),
                 toPlayerFrame(t.position2(), scale, centreX, shoulderY, centreZ),
-                t.uv0(), t.uv1(), t.uv2(), t.texture(), t.tintArgb(), normal, shade, t.traits(), t.debugTag()));
+                t.uv0(), t.uv1(), t.uv2(), t.texture(), t.tintArgb(), normal, t.shading(), t.traits(), t.debugTag()));
         }
         return out;
     }
