@@ -4,7 +4,9 @@ Headless renderer for Minecraft blocks, items, entities, fluids and portals, out
 (static PNG or animated frames) via `Renderer<O>`. Group `lib.minecraft`, root
 `lib.minecraft.renderer.**`.
 
-Gate questions go through the `parity-gate` skill, `.claude/skills/parity-gate/SKILL.md`.
+Gate questions go through the `parity-gate` skill, `.claude/skills/parity-gate/SKILL.md` - except a
+`tooling/**` change, which goes through `tooling-flow-gate` first, because every artifact the parity
+store holds is blind to one.
 
 ## Build
 
@@ -97,7 +99,9 @@ list resolving.
 - Every gate here reads the **shipped** JSON, which a generator refactor does not regenerate, so a
   green gate is no evidence about a tooling change. Re-run the flow and compare emitted bytes against
   a capture from the clean tree taken before the first edit. Diff the diagnostics log too: a
-  byte-identical table is not an unchanged run.
+  byte-identical table is not an unchanged run - and sort both sides, because log line order follows
+  task invocation order and an unsorted diff reports every line as moved. The `tooling-flow-gate`
+  skill runs that loop and owns the traps.
 
 ## Skip these
 
