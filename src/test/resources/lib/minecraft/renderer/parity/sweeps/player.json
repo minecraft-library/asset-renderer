@@ -7,7 +7,7 @@
   "provenance": {
     "artifact": "sweep.player",
     "asset_dirty": false,
-    "asset_sha": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+    "asset_sha": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
     "counts": {
       "failed": 0,
       "rows": 2
@@ -15,11 +15,9 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "mode": "EVERY",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "playerParityVanilla",
-    "reason": "Whole-store capture on a clean tree at the end of the parity-cleanup follow-up. Twenty-three of twenty-four artifacts are byte-identical to the previous baseline, including all six sweeps after a full ground-truth re-render, so the six landed phases moved no hashed byte and the reference tree had no staleness to shed. manifest.visual gains 46 rows and moves none: its membership was widened from six sub-trees to eight, and entity-projections and projection-smoke are hashed here for the first time.",
+    "reason": "The 3D player leaves the four-cardinal block bucket for vanilla's ENTITY_IN_UI Lambertian, the entry the client binds for a humanoid drawn in a GUI. Per-face shade on the skull goes 1.00000/0.59941/0.79873 to 1.00000/0.56864/0.44985, which is the harness reference's own measured triple; sweep.player 29.1376 to 8.4315 (skull 17.2847 to 4.1766, full 11.8529 to 4.2549) with the remainder silhouette and texel-boundary residual from this renderer's own body boxes - outside the edges the skull's mean absolute delta is 0.06 of 765. manifest.player-sheets moves its 76 THREE_D members and none of its 28 TWO_D ones; sweep.glint moves the four leather rows that are player renders. Block, item, entity and armour sweeps and the fluid, portal and visual manifests hold at zero movers.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -29,23 +27,23 @@
       "players": 2
     },
     "reference_manifest_digest": "d380e24f3d253cf6ccb5f9c3beb1ba1b9e12a827c438ec3898dc38acbf29d170",
-    "timestamp": "2026-08-07T16:43:17Z",
+    "timestamp": "2026-08-13T06:21:09Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 11964
+    "wall_time_ms": 13402
   },
   "rows": [
     {
-      "differing_pixels": "67152",
+      "differing_pixels": "16334",
       "java_coverage": "0.2827",
-      "mean_argb_delta": "11.8529",
+      "mean_argb_delta": "4.2549",
       "status": "ok",
       "subject": "full",
       "vanilla_coverage": "0.2820"
     },
     {
-      "differing_pixels": "116939",
+      "differing_pixels": "13977",
       "java_coverage": "0.6145",
-      "mean_argb_delta": "17.2847",
+      "mean_argb_delta": "4.1766",
       "status": "ok",
       "subject": "skull",
       "vanilla_coverage": "0.6198"
@@ -62,6 +60,6 @@
     },
     "failed": 0,
     "rows": 2,
-    "sum": "29.1376"
+    "sum": "8.4315"
   }
 }

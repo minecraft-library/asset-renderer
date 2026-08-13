@@ -37,15 +37,15 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 402 | 24670 ms | yes |
 | `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1055 | 50027 ms | yes |
 | `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 129288 ms | yes |
-| `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 11964 ms | yes |
+| `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 13402 ms | yes |
 | `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 16490 ms | yes |
-| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 28255 ms | yes |
+| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 31712 ms | yes |
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 2312 | - | yes |
 | `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 199 | - | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | - | yes |
 | `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 5 | 5 | 14 | - | yes |
 | `manifest.dump.packs` | manifest | STORE | `parityDump` | 5 | 5 | 14 | - | yes |
-| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | - | yes |
+| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 17186 ms | yes |
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | - | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | - | yes |
 | `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 10 | 2696 ms | yes |
