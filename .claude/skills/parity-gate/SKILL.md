@@ -14,7 +14,9 @@ compares against the store, and reports movers. Decide from the JSON; explain fr
 
 All three must hold:
 
-1. **The next act is a commit.** Said out loud, or a `git commit` is about to run.
+1. **The next act is a commit**, or a phase of per-mover commits has just finished. Said out loud, or
+   a `git commit` is about to run. A phase that commits each mover separately gates once at the end,
+   against `master..HEAD` rather than against a dirty tree - see `-Pchanged` below.
 2. **The tree touches a trigger path** - `src/main/java/lib/minecraft/renderer/**`,
    `src/test/java/lib/minecraft/renderer/**`, `tooling/**`, `client/**`,
    `src/main/resources/lib/minecraft/renderer/*.json`,
@@ -151,7 +153,11 @@ whole cost. In the first two states, read the producer list instead.
   same shape either way; this only says which file holds them.
 - `-Pchanged=<paths>` on `parityPlan` - a comma list of repo-relative paths to resolve reach for,
   instead of the paths git reports changed. It plans a change that is not in the tree; it does not
-  narrow one that is.
+  narrow one that is. It is also how an ALREADY-COMMITTED change is planned: a phase landed as one
+  commit per mover leaves a clean tree, so git reports nothing changed and a bare `parityPlan`
+  resolves an empty change set. Hand it the branch's own diff -
+  `-Pchanged="$(git diff --name-only master..HEAD | paste -sd, -)"` - and gate once at the end of the
+  phase. A clean tree is what a promotion needs anyway (R4), so this ordering costs nothing.
 - `-Pformat=json` on `parityPlan` - print the plan as JSON rather than as the SEES / BLIND / PLAN /
   BUDGET block. `_run/plan.json` is written either way, so this is for reading, not for producing.
 - `-Pruns=N` on `parityCapture` - **recorded, never measured.** It stamps how many runs the operator
@@ -282,6 +288,10 @@ Three reasons a hand-rolled compare gets this wrong, each measured in this repo:
 - `references/determinism.md` - what reproduces over how many runs, and what never can.
 - `references/diagnostics.md` - the worked diagnostic examples and the version-scoped rosters. Load
   when diagnosing a mover, never to decide a verdict.
+- `tooling-flow-gate` is the other half for a `tooling/**` change. Every artifact this store holds is
+  BLIND to a generator refactor (`B13`) because it reads the shipped JSON, so re-running the flow is
+  the measurement and `manifest.tooling-tables` only confirms the digest of those bytes afterwards.
+  Run that gate first; a green verdict here alone says nothing about a tooling change.
 - `gradle-verify-gate` covers `compileJava` + `test` alone; this gate supersedes it before a
   commit that touches a trigger path. `jmh-regression-gate` is the benchmark equivalent and is
   never part of a parity bundle.
