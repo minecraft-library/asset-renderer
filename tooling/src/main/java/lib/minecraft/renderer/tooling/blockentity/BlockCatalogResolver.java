@@ -58,6 +58,9 @@ final class BlockCatalogResolver {
     /** Descriptor of the switch-map array an enum {@code tableswitch} indexes (JDK shape, kit-local). */
     private static final @NotNull String SWITCH_MAP_DESC = "[I";
 
+    /** The caller label a stale chest block-to-field binding is reported under. */
+    private static final @NotNull String CHEST_BINDING = "the chest block-to-renderer-field binding";
+
     /** The caller label a stale skull model-dispatch coordinate is reported under. */
     private static final @NotNull String SKULL_DISPATCH = "the skull model dispatch";
 
@@ -197,13 +200,19 @@ final class BlockCatalogResolver {
      */
     private void chest(@NotNull Map<String, List<Row>> rows) {
         Map<String, String> bases = chestVariantBases();
+        Map<String, String> variantFields = chestVariantFields(this.cache);
         String sheet = sheetBase(BlockFamilyPolicies.CatalogFamily.CHEST);
         List<Row> main = new ArrayList<>();
         Row trapped = null;
         Row ender = null;
         for (String field : this.subject.blockFields()) {
             String local = blockLocal(field);
-            String variantField = chestVariantField(local);
+            String variantField = variantFields.get(field);
+            if (variantField == null)
+                throw new ToolingException(
+                    "Chest block '%s' is bound to no '%s' field by '%s' - the jar is either obfuscated or from an unsupported version",
+                    field, ClassKit.simpleName(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER),
+                    ClassKit.simpleName(VanillaSourceClasses.Types.BLOCK_MODEL_GENERATORS));
             String base = bases.get(variantField);
             if (base == null) {
                 this.diagnostics.warn("no ChestSpecialRenderer texture base bound for field '%s' (block '%s') - empty base", variantField, field);
@@ -364,6 +373,81 @@ final class BlockCatalogResolver {
             .latch(AsmWalker::stringLiteral)
             .commitAt(Insn.putStatic(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER))
             .toMap(put -> put.name, held -> held.isEmpty() ? null : held.getFirst());
+    }
+
+    /**
+     * {@code Blocks} field name -> the {@code ChestSpecialRenderer} field that block draws with,
+     * walked out of the datagen model writer's two chest builders.
+     *
+     * <p>Each {@code createChest} call reads its chest block, then its material block, then the
+     * special-renderer field, so the binding is the FIRST {@code Blocks} read of the call paired with
+     * the renderer field read in the same window. Both {@code createChest} overloads are binding
+     * sites - the ender chest's field is an {@code Identifier} where the rest are chest resources, and
+     * the argument shape is all that differs - so the commit matches the call by name and takes
+     * either. A waxed chest is bound by no call of its own: {@code copyModel} hands it the model of
+     * the unwaxed block it copies, and with it that block's field.
+     *
+     * <p>Keyed on the binding rather than on the field set, which is what keeps a declared field no
+     * block binds - {@code CHRISTMAS} - out of the answer: it appears at no call site, so nothing
+     * puts it in the map.
+     *
+     * @param cache the session cache
+     * @return block field name to renderer field name, every chest block the builders bind
+     * @throws ToolingException if either builder is absent, or the walk recovers no binding at all
+     */
+    static @NotNull Map<String, String> chestVariantFields(@NotNull ClassNodeCache cache) {
+        ClassNode generators = ClassKit.requireClass(cache, VanillaSourceClasses.Types.BLOCK_MODEL_GENERATORS, CHEST_BINDING);
+        Map<String, String> bound = new LinkedHashMap<>();
+        Map<String, String> copies = new LinkedHashMap<>();
+        walkChestBuilder(generators, VanillaSourceClasses.Methods.CREATE_CHESTS, bound, copies);
+        walkChestBuilder(generators, VanillaSourceClasses.Methods.CREATE_COPPER_CHESTS, bound, copies);
+
+        // a copy carries the source's field, and vanilla copies only from a block already bound
+        copies.forEach((target, source) -> {
+            String field = bound.get(source);
+            if (field != null) bound.put(target, field);
+        });
+
+        if (bound.isEmpty())
+            throw new ToolingException(
+                "Class '%s' binds no chest block to a renderer field for %s - the jar is either obfuscated or from an unsupported version",
+                generators.name, CHEST_BINDING);
+        return bound;
+    }
+
+    /**
+     * Collects one chest builder's bindings and model copies into the two maps.
+     *
+     * @param generators the datagen model writer
+     * @param builder the builder method name
+     * @param bound block field name to renderer field name, appended to
+     * @param copies copying block field name to copied-from block field name, appended to
+     */
+    private static void walkChestBuilder(
+        @NotNull ClassNode generators,
+        @NotNull String builder,
+        @NotNull Map<String, String> bound,
+        @NotNull Map<String, String> copies
+    ) {
+        MethodNode method = ClassKit.requireMethod(generators, builder, VanillaSourceClasses.Descs.NO_ARG_VOID_DESC, CHEST_BINDING);
+        Cells.ListCell<String> blocks = Cells.list();
+        Cells.Latch<String> variant = Cells.latch();
+
+        AsmWalker.over(method)
+            .feed(blocks)
+            .feed(variant)
+            .on(Insn.getStatic(VanillaSourceClasses.Types.BLOCKS), get -> blocks.add(get.name))
+            .on(Insn.getStatic(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER), get -> variant.set(get.name))
+            .commitAt(Insn.invokeVirtual(generators.name, VanillaSourceClasses.Methods.CREATE_CHEST), call -> {
+                List<String> read = blocks.values();
+                String field = variant.get();
+                if (!read.isEmpty() && field != null) bound.put(read.getFirst(), field);
+            })
+            .commitAt(Insn.invokeVirtual(generators.name, VanillaSourceClasses.Methods.COPY_MODEL), call -> {
+                List<String> pair = blocks.values();
+                if (pair.size() == 2) copies.put(pair.getLast(), pair.getFirst());
+            })
+            .run();
     }
 
     /** CopperGolemOxidationLevels field name -> stripped texture path (first path LDC after each NEW). */
@@ -587,13 +671,6 @@ final class BlockCatalogResolver {
         if (entry != null) return entry.id();
         this.diagnostics.warn("block field '%s' not in the registry index - id derived from field name", field);
         return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + field.toLowerCase(Locale.ROOT);
-    }
-
-    /** The chest ChestSpecialRenderer variant field a block maps to (fixed binding + copper weather). */
-    private static @NotNull String chestVariantField(@NotNull String blockLocal) {
-        String fixed = BlockFamilyPolicies.chestVariantField(blockLocal);
-        if (fixed != null) return fixed;
-        return BlockFamilyPolicies.chestCopperFieldPrefix() + copperWeatherField(blockLocal, "copper_chest");
     }
 
     /**

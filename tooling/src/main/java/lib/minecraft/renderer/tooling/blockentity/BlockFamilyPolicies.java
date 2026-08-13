@@ -115,20 +115,6 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " split / texture-source divergence is declared; part-only pseudo families ride PART_COMPOSITION"),
 
     /**
-     * The chest block-to-{@code ChestSpecialRenderer}-texture-field binding: the three fixed
-     * classes plus the copper composition rule ({@code COPPER_ + <WeatherState>}, {@code UNAFFECTED}
-     * for the bare base, waxed sharing the unwaxed sheet). The binding is spread across vanilla's
-     * special-renderer dispatch - not one walkable site.
-     */
-    CHEST_VARIANT(
-        new ChestVariants(
-            Map.of("chest", "REGULAR", "trapped_chest", "TRAPPED", "ender_chest", "ENDER_CHEST"),
-            "COPPER_"),
-        "chest class->texture-field binding + COPPER_<weather> composition with the UNAFFECTED fallback; the"
-            + " class<->field binding is spread across vanilla's special-renderer dispatch rather than sitting at"
-            + " one walkable site"),
-
-    /**
      * The coordinate of the mesh a tint-bearing renderer dyes. The banner renderer's submit method
      * hands a model to three submits; only the one whose callee reads
      * {@code DyeColor.getTextureDiffuseColor} routes the dye, and the model that submit receives is
@@ -220,15 +206,6 @@ enum BlockFamilyPolicies implements NavigationPolicy {
         DECORATED_POT, COPPER_GOLEM_STATUE, SKULL, BANNER
     }
 
-    /**
-     * The chest binding: the fixed block-to-field entries plus the copper field-name prefix
-     * the weather composition prepends.
-     *
-     * @param fixedFields block local id -> {@code ChestSpecialRenderer} texture-field name
-     * @param copperFieldPrefix the {@code COPPER_} prefix before the {@code WeatherState} name
-     */
-    record ChestVariants(@NotNull Map<String, String> fixedFields, @NotNull String copperFieldPrefix) {}
-
     private final @NotNull Object value;
     private final @NotNull String provenance;
 
@@ -290,22 +267,6 @@ enum BlockFamilyPolicies implements NavigationPolicy {
     @SuppressWarnings("unchecked")
     static @Nullable CatalogFamily catalogFamily(@NotNull String subjectLocalId) {
         return ((Map<String, CatalogFamily>) FAMILY_ROSTER.value).get(subjectLocalId);
-    }
-
-    /**
-     * The fixed {@code ChestSpecialRenderer} texture field for a chest block, or {@code null}
-     * when the block is a copper chest (composed as {@code COPPER_<weather>}).
-     *
-     * @param blockLocal the block's namespace-less id
-     * @return the field name, or {@code null} for the copper composition
-     */
-    static @Nullable String chestVariantField(@NotNull String blockLocal) {
-        return ((ChestVariants) CHEST_VARIANT.value).fixedFields().get(blockLocal);
-    }
-
-    /** The {@code COPPER_} field-name prefix the chest weather composition prepends. */
-    static @NotNull String chestCopperFieldPrefix() {
-        return ((ChestVariants) CHEST_VARIANT.value).copperFieldPrefix();
     }
 
     /** The coordinate the dye-taking mesh is recovered at. */

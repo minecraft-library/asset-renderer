@@ -253,6 +253,17 @@ public final class VanillaSourceClasses {
         /** {@code ChestSpecialRenderer} - its {@code <clinit>} binds the chest variant texture base names. */
         public static final @NotNull String CHEST_SPECIAL_RENDERER = "net/minecraft/client/renderer/special/ChestSpecialRenderer";
 
+        /**
+         * {@code BlockModelGenerators} - the datagen model writer whose chest builders bind each chest
+         * block to the special-renderer field it draws with.
+         *
+         * <p>The only class the flows read out of {@code net/minecraft/client/data/models/}, and the
+         * only datagen source they read at all - everywhere else they walk the render path. It is read
+         * because the block-to-field binding exists nowhere on the render path: the special-renderer
+         * dispatch resolves a field per block without naming the pair anywhere a render walk reaches.
+         */
+        public static final @NotNull String BLOCK_MODEL_GENERATORS = "net/minecraft/client/data/models/BlockModelGenerators";
+
         /** {@code CopperGolemOxidationLevels} - its {@code <clinit>} binds the per-weather statue texture paths. */
         public static final @NotNull String COPPER_GOLEM_OXIDATION_LEVELS = "net/minecraft/world/entity/animal/golem/CopperGolemOxidationLevels";
 
@@ -488,6 +499,18 @@ public final class VanillaSourceClasses {
         /** {@code BlockTintSources.stem} - the age-driven stem tint-source factory (its body is symbolically evaluated at age 0). */
         public static final @NotNull String STEM = "stem";
 
+        /** {@code BlockModelGenerators.createChests} - the three non-copper chest bindings. */
+        public static final @NotNull String CREATE_CHESTS = "createChests";
+
+        /** {@code BlockModelGenerators.createCopperChests} - the four copper bindings plus the four waxed copies. */
+        public static final @NotNull String CREATE_COPPER_CHESTS = "createCopperChests";
+
+        /** {@code BlockModelGenerators.createChest} - one chest block bound to one special-renderer field (two overloads). */
+        public static final @NotNull String CREATE_CHEST = "createChest";
+
+        /** {@code BlockModelGenerators.copyModel} - a block taking another's model, which is how a waxed chest inherits its field. */
+        public static final @NotNull String COPY_MODEL = "copyModel";
+
         /** {@code BlockTintSource.color} / {@code ARGB.color} - the tint colour body + the packing helper the stem eval walks into. */
         public static final @NotNull String COLOR = "color";
 
@@ -590,6 +613,9 @@ public final class VanillaSourceClasses {
 
         /** Descriptor of a no-argument {@code float} accessor - {@code PartPose}'s three offsets. */
         public static final @NotNull String FLOAT_ACCESSOR_DESC = of("F");
+
+        /** Descriptor of a no-argument {@code void} member - what a private datagen builder is reached by. */
+        public static final @NotNull String NO_ARG_VOID_DESC = of("V");
 
         /**
          * The field-descriptor suffix of a variant inner enum ({@code L<owner>$Variant;}) - what
