@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
+import lib.minecraft.renderer.tooling.policy.Trace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -164,14 +165,22 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " every base string is read at the field the family names"),
 
     /**
-     * The coordinate of the PLAYER skull skin stem. The default-skin accessor indexes one element
-     * of the class's skin array, and the element built at that index carries the stem; every other
-     * skull type reads its skin from the {@code SkullBlockRenderer} populate lambda instead.
+     * The coordinate of the PLAYER skull skin stem, and the steps that recover it. The default-skin
+     * accessor loads one ordinal out of the class's skin array, and the element the static
+     * initialiser builds at that ordinal opens with the stem; every other skull type reads its skin
+     * from the {@code SkullBlockRenderer} populate lambda instead. The ordinal is the running value
+     * the array step indexes by, so a vanilla change of default skin moves the answer on its own.
      */
     PLAYER_SKULL_SKIN(
-        new Navigation.At("net/minecraft/client/resources/DefaultPlayerSkin", "getDefaultSkin", null),
-        "the PLAYER skull skin is the default-skin array element getDefaultSkin indexes;"
-            + " BlockCatalogResolver re-enters the coordinate, reads the index and the stem bound at it");
+        new Navigation.Dataflow("net/minecraft/client/resources/DefaultPlayerSkin", "getDefaultSkin",
+            Trace.of(
+                new Trace.Step.ReadIntLiteral(),
+                new Trace.Step.FollowPutStatic("DEFAULT_SKINS"),
+                new Trace.Step.IndexArrayInit(),
+                new Trace.Step.ReadStringLiteral())),
+        "the PLAYER skull skin is the default-skin array element getDefaultSkin indexes; BlockCatalogResolver"
+            + " replays the trace - the loaded ordinal, the array's binding in the static initialiser, the"
+            + " element at that ordinal, and the stem it opens with");
 
     /**
      * Pairs a catalog family with the sheet coordinate its texture base is read at, so a row names
@@ -316,11 +325,6 @@ enum BlockFamilyPolicies implements NavigationPolicy {
         Navigation.At coordinate = ((Map<CatalogFamily, Navigation.At>) SHEET_TEXTURE_BASES.value).get(family);
         if (coordinate == null) throw new IllegalArgumentException("No sheet coordinate for family " + family);
         return coordinate;
-    }
-
-    /** The coordinate the PLAYER skull skin stem is recovered at. */
-    static Navigation.@NotNull At playerSkullCoordinate() {
-        return (Navigation.At) PLAYER_SKULL_SKIN.value;
     }
 
 }

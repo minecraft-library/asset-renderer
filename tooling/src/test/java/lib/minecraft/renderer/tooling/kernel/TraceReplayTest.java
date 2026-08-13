@@ -166,6 +166,15 @@ class TraceReplayTest {
     }
 
     @Test
+    @DisplayName("the constructor is selected by the assignment, not by being the first of its name")
+    void constructorSelectedByAssignment() {
+        // the fixture declares a telescoping <init>(I) first, which assigns nothing
+        assertEquals(0, this.replay.replay(new Navigation.Dataflow(TINT_SOURCE, "color", Trace.of(
+            new Trace.Step.FollowGetField(null),
+            new Trace.Step.MapParamSlot()))));
+    }
+
+    @Test
     @DisplayName("a class literal reads as its JVM internal name")
     void classLiteralReadsAsInternalName() {
         assertEquals(TARGET, this.replay.replay(new Navigation.Dataflow(TARGET, "marker", Trace.of(
@@ -257,6 +266,22 @@ class TraceReplayTest {
     }
 
     @Test
+    @DisplayName("an entry member the class overloads fails loudly - a coordinate carries no descriptor to pick one")
+    void overloadedEntryMemberFailsLoudly() {
+        assertThrows(ToolingException.class, () ->
+            this.replay.replay(new Navigation.Dataflow(TARGET, "stem", Trace.of(new Trace.Step.ReadStringLiteral()))));
+    }
+
+    @Test
+    @DisplayName("a static field of one name read on two classes fails loudly")
+    void ambiguousStaticFieldOwnerFailsLoudly() {
+        assertThrows(ToolingException.class, () ->
+            this.replay.replay(new Navigation.Dataflow(SKIN_TABLE, "ambiguousTable", Trace.of(
+                new Trace.Step.FollowPutStatic(SKINS_FIELD),
+                new Trace.Step.ReadStringLiteral()))));
+    }
+
+    @Test
     @DisplayName("an invoke the entered member does not make fails loudly")
     void missingInvokeFailsLoudly() {
         assertThrows(ToolingException.class, () ->
@@ -294,6 +319,15 @@ class TraceReplayTest {
         loader(cn, "defaultSkin", Opcodes.ICONST_1);
         loader(cn, "lastSkin", Opcodes.ICONST_2);
         loader(cn, "outOfRange", Opcodes.ICONST_5);
+
+        // one field name read on two classes - the step names no owner, so neither can be picked
+        InsnList ambiguous = method(cn, "ambiguousTable", STRING_FACTORY);
+        ambiguous.add(new FieldInsnNode(Opcodes.GETSTATIC, cn.name, SKINS_FIELD, STRING_ARRAY_DESC));
+        ambiguous.add(new InsnNode(Opcodes.POP));
+        ambiguous.add(new FieldInsnNode(Opcodes.GETSTATIC, "fx/RivalTable", SKINS_FIELD, STRING_ARRAY_DESC));
+        ambiguous.add(new InsnNode(Opcodes.POP));
+        ambiguous.add(new InsnNode(Opcodes.ACONST_NULL));
+        ambiguous.add(new InsnNode(Opcodes.ARETURN));
         return cn;
     }
 
@@ -302,6 +336,17 @@ class TraceReplayTest {
         ClassNode cn = fixture(TINT_SOURCE);
         cn.fields.add(new FieldNode(Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC, IN_HAND, "I", null, null));
         cn.fields.add(new FieldNode(Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC, IN_WORLD, "I", null, null));
+
+        // the telescoping constructor is declared FIRST and assigns nothing, so a lookup taking the
+        // first <init> of the class finds no assignment at all
+        MethodNode delegating = new MethodNode(0, ClassKit.INIT, "(I)V", null, null);
+        cn.methods.add(delegating);
+        InsnList delegate = delegating.instructions;
+        delegate.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        delegate.add(new VarInsnNode(Opcodes.ILOAD, 1));
+        delegate.add(new InsnNode(Opcodes.ICONST_0));
+        delegate.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, cn.name, ClassKit.INIT, "(II)V"));
+        delegate.add(new InsnNode(Opcodes.RETURN));
 
         MethodNode constructor = new MethodNode(0, ClassKit.INIT, "(II)V", null, null);
         cn.methods.add(constructor);
@@ -338,9 +383,17 @@ class TraceReplayTest {
         return cn;
     }
 
-    /** The forwarder's callee - the string it answers, and a class literal beside it. */
+    /**
+     * The forwarder's callee - the string it answers, and a class literal beside it. {@code stem} is
+     * OVERLOADED, the decoy declared first, so a lookup taking the first member of that name answers
+     * the wrong body.
+     */
     private static @NotNull ClassNode target() {
         ClassNode cn = fixture(TARGET);
+        InsnList decoy = method(cn, "stem", "(I)Ljava/lang/String;");
+        decoy.add(new LdcInsnNode("decoy/stem"));
+        decoy.add(new InsnNode(Opcodes.ARETURN));
+
         InsnList stem = method(cn, "stem", STRING_FACTORY);
         stem.add(new LdcInsnNode("resolved/stem"));
         stem.add(new InsnNode(Opcodes.ARETURN));

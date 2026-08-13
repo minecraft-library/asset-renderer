@@ -6,7 +6,9 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.kernel.TraceReplay;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
@@ -56,9 +58,6 @@ final class BlockCatalogResolver {
     /** Descriptor of the switch-map array an enum {@code tableswitch} indexes (JDK shape, kit-local). */
     private static final @NotNull String SWITCH_MAP_DESC = "[I";
 
-    /** The caller label a stale player-skull coordinate is reported under. */
-    private static final @NotNull String PLAYER_SKIN = "the PLAYER skull skin";
-
     /** The caller label a stale skull model-dispatch coordinate is reported under. */
     private static final @NotNull String SKULL_DISPATCH = "the skull model dispatch";
 
@@ -78,6 +77,9 @@ final class BlockCatalogResolver {
     private final @NotNull List<String> splitIds;
     private final @NotNull Diagnostics diagnostics;
 
+    /** Retained for the policy frame a consultation is made on - the cache alone cannot carry one. */
+    private final @NotNull ToolingSession session;
+
     private @Nullable Map<String, JsonTree> bySplitId;
 
     BlockCatalogResolver(
@@ -87,6 +89,7 @@ final class BlockCatalogResolver {
         @NotNull BlockEntitySubject subject,
         @NotNull List<String> splitIds
     ) {
+        this.session = session;
         this.cache = session.cache();
         this.blockRegistry = blockRegistry;
         this.layerDefinitions = layerDefinitions;
@@ -402,30 +405,24 @@ final class BlockCatalogResolver {
     }
 
     /**
-     * Reads the PLAYER skull skin stem at the coordinate the family policy declares. The accessor
-     * pushes the array index it loads, and the class's static initialiser binds a stem to each index
-     * as it fills the array, so the stem is the one bound at that index.
+     * Replays the PLAYER skull skin stem at the coordinate the family policy declares. The policy is
+     * consulted through {@link Navigation} on a frame carrying this subject, the row being one the
+     * skull subject asks for rather than a session-lifetime fact, and the steps it answers with are
+     * what walk the accessor's ordinal into the array element that opens with the stem.
      *
      * @return the skin stem the PLAYER skull renders
-     * @throws ToolingException if the coordinate binds no stem at the index it loads
+     * @throws ToolingException if the row declares no trace, or the replay recovers no stem
      */
     private @NotNull String playerSkullSkin() {
-        Navigation.At coordinate = BlockFamilyPolicies.playerSkullCoordinate();
-        ClassNode owner = ClassKit.requireClass(this.cache, coordinate.owner(), PLAYER_SKIN);
-        Integer ordinal = AsmWalker.over(ClassKit.requireMethod(owner, coordinate.member(), PLAYER_SKIN))
-            .latch(AsmWalker::intLiteral)
-            .commitAt(Insn.opcode(Opcodes.AALOAD))
-            .firstNotNull(CommitWalk.Commit::value);
-        Map<Integer, String> stems = AsmWalker.over(ClassKit.requireClinit(owner, PLAYER_SKIN))
-            .latch(AsmWalker::intLiteral)
-            .commitOn(AsmWalker::stringLiteral)
-            .toMapFirstWins();
-        String stem = ordinal == null ? null : stems.get(ordinal);
-        if (stem == null)
+        AsmContext frame = new AsmContext(this.session, this.subject.beTypeId(), null, this.diagnostics);
+        if (!(BlockFamilyPolicies.PLAYER_SKULL_SKIN.navigate(frame) instanceof Navigation.Dataflow coordinate))
+            throw new ToolingException("Skull policy '%s' declares no trace to replay", BlockFamilyPolicies.PLAYER_SKULL_SKIN);
+
+        Object recovered = new TraceReplay(this.cache).replay(coordinate);
+        if (!(recovered instanceof String stem))
             throw new ToolingException(
-                "Class '%s' binds no stem at the index '%s' loads for %s - the jar is either obfuscated or from an unsupported version",
-                owner.name, coordinate.member(), PLAYER_SKIN
-            );
+                "Trace at '%s.%s' recovered '%s' where the skin stem was required",
+                coordinate.owner(), coordinate.member(), recovered);
         return stem;
     }
 
