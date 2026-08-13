@@ -7,16 +7,16 @@
   "provenance": {
     "artifact": "pin.player-crc",
     "asset_dirty": false,
-    "asset_sha": "00a006307ac6443e243d30caf238849e20cd9c60",
+    "asset_sha": "23fdf579e8e9da8054f22dc3f4a5ac09d032da8c",
     "counts": {
       "values": 3
     },
-    "determinism_runs": 2,
+    "determinism_runs": 1,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
+    "parity_class": "moving",
     "producer": "slowTest",
-    "reason": "P12: the eight render CRCs, the forty golden floats and the two corpus counts move out of Java literals into the store, carried across verbatim - every value equals the literal deleted at 00a00630^. pin.fluid-crc's thirteen values are new: the test compared run A to run B and pinned nothing",
+    "reason": "The three render CRCs follow the 3D player onto vanilla's ENTITY_IN_UI Lambertian. Each pixel they hash is the same geometry at the same pose under a different per-face shade: on the skull the three visible faces go 1.00000/0.59941/0.79873 to 1.00000/0.56864/0.44985, which is the harness reference's own measured triple, and sweep.player falls 29.1376 to 8.4315 over the same change. full_vanilla_iso and armored_full_vanilla_iso are gated by that sweep; skull_portrait is not, PORTRAIT being a perspective pose the reference tree holds no player at, so its value is the same relight applied at a pose nothing outside this pin measures.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -25,22 +25,22 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-01T11:35:37Z",
+    "timestamp": "2026-08-13T06:40:19Z",
     "tool_version": "1.0.0"
   },
   "values": {
     "armored_full_vanilla_iso": {
-      "crc32": "0x60CFB45A",
+      "crc32": "0xE6E3EDB2",
       "subject": "Type.FULL + ArmorMaterial.IRON helmet/chestplate/leggings/boots, THREE_D, VANILLA_ISO, canvas 256, ssaa 1, aa off, steve skin",
       "type": "crc32"
     },
     "full_vanilla_iso": {
-      "crc32": "0xF9665E93",
+      "crc32": "0x9F4DF4A6",
       "subject": "Type.FULL, THREE_D, VANILLA_ISO, canvas 256, ssaa 1, aa off, steve skin",
       "type": "crc32"
     },
     "skull_portrait": {
-      "crc32": "0x88CDA794",
+      "crc32": "0xEDDF91FD",
       "subject": "Type.SKULL, THREE_D, PORTRAIT, canvas 256, ssaa 1, aa off, steve skin",
       "type": "crc32"
     }

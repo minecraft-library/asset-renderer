@@ -146,8 +146,8 @@
       "entries": 3,
       "file": "pins/player-crc.json",
       "kind": "pin-set",
-      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
-      "sha256": "b086888de3bd10d3401977e125cf2818b2685a8d870a933c548f26a43c04518a"
+      "promoted_at": "23fdf579e8e9da8054f22dc3f4a5ac09d032da8c",
+      "sha256": "3b62eb0bf517429e18a4ee3d121f39d577ad5de3fd18da3118030dfaf4a7e282"
     },
     "pin.portal-crc": {
       "baselined": true,
