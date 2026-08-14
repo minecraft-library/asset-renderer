@@ -739,12 +739,28 @@
       "sha256": "33b9a121653f9b9781901e8fb700723e5b3cd359a4aad01b54e747aa8f9ff5db"
     },
     {
+      "path": "menu-render/crafting_table.png",
+      "sha256": "73d46e18f5342accd11617862732f3f5f0394aca348db421101e25bbaea0d15c"
+    },
+    {
+      "path": "menu-render/dispenser.png",
+      "sha256": "4a0542ee7109e61f78c4271f2bc139caefb27594ccf69f75aef0ae42a2d88dfa"
+    },
+    {
       "path": "menu-render/glinted_crafting.webp",
       "sha256": "4b7289a34afeb898628ca6430099e05d2596191d7aa4dfe7f1a6ef637bc786a0"
     },
     {
+      "path": "menu-render/hopper.png",
+      "sha256": "75d76be2f13773f757147915ae88082e47a0fa2dacddee52d2ef9d9be2262138"
+    },
+    {
+      "path": "menu-render/shulker_box.png",
+      "sha256": "f9181918e11907fef575d33e11e85973120ecdd98f4772dae55294ebc4a0cb5e"
+    },
+    {
       "path": "menu-render/skyblock_crafting.png",
-      "sha256": "d1e7defde1f9fbf7811b8bddbd9eaf42adf627f116a459ae5accdb5a4d6b4b19"
+      "sha256": "254ae2961d3374b20f3d785e182d1d054755ada55d8940d56750fe9470d9b848"
     },
     {
       "path": "projection-smoke/minecraft_tnt__CABINET__base.png",
@@ -817,16 +833,17 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "df92d08f86f826bf6425fe907c1ed413a19e3c0e",
+    "asset_sha": "73eb774b358a6c0c78f2e7b49aa142a5193929b5",
     "counts": {
-      "files": 202
+      "files": 206
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
     "parity_class": "moving",
+    "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "a menu's two labels become layers of their own at the anchors the client declares - eight in and six down for the title, eight in and ninety-four above the screen's declared bottom for the player's - and neither carries a drop shadow, which is what both of the client's own label draws pass. The chrome buffer carries no ink at all, so a title changes no chrome pixel. The shadow is declinable rather than removed, so nothing outside a menu moved: fourteen artifacts held, the ten lore-tooltip rows among them. Two captures on a clean tree agreed digest for digest.",
+    "reason": "the menu type became the screen the client ships, collapsing five sub-renderers into one flow and putting the shulker box, the hopper, the dispenser and the crafting table on the driver; the crafting menu's arrow was a procedural helper with no vanilla basis, so the cell it sat in is filler now and that is the one row that moved - the four chest rows and the glint webp are byte-identical across the change",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -836,7 +853,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-14T08:57:36Z",
+    "timestamp": "2026-08-14T22:51:31Z",
     "tool_version": "1.0.0"
   }
 }
