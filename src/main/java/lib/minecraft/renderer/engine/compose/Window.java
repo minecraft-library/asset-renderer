@@ -3,6 +3,8 @@ package lib.minecraft.renderer.engine.compose;
 import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
+
 /**
  * The chrome of a container panel - its frame, its interior fill and its slot cells - painted at a
  * caller-chosen size.
@@ -12,7 +14,9 @@ import org.jetbrains.annotations.NotNull;
  * resampling, so chrome is exact at every integer scale.
  * <p>
  * Geometry and ink are separate: a {@link Palette} supplies the six roles the frame and cells are
- * drawn in, so a theme re-inks the same pixel geometry rather than describing its own.
+ * drawn in, so a theme re-inks the same pixel geometry rather than describing its own. A window
+ * painting from art carries its own ink and answers the palette with the art's, which is why the
+ * two arms take it as an argument rather than holding one.
  */
 public interface Window {
 
@@ -93,6 +97,98 @@ public interface Window {
          */
         public static final @NotNull Palette VANILLA =
             new Palette(0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737);
+
+    }
+
+    /**
+     * A window painted by slicing authored art rather than by drawing rules.
+     * <p>
+     * The panel and the cell are two chrome images and go through the same decomposition, so a pack
+     * supplying a bordered panel and an eighteen-pixel slot gets both resized by one mechanism. A
+     * panel with no cell art paints none, which is what a menu whose slots are drawn into the panel
+     * already wants.
+     * <p>
+     * The art carries its own colours, so a {@link Palette} handed to either paint method is not
+     * read. Re-inking sliced art is a different operation from re-inking drawn geometry and is not
+     * one this offers.
+     *
+     * @param panelArt the panel image
+     * @param panel its decomposition
+     * @param cellArt the cell image, empty when the art draws its own cells
+     * @param cell the cell's decomposition, present exactly when {@code cellArt} is
+     */
+    record Sliced(
+        @NotNull PixelBuffer panelArt,
+        @NotNull ChromeDecomposition panel,
+        @NotNull Optional<PixelBuffer> cellArt,
+        @NotNull Optional<ChromeDecomposition> cell
+    ) implements Window {
+
+        /**
+         * Decomposes the art and returns the window over it.
+         *
+         * @param panelArt the panel image
+         * @param panelBorder the border the panel's sidecar declares, empty when it has none
+         * @param cellArt the cell image, empty when the art draws its own cells
+         * @param cellBorder the border the cell's sidecar declares, empty when it has none
+         * @return the window
+         */
+        public static @NotNull Sliced of(
+            @NotNull PixelBuffer panelArt, @NotNull Optional<ChromeDecomposition.Border> panelBorder,
+            @NotNull Optional<PixelBuffer> cellArt, @NotNull Optional<ChromeDecomposition.Border> cellBorder
+        ) {
+            return new Sliced(
+                panelArt, ChromeSlicer.decompose(panelArt, panelBorder, true),
+                cellArt, cellArt.map(art -> ChromeSlicer.decompose(art, cellBorder, true)));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette) {
+            blit(dest, ChromeSlicer.assemble(this.panel, this.panelArt, box.width(), box.height()), box);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public void paintCell(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette) {
+            if (this.cellArt.isEmpty() || this.cell.isEmpty()) return;
+            blit(dest, ChromeSlicer.assemble(this.cell.get(), this.cellArt.get(), box.width(), box.height()), box);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Extent minimum() {
+            return new Extent(this.panel.left() + this.panel.right(), this.panel.top() + this.panel.bottom());
+        }
+
+        /**
+         * Blits a painted Minecraft-pixel image into the box, replicating each pixel as a
+         * {@code scale x scale} block and skipping a fully transparent one so the destination shows
+         * through.
+         */
+        private static void blit(@NotNull PixelBuffer dest, @NotNull PixelBuffer painted, @NotNull Box box) {
+            int scale = box.scale();
+
+            for (int my = 0; my < painted.height(); my++) {
+                for (int mx = 0; mx < painted.width(); mx++) {
+                    int argb = painted.getPixel(mx, my);
+                    if (argb == 0) continue;
+
+                    int x0 = (box.x() + mx) * scale;
+                    int y0 = (box.y() + my) * scale;
+                    for (int dy = 0; dy < scale; dy++) {
+                        int y = y0 + dy;
+                        if (y < 0 || y >= dest.height()) continue;
+
+                        for (int dx = 0; dx < scale; dx++) {
+                            int x = x0 + dx;
+                            if (x < 0 || x >= dest.width()) continue;
+                            dest.setPixel(x, y, argb);
+                        }
+                    }
+                }
+            }
+        }
 
     }
 
