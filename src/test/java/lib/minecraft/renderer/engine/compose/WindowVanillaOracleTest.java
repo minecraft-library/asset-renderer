@@ -207,13 +207,33 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("the frame's inset and its minimum panel agree")
-    void frameInsetAndMinimumPanelAgree() {
-        Window.Insets padding = Window.Vanilla.DRAW.padding();
+    @DisplayName("the minimum panel is the smallest one that paints a whole frame")
+    void theMinimumPanelIsTheSmallestThatPaintsAWholeFrame() {
         Window.Extent minimum = Window.Vanilla.DRAW.minimum();
 
-        assertThat(minimum.width() - padding.left() - padding.right(), is(equalTo(0)));
-        assertThat(minimum.height() - padding.top() - padding.bottom(), is(equalTo(0)));
+        PixelBuffer atFloor = PixelBuffer.create(minimum.width(), minimum.height());
+        Window.Vanilla.DRAW.paintPanel(atFloor, Window.Box.of(minimum.width(), minimum.height()), Window.Palette.VANILLA);
+
+        int painted = 0;
+        for (int y = 0; y < minimum.height(); y++)
+            for (int x = 0; x < minimum.width(); x++)
+                if (atFloor.getPixel(x, y) != 0) painted++;
+
+        // The four corner blocks tile the whole panel at the floor, so the only untouched pixels are
+        // the chamfers - and they come to 18 rather than a multiple of four, because the corners are
+        // not rotations of one another: the top-left cuts 3 and the bottom-right 3, while the two
+        // that hand the highlight over to the shadow cut 6 each.
+        assertThat("painted at the floor", painted, is(equalTo(minimum.width() * minimum.height() - 18)));
+
+        PixelBuffer belowFloor = PixelBuffer.create(minimum.width(), minimum.height());
+        Window.Vanilla.DRAW.paintPanel(belowFloor, Window.Box.of(minimum.width() - 1, minimum.height()), Window.Palette.VANILLA);
+
+        int under = 0;
+        for (int y = 0; y < minimum.height(); y++)
+            for (int x = 0; x < minimum.width(); x++)
+                if (belowFloor.getPixel(x, y) != 0) under++;
+
+        assertThat("a panel under the floor declines rather than painting a broken frame", under, is(equalTo(0)));
     }
 
 }

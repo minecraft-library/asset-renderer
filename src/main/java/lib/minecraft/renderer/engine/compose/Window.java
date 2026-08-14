@@ -35,17 +35,10 @@ public interface Window {
     void paintCell(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette);
 
     /**
-     * Returns the frame's own inset in Minecraft pixels - how far inside the panel rect the interior
-     * fill begins on each side. It describes the frame alone; the larger margins a screen leaves
-     * between the panel edge and its first slot are layout and are not answered here.
-     *
-     * @return the frame inset
-     */
-    @NotNull Insets padding();
-
-    /**
      * Returns the smallest panel this window can paint, in Minecraft pixels - the size at which the
-     * frame's own corners meet and the interior is empty.
+     * frame's own corners meet and the interior is empty. It is a floor the art imposes and never a
+     * layout's: a screen with content to fit has its own larger floor, and the usable one is
+     * whichever is greater.
      *
      * @return the minimum panel extent
      */
@@ -71,28 +64,6 @@ public interface Window {
          */
         public static @NotNull Box of(int width, int height) {
             return new Box(0, 0, width, height, 1);
-        }
-
-    }
-
-    /**
-     * A per-side inset in Minecraft pixels.
-     *
-     * @param left the left inset
-     * @param top the top inset
-     * @param right the right inset
-     * @param bottom the bottom inset
-     */
-    record Insets(int left, int top, int right, int bottom) {
-
-        /**
-         * An inset equal on all four sides.
-         *
-         * @param all the inset applied to every side
-         * @return the insets
-         */
-        public static @NotNull Insets uniform(int all) {
-            return new Insets(all, all, all, all);
         }
 
     }
@@ -230,12 +201,6 @@ public interface Window {
             for (int y = 0; y < h - 1; y++) put(dest, box, 0, y, palette.cellShadow());
             for (int x = 1; x < w; x++) put(dest, box, x, h - 1, palette.light());
             for (int y = 1; y < h; y++) put(dest, box, w - 1, y, palette.light());
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull Insets padding() {
-            return Insets.uniform(BORDER);
         }
 
         /** {@inheritDoc} */
