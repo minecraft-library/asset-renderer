@@ -684,55 +684,55 @@
     },
     {
       "path": "lore-tooltip/accessory.png",
-      "sha256": "e48751da45e38e848e385fc62fec893c164d2a944a006e30c7fca08f066845b9"
+      "sha256": "b5bed95d9b84604fd4bdd4afc49118a00e9323361e9aac0359fb52a5128e40d6"
     },
     {
       "path": "lore-tooltip/gradient_band1.png",
-      "sha256": "db54f43c3fe21e4d9afba4b628463d6f30ad601bb73e034b26af8e013c900b58"
+      "sha256": "91a044b6665f914a6336d6c927aa3d2c0bd2b087280d5d4000bddbf0ea71e4b4"
     },
     {
       "path": "lore-tooltip/gradient_band8.png",
-      "sha256": "9b7eeeb7f0aad0b56ad81b13cd800ec3b8a4ee80497b370699defc3184e6182a"
+      "sha256": "d4af76d6755e627ae31ee34e55f0093c6a9f35233b3afcf266489f1b1fa64a9f"
     },
     {
       "path": "lore-tooltip/gradient_italic_shear.png",
-      "sha256": "5558466d2783e7c9441ae879944df95f61434c29419ed6b87a833d8fa4b090ba"
+      "sha256": "10c91c2ad827cc2a98d3c0d96873e77d001aca2ed08f79a66af49f0a666db436"
     },
     {
       "path": "lore-tooltip/gradient_perletter.png",
-      "sha256": "0bdcfab83d7b709bbe80de597ec66453657535d314d9384d203b8f496f251c56"
+      "sha256": "efada720243f95d4a8aca21310982b95e7f1e8d9118009d7844d519522b6a785"
     },
     {
       "path": "lore-tooltip/gradient_scroll.gif",
-      "sha256": "ca144c4dde339c1a941d75d560abd25fd45ebc8e70b227535826e9faf0f9776c"
+      "sha256": "f9714051a7f9542dc3bce0af91e50e66fdfdbb8b408192fb0854a80ea8e0212e"
     },
     {
       "path": "lore-tooltip/weapon.gif",
-      "sha256": "f046d1d6ea346875ed76a281a9868d72de7226342d5a053d6e6a9405039f6327"
+      "sha256": "9b58134b0b417f5706ba4508fe667c72b6195964936eb2f0b8fce54909f95ee3"
     },
     {
       "path": "lore-tooltip/weapon.webp",
-      "sha256": "a44dadabd190ac2c45cdb345037e5d6682e84e99d77b4ec4cd0dbb0ea640367f"
+      "sha256": "14356516bdbc08b5560c005f8dc043bacbecb6baeb8df1c5dcdafeb41bd6259b"
     },
     {
       "path": "lore-tooltip/weapon_lossy.webp",
-      "sha256": "4f929db7c1628efb13e03e2a864226af939b345948d35cbc6b7a14f446a663c7"
+      "sha256": "7646f996fd1eabeabeb94f0022baa2ac88ac7fa863e2b8a13cec3ae546420d6e"
     },
     {
       "path": "lore-tooltip/weapon_static.webp",
-      "sha256": "d429c15aa08e9715d3ca47c37351e2270a3e445e347ff782c02601e5222fcbd3"
+      "sha256": "b28d01e31e19f502a231225f334e102611f77157eefea82ccc746aefcdc7b336"
     },
     {
       "path": "menu-render/glinted_crafting.webp",
-      "sha256": "fe45959177d4e5e61ebaa644dec94ccfca2fd5b43e8ddad8e298bb6fcb7def27"
+      "sha256": "12b6810b03c57c344b64fc413f88a2ade91ee90d4bdea5d28e2e8af5b81ac3b8"
     },
     {
       "path": "menu-render/skyblock_crafting.png",
-      "sha256": "cc9a370fdb80be4eaebddfc677c22ab66e5d848643a554fbbbc8a51b6439c350"
+      "sha256": "60413072ce81df298ddc44ccb1aea588d1b9b316153741b6879b126ddc5a2e73"
     },
     {
       "path": "menu-render/vanilla_crafting.png",
-      "sha256": "fb415fa91d5b012ab01fe40d0920d3607be00002cdb83326d89fa214b003c3ab"
+      "sha256": "75ac7441a453c53e0c2b8a4e04a2a8b00d0e0e36553bbb0a4d4f4c4436f0ed66"
     },
     {
       "path": "projection-smoke/minecraft_tnt__CABINET__base.png",
@@ -805,7 +805,7 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+    "asset_sha": "db2de945582b037974ddb067ff93a4716c665115",
     "counts": {
       "files": 199
     },
@@ -813,9 +813,8 @@
     "flags": {},
     "mc_version": "26.1.2",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "Whole-store capture on a clean tree at the end of the parity-cleanup follow-up. Twenty-three of twenty-four artifacts are byte-identical to the previous baseline, including all six sweeps after a full ground-truth re-render, so the six landed phases moved no hashed byte and the reference tree had no staleness to shed. manifest.visual gains 46 rows and moves none: its membership was widened from six sub-trees to eight, and entity-projections and projection-smoke are hashed here for the first time.",
+    "reason": "text pin 117775e to 172ed90: AWT text antialiasing off, 1104 partial-alpha glyph pixels to 0 on the regular face and 0 on all six, glyph bounds and advances byte-identical, binarised masks 94 of 94 unchanged against the shipped atlas; 13 of 199 rows moved and every one draws text",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -825,7 +824,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-07T16:43:08Z",
+    "timestamp": "2026-08-14T05:17:22Z",
     "tool_version": "1.0.0"
   }
 }
