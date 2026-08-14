@@ -723,16 +723,28 @@
       "sha256": "b28d01e31e19f502a231225f334e102611f77157eefea82ccc746aefcdc7b336"
     },
     {
+      "path": "menu-render/chest_1row.png",
+      "sha256": "111a8d6821c8d18967affaeee18ff155c2e828b30cfb034aeddafc27f3f6c1a0"
+    },
+    {
+      "path": "menu-render/chest_2row.png",
+      "sha256": "062548ea97202288c4a6e3d2a91c9219c05ab18da7c3cad77b95359b4a7f1f7d"
+    },
+    {
+      "path": "menu-render/chest_3row.png",
+      "sha256": "86a56a48d50bb3a0e5a08c2be8389705a581a8768b0e6b5b3e1219a697dd13a0"
+    },
+    {
+      "path": "menu-render/chest_6row.png",
+      "sha256": "db9c95352105603bf4f47899e8c94b3e717248fb14a0ed1562df78154cf8401b"
+    },
+    {
       "path": "menu-render/glinted_crafting.webp",
-      "sha256": "12b6810b03c57c344b64fc413f88a2ade91ee90d4bdea5d28e2e8af5b81ac3b8"
+      "sha256": "d5832d688e67f8e128e1a071234c7a7b4e4ad30d8fe6f2e1c4b25fc820bfc0cb"
     },
     {
       "path": "menu-render/skyblock_crafting.png",
-      "sha256": "60413072ce81df298ddc44ccb1aea588d1b9b316153741b6879b126ddc5a2e73"
-    },
-    {
-      "path": "menu-render/vanilla_crafting.png",
-      "sha256": "75ac7441a453c53e0c2b8a4e04a2a8b00d0e0e36553bbb0a4d4f4c4436f0ed66"
+      "sha256": "cfcb461ccf106d8224c9bddb9956cc496c4232fed2babed3840266db42d86619"
     },
     {
       "path": "projection-smoke/minecraft_tnt__CABINET__base.png",
@@ -805,16 +817,17 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "db2de945582b037974ddb067ff93a4716c665115",
+    "asset_sha": "c310577044fd0b57eeb097245a96f43855b35208",
     "counts": {
-      "files": 199
+      "files": 202
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
     "parity_class": "moving",
+    "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "text pin 117775e to 172ed90: AWT text antialiasing off, 1104 partial-alpha glyph pixels to 0 on the regular face and 0 on all six, glyph bounds and advances byte-identical, binarised masks 94 of 94 unchanged against the shipped atlas; 13 of 199 rows moved and every one draws text",
+    "reason": "menu chrome painted from the measured vanilla window over a MenuScreen layout, retiring the flat-fill and hand-drawn chest paths: the panel is 176 wide where nine cells and two margins come to that, the top band 17, and the title at 8,6 in Minecraft pixels. The roster gains the four chest row counts the client composes out of one sheet and loses the 188x140 crafting invention. Two captures on a clean tree agreed digest for digest.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -824,7 +837,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-14T05:17:22Z",
+    "timestamp": "2026-08-14T07:26:54Z",
     "tool_version": "1.0.0"
   }
 }
