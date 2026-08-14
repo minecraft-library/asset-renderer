@@ -1,6 +1,11 @@
 package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.kit.AnimationKit;
+import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -152,6 +157,58 @@ public interface Window {
             return new Sliced(
                 panelArt, ChromeSlicer.decompose(panelArt, panelBorder, true),
                 cellArt, cellArt.map(art -> ChromeSlicer.decompose(art, cellBorder, true)));
+        }
+
+        /**
+         * Resolves named art through the pack stack and decomposes it once.
+         * <p>
+         * A named sprite that does not resolve raises, because a caller naming one has stated an
+         * intent that a silently vanilla panel would not honour - absence and failure are different
+         * states and only the first is expressible, by naming nothing. Each sprite is paired with
+         * whatever border its own sidecar declares, so authored art keeps its authored border and
+         * only art declaring none has one derived.
+         *
+         * @param context the renderer context resolving textures and their sidecars
+         * @param panelId the panel sprite
+         * @param cellId the cell sprite, empty where the panel art draws its own cells
+         * @return the window over the resolved art
+         * @throws RenderException if either named sprite does not resolve
+         */
+        public static @NotNull Sliced resolve(
+            @NotNull RendererContext context,
+            @NotNull ResourceId panelId,
+            @NotNull Optional<ResourceId> cellId
+        ) {
+            return of(
+                art(context, panelId), border(context, panelId),
+                cellId.map(id -> art(context, id)), cellId.flatMap(id -> border(context, id)));
+        }
+
+        /**
+         * Resolves one sprite's pixels, pinned to tick zero where the art is animated, and raises
+         * where the pack stack answers with nothing.
+         */
+        private static @NotNull PixelBuffer art(@NotNull RendererContext context, @NotNull ResourceId id) {
+            PixelBuffer buffer = context.resolveTexture(id.id())
+                .orElseThrow(() -> new RenderException("Window chrome sprite '%s' does not resolve", id));
+
+            return context.findAnimation(id.id())
+                .map(animation -> AnimationKit.sampleFrame(buffer, animation, 0))
+                .orElse(buffer);
+        }
+
+        /**
+         * The border a sprite's {@code gui.scaling} sidecar declares, empty where it declares none or
+         * declares a mode that carries no border - which is what leaves the border to be derived.
+         */
+        private static @NotNull Optional<ChromeDecomposition.Border> border(
+            @NotNull RendererContext context, @NotNull ResourceId id
+        ) {
+            return context.findGuiScaling(id.id())
+                .filter(scaling -> scaling.type() == MCMeta.GuiScaling.Type.NINE_SLICE)
+                .map(MCMeta.GuiScaling::border)
+                .map(declared -> new ChromeDecomposition.Border(
+                    declared.left(), declared.top(), declared.right(), declared.bottom()));
         }
 
         /** {@inheritDoc} */

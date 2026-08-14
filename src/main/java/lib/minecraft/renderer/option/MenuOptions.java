@@ -2,37 +2,40 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.MenuRenderer;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.compose.MenuScreen;
 import lib.minecraft.renderer.engine.compose.Window;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.MenuSlot;
+import lib.minecraft.text.font.MinecraftFont;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@link MenuRenderer} invocation.
  *
- * <p>Supports vanilla menu types ({@link Type#PLAYER}, {@link Type#CHEST},
- * {@link Type#VANILLA_CRAFTING}, {@link Type#VANILLA_ANVIL}), Hypixel SkyBlock menu types
- * ({@link Type#SKYBLOCK_CRAFTING}, {@link Type#SKYBLOCK_ANVIL}), plus two caller-driven layouts:
- * <ul>
- *   <li><b>{@link Type#CUSTOM}</b> - a {@code rows x columns} grid with arbitrary dimensions, on a
- *       panel the window paints to fit it, and per-slot item icons drawn through
- *       {@link ItemRenderer}.</li>
- *   <li><b>{@link Type#SLOT}</b> - a single inventory slot, useful for previewing one item in
- *       the menu chrome.</li>
- * </ul>
+ * <p>{@link Type} names the screen, which is one of the containers the client ships. Every one of
+ * them resolves to a {@link MenuScreen} carrying the cell origins and band depths measured off that
+ * screen's own art, so what a caller chooses is an identity rather than a set of numbers.
+ * {@link Type#CHEST} is the one that takes dimensions, because the client composes it from one sheet
+ * at any row count.
  *
- * <p><b>Slot population.</b> {@link #getSlots() slots} maps zero-based slot indices to
- * {@link MenuSlotContent} (item id + {@link ItemOptions} + stack count), which the renderer
- * dispatches to {@link ItemRenderer} per slot. Unmapped slots stay transparent.
+ * <p><b>Slot population.</b> {@link #getSlots() slots} maps zero-based slot indices onto the cells
+ * the chosen screen lays out, in that screen's own order - its own cells first and a result cell
+ * last. Unmapped slots stay transparent unless {@link #getFill() fill} names something to draw in
+ * them. A {@link MenuSlotContent} is either an item the renderer draws to the cell's size through
+ * {@link ItemRenderer}, or a render the caller has already sized.
  *
  * @see lib.minecraft.renderer.MenuRenderer
  */
@@ -41,21 +44,27 @@ import java.util.function.UnaryOperator;
 public class MenuOptions implements RenderOptions {
 
     /**
+     * The cell art the client ships, which is what a sliced window takes for its cells where a
+     * caller names no other.
+     */
+    private static final @NotNull String SLOT_SPRITE = "minecraft:gui/sprites/container/slot";
+
+    /**
      * Menu layout type - selects the chrome and slot geometry.
      */
     @lombok.Builder.Default
     private final @NotNull Type type = Type.CHEST;
 
     /**
-     * Number of slot rows - honoured by {@link Type#CHEST} and {@link Type#CUSTOM}; other types
-     * use their own fixed grids.
+     * Number of slot rows, read by {@link Type#CHEST} alone. Every other screen ships one grid and
+     * carries its own.
      */
     @lombok.Builder.Default
     private final int rows = 3;
 
     /**
-     * Number of slot columns - honoured by {@link Type#CUSTOM}; other types use their own fixed
-     * grids.
+     * Number of slot columns, read by {@link Type#CHEST} alone. Nine is the chest the client
+     * composes; any other width is a panel it ships no sheet for, and is laid out as a plain grid.
      */
     @lombok.Builder.Default
     private final int columns = 9;
@@ -94,15 +103,37 @@ public class MenuOptions implements RenderOptions {
     private final boolean playerInventory = false;
 
     /**
-     * The window the chrome is painted by, which is vanilla's geometry in one of its palettes.
+     * The window the chrome is painted by where {@link #chromeSprite} names no art, which is
+     * vanilla's geometry in one of its palettes.
      */
     @lombok.Builder.Default
     private final @NotNull Window.Theme theme = Window.Theme.VANILLA;
 
     /**
-     * How non-functional slots should be rendered in menu layouts that wrap their functional
-     * slots in a larger container ({@link Type#SKYBLOCK_CRAFTING} at the moment). Ignored by
-     * layouts that do not have filler slots.
+     * The art the panel is sliced out of, empty where it is drawn from rules in the
+     * {@linkplain #theme theme}'s ink. Art named here and not resolvable raises rather than falling
+     * back, so a pack that ships a broken panel is distinguishable from one that ships none.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<ResourceId> chromeSprite = Optional.empty();
+
+    /**
+     * The art one cell is sliced out of, read only where {@link #chromeSprite} names a panel. Empty
+     * where that panel's art draws its own cells.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<ResourceId> cellSprite = Optional.of(ResourceId.parse(SLOT_SPRITE));
+
+    /**
+     * Output pixels one Minecraft pixel occupies on a side. It is the font's, and a menu refuses any
+     * other value: a title is rasterised through that constant, so a panel drawn at a second scale
+     * would carry a label that does not line up with it.
+     */
+    @lombok.Builder.Default
+    private final int pxScale = MinecraftFont.MC_PIXEL_SCALE;
+
+    /**
+     * What to draw in the cells a caller populated none of. Ignored where nothing is left over.
      */
     @lombok.Builder.Default
     private final @NotNull Fill fill = Fill.EMPTY;
@@ -141,125 +172,129 @@ public class MenuOptions implements RenderOptions {
     }
 
     /**
-     * The content of a single menu slot: the item to render plus its options and stack count.
-     *
-     * @param itemId the namespaced item id
-     * @param options the item render options (controls GUI vs 3D, enchanted state, CIT context, etc.)
-     * @param count the stack size, rendered as the corner number when greater than 1
+     * What one menu slot holds.
+     * <p>
+     * The two arms differ in who decides how big the content is. An {@link Item} is sized by the
+     * renderer, which is the only party that knows what a cell comes to; a {@link Rendered} was
+     * produced by the caller and is drawn at whatever size it arrived at, which is what lets a block
+     * or any other render sit in a slot.
      */
-    public record MenuSlotContent(
-        @NotNull String itemId,
-        @NotNull ItemOptions options,
-        int count
-    ) {
+    public sealed interface MenuSlotContent {
 
         /**
-         * Creates a slot holding a single unenchanted GUI item at stack size 1.
+         * Creates a slot holding one item at its GUI icon.
          *
          * @param itemId the namespaced item id
          * @return the slot content
          */
-        public static @NotNull MenuSlotContent of(@NotNull String itemId) {
-            ItemOptions options = ItemOptions.builder()
+        static @NotNull MenuSlotContent of(@NotNull String itemId) {
+            return of(ItemOptions.builder()
                 .itemId(itemId)
                 .type(ItemOptions.Type.GUI_ICON)
-                .build();
-            return new MenuSlotContent(itemId, options, 1);
+                .build());
         }
 
         /**
-         * Creates a slot holding the given item with a stack count.
+         * Creates a slot holding an item drawn to the caller's own options.
          *
-         * @param itemId the namespaced item id
-         * @param count the stack size
+         * @param options the item render options
          * @return the slot content
          */
-        public static @NotNull MenuSlotContent of(@NotNull String itemId, int count) {
-            ItemOptions options = ItemOptions.builder()
-                .itemId(itemId)
-                .type(ItemOptions.Type.GUI_ICON)
-                .build();
-            return new MenuSlotContent(itemId, options, count);
+        static @NotNull MenuSlotContent of(@NotNull ItemOptions options) {
+            return new Item(options);
         }
+
+        /**
+         * Creates a slot holding a render the caller produces, drawn as it arrives.
+         *
+         * @param content supplies the render, called once per menu render
+         * @return the slot content
+         */
+        static @NotNull MenuSlotContent of(@NotNull Supplier<ImageData> content) {
+            return new Rendered(content);
+        }
+
+        /**
+         * An item the renderer draws at the size the cell holding it comes to.
+         *
+         * @param options the item render options, whose output canvas the renderer answers for
+         */
+        record Item(@NotNull ItemOptions options) implements MenuSlotContent {}
+
+        /**
+         * A render the caller has already sized, centred in its cell as it arrives.
+         *
+         * @param content supplies the render
+         */
+        record Rendered(@NotNull Supplier<ImageData> content) implements MenuSlotContent {}
 
     }
 
     /**
-     * The supported menu types.
+     * The screens a menu can be, each one the client ships.
+     * <p>
+     * A menu whose slots sit at positions no shipped screen declares is one of these with its own
+     * slot map over it, which is a caller's arithmetic rather than a type of its own - a server menu
+     * is a chest whatever it draws in the cells.
      */
     public enum Type {
 
         /**
-         * The 4x9 player inventory view (9 hotbar + 27 main).
+         * The player's own inventory, four rows of nine - three of main inventory and the hotbar.
          */
         PLAYER,
 
         /**
-         * A chest with configurable {@code rows} (3 for single, 6 for double).
+         * A chest, at the {@link MenuOptions#getRows() rows} and {@link MenuOptions#getColumns()
+         * columns} asked for. Nine columns is the panel the client composes out of one sheet at any
+         * row count; any other width is a plain grid, there being no sheet to compose it from.
          */
         CHEST,
 
         /**
-         * A custom rows x columns grid with no hard-coded dimensions.
+         * A shulker box, three rows of nine, whose label band is one pixel short of a chest's.
          */
-        CUSTOM,
+        SHULKER_BOX,
 
         /**
-         * A single 1x1 slot.
+         * A hopper, one row of five centred cells sitting two pixels lower than a chest's first row.
          */
-        SLOT,
+        HOPPER,
 
         /**
-         * The vanilla crafting table: a three by three input grid whose columns sit left of centre,
-         * and a result cell of 26 across from it. Caller slots {@code 0..8} map to the grid in
-         * reading order and slot {@code 9} is the result.
+         * A dispenser, a centred three by three, and the one shipped screen that centres its title.
          */
-        VANILLA_CRAFTING,
+        DISPENSER,
 
         /**
-         * The Hypixel SkyBlock crafting menu: a 9x6 chest container that wraps the 3x3 input
-         * grid at chest positions {@code 10-12/19-21/28-30} with the output at chest slot
-         * {@code 23} and decorative filler around the functional slots. Caller slots
-         * {@code 0..8} map to the grid in reading order and slot {@code 9} is the output.
+         * A crafting table: a three by three whose columns sit four pixels left of centre, and a
+         * result cell of 26 across from it. Slots {@code 0..8} are the grid in reading order and
+         * slot {@code 9} is the result.
          */
-        SKYBLOCK_CRAFTING,
+        CRAFTING_TABLE,
 
         /**
-         * The vanilla 2-input 1-output anvil.
+         * An anvil, two inputs and a result at the spacing its own menu declares. Slots {@code 0}
+         * and {@code 1} are the inputs and slot {@code 2} is the result.
          */
-        VANILLA_ANVIL,
+        ANVIL
 
-        /**
-         * The Hypixel SkyBlock "Combine Items" anvil menu: a 9x6 chest with an isometric anvil
-         * decoration, red-glass borders, and three caller-controlled slots.
-         * <ul>
-         * <li>Slot {@code 0} (first input) -> chest slot {@code 29}</li>
-         * <li>Slot {@code 1} (second input) -> chest slot {@code 33}</li>
-         * <li>Slot {@code 2} (output) -> chest slot {@code 13}</li>
-         * </ul>
-         * The decorative isometric anvil sits at chest slot {@code 22} and red stained glass
-         * panes fill chest slots {@code 11, 12, 14, 15, 20, 24} plus the entire bottom row
-         * ({@code 45..53}).
-         */
-        SKYBLOCK_ANVIL
     }
 
     /**
-     * How non-functional (filler/border) slots should be rendered in menu layouts that have
-     * them, such as {@link Type#SKYBLOCK_CRAFTING} which wraps the 3x3 crafting grid inside a
-     * 9x6 chest container.
+     * What to draw in the cells a caller populated none of.
      */
     public enum Fill {
 
         /**
-         * Fill every non-functional slot with a {@code minecraft:black_stained_glass_pane} GUI
-         * icon, matching the standard Hypixel menu border. The item must be resolvable through
-         * the active {@link RendererContext}.
+         * Draw a {@code minecraft:black_stained_glass_pane} GUI icon in each, which is the border a
+         * server menu is usually framed in. The item must be resolvable through the active
+         * {@link RendererContext}.
          */
         BLACK_STAINED_GLASS_PANE,
 
         /**
-         * Leave non-functional slots transparent so the chrome shows through.
+         * Leave them transparent so the chrome shows through.
          */
         EMPTY
 

@@ -92,16 +92,16 @@ class MenuRendererItemBoxTest {
     @Test
     @DisplayName("an item in a crafting result draws inside the sixteen its cell of 26 centres")
     void anItemInACraftingResultStaysInTheSixteen() {
-        MenuLayout layout = MenuRenderer.layoutOf(MenuOptions.builder().type(MenuOptions.Type.VANILLA_CRAFTING).build());
-        assertInsideCell(inkOf(MenuOptions.Type.VANILLA_CRAFTING, 9, "minecraft:diamond_sword"),
+        MenuLayout layout = MenuRenderer.layoutOf(MenuOptions.builder().type(MenuOptions.Type.CRAFTING_TABLE).build());
+        assertInsideCell(inkOf(MenuOptions.Type.CRAFTING_TABLE, 9, "minecraft:diamond_sword"),
             layout.slotCells().get(9), "a sword in the crafting result");
     }
 
     @Test
     @DisplayName("an item in an anvil slot draws where the anvil's own menu declares it")
     void anItemInAnAnvilSlotStaysInIt() {
-        MenuLayout layout = MenuRenderer.layoutOf(MenuOptions.builder().type(MenuOptions.Type.VANILLA_ANVIL).build());
-        assertInsideCell(inkOf(MenuOptions.Type.VANILLA_ANVIL, 1, "minecraft:iron_ingot"),
+        MenuLayout layout = MenuRenderer.layoutOf(MenuOptions.builder().type(MenuOptions.Type.ANVIL).build());
+        assertInsideCell(inkOf(MenuOptions.Type.ANVIL, 1, "minecraft:iron_ingot"),
             layout.slotCells().get(1), "an ingot in the anvil's second input");
     }
 

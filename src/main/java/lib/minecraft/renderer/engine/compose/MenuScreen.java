@@ -27,13 +27,13 @@ import java.util.Optional;
  * own spacing and ride {@code extras}
  * @param ownOriginX the left edge of its own grid
  * @param panelColumns how many cells wide the panel itself is, which is what its width comes to
- * @param titleX the left edge of the title, in from the panel's own
+ * @param titleX where the title starts
  * @param extras cells that are not part of the regular grid, such as a crafting result
  */
 public record MenuScreen(
     int topBand, int labelBand, int declaredSlack,
     int ownRows, int ownColumns, int ownOriginX,
-    int panelColumns, int titleX,
+    int panelColumns, @NotNull TitleX titleX,
     @NotNull ConcurrentList<MenuLayout.Cell> extras
 ) {
 
@@ -55,6 +55,9 @@ public record MenuScreen(
     /** the left edge of a title, on every screen that does not move it */
     private static final int TITLE_X = 8;
 
+    /** where a title starts on every screen that neither moves it nor centres it */
+    private static final @NotNull TitleX TITLE_START = new TitleX.Inset(TITLE_X);
+
     /** the top edge of a title, which every screen shares */
     public static final int TITLE_Y = 6;
 
@@ -70,7 +73,7 @@ public record MenuScreen(
      * @return the screen
      */
     public static @NotNull MenuScreen grid(int rows, int columns) {
-        return new MenuScreen(17, 13, 0, rows, columns, MARGIN, columns, TITLE_X, Concurrent.newList());
+        return new MenuScreen(17, 13, 0, rows, columns, MARGIN, columns, TITLE_START, Concurrent.newList());
     }
 
     /**
@@ -85,22 +88,25 @@ public record MenuScreen(
      * @return the screen
      */
     public static @NotNull MenuScreen chest(int rows) {
-        return new MenuScreen(17, 13, 1, rows, COLUMNS, MARGIN, COLUMNS, TITLE_X, Concurrent.newList());
+        return new MenuScreen(17, 13, 1, rows, COLUMNS, MARGIN, COLUMNS, TITLE_START, Concurrent.newList());
     }
 
     /** The shulker box, a three-row container whose label band is one pixel short of a chest's. */
     public static @NotNull MenuScreen shulkerBox() {
-        return new MenuScreen(17, 12, 0, 3, COLUMNS, MARGIN, COLUMNS, TITLE_X, Concurrent.newList());
+        return new MenuScreen(17, 12, 0, 3, COLUMNS, MARGIN, COLUMNS, TITLE_START, Concurrent.newList());
     }
 
     /** The hopper, one row of five cells, sitting two pixels lower than a chest's first row. */
     public static @NotNull MenuScreen hopper() {
-        return new MenuScreen(19, 13, 0, 1, 5, centred(5), COLUMNS, TITLE_X, Concurrent.newList());
+        return new MenuScreen(19, 13, 0, 1, 5, centred(5), COLUMNS, TITLE_START, Concurrent.newList());
     }
 
-    /** The dispenser, a centred three by three. */
+    /**
+     * The dispenser, a centred three by three, and the one shipped screen that centres its title
+     * rather than starting it a fixed distance in.
+     */
     public static @NotNull MenuScreen dispenser() {
-        return new MenuScreen(16, 13, 0, 3, 3, centred(3), COLUMNS, TITLE_X, Concurrent.newList());
+        return new MenuScreen(16, 13, 0, 3, 3, centred(3), COLUMNS, new TitleX.Centred(), Concurrent.newList());
     }
 
     /**
@@ -111,7 +117,7 @@ public record MenuScreen(
     public static @NotNull MenuScreen craftingTable() {
         ConcurrentList<MenuLayout.Cell> extras = Concurrent.newList();
         extras.add(new MenuLayout.Cell(119, 30, 26, MenuLayout.Role.RESULT));
-        return new MenuScreen(16, 13, 0, 3, 3, 29, COLUMNS, 29, extras);
+        return new MenuScreen(16, 13, 0, 3, 3, 29, COLUMNS, new TitleX.Inset(29), extras);
     }
 
     /**
@@ -123,7 +129,56 @@ public record MenuScreen(
         extras.add(new MenuLayout.Cell(26, 46, CELL, MenuLayout.Role.CONTAINER));
         extras.add(new MenuLayout.Cell(75, 46, CELL, MenuLayout.Role.CONTAINER));
         extras.add(new MenuLayout.Cell(133, 46, CELL, MenuLayout.Role.RESULT));
-        return new MenuScreen(46, 19, 0, 1, 0, MARGIN, COLUMNS, 60, extras);
+        return new MenuScreen(46, 19, 0, 1, 0, MARGIN, COLUMNS, new TitleX.Inset(60), extras);
+    }
+
+    /**
+     * Where a screen starts its title.
+     * <p>
+     * Most screens fix it a few pixels in from their own left edge, which is a number they can store.
+     * One centres it, which is a function of the title's own width, so what a screen holds is the
+     * rule rather than the answer.
+     */
+    public sealed interface TitleX {
+
+        /**
+         * Resolves the left edge the title starts at.
+         *
+         * @param panelWidth the panel's width in Minecraft pixels
+         * @param titleWidth the title's width in Minecraft pixels
+         * @return the left edge in Minecraft pixels
+         */
+        int at(int panelWidth, int titleWidth);
+
+        /**
+         * A title a fixed distance in from the panel's own left edge.
+         *
+         * @param x the left edge
+         */
+        record Inset(int x) implements TitleX {
+
+            /** {@inheritDoc} */
+            @Override
+            public int at(int panelWidth, int titleWidth) {
+                return this.x;
+            }
+
+        }
+
+        /**
+         * A title centred on the panel, which is what the dispenser does and no other shipped
+         * container does.
+         */
+        record Centred() implements TitleX {
+
+            /** {@inheritDoc} */
+            @Override
+            public int at(int panelWidth, int titleWidth) {
+                return (panelWidth - titleWidth) / 2;
+            }
+
+        }
+
     }
 
     /**
@@ -173,10 +228,9 @@ public record MenuScreen(
 
         cells.addAll(this.extras);
 
-        MenuLayout.Anchor title = new MenuLayout.Anchor(this.titleX, TITLE_Y);
         int height = this.topBand + this.ownRows * CELL;
         if (!playerSection)
-            return new MenuLayout(width(), height + MARGIN, title, Optional.empty(), cells);
+            return new MenuLayout(width(), height + MARGIN, this.titleX, Optional.empty(), cells);
 
         int playerTop = height + this.labelBand;
         for (int row = 0; row < PLAYER_ROWS; row++)
@@ -192,7 +246,7 @@ public record MenuScreen(
         MenuLayout.Anchor inventory =
             new MenuLayout.Anchor(TITLE_X, drawn + this.declaredSlack - INVENTORY_LABEL_RISE);
 
-        return new MenuLayout(width(), drawn, title, Optional.of(inventory), cells);
+        return new MenuLayout(width(), drawn, this.titleX, Optional.of(inventory), cells);
     }
 
     /**

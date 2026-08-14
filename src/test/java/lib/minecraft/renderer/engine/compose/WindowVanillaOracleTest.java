@@ -46,7 +46,12 @@ class WindowVanillaOracleTest {
     }
 
     /**
-     * One container background and the cells it carries.
+     * One container background and the layout it is drawn from.
+     * <p>
+     * Every screen the client blits whole is named by the screen the renderer lays it out as, so this
+     * asserts the roster's own numbers against the art rather than against a second table beside it.
+     * The chest sheet is the exception and carries its cells by hand: no screen is that shape, one
+     * sheet serving every row count through a composition the client takes two draws over.
      *
      * @param id the texture id, without the {@code textures/} prefix and the extension
      * @param width the drawn width in Minecraft pixels
@@ -67,9 +72,15 @@ class WindowVanillaOracleTest {
         return Arrays.stream(parts).flatMap(List::stream).toList();
     }
 
+    /** The container the given screen is laid out as, with the player's section drawn. */
+    private static Container of(String id, MenuScreen screen) {
+        MenuLayout layout = screen.layout(true);
+        return new Container(id, layout.width(), layout.height(),
+            layout.cells().stream().map(cell -> new int[] { cell.x(), cell.y(), cell.size() }).toList());
+    }
+
     private static Container shulkerBox() {
-        return new Container("minecraft:gui/container/shulker_box", 176, 166,
-            cells(grid(NINE, new int[] { 17, 35, 53 }), grid(NINE, new int[] { 83, 101, 119, 141 })));
+        return of("minecraft:gui/container/shulker_box", MenuScreen.shulkerBox());
     }
 
     private static Container genericFiftyFour() {
@@ -78,20 +89,15 @@ class WindowVanillaOracleTest {
     }
 
     private static Container dispenser() {
-        return new Container("minecraft:gui/container/dispenser", 176, 166,
-            cells(grid(new int[] { 61, 79, 97 }, new int[] { 16, 34, 52 }), grid(NINE, new int[] { 83, 101, 119, 141 })));
+        return of("minecraft:gui/container/dispenser", MenuScreen.dispenser());
     }
 
     private static Container hopper() {
-        return new Container("minecraft:gui/container/hopper", 176, 133,
-            cells(grid(new int[] { 43, 61, 79, 97, 115 }, new int[] { 19 }), grid(NINE, new int[] { 50, 68, 86, 108 })));
+        return of("minecraft:gui/container/hopper", MenuScreen.hopper());
     }
 
     private static Container craftingTable() {
-        return new Container("minecraft:gui/container/crafting_table", 176, 166,
-            cells(grid(new int[] { 29, 47, 65 }, new int[] { 16, 34, 52 }),
-                List.of(new int[] { 119, 30, 26 }),
-                grid(NINE, new int[] { 83, 101, 119, 141 })));
+        return of("minecraft:gui/container/crafting_table", MenuScreen.craftingTable());
     }
 
     private static PixelBuffer paint(Container container, int scale) {

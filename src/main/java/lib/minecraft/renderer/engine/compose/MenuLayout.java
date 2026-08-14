@@ -15,16 +15,30 @@ import java.util.Optional;
  *
  * @param width the panel width
  * @param height the panel height
- * @param titleAnchor where the container's own title starts
+ * @param titleX the rule the container's own title starts by
  * @param inventoryAnchor where the player's label starts, present exactly when the player section is
  * laid out
  * @param cells every cell, in the order they are laid out
  */
 public record MenuLayout(
     int width, int height,
-    @NotNull Anchor titleAnchor, @NotNull Optional<Anchor> inventoryAnchor,
+    @NotNull MenuScreen.TitleX titleX, @NotNull Optional<Anchor> inventoryAnchor,
     @NotNull ConcurrentList<Cell> cells
 ) {
+
+    /**
+     * Where the container's own title starts.
+     * <p>
+     * The width is an argument because one screen centres its title, and what a title comes to is a
+     * measurement over the glyphs in it rather than anything a layout can derive. A screen that fixes
+     * its title ignores the argument.
+     *
+     * @param titleWidth the title's width in Minecraft pixels
+     * @return the title's anchor
+     */
+    public @NotNull Anchor titleAnchor(int titleWidth) {
+        return new Anchor(this.titleX.at(this.width, titleWidth), MenuScreen.TITLE_Y);
+    }
 
     /**
      * Where a label starts, in Minecraft pixels from the panel's own corner. The vertical is the top

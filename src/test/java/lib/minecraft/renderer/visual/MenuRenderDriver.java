@@ -23,11 +23,15 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Diagnostic task that renders menus through {@link MenuRenderer} so a panel can be eyeballed. The
- * roster is the four chest row counts one sheet composes, each with the player's section drawn so it
- * names the same panel the client does; a {@link MenuOptions.Type#SKYBLOCK_CRAFTING} nine by six with
- * a filled border; and a crafting table whose enchanted slots promote the whole menu through the
- * compositor's animated branch. This is a <b>functional / visual</b> tool ("does it render").
+ * Diagnostic task that renders menus through {@link MenuRenderer} so a panel can be eyeballed. This is
+ * a <b>functional / visual</b> tool ("does it render").
+ * <p>
+ * The roster is every screen the shipped art can be checked against - the four chest row counts one
+ * sheet composes, the shulker box, the hopper, the dispenser and the crafting table - each with the
+ * player's section drawn, so each names the same panel the client does. Beside them sit two subjects
+ * that are about something other than the panel: a server-style menu, which is a six-row chest with
+ * the caller's own slot map and a filled border over it, and a crafting table whose enchanted slots
+ * promote the whole menu through the compositor's animated branch.
  * <p>
  * Usage: {@code ./gradlew menuRender}. Outputs land in {@code cache/visual/menu-render/}.
  */
@@ -76,23 +80,62 @@ public final class MenuRenderDriver {
             write("chest_" + rows + "row", renderer.render(chest), imageFactory);
         }
 
-        MenuOptions skyblockCrafting = MenuOptions.builder()
-            .type(MenuOptions.Type.SKYBLOCK_CRAFTING)
+        // The four screens the client ships whole rather than composing. Each carries the title the
+        // client gives it, which is what puts a centred one - the dispenser's - on a rendered panel.
+        write("shulker_box", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.SHULKER_BOX)
+            .playerInventory(true)
+            .title("Shulker Box")
+            .slots(slots(
+                slot(0, "minecraft:diamond"),
+                slot(13, "minecraft:iron_ingot"),
+                slot(26, "minecraft:diamond_sword")))
+            .build()), imageFactory);
+
+        write("hopper", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.HOPPER)
+            .playerInventory(true)
+            .title("Item Hopper")
+            .slots(slots(slot(0, "minecraft:diamond"), slot(4, "minecraft:iron_ingot")))
+            .build()), imageFactory);
+
+        write("dispenser", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.DISPENSER)
+            .playerInventory(true)
+            .title("Dispenser")
+            .slots(slots(slot(0, "minecraft:diamond"), slot(4, "minecraft:iron_ingot"), slot(8, "minecraft:diamond")))
+            .build()), imageFactory);
+
+        write("crafting_table", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.CRAFTING_TABLE)
+            .playerInventory(true)
+            .title("Crafting")
+            .slots(slots(
+                slot(0, "minecraft:iron_ingot"), slot(1, "minecraft:iron_ingot"), slot(2, "minecraft:iron_ingot"),
+                slot(4, "minecraft:iron_ingot"),
+                slot(7, "minecraft:iron_ingot"),
+                slot(9, "minecraft:diamond_sword")))
+            .build()), imageFactory);
+
+        // A server menu is a chest with the caller's own slot map over it. These are the positions a
+        // "Craft Item" menu puts its grid and its output at, on the six-row chest that carries them.
+        write("skyblock_crafting", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.CHEST)
+            .rows(6)
             .title("Craft Item")
             .fill(MenuOptions.Fill.BLACK_STAINED_GLASS_PANE)
             .slots(slots(
-                slot(0, "minecraft:iron_ingot"), slot(1, "minecraft:iron_ingot"), slot(2, "minecraft:iron_ingot"),
-                slot(3, "minecraft:iron_ingot"), slot(5, "minecraft:iron_ingot"),
-                slot(6, "minecraft:iron_ingot"), slot(7, "minecraft:iron_ingot"), slot(8, "minecraft:iron_ingot"),
-                slot(9, "minecraft:diamond_sword")))
-            .build();
-        write("skyblock_crafting", renderer.render(skyblockCrafting), imageFactory);
+                slot(10, "minecraft:iron_ingot"), slot(11, "minecraft:iron_ingot"), slot(12, "minecraft:iron_ingot"),
+                slot(19, "minecraft:iron_ingot"), slot(21, "minecraft:iron_ingot"),
+                slot(28, "minecraft:iron_ingot"), slot(29, "minecraft:iron_ingot"), slot(30, "minecraft:iron_ingot"),
+                slot(23, "minecraft:diamond_sword")))
+            .build()), imageFactory);
 
         // An enchanted slot makes its item render animated, which promotes the whole menu through
         // the compositor's animated branch - the one path that reads a child's declared loop length
         // to decide how long the merged loop runs and which child frame each output frame samples.
         MenuOptions glintedCrafting = MenuOptions.builder()
-            .type(MenuOptions.Type.VANILLA_CRAFTING)
+            .type(MenuOptions.Type.CRAFTING_TABLE)
             .title("Enchanting")
             .slots(slots(
                 slot(0, "minecraft:diamond"), enchantedSlot(4, "minecraft:diamond_sword"),
@@ -116,7 +159,7 @@ public final class MenuRenderDriver {
             .type(ItemOptions.Type.GUI_ICON)
             .enchanted(true)
             .build();
-        return Map.entry(index, new MenuOptions.MenuSlotContent(itemId, options, 1));
+        return Map.entry(index, MenuOptions.MenuSlotContent.of(options));
     }
 
     /**
