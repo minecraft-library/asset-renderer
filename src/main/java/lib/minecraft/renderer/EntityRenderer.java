@@ -34,7 +34,7 @@ import lib.minecraft.renderer.engine.kit.ElytraKit;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.engine.kit.EquipmentKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
-import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -351,7 +351,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             for (EntityFeature feature : EntityFeature.values())
                 feature.contribute(featureCtx, stack);
             Layers.foldInto(stack, options.getLayerDecorator(), triangles);
-            return triangles;
+            // One relight per draw, over the folded stack, the way vanilla binds Lighting.ENTITY_IN_UI
+            // once per GUI entity before any layer is submitted - so a wearer, its overlays, its carried
+            // block and everything it wears light under one entry. Every producer above emits geometry
+            // and no shade, and each stores its normal in the one frame the kit emits in - which is what
+            // Turn.MIRROR_Y carries into the frame the two light directions are resolved in.
+            return Shading.relightForEntityInUi(triangles, EntityGeometryKit.DEFAULT_ENTITY_LIGHTING, Turn.MIRROR_Y);
         };
 
         // Build frame 0 once, up front, for the empty-geometry early-out (a bones-but-no-triangles
@@ -1033,27 +1038,26 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // blockToPixel, then the bone anchor, then entityFit.
         Matrix4f finalMatrix = entityFit.multiply(boneAnchor).scale(16f, 16f, 16f).multiply(blockUnitChain);
 
-        Lighting.EntityLighting entityLighting = Lighting.resolveEntity(EntityGeometryKit.DEFAULT_ENTITY_LIGHTING);
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle tri : blockTris) {
             Vector3f transformedNormal = tri.normal().transformNormal(finalMatrix).normalize();
-            // Re-shade with entity Lambertian lighting on the post-transform normal. The block kit
-            // baked cardinal-bucket shading (Lighting.ITEMS_3D-style: 1.0/0.8/0.6/0.5), but vanilla
-            // submits these mushroom/flower block models through the entity render type which dots
-            // the post-pose-stack normal against ENTITY_IN_UI lights per pixel - continuous, not
-            // bucketed. Sampling mooshroom mushroom red showed our 0.67-0.90 block-cardinal range
-            // vs vanilla's 0.45-0.71 Lambertian range.
+            // The transformed normal is stored rather than shaded against here: a carried block is part
+            // of the entity draw, and vanilla submits these mushroom / flower models through the entity
+            // render type, which dots the post-pose-stack normal against the ENTITY_IN_UI lights per
+            // pixel - continuous, not the block kit's cardinal buckets (1.0/0.8/0.6/0.5). Sampling
+            // mooshroom mushroom red showed our 0.67-0.90 block-cardinal range against vanilla's
+            // 0.45-0.71 Lambertian range.
             //
-            // Shade against a Y-flipped copy of the normal, matching EntityGeometryKit.buildTriangles'
-            // lighting frame (positions + stored normal stay Y-up; the shade uses (x, -y, z)). Without
-            // the flip, axis-aligned up/down faces shade against the wrong light hemisphere - the
-            // snow-golem carved_pumpkin top rendered at the 0.4 ambient floor instead of ~1.0.
-            // Mushroom-cross overlays are unaffected: their plane normals are horizontal (y ~= 0), so
-            // the flip is a no-op and mooshroom parity is unchanged.
-            // No signed-byte SNORM round trip here, unlike both GUI relights, and that is a measured
-            // refusal rather than an oversight. Adding one is the identity on a cardinal normal, so it
-            // moves nothing on the snow golem's carved_pumpkin, and nothing on the iron golem's poppy
-            // either - all four of that model's cross-plane normals saturate the Lambertian at the 0.4
+            // The pass that lights the folded stack reads this stored normal through Turn.MIRROR_Y,
+            // which is what lands an axis-aligned face in the right light hemisphere - without that flip
+            // the snow-golem carved_pumpkin top sits at the 0.4 ambient floor instead of ~1.0.
+            // Mushroom-cross planes are unaffected either way: their normals are horizontal (y ~= 0), so
+            // the flip is a no-op on them.
+            //
+            // No signed-byte SNORM round trip reaches this geometry, unlike both GUI relights, and that
+            // is a measured refusal rather than an oversight. Adding one is the identity on a cardinal
+            // normal, so it moves nothing on the snow golem's carved_pumpkin, and nothing on the iron
+            // golem's poppy either - all four of that model's cross-plane normals saturate at the 0.4
             // ambient floor or the 1.0 ceiling, so the quantization never escapes a clamp. It reaches
             // only the two subjects whose normals sit unsaturated, and it pulls them apart: the
             // mooshroom's cross planes improve on the metric (brown 0.164 -> 0.133 mean delta, red
@@ -1077,8 +1081,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // carried - xRot -0.5 on both, zRot +-0.05 - but the block is independent of them, and
             // the harness no-ops setupAnim, so that pose is absent from the reference as well and is
             // symmetric across the gate rather than a difference it could explain.
-            Vector3f shadingNormal = Turn.MIRROR_Y.apply(transformedNormal);
-            float shading = entityLighting.shade(shadingNormal, true);
+            //
             // Force back-face culling, matching vanilla's block render types (all bind GL culling)
             // exactly as Shading.relightForItems3d does for plain block models. The
             // {@code red_mushroom} cross model emits its two zero-thickness planes as paired
@@ -1089,6 +1092,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // faces - sampling horizontally-mirrored UVs - won per-pixel by sub-ULP depth noise,
             // producing the mushroom-cap speckle / apparent UV flip. Culling drops the away-facing
             // half so only the correctly-oriented face survives, no depth fight.
+            //
+            // These traits are read for lighting as well as for coverage, and the two are one decision
+            // rather than two that happen to agree. The pass that lights the folded stack takes its
+            // per-face orientation from {@code cullBackFaces} and its full-bright arm from
+            // {@code directionalLight}, so the {@code true} pair below is what puts a cross plane on the
+            // Lambertian at all: the block kit hands one {@code cullBackFaces=false} (zero thickness)
+            // and {@code directionalLight=false} ({@code "shade": false}), and either of those carried
+            // through lights the mooshroom's and iron golem's planes by the wrong rule - the second one
+            // full-bright. Relax either literal for the coverage reason above and the lighting moves
+            // with it, at a distance from the pass that reads it.
             out.add(new VisibleTriangle(
                 tri.position0().transform(finalMatrix),
                 tri.position1().transform(finalMatrix),
@@ -1096,7 +1109,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 tri.uv0(), tri.uv1(), tri.uv2(),
                 tri.texture(), tri.tintArgb(),
                 transformedNormal,
-                shading, new SurfaceTraits(true, false, false, true,
+                Shading.UNLIT, new SurfaceTraits(true, false, false, true,
                     PassDeclaration.DEFAULT.withEmissive(tri.traits().pass().emissive()))
             ));
         }

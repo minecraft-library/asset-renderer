@@ -268,9 +268,17 @@ independently of each other and of the subject - the block-entity path takes `PO
 ### Frame turns
 
 `face.Turn` is the order-8 diagonal group: every frame relation pairs a face with itself or its own
-opposite, so each is `diag(+-1, +-1, +-1)` and a ninety-degree turn appears nowhere. Four elements
-are in use - identity, `HALF_X` (model to upright frame), `MIRROR_Y` (shading flip), `MIRROR_X` (the
-cube `mirror` flag's face swap).
+opposite, so each is `diag(+-1, +-1, +-1)` and a ninety-degree turn appears nowhere. Five elements
+are in use - `HALF_X` (model to upright frame), `MIRROR_Y` (the shading flip an entity's folded stack
+is relit through), `MIRROR_Z` (the same relation for the player's upright boxes), `MIRROR_X` (the cube
+`mirror` flag's face swap) and `INVERT` (the camera-facing flip both `EntityLighting.shade` and the
+block-icon relight take). `NONE` is declared and named nowhere in production.
+
+- `MIRROR_Y` and `MIRROR_Z` are one relation reached from two frames, and the group law is what says
+  so: `HALF_X.then(MIRROR_Y) == MIRROR_Z`, by mask xor. So a list's turn is a property of the normal
+  it stores rather than of the lighting entry, and the same list is owed a different member on either
+  side of a frame change - which is why the turn and the list are one argument in practice and never
+  independently chosen.
 
 - An `SO(3)`-only abstraction cannot express it: four relations are reflections, and a mirrored shell
   cube is `HALF_X.then(MIRROR_X)` rather than a ninth relation.
@@ -278,8 +286,9 @@ cube `mirror` flag's face swap).
   holds because `Face` declares its constants in opposing pairs - asserted, not assumed.
 - Naming the relation does not make divergence unrepresentable; it buys one greppable token with a
   test pinning its value.
-- Two turns can hide in one function - `ArmorKit.intoModelFrame` applies `HALF_X` to the geometry and
-  then `MIRROR_Y` to the shading normal.
+- A frame change and a shading flip are two turns, and separating them is what keeps each one
+  greppable: `ArmorKit.intoModelFrame` applies `HALF_X` to a shell's geometry and stored normal, and
+  the `MIRROR_Y` that lights it is the fold's, one argument at one call.
 
 ### Boxes and unwraps
 
@@ -321,6 +330,30 @@ Every iso subject shares `Projection.VANILLA_ISO` - `(30, 225, 0)` with `Lens.IS
 vanilla's `display.gui` pose and scale. It is facing-neutral, presents the model's `-Z` side, and
 `Projection` is its sole owner. `EntityGeometryKit.DEFAULT_ENTITY_LIGHTING` is the separate
 `(210, 45, 0)` lighting frame, decoupled from the camera pose.
+
+**An entity and a player are each lit once, after their layers are folded.** Vanilla binds
+`Lighting.ENTITY_IN_UI` once per GUI entity draw before any layer is submitted, so a wearer, its
+overlays, its carried block, its wings and everything it wears light under one entry. Both renderers
+do exactly that - `EntityRenderer` over the entity's folded stack through `Turn.MIRROR_Y`,
+`PlayerRenderer` over the player's through `Turn.MIRROR_Z`. Block, fluid and portal are not in this
+rule: their kits bake `Lighting.inventory` at emit time and nothing relights them.
+
+- **The fold owns the entity shade; no entity-side producer resolves one.** `EntityGeometryKit`,
+  `ArmorKit.intoModelFrame` and `EntityRenderer.buildBlockOverlayTriangles` all emit `Shading.UNLIT`.
+  A player-side producer may still carry the `BlockGeometryKit.buildBox` cardinal bake, because the
+  player's relight overwrites it either way - so `UNLIT` marks the entity path's producers, not every
+  triangle either fold receives.
+- The pass reads a triangle's **stored normal and its emitted traits**, so a producer that re-frames
+  geometry after building it must turn the stored normal with it. `ArmorKit.intoModelFrame` is that
+  turn for a worn shell, `ElytraKit.buildPlayerWings3D` for the player's wings.
+- Those traits are read for lighting as well as for coverage: `cullBackFaces` picks the per-face
+  orientation and `directionalLight` gates the full-bright arm. So a producer rewriting either -
+  `EntityRenderer.buildBlockOverlayTriangles` rewrites both, for the `red_mushroom` speckle - decides
+  that geometry's lighting at a distance from the pass that applies it.
+- **A `1.0f` shade names nothing on its own.** It is `Shading.UNLIT`, the value a relight answers for
+  a face declaring no directional light, the value the Lambertian saturates to, and what
+  `Lighting.inventory` bakes onto every UP face. A missing relight is diagnosed from the producer, not
+  from the scalar.
 
 - Facing is per-renderer, a model-to-world `Placement` composed by `ModelEngine` as
   `pose . placement . modelSpin`: identity for block, fluid and portal, `R_Y(180)` for the player,

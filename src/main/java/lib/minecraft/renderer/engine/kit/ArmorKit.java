@@ -15,7 +15,7 @@ import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.camera.RenderFrame;
-import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
@@ -259,16 +259,14 @@ public class ArmorKit {
         // upright by the renderer's ENTITY_FACING = R_Z(180), which also flips Y - so the two frames
         // differ by a 180-degree turn about X (Y and Z negated). Building the armor in the upright
         // player frame (bounds turned about X) and turning the result back into the entity frame lands
-        // it correctly once ENTITY_FACING is applied, with the geometry, normals, and inventory shading
-        // all resolved in the final frame.
+        // it correctly once ENTITY_FACING is applied, with the geometry and normals in the frame the
+        // wearer's own faces are in - which is the frame the pass that lights the folded stack reads.
         ConcurrentList<VisibleTriangle> upright = buildArmor3D(shell.walk().parts(),
             box -> intoRenderFrame(shell, frame, box), shell.form(), equipped, items, engine);
 
-        Lighting.EntityLighting lighting =
-            Lighting.resolveEntity(EntityGeometryKit.DEFAULT_ENTITY_LIGHTING);
         ConcurrentList<VisibleTriangle> entityArmor = Concurrent.newList();
         for (VisibleTriangle triangle : upright)
-            entityArmor.add(intoModelFrame(triangle, lighting));
+            entityArmor.add(intoModelFrame(triangle));
         return entityArmor;
     }
 
@@ -423,33 +421,24 @@ public class ArmorKit {
 
     /**
      * Maps a built armor triangle from the upright player frame back into the entity's Y-down model
-     * frame. Positions and the stored normal turn together (a half turn is a pure rotation and
-     * preserves winding, so culling is unaffected), and the shade is recomputed from the turned normal
-     * so lighting resolves in the final frame.
+     * frame. Positions and the stored normal turn together - a half turn is a pure rotation and
+     * preserves winding, so culling is unaffected.
      *
-     * <p><b>Two different turns happen here, and only one of them is the frame change.</b> The
-     * geometry takes the half turn about X; the shading normal then takes a further Y mirror, because
-     * the kit's tuned light frame is reflected in Y from the geometry frame - exactly as the body's
-     * own faces are.
-     *
-     * <p>The shade comes from the entity lighting basis, not the block / item inventory one: worn armor
-     * is part of the entity render and vanilla lights it with the same two-directional shader as the
-     * body it dresses. Armor boxes are built two-sided, so the shade resolves through the per-face
-     * form - a face the camera sees from behind is lit by its camera-facing orientation, and one seen
-     * from the front is lit by its own normal exactly as a culling cube would be.
+     * <p>The shade is not resolved here. Worn armor is part of the entity render and vanilla lights it
+     * with the same two-directional shader as the body it dresses, under one entry bound before any
+     * layer is submitted, so the shell reaches the rasterizer lit by the pass that lights the wearer's
+     * folded stack rather than by a shade of its own. Turning the stored normal into the model frame is
+     * what puts that pass in the frame it reads every other triangle in the stack in.
      */
-    private static @NotNull VisibleTriangle intoModelFrame(
-        @NotNull VisibleTriangle triangle, @NotNull Lighting.EntityLighting lighting) {
+    private static @NotNull VisibleTriangle intoModelFrame(@NotNull VisibleTriangle triangle) {
         Vector3f normal = MODEL_FRAME.apply(triangle.normal());
-        Vector3f shadingNormal = Turn.MIRROR_Y.apply(normal);
         return new VisibleTriangle(
             MODEL_FRAME.apply(triangle.position0()),
             MODEL_FRAME.apply(triangle.position1()),
             MODEL_FRAME.apply(triangle.position2()),
             triangle.uv0(), triangle.uv1(), triangle.uv2(),
             triangle.texture(), triangle.tintArgb(), normal,
-            lighting.shade(shadingNormal, triangle.traits().cullBackFaces()),
-            triangle.traits(), triangle.debugTag());
+            Shading.UNLIT, triangle.traits(), triangle.debugTag());
     }
 
     // ---------------------------------------------------------------------------------------

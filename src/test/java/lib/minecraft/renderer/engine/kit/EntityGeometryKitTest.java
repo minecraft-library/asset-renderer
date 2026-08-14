@@ -7,8 +7,10 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.TextureSize;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -356,6 +358,29 @@ class EntityGeometryKitTest {
 
     private static String formatVec(Vector3f v) {
         return String.format("(%.3f, %.3f, %.3f)", v.x(), v.y(), v.z());
+    }
+
+    @Test
+    @DisplayName("kit bakes no shade - every triangle carries the unlit scalar")
+    void kitEmitsUnlitGeometry() {
+        for (VisibleTriangle t : buildSingleCube().triangles())
+            assertThat("kit-emitted shade for " + t.debugTag(), t.shading(), equalTo(Shading.UNLIT));
+    }
+
+    @Test
+    @DisplayName("the fold's turn is load-bearing - MIRROR_Z lights the same cube differently")
+    void relightTurnSelectsTheFrame() {
+        ConcurrentList<VisibleTriangle> asFolded = Shading.relightForEntityInUi(
+            buildSingleCube().triangles(), EntityGeometryKit.DEFAULT_ENTITY_LIGHTING, Turn.MIRROR_Y);
+        ConcurrentList<VisibleTriangle> asPlayer = Shading.relightForEntityInUi(
+            buildSingleCube().triangles(), EntityGeometryKit.DEFAULT_ENTITY_LIGHTING, Turn.MIRROR_Z);
+
+        // The two turns are one HALF_X apart, so a cube lit through the wrong one shades its Y and Z
+        // faces by the opposite hemisphere. Nothing about the kit's own geometry makes them agree.
+        long differing = 0;
+        for (int i = 0; i < asFolded.size(); i++)
+            if (asFolded.get(i).shading() != asPlayer.get(i).shading()) differing++;
+        assertThat("faces whose shade depends on the turn", differing, greaterThan(0L));
     }
 
     /**

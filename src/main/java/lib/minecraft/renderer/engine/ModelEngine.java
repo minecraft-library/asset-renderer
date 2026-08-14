@@ -695,9 +695,9 @@ public class ModelEngine {
             int pyEnd = Math.min(bounds[3], tileEnd - 1);
             if (pyStart > pyEnd) continue;
 
-            // The kit baked the lighting term per-vanilla-render-path at geometry-build time
-            // (Lighting.inventory for blocks/fluids, Lighting.EntityLighting#shade
-            // for entities); the rasterizer just multiplies it in.
+            // The lighting term is settled before the raster: Lighting.inventory baked at build time
+            // for blocks and fluids, and one Shading relight over the folded stack for an entity or a
+            // player; the rasterizer just multiplies it in.
             float shading = t.source.shading();
             // Hoist the surface traits and the pass declaration once per triangle; the per-pixel loop
             // below reads glinted off the one and emissive/blend/alpha/writesDepth off the other, so

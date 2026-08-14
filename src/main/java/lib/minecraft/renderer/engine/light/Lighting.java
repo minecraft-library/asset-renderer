@@ -11,8 +11,8 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Vanilla-parity inventory lighting: the pre-rotated diffuse light directions and the
- * {@code light.glsl#minecraft_mix_light_separate} dual-light Lambertian that bakes a per-face or
- * per-vertex shade scalar at kit-build time. Three dual-light entries reproduce vanilla's
+ * {@code light.glsl#minecraft_mix_light_separate} dual-light Lambertian behind every per-face shade
+ * scalar the renderer resolves. Three dual-light entries reproduce vanilla's
  * {@code Lighting.Entry} setups - {@code ITEMS_3D} (block-in-inventory icon), {@code ENTITY_IN_UI}
  * (mob portraits), and {@code ITEMS_FLAT} (3D special-model items) - alongside the four-cardinal-bucket
  * block / fluid approximation via {@link Face} (a pre-baked scalar lookup rather than a real
@@ -203,7 +203,7 @@ public class Lighting {
      * rotation drives the {@code diag(1,-1,1) × M_view^T} chain (the transpose of vanilla's iso view
      * chain {@code M_view = scale(1,1,-1) × R_X(pitch) × R_Y(yaw) × R_X(180°)}) that expresses vanilla's
      * camera-frame {@code INVENTORY_DIFFUSE_LIGHT} directions in the kit's Y-flipped shading frame - so a
-     * kit-time dot against a Y-flipped bone normal matches vanilla's post-camera fragment dot. The two
+     * dot against a Y-flipped bone normal matches vanilla's post-camera fragment dot. The two
      * lights carry the same small empirical GPU calibration as the shipped constants. A
      * {@link LightingFrame.Mirror#HORIZONTAL} frame negates the lights' camera-frame (screen) X - a left /
      * right swap - by flipping the chain's trailing scale X sign, leaving the view direction (a camera,

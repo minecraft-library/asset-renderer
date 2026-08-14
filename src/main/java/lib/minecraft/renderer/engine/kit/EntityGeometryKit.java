@@ -11,12 +11,12 @@ import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.CornerPhase;
 import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -88,7 +88,7 @@ public class EntityGeometryKit {
      * {@link Projection#VANILLA_ISO}'s camera pose ({@code [30, 225, 0]} + the renderer's facing
      * {@code Placement}): the light frame stays on the harness iso angle while the camera is a plain
      * display pose. {@link Lighting#resolveEntity} turns it into the per-face shading basis (view
-     * direction + the two diffuse lights); a caller may substitute a mirrored or borrowed frame.
+     * direction + the two diffuse lights) for the one pass that lights a folded entity stack.
      */
     public static final @NotNull LightingFrame DEFAULT_ENTITY_LIGHTING =
         LightingFrame.fixed(new EulerRotation(210f, 45f, 0f));
@@ -101,29 +101,12 @@ public class EntityGeometryKit {
      * @param pass the {@link PassDeclaration} baked onto every triangle this build emits
      * @param tintArgb ARGB tint multiplied into every sampled texel; {@link ColorMath#WHITE}
      *     ({@code 0xFFFFFFFF}) is a no-op tint
-     * @param lighting the frame the per-face shade resolves through ({@link Lighting#resolveEntity});
-     *     the {@link #DEFAULT_ENTITY_LIGHTING default} for every render, a mirror / borrowed frame to
-     *     re-light the subject
      */
     public record EntityBuildParams(
         @NotNull RenderFrame frame,
         @NotNull PassDeclaration pass,
-        int tintArgb,
-        @NotNull LightingFrame lighting
-    ) {
-        /**
-         * Constructs build params lit by the {@link #DEFAULT_ENTITY_LIGHTING default entity lighting
-         * frame}. Only a caller substituting the lighting (a mirror, a borrowed angle) uses the canonical
-         * four-argument constructor.
-         *
-         * @param frame the {@link RenderFrame} this build is fitted through
-         * @param pass the {@link PassDeclaration} baked onto every triangle this build emits
-         * @param tintArgb ARGB tint multiplied into every sampled texel
-         */
-        public EntityBuildParams(@NotNull RenderFrame frame, @NotNull PassDeclaration pass, int tintArgb) {
-            this(frame, pass, tintArgb, DEFAULT_ENTITY_LIGHTING);
-        }
-    }
+        int tintArgb
+    ) { }
 
     /**
      * Convenience overload that auto-computes bounds and the legacy auto-fit scale
@@ -154,7 +137,7 @@ public class EntityGeometryKit {
      *
      * @param model the entity model definition (Java Y-down frame)
      * @param texture the shared texture atlas
-     * @param params the render frame, pass declaration, tint and lighting frame for this build
+     * @param params the render frame, pass declaration and tint for this build
      * @return the build result containing the triangle list
      */
     public static @NotNull BuildResult buildTriangles(
@@ -168,7 +151,6 @@ public class EntityGeometryKit {
         float modelScale = frame.modelScale();
         PassDeclaration pass = params.pass();
         int tintArgb = params.tintArgb();
-        Lighting.EntityLighting lighting = Lighting.resolveEntity(params.lighting());
 
         Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
 
@@ -252,19 +234,16 @@ public class EntityGeometryKit {
 
                     // Positions and the STORED normal are both in the model's native Y-up frame now that
                     // the Y-flip lives on the placement (kit-internal geometry stays self-consistent).
-                    // Shading, however, keeps the pre-de-flip tuned light frame (Y-flipped) - the entity
-                    // light DIRECTIONS were empirically calibrated against it (see
-                    // project_entity_light_gpu_calibration) - so the shade is computed from a Y-flipped
-                    // copy of the normal while the stored normal stays Y-up. Lighting frame is a separate
-                    // concern from the geometry Y-flip; only the geometry moves to the placement.
+                    // The shade is not resolved here: an entity's stack is lit as one draw after the fold
+                    // (EntityRenderer), under the lighting entry vanilla binds once per GUI entity, so
+                    // every triangle this kit emits carries the unlit scalar until that pass reads its
+                    // stored normal and traits.
                     Vector3f normal = face.normal().transformNormal(fullTransform).normalize();
-                    Vector3f shadingNormal = Turn.MIRROR_Y.apply(normal);
 
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
 
                     Vector2f[] effUv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
-                    float shading = lighting.shade(shadingNormal, cubeCullBackFaces);
 
                     // Natural CCW emission - the shared {@code (0, 1, 2)} / {@code (0, 2, 3)} fan in
                     // {@link BlockGeometryKit#addQuad}, so an entity cube's coplanar seams split on
@@ -275,7 +254,7 @@ public class EntityGeometryKit {
                     // projection's -y (det -1) = det -1. Model CCW → screen CW → rasterizer's
                     // {@code signedArea < 0} check correctly classifies these as front-facing.
                     String debugTag = boneName + ":" + face.direction();
-                    BlockGeometryKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, shading,
+                    BlockGeometryKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, Shading.UNLIT,
                         new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass), debugTag);
                 }
             }

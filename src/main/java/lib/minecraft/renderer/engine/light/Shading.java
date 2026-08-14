@@ -16,14 +16,29 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Applies a {@link Lighting} shade scalar to sampled texels and re-shades GUI geometry against the
  * lighting entry vanilla binds for it - {@code Lighting.ITEMS_3D} for a block icon,
- * {@code Lighting.ENTITY_IN_UI} for a humanoid. The shade scalar is baked into each
- * {@link VisibleTriangle} at kit-build time; {@link #apply} multiplies it into the rasterized
- * texel with vanilla's round-half-up GLSL quantization.
+ * {@code Lighting.ENTITY_IN_UI} for a humanoid. The scalar rides each {@link VisibleTriangle} - baked
+ * at build time by the block and fluid kits, resolved by one of the relights here over a folded entity
+ * or player stack; {@link #apply} multiplies it into the rasterized texel with vanilla's round-half-up
+ * GLSL quantization.
  *
  * @see Lighting
  */
 @UtilityClass
 public class Shading {
+
+    /**
+     * The scalar geometry carries before a relight resolves one for it - the multiplicative identity, so
+     * {@link #apply} on it returns the sampled texel unchanged.
+     * <p>
+     * An entity's whole stack is lit as one draw once its layers are folded, under the entry vanilla binds
+     * per GUI entity, so every producer feeding that fold emits this in place of a shade of its own.
+     * <p>
+     * It does not identify an unlit surface at the rasterizer. {@link #relightForEntityInUi} answers the
+     * same value for a face declaring no directional light, {@link Lighting.EntityLighting#shade} reaches
+     * it whenever the Lambertian saturates, and {@code Lighting.inventory} bakes it onto every UP face,
+     * so a triangle carrying it may have been lit three different ways or not at all.
+     */
+    public static final float UNLIT = 1.0f;
 
     // --- shading ---
 

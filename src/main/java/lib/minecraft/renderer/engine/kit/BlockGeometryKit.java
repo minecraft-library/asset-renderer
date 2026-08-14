@@ -701,11 +701,11 @@ public class BlockGeometryKit {
      * different values has no shared per-quad value to hand in and emits its own pair; the renderer's
      * only such site is a fluid's sloped top, whose four corners are not coplanar.
      * <p>
-     * The shade is the caller's, baked before the call: {@link Lighting#inventory} for a box, a bone
-     * cube, a fluid face or the shield, {@link #elementShade} where a block element declares
-     * {@code shade} or {@code light_emission}, and the entity light frame's own scalar for an entity
-     * cube. Baking it here instead would make the emitter answer a lighting question only some of its
-     * callers ask.
+     * The shade is the caller's: {@link Lighting#inventory} for a box, a bone cube, a fluid face or the
+     * shield, {@link #elementShade} where a block element declares {@code shade} or
+     * {@code light_emission}, and {@code Shading.UNLIT} for an entity cube, whose shade a later pass
+     * over the folded stack resolves. Baking it here instead would make the emitter answer a lighting
+     * question only some of its callers ask.
      *
      * @param out the list both triangles are appended to
      * @param corners the quad's four vertices, in the order the caller's {@link CornerPhase} walks them

@@ -53,11 +53,12 @@ public record SurfaceTraits(boolean cullBackFaces, boolean translucent, boolean 
      * armour through a pipeline that binds no culling alongside an alpha cutout, so where a box's near
      * face is cut away by a transparent texel the far face of that same box shows through the hole.
      * Culling the far faces drops them whole, which reads as a missing wedge wherever the shell stands
-     * clear of the body behind it. On an entity render the flag then also selects the per-face lighting
-     * form in {@code Lighting.EntityLighting#shade}, so a face the camera sees from behind is shaded by
-     * its camera-facing orientation - the choice vanilla's shader makes per pixel - while a face seen
-     * from the front shades identically either way. A player's own armour is not turned back into the
-     * entity frame, so it keeps the cull-blind {@code Lighting#inventory} shade the builder bakes.
+     * clear of the body behind it. The flag then also selects the per-face lighting form in
+     * {@code Lighting.EntityLighting#shade}, so a face the camera sees from behind is shaded by its
+     * camera-facing orientation - the choice vanilla's shader makes per pixel - while a face seen from
+     * the front shades identically either way. Both wearers reach that the same way, each lighting its
+     * own folded stack in one pass; what differs is the frame the stored normal is read through, the
+     * player's boxes being upright where an entity's are turned into the Y-down model frame.
      * <p>
      * The glint flag is what puts the enchantment foil on the armour rather than on the whole
      * silhouette: the rasterizer records a per-pixel mask wherever a glinted fragment wins the depth

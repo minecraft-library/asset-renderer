@@ -21,8 +21,9 @@ import org.jetbrains.annotations.Nullable;
  * @param normal the model-space surface normal; transformed with the triangle to drive per-face
  *     relighting (block-icon and item-3D passes light by this normal, snapped to the nearest
  *     cardinal for block quads)
- * @param shading the precomputed shading factor in {@code [0, 1]} baked at quad-emit time, or a
- *     disabled sentinel for full-bright faces; multiplies the sampled RGB before compositing
+ * @param shading the shading factor in {@code [0, 1]} multiplied into the sampled RGB before
+ *     compositing - baked at quad-emit time by the block and fluid kits, or {@code Shading.UNLIT}
+ *     until the pass that lights a folded entity or player stack resolves it
  * @param traits the surface traits (back-face culling, emissive, translucent, glinted) the rasterizer
  *     reads to drive culling, blend mode, translucent sorting, and the glint mask
  * @param debugTag opaque identifier (typically {@code "bone:face"} or {@code "block:face"}) carried

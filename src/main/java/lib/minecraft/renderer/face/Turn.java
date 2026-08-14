@@ -19,8 +19,8 @@ import org.jetbrains.annotations.NotNull;
  * than needing a ninth relation minted for the combination.
  * <p>
  * Naming an axis says the turn <em>negates</em> it: {@link #MIRROR_X} negates X alone, {@link #HALF_X}
- * negates the other two and so is the half turn about X. The three {@code HALF_} members are the
- * proper rotations; the other five {@link #reflects reflect}.
+ * negates the other two and so is the half turn about X. {@link #NONE} and the three {@code HALF_}
+ * members are the proper rotations; the other four {@link #reflects reflect}.
  */
 public enum Turn {
 
