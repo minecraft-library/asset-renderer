@@ -2,9 +2,12 @@ package lib.minecraft.renderer;
 
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.compose.FramePlacement;
 import lib.minecraft.renderer.engine.compose.MenuLayout;
 import lib.minecraft.renderer.engine.compose.MenuScreen;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.Window;
+import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.MenuOptions;
 import lib.minecraft.renderer.support.StubRendererContext;
 import org.junit.jupiter.api.DisplayName;
@@ -131,6 +134,39 @@ class MenuRendererGeometryTest {
         assertThat("and a single slot is a panel one cell wide",
             MenuRenderer.layoutOf(MenuOptions.builder().type(MenuOptions.Type.SLOT).build()).width(),
             is(equalTo(2 * MenuScreen.MARGIN + MenuScreen.CELL)));
+    }
+
+    @Test
+    @DisplayName("every cell holds sixteen Minecraft pixels of content, centred in whatever it is")
+    void everyCellHoldsSixteenOfContentCentred() {
+        ImageData nothing = Timeline.still(PixelBuffer.create(1, 1));
+        FramePlacement ordinary = MenuRenderer.inCell(
+            new MenuLayout.Cell(7, 17, MenuScreen.CELL, MenuLayout.Role.CONTAINER), nothing);
+        FramePlacement result = MenuRenderer.inCell(
+            new MenuLayout.Cell(119, 30, 26, MenuLayout.Role.RESULT), nothing);
+
+        assertThat("the content is one size whatever holds it",
+            MenuRenderer.CONTENT_PX, is(equalTo(16 * SCALE)));
+        assertThat("a cell of eighteen centres it one Minecraft pixel in",
+            List.of(ordinary.x(), ordinary.y()), is(equalTo(List.of(8 * SCALE, 18 * SCALE))));
+        assertThat("and a crafting result of twenty-six centres the same sixteen five in",
+            List.of(result.x(), result.y()), is(equalTo(List.of(124 * SCALE, 35 * SCALE))));
+    }
+
+    @Test
+    @DisplayName("an item is drawn at the size a slot holds, not at its own default")
+    void anItemIsDrawnAtTheSizeASlotHolds() {
+        ItemOptions asked = ItemOptions.builder().itemId("minecraft:diamond").type(ItemOptions.Type.GUI_ICON).build();
+        ItemOptions fitted = MenuRenderer.intoSlot(asked);
+
+        assertThat("an item's own default is far larger than any cell",
+            asked.getOutput().getCanvasSize(), is(equalTo(256)));
+        assertThat("so the slot answers for it",
+            fitted.getOutput().getCanvasSize(), is(equalTo(16 * SCALE)));
+        assertThat("and nothing else the caller asked for is taken away",
+            fitted.getItemId(), is(equalTo(asked.getItemId())));
+        assertThat("the antialias the caller asked for included",
+            fitted.getOutput().isAntiAlias(), is(equalTo(asked.getOutput().isAntiAlias())));
     }
 
     @Test

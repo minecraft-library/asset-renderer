@@ -67,9 +67,16 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     private static final int TITLE_TOP = 6;
 
     /**
-     * Output pixels between a cell's own edge and the content drawn in it.
+     * The side of the content a cell holds, in Minecraft pixels. Every cell holds the same amount of
+     * it however big the cell is - a crafting result is a cell of 26 around an item of 16, which is
+     * why this is a constant and the inset that centres it is not.
      */
-    private static final int CONTENT_INSET = 2;
+    private static final int CONTENT_MCPX = 16;
+
+    /**
+     * The side of the content a cell holds, in output pixels.
+     */
+    static final int CONTENT_PX = CONTENT_MCPX * PX_SCALE;
 
     /**
      * Row count of the SkyBlock chest container (6 tall).
@@ -205,19 +212,16 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Returns the output-pixel origin of a cell's content, one content inset in from its own corner.
+     * Places content in a cell, centred - one Minecraft pixel in on an ordinary cell of 18 and five
+     * in on a crafting result of 26.
+     *
+     * @param cell the cell to place in
+     * @param content what to draw in it
+     * @return the placement, in output pixels
      */
     static @NotNull FramePlacement inCell(@NotNull MenuLayout.Cell cell, @NotNull ImageData content) {
-        return new FramePlacement(
-            cell.x() * PX_SCALE + CONTENT_INSET, cell.y() * PX_SCALE + CONTENT_INSET, content);
-    }
-
-    /**
-     * Returns the output-pixel side of the content a cell holds, which is the cell less its two
-     * content insets.
-     */
-    static int contentSize(@NotNull MenuLayout.Cell cell) {
-        return cell.size() * PX_SCALE - 2 * CONTENT_INSET;
+        int inset = (cell.size() - CONTENT_MCPX) / 2;
+        return new FramePlacement((cell.x() + inset) * PX_SCALE, (cell.y() + inset) * PX_SCALE, content);
     }
 
     /**
@@ -243,13 +247,30 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
         for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
             MenuLayout.Cell cell = cells.get(cellOf.applyAsInt(entry.getKey()));
-            ImageData rendered = itemRenderer.render(entry.getValue().options());
+            ImageData rendered = itemRenderer.render(intoSlot(entry.getValue().options()));
             if (rendered.isAnimated()) anyAnimated = true;
 
-            place(stack, MenuSlot.SLOT, new FramePlacement(cell.x() * PX_SCALE, cell.y() * PX_SCALE, rendered));
+            place(stack, MenuSlot.SLOT, inCell(cell, rendered));
         }
 
         return anyAnimated;
+    }
+
+    /**
+     * Returns the caller's item options at the size a slot holds.
+     * <p>
+     * A slot is a fixed size and the item in it is drawn to fit, which is why the size is the
+     * renderer's answer rather than the caller's: an item asked for at its own default carries a
+     * canvas of its own, and nothing about that canvas knows what a slot is. Everything else the
+     * caller asked for survives.
+     *
+     * @param options the caller's item options
+     * @return the options at a slot's content size
+     */
+    static @NotNull ItemOptions intoSlot(@NotNull ItemOptions options) {
+        return options.mutate()
+            .output(options.getOutput().mutate().canvasSize(CONTENT_PX).build())
+            .build();
     }
 
     /**
@@ -271,7 +292,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             case BLACK_STAINED_GLASS_PANE -> ItemOptions.builder()
                 .itemId("minecraft:black_stained_glass_pane")
                 .type(ItemOptions.Type.GUI_ICON)
-                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(contentSize(cells.getFirst())).build())
+                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
                 .build();
             case EMPTY -> throw new RenderException("EMPTY handled above");
         };
@@ -700,7 +721,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             BlockOptions decorationOptions = BlockOptions.builder()
                 .blockId("minecraft:anvil")
                 .type(BlockOptions.Type.ISOMETRIC_3D)
-                .output(OutputOptions.builder().canvasSize(contentSize(decorationCell)).antiAlias(false).build())
+                .output(OutputOptions.builder().canvasSize(CONTENT_PX).antiAlias(false).build())
                 .build();
             ImageData decoration = blockRenderer.render(decorationOptions);
             if (decoration.isAnimated()) anyAnimated = true;
@@ -709,7 +730,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ItemOptions redPaneOptions = ItemOptions.builder()
                 .itemId("minecraft:red_stained_glass_pane")
                 .type(ItemOptions.Type.GUI_ICON)
-                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(contentSize(decorationCell)).build())
+                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
                 .build();
             ImageData redPane = itemRenderer.render(redPaneOptions);
             if (redPane.isAnimated()) anyAnimated = true;
