@@ -763,6 +763,14 @@
       "sha256": "254ae2961d3374b20f3d785e182d1d054755ada55d8940d56750fe9470d9b848"
     },
     {
+      "path": "menu-render/themed_dark.png",
+      "sha256": "6ed918d0a7983f6ad0eae59792ff37aa63f9b930573460d64cfe750d3f284cb6"
+    },
+    {
+      "path": "menu-render/themed_skyblock.png",
+      "sha256": "61a57b84307e444ef8de0a4b3839b4d31061e3c9714f9e88c553ae3c115f2dba"
+    },
+    {
       "path": "projection-smoke/minecraft_tnt__CABINET__base.png",
       "sha256": "927686f811486cc7457d6d5f1a99200159b679c67b189da0bf79143be6995a93"
     },
@@ -833,17 +841,17 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "73eb774b358a6c0c78f2e7b49aa142a5193929b5",
+    "asset_sha": "06d72d0e1f2347b054d21caca7d827556f698464",
     "counts": {
-      "files": 206
+      "files": 208
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "moving",
+    "parity_class": "neutral",
     "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "the menu type became the screen the client ships, collapsing five sub-renderers into one flow and putting the shulker box, the hopper, the dispenser and the crafting table on the driver; the crafting menu's arrow was a procedural helper with no vanilla basis, so the cell it sat in is filler now and that is the one row that moved - the four chest rows and the glint webp are byte-identical across the change",
+    "reason": "a fill carries an item id rather than being a constant for one, so a menu can name any filler; the item options the renderer builds from that id are the ones the constant built, so every row that already had a baseline is byte-identical across the change - the vanilla-shaped subjects, the filled server menu, the glint webp and the tooltip rows. The added rows are the two palettes that are not vanilla's, drawn on a chest and looked at rather than compared, there being no shipped counterpart to compare them against; both hashed identically across two captures taken either side of the commit",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -853,7 +861,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-14T22:51:31Z",
+    "timestamp": "2026-08-14T23:39:43Z",
     "tool_version": "1.0.0"
   }
 }
