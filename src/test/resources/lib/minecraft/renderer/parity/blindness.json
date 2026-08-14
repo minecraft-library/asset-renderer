@@ -1041,6 +1041,44 @@
         "build.gradle.kts",
         "gradle/libs.versions.toml"
       ]
+    },
+    {
+      "blind": [
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.player"
+      ],
+      "claim": "A menu reaches the visual manifest and nothing else this store holds",
+      "id": "B48",
+      "mode": "demote",
+      "probe": "perturb a menu geometry number - a band depth, a margin, a cell size - re-run the whole render bundle and read which artifacts move; the menu rows of manifest.visual move and nothing else does",
+      "reason": "A menu is drawn by one renderer over one option record and one layout, and no other producer in this store draws one. The five sweeps render entities, blocks, items, the player and its armour, and the glint sweep an overlay over an item; the four CRC pins are taken over renders of those same subjects; and the four other manifests hold fluid, portal and player-sheet output. manifest.visual is the only artifact that hashes what the menu driver writes, so it is the only one a menu can move. Three rules select on these same paths for reasons that are true of the directories rather than of these files - the engine glob, the option surface and the visual mains - and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is nine verbatim paths and never a glob: the compose package holds the compositor, the timeline and the tooltip chrome, the slot package holds nine other slot enums, and the option package holds every option record there is, so a glob over any of the three would hide a sweep from a change that moves it.",
+      "sees": [
+        "manifest.visual"
+      ],
+      "source": "measured by rewriting MenuRenderer, MenuOptions, MenuScreen, MenuLayout, Window and the visual driver together: manifest.visual alone moved and every other artifact the plan planned on those paths held; measured again on MenuRenderer alone, where the menu rows of manifest.visual moved and everything captured beside them held",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/MenuRenderer.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/ChromeDecomposition.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/ChromeSlicer.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/MenuLayout.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/MenuScreen.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/Window.java",
+        "src/main/java/lib/minecraft/renderer/option/MenuOptions.java",
+        "src/main/java/lib/minecraft/renderer/option/slot/MenuSlot.java",
+        "src/test/java/lib/minecraft/renderer/visual/MenuRenderDriver.java"
+      ]
     }
   ]
 }
