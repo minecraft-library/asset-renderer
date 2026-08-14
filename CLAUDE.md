@@ -375,8 +375,8 @@ rule: their kits bake `Lighting.inventory` at emit time and nothing relights the
   `depthOnUnsnappedPlane` re-reads each vertex's depth off its triangle's unsnapped plane at its
   snapped position, in `double`.
 - `Projected.z0/z1/z2` is raster depth; `p0/p1/p2.z()` is the camera-space depth the translucent
-  `quadDepthKey` sort reads. Do not collapse them.
-- Depth is compared on vanilla's window grid: `ModelEngine.onVanillaDepthGrid` rounds each
+  `quadCamDepthKey` sort reads. Do not collapse them.
+- Depth is compared on vanilla's window grid: `DepthMath.onVanillaDepthGrid` rounds each
   interpolated depth through `0.5f - depth * k`, `k = scale / (2 * VANILLA_DEPTH_RANGE)` at
   `VANILLA_DEPTH_RANGE = 1000`, where a `float` step beside `0.5` is `2^-24`.
 - Round the interpolated depth, never the three vertex depths - rounding at the vertices tilts each
@@ -395,7 +395,7 @@ rule: their kits bake `Lighting.inventory` at emit time and nothing relights the
   `PassDeclaration`, and one entity can split them across its own two passes. A self-occluding pass
   needs the write and the sort together.
 - The sort is by quad centroid, so a later quad still loses over the part of its area behind an
-  earlier one, and `quadDepthKey` identifies the shared diagonal in camera space, never on screen.
+  earlier one, and `quadCamDepthKey` identifies the shared diagonal in camera space, never on screen.
 - The fill rule is classified on the sign-normalized edge direction: `EdgeCoefficients.of` negates the
   coefficients when `denom < 0`, so with `e >= 0` marking the interior a left edge goes up and a top
   edge goes right. The mirrored reading is the bottom-right rule and hands a shared sample to the

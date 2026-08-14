@@ -590,7 +590,7 @@ The client module's build script declares its dependencies and its toolchain. Ne
 ## B11a - Blocks and items are structurally immune to a DEPTH change: 0 of 1055 and 0 of 479 rows move
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`, `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`
 - **sees** -
 - **blind** `sweep.block`, `sweep.item`
 - **source** measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; CLAUDE.md 'Depth: the contract'
@@ -602,7 +602,7 @@ Their coplanar pairs are exactly coincident, so both interpolation forms agree b
 ## B11b - The block and item immunity is to DEPTH only and does not generalise
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`, `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `pin.player-crc`, `manifest.player-raw`
 - **blind** -
 - **source** measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; CLAUDE.md 'Depth: the contract'; audit 09/G7

@@ -980,7 +980,8 @@
       "sees": [],
       "source": "measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; CLAUDE.md 'Depth: the contract'",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
+        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
+        "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
       ]
     },
     {
@@ -1000,7 +1001,8 @@
       ],
       "source": "measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; CLAUDE.md 'Depth: the contract'; audit 09/G7",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
+        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
+        "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
       ]
     }
   ]

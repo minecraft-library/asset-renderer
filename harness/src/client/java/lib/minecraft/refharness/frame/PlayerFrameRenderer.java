@@ -68,7 +68,7 @@ public final class PlayerFrameRenderer implements FrameRenderer<PlayerFrameRende
      * before the reference records them at the same depth and leaves their order to whichever drew
      * last.
      *
-     * <p>asset-renderer's {@code ModelEngine.VANILLA_DEPTH_RANGE} holds this same value, and so
+     * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so
      * does every other {@link FrameRenderer} in this build. Changing it means editing all of them in
      * one commit.
      */

@@ -43,7 +43,7 @@ public final class ItemFrameRenderer implements FrameRenderer<ItemStack> {
      * Half-extent of the orthographic depth range. Item models are unit-scale, so the standard
      * range comfortably contains the posed model.
      *
-     * <p>asset-renderer's {@code ModelEngine.VANILLA_DEPTH_RANGE} holds this same value, and so
+     * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so
      * does every other {@link FrameRenderer} in this build. Changing it means editing all of them in
      * one commit.
      */
