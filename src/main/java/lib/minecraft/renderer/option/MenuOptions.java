@@ -73,8 +73,15 @@ public class MenuOptions implements RenderOptions {
     private final @NotNull String title = "";
 
     /**
-     * ARGB the title is drawn in where a segment of it names no colour of its own. The default is
-     * what vanilla draws a container title in.
+     * Label drawn above the player's own cells, and only where {@link #playerInventory} draws them.
+     * Empty suppresses it.
+     */
+    @lombok.Builder.Default
+    private final @NotNull String inventoryTitle = "Inventory";
+
+    /**
+     * ARGB both labels are drawn in where a segment names no colour of its own. The default is what
+     * vanilla draws a container's labels in.
      */
     @lombok.Builder.Default
     private final int defaultTitleArgb = 0xFF404040;

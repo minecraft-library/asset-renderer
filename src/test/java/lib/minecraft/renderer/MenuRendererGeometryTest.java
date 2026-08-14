@@ -14,9 +14,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -167,6 +169,110 @@ class MenuRendererGeometryTest {
             fitted.getItemId(), is(equalTo(asked.getItemId())));
         assertThat("the antialias the caller asked for included",
             fitted.getOutput().isAntiAlias(), is(equalTo(asked.getOutput().isAntiAlias())));
+    }
+
+    @Test
+    @DisplayName("the chrome carries no ink, so a descender cannot overpaint what was drawn before it")
+    void theChromeCarriesNoInk() {
+        MenuOptions bare = chest(3, true);
+        MenuOptions titled = bare.mutate().title("Chest").build();
+        MenuLayout layout = MenuRenderer.layoutOf(bare);
+
+        PixelBuffer without = MenuRenderer.paintChrome(bare, layout);
+        PixelBuffer with = MenuRenderer.paintChrome(titled, layout);
+
+        int differing = 0;
+        for (int y = 0; y < without.height(); y++)
+            for (int x = 0; x < without.width(); x++)
+                if (without.getPixel(x, y) != with.getPixel(x, y)) differing++;
+
+        assertThat("a title changes no chrome pixel", differing, is(equalTo(0)));
+    }
+
+    @Test
+    @DisplayName("the labels start where the client starts them")
+    void theLabelsStartWhereTheClientStartsThem() {
+        assertThat("a container's title", MenuScreen.chest(6).layout(true).titleAnchor(),
+            is(equalTo(new MenuLayout.Anchor(8, 6))));
+        assertThat("a crafting table's, past where its recipe tab would end",
+            MenuScreen.craftingTable().layout(true).titleAnchor(), is(equalTo(new MenuLayout.Anchor(29, 6))));
+        assertThat("an anvil's", MenuScreen.anvil().layout(true).titleAnchor(),
+            is(equalTo(new MenuLayout.Anchor(60, 6))));
+
+        assertThat("the player's label, ninety-four above a six-row chest's declared bottom",
+            MenuScreen.chest(6).layout(true).inventoryAnchor(),
+            is(equalTo(Optional.of(new MenuLayout.Anchor(8, 128)))));
+        assertThat("and above a shulker box's, which declares exactly what it draws",
+            MenuScreen.shulkerBox().layout(true).inventoryAnchor(),
+            is(equalTo(Optional.of(new MenuLayout.Anchor(8, 72)))));
+        assertThat("and a hopper's", MenuScreen.hopper().layout(true).inventoryAnchor(),
+            is(equalTo(Optional.of(new MenuLayout.Anchor(8, 39)))));
+
+        assertThat("a panel with no player section has no label for one",
+            MenuScreen.chest(6).layout(false).inventoryAnchor(), is(equalTo(Optional.empty())));
+    }
+
+    @Test
+    @DisplayName("a label's ink opens on the row the client anchors it to")
+    void aLabelsInkOpensOnItsAnchorRow() {
+        MenuOptions options = chest(3, true).mutate().title("Chest").build();
+        PixelBuffer rendered = render(options);
+        MenuLayout layout = MenuRenderer.layoutOf(options);
+        int argb = options.getDefaultTitleArgb();
+
+        // The vanilla font's cells open on the top row of a capital - 'C' inks rows 0 through 6 of an
+        // eight-row cell - so an anchor and the ink it produces are the same row and not an ascent
+        // apart.
+        int titleTop = firstInkRow(rendered, argb);
+        assertThat("the title's first inked row", titleTop, is(equalTo(layout.titleAnchor().y() * SCALE)));
+
+        int inventoryTop = firstInkRow(rendered, argb, layout.inventoryAnchor().orElseThrow().y() * SCALE - SCALE);
+        assertThat("the player's label's",
+            inventoryTop, is(equalTo(layout.inventoryAnchor().orElseThrow().y() * SCALE)));
+    }
+
+    /** The first row at or below {@code from} carrying a pixel of the label colour. */
+    private static int firstInkRow(PixelBuffer buffer, int argb, int from) {
+        for (int y = Math.max(0, from); y < buffer.height(); y++)
+            for (int x = 0; x < buffer.width(); x++)
+                if (buffer.getPixel(x, y) == argb) return y;
+
+        return -1;
+    }
+
+    private static int firstInkRow(PixelBuffer buffer, int argb) {
+        return firstInkRow(buffer, argb, 0);
+    }
+
+    @Test
+    @DisplayName("a title draws no drop shadow, which is what the client's own label draws pass")
+    void aTitleDrawsNoDropShadow() {
+        PixelBuffer rendered = render(chest(3, true).mutate().title("Chest").build());
+
+        // The shadow of the default label colour, by vanilla's own (rgb & 0xFCFCFC) >> 2. Nothing in
+        // the panel's palette is this value, so one pixel of it would be a shadow and nothing else.
+        int shadowOfDefault = 0xFF000000 | ((0x404040 & 0xFCFCFC) >> 2);
+        int found = 0;
+        for (int y = 0; y < rendered.height(); y++)
+            for (int x = 0; x < rendered.width(); x++)
+                if (rendered.getPixel(x, y) == shadowOfDefault) found++;
+
+        assertThat("pixels of the title's shadow colour", found, is(equalTo(0)));
+    }
+
+    @Test
+    @DisplayName("a title's format codes are the client's, so an ampersand is a character")
+    void aTitleParsesOnTheSectionSign() {
+        PixelBuffer ampersand = render(chest(1, false).mutate().title("&cRed").build());
+        PixelBuffer section = render(chest(1, false).mutate().title("§cRed").build());
+
+        int differing = 0;
+        for (int y = 0; y < ampersand.height(); y++)
+            for (int x = 0; x < ampersand.width(); x++)
+                if (ampersand.getPixel(x, y) != section.getPixel(x, y)) differing++;
+
+        assertThat("the one draws five characters where the other draws three in red",
+            differing, is(greaterThan(0)));
     }
 
     @Test

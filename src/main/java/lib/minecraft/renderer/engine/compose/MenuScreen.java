@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Where a container screen puts its cells, in Minecraft pixels.
@@ -19,6 +20,8 @@ import java.util.List;
  *
  * @param topBand pixels from the panel's top edge to the first of its own cells
  * @param labelBand pixels from the last of its own cells to the player section
+ * @param declaredSlack pixels the screen declares itself to be beyond what it draws, which the
+ * player's label is positioned from
  * @param ownRows how many rows of its own cells it has
  * @param ownColumns how many columns of its own cells it has, zero where its row's cells sit at their
  * own spacing and ride {@code extras}
@@ -28,7 +31,7 @@ import java.util.List;
  * @param extras cells that are not part of the regular grid, such as a crafting result
  */
 public record MenuScreen(
-    int topBand, int labelBand,
+    int topBand, int labelBand, int declaredSlack,
     int ownRows, int ownColumns, int ownOriginX,
     int panelColumns, int titleX,
     @NotNull ConcurrentList<MenuLayout.Cell> extras
@@ -52,16 +55,22 @@ public record MenuScreen(
     /** the left edge of a title, on every screen that does not move it */
     private static final int TITLE_X = 8;
 
+    /** the top edge of a title, which every screen shares */
+    public static final int TITLE_Y = 6;
+
+    /** how far above a screen's declared bottom the player's label sits */
+    private static final int INVENTORY_LABEL_RISE = 94;
+
     /**
-     * A grid of cells filling the panel, which is what a chest is and what a screen with no shipped
-     * art of its own is laid out as. Its bands are a chest's.
+     * A grid of cells filling the panel, which is what a screen with no shipped art of its own is
+     * laid out as. Its bands are a chest's, and it declares no more than it draws.
      *
      * @param rows how many rows of cells
      * @param columns how many columns of cells, which is also how wide the panel is
      * @return the screen
      */
     public static @NotNull MenuScreen grid(int rows, int columns) {
-        return new MenuScreen(17, 13, rows, columns, MARGIN, columns, TITLE_X, Concurrent.newList());
+        return new MenuScreen(17, 13, 0, rows, columns, MARGIN, columns, TITLE_X, Concurrent.newList());
     }
 
     /**
@@ -69,28 +78,29 @@ public record MenuScreen(
      * <p>
      * A chest is the one screen the client composes rather than blits whole - one sheet serves every
      * row count, in two draws that skip a source row between them - so its numbers are the composed
-     * panel's and sit one pixel above the sheet's below the container rows.
+     * panel's and sit one pixel above the sheet's below the container rows. It is also the one screen
+     * that declares a pixel it never draws, which is the pixel that draw skipped.
      *
      * @param rows how many rows the chest has, three for a single and six for a double
      * @return the screen
      */
     public static @NotNull MenuScreen chest(int rows) {
-        return grid(rows, COLUMNS);
+        return new MenuScreen(17, 13, 1, rows, COLUMNS, MARGIN, COLUMNS, TITLE_X, Concurrent.newList());
     }
 
     /** The shulker box, a three-row container whose label band is one pixel short of a chest's. */
     public static @NotNull MenuScreen shulkerBox() {
-        return new MenuScreen(17, 12, 3, COLUMNS, MARGIN, COLUMNS, TITLE_X, Concurrent.newList());
+        return new MenuScreen(17, 12, 0, 3, COLUMNS, MARGIN, COLUMNS, TITLE_X, Concurrent.newList());
     }
 
     /** The hopper, one row of five cells, sitting two pixels lower than a chest's first row. */
     public static @NotNull MenuScreen hopper() {
-        return new MenuScreen(19, 13, 1, 5, centred(5), COLUMNS, TITLE_X, Concurrent.newList());
+        return new MenuScreen(19, 13, 0, 1, 5, centred(5), COLUMNS, TITLE_X, Concurrent.newList());
     }
 
     /** The dispenser, a centred three by three. */
     public static @NotNull MenuScreen dispenser() {
-        return new MenuScreen(16, 13, 3, 3, centred(3), COLUMNS, TITLE_X, Concurrent.newList());
+        return new MenuScreen(16, 13, 0, 3, 3, centred(3), COLUMNS, TITLE_X, Concurrent.newList());
     }
 
     /**
@@ -101,7 +111,7 @@ public record MenuScreen(
     public static @NotNull MenuScreen craftingTable() {
         ConcurrentList<MenuLayout.Cell> extras = Concurrent.newList();
         extras.add(new MenuLayout.Cell(119, 30, 26, MenuLayout.Role.RESULT));
-        return new MenuScreen(16, 13, 3, 3, 29, COLUMNS, 29, extras);
+        return new MenuScreen(16, 13, 0, 3, 3, 29, COLUMNS, 29, extras);
     }
 
     /**
@@ -113,7 +123,7 @@ public record MenuScreen(
         extras.add(new MenuLayout.Cell(26, 46, CELL, MenuLayout.Role.CONTAINER));
         extras.add(new MenuLayout.Cell(75, 46, CELL, MenuLayout.Role.CONTAINER));
         extras.add(new MenuLayout.Cell(133, 46, CELL, MenuLayout.Role.RESULT));
-        return new MenuScreen(46, 19, 1, 0, MARGIN, COLUMNS, 60, extras);
+        return new MenuScreen(46, 19, 0, 1, 0, MARGIN, COLUMNS, 60, extras);
     }
 
     /**
@@ -163,8 +173,10 @@ public record MenuScreen(
 
         cells.addAll(this.extras);
 
+        MenuLayout.Anchor title = new MenuLayout.Anchor(this.titleX, TITLE_Y);
         int height = this.topBand + this.ownRows * CELL;
-        if (!playerSection) return new MenuLayout(width(), height + MARGIN, cells);
+        if (!playerSection)
+            return new MenuLayout(width(), height + MARGIN, title, Optional.empty(), cells);
 
         int playerTop = height + this.labelBand;
         for (int row = 0; row < PLAYER_ROWS; row++)
@@ -176,7 +188,11 @@ public record MenuScreen(
         for (int column = 0; column < COLUMNS; column++)
             cells.add(new MenuLayout.Cell(MARGIN + column * CELL, hotbarTop, CELL, MenuLayout.Role.HOTBAR));
 
-        return new MenuLayout(width(), hotbarTop + CELL + MARGIN, cells);
+        int drawn = hotbarTop + CELL + MARGIN;
+        MenuLayout.Anchor inventory =
+            new MenuLayout.Anchor(TITLE_X, drawn + this.declaredSlack - INVENTORY_LABEL_RISE);
+
+        return new MenuLayout(width(), drawn, title, Optional.of(inventory), cells);
     }
 
     /**

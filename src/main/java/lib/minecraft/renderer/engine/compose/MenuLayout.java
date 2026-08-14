@@ -4,6 +4,8 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
+
 /**
  * A laid-out menu panel - how big it is and where every cell in it sits, in Minecraft pixels.
  * <p>
@@ -13,9 +15,25 @@ import org.jetbrains.annotations.NotNull;
  *
  * @param width the panel width
  * @param height the panel height
+ * @param titleAnchor where the container's own title starts
+ * @param inventoryAnchor where the player's label starts, present exactly when the player section is
+ * laid out
  * @param cells every cell, in the order they are laid out
  */
-public record MenuLayout(int width, int height, @NotNull ConcurrentList<Cell> cells) {
+public record MenuLayout(
+    int width, int height,
+    @NotNull Anchor titleAnchor, @NotNull Optional<Anchor> inventoryAnchor,
+    @NotNull ConcurrentList<Cell> cells
+) {
+
+    /**
+     * Where a label starts, in Minecraft pixels from the panel's own corner. The vertical is the top
+     * of the glyph cell rather than the baseline, which is what the client positions a label by.
+     *
+     * @param x the left edge
+     * @param y the top edge
+     */
+    public record Anchor(int x, int y) {}
 
     /**
      * What a cell belongs to, which is what decides whether a caller's slot index reaches it.

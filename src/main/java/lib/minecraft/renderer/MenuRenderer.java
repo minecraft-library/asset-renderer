@@ -33,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.IntUnaryOperator;
 
 /**
@@ -62,9 +63,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     static final int PX_SCALE = MinecraftFont.MC_PIXEL_SCALE;
 
     /**
-     * The top edge of a title, in Minecraft pixels from the panel's own.
+     * The prefix a caller's format codes carry, which is the client's own rather than the ampersand a
+     * chat plugin uses.
      */
-    private static final int TITLE_TOP = 6;
+    private static final char SECTION_SIGN = '§';
 
     /**
      * The side of the content a cell holds, in Minecraft pixels. Every cell holds the same amount of
@@ -209,6 +211,40 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             window.paintCell(chrome, cell.box(PX_SCALE));
 
         return chrome;
+    }
+
+    /**
+     * The chrome layer of a menu, which carries the panel and its cells and no ink at all - a label is
+     * a layer of its own, so nothing a menu draws later can overpaint chrome that was drawn earlier
+     * into one buffer.
+     *
+     * @param options the menu render options
+     * @param layout the laid-out panel
+     * @return the chrome placement at the panel's origin
+     */
+    static @NotNull FramePlacement chromeOf(@NotNull MenuOptions options, @NotNull MenuLayout layout) {
+        return new FramePlacement(0, 0, StaticImageData.of(paintChrome(options, layout).toBufferedImage()));
+    }
+
+    /**
+     * Places a menu's labels over its chrome, returning whether they animated. Nothing is appended
+     * where the menu has no label to draw.
+     *
+     * @param options the menu render options
+     * @param layout the laid-out panel
+     * @param stack the layer stack to append to
+     * @return whether the label layer animates
+     */
+    static boolean placeLabels(
+        @NotNull MenuOptions options,
+        @NotNull MenuLayout layout,
+        @NotNull LayerStack<FrameLayer> stack
+    ) {
+        Optional<ImageData> labels = labelLayer(options, layout);
+        if (labels.isEmpty()) return false;
+
+        place(stack, MenuSlot.TEXT, new FramePlacement(0, 0, labels.get()));
+        return labels.get().isAnimated();
     }
 
     /**
@@ -439,55 +475,75 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     // ---------------------------------------------------------------------------------------
-    // Title drawing.
+    // Labels.
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Builds the chrome {@link ImageData} layer for a menu. When the title contains
-     * obfuscated segments ({@code §k}), the result is an animated {@link ImageData} with
-     * one second of unique obfuscation frames; otherwise a single static frame is returned.
+     * Builds the label layer for a menu - the container's own title, and the player's label where the
+     * player section is drawn. When a label carries an obfuscated segment ({@code §k}) the layer is
+     * animated over one second of unique frames; otherwise it is a single frame.
+     * <p>
+     * Empty where a menu has no label to draw at all, which is what keeps a caller who asked for no
+     * title from paying for a whole transparent canvas per frame.
      *
-     * @param baseChrome the chrome buffer with all static pixel content already drawn
-     * @param options the menu options (supplies title and FPS)
-     * @param titleX the title's left edge, in Minecraft pixels from the panel's own
-     * @return a static or animated chrome layer
+     * @param options the menu options, supplying the labels, their colour and the frame rate
+     * @param layout the laid-out panel, supplying both anchors
+     * @return the label layer, empty where there is nothing to draw
      */
-    static @NotNull ImageData chromeLayer(
-        @NotNull PixelBuffer baseChrome,
-        @NotNull MenuOptions options,
-        int titleX
-    ) {
-        String title = options.getTitle();
-        if (title.isEmpty())
-            return StaticImageData.of(baseChrome.toBufferedImage());
+    static @NotNull Optional<ImageData> labelLayer(@NotNull MenuOptions options, @NotNull MenuLayout layout) {
+        ConcurrentList<Label> labels = Concurrent.newList();
 
-        LineSegment titleLine = ColorSegment.fromLegacy(title);
-        boolean animated = hasTitleObfuscation(titleLine);
+        if (!options.getTitle().isEmpty())
+            labels.add(new Label(parse(options.getTitle()), layout.titleAnchor()));
+
+        if (!options.getInventoryTitle().isEmpty())
+            layout.inventoryAnchor().ifPresent(anchor ->
+                labels.add(new Label(parse(options.getInventoryTitle()), anchor)));
+
+        if (labels.isEmpty()) return Optional.empty();
+
+        int w = layout.width() * PX_SCALE;
+        int h = layout.height() * PX_SCALE;
         int argb = options.getDefaultTitleArgb();
+        boolean animated = labels.stream().anyMatch(label -> isObfuscated(label.line()));
 
         if (!animated) {
-            drawTitle(baseChrome, titleLine, titleX, argb, 0);
-            return StaticImageData.of(baseChrome.toBufferedImage());
+            PixelBuffer buffer = PixelBuffer.create(w, h);
+            drawLabels(buffer, labels, argb, 0);
+            return Optional.of(StaticImageData.of(buffer.toBufferedImage()));
         }
 
-        int w = baseChrome.width();
-        int h = baseChrome.height();
         // One second of unique obfuscation frames: a wall-rate loop of framesPerSecond frames, the
         // frame index doubling as the per-frame obfuscation seed.
-        return new Timeline.FpsLoop(options.getFramesPerSecond(), options.getFramesPerSecond())
+        return Optional.of(new Timeline.FpsLoop(options.getFramesPerSecond(), options.getFramesPerSecond())
             .wrap(f -> {
                 PixelBuffer frameBuffer = PixelBuffer.create(w, h);
-                frameBuffer.blit(baseChrome, 0, 0);
-                drawTitle(frameBuffer, titleLine, titleX, argb, f);
+                drawLabels(frameBuffer, labels, argb, f);
                 return frameBuffer;
-            });
+            }));
     }
 
     /**
-     * Returns whether any segment of the title line is obfuscated ({@code §k}), which forces the
-     * chrome layer to be rendered as an animated multi-frame result.
+     * One label and where it starts.
+     *
+     * @param line the parsed text
+     * @param anchor the panel-relative origin of its glyph cells
      */
-    private static boolean hasTitleObfuscation(@NotNull LineSegment line) {
+    private record Label(@NotNull LineSegment line, @NotNull MenuLayout.Anchor anchor) {}
+
+    /**
+     * Parses caller text on the section sign, which is the prefix the client's own format codes carry.
+     * An ampersand is a character a title may hold and is left as one.
+     */
+    private static @NotNull LineSegment parse(@NotNull String text) {
+        return ColorSegment.fromLegacy(text, SECTION_SIGN);
+    }
+
+    /**
+     * Returns whether any segment of a line is obfuscated ({@code §k}), which is what makes the label
+     * layer animate.
+     */
+    private static boolean isObfuscated(@NotNull LineSegment line) {
         for (ColorSegment segment : line.getSegments())
             if (segment.isObfuscated()) return true;
 
@@ -495,19 +551,25 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Renders pre-parsed title segments at the panel's title anchor. The anchor is a cell top and the
-     * draw takes a baseline, so the font's ascent is what separates them.
+     * Draws every label at its anchor, without a drop shadow - the client's own label draws decline
+     * one.
+     * <p>
+     * An anchor is the top of a glyph cell, which the vanilla font opens a capital on, and the draw
+     * takes the baseline an ascent below it. The ascent is read in output pixels where the draw is in
+     * Minecraft ones, so it is converted rather than added.
      */
-    private static void drawTitle(
+    private static void drawLabels(
         @NotNull PixelBuffer buffer,
-        @NotNull LineSegment titleLine,
-        int titleX,
+        @NotNull ConcurrentList<Label> labels,
         int defaultArgb,
         long frameSeed
     ) {
-        MinecraftFontMetrics metrics = MinecraftFont.Vanilla.REGULAR.metrics();
         MinecraftGraphics g = new MinecraftGraphics(buffer);
-        TextKit.drawLine(g, titleLine, titleX, TITLE_TOP + metrics.getAscent(), defaultArgb, frameSeed);
+        int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscent() / PX_SCALE;
+
+        for (Label label : labels)
+            TextKit.drawLine(g, label.line(), label.anchor().x(), label.anchor().y() + ascentMcPx,
+                defaultArgb, frameSeed, frameSeed, false);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -521,15 +583,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     private static @NotNull ImageData renderDirect(@NotNull RendererContext context, @NotNull MenuOptions options) {
         validateSlots(options);
 
-        MenuScreen screen = screenOf(options);
-        MenuLayout layout = screen.layout(options.isPlayerInventory());
-        ImageData chromeData = chromeLayer(paintChrome(options, layout), options, screen.titleX());
-
+        MenuLayout layout = layoutOf(options);
         LayerStack<FrameLayer> stack = new LayerStack<>();
-        place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
+        place(stack, MenuSlot.CHROME, chromeOf(options, layout));
 
-        boolean anyAnimated = chromeData.isAnimated();
-        anyAnimated |= placeSlots(options, layout, stack, new ItemRenderer(context), index -> index);
+        boolean anyAnimated = placeSlots(options, layout, stack, new ItemRenderer(context), index -> index);
+        anyAnimated |= placeLabels(options, layout, stack);
 
         return composite(layout, stack, anyAnimated, options);
     }
@@ -634,23 +693,21 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         public @NotNull ImageData render(@NotNull MenuOptions options) {
             validateSlots(options);
 
-            MenuScreen screen = screenOf(options);
-            MenuLayout layout = screen.layout(options.isPlayerInventory());
+            MenuLayout layout = layoutOf(options);
             PixelBuffer chrome = paintChrome(options, layout);
             drawCraftArrowInCell(chrome, layout.slotCells().get(ARROW_SLOT), options.getTheme().palette().shadow());
-            ImageData chromeData = chromeLayer(chrome, options, screen.titleX());
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
             LayerStack<FrameLayer> stack = new LayerStack<>();
-            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
+            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, StaticImageData.of(chrome.toBufferedImage())));
 
             ConcurrentSet<Integer> claimed = Concurrent.newSet();
             for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
             claimed.add(ARROW_SLOT);
 
-            boolean anyAnimated = chromeData.isAnimated();
-            anyAnimated |= placeSlots(options, layout, stack, itemRenderer, callerSlot -> SLOT_MAP[callerSlot]);
+            boolean anyAnimated = placeSlots(options, layout, stack, itemRenderer, callerSlot -> SLOT_MAP[callerSlot]);
             anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer, claimed);
+            anyAnimated |= placeLabels(options, layout, stack);
 
             return composite(layout, stack, anyAnimated, options);
         }
@@ -699,14 +756,11 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         public @NotNull ImageData render(@NotNull MenuOptions options) {
             validateSlots(options);
 
-            MenuScreen screen = screenOf(options);
-            MenuLayout layout = screen.layout(options.isPlayerInventory());
-            ImageData chromeData = chromeLayer(paintChrome(options, layout), options, screen.titleX());
-
+            MenuLayout layout = layoutOf(options);
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
             BlockRenderer blockRenderer = new BlockRenderer(this.context);
             LayerStack<FrameLayer> stack = new LayerStack<>();
-            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
+            place(stack, MenuSlot.CHROME, chromeOf(options, layout));
 
             ConcurrentSet<Integer> claimed = Concurrent.newSet();
             for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
@@ -714,8 +768,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             for (int chestSlot : RED_PANE_SLOTS) claimed.add(chestSlot);
 
             ConcurrentList<MenuLayout.Cell> cells = layout.slotCells();
-            boolean anyAnimated = chromeData.isAnimated();
-            anyAnimated |= placeSlots(options, layout, stack, itemRenderer, callerSlot -> SLOT_MAP[callerSlot]);
+            boolean anyAnimated = placeSlots(options, layout, stack, itemRenderer, callerSlot -> SLOT_MAP[callerSlot]);
 
             MenuLayout.Cell decorationCell = cells.get(DECORATION_SLOT);
             BlockOptions decorationOptions = BlockOptions.builder()
@@ -738,6 +791,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 place(stack, MenuSlot.CONTENT, inCell(cells.get(chestSlot), redPane));
 
             anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer, claimed);
+            anyAnimated |= placeLabels(options, layout, stack);
             return composite(layout, stack, anyAnimated, options);
         }
 

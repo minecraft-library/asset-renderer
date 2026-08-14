@@ -110,10 +110,36 @@ public class TextKit {
         long frameSeed,
         long tick
     ) {
+        return drawLine(g, line, xMcPx, yMcPx, defaultArgb, frameSeed, tick, true);
+    }
+
+    /**
+     * Draws all segments in a {@link LineSegment}, with the drop shadow declinable. Text drawn into a
+     * container's chrome carries none, which is what the client's own label draws pass.
+     *
+     * @param g the graphics owning the buffer and sampling factor
+     * @param line the line of styled segments to render
+     * @param xMcPx the starting cursor X in mcPixels
+     * @param yMcPx the baseline Y in mcPixels
+     * @param defaultArgb the fallback color for segments without an explicit color
+     * @param frameSeed the animation frame seed for obfuscation substitution
+     * @param tick the absolute animation tick driving gradient scroll phase
+     * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
+     * @return the total advance width of the rendered line in mcPixels
+     */
+    public static int drawLine(
+        @NotNull MinecraftGraphics g,
+        @NotNull LineSegment line,
+        int xMcPx, int yMcPx,
+        int defaultArgb,
+        long frameSeed,
+        long tick,
+        boolean dropShadow
+    ) {
         int startX = xMcPx;
         int cursorMcPx = xMcPx;
         for (ColorSegment segment : line.getSegments())
-            cursorMcPx += drawSegment(g, segment, cursorMcPx, yMcPx, defaultArgb, frameSeed, tick);
+            cursorMcPx += drawSegment(g, segment, cursorMcPx, yMcPx, defaultArgb, frameSeed, tick, dropShadow);
         return cursorMcPx - startX;
     }
 
@@ -161,6 +187,31 @@ public class TextKit {
         long frameSeed,
         long tick
     ) {
+        return drawSegment(g, segment, xMcPx, yMcPx, defaultArgb, frameSeed, tick, true);
+    }
+
+    /**
+     * Draws a single {@link ColorSegment} with the drop shadow declinable.
+     *
+     * @param g the graphics owning the buffer and sampling factor
+     * @param segment the styled text segment to render
+     * @param xMcPx the starting cursor X in mcPixels
+     * @param yMcPx the baseline Y in mcPixels
+     * @param defaultArgb the fallback color when the segment has no explicit color
+     * @param frameSeed the animation frame seed for obfuscation substitution
+     * @param tick the absolute animation tick driving gradient scroll phase
+     * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
+     * @return the advance width of the rendered segment in mcPixels
+     */
+    public static int drawSegment(
+        @NotNull MinecraftGraphics g,
+        @NotNull ColorSegment segment,
+        int xMcPx, int yMcPx,
+        int defaultArgb,
+        long frameSeed,
+        long tick,
+        boolean dropShadow
+    ) {
         String text = segment.getText();
         if (text.isEmpty()) return 0;
 
@@ -168,7 +219,7 @@ public class TextKit {
             text = substitute(text, frameSeed);
 
         if (segment.getGradient().isPresent())
-            return GradientKit.drawSegment(g, segment, segment.getGradient().get(), text, xMcPx, yMcPx, tick);
+            return GradientKit.drawSegment(g, segment, segment.getGradient().get(), text, xMcPx, yMcPx, tick, dropShadow);
 
         int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
         MinecraftFont font = MinecraftFont.Vanilla.of(segment.fontStyle());
@@ -192,12 +243,14 @@ public class TextKit {
 
         // Shadow pass
         g.setFont(font);
-        g.setColor(new java.awt.Color(shadow, true));
-        g.drawString(text, xMcPx + SHADOW_OFFSET_MCPX, yMcPx + SHADOW_OFFSET_MCPX);
-        if (segment.isStrikethrough())
-            g.fillRect(xOut + shadowOffsetOut - decoLeftPadOut, yOut + shadowOffsetOut + strikeOffsetOut, textWidthOutPx, strikeThicknessOut);
-        if (segment.isUnderlined())
-            g.fillRect(xOut + shadowOffsetOut, yOut + shadowOffsetOut + underlineOffsetOut, textWidthOutPx + decoLeftPadOut, underlineThicknessOut);
+        if (dropShadow) {
+            g.setColor(new java.awt.Color(shadow, true));
+            g.drawString(text, xMcPx + SHADOW_OFFSET_MCPX, yMcPx + SHADOW_OFFSET_MCPX);
+            if (segment.isStrikethrough())
+                g.fillRect(xOut + shadowOffsetOut - decoLeftPadOut, yOut + shadowOffsetOut + strikeOffsetOut, textWidthOutPx, strikeThicknessOut);
+            if (segment.isUnderlined())
+                g.fillRect(xOut + shadowOffsetOut, yOut + shadowOffsetOut + underlineOffsetOut, textWidthOutPx + decoLeftPadOut, underlineThicknessOut);
+        }
 
         // Main pass
         g.setColor(new java.awt.Color(color, true));
