@@ -724,27 +724,27 @@
     },
     {
       "path": "menu-render/chest_1row.png",
-      "sha256": "111a8d6821c8d18967affaeee18ff155c2e828b30cfb034aeddafc27f3f6c1a0"
+      "sha256": "18264d144b40775db57f32fb1c87b2742578a87283e69ccb1793781dbdea3180"
     },
     {
       "path": "menu-render/chest_2row.png",
-      "sha256": "062548ea97202288c4a6e3d2a91c9219c05ab18da7c3cad77b95359b4a7f1f7d"
+      "sha256": "e96bd8ea9af18a827e59db2dd161f455aa2c46fad69ac770e8b284a91c0deae4"
     },
     {
       "path": "menu-render/chest_3row.png",
-      "sha256": "86a56a48d50bb3a0e5a08c2be8389705a581a8768b0e6b5b3e1219a697dd13a0"
+      "sha256": "e7b410738218d6748cac3a7ebb7442caeba7dc680184d49154cda5438719cf15"
     },
     {
       "path": "menu-render/chest_6row.png",
-      "sha256": "db9c95352105603bf4f47899e8c94b3e717248fb14a0ed1562df78154cf8401b"
+      "sha256": "1547ad3a2388fb89c404362bf14164a8cd5d5529e407a6f0642d56af44b05081"
     },
     {
       "path": "menu-render/glinted_crafting.webp",
-      "sha256": "d5832d688e67f8e128e1a071234c7a7b4e4ad30d8fe6f2e1c4b25fc820bfc0cb"
+      "sha256": "7813065a7d38df0af690bc637dafb09d45ae608d4a02b637c3f32a9715ad0a52"
     },
     {
       "path": "menu-render/skyblock_crafting.png",
-      "sha256": "cfcb461ccf106d8224c9bddb9956cc496c4232fed2babed3840266db42d86619"
+      "sha256": "2366c7215c0c21268247334753acc21131bee8ec18fd2fa9cc919a7cfb914aa9"
     },
     {
       "path": "projection-smoke/minecraft_tnt__CABINET__base.png",
@@ -817,7 +817,7 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "c310577044fd0b57eeb097245a96f43855b35208",
+    "asset_sha": "a856c66c860080d4f7d887563363a7c4a0117bb8",
     "counts": {
       "files": 202
     },
@@ -825,9 +825,8 @@
     "flags": {},
     "mc_version": "26.1.2",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "menu chrome painted from the measured vanilla window over a MenuScreen layout, retiring the flat-fill and hand-drawn chest paths: the panel is 176 wide where nine cells and two margins come to that, the top band 17, and the title at 8,6 in Minecraft pixels. The roster gains the four chest row counts the client composes out of one sheet and loses the 188x140 crafting invention. Two captures on a clean tree agreed digest for digest.",
+    "reason": "an item is drawn at the size a slot holds rather than at its own default: nothing told the item renderer how big a cell was, so a canvas of 256 output pixels landed at the origin of a cell 36 across and overflowed it about seven to one. Content is sixteen Minecraft pixels centred in its cell, one pixel in on a cell of 18 and five on a crafting result of 26, which reproduces the result slot the crafting menu declares at 124,35. Two captures on a clean tree agreed digest for digest.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -837,7 +836,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-14T07:26:54Z",
+    "timestamp": "2026-08-14T07:55:00Z",
     "tool_version": "1.0.0"
   }
 }
