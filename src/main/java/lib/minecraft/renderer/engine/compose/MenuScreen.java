@@ -47,12 +47,16 @@ public record MenuScreen(
 
     /**
      * A chest of the given row count.
+     * <p>
+     * A chest is the one screen the client composes rather than blits whole - one sheet serves every
+     * row count, in two draws that skip a source row between them - so its numbers are the composed
+     * panel's and sit one pixel above the sheet's below the container rows.
      *
      * @param rows how many rows the chest has, three for a single and six for a double
      * @return the screen
      */
     public static @NotNull MenuScreen chest(int rows) {
-        return new MenuScreen(17, rows == 6 ? 14 : 12, rows, COLUMNS, MARGIN, Concurrent.newList());
+        return new MenuScreen(17, 13, rows, COLUMNS, MARGIN, Concurrent.newList());
     }
 
     /** The shulker box, a three-row container whose label band is one pixel short of a chest's. */

@@ -131,8 +131,8 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("the six-row chest reproduces whole")
-    void sixRowChestReproducesWhole() {
+    @DisplayName("the sheet every chest is composed out of reproduces whole")
+    void theChestSheetReproducesWhole() {
         assertThat(differingPixels(genericFiftyFour()), is(equalTo(0)));
     }
 

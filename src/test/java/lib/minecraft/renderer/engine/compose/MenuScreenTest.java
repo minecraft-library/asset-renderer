@@ -18,6 +18,12 @@ import static org.hamcrest.Matchers.not;
  * background for an exact match of every cell size from 17 to 30 at every position, so a layout that
  * agrees with them agrees with vanilla rather than with itself. The drawn heights are the opaque
  * heights of the same textures.
+ * <p>
+ * A chest is scanned differently, because no sheet ships one: the client composes each row count from
+ * two draws out of {@code generic_54}, the second reading from a source row past the one the first
+ * ended on, so the panel a player sees is a pixel shorter than the sheet and everything below the
+ * container rows sits a pixel higher. The chest rows below were scanned on that composition, which is
+ * what a render has to reproduce.
  */
 @DisplayName("MenuScreen lays cells where vanilla drew them")
 class MenuScreenTest {
@@ -42,17 +48,54 @@ class MenuScreenTest {
     }
 
     @Test
-    @DisplayName("the six-row chest matches generic_54")
-    void sixRowChestMatchesGenericFiftyFour() {
+    @DisplayName("the six-row chest matches the panel generic_54 is composed into")
+    void sixRowChestMatchesItsComposedPanel() {
         MenuLayout layout = MenuScreen.chest(6).layout(true);
 
-        assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x222")));
+        assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x221")));
         assertThat(origins(layout, MenuLayout.Role.CONTAINER),
             is(equalTo(grid(NINE, new int[] { 17, 35, 53, 71, 89, 107 }, 18))));
         assertThat(origins(layout, MenuLayout.Role.PLAYER_MAIN),
-            is(equalTo(grid(NINE, new int[] { 139, 157, 175 }, 18))));
+            is(equalTo(grid(NINE, new int[] { 138, 156, 174 }, 18))));
         assertThat(origins(layout, MenuLayout.Role.HOTBAR),
-            is(equalTo(grid(NINE, new int[] { 197 }, 18))));
+            is(equalTo(grid(NINE, new int[] { 196 }, 18))));
+    }
+
+    @Test
+    @DisplayName("one sheet composes every chest row count, each with its own scanned rows")
+    void oneSheetComposesEveryChestRowCount() {
+        record Chest(int rows, int height, int[] container, int[] player, int hotbar) {}
+
+        List<Chest> chests = List.of(
+            new Chest(1, 131, new int[] { 17 }, new int[] { 48, 66, 84 }, 106),
+            new Chest(2, 149, new int[] { 17, 35 }, new int[] { 66, 84, 102 }, 124),
+            new Chest(3, 167, new int[] { 17, 35, 53 }, new int[] { 84, 102, 120 }, 142),
+            new Chest(6, 221, new int[] { 17, 35, 53, 71, 89, 107 }, new int[] { 138, 156, 174 }, 196));
+
+        for (Chest chest : chests) {
+            MenuLayout layout = MenuScreen.chest(chest.rows()).layout(true);
+            String at = "a chest of " + chest.rows() + " rows";
+
+            assertThat(at + ", drawn height", layout.height(), is(equalTo(chest.height())));
+            assertThat(at + ", its own cells",
+                origins(layout, MenuLayout.Role.CONTAINER), is(equalTo(grid(NINE, chest.container(), 18))));
+            assertThat(at + ", the player's",
+                origins(layout, MenuLayout.Role.PLAYER_MAIN), is(equalTo(grid(NINE, chest.player(), 18))));
+            assertThat(at + ", the hotbar",
+                origins(layout, MenuLayout.Role.HOTBAR), is(equalTo(grid(NINE, new int[] { chest.hotbar() }, 18))));
+        }
+    }
+
+    @Test
+    @DisplayName("a three-row chest is not a shulker box, though both hold three rows of nine")
+    void aThreeRowChestIsNotAShulkerBox() {
+        MenuLayout chest = MenuScreen.chest(3).layout(true);
+        MenuLayout shulker = MenuScreen.shulkerBox().layout(true);
+
+        assertThat("their own cells agree",
+            origins(chest, MenuLayout.Role.CONTAINER), is(equalTo(origins(shulker, MenuLayout.Role.CONTAINER))));
+        assertThat("and everything below them sits a pixel lower on the chest",
+            chest.height() - shulker.height(), is(equalTo(1)));
     }
 
     @Test
