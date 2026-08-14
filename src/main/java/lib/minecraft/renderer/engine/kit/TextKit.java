@@ -226,7 +226,7 @@ public class TextKit {
         int color = resolveColor(segment, defaultArgb);
         int shadow = shadowColor(segment, color);
 
-        int textWidthMcPx = measureSegmentMcPixels(text, font);
+        int textWidthMcPx = measureTextMcPixels(text, font);
         int textWidthOutPx = textWidthMcPx * pxPerMcPx;
 
         // Decoration geometry runs in output-pixel coordinates because fillRect (inherited from
@@ -290,7 +290,7 @@ public class TextKit {
         g.drawString(text, xMcPx + SHADOW_OFFSET_MCPX, yMcPx + SHADOW_OFFSET_MCPX);
         g.setColor(new java.awt.Color(argb, true));
         g.drawString(text, xMcPx, yMcPx);
-        return measureSegmentMcPixels(text, font);
+        return measureTextMcPixels(text, font);
     }
 
     // --- measurement ---
@@ -355,10 +355,6 @@ public class TextKit {
      * @return the width in mcPixels
      */
     public static int measureTextMcPixels(@NotNull String text, @NotNull MinecraftFont font) {
-        return measureText(text, font) / MinecraftFont.MC_PIXEL_SCALE;
-    }
-
-    private static int measureSegmentMcPixels(@NotNull String text, @NotNull MinecraftFont font) {
         return measureText(text, font) / MinecraftFont.MC_PIXEL_SCALE;
     }
 
