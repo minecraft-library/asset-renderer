@@ -555,8 +555,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * one.
      * <p>
      * An anchor is the top of a glyph cell, which the vanilla font opens a capital on, and the draw
-     * takes the baseline an ascent below it. The ascent is read in output pixels where the draw is in
-     * Minecraft ones, so it is converted rather than added.
+     * takes the baseline an ascent below it. The ascent is asked for in Minecraft pixels, because the
+     * metrics answer in output ones by default and the draw is in Minecraft ones.
      */
     private static void drawLabels(
         @NotNull PixelBuffer buffer,
@@ -565,7 +565,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         long frameSeed
     ) {
         MinecraftGraphics g = new MinecraftGraphics(buffer);
-        int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscent() / PX_SCALE;
+        int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
 
         for (Label label : labels)
             TextKit.drawLine(g, label.line(), label.anchor().x(), label.anchor().y() + ascentMcPx,
