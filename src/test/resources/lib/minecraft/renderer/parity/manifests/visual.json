@@ -724,27 +724,27 @@
     },
     {
       "path": "menu-render/chest_1row.png",
-      "sha256": "18264d144b40775db57f32fb1c87b2742578a87283e69ccb1793781dbdea3180"
+      "sha256": "6bb4d9ffe3a077a41789b1027c98a77cf8fc8e74ade2f61b277e11bfe51057b4"
     },
     {
       "path": "menu-render/chest_2row.png",
-      "sha256": "e96bd8ea9af18a827e59db2dd161f455aa2c46fad69ac770e8b284a91c0deae4"
+      "sha256": "68f3a8d1ca7190c4b63cf33828d34f37873a071638f73fbc423237828fb4c1e2"
     },
     {
       "path": "menu-render/chest_3row.png",
-      "sha256": "e7b410738218d6748cac3a7ebb7442caeba7dc680184d49154cda5438719cf15"
+      "sha256": "cdba12786bca9836a1f3bf48abe1dee0876a69f4989376034d76adca0aa3b16c"
     },
     {
       "path": "menu-render/chest_6row.png",
-      "sha256": "1547ad3a2388fb89c404362bf14164a8cd5d5529e407a6f0642d56af44b05081"
+      "sha256": "33b9a121653f9b9781901e8fb700723e5b3cd359a4aad01b54e747aa8f9ff5db"
     },
     {
       "path": "menu-render/glinted_crafting.webp",
-      "sha256": "7813065a7d38df0af690bc637dafb09d45ae608d4a02b637c3f32a9715ad0a52"
+      "sha256": "4b7289a34afeb898628ca6430099e05d2596191d7aa4dfe7f1a6ef637bc786a0"
     },
     {
       "path": "menu-render/skyblock_crafting.png",
-      "sha256": "2366c7215c0c21268247334753acc21131bee8ec18fd2fa9cc919a7cfb914aa9"
+      "sha256": "d1e7defde1f9fbf7811b8bddbd9eaf42adf627f116a459ae5accdb5a4d6b4b19"
     },
     {
       "path": "projection-smoke/minecraft_tnt__CABINET__base.png",
@@ -817,7 +817,7 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "a856c66c860080d4f7d887563363a7c4a0117bb8",
+    "asset_sha": "df92d08f86f826bf6425fe907c1ed413a19e3c0e",
     "counts": {
       "files": 202
     },
@@ -826,7 +826,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "an item is drawn at the size a slot holds rather than at its own default: nothing told the item renderer how big a cell was, so a canvas of 256 output pixels landed at the origin of a cell 36 across and overflowed it about seven to one. Content is sixteen Minecraft pixels centred in its cell, one pixel in on a cell of 18 and five on a crafting result of 26, which reproduces the result slot the crafting menu declares at 124,35. Two captures on a clean tree agreed digest for digest.",
+    "reason": "a menu's two labels become layers of their own at the anchors the client declares - eight in and six down for the title, eight in and ninety-four above the screen's declared bottom for the player's - and neither carries a drop shadow, which is what both of the client's own label draws pass. The chrome buffer carries no ink at all, so a title changes no chrome pixel. The shadow is declinable rather than removed, so nothing outside a menu moved: fourteen artifacts held, the ten lore-tooltip rows among them. Two captures on a clean tree agreed digest for digest.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -836,7 +836,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-14T07:55:00Z",
+    "timestamp": "2026-08-14T08:57:36Z",
     "tool_version": "1.0.0"
   }
 }

@@ -100,8 +100,8 @@
       "entries": 202,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "promoted_at": "a856c66c860080d4f7d887563363a7c4a0117bb8",
-      "sha256": "ad94872c9b0d2689c24396c3590662d1d9d8317d4b83032b7bd246d1d93e82b0"
+      "promoted_at": "df92d08f86f826bf6425fe907c1ed413a19e3c0e",
+      "sha256": "4f8e4d6b36f74af6c6fefbd0d0dffdaab0156866800eea71f0bff3fe50814693"
     },
     "pin.block-crc": {
       "baselined": true,
