@@ -1,20 +1,17 @@
 package lib.minecraft.renderer.option;
 
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.compose.Window;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
-import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.slot.MenuSlot;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.UnaryOperator;
@@ -26,8 +23,8 @@ import java.util.function.UnaryOperator;
  * {@link Type#VANILLA_CRAFTING}, {@link Type#VANILLA_ANVIL}), Hypixel SkyBlock menu types
  * ({@link Type#SKYBLOCK_CRAFTING}, {@link Type#SKYBLOCK_ANVIL}), plus two caller-driven layouts:
  * <ul>
- *   <li><b>{@link Type#CUSTOM}</b> - a {@code rows x columns} grid with arbitrary dimensions,
- *       the generic theme chrome, and per-slot item icons drawn through
+ *   <li><b>{@link Type#CUSTOM}</b> - a {@code rows x columns} grid with arbitrary dimensions, on a
+ *       panel the window paints to fit it, and per-slot item icons drawn through
  *       {@link ItemRenderer}.</li>
  *   <li><b>{@link Type#SLOT}</b> - a single inventory slot, useful for previewing one item in
  *       the menu chrome.</li>
@@ -76,26 +73,24 @@ public class MenuOptions implements RenderOptions {
     private final @NotNull String title = "";
 
     /**
-     * Text rendered inside the rename textbox on vanilla anvil menus. Ignored by every other
-     * menu type. Supports plain text only (no legacy format codes) - drawn in white on the
-     * beige textbox interior.
+     * ARGB the title is drawn in where a segment of it names no colour of its own. The default is
+     * what vanilla draws a container title in.
      */
     @lombok.Builder.Default
-    private final @NotNull String textboxLabel = "";
+    private final int defaultTitleArgb = 0xFF404040;
 
     /**
-     * XP level cost displayed below the slot row on vanilla anvil menus as
-     * {@code "Enchantment Cost: X"} in green. A value of zero or less suppresses the label
-     * entirely. Ignored by every other menu type.
+     * Whether the player's own inventory and hotbar are drawn below the container's cells. A caller
+     * gets the container section alone and asks for the band.
      */
     @lombok.Builder.Default
-    private final int xpCost = 0;
+    private final boolean playerInventory = false;
 
     /**
-     * Visual theme applied to the menu chrome (chrome fill, slot fill, default title colour).
+     * The window the chrome is painted by, which is vanilla's geometry in one of its palettes.
      */
     @lombok.Builder.Default
-    private final @NotNull Theme theme = Theme.VANILLA;
+    private final @NotNull Window.Theme theme = Window.Theme.VANILLA;
 
     /**
      * How non-functional slots should be rendered in menu layouts that wrap their functional
@@ -130,7 +125,7 @@ public class MenuOptions implements RenderOptions {
 
     /**
      * The default menu options - an empty single {@linkplain Type#CHEST chest} (3 rows x 9 columns)
-     * on the {@linkplain Theme#VANILLA vanilla} theme at 30 fps.
+     * on the {@linkplain Window.Theme#VANILLA vanilla} theme at 30 fps, with no player section.
      *
      * @return the default options
      */
@@ -208,9 +203,9 @@ public class MenuOptions implements RenderOptions {
         SLOT,
 
         /**
-         * The vanilla 3x3 crafting table layout: 9-slot input grid plus a separate output slot
-         * across a craft arrow. Caller slots {@code 0..8} map to the grid in reading order and
-         * slot {@code 9} is the output.
+         * The vanilla crafting table: a three by three input grid whose columns sit left of centre,
+         * and a result cell of 26 across from it. Caller slots {@code 0..8} map to the grid in
+         * reading order and slot {@code 9} is the result.
          */
         VANILLA_CRAFTING,
 
@@ -240,43 +235,6 @@ public class MenuOptions implements RenderOptions {
          * ({@code 45..53}).
          */
         SKYBLOCK_ANVIL
-    }
-
-    /**
-     * Visual theme applied to the menu chrome.
-     */
-    @Getter
-    @RequiredArgsConstructor
-    public enum Theme {
-
-        /**
-         * Classic Minecraft inventory palette - light grey chrome, mid-grey slots.
-         */
-        VANILLA  (0xFFC6C6C6, 0xFF8B8B8B, 0xFF404040),
-        /**
-         * High-contrast dark mode - near-black chrome and slots, white title text.
-         */
-        DARK     (0xFF303030, 0xFF1A1A1A, ColorMath.WHITE),
-        /**
-         * Hypixel SkyBlock palette - deep purple chrome, black slots, white title text.
-         */
-        SKYBLOCK (0xFF1E1E2E, 0xFF111122, ColorMath.WHITE);
-
-        /**
-         * ARGB fill for the canvas behind the slot grid.
-         */
-        private final int backgroundArgb;
-
-        /**
-         * ARGB fill for each slot's interior.
-         */
-        private final int slotArgb;
-
-        /**
-         * Default title-bar text ARGB for this theme.
-         */
-        private final int defaultTitleArgb;
-
     }
 
     /**

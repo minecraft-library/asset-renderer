@@ -41,17 +41,29 @@ public record MenuLayout(int width, int height, @NotNull ConcurrentList<Cell> ce
      * @param size the side, which is 18 for every cell but a crafting result
      * @param role what the cell belongs to
      */
-    public record Cell(int x, int y, int size, @NotNull Role role) {}
+    public record Cell(int x, int y, int size, @NotNull Role role) {
+
+        /**
+         * This cell as a {@link Window.Box} at the given output scale.
+         *
+         * @param scale the output pixels each Minecraft pixel occupies on a side
+         * @return the cell box
+         */
+        public @NotNull Window.Box box(int scale) {
+            return new Window.Box(this.x, this.y, this.size, this.size, scale);
+        }
+
+    }
 
     /**
-     * The cells belonging to the container itself, in layout order - which is the order a caller's
-     * slot indices address.
+     * The cells a caller's slot indices address, in layout order - the container's own, and the one a
+     * result sits in where the screen has one. The player's section is drawn and never addressed.
      *
-     * @return the container's own cells
+     * @return the addressable cells
      */
-    public @NotNull ConcurrentList<Cell> containerCells() {
+    public @NotNull ConcurrentList<Cell> slotCells() {
         return this.cells.stream()
-            .filter(cell -> cell.role() == Role.CONTAINER)
+            .filter(cell -> cell.role() == Role.CONTAINER || cell.role() == Role.RESULT)
             .collect(Concurrent.toList());
     }
 

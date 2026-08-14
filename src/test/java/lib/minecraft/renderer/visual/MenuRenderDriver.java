@@ -23,12 +23,11 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Diagnostic task that renders the vanilla-style chest chrome menus through {@link MenuRenderer} so
- * the chest-slot chrome can be eyeballed. Covers the three menus that draw the gray "vanilla chest"
- * chrome ({@code drawVanillaChestChrome}): a {@link MenuOptions.Type#SKYBLOCK_CRAFTING} 9x6 chest with
- * a filled border, a {@link MenuOptions.Type#VANILLA_CRAFTING} 3x3 table, and a second 3x3 table whose
- * enchanted slots promote the whole menu through the compositor's animated branch. This is a
- * <b>functional / visual</b> tool ("does it render") - there is no parity gate.
+ * Diagnostic task that renders menus through {@link MenuRenderer} so a panel can be eyeballed. The
+ * roster is the four chest row counts one sheet composes, each with the player's section drawn so it
+ * names the same panel the client does; a {@link MenuOptions.Type#SKYBLOCK_CRAFTING} nine by six with
+ * a filled border; and a crafting table whose enchanted slots promote the whole menu through the
+ * compositor's animated branch. This is a <b>functional / visual</b> tool ("does it render").
  * <p>
  * Usage: {@code ./gradlew menuRender}. Outputs land in {@code cache/visual/menu-render/}.
  */
@@ -60,6 +59,23 @@ public final class MenuRenderDriver {
         MenuRenderer renderer = new MenuRenderer(context);
         ImageFactory imageFactory = new ImageFactory();
 
+        // One sheet composes every chest row count, and each composition is its own panel - so the
+        // four the client can build are four subjects rather than one at four heights. The player's
+        // section is armed on each, because that is the panel the client draws.
+        for (int rows : new int[] { 1, 2, 3, 6 }) {
+            MenuOptions chest = MenuOptions.builder()
+                .type(MenuOptions.Type.CHEST)
+                .rows(rows)
+                .playerInventory(true)
+                .title(rows == 6 ? "Large Chest" : "Chest")
+                .slots(slots(
+                    slot(0, "minecraft:diamond"),
+                    slot(4, "minecraft:iron_ingot"),
+                    slot(rows * 9 - 1, "minecraft:diamond_sword")))
+                .build();
+            write("chest_" + rows + "row", renderer.render(chest), imageFactory);
+        }
+
         MenuOptions skyblockCrafting = MenuOptions.builder()
             .type(MenuOptions.Type.SKYBLOCK_CRAFTING)
             .title("Craft Item")
@@ -71,15 +87,6 @@ public final class MenuRenderDriver {
                 slot(9, "minecraft:diamond_sword")))
             .build();
         write("skyblock_crafting", renderer.render(skyblockCrafting), imageFactory);
-
-        MenuOptions vanillaCrafting = MenuOptions.builder()
-            .type(MenuOptions.Type.VANILLA_CRAFTING)
-            .title("Crafting")
-            .slots(slots(
-                slot(0, "minecraft:diamond"), slot(4, "minecraft:stick"), slot(7, "minecraft:stick"),
-                slot(9, "minecraft:diamond_sword")))
-            .build();
-        write("vanilla_crafting", renderer.render(vanillaCrafting), imageFactory);
 
         // An enchanted slot makes its item render animated, which promotes the whole menu through
         // the compositor's animated branch - the one path that reads a child's declared loop length

@@ -238,6 +238,16 @@ public interface Window {
         }
 
         /**
+         * The ink this theme paints in, which is what anything drawn over its panel matches itself
+         * against.
+         *
+         * @return the palette
+         */
+        public @NotNull Palette palette() {
+            return this.palette;
+        }
+
+        /**
          * Side of a frame corner block, and with it the frame's inset, in Minecraft pixels. Three is
          * the visible depth - one line of outline and two of bevel - and the fourth column carries the
          * corner chamfer's last step, which reaches one pixel further in than the straight edge does.

@@ -173,6 +173,83 @@ class WindowVanillaOracleTest {
         assertThat("residual bounds", List.of(minX, minY, maxX, maxY), is(equalTo(List.of(90, 35, 111, 49))));
     }
 
+    /**
+     * Composes the chest sheet the way the client does - one draw of the container half, then a
+     * second from a source row past the one the first ended on, which is what leaves the composed
+     * panel a pixel shorter than the sheet.
+     */
+    private static PixelBuffer composedChest(int rows) {
+        PixelBuffer sheet = shipped(genericFiftyFour());
+        int split = rows * MenuScreen.CELL + 17;
+        PixelBuffer out = PixelBuffer.create(176, split + 96);
+
+        for (int y = 0; y < split; y++)
+            for (int x = 0; x < 176; x++) out.setPixel(x, y, sheet.getPixel(x, y));
+
+        for (int y = 0; y < 96; y++)
+            for (int x = 0; x < 176; x++) out.setPixel(x, split + y, sheet.getPixel(x, 126 + y));
+
+        return out;
+    }
+
+    @Test
+    @DisplayName("every chest row count reproduces the panel the client composes for it")
+    void everyChestRowCountReproducesItsComposedPanel() {
+        for (int rows : new int[] { 1, 2, 3, 6 }) {
+            MenuLayout layout = MenuScreen.chest(rows).layout(true);
+            PixelBuffer painted = PixelBuffer.create(layout.width(), layout.height());
+            Window window = Window.Theme.VANILLA;
+
+            window.paintPanel(painted, layout.box(1));
+            for (MenuLayout.Cell cell : layout.cells())
+                window.paintCell(painted, cell.box(1));
+
+            PixelBuffer art = composedChest(rows);
+            assertThat("a chest of " + rows + " rows is as tall as its composition",
+                layout.height(), is(equalTo(art.height())));
+
+            int differing = 0;
+            for (int y = 0; y < art.height(); y++)
+                for (int x = 0; x < art.width(); x++)
+                    if (painted.getPixel(x, y) != art.getPixel(x, y)) differing++;
+
+            assertThat("a chest of " + rows + " rows reproduces whole", differing, is(equalTo(0)));
+        }
+    }
+
+    @Test
+    @DisplayName("the anvil leaves only its name field and the two marks beside it")
+    void theAnvilLeavesOnlyItsNameFieldAndItsMarks() {
+        MenuLayout layout = MenuScreen.anvil().layout(true);
+        PixelBuffer painted = PixelBuffer.create(layout.width(), layout.height());
+        Window window = Window.Theme.VANILLA;
+
+        window.paintPanel(painted, layout.box(1));
+        for (MenuLayout.Cell cell : layout.cells())
+            window.paintCell(painted, cell.box(1));
+
+        Optional<PixelBuffer> resolved = textures.tryResolveTextureAtTick("minecraft:gui/container/anvil", 0);
+        assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
+        PixelBuffer art = resolved.get();
+
+        int differing = 0;
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+
+        for (int y = 0; y < layout.height(); y++) {
+            for (int x = 0; x < layout.width(); x++) {
+                if (painted.getPixel(x, y) == art.getPixel(x, y)) continue;
+                differing++;
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            }
+        }
+
+        assertThat("residual pixel count", differing, is(equalTo(2247)));
+        assertThat("residual bounds", List.of(minX, minY, maxX, maxY), is(equalTo(List.of(17, 7, 168, 62))));
+    }
+
     @Test
     @DisplayName("a cell at eighteen is the shipped slot sprite")
     void cellAtEighteenIsTheShippedSlotSprite() {

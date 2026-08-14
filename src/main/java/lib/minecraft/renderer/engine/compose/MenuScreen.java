@@ -20,13 +20,17 @@ import java.util.List;
  * @param topBand pixels from the panel's top edge to the first of its own cells
  * @param labelBand pixels from the last of its own cells to the player section
  * @param ownRows how many rows of its own cells it has
- * @param ownColumns how many columns of its own cells it has
+ * @param ownColumns how many columns of its own cells it has, zero where its row's cells sit at their
+ * own spacing and ride {@code extras}
  * @param ownOriginX the left edge of its own grid
+ * @param panelColumns how many cells wide the panel itself is, which is what its width comes to
+ * @param titleX the left edge of the title, in from the panel's own
  * @param extras cells that are not part of the regular grid, such as a crafting result
  */
 public record MenuScreen(
     int topBand, int labelBand,
     int ownRows, int ownColumns, int ownOriginX,
+    int panelColumns, int titleX,
     @NotNull ConcurrentList<MenuLayout.Cell> extras
 ) {
 
@@ -45,6 +49,21 @@ public record MenuScreen(
     /** pixels between the player's main inventory and the hotbar */
     private static final int HOTBAR_GAP = 4;
 
+    /** the left edge of a title, on every screen that does not move it */
+    private static final int TITLE_X = 8;
+
+    /**
+     * A grid of cells filling the panel, which is what a chest is and what a screen with no shipped
+     * art of its own is laid out as. Its bands are a chest's.
+     *
+     * @param rows how many rows of cells
+     * @param columns how many columns of cells, which is also how wide the panel is
+     * @return the screen
+     */
+    public static @NotNull MenuScreen grid(int rows, int columns) {
+        return new MenuScreen(17, 13, rows, columns, MARGIN, columns, TITLE_X, Concurrent.newList());
+    }
+
     /**
      * A chest of the given row count.
      * <p>
@@ -56,32 +75,45 @@ public record MenuScreen(
      * @return the screen
      */
     public static @NotNull MenuScreen chest(int rows) {
-        return new MenuScreen(17, 13, rows, COLUMNS, MARGIN, Concurrent.newList());
+        return grid(rows, COLUMNS);
     }
 
     /** The shulker box, a three-row container whose label band is one pixel short of a chest's. */
     public static @NotNull MenuScreen shulkerBox() {
-        return new MenuScreen(17, 12, 3, COLUMNS, MARGIN, Concurrent.newList());
+        return new MenuScreen(17, 12, 3, COLUMNS, MARGIN, COLUMNS, TITLE_X, Concurrent.newList());
     }
 
     /** The hopper, one row of five cells, sitting two pixels lower than a chest's first row. */
     public static @NotNull MenuScreen hopper() {
-        return new MenuScreen(19, 13, 1, 5, centred(5), Concurrent.newList());
+        return new MenuScreen(19, 13, 1, 5, centred(5), COLUMNS, TITLE_X, Concurrent.newList());
     }
 
     /** The dispenser, a centred three by three. */
     public static @NotNull MenuScreen dispenser() {
-        return new MenuScreen(16, 13, 3, 3, centred(3), Concurrent.newList());
+        return new MenuScreen(16, 13, 3, 3, centred(3), COLUMNS, TITLE_X, Concurrent.newList());
     }
 
     /**
      * The crafting table, a three by three that is <b>not</b> centred - its columns sit four pixels
-     * left of where a dispenser's do - plus a result cell of 26 rather than 18.
+     * left of where a dispenser's do - plus a result cell of 26 rather than 18, and a title starting
+     * where a recipe book's tab would end.
      */
     public static @NotNull MenuScreen craftingTable() {
         ConcurrentList<MenuLayout.Cell> extras = Concurrent.newList();
         extras.add(new MenuLayout.Cell(119, 30, 26, MenuLayout.Role.RESULT));
-        return new MenuScreen(16, 13, 3, 3, 29, extras);
+        return new MenuScreen(16, 13, 3, 3, 29, COLUMNS, 29, extras);
+    }
+
+    /**
+     * The anvil, whose row is two inputs and a result at their own spacing rather than a grid, so it
+     * has one row of no columns and carries its three cells as extras.
+     */
+    public static @NotNull MenuScreen anvil() {
+        ConcurrentList<MenuLayout.Cell> extras = Concurrent.newList();
+        extras.add(new MenuLayout.Cell(26, 46, CELL, MenuLayout.Role.CONTAINER));
+        extras.add(new MenuLayout.Cell(75, 46, CELL, MenuLayout.Role.CONTAINER));
+        extras.add(new MenuLayout.Cell(133, 46, CELL, MenuLayout.Role.RESULT));
+        return new MenuScreen(46, 19, 1, 0, MARGIN, COLUMNS, 60, extras);
     }
 
     /**
@@ -91,16 +123,26 @@ public record MenuScreen(
      * @return the left edge in Minecraft pixels
      */
     public static int centred(int columns) {
-        return (width() - columns * CELL) / 2;
+        return (width(COLUMNS) - columns * CELL) / 2;
     }
 
     /**
-     * The panel width every one of these screens has.
+     * The width a panel of the given cell count comes to.
+     *
+     * @param panelColumns how many cells wide the panel is
+     * @return the width in Minecraft pixels
+     */
+    public static int width(int panelColumns) {
+        return 2 * MARGIN + panelColumns * CELL;
+    }
+
+    /**
+     * This panel's width.
      *
      * @return the width in Minecraft pixels
      */
-    public static int width() {
-        return 2 * MARGIN + COLUMNS * CELL;
+    public int width() {
+        return width(this.panelColumns);
     }
 
     /**
@@ -138,12 +180,14 @@ public record MenuScreen(
     }
 
     /**
-     * The screens whose geometry has been measured against the art the client ships.
+     * The screens whose geometry has been measured against the client - four against the panels it
+     * ships, the chest against the panel it composes one of them into, and the anvil against the
+     * slots its menu declares.
      *
      * @return the measured screens
      */
     public static @NotNull List<MenuScreen> measured() {
-        return List.of(chest(6), shulkerBox(), hopper(), dispenser(), craftingTable());
+        return List.of(chest(6), shulkerBox(), hopper(), dispenser(), craftingTable(), anvil());
     }
 
 }
