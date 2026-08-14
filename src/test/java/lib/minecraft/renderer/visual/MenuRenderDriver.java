@@ -9,6 +9,7 @@ import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
+import lib.minecraft.renderer.engine.compose.Window;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.MenuOptions;
@@ -28,10 +29,11 @@ import java.util.Map;
  * <p>
  * The roster is every screen the shipped art can be checked against - the four chest row counts one
  * sheet composes, the shulker box, the hopper, the dispenser and the crafting table - each with the
- * player's section drawn, so each names the same panel the client does. Beside them sit two subjects
+ * player's section drawn, so each names the same panel the client does. Beside them sit four subjects
  * that are about something other than the panel: a server-style menu, which is a six-row chest with
- * the caller's own slot map and a filled border over it, and a crafting table whose enchanted slots
- * promote the whole menu through the compositor's animated branch.
+ * the caller's own slot map and a filled border over it, a crafting table whose enchanted slots
+ * promote the whole menu through the compositor's animated branch, and the same chest in each of the
+ * two palettes the client ships nothing to compare against.
  * <p>
  * Usage: {@code ./gradlew menuRender}. Outputs land in {@code cache/visual/menu-render/}.
  */
@@ -123,7 +125,7 @@ public final class MenuRenderDriver {
             .type(MenuOptions.Type.CHEST)
             .rows(6)
             .title("Craft Item")
-            .fill(MenuOptions.Fill.BLACK_STAINED_GLASS_PANE)
+            .fill(MenuOptions.Fill.of("minecraft:black_stained_glass_pane"))
             .slots(slots(
                 slot(10, "minecraft:iron_ingot"), slot(11, "minecraft:iron_ingot"), slot(12, "minecraft:iron_ingot"),
                 slot(19, "minecraft:iron_ingot"), slot(21, "minecraft:iron_ingot"),
@@ -142,6 +144,34 @@ public final class MenuRenderDriver {
                 enchantedSlot(9, "minecraft:diamond_sword")))
             .build();
         write("glinted_crafting", renderer.render(glintedCrafting), imageFactory);
+
+        // The two palettes that are not vanilla's, on a shape one of the eight above already draws,
+        // so what these are read for is the ink alone - the panel, the two bevels and the cells.
+        // Neither has a client-side counterpart to be checked against, which is why they are looked
+        // at rather than compared.
+        write("themed_dark", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.CHEST)
+            .rows(3)
+            .playerInventory(true)
+            .theme(Window.Theme.DARK)
+            .title("Dark Theme")
+            .slots(slots(
+                slot(0, "minecraft:diamond"),
+                slot(4, "minecraft:iron_ingot"),
+                slot(26, "minecraft:diamond_sword")))
+            .build()), imageFactory);
+
+        write("themed_skyblock", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.CHEST)
+            .rows(3)
+            .playerInventory(true)
+            .theme(Window.Theme.SKYBLOCK)
+            .title("SkyBlock Theme")
+            .slots(slots(
+                slot(0, "minecraft:diamond"),
+                slot(4, "minecraft:iron_ingot"),
+                slot(26, "minecraft:diamond_sword")))
+            .build()), imageFactory);
 
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
     }

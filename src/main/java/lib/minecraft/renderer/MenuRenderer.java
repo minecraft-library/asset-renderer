@@ -6,6 +6,7 @@ import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
@@ -310,17 +311,15 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         @NotNull LayerStack<FrameLayer> stack,
         @NotNull ItemRenderer itemRenderer
     ) {
-        if (options.getFill() == MenuOptions.Fill.EMPTY) return false;
+        Optional<ResourceId> filler = options.getFill().itemId();
+        if (filler.isEmpty()) return false;
 
         ConcurrentList<MenuLayout.Cell> cells = layout.slotCells();
-        ItemOptions fillerOptions = switch (options.getFill()) {
-            case BLACK_STAINED_GLASS_PANE -> ItemOptions.builder()
-                .itemId("minecraft:black_stained_glass_pane")
-                .type(ItemOptions.Type.GUI_ICON)
-                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
-                .build();
-            case EMPTY -> throw new RenderException("EMPTY handled above");
-        };
+        ItemOptions fillerOptions = ItemOptions.builder()
+            .itemId(filler.get().id())
+            .type(ItemOptions.Type.GUI_ICON)
+            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
+            .build();
         ImageData fillerImage = itemRenderer.render(fillerOptions);
 
         for (int index = 0; index < cells.size(); index++) {

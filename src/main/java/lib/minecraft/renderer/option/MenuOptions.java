@@ -283,20 +283,40 @@ public class MenuOptions implements RenderOptions {
 
     /**
      * What to draw in the cells a caller populated none of.
+     * <p>
+     * A filler is an item like any other, so this names one rather than offering a choice between
+     * the ones a server menu happens to reach for. The item must be resolvable through the active
+     * {@link RendererContext}, and it is drawn to the cell's size the way a populated slot's is.
+     *
+     * @param itemId the item drawn in each of those cells, empty to leave them transparent so the
+     *     chrome shows through
      */
-    public enum Fill {
+    public record Fill(@NotNull Optional<ResourceId> itemId) {
 
         /**
-         * Draw a {@code minecraft:black_stained_glass_pane} GUI icon in each, which is the border a
-         * server menu is usually framed in. The item must be resolvable through the active
-         * {@link RendererContext}.
+         * Leaves every cell the caller populated none of transparent.
          */
-        BLACK_STAINED_GLASS_PANE,
+        public static final @NotNull Fill EMPTY = new Fill(Optional.empty());
 
         /**
-         * Leave them transparent so the chrome shows through.
+         * Creates a fill drawing one item in each of those cells.
+         *
+         * @param itemId the namespaced item id
+         * @return the fill
          */
-        EMPTY
+        public static @NotNull Fill of(@NotNull String itemId) {
+            return of(ResourceId.parse(itemId));
+        }
+
+        /**
+         * Creates a fill drawing one item in each of those cells.
+         *
+         * @param itemId the item id
+         * @return the fill
+         */
+        public static @NotNull Fill of(@NotNull ResourceId itemId) {
+            return new Fill(Optional.of(itemId));
+        }
 
     }
 

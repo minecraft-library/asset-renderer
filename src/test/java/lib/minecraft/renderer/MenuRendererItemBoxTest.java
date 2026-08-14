@@ -105,4 +105,38 @@ class MenuRendererItemBoxTest {
             layout.slotCells().get(1), "an ingot in the anvil's second input");
     }
 
+    /**
+     * Counts the pixels two renders of one panel disagree on.
+     */
+    private static int differingPixels(PixelBuffer left, PixelBuffer right) {
+        assertThat("the two renders are the same panel",
+            List.of(left.width(), left.height()), is(equalTo(List.of(right.width(), right.height()))));
+
+        return (int) IntStream.range(0, left.height())
+            .boxed()
+            .flatMap(y -> IntStream.range(0, left.width())
+                .filter(x -> left.getPixel(x, y) != right.getPixel(x, y))
+                .boxed())
+            .count();
+    }
+
+    /**
+     * A fill names an item, so two fills naming two items have to draw two different panels. Nothing
+     * else in the suite would catch a filler that resolved one id and drew another, the subject that
+     * renders one being filled with the pane the renderer once named on its own.
+     */
+    @Test
+    @DisplayName("a fill draws the item it names in the cells nothing else claims")
+    void aFillDrawsTheItemItNames() {
+        MenuOptions bare = MenuOptions.builder().type(MenuOptions.Type.CHEST).rows(1).build();
+        PixelBuffer unfilled = render(bare);
+        PixelBuffer black = render(bare.mutate().fill(MenuOptions.Fill.of("minecraft:black_stained_glass_pane")).build());
+        PixelBuffer red = render(bare.mutate().fill(MenuOptions.Fill.of("minecraft:red_stained_glass_pane")).build());
+
+        assertThat("an empty fill leaves the cells to the chrome",
+            differingPixels(unfilled, black), is(greaterThan(0)));
+        assertThat("the filler is the item the fill names",
+            differingPixels(black, red), is(greaterThan(0)));
+    }
+
 }

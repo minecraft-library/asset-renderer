@@ -67,6 +67,18 @@ class WindowThemeTest {
         }
     }
 
+    /**
+     * The six inks the vanilla theme paints in, which are read off the shipped container art and are
+     * what the oracle's byte assertion rests on. Every other theme is free to be authored; this one
+     * answers to a texture, so its palette is pinned here rather than left to the constant.
+     */
+    @Test
+    @DisplayName("the vanilla theme paints in the ink the shipped art is drawn in")
+    void theVanillaThemePaintsInTheShippedInk() {
+        assertThat(Window.Theme.VANILLA.palette(), is(equalTo(new Window.Palette(
+            0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737))));
+    }
+
     @Test
     @DisplayName("every theme's floor is the frame's, because the geometry is one geometry")
     void everyThemeFloorIsTheFrames() {
