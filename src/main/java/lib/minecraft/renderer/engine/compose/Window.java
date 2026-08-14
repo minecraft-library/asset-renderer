@@ -13,10 +13,10 @@ import java.util.Optional;
  * every implementation replicates one Minecraft pixel as a {@code scale x scale} block rather than
  * resampling, so chrome is exact at every integer scale.
  * <p>
- * Geometry and ink are separate: a {@link Palette} supplies the six roles the frame and cells are
- * drawn in, so a theme re-inks the same pixel geometry rather than describing its own. A window
- * painting from art carries its own ink and answers the palette with the art's, which is why the
- * two arms take it as an argument rather than holding one.
+ * A window carries its own ink. A {@link Theme} is vanilla's geometry in one of several palettes and
+ * a {@link Sliced} is authored art, so neither takes a palette to paint with - one holds a palette
+ * and the other is already coloured. Handing one in would mean the arm that cannot honour it
+ * ignoring it.
  */
 public interface Window {
 
@@ -25,18 +25,16 @@ public interface Window {
      *
      * @param dest the buffer to paint into
      * @param box the panel rect in Minecraft pixels, with its output scale
-     * @param palette the ink for each role
      */
-    void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette);
+    void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box);
 
     /**
      * Paints one slot cell over the box.
      *
      * @param dest the buffer to paint into
      * @param box the cell rect in Minecraft pixels, with its output scale
-     * @param palette the ink for each role
      */
-    void paintCell(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette);
+    void paintCell(@NotNull PixelBuffer dest, @NotNull Box box);
 
     /**
      * Returns the smallest panel this window can paint, in Minecraft pixels - the size at which the
@@ -93,10 +91,25 @@ public interface Window {
     record Palette(int outline, int light, int shadow, int panel, int cellFill, int cellShadow) {
 
         /**
-         * The palette the vanilla container textures are drawn in.
+         * The palette the vanilla container textures are drawn in, read off the shipped art.
          */
         public static final @NotNull Palette VANILLA =
             new Palette(0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737);
+
+        /**
+         * A dark palette for the same geometry. Only {@code panel} and {@code cellFill} carry over
+         * from anything measured; the three bevel roles are authored, because neither scaling
+         * vanilla's ratios nor preserving its differences survives a panel this dark - the first
+         * flattens the bevel to a few levels and the second clamps three roles to black.
+         */
+        public static final @NotNull Palette DARK =
+            new Palette(0xFF000000, 0xFF606060, 0xFF141414, 0xFF303030, 0xFF1A1A1A, 0xFF0D0D0D);
+
+        /**
+         * A deep-purple palette for the same geometry, authored on the same terms as {@link #DARK}.
+         */
+        public static final @NotNull Palette SKYBLOCK =
+            new Palette(0xFF000000, 0xFF3C3C5A, 0xFF0F0F17, 0xFF1E1E2E, 0xFF111122, 0xFF080811);
 
     }
 
@@ -108,9 +121,8 @@ public interface Window {
      * panel with no cell art paints none, which is what a menu whose slots are drawn into the panel
      * already wants.
      * <p>
-     * The art carries its own colours, so a {@link Palette} handed to either paint method is not
-     * read. Re-inking sliced art is a different operation from re-inking drawn geometry and is not
-     * one this offers.
+     * The art carries its own colours, so this window has no palette. Re-inking sliced art is a
+     * different operation from re-inking drawn geometry and is not one this offers.
      *
      * @param panelArt the panel image
      * @param panel its decomposition
@@ -144,13 +156,13 @@ public interface Window {
 
         /** {@inheritDoc} */
         @Override
-        public void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette) {
+        public void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box) {
             blit(dest, ChromeSlicer.assemble(this.panel, this.panelArt, box.width(), box.height()), box);
         }
 
         /** {@inheritDoc} */
         @Override
-        public void paintCell(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette) {
+        public void paintCell(@NotNull PixelBuffer dest, @NotNull Box box) {
             if (this.cellArt.isEmpty() || this.cell.isEmpty()) return;
             blit(dest, ChromeSlicer.assemble(this.cell.get(), this.cellArt.get(), box.width(), box.height()), box);
         }
@@ -193,17 +205,37 @@ public interface Window {
     }
 
     /**
-     * The window vanilla draws its container panels as.
+     * Vanilla's container geometry, in one palette per theme.
+     * <p>
+     * Every constant paints the same pixels and differs only in ink, because the geometry is the
+     * measured vanilla one and a theme is a re-inking of it rather than a shape of its own. Nothing
+     * here reads a texture.
      */
-    enum Vanilla implements Window {
+    enum Theme implements Window {
 
         /**
-         * Paints the panel from rules and reads no texture. Reproduces the shipped container
-         * backgrounds pixel for pixel: the frame's four corner blocks and four one-pixel edge periods
-         * are the same in every container texture that ships, and a cell's edges follow one rule at
-         * every cell size.
+         * The palette the shipped container textures are drawn in. Reproduces them pixel for pixel:
+         * the frame's four corner blocks and four one-pixel edge periods are the same in every
+         * container texture that ships, and a cell's edges follow one rule at every cell size.
          */
-        DRAW;
+        VANILLA(Palette.VANILLA),
+        /**
+         * A dark re-inking of the same geometry.
+         */
+        DARK(Palette.DARK),
+        /**
+         * A deep-purple re-inking of the same geometry.
+         */
+        SKYBLOCK(Palette.SKYBLOCK);
+
+        /**
+         * The ink this theme paints the shared geometry in.
+         */
+        private final @NotNull Palette palette;
+
+        Theme(@NotNull Palette palette) {
+            this.palette = palette;
+        }
 
         /**
          * Side of a frame corner block, and with it the frame's inset, in Minecraft pixels. Three is
@@ -253,7 +285,8 @@ public interface Window {
 
         /** {@inheritDoc} */
         @Override
-        public void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette) {
+        public void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box) {
+            Palette palette = this.palette;
             int w = box.width();
             int h = box.height();
             if (w < BORDER * 2 || h < BORDER * 2) return;
@@ -284,7 +317,8 @@ public interface Window {
 
         /** {@inheritDoc} */
         @Override
-        public void paintCell(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette) {
+        public void paintCell(@NotNull PixelBuffer dest, @NotNull Box box) {
+            Palette palette = this.palette;
             int w = box.width();
             int h = box.height();
             if (w <= 0 || h <= 0) return;

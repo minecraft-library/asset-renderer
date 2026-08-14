@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins {@link Window.Vanilla#DRAW} against the container backgrounds the client ships.
+ * Pins {@link Window.Theme#VANILLA} against the container backgrounds the client ships.
  * <p>
  * The shipped art is the oracle, so this needs no stored baseline and no promotion: a container
  * background is the frame, a solid interior and a set of slot cells, and the assertion is that
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.is;
  */
 @Tag("slow")
 @ExtendWith(ClientAssetsExtension.class)
-@DisplayName("Window.Vanilla.DRAW reproduces the shipped container backgrounds")
+@DisplayName("Window.Theme.VANILLA reproduces the shipped container backgrounds")
 class WindowVanillaOracleTest {
 
     /** the nine columns every full-width slot row sits at */
@@ -96,11 +96,11 @@ class WindowVanillaOracleTest {
 
     private static PixelBuffer paint(Container container, int scale) {
         PixelBuffer buffer = PixelBuffer.create(container.width() * scale, container.height() * scale);
-        Window window = Window.Vanilla.DRAW;
+        Window window = Window.Theme.VANILLA;
 
-        window.paintPanel(buffer, new Window.Box(0, 0, container.width(), container.height(), scale), Window.Palette.VANILLA);
+        window.paintPanel(buffer, new Window.Box(0, 0, container.width(), container.height(), scale));
         for (int[] cell : container.cells())
-            window.paintCell(buffer, new Window.Box(cell[0], cell[1], cell[2], cell[2], scale), Window.Palette.VANILLA);
+            window.paintCell(buffer, new Window.Box(cell[0], cell[1], cell[2], cell[2], scale));
 
         return buffer;
     }
@@ -181,7 +181,7 @@ class WindowVanillaOracleTest {
 
         PixelBuffer sprite = resolved.get();
         PixelBuffer painted = PixelBuffer.create(SLOT, SLOT);
-        Window.Vanilla.DRAW.paintCell(painted, Window.Box.of(SLOT, SLOT), Window.Palette.VANILLA);
+        Window.Theme.VANILLA.paintCell(painted, Window.Box.of(SLOT, SLOT));
 
         int differing = 0;
         for (int y = 0; y < SLOT; y++)
@@ -209,10 +209,10 @@ class WindowVanillaOracleTest {
     @Test
     @DisplayName("the minimum panel is the smallest one that paints a whole frame")
     void theMinimumPanelIsTheSmallestThatPaintsAWholeFrame() {
-        Window.Extent minimum = Window.Vanilla.DRAW.minimum();
+        Window.Extent minimum = Window.Theme.VANILLA.minimum();
 
         PixelBuffer atFloor = PixelBuffer.create(minimum.width(), minimum.height());
-        Window.Vanilla.DRAW.paintPanel(atFloor, Window.Box.of(minimum.width(), minimum.height()), Window.Palette.VANILLA);
+        Window.Theme.VANILLA.paintPanel(atFloor, Window.Box.of(minimum.width(), minimum.height()));
 
         int painted = 0;
         for (int y = 0; y < minimum.height(); y++)
@@ -226,7 +226,7 @@ class WindowVanillaOracleTest {
         assertThat("painted at the floor", painted, is(equalTo(minimum.width() * minimum.height() - 18)));
 
         PixelBuffer belowFloor = PixelBuffer.create(minimum.width(), minimum.height());
-        Window.Vanilla.DRAW.paintPanel(belowFloor, Window.Box.of(minimum.width() - 1, minimum.height()), Window.Palette.VANILLA);
+        Window.Theme.VANILLA.paintPanel(belowFloor, Window.Box.of(minimum.width() - 1, minimum.height()));
 
         int under = 0;
         for (int y = 0; y < minimum.height(); y++)

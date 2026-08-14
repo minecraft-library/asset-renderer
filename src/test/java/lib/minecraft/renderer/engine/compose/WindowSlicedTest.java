@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.is;
  * rules - against the same shipped containers the drawn arm answers for.
  * <p>
  * The two arms are held to each other where they overlap: vanilla's own container background sliced
- * and re-assembled at its authored size has to be what {@link Window.Vanilla#DRAW} paints from
+ * and re-assembled at its authored size has to be what {@link Window.Theme#VANILLA} paints from
  * rules, because they are two descriptions of one image.
  */
 @Tag("slow")
@@ -66,7 +66,7 @@ class WindowSlicedTest {
         Window window = Window.Sliced.of(art, Optional.empty(), Optional.empty(), Optional.empty());
 
         PixelBuffer painted = PixelBuffer.create(176, 166);
-        window.paintPanel(painted, Window.Box.of(176, 166), Window.Palette.VANILLA);
+        window.paintPanel(painted, Window.Box.of(176, 166));
 
         assertThat(differing(art, painted), is(equalTo(0)));
     }
@@ -78,10 +78,10 @@ class WindowSlicedTest {
         Window sliced = Window.Sliced.of(art, Optional.empty(), Optional.empty(), Optional.empty());
 
         PixelBuffer fromArt = PixelBuffer.create(176, 166);
-        sliced.paintPanel(fromArt, Window.Box.of(176, 166), Window.Palette.VANILLA);
+        sliced.paintPanel(fromArt, Window.Box.of(176, 166));
 
         PixelBuffer fromRules = PixelBuffer.create(176, 166);
-        Window.Vanilla.DRAW.paintPanel(fromRules, Window.Box.of(176, 166), Window.Palette.VANILLA);
+        Window.Theme.VANILLA.paintPanel(fromRules, Window.Box.of(176, 166));
 
         // Only the frame ring - the drawn arm paints a plain interior where the art carries slots.
         int differingInFrame = 0;
@@ -102,10 +102,10 @@ class WindowSlicedTest {
         Window window = Window.Sliced.of(panel, Optional.empty(), Optional.of(slot), Optional.empty());
 
         PixelBuffer fromArt = PixelBuffer.create(18, 18);
-        window.paintCell(fromArt, Window.Box.of(18, 18), Window.Palette.VANILLA);
+        window.paintCell(fromArt, Window.Box.of(18, 18));
 
         PixelBuffer fromRules = PixelBuffer.create(18, 18);
-        Window.Vanilla.DRAW.paintCell(fromRules, Window.Box.of(18, 18), Window.Palette.VANILLA);
+        Window.Theme.VANILLA.paintCell(fromRules, Window.Box.of(18, 18));
 
         assertThat(differing(fromArt, fromRules), is(equalTo(0)));
     }
@@ -117,7 +117,7 @@ class WindowSlicedTest {
         Window window = Window.Sliced.of(art, Optional.empty(), Optional.empty(), Optional.empty());
 
         PixelBuffer painted = PixelBuffer.create(18, 18);
-        window.paintCell(painted, Window.Box.of(18, 18), Window.Palette.VANILLA);
+        window.paintCell(painted, Window.Box.of(18, 18));
 
         int written = 0;
         for (int y = 0; y < 18; y++)
@@ -134,10 +134,10 @@ class WindowSlicedTest {
         Window window = Window.Sliced.of(art, Optional.empty(), Optional.empty(), Optional.empty());
 
         PixelBuffer one = PixelBuffer.create(176, 133);
-        window.paintPanel(one, Window.Box.of(176, 133), Window.Palette.VANILLA);
+        window.paintPanel(one, Window.Box.of(176, 133));
 
         PixelBuffer two = PixelBuffer.create(352, 266);
-        window.paintPanel(two, new Window.Box(0, 0, 176, 133, 2), Window.Palette.VANILLA);
+        window.paintPanel(two, new Window.Box(0, 0, 176, 133, 2));
 
         int differing = 0;
         for (int y = 0; y < 266; y++)
