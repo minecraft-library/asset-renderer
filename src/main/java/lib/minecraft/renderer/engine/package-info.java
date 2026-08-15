@@ -70,8 +70,18 @@
  * workaround for hardware-specific GPU coverage that cannot be bit-reproduced in software at
  * any reasonable cost.
  *
+ * <p><b>Parity.</b> Everything here is a render, so a change reaches the five sweeps, the four
+ * render CRC pins and the manifests taken beside them. The pipeline dump is the exception in both
+ * directions - it serialises what a read layer loaded and never calls a renderer, so an identical
+ * dump says nothing about a change made here.
+ *
  * @see lib.minecraft.renderer.engine.ModelEngine
  * @see lib.minecraft.renderer.engine.RendererContext
  * @see lib.minecraft.renderer.engine.raster.RasterMath
  */
+@Parity(claim = "engine-renders", mode = Mode.DEMOTE, scope = Scope.SUBTREE)
 package lib.minecraft.renderer.engine;
+
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Scope;

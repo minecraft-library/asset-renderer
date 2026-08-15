@@ -404,7 +404,6 @@
     },
     {
       "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/**",
         "src/main/java/lib/minecraft/renderer/*Renderer.java"
       ],
       "blind": [
@@ -412,6 +411,7 @@
         "manifest.dump.packs"
       ],
       "claim": "parityDump is blind to everything downstream of the load, so an engine or renderer change is demoted regardless of the dump verdict",
+      "claim_key": "engine-renders",
       "id": "B19",
       "mode": "demote",
       "probe": "PipelineParityDump serialises loaded data and never calls BlockRenderer.resolveVariant; grep the dump for any renderer entry point",
