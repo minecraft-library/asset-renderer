@@ -568,6 +568,28 @@ chrome exact rather than resampled.
 - The player's section is an option a caller asks for, and it is nine cells at the margin whatever
   the panel width. Every parity subject arms it, because both gates compare against a panel that has
   one - the shipped art and the client's own screen.
+- **A mark the panel would have drawn itself re-inks; anything else carries its own inks.** The
+  arrow, the plus and a button's bevel are shapes in the palette's roles, so a re-inked panel carries
+  re-inked marks. The anvil's hammer is a picture and the inside of its name field is an input
+  widget, and a palette has nothing to say about either - the same line a button's face already sits
+  on, its item being full-colour over a bevel that re-inks. The field's **outer** ring is what proves
+  the line rather than breaking it: those two inks are a cell's own bit for bit, so the well sinks
+  into whatever panel it is cut into while its olive stays the widget's.
+- **The anvil's art cannot be its own oracle.** Where its name field goes the shipped panel holds a
+  110x16 rectangle of flat red the client covers on every draw and never once shows, so a window
+  sliced from that texture paints the red. That is why the field is drawn from rules - not to keep
+  its ink free, which is the reason every other mark is declared, but because the art is a hole. It
+  reproduces the shipped text-field sprite whole, and the panel's remaining residual is exactly that
+  rectangle.
+- A field is chrome and content split the way a button is: the window sinks the well, the renderer
+  puts the text in it. The text is drawn plain rather than parsed for format codes, because the
+  client's own field filters them out of what can be typed, and it carries the drop shadow a
+  container's labels decline - it is a widget's text and not the panel's.
+- **A field shows the end of what was typed rather than the start**, and its caret has two forms the
+  value's length picks between: vanilla appends a `_` glyph after the text and cannot once the field
+  is full, so at the cap it fills an unshadowed bar beside it instead. The anvil caps at 50, so a
+  name at exactly that length is what draws the second form. The caret is a frozen instant of
+  something that blinks on the wall clock, so it is a caller's choice rather than a phase.
 - **Two gates answer for a menu and neither substitutes for the other.** The shipped-art oracle is
   byte-exact about chrome, costs seconds and boots no client; the harness menu sweep renders each
   screen through the client's own GUI pipeline and is the only one that sees what a composed screen

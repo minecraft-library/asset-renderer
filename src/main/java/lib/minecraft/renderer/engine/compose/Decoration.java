@@ -7,12 +7,17 @@ import java.util.Optional;
 
 /**
  * A mark a screen paints beside its cells - the arrow between a crafting grid and its result, the
- * raised button that opens a recipe book.
+ * raised button that opens a recipe book, the plus between an anvil's two inputs.
  * <p>
- * Each is geometry rather than art, so a {@link Window} paints one in its own inks and a re-inked
- * panel carries a re-inked mark. That is the whole reason these are declared rather than sliced out
- * of a texture: the shipped crafting panel draws its arrow in the cell's own fill, so an arrow read
- * off the art would be frozen at vanilla's grey while the panel around it changed colour.
+ * Most are geometry, so a {@link Window} paints one in its own inks and a re-inked panel carries a
+ * re-inked mark. That is the whole reason those are declared rather than sliced out of a texture:
+ * the shipped crafting panel draws its arrow in the cell's own fill, so an arrow read off the art
+ * would be frozen at vanilla's grey while the panel around it changed colour.
+ * <p>
+ * Two are not, and each says so by carrying its own inks. A {@link Hammer} is a picture and a
+ * {@link Field} is an input widget, and neither is a shape the panel's palette has anything to say
+ * about - the same reason a {@link Button}'s face carries a full-colour item over a bevel that does
+ * re-ink. What re-inks is what the panel would have drawn itself.
  * <p>
  * What a decoration is <b>not</b> is a cell. Nothing addresses one by slot index, nothing places
  * content in one, and the layout's own cell list does not carry them.
@@ -102,6 +107,162 @@ public sealed interface Decoration {
         @Override
         public @NotNull Optional<ResourceId> icon() {
             return Optional.of(this.item);
+        }
+
+    }
+
+    /**
+     * The plus between an anvil's two input cells, drawn in the cell's own fill.
+     * <p>
+     * Two bars three deep crossing at the middle of a thirteen-pixel square, which is sixty-nine
+     * Minecraft pixels of ink once the nine they share are counted once.
+     *
+     * @param x the left edge of its box
+     * @param y the top edge of its box
+     */
+    record Plus(int x, int y) implements Decoration {
+
+        /** the extent every plus paints */
+        private static final @NotNull Window.Extent EXTENT = new Window.Extent(13, 13);
+
+        /** how deep each of the two crossing bars is */
+        static final int BAR = 3;
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Window.Extent extent() {
+            return EXTENT;
+        }
+
+    }
+
+    /**
+     * The hammer above an anvil's title.
+     * <p>
+     * This one is a picture rather than a shape, so it carries its own inks and no palette re-inks
+     * it - a hammer is a hammer on a panel of any colour, the way the item on a {@link Button}'s
+     * face is. Nine of its ten roles belong to no palette member at all, its handle being wooden.
+     * <p>
+     * It is authored at fifteen pixels square and drawn at {@link #PIXEL} Minecraft pixels a side,
+     * which is how the shipped panel carries it: every one of its nine hundred pixels agrees with
+     * the three beside it in its own two-by-two block, so the panel holds a doubled fifteen and not
+     * a thirty.
+     *
+     * @param x the left edge of its box
+     * @param y the top edge of its box
+     */
+    record Hammer(int x, int y) implements Decoration {
+
+        /** the extent every hammer paints, which is {@link #ROWS} at {@link #PIXEL} */
+        private static final @NotNull Window.Extent EXTENT = new Window.Extent(30, 30);
+
+        /** Minecraft pixels a side each authored pixel is drawn as */
+        static final int PIXEL = 2;
+
+        /** the role leaving the destination untouched, so the panel shows through around the head */
+        static final char CLEAR = '.';
+
+        /**
+         * The picture, one character per authored pixel. The metal runs {@code W H G D K} lightest
+         * to darkest and the wood {@code T R N M}, so a row reads as the thing it draws.
+         */
+        static final @NotNull String @NotNull [] ROWS = {
+            ".......D.......",
+            "......DWD......",
+            ".....DWWHDN....",
+            "....DWWWWGDR...",
+            ".....KHWWWGDM..",
+            "......KWWWWGD..",
+            ".......NWWWWHD.",
+            "......NTMWWWWWK",
+            ".....NRM.KHWWK.",
+            "....NTM...KWK..",
+            "...NRM.....K...",
+            "..NTM..........",
+            ".NRM...........",
+            "NTM............",
+            "RM.............",
+        };
+
+        /**
+         * Resolves one of the picture's roles to its ink.
+         *
+         * @param role the role character
+         * @return the ARGB colour, zero where the destination is left alone
+         * @throws IllegalArgumentException if the character is not one this picture is drawn in
+         */
+        static int ink(char role) {
+            return switch (role) {
+                case 'W' -> 0xFFFFFFFF;
+                case 'H' -> 0xFFD8D8D8;
+                case 'G' -> 0xFFC1C1C1;
+                case 'D' -> 0xFF444444;
+                case 'K' -> 0xFF181818;
+                case 'T' -> 0xFF896727;
+                case 'R' -> 0xFF684E1E;
+                case 'N' -> 0xFF493615;
+                case 'M' -> 0xFF281E0B;
+                case CLEAR -> 0;
+                default -> throw new IllegalArgumentException("Unknown hammer role '%c'".formatted(role));
+            };
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Window.Extent extent() {
+            return EXTENT;
+        }
+
+    }
+
+    /**
+     * The text field an anvil renames through.
+     * <p>
+     * A sunken well two pixels deep, which is {@link Window#paintCell}'s bevel applied twice - once
+     * at the box's own edge and once a pixel inside it.
+     * <p>
+     * The two rings answer to different owners, and the shipped sprite is what says so: its outer
+     * ring is a cell's own two inks bit for bit, so the well sinks into whatever panel it sits on
+     * and re-inks with it, while the olive of the inner ring and the interior belongs to no palette
+     * member and is the widget's own on a panel of any colour.
+     * <p>
+     * The shipped panel does not carry this. What the panel has at these coordinates is a rectangle
+     * of flat red the client covers on every draw, so the field is owed here exactly because the art
+     * cannot supply it.
+     *
+     * @param x the left edge of its box
+     * @param y the top edge of its box
+     */
+    record Field(int x, int y) implements Decoration {
+
+        /** the extent every field paints */
+        private static final @NotNull Window.Extent EXTENT = new Window.Extent(110, 16);
+
+        /** where the text's own glyph cells open within the field, clear of the well's bevel */
+        public static final int TEXT_INSET_X = 3, TEXT_INSET_Y = 4;
+
+        /** how wide the text may run before it scrolls, which is the well's inside */
+        public static final int INNER_WIDTH = 103;
+
+        /** how many characters the anvil accepts, which is what decides the caret's own form */
+        public static final int MAX_LENGTH = 50;
+
+        /** the inner line of the well, on its top and left */
+        static final int INNER_SHADOW = 0xFF6D634D;
+
+        /** the well's interior, which is what the text is drawn over */
+        static final int FILL = 0xFF4E4737;
+
+        /** the inner line of the well, on its bottom and right */
+        static final int INNER_LIGHT = 0xFF29251C;
+
+        /** the ink the text and both forms of the caret are drawn in */
+        public static final int TEXT_ARGB = 0xFFFFFFFF;
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Window.Extent extent() {
+            return EXTENT;
         }
 
     }

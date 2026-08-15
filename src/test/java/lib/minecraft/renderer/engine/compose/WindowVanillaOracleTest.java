@@ -22,10 +22,16 @@ import static org.hamcrest.Matchers.is;
  * <p>
  * The shipped art is the oracle, so this needs no stored baseline and no promotion: a container
  * background is the frame, a solid interior and a set of slot cells, and the assertion is that
- * painting those from rules reproduces the texture with no differing pixel. Four of the five
- * containers reproduce whole. The crafting table keeps a craft arrow that is not chrome, so its
- * residual is pinned by count and bounding box instead - a model change that starts or stops
- * reproducing chrome moves that number either way.
+ * painting those from rules reproduces the texture with no differing pixel. Four of the six
+ * containers reproduce whole on chrome alone. The crafting table keeps a craft arrow that is not
+ * chrome, so its residual is pinned by count and bounding box instead - a model change that starts
+ * or stops reproducing chrome moves that number either way.
+ * <p>
+ * The anvil is the one screen the art cannot fully answer for, so it is compared with its marks
+ * drawn as well as its chrome. Everything the panel draws reproduces; what is left is the rectangle
+ * of flat red the panel carries where its name field goes, which the client covers on every draw
+ * and never once shows. That residual is the field being drawn from rules rather than read off art,
+ * and a second test pins the red so the reason stays visible.
  */
 @Tag("slow")
 @ExtendWith(ClientAssetsExtension.class)
@@ -224,8 +230,8 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("the anvil leaves only its name field and the two marks beside it")
-    void theAnvilLeavesOnlyItsNameFieldAndItsMarks() {
+    @DisplayName("the anvil leaves only the dead field its art carries and the client always covers")
+    void theAnvilLeavesOnlyTheDeadFieldItsArtCarries() {
         MenuLayout layout = MenuScreen.anvil().layout(true);
         PixelBuffer painted = PixelBuffer.create(layout.width(), layout.height());
         Window window = Window.Theme.VANILLA;
@@ -233,6 +239,8 @@ class WindowVanillaOracleTest {
         window.paintPanel(painted, layout.box(1));
         for (MenuLayout.Cell cell : layout.cells())
             window.paintCell(painted, cell.box(1));
+        for (Decoration decoration : layout.decorations())
+            window.paintDecoration(painted, MenuLayout.box(decoration, 1), decoration);
 
         Optional<PixelBuffer> resolved = textures.tryResolveTextureAtTick("minecraft:gui/container/anvil", 0);
         assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
@@ -252,8 +260,76 @@ class WindowVanillaOracleTest {
             }
         }
 
-        assertThat("residual pixel count", differing, is(equalTo(2247)));
-        assertThat("residual bounds", List.of(minX, minY, maxX, maxY), is(equalTo(List.of(17, 7, 168, 62))));
+        // Everything the shipped panel draws reproduces - the frame, the interior, the three cells,
+        // the hammer, the plus and the arrow. What is left is the panel's name field, which is a
+        // rectangle of flat red the client covers with a blitted field on every draw and never once
+        // shows, so the whole of it differs and that is the field being drawn rather than read.
+        assertThat("residual pixel count", differing, is(equalTo(110 * 16)));
+        assertThat("residual bounds", List.of(minX, minY, maxX, maxY), is(equalTo(List.of(59, 20, 168, 35))));
+    }
+
+    @Test
+    @DisplayName("the dead field really is flat red, so slicing that art would draw it")
+    void theDeadFieldIsFlatRed() {
+        Optional<PixelBuffer> resolved = textures.tryResolveTextureAtTick("minecraft:gui/container/anvil", 0);
+        assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
+        PixelBuffer art = resolved.get();
+
+        // This is what makes the field a decoration rather than something a sliced window could
+        // supply: a Window.Sliced over this texture paints the panel as authored, and the panel as
+        // authored has a red hole in it.
+        int red = 0;
+        for (int y = 20; y < 36; y++)
+            for (int x = 59; x < 169; x++)
+                if (art.getPixel(x, y) == 0xFFFF0000) red++;
+
+        assertThat("every pixel of the field's rectangle", red, is(equalTo(110 * 16)));
+    }
+
+    @Test
+    @DisplayName("the field decoration is the shipped text-field sprite")
+    void theFieldDecorationIsTheShippedSprite() {
+        Optional<PixelBuffer> resolved =
+            textures.tryResolveTextureAtTick("minecraft:gui/sprites/container/anvil/text_field_disabled", 0);
+        assertThat("the field sprite resolves", resolved.isPresent(), is(true));
+        PixelBuffer sprite = resolved.get();
+
+        Decoration.Field field = new Decoration.Field(0, 0);
+        int w = field.extent().width();
+        int h = field.extent().height();
+
+        // On a panel-filled buffer, because the well hands two corners over the way the frame's own
+        // chamfers do - it leaves them for whatever it is painted over, and what the sprite has
+        // there is the panel's own grey.
+        PixelBuffer painted = PixelBuffer.create(w, h);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                painted.setPixel(x, y, Window.Palette.VANILLA.panel());
+        Window.Theme.VANILLA.paintDecoration(painted, MenuLayout.box(field, 1), field);
+
+        int differing = 0;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if (painted.getPixel(x, y) != sprite.getPixel(x, y)) differing++;
+
+        assertThat(differing, is(equalTo(0)));
+    }
+
+    @Test
+    @DisplayName("the anvil's arrow is the crafting table's, so one mark serves both")
+    void theAnvilsArrowIsTheCraftingTables() {
+        Optional<PixelBuffer> anvil = textures.tryResolveTextureAtTick("minecraft:gui/container/anvil", 0);
+        Optional<PixelBuffer> crafting = textures.tryResolveTextureAtTick("minecraft:gui/container/crafting_table", 0);
+        assertThat("both textures resolve", anvil.isPresent() && crafting.isPresent(), is(true));
+
+        // The two screens declare the same mark at different coordinates, which is the whole reason
+        // Decoration.Arrow takes a position and carries its extent.
+        int differing = 0;
+        for (int y = 0; y < 15; y++)
+            for (int x = 0; x < 22; x++)
+                if (anvil.get().getPixel(102 + x, 48 + y) != crafting.get().getPixel(90 + x, 35 + y)) differing++;
+
+        assertThat(differing, is(equalTo(0)));
     }
 
     @Test

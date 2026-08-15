@@ -44,9 +44,10 @@ public interface Window {
     /**
      * Paints one of a screen's marks over the box.
      * <p>
-     * A window that draws from rules paints the mark in its own inks; a window sliced from art paints
-     * nothing, because whatever marks that art carries are already in the panel it slices. The item a
-     * button's face holds is not painted here - it is a render, and the renderer places it.
+     * A window that draws from rules paints the mark, in its own inks wherever the mark is one the
+     * panel owns; a window sliced from art paints nothing, because whatever marks that art carries
+     * are already in the panel it slices. What a mark's face holds is not painted here - a button's
+     * item and a field's text are renders, and the renderer places them.
      *
      * @param dest the buffer to paint into
      * @param box the mark's rect in Minecraft pixels, with its output scale
@@ -281,9 +282,14 @@ public interface Window {
     /**
      * Vanilla's container geometry, in one palette per theme.
      * <p>
-     * Every constant paints the same pixels and differs only in ink, because the geometry is the
-     * measured vanilla one and a theme is a re-inking of it rather than a shape of its own. Nothing
-     * here reads a texture.
+     * Every constant here paints the same pixels and differs only in ink, because the geometry is
+     * the measured vanilla one and a theme is a re-inking of it rather than a shape of its own.
+     * Nothing here reads a texture.
+     * <p>
+     * Two marks are drawn in inks the theme does not own, and both carry their own rather than
+     * borrowing a role: a {@link Decoration.Hammer} is a picture, and the inside of a
+     * {@link Decoration.Field} is an input widget's. Neither is something a panel would have drawn
+     * itself, which is the line - what re-inks is what the panel owns.
      */
     enum Theme implements Window {
 
@@ -419,7 +425,96 @@ public interface Window {
             switch (decoration) {
                 case Decoration.Arrow ignored -> paintArrow(dest, box, this.palette);
                 case Decoration.Button ignored -> paintRaised(dest, box, this.palette);
+                case Decoration.Plus ignored -> paintPlus(dest, box, this.palette);
+                case Decoration.Hammer ignored -> paintHammer(dest, box);
+                case Decoration.Field ignored -> paintField(dest, box, this.palette);
             }
+        }
+
+        /**
+         * Paints a plus filling the box - two bars crossing at its middle, in the cell's own fill as
+         * the arrow beside it is.
+         */
+        private static void paintPlus(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette) {
+            int w = box.width();
+            int h = box.height();
+            int ink = palette.cellFill();
+            int left = (w - Decoration.Plus.BAR) / 2;
+            int top = (h - Decoration.Plus.BAR) / 2;
+
+            for (int y = 0; y < h; y++)
+                for (int i = 0; i < Decoration.Plus.BAR; i++)
+                    put(dest, box, left + i, y, ink);
+
+            for (int x = 0; x < w; x++)
+                for (int i = 0; i < Decoration.Plus.BAR; i++)
+                    put(dest, box, x, top + i, ink);
+        }
+
+        /**
+         * Stamps the hammer, each authored pixel as a square of {@link Decoration.Hammer#PIXEL}
+         * Minecraft ones.
+         * <p>
+         * It takes no palette. A picture is not a shape the panel's inks have anything to say about,
+         * so this is the one mark whose colours come from the mark itself.
+         */
+        private static void paintHammer(@NotNull PixelBuffer dest, @NotNull Box box) {
+            int pixel = Decoration.Hammer.PIXEL;
+
+            for (int row = 0; row < Decoration.Hammer.ROWS.length; row++) {
+                String cells = Decoration.Hammer.ROWS[row];
+
+                for (int col = 0; col < cells.length(); col++) {
+                    int argb = Decoration.Hammer.ink(cells.charAt(col));
+
+                    for (int dy = 0; dy < pixel; dy++)
+                        for (int dx = 0; dx < pixel; dx++)
+                            put(dest, box, col * pixel + dx, row * pixel + dy, argb);
+                }
+            }
+        }
+
+        /**
+         * Paints the anvil's name field - a well sunk two pixels into the panel, filled with the
+         * widget's own olive.
+         * <p>
+         * The two rings are {@link #paintCell}'s bevel at two depths, and they differ in where their
+         * inks come from: the outer takes the palette's, because that ring is a cell's own and the
+         * well sinks into whatever panel it sits on, and the inner takes the field's, because the
+         * olive belongs to no palette member. The two corners the bevel hands over are left
+         * untouched, so the panel shows through as it does under the frame's own chamfers.
+         */
+        private static void paintField(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette) {
+            int w = box.width();
+            int h = box.height();
+            if (w < 4 || h < 4) return;
+
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    if ((x == w - 1 && y == 0) || (x == 0 && y == h - 1)) continue;
+                    put(dest, box, x, y, Decoration.Field.FILL);
+                }
+            }
+
+            sink(dest, box, 0, palette.cellShadow(), palette.light());
+            sink(dest, box, 1, Decoration.Field.INNER_SHADOW, Decoration.Field.INNER_LIGHT);
+        }
+
+        /**
+         * Draws one ring of a sunken bevel {@code inset} pixels in from the box's edge - the shadow
+         * along its top and left, the light along its bottom and right, which is
+         * {@link #paintCell}'s own rule read at a depth.
+         */
+        private static void sink(
+            @NotNull PixelBuffer dest, @NotNull Box box, int inset, int shadow, int light
+        ) {
+            int w = box.width();
+            int h = box.height();
+
+            for (int x = inset; x <= w - 2 - inset; x++) put(dest, box, x, inset, shadow);
+            for (int y = inset; y <= h - 2 - inset; y++) put(dest, box, inset, y, shadow);
+            for (int x = inset + 1; x <= w - 1 - inset; x++) put(dest, box, x, h - 1 - inset, light);
+            for (int y = inset + 1; y <= h - 1 - inset; y++) put(dest, box, w - 1 - inset, y, light);
         }
 
         /**

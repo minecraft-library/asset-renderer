@@ -41,7 +41,7 @@ import java.util.List;
  * and are LOOK gauges for that reason; this one is not, and a canvas that disagrees is itself the
  * finding rather than something to resample away.
  *
- * <p>The roster is the eight menus the harness renders, and each subject's title is its own name on
+ * <p>The roster is the ten menus the harness renders, and each subject's title is its own name on
  * both sides - one string, so a label divergence is a real one rather than two rosters disagreeing.
  * Every subject draws the player's section, because that is the panel the client draws.
  *
@@ -85,8 +85,22 @@ public final class TestMenuParityVanilla {
         subjects.add(subject("hopper", MenuOptions.Type.HOPPER, 0));
         subjects.add(subject("dispenser", MenuOptions.Type.DISPENSER, 0));
         subjects.add(subject("crafting_table", MenuOptions.Type.CRAFTING_TABLE, 0));
+        subjects.add(subject("anvil", MenuOptions.Type.ANVIL, 0));
+
+        // The anvil twice, because it is the one screen with a text field and the text is the
+        // subject. Fifty characters is the field's own cap, which is also what selects the second of
+        // the caret's two forms - below it the caret is an appended glyph and at it a filled bar.
+        subjects.add(new Subject("anvil_named", MenuOptions.builder()
+            .type(MenuOptions.Type.ANVIL)
+            .playerInventory(true)
+            .title("anvil_named")
+            .fieldText(ANVIL_NAME)
+            .build()));
         return subjects;
     }
+
+    /** The name the named anvil carries, which is the harness's own string and has to stay it. */
+    private static final @NotNull String ANVIL_NAME = "The Quick Brown Fox Jumps Over The Lazy Dog 123456";
 
     /**
      * Builds one subject. A row count is read by the chest alone, so every other screen is handed the

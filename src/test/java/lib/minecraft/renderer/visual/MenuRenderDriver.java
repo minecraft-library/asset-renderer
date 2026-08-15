@@ -28,12 +28,14 @@ import java.util.Map;
  * a <b>functional / visual</b> tool ("does it render").
  * <p>
  * The roster is every screen the shipped art can be checked against - the four chest row counts one
- * sheet composes, the shulker box, the hopper, the dispenser and the crafting table - each with the
- * player's section drawn, so each names the same panel the client does. Beside them sit four subjects
- * that are about something other than the panel: a server-style menu, which is a six-row chest with
- * the caller's own slot map and a filler behind the rest, a crafting table whose enchanted slots
- * promote the whole menu through the compositor's animated branch, the same chest in a palette the
- * client ships nothing to compare against, and a panel at a size the client ships no sheet for at
+ * sheet composes, the shulker box, the hopper, the dispenser, the crafting table and the anvil, twice
+ * - each with the player's section drawn, so each names the same panel the client does. The anvil is
+ * there twice because it is the only screen with a text field, and a field is the one mark whose
+ * content is the caller's: once named and once bare with its caret declined. Beside them sit four
+ * subjects that are about something other than the panel: a server-style menu, which is a six-row
+ * chest with the caller's own slot map and a filler behind the rest, a crafting table whose enchanted
+ * slots promote the whole menu through the compositor's animated branch, the same chest in a palette
+ * the client ships nothing to compare against, and a panel at a size the client ships no sheet for at
  * all.
  * <p>
  * Usage: {@code ./gradlew menuRender}. Outputs land in {@code cache/visual/menu-render/}.
@@ -118,6 +120,27 @@ public final class MenuRenderDriver {
                 slot(4, "minecraft:iron_ingot"),
                 slot(7, "minecraft:iron_ingot"),
                 slot(9, "minecraft:diamond_sword")))
+            .build()), imageFactory);
+
+        write("anvil", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.ANVIL)
+            .playerInventory(true)
+            .title("Repair & Name")
+            .fieldText("Excalibur")
+            .slots(slots(
+                slot(0, "minecraft:diamond_sword"),
+                slot(1, "minecraft:diamond"),
+                slot(2, "minecraft:diamond_sword")))
+            .build()), imageFactory);
+
+        // The same screen with its field empty and its caret declined, which is the pair of choices
+        // no other subject here has to make: a field is the one mark whose content is a caller's and
+        // whose caret is a frozen instant of something that blinks.
+        write("anvil_bare", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.ANVIL)
+            .playerInventory(true)
+            .title("Repair & Name")
+            .caret(false)
             .build()), imageFactory);
 
         // A server menu is a chest with the caller's own slot map over it and a filler behind the

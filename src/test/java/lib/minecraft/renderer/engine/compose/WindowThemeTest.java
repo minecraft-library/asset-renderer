@@ -163,6 +163,86 @@ class WindowThemeTest {
     }
 
     @Test
+    @DisplayName("a plus is two bars crossing, in the ink its cells are filled with")
+    void aPlusIsTwoBarsCrossing() {
+        PixelBuffer plus = mark(Window.Theme.VANILLA, new Decoration.Plus(0, 0));
+        int fill = Window.Palette.VANILLA.cellFill();
+
+        int inked = 0;
+        for (int y = 0; y < 13; y++)
+            for (int x = 0; x < 13; x++)
+                if (plus.getPixel(x, y) != 0) {
+                    assertThat("the plus is one ink", plus.getPixel(x, y), is(equalTo(fill)));
+                    inked++;
+                }
+
+        // Two bars of thirteen by three counted once each, less the nine they share where they
+        // cross - which is the shipped anvil panel's own plus to the pixel.
+        assertThat("the whole mark", inked, is(equalTo(13 * 3 + 13 * 3 - 3 * 3)));
+        assertThat("the bars cross at the middle", plus.getPixel(6, 6), is(equalTo(fill)));
+        assertThat("the corners are clear", plus.getPixel(0, 0), is(equalTo(0)));
+        assertThat("and the arms reach the edges", plus.getPixel(0, 6), is(equalTo(fill)));
+        assertThat("on both axes", plus.getPixel(6, 0), is(equalTo(fill)));
+    }
+
+    @Test
+    @DisplayName("a hammer is a picture, so it is not re-inked and its rows are doubled")
+    void aHammerIsAPictureRatherThanAShape() {
+        Decoration hammer = new Decoration.Hammer(0, 0);
+        PixelBuffer vanilla = mark(Window.Theme.VANILLA, hammer);
+        PixelBuffer dark = mark(Window.Theme.DARK, hammer);
+
+        // A palette has nothing to say about a wooden handle, so unlike every mark that is a shape
+        // this one is the same picture on any panel.
+        int painted = 0;
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 30; x++) {
+                assertThat("a theme does not re-ink a picture",
+                    dark.getPixel(x, y), is(equalTo(vanilla.getPixel(x, y))));
+                if (vanilla.getPixel(x, y) != 0) painted++;
+            }
+
+        assertThat("the whole mark", painted, is(equalTo(312)));
+
+        // It is authored at fifteen and drawn at two, so every pixel agrees with the three beside it.
+        for (int y = 0; y < 15; y++)
+            for (int x = 0; x < 15; x++)
+                for (int corner = 1; corner < 4; corner++)
+                    assertThat("each authored pixel is a square of two",
+                        vanilla.getPixel(2 * x + corner % 2, 2 * y + corner / 2),
+                        is(equalTo(vanilla.getPixel(2 * x, 2 * y))));
+    }
+
+    @Test
+    @DisplayName("a field sinks into its panel in the panel's ink and fills with its own")
+    void aFieldSinksIntoItsPanelButFillsWithItsOwn() {
+        Decoration field = new Decoration.Field(0, 0);
+        PixelBuffer vanilla = mark(Window.Theme.VANILLA, field);
+        PixelBuffer dark = mark(Window.Theme.DARK, field);
+        int w = 110, h = 16;
+
+        // The outer ring is a cell's own bevel, so it re-inks and the well sits in whatever panel it
+        // is cut into.
+        assertThat("the outer ring shadows the top", vanilla.getPixel(50, 0),
+            is(equalTo(Window.Palette.VANILLA.cellShadow())));
+        assertThat("and re-inks with the theme", dark.getPixel(50, 0),
+            is(equalTo(Window.Palette.DARK.cellShadow())));
+        assertThat("the outer ring lights the bottom", vanilla.getPixel(50, h - 1),
+            is(equalTo(Window.Palette.VANILLA.light())));
+        assertThat("and re-inks with the theme", dark.getPixel(50, h - 1),
+            is(equalTo(Window.Palette.DARK.light())));
+
+        // The inside is the widget's, so it does not.
+        assertThat("the interior is the field's own", vanilla.getPixel(50, 8),
+            is(equalTo(dark.getPixel(50, 8))));
+        assertThat("as is the inner ring", vanilla.getPixel(50, 1), is(equalTo(dark.getPixel(50, 1))));
+
+        // The two corners the bevel hands over are left for whatever the field is painted on.
+        assertThat("the top-right corner shows through", vanilla.getPixel(w - 1, 0), is(equalTo(0)));
+        assertThat("as does the bottom-left", vanilla.getPixel(0, h - 1), is(equalTo(0)));
+    }
+
+    @Test
     @DisplayName("art carries its own marks, so a sliced window paints none")
     void artCarriesItsOwnMarks() {
         // The shipped crafting panel has its arrow painted into the texture, so a window slicing that

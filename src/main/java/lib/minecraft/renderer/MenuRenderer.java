@@ -114,6 +114,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         anyAnimated |= placeSlots(options, layout, stack, itemRenderer);
         anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer);
         anyAnimated |= placeLabels(options, layout, stack);
+        placeFieldText(options, layout, stack);
 
         return composite(layout, stack, anyAnimated, options);
     }
@@ -343,6 +344,119 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         }
 
         return anyAnimated;
+    }
+
+    /**
+     * The insert caret's own extent - one Minecraft pixel wide, opening a pixel above the glyph
+     * cells and running four below them, which is the bar vanilla fills rather than a glyph.
+     */
+    private static final int CARET_RISE = 1, CARET_HEIGHT = 11;
+
+    /**
+     * Draws what a screen's text field holds and the caret marking where typing would continue.
+     * <p>
+     * The field's well is chrome and its text is a render, the same split a button's face takes: the
+     * window sinks the well in its own inks and this puts the text in it. Nothing is drawn for a
+     * screen that has no field, which is every screen but the anvil.
+     * <p>
+     * The text is drawn plain rather than parsed for format codes, because the client's own field
+     * filters them out of what can be typed, and it carries a drop shadow where a container's labels
+     * decline one - it is a widget's text and not the panel's.
+     *
+     * @param options the menu render options, supplying the text and whether a caret is drawn
+     * @param layout the laid-out panel, carrying the field among its marks
+     * @param stack the layer stack to append to
+     */
+    static void placeFieldText(
+        @NotNull MenuOptions options,
+        @NotNull MenuLayout layout,
+        @NotNull LayerStack<FrameLayer> stack
+    ) {
+        Optional<Decoration.Field> field = layout.decorations().stream()
+            .filter(Decoration.Field.class::isInstance)
+            .map(Decoration.Field.class::cast)
+            .findFirst();
+        if (field.isEmpty()) return;
+
+        String typed = typedInto(options);
+        String shown = visibleTail(typed);
+        if (shown.isEmpty() && !options.isCaret()) return;
+
+        PixelBuffer buffer = PixelBuffer.create(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
+        MinecraftGraphics g = new MinecraftGraphics(buffer);
+        int textX = field.get().x() + Decoration.Field.TEXT_INSET_X;
+        int textY = field.get().y() + Decoration.Field.TEXT_INSET_Y;
+        int baseline = textY + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+        int drawn = shown.isEmpty() ? 0
+            : TextKit.drawLine(g, plain(shown), textX, baseline, Decoration.Field.TEXT_ARGB, 0L, 0L, true);
+
+        if (options.isCaret()) drawCaret(g, buffer, typed, textX + drawn, textY, baseline);
+
+        place(stack, MenuSlot.TEXT, new FramePlacement(0, 0, StaticImageData.of(buffer.toBufferedImage())));
+    }
+
+    /**
+     * What the field actually holds, which is the caller's text cut to the field's own cap the way
+     * the client's own cuts anything typed past it.
+     */
+    static @NotNull String typedInto(@NotNull MenuOptions options) {
+        String text = options.getFieldText();
+        return text.length() <= Decoration.Field.MAX_LENGTH
+            ? text
+            : text.substring(0, Decoration.Field.MAX_LENGTH);
+    }
+
+    /**
+     * The part of the text the field shows - its longest tail that fits, because a field scrolls to
+     * keep the end of what was typed in view rather than the beginning.
+     *
+     * @param typed what the field holds
+     * @return the visible tail, empty where even the last character does not fit
+     */
+    static @NotNull String visibleTail(@NotNull String typed) {
+        for (int from = 0; from < typed.length(); from++) {
+            String tail = typed.substring(from);
+            if (TextKit.measureLineMcPixels(plain(tail)) <= Decoration.Field.INNER_WIDTH) return tail;
+        }
+
+        return "";
+    }
+
+    /**
+     * Draws the caret in whichever of its two forms the text's length selects.
+     * <p>
+     * Vanilla appends an underscore glyph after the text, and stops being able to once the field is
+     * full - there is no position past the last character to append at - so at the cap it fills a
+     * bar beside it instead. The glyph carries the text's drop shadow and the bar carries none,
+     * being a fill rather than a draw.
+     */
+    private static void drawCaret(
+        @NotNull MinecraftGraphics g, @NotNull PixelBuffer buffer,
+        String typed, int caretX, int textY, int baseline
+    ) {
+        if (typed.length() < Decoration.Field.MAX_LENGTH) {
+            TextKit.drawLine(g, plain("_"), caretX, baseline, Decoration.Field.TEXT_ARGB, 0L, 0L, true);
+            return;
+        }
+
+        for (int y = 0; y < CARET_HEIGHT * PX_SCALE; y++) {
+            int py = (textY - CARET_RISE) * PX_SCALE + y;
+            if (py < 0 || py >= buffer.height()) continue;
+
+            for (int x = 0; x < PX_SCALE; x++) {
+                int px = caretX * PX_SCALE + x;
+                if (px < 0 || px >= buffer.width()) continue;
+                buffer.setPixel(px, py, Decoration.Field.TEXT_ARGB);
+            }
+        }
+    }
+
+    /**
+     * One run of unstyled text as a line, for the draws that take a caller's characters as they
+     * arrived rather than as a format string.
+     */
+    private static @NotNull LineSegment plain(@NotNull String text) {
+        return LineSegment.builder().withSegments(new ColorSegment(text)).build();
     }
 
     /**

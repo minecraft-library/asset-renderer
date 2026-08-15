@@ -102,6 +102,28 @@ public class MenuOptions implements RenderOptions {
     private final int defaultTitleArgb = 0xFF404040;
 
     /**
+     * What a screen's own text field holds, read by the screens that have one and by no other.
+     * {@link Type#ANVIL} is the only one today.
+     * <p>
+     * Text past the field's own cap is dropped rather than refused, which is what the client's own
+     * field does with it, and text too wide for the field scrolls so its end stays in view - a field
+     * shows the end of what was typed into it.
+     */
+    @lombok.Builder.Default
+    private final @NotNull String fieldText = "";
+
+    /**
+     * Whether a text field draws the caret that marks where typing would continue.
+     * <p>
+     * Vanilla blinks one on the wall clock and a still picture has to answer with one state or the
+     * other, so this is the choice rather than a phase. It is drawn by default because that is what
+     * the client shows on opening the screen, and a caller rendering a menu as an illustration
+     * rather than as a screenshot turns it off.
+     */
+    @lombok.Builder.Default
+    private final boolean caret = true;
+
+    /**
      * Whether the player's own inventory and hotbar are drawn below the container's cells. A caller
      * gets the container section alone and asks for the band.
      */

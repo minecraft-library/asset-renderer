@@ -153,13 +153,28 @@ public record MenuScreen(
     /**
      * The anvil, whose row is two inputs and a result at their own spacing rather than a grid, so it
      * has one row of no columns and carries its three cells as extras.
+     * <p>
+     * It carries the most marks of any shipped screen, and one of them the art cannot supply. The
+     * plus and the arrow are painted into the panel's own texture, and its arrow is the crafting
+     * table's to the pixel. The hammer above its title is a picture. Where its name field goes the
+     * texture holds a rectangle of flat red, which the client covers on every draw with a blitted
+     * field and never once shows - so the field is declared here for the same reason the others are
+     * and with the opposite justification: not because reading it off the art would freeze its ink,
+     * but because reading it off the art would draw the red.
      */
     public static @NotNull MenuScreen anvil() {
         ConcurrentList<MenuLayout.Cell> extras = Concurrent.newList();
         extras.add(new MenuLayout.Cell(26, 46, CELL, MenuLayout.Role.CONTAINER));
         extras.add(new MenuLayout.Cell(75, 46, CELL, MenuLayout.Role.CONTAINER));
         extras.add(new MenuLayout.Cell(133, 46, CELL, MenuLayout.Role.RESULT));
-        return new MenuScreen(46, 19, 0, 1, 0, MARGIN, COLUMNS, new TitleX.Inset(60), extras, Concurrent.newList());
+
+        ConcurrentList<Decoration> marks = Concurrent.newList();
+        marks.add(new Decoration.Hammer(17, 7));
+        marks.add(new Decoration.Field(59, 20));
+        marks.add(new Decoration.Plus(53, 49));
+        marks.add(new Decoration.Arrow(102, 48));
+
+        return new MenuScreen(46, 19, 0, 1, 0, MARGIN, COLUMNS, new TitleX.Inset(60), extras, marks);
     }
 
     /**
