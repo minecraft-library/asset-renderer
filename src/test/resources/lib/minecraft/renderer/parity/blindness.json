@@ -43,16 +43,12 @@
   ],
   "rules": [
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/asset/pack/rule/**",
-        "src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java",
-        "src/main/java/lib/minecraft/renderer/pipeline/**/Ctm*.java",
-        "src/main/java/lib/minecraft/renderer/pipeline/**/Cit*.java"
-      ],
+      "authored_paths": [],
       "blind": [
         "manifest.dump.vanilla"
       ],
       "claim": "CIT and CTM rules are dark in both parityDump configurations, and the rule package's other parsers are not",
+      "claim_key": "pack-rule-layer",
       "id": "B2",
       "mode": "select",
       "probe": "read rules.json in either dump config and confirm both counts are 0",
@@ -64,9 +60,9 @@
       "source": "measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; CLAUDE.md 'The pack filter'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/pack/rule/**",
-        "src/main/java/lib/minecraft/renderer/pipeline/**/Cit*.java",
-        "src/main/java/lib/minecraft/renderer/pipeline/**/Ctm*.java",
-        "src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java"
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/rule/CitParser.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/rule/CtmParser.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/rule/RuleScanner.java"
       ]
     },
     {

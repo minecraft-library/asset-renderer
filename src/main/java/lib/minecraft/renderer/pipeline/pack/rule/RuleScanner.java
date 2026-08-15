@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.pack.rule.ColorProperties;
 import lib.minecraft.renderer.asset.pack.rule.CtmRule;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.pipeline.pack.PackSubtree;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -37,6 +38,7 @@ import java.util.Properties;
  * the whole rule layer stays inert. Walks the pack's active roots (base first, overlays after) so an
  * overlay's rules win within the pack.
  */
+@Parity(claim = "pack-rule-layer")
 @UtilityClass
 public class RuleScanner {
 

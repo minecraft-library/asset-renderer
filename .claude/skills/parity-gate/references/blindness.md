@@ -62,7 +62,7 @@ capture, which does not affect the strips it writes.
 ## B2 - CIT and CTM rules are dark in both parityDump configurations, and the rule package's other parsers are not
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/**`, `src/main/java/lib/minecraft/renderer/pipeline/**/Cit*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/Ctm*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/**`, `src/main/java/lib/minecraft/renderer/pipeline/pack/rule/CitParser.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/rule/CtmParser.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/rule/RuleScanner.java`
 - **sees** `digest.shipped-tables`, `manifest.dump.packs`
 - **blind** `manifest.dump.vanilla`
 - **source** measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; CLAUDE.md 'The pack filter'

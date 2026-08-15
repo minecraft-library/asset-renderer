@@ -293,9 +293,10 @@ class TheShippedTree(unittest.TestCase):
     """The reader against the source root it is really for."""
 
     def test_the_vocabulary_package_declares_itself(self):
-        result = declarations.scan(REPO)
-        self.assertEqual(declarations.derive(result),
-                         {"parity-vocabulary": [f"{declarations.VOCABULARY}/**"]})
+        """No shipped glob reaches a new top-level sub-package of the renderer root, so this one
+        answers for its own files or the coverage check has five it does not."""
+        self.assertEqual(declarations.derive(declarations.scan(REPO))["parity-vocabulary"],
+                         [f"{declarations.VOCABULARY}/**"])
 
     def test_nothing_in_the_tree_is_a_mention_the_reader_declines(self):
         self.assertEqual(declarations.scan(REPO).reports, [])
