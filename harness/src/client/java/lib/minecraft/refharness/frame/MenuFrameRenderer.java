@@ -17,6 +17,7 @@ import net.minecraft.client.renderer.state.gui.GuiRenderState;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 /**
  * Renders a container screen through the client's own GUI pipeline into an offscreen target, then
@@ -53,11 +54,15 @@ public final class MenuFrameRenderer implements AutoCloseable {
      * @param screen the screen to draw, not yet laid out
      * @param canvas the canvas to draw onto, which is the screen's panel at {@link #GUI_SCALE}
      * @param out where to write the PNG; parent directories are created on demand
+     * @param afterInit run once the screen is laid out, for a subject whose state lives on a widget
+     * {@code init} is what builds
      * @return whether a PNG was written
      * @throws IOException if the PNG write fails
      */
-    public boolean render(Minecraft client, AbstractContainerScreen<?> screen, Canvas canvas, Path out)
-        throws IOException {
+    public boolean render(
+        Minecraft client, AbstractContainerScreen<?> screen, Canvas canvas, Path out,
+        Consumer<AbstractContainerScreen<?>> afterInit
+    ) throws IOException {
         ensureTarget(canvas.width(), canvas.height());
 
         GameRenderState renderState = client.gameRenderer.getGameRenderState();
@@ -77,6 +82,10 @@ public final class MenuFrameRenderer implements AutoCloseable {
 
             // init sizes the screen to the panel itself, which is what makes leftPos and topPos zero.
             screen.init(canvas.width() / GUI_SCALE, canvas.height() / GUI_SCALE);
+
+            // A screen builds its widgets in init, so anything a subject wants to say about one has
+            // to be said here - before the extract reads them and after they exist.
+            afterInit.accept(screen);
 
             guiState.reset();
             GuiGraphicsExtractor extractor = new GuiGraphicsExtractor(client, guiState, -1, -1);

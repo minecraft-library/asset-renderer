@@ -5,7 +5,10 @@ import lib.minecraft.refharness.api.RefKey;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
 import lib.minecraft.refharness.frame.MenuFrameRenderer;
+import lib.minecraft.refharness.mixin.AnvilScreenAccessor;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.AnvilScreen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CraftingScreen;
 import net.minecraft.client.gui.screens.inventory.DispenserScreen;
@@ -13,6 +16,7 @@ import net.minecraft.client.gui.screens.inventory.HopperScreen;
 import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.DispenserMenu;
@@ -26,15 +30,18 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 /**
  * Container-screen sweep. Renders each shipped menu through the client's own GUI pipeline, so the
  * reference is the composed screen - panel, labels and slots - rather than the panel's texture.
  *
- * <p>The roster is hand-written and it is the eight menus asset-renderer draws a vanilla shape for:
- * the four row counts one chest sheet composes, and the four screens the client ships whole. It is not
- * derived from a registry, because a menu is not a registry entry - which is also why the target
- * allowlist does not apply: filtering menu names against block and entity ids would render nothing.
+ * <p>The roster is hand-written and it is the ten menus asset-renderer draws a vanilla shape for: the
+ * four row counts one chest sheet composes, the five screens the client ships whole, and the anvil a
+ * second time with a name typed into its field - the one subject that is a state rather than a shape,
+ * and the only ground truth there is for what a container draws text into. It is not derived from a
+ * registry, because a menu is not a registry entry - which is also why the target allowlist does not
+ * apply: filtering menu names against block and entity ids would render nothing.
  *
  * <p>Every subject is drawn with the player's own section, because that is the panel the client draws
  * and the one both of asset-renderer's gates compare against. The canvas is the screen's <b>drawn</b>
@@ -51,11 +58,21 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
      * @param name the output stem, which is the subject's whole name because a menu has no namespace
      * @param height the panel's drawn height in Minecraft pixels, which is what the canvas is sized to
      * @param screen builds the screen from the player's inventory and the title
+     * @param afterInit says whatever the subject has to say to a widget the screen's own {@code init}
+     * builds, which is the only point at which one both exists and has not yet been read
      */
     public record MenuSubject(
         String name, int height,
-        BiFunction<Inventory, Component, AbstractContainerScreen<?>> screen
-    ) {}
+        BiFunction<Inventory, Component, AbstractContainerScreen<?>> screen,
+        Consumer<AbstractContainerScreen<?>> afterInit
+    ) {
+
+        /** A subject that is whatever its screen is on being laid out. */
+        MenuSubject(String name, int height, BiFunction<Inventory, Component, AbstractContainerScreen<?>> screen) {
+            this(name, height, screen, ignored -> {});
+        }
+
+    }
 
     /** every shipped container panel is nine cells and two margins across */
     private static final int PANEL_WIDTH = 176;
@@ -88,10 +105,37 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
             new MenuSubject("dispenser", 166,
                 (inv, title) -> new DispenserScreen(new DispenserMenu(CONTAINER_ID, inv), inv, title)),
             new MenuSubject("crafting_table", 166,
-                (inv, title) -> new CraftingScreen(new CraftingMenu(CONTAINER_ID, inv), inv, title)));
+                (inv, title) -> new CraftingScreen(new CraftingMenu(CONTAINER_ID, inv), inv, title)),
+            new MenuSubject("anvil", 166,
+                (inv, title) -> new AnvilScreen(new AnvilMenu(CONTAINER_ID, inv), inv, title)),
+            new MenuSubject("anvil_named", 166,
+                (inv, title) -> new AnvilScreen(new AnvilMenu(CONTAINER_ID, inv), inv, title),
+                screen -> nameAnvil(screen, ANVIL_NAME)));
 
         LOG.info("MenuSweep built: {} targets", subjects.size());
         return subjects;
+    }
+
+    /**
+     * The name the renamed anvil carries, at the fifty characters {@code AnvilScreen.subInit} caps
+     * its field to. It is a pangram with digits on the end rather than a plausible item name, so the
+     * one subject that exercises the field's text covers as much of the font as fifty characters
+     * can.
+     */
+    private static final String ANVIL_NAME = "The Quick Brown Fox Jumps Over The Lazy Dog 123456";
+
+    /**
+     * Types a name into an anvil's field.
+     *
+     * <p>The screen's own responder sends a rename packet on every change, and a subject setting the
+     * text is describing what the field shows rather than renaming anything, so it is dropped first.
+     * Nothing else about the screen moves: the input slot stays empty, so the field keeps the
+     * disabled sprite the unnamed subject draws and the two differ only by the text.
+     */
+    private static void nameAnvil(AbstractContainerScreen<?> screen, String name) {
+        EditBox field = ((AnvilScreenAccessor) screen).refharness$name();
+        field.setResponder(ignored -> {});
+        field.setValue(name);
     }
 
     @Override
@@ -118,7 +162,7 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
         AbstractContainerScreen<?> screen =
             subject.screen().apply(inventory, Component.literal(subject.name()));
 
-        return frameRenderer.render(ctx.client(), screen, canvas, out);
+        return frameRenderer.render(ctx.client(), screen, canvas, out, subject.afterInit());
     }
 
     /**
