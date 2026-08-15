@@ -468,14 +468,13 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java"
-      ],
+      "authored_paths": [],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs"
       ],
       "claim": "Block#modelIcon has no key in any dump section, and Block.Variant.noPosition has none either",
+      "claim_key": "block-icon-selection",
       "id": "B22",
       "mode": "select",
       "probe": "grep the 14 dump sections for modelIcon and for noPosition; both come back empty",
