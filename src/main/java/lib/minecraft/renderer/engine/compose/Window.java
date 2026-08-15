@@ -87,6 +87,57 @@ public interface Window {
             return new Box(0, 0, width, height, 1);
         }
 
+        /**
+         * Writes one Minecraft pixel as a {@code scale x scale} block, clipped to the destination.
+         * A zero ink writes nothing, so a chamfered corner shows through what it is painted over.
+         *
+         * @param dest the buffer to paint into
+         * @param mcX the left edge within this box, in Minecraft pixels
+         * @param mcY the top edge within this box, in Minecraft pixels
+         * @param argb the colour, zero to leave the destination alone
+         */
+        void put(@NotNull PixelBuffer dest, int mcX, int mcY, int argb) {
+            if (argb == 0) return;
+
+            int x0 = (this.x + mcX) * this.scale;
+            int y0 = (this.y + mcY) * this.scale;
+
+            for (int dy = 0; dy < this.scale; dy++) {
+                int y = y0 + dy;
+                if (y < 0 || y >= dest.height()) continue;
+
+                for (int dx = 0; dx < this.scale; dx++) {
+                    int x = x0 + dx;
+                    if (x < 0 || x >= dest.width()) continue;
+                    dest.setPixel(x, y, argb);
+                }
+            }
+        }
+
+        /**
+         * Draws one ring of a sunken bevel {@code inset} pixels in from this box's edge - the shadow
+         * along its top and left, the light along its bottom and right.
+         * <p>
+         * One rule serves every sunken thing here at whatever depth it is read at: a slot cell is
+         * this at zero, and a text field's well is this at zero and again at one in a second pair of
+         * inks. The two corners where the shadow hands over to the light are left unwritten, so
+         * whatever the ring is drawn over shows through them as it does under the frame's chamfers.
+         *
+         * @param dest the buffer to paint into
+         * @param inset how many Minecraft pixels in from this box's edge the ring sits
+         * @param shadow the ink along the top and left
+         * @param light the ink along the bottom and right
+         */
+        void sink(@NotNull PixelBuffer dest, int inset, int shadow, int light) {
+            int w = this.width;
+            int h = this.height;
+
+            for (int x = inset; x <= w - 2 - inset; x++) put(dest, x, inset, shadow);
+            for (int y = inset; y <= h - 2 - inset; y++) put(dest, inset, y, shadow);
+            for (int x = inset + 1; x <= w - 1 - inset; x++) put(dest, x, h - 1 - inset, light);
+            for (int y = inset + 1; y <= h - 1 - inset; y++) put(dest, w - 1 - inset, y, light);
+        }
+
     }
 
     /**
@@ -254,27 +305,9 @@ public interface Window {
          * through.
          */
         private static void blit(@NotNull PixelBuffer dest, @NotNull PixelBuffer painted, @NotNull Box box) {
-            int scale = box.scale();
-
-            for (int my = 0; my < painted.height(); my++) {
-                for (int mx = 0; mx < painted.width(); mx++) {
-                    int argb = painted.getPixel(mx, my);
-                    if (argb == 0) continue;
-
-                    int x0 = (box.x() + mx) * scale;
-                    int y0 = (box.y() + my) * scale;
-                    for (int dy = 0; dy < scale; dy++) {
-                        int y = y0 + dy;
-                        if (y < 0 || y >= dest.height()) continue;
-
-                        for (int dx = 0; dx < scale; dx++) {
-                            int x = x0 + dx;
-                            if (x < 0 || x >= dest.width()) continue;
-                            dest.setPixel(x, y, argb);
-                        }
-                    }
-                }
-            }
+            for (int my = 0; my < painted.height(); my++)
+                for (int mx = 0; mx < painted.width(); mx++)
+                    box.put(dest, mx, my, painted.getPixel(mx, my));
         }
 
     }
@@ -324,38 +357,38 @@ public interface Window {
         }
 
         /**
+         * Role codes the frame's corner blocks and edge periods are written in. The code leaving the
+         * destination untouched belongs to {@link Stencil}, so nothing here declares one.
+         */
+        private static final char OUTLINE = 'O', LIGHT = 'L', SHADOW = 'S', PANEL = 'P';
+
+        /**
+         * The top-left corner block.
+         */
+        private static final @NotNull Stencil TOP_LEFT = Stencil.of("..OO", ".OLL", "OLLL", "OLLL");
+
+        /**
+         * The top-right corner block.
+         */
+        private static final @NotNull Stencil TOP_RIGHT = Stencil.of("O...", "LO..", "LPO.", "PSSO");
+
+        /**
+         * The bottom-left corner block.
+         */
+        private static final @NotNull Stencil BOTTOM_LEFT = Stencil.of("OLLP", ".OPS", "..OS", "...O");
+
+        /**
+         * The bottom-right corner block.
+         */
+        private static final @NotNull Stencil BOTTOM_RIGHT = Stencil.of("SSSO", "SSSO", "SSO.", "OO..");
+
+        /**
          * Side of a frame corner block, and with it the frame's inset, in Minecraft pixels. Three is
          * the visible depth - one line of outline and two of bevel - and the fourth column carries the
          * corner chamfer's last step, which reaches one pixel further in than the straight edge does.
+         * It is read off a corner rather than declared, so it cannot disagree with one.
          */
-        private static final int BORDER = 4;
-
-        /**
-         * Role codes the frame's corner blocks and edge periods are written in: {@code .} leaves the
-         * destination untouched, so the chamfered corners show through whatever they are painted over,
-         * as vanilla's do.
-         */
-        private static final char TRANSPARENT = '.', OUTLINE = 'O', LIGHT = 'L', SHADOW = 'S', PANEL = 'P';
-
-        /**
-         * The top-left corner block, row by row.
-         */
-        private static final @NotNull String @NotNull [] TOP_LEFT = { "..OO", ".OLL", "OLLL", "OLLL" };
-
-        /**
-         * The top-right corner block, row by row.
-         */
-        private static final @NotNull String @NotNull [] TOP_RIGHT = { "O...", "LO..", "LPO.", "PSSO" };
-
-        /**
-         * The bottom-left corner block, row by row.
-         */
-        private static final @NotNull String @NotNull [] BOTTOM_LEFT = { "OLLP", ".OPS", "..OS", "...O" };
-
-        /**
-         * The bottom-right corner block, row by row.
-         */
-        private static final @NotNull String @NotNull [] BOTTOM_RIGHT = { "SSSO", "SSSO", "SSO.", "OO.." };
+        private static final int BORDER = TOP_LEFT.columns();
 
         /**
          * The top edge's one-pixel period, outermost first. The left edge repeats the same run, and the
@@ -373,32 +406,33 @@ public interface Window {
         @Override
         public void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box) {
             Palette palette = this.palette;
+            Stencil.Ink ink = code -> ink(code, palette);
             int w = box.width();
             int h = box.height();
             if (w < BORDER * 2 || h < BORDER * 2) return;
 
             for (int y = BORDER; y < h - BORDER; y++)
                 for (int x = BORDER; x < w - BORDER; x++)
-                    put(dest, box, x, y, palette.panel());
+                    box.put(dest, x, y, palette.panel());
 
             for (int x = BORDER; x < w - BORDER; x++) {
                 for (int i = 0; i < BORDER; i++) {
-                    put(dest, box, x, i, ink(EDGE_NEAR.charAt(i), palette));
-                    put(dest, box, x, h - BORDER + i, ink(EDGE_FAR.charAt(i), palette));
+                    box.put(dest, x, i, ink.of(EDGE_NEAR.charAt(i)));
+                    box.put(dest, x, h - BORDER + i, ink.of(EDGE_FAR.charAt(i)));
                 }
             }
 
             for (int y = BORDER; y < h - BORDER; y++) {
                 for (int i = 0; i < BORDER; i++) {
-                    put(dest, box, i, y, ink(EDGE_NEAR.charAt(i), palette));
-                    put(dest, box, w - BORDER + i, y, ink(EDGE_FAR.charAt(i), palette));
+                    box.put(dest, i, y, ink.of(EDGE_NEAR.charAt(i)));
+                    box.put(dest, w - BORDER + i, y, ink.of(EDGE_FAR.charAt(i)));
                 }
             }
 
-            stamp(dest, box, TOP_LEFT, 0, 0, palette);
-            stamp(dest, box, TOP_RIGHT, w - BORDER, 0, palette);
-            stamp(dest, box, BOTTOM_LEFT, 0, h - BORDER, palette);
-            stamp(dest, box, BOTTOM_RIGHT, w - BORDER, h - BORDER, palette);
+            TOP_LEFT.stamp(dest, box, 0, 0, ink);
+            TOP_RIGHT.stamp(dest, box, w - BORDER, 0, ink);
+            BOTTOM_LEFT.stamp(dest, box, 0, h - BORDER, ink);
+            BOTTOM_RIGHT.stamp(dest, box, w - BORDER, h - BORDER, ink);
         }
 
         /** {@inheritDoc} */
@@ -411,12 +445,9 @@ public interface Window {
 
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
-                    put(dest, box, x, y, palette.cellFill());
+                    box.put(dest, x, y, palette.cellFill());
 
-            for (int x = 0; x < w - 1; x++) put(dest, box, x, 0, palette.cellShadow());
-            for (int y = 0; y < h - 1; y++) put(dest, box, 0, y, palette.cellShadow());
-            for (int x = 1; x < w; x++) put(dest, box, x, h - 1, palette.light());
-            for (int y = 1; y < h; y++) put(dest, box, w - 1, y, palette.light());
+            box.sink(dest, 0, palette.cellShadow(), palette.light());
         }
 
         /** {@inheritDoc} */
@@ -444,34 +475,22 @@ public interface Window {
 
             for (int y = 0; y < h; y++)
                 for (int i = 0; i < Decoration.Plus.BAR; i++)
-                    put(dest, box, left + i, y, ink);
+                    box.put(dest,left + i, y, ink);
 
             for (int x = 0; x < w; x++)
                 for (int i = 0; i < Decoration.Plus.BAR; i++)
-                    put(dest, box, x, top + i, ink);
+                    box.put(dest,x, top + i, ink);
         }
 
         /**
-         * Stamps the hammer, each authored pixel as a square of {@link Decoration.Hammer#PIXEL}
-         * Minecraft ones.
+         * Stamps the hammer.
          * <p>
          * It takes no palette. A picture is not a shape the panel's inks have anything to say about,
-         * so this is the one mark whose colours come from the mark itself.
+         * so this is the one mark whose colours come from the mark itself - which is the whole reason
+         * a stencil's table is an argument rather than a palette.
          */
         private static void paintHammer(@NotNull PixelBuffer dest, @NotNull Box box) {
-            int pixel = Decoration.Hammer.PIXEL;
-
-            for (int row = 0; row < Decoration.Hammer.ROWS.length; row++) {
-                String cells = Decoration.Hammer.ROWS[row];
-
-                for (int col = 0; col < cells.length(); col++) {
-                    int argb = Decoration.Hammer.ink(cells.charAt(col));
-
-                    for (int dy = 0; dy < pixel; dy++)
-                        for (int dx = 0; dx < pixel; dx++)
-                            put(dest, box, col * pixel + dx, row * pixel + dy, argb);
-                }
-            }
+            Decoration.Hammer.PICTURE.stamp(dest, box, 0, 0, Decoration.Hammer.INK);
         }
 
         /**
@@ -492,29 +511,12 @@ public interface Window {
             for (int y = 0; y < h; y++) {
                 for (int x = 0; x < w; x++) {
                     if ((x == w - 1 && y == 0) || (x == 0 && y == h - 1)) continue;
-                    put(dest, box, x, y, Decoration.Field.FILL);
+                    box.put(dest,x, y, Decoration.Field.FILL);
                 }
             }
 
-            sink(dest, box, 0, palette.cellShadow(), palette.light());
-            sink(dest, box, 1, Decoration.Field.INNER_SHADOW, Decoration.Field.INNER_LIGHT);
-        }
-
-        /**
-         * Draws one ring of a sunken bevel {@code inset} pixels in from the box's edge - the shadow
-         * along its top and left, the light along its bottom and right, which is
-         * {@link #paintCell}'s own rule read at a depth.
-         */
-        private static void sink(
-            @NotNull PixelBuffer dest, @NotNull Box box, int inset, int shadow, int light
-        ) {
-            int w = box.width();
-            int h = box.height();
-
-            for (int x = inset; x <= w - 2 - inset; x++) put(dest, box, x, inset, shadow);
-            for (int y = inset; y <= h - 2 - inset; y++) put(dest, box, inset, y, shadow);
-            for (int x = inset + 1; x <= w - 1 - inset; x++) put(dest, box, x, h - 1 - inset, light);
-            for (int y = inset + 1; y <= h - 1 - inset; y++) put(dest, box, w - 1 - inset, y, light);
+            box.sink(dest, 0, palette.cellShadow(), palette.light());
+            box.sink(dest, 1, Decoration.Field.INNER_SHADOW, Decoration.Field.INNER_LIGHT);
         }
 
         /**
@@ -534,11 +536,11 @@ public interface Window {
 
             for (int y = middle - 1; y <= middle + 1; y++)
                 for (int x = 0; x < shaft; x++)
-                    put(dest, box, x, y, ink);
+                    box.put(dest,x, y, ink);
 
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < head - Math.abs(y - middle); x++)
-                    put(dest, box, shaft + x, y, ink);
+                    box.put(dest,shaft + x, y, ink);
         }
 
         /**
@@ -556,28 +558,28 @@ public interface Window {
 
             for (int y = 2; y < h - 2; y++)
                 for (int x = 2; x < w - 2; x++)
-                    put(dest, box, x, y, palette.panel());
+                    box.put(dest,x, y, palette.panel());
 
             for (int x = 2; x < w - 2; x++) {
-                put(dest, box, x, 0, palette.outline());
-                put(dest, box, x, 1, palette.light());
-                put(dest, box, x, h - 2, palette.shadow());
-                put(dest, box, x, h - 1, palette.outline());
+                box.put(dest,x, 0, palette.outline());
+                box.put(dest,x, 1, palette.light());
+                box.put(dest,x, h - 2, palette.shadow());
+                box.put(dest,x, h - 1, palette.outline());
             }
 
             for (int y = 2; y < h - 2; y++) {
-                put(dest, box, 0, y, palette.outline());
-                put(dest, box, 1, y, palette.light());
-                put(dest, box, w - 2, y, palette.shadow());
-                put(dest, box, w - 1, y, palette.outline());
+                box.put(dest,0, y, palette.outline());
+                box.put(dest,1, y, palette.light());
+                box.put(dest,w - 2, y, palette.shadow());
+                box.put(dest,w - 1, y, palette.outline());
             }
 
             // The chamfer: one pixel of outline closing each corner, which is what leaves the corner
             // itself unpainted so the panel shows through as it does under the frame's own corners.
-            put(dest, box, 1, 1, palette.outline());
-            put(dest, box, w - 2, 1, palette.outline());
-            put(dest, box, 1, h - 2, palette.outline());
-            put(dest, box, w - 2, h - 2, palette.outline());
+            box.put(dest,1, 1, palette.outline());
+            box.put(dest,w - 2, 1, palette.outline());
+            box.put(dest,1, h - 2, palette.outline());
+            box.put(dest,w - 2, h - 2, palette.outline());
         }
 
         /** {@inheritDoc} */
@@ -587,54 +589,20 @@ public interface Window {
         }
 
         /**
-         * Paints one corner block at the given Minecraft-pixel offset within the box.
+         * Resolves one of the frame's role codes to its ink.
+         * <p>
+         * This is the table the panel's own pictures are stamped through, and the palette is the data
+         * it reads rather than the ink itself - which is what lets a picture drawn in colours no
+         * palette holds go through the same stamp.
          */
-        private static void stamp(
-            @NotNull PixelBuffer dest, @NotNull Box box,
-            @NotNull String @NotNull [] block, int originX, int originY,
-            @NotNull Palette palette
-        ) {
-            for (int row = 0; row < block.length; row++)
-                for (int col = 0; col < block[row].length(); col++)
-                    put(dest, box, originX + col, originY + row, ink(block[row].charAt(col), palette));
-        }
-
-        /**
-         * Resolves a role code to its ink, answering zero for the code that leaves the destination
-         * untouched.
-         */
-        private static int ink(char role, @NotNull Palette palette) {
-            return switch (role) {
+        private static int ink(char code, @NotNull Palette palette) {
+            return switch (code) {
                 case OUTLINE -> palette.outline();
                 case LIGHT -> palette.light();
                 case SHADOW -> palette.shadow();
                 case PANEL -> palette.panel();
-                case TRANSPARENT -> 0;
-                default -> throw new IllegalArgumentException("Unknown window role '%c'".formatted(role));
+                default -> throw new IllegalArgumentException("Unknown window role '%c'".formatted(code));
             };
-        }
-
-        /**
-         * Writes one Minecraft pixel as a {@code scale x scale} block, clipped to the destination.
-         * A zero ink writes nothing, so a chamfered corner shows through what it is painted over.
-         */
-        private static void put(@NotNull PixelBuffer dest, @NotNull Box box, int mcX, int mcY, int argb) {
-            if (argb == 0) return;
-
-            int scale = box.scale();
-            int x0 = (box.x() + mcX) * scale;
-            int y0 = (box.y() + mcY) * scale;
-
-            for (int dy = 0; dy < scale; dy++) {
-                int y = y0 + dy;
-                if (y < 0 || y >= dest.height()) continue;
-
-                for (int dx = 0; dx < scale; dx++) {
-                    int x = x0 + dx;
-                    if (x < 0 || x >= dest.width()) continue;
-                    dest.setPixel(x, y, argb);
-                }
-            }
         }
 
     }

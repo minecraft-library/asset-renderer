@@ -143,30 +143,21 @@ public sealed interface Decoration {
      * it - a hammer is a hammer on a panel of any colour, the way the item on a {@link Button}'s
      * face is. Nine of its ten roles belong to no palette member at all, its handle being wooden.
      * <p>
-     * It is authored at fifteen pixels square and drawn at {@link #PIXEL} Minecraft pixels a side,
-     * which is how the shipped panel carries it: every one of its nine hundred pixels agrees with
-     * the three beside it in its own two-by-two block, so the panel holds a doubled fifteen and not
-     * a thirty.
+     * It is authored at fifteen pixels square and drawn at two Minecraft pixels a side, which is how
+     * the shipped panel carries it: every one of its nine hundred pixels agrees with the three
+     * beside it in its own two-by-two block, so the panel holds a doubled fifteen and not a thirty.
      *
      * @param x the left edge of its box
      * @param y the top edge of its box
      */
     record Hammer(int x, int y) implements Decoration {
 
-        /** the extent every hammer paints, which is {@link #ROWS} at {@link #PIXEL} */
-        private static final @NotNull Window.Extent EXTENT = new Window.Extent(30, 30);
-
-        /** Minecraft pixels a side each authored pixel is drawn as */
-        static final int PIXEL = 2;
-
-        /** the role leaving the destination untouched, so the panel shows through around the head */
-        static final char CLEAR = '.';
-
         /**
-         * The picture, one character per authored pixel. The metal runs {@code W H G D K} lightest
-         * to darkest and the wood {@code T R N M}, so a row reads as the thing it draws.
+         * The picture, one character per authored pixel, drawn at two Minecraft pixels a side. The
+         * metal runs {@code W H G D K} lightest to darkest and the wood {@code T R N M}, so a row
+         * reads as the thing it draws.
          */
-        static final @NotNull String @NotNull [] ROWS = {
+        static final @NotNull Stencil PICTURE = Stencil.of(2,
             ".......D.......",
             "......DWD......",
             ".....DWWHDN....",
@@ -181,36 +172,26 @@ public sealed interface Decoration {
             "..NTM..........",
             ".NRM...........",
             "NTM............",
-            "RM.............",
-        };
+            "RM.............");
 
-        /**
-         * Resolves one of the picture's roles to its ink.
-         *
-         * @param role the role character
-         * @return the ARGB colour, zero where the destination is left alone
-         * @throws IllegalArgumentException if the character is not one this picture is drawn in
-         */
-        static int ink(char role) {
-            return switch (role) {
-                case 'W' -> 0xFFFFFFFF;
-                case 'H' -> 0xFFD8D8D8;
-                case 'G' -> 0xFFC1C1C1;
-                case 'D' -> 0xFF444444;
-                case 'K' -> 0xFF181818;
-                case 'T' -> 0xFF896727;
-                case 'R' -> 0xFF684E1E;
-                case 'N' -> 0xFF493615;
-                case 'M' -> 0xFF281E0B;
-                case CLEAR -> 0;
-                default -> throw new IllegalArgumentException("Unknown hammer role '%c'".formatted(role));
-            };
-        }
+        /** The table the picture's codes resolve through, which reads no palette. */
+        static final @NotNull Stencil.Ink INK = code -> switch (code) {
+            case 'W' -> 0xFFFFFFFF;
+            case 'H' -> 0xFFD8D8D8;
+            case 'G' -> 0xFFC1C1C1;
+            case 'D' -> 0xFF444444;
+            case 'K' -> 0xFF181818;
+            case 'T' -> 0xFF896727;
+            case 'R' -> 0xFF684E1E;
+            case 'N' -> 0xFF493615;
+            case 'M' -> 0xFF281E0B;
+            default -> throw new IllegalArgumentException("Unknown hammer role '%c'".formatted(code));
+        };
 
         /** {@inheritDoc} */
         @Override
         public @NotNull Window.Extent extent() {
-            return EXTENT;
+            return PICTURE.extent();
         }
 
     }

@@ -1070,7 +1070,7 @@
         "manifest.visual",
         "sweep.menu"
       ],
-      "source": "measured by rewriting MenuRenderer, MenuOptions, MenuScreen, MenuLayout, Window and the visual driver together: manifest.visual alone moved and every other artifact the plan planned on those paths held; measured again on MenuRenderer alone, where the menu rows of manifest.visual moved and everything captured beside them held; and measured a third time for Decoration alone, by widening the arrow's extent by one Minecraft pixel and re-running the two menu producers - the sweep's crafting table went 0.0407 to 0.20 and its anvil 0.0000 to 0.16, three menu-render digests moved with them, and reverting restored all fifty-four producer outputs byte-identically. Nothing else in this store can load the class: Decoration is referenced by MenuRenderer, MenuLayout, MenuScreen and Window and by no other production file, and all four are trigger paths here",
+      "source": "measured by rewriting MenuRenderer, MenuOptions, MenuScreen, MenuLayout, Window and the visual driver together: manifest.visual alone moved and every other artifact the plan planned on those paths held; measured again on MenuRenderer alone, where the menu rows of manifest.visual moved and everything captured beside them held; and measured a third time for Decoration alone, by widening the arrow's extent by one Minecraft pixel and re-running the two menu producers - the sweep's crafting table went 0.0407 to 0.20 and its anvil 0.0000 to 0.16, three menu-render digests moved with them, and reverting restored all fifty-four producer outputs byte-identically. Nothing else in this store can load the class: Decoration is referenced by MenuRenderer, MenuLayout, MenuScreen and Window and by no other production file, and all four are trigger paths here. Stencil rides the same closure and is narrower still - it is package-private, so nothing outside this package can name it at all, and the two production files that do are Window and Decoration",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/MenuRenderer.java",
         "src/main/java/lib/minecraft/renderer/engine/compose/ChromeDecomposition.java",
@@ -1078,6 +1078,7 @@
         "src/main/java/lib/minecraft/renderer/engine/compose/Decoration.java",
         "src/main/java/lib/minecraft/renderer/engine/compose/MenuLayout.java",
         "src/main/java/lib/minecraft/renderer/engine/compose/MenuScreen.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/Stencil.java",
         "src/main/java/lib/minecraft/renderer/engine/compose/Window.java",
         "src/main/java/lib/minecraft/renderer/option/MenuOptions.java",
         "src/main/java/lib/minecraft/renderer/option/slot/MenuSlot.java",
