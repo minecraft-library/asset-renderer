@@ -92,8 +92,15 @@
  * {@link lib.minecraft.renderer.pipeline.util.PipelineGsonContributor PipelineGsonContributor} SPI
  * so downstream modules pick them up automatically through {@code GsonSettings.defaults()}.
  *
+ * <p><b>Parity.</b> This math is under every vertex the engine projects, so it reaches every render,
+ * and two golden pins hold sixteen and twenty-four exact floats through it - an arithmetic change
+ * fails them before any sum has moved. The dump never projects a vertex.
+ *
  * @see lib.minecraft.renderer.tensor.Matrix4f
  * @see lib.minecraft.renderer.tensor.Quaternionf
  * @see lib.minecraft.renderer.tensor.SimdSupport
  */
+@Parity(claim = "tensor-math")
 package lib.minecraft.renderer.tensor;
+
+import lib.minecraft.renderer.parity.Parity;

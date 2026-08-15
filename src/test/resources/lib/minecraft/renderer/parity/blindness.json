@@ -585,14 +585,13 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/tensor/**"
-      ],
+      "authored_paths": [],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs"
       ],
       "claim": "The tensor math is under every projected vertex, so it reaches every render and is pinned by two golden float vectors",
+      "claim_key": "tensor-math",
       "id": "B26",
       "mode": "select",
       "probe": "perturb a Matrix4f multiply and confirm pin.vanilla-iso-pose fails while the dump is byte-identical",
