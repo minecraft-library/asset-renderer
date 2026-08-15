@@ -584,6 +584,10 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     base = _bases(args)
     root = store_mod.working(args.root, base).root
     rules, no_reach = blindness_mod.load(store_mod.resolve_store(args.store, base))
+    # Re-derived from the tree rather than taken from the file, so a declaration that moved in the
+    # commit being planned is answered by the plan that gates that commit rather than by the next
+    # regeneration. The two halves agree by construction and a guard holds them to it.
+    rules = declarations_mod.live(rules, base)
 
     changed = list(args.changed or [])
     if not changed or args.changed_from_git:

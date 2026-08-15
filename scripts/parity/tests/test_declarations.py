@@ -73,6 +73,21 @@ class Lexer(unittest.TestCase):
         self.assertIn("int keep = 1;", declarations.blank('String s = "oops\nint keep = 1;\n'))
 
 
+class TheTokenPrecheck(unittest.TestCase):
+    """A file whose text does not carry the token is skipped before the lexer runs."""
+
+    def parse(self, source):
+        return declarations.parse("root/Probe.java", source, VOCABULARY, "root")
+
+    def test_a_file_with_no_mention_at_all_yields_nothing(self):
+        self.assertEqual(self.parse("package root;\n\nfinal class Probe {\n}\n"), ([], []))
+
+    def test_whitespace_between_the_at_and_the_name_is_still_found(self):
+        """The pre-check is the same pattern the loop runs, so it cannot be narrower than it."""
+        found, _ = self.parse('package root;\n\n@ Parity(claim = "a-claim")\nclass Probe {\n}\n')
+        self.assertEqual([one.claim for one in found], ["a-claim"])
+
+
 class Vocabularies(unittest.TestCase):
     """The closed vocabularies are read off the enums rather than transcribed."""
 
@@ -325,6 +340,32 @@ class TheShippedMap(unittest.TestCase):
             with self.assertRaises(DeclarationError) as raised:
                 declarations.regenerate(REPO, store, check=True)
         self.assertIn("carries no authored_paths", raised.exception.shape)
+
+    def test_the_live_and_generated_triggers_agree(self):
+        """The derivation the planner runs and the view checked into the map answering differently
+        means the gate and the guards disagree about where a claim lives. Reach is unioned and a
+        demotion subtracts across a path's whole union, so a divergence moves answers in both
+        directions and there is no close-enough reading of it."""
+        self.assertEqual(
+            [(rule.id, rule.trigger_paths) for rule in declarations.live(self.rules(), REPO)],
+            [(rule.id, rule.trigger_paths) for rule in self.rules()])
+
+    def test_a_row_naming_a_claim_takes_that_claims_derived_paths(self):
+        """What the agreement above is vacuous about today. No shipped row carries a claim_key
+        yet, so the check is run on a row that does, against the one declaration the tree holds."""
+        row = blindness.Rule(
+            id="B0", claim="c", trigger_paths=(), sees=(), blind=(), reason="r", mode="select",
+            probe="p", source="s", claim_key="parity-vocabulary", authored_paths=("a/b.kts",))
+        self.assertEqual(declarations.live([row], REPO)[0].trigger_paths,
+                         ("a/b.kts", f"{declarations.VOCABULARY}/**"))
+
+    def test_a_map_naming_no_claim_at_all_is_answered_without_a_scan(self):
+        """A claim_key is never the empty string, so a map with none derives nothing whatever the
+        tree holds - which is what lets the planner carry this before the first row names one."""
+        row = blindness.Rule(
+            id="B0", claim="c", trigger_paths=("a/b.kts",), sees=(), blind=(), reason="r",
+            mode="select", probe="p", source="s", authored_paths=("a/b.kts",))
+        self.assertEqual(declarations.live([row], Path("no/such/repo")), [row])
 
     def test_every_trigger_list_is_the_sorted_union_of_its_two_halves(self):
         derived = declarations.derive(declarations.scan(REPO))

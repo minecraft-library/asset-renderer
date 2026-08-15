@@ -31,12 +31,12 @@ from __future__ import annotations
 
 import posixpath
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Iterable, Sequence
 
 from parity.blindness import BLINDNESS_FILE, compile_glob
-from parity.norm import read_json, write_json
+from parity.norm import Refused, read_json, write_json
 
 #: The source root declarations are read from. Nothing outside it is scanned or derivable.
 SOURCE_ROOT = "src/main/java"
@@ -70,8 +70,12 @@ _PACKAGE_KEYWORD = re.compile(r"\bpackage\s+([\w.]+)\s*;")
 _MEMBER = re.compile(r"^\s*(\w+)\s*=\s*(.+?)\s*$", re.DOTALL)
 
 
-class DeclarationError(Exception):
-    """A declaration the reader refuses rather than resolving to a plausible wrong answer."""
+class DeclarationError(Refused):
+    """A declaration the reader refuses rather than resolving to a plausible wrong answer.
+
+    A refusal rather than an error of its own kind, so it reaches the exit code every other
+    declined precondition already has and a caller needs no translation layer to tell them apart.
+    """
 
     def __init__(self, path: str, line: int, shape: str, fix: str) -> None:
         self.path = path
@@ -330,6 +334,13 @@ def parse(path: str, source: str, vocabulary: dict[str, tuple[str, ...]],
     :param vocabulary the constants each closed vocabulary declares
     :param library_root the repo-relative directory of the one package a ``PACKAGE`` scope is legal on
     """
+    # Before the lexer, because a file whose text does not carry the token anywhere can hold neither
+    # a declaration nor a mention, and that is an exact answer rather than a sampling: this is the
+    # same pattern the loop below runs, over the same text. It skips the lex on all but a handful of
+    # the source root, which is most of what makes the live derivation affordable at plan time.
+    if not _ANNOTATION_AT.search(source):
+        return [], []
+
     body = blank(source)
     declarations: list[Declaration] = []
     reports: list[Report] = []
@@ -603,6 +614,32 @@ def regenerate(repo_root: Path, store_root: Path, check: bool = False) -> list[s
     if moved and not check:
         write_json(target, payload)
     return moved
+
+
+def live(rules: Sequence, repo_root: Path) -> list:
+    """The rules with every trigger list re-derived from the tree rather than read from the file.
+
+    What the planner resolves against. The checked-in view is the same union computed by the
+    generator, so the two agree by construction and a guard holds them to it - but they agree at
+    different moments, and that is the whole point. A file that moved in the commit being gated is
+    answered correctly by this one and one regeneration late by the other, and the gate that has to
+    be right is the one firing on the commit that performs the move.
+
+    A map whose rules carry no ``claim_key`` derives nothing whatever the tree holds, so the scan is
+    skipped rather than run for an answer that cannot be used. That is exact rather than an
+    optimisation - a resolved claim is never the empty string, so no declaration can join a row that
+    names no claim - and it is what lets this be wired in before the first row names one.
+
+    :param rules the rules as the map holds them
+    :param repo_root the repository root the source tree is scanned from
+    :returns: the same rules, each carrying the live union
+    """
+    if not any(rule.claim_key for rule in rules):
+        return list(rules)
+    derived = derive(scan(repo_root))
+    return [replace(rule, trigger_paths=tuple(
+        sorted(set(rule.authored_paths) | set(derived.get(rule.claim_key, ())))))
+        for rule in rules]
 
 
 def mode_disagreements(result: Scan, claims: Sequence[Claim]) -> list[str]:
