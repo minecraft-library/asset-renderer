@@ -129,12 +129,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java",
-        "src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "The dump sees data rather than behaviour, so a resolution-logic change is not pinned by index identity",
+      "claim_key": "index-resolution",
       "id": "B6",
       "mode": "select",
       "probe": "perturb a resolver on a branch no shipped id takes and confirm the dump is byte-identical while probes.json is not",
@@ -148,8 +146,10 @@
       ],
       "source": "measured by perturbing ItemIndexBuilder.java: 3 of 5 declared sees moved",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java",
-        "src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java"
+        "src/main/java/lib/minecraft/renderer/asset/pack/rule/CtmNeighborResolver.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/index/EntityIndexBuilder.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/index/ItemIndexBuilder.java"
       ]
     },
     {

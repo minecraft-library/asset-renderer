@@ -110,7 +110,7 @@ BlockIndexBuilder, ItemIndexBuilder and EntityIndexBuilder run between the loade
 ## B6 - The dump sees data rather than behaviour, so a resolution-logic change is not pinned by index identity
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java`, `src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/CtmNeighborResolver.java`, `src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java`, `src/main/java/lib/minecraft/renderer/pipeline/index/EntityIndexBuilder.java`, `src/main/java/lib/minecraft/renderer/pipeline/index/ItemIndexBuilder.java`
 - **sees** `sweep.block`, `sweep.item`, `sweep.entity`, `manifest.dump.vanilla`, `manifest.dump.packs`
 - **blind** -
 - **source** measured by perturbing ItemIndexBuilder.java: 3 of 5 declared sees moved
