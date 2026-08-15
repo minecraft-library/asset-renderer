@@ -30,7 +30,7 @@ import java.util.Optional;
  * @param panelColumns how many cells wide the panel itself is, which is what its width comes to
  * @param titleX where the title starts
  * @param extras cells that are not part of the regular grid, such as a crafting result
- * @param decorations marks the screen paints beside its cells, which hold no content and are
+ * @param marks the marks the screen paints beside its cells, which hold no content and are
  * addressed by no slot index
  */
 public record MenuScreen(
@@ -38,7 +38,7 @@ public record MenuScreen(
     int ownRows, int ownColumns, int ownOriginX,
     int panelColumns, @NotNull TitleX titleX,
     @NotNull ConcurrentList<MenuLayout.Cell> extras,
-    @NotNull ConcurrentList<Decoration> decorations
+    @NotNull ConcurrentList<MenuLayout.Mark> marks
 ) {
 
     /** side of one cell, and the pitch between two, in Minecraft pixels */
@@ -134,9 +134,9 @@ public record MenuScreen(
         ConcurrentList<MenuLayout.Cell> extras = Concurrent.newList();
         extras.add(new MenuLayout.Cell(119, 30, 26, MenuLayout.Role.RESULT));
 
-        ConcurrentList<Decoration> marks = Concurrent.newList();
-        marks.add(new Decoration.Arrow(90, 35));
-        marks.add(new Decoration.Button(5, 34, RECIPE_BOOK_ITEM));
+        ConcurrentList<MenuLayout.Mark> marks = Concurrent.newList();
+        marks.add(Decoration.ARROW.at(90, 35));
+        marks.add(Decoration.BUTTON.at(5, 34, RECIPE_BOOK_ITEM));
 
         return new MenuScreen(16, 13, 0, 3, 3, 29, COLUMNS, new TitleX.Inset(29), extras, marks);
     }
@@ -168,11 +168,11 @@ public record MenuScreen(
         extras.add(new MenuLayout.Cell(75, 46, CELL, MenuLayout.Role.CONTAINER));
         extras.add(new MenuLayout.Cell(133, 46, CELL, MenuLayout.Role.RESULT));
 
-        ConcurrentList<Decoration> marks = Concurrent.newList();
-        marks.add(new Decoration.Hammer(17, 7));
-        marks.add(new Decoration.Field(59, 20));
-        marks.add(new Decoration.Plus(53, 49));
-        marks.add(new Decoration.Arrow(102, 48));
+        ConcurrentList<MenuLayout.Mark> marks = Concurrent.newList();
+        marks.add(Decoration.HAMMER.at(17, 7));
+        marks.add(Decoration.FIELD.at(59, 20));
+        marks.add(Decoration.PLUS.at(53, 49));
+        marks.add(Decoration.ARROW.at(102, 48));
 
         return new MenuScreen(46, 19, 0, 1, 0, MARGIN, COLUMNS, new TitleX.Inset(60), extras, marks);
     }
@@ -299,7 +299,7 @@ public record MenuScreen(
 
         int height = this.topBand + this.ownRows * CELL;
         if (!playerSection)
-            return new MenuLayout(width(), height + MARGIN, this.titleX, Optional.empty(), cells, this.decorations);
+            return new MenuLayout(width(), height + MARGIN, this.titleX, Optional.empty(), cells, this.marks);
 
         int playerTop = height + this.labelBand;
         for (int row = 0; row < PLAYER_ROWS; row++)
@@ -315,7 +315,7 @@ public record MenuScreen(
         MenuLayout.Anchor inventory =
             new MenuLayout.Anchor(TITLE_X, drawn + this.declaredSlack - INVENTORY_LABEL_RISE);
 
-        return new MenuLayout(width(), drawn, this.titleX, Optional.of(inventory), cells, this.decorations);
+        return new MenuLayout(width(), drawn, this.titleX, Optional.of(inventory), cells, this.marks);
     }
 
     /**

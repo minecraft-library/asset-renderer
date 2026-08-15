@@ -239,8 +239,8 @@ class WindowVanillaOracleTest {
         window.paintPanel(painted, layout.box(1));
         for (MenuLayout.Cell cell : layout.cells())
             window.paintCell(painted, cell.box(1));
-        for (Decoration decoration : layout.decorations())
-            window.paintDecoration(painted, MenuLayout.box(decoration, 1), decoration);
+        for (MenuLayout.Mark mark : layout.marks())
+            window.paintDecoration(painted, mark.box(1), mark.kind());
 
         Optional<PixelBuffer> resolved = textures.tryResolveTextureAtTick("minecraft:gui/container/anvil", 0);
         assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
@@ -294,7 +294,7 @@ class WindowVanillaOracleTest {
         assertThat("the field sprite resolves", resolved.isPresent(), is(true));
         PixelBuffer sprite = resolved.get();
 
-        Decoration.Field field = new Decoration.Field(0, 0);
+        Decoration field = Decoration.FIELD;
         int w = field.extent().width();
         int h = field.extent().height();
 
@@ -305,7 +305,7 @@ class WindowVanillaOracleTest {
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
                 painted.setPixel(x, y, Window.Palette.VANILLA.panel());
-        Window.Theme.VANILLA.paintDecoration(painted, MenuLayout.box(field, 1), field);
+        Window.Theme.VANILLA.paintDecoration(painted, field.at(0, 0).box(1), field);
 
         int differing = 0;
         for (int y = 0; y < h; y++)
@@ -322,8 +322,8 @@ class WindowVanillaOracleTest {
         Optional<PixelBuffer> crafting = textures.tryResolveTextureAtTick("minecraft:gui/container/crafting_table", 0);
         assertThat("both textures resolve", anvil.isPresent() && crafting.isPresent(), is(true));
 
-        // The two screens declare the same mark at different coordinates, which is the whole reason
-        // Decoration.Arrow takes a position and carries its extent.
+        // The two screens place one kind at two positions, which is the whole reason a kind carries
+        // its extent and a placement carries only where it sits.
         int differing = 0;
         for (int y = 0; y < 15; y++)
             for (int x = 0; x < 22; x++)

@@ -68,7 +68,7 @@ class StencilTest {
         // The hammer is the reason the scale is carried rather than assumed: the shipped panel holds
         // a doubled fifteen, so its extent is derived off its own picture and cannot disagree with
         // it. Fifteen rows at two Minecraft pixels a side is the thirty the panel draws.
-        assertThat(new Decoration.Hammer(0, 0).extent(), is(equalTo(new Window.Extent(30, 30))));
+        assertThat(Decoration.HAMMER.extent(), is(equalTo(new Window.Extent(30, 30))));
     }
 
     @Test

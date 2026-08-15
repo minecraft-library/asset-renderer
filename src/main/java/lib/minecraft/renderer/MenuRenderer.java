@@ -193,8 +193,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         window.paintPanel(chrome, layout.box(PX_SCALE));
         for (MenuLayout.Cell cell : layout.cells())
             window.paintCell(chrome, cell.box(PX_SCALE));
-        for (Decoration decoration : layout.decorations())
-            window.paintDecoration(chrome, MenuLayout.box(decoration, PX_SCALE), decoration);
+        for (MenuLayout.Mark mark : layout.marks())
+            window.paintDecoration(chrome, mark.box(PX_SCALE), mark.kind());
 
         return chrome;
     }
@@ -327,8 +327,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     ) {
         boolean anyAnimated = false;
 
-        for (Decoration decoration : layout.decorations()) {
-            Optional<ResourceId> icon = decoration.icon();
+        for (MenuLayout.Mark mark : layout.marks()) {
+            Optional<ResourceId> icon = mark.icon();
             if (icon.isEmpty()) continue;
 
             ImageData rendered = itemRenderer.render(ItemOptions.builder()
@@ -338,9 +338,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 .build());
             if (rendered.isAnimated()) anyAnimated = true;
 
+            Decoration.Inset inset = mark.kind().iconInset().orElseThrow();
             place(stack, MenuSlot.CONTENT, new FramePlacement(
-                (decoration.x() + Decoration.Button.ICON_INSET_X) * PX_SCALE,
-                (decoration.y() + Decoration.Button.ICON_INSET_Y) * PX_SCALE, rendered));
+                (mark.x() + inset.x()) * PX_SCALE,
+                (mark.y() + inset.y()) * PX_SCALE, rendered));
         }
 
         return anyAnimated;
@@ -372,51 +373,53 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack
     ) {
-        Optional<Decoration.Field> field = layout.decorations().stream()
-            .filter(Decoration.Field.class::isInstance)
-            .map(Decoration.Field.class::cast)
+        Optional<MenuLayout.Mark> field = layout.marks().stream()
+            .filter(mark -> mark.kind().textWell().isPresent())
             .findFirst();
         if (field.isEmpty()) return;
 
-        String typed = typedInto(options);
-        String shown = visibleTail(typed);
+        Decoration.TextWell well = field.get().kind().textWell().orElseThrow();
+        String typed = typedInto(options.getFieldText(), well.maxLength());
+        String shown = visibleTail(typed, well.innerWidth());
         if (shown.isEmpty() && !options.isCaret()) return;
 
         PixelBuffer buffer = PixelBuffer.create(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
         MinecraftGraphics g = new MinecraftGraphics(buffer);
-        int textX = field.get().x() + Decoration.Field.TEXT_INSET_X;
-        int textY = field.get().y() + Decoration.Field.TEXT_INSET_Y;
+        int textX = field.get().x() + well.inset().x();
+        int textY = field.get().y() + well.inset().y();
         int baseline = textY + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
         int drawn = shown.isEmpty() ? 0
-            : TextKit.drawLine(g, plain(shown), textX, baseline, Decoration.Field.TEXT_ARGB, 0L, 0L, true);
+            : TextKit.drawLine(g, plain(shown), textX, baseline, well.argb(), 0L, 0L, true);
 
-        if (options.isCaret()) drawCaret(g, buffer, typed, textX + drawn, textY, baseline);
+        if (options.isCaret()) drawCaret(g, buffer, typed, textX + drawn, textY, baseline, well);
 
         place(stack, MenuSlot.TEXT, new FramePlacement(0, 0, StaticImageData.of(buffer.toBufferedImage())));
     }
 
     /**
-     * What the field actually holds, which is the caller's text cut to the field's own cap the way
-     * the client's own cuts anything typed past it.
+     * What a field actually holds, which is the caller's text cut to the field's own cap the way the
+     * client's own cuts anything typed past it.
+     *
+     * @param text what the caller asked for
+     * @param maxLength how many characters the field accepts
+     * @return the text the field holds
      */
-    static @NotNull String typedInto(@NotNull MenuOptions options) {
-        String text = options.getFieldText();
-        return text.length() <= Decoration.Field.MAX_LENGTH
-            ? text
-            : text.substring(0, Decoration.Field.MAX_LENGTH);
+    static @NotNull String typedInto(@NotNull String text, int maxLength) {
+        return text.length() <= maxLength ? text : text.substring(0, maxLength);
     }
 
     /**
-     * The part of the text the field shows - its longest tail that fits, because a field scrolls to
+     * The part of the text a field shows - its longest tail that fits, because a field scrolls to
      * keep the end of what was typed in view rather than the beginning.
      *
      * @param typed what the field holds
+     * @param innerWidth how wide the text may run, in Minecraft pixels
      * @return the visible tail, empty where even the last character does not fit
      */
-    static @NotNull String visibleTail(@NotNull String typed) {
+    static @NotNull String visibleTail(@NotNull String typed, int innerWidth) {
         for (int from = 0; from < typed.length(); from++) {
             String tail = typed.substring(from);
-            if (TextKit.measureLineMcPixels(plain(tail)) <= Decoration.Field.INNER_WIDTH) return tail;
+            if (TextKit.measureLineMcPixels(plain(tail)) <= innerWidth) return tail;
         }
 
         return "";
@@ -432,10 +435,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      */
     private static void drawCaret(
         @NotNull MinecraftGraphics g, @NotNull PixelBuffer buffer,
-        String typed, int caretX, int textY, int baseline
+        String typed, int caretX, int textY, int baseline, @NotNull Decoration.TextWell well
     ) {
-        if (typed.length() < Decoration.Field.MAX_LENGTH) {
-            TextKit.drawLine(g, plain("_"), caretX, baseline, Decoration.Field.TEXT_ARGB, 0L, 0L, true);
+        if (typed.length() < well.maxLength()) {
+            TextKit.drawLine(g, plain("_"), caretX, baseline, well.argb(), 0L, 0L, true);
             return;
         }
 
@@ -446,7 +449,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             for (int x = 0; x < PX_SCALE; x++) {
                 int px = caretX * PX_SCALE + x;
                 if (px < 0 || px >= buffer.width()) continue;
-                buffer.setPixel(px, py, Decoration.Field.TEXT_ARGB);
+                buffer.setPixel(px, py, well.argb());
             }
         }
     }

@@ -453,13 +453,7 @@ public interface Window {
         /** {@inheritDoc} */
         @Override
         public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Decoration decoration) {
-            switch (decoration) {
-                case Decoration.Arrow arrow -> arrow.paint(dest, box, this.palette);
-                case Decoration.Button button -> button.paint(dest, box, this.palette);
-                case Decoration.Plus plus -> plus.paint(dest, box, this.palette);
-                case Decoration.Hammer hammer -> hammer.paint(dest, box, this.palette);
-                case Decoration.Field field -> field.paint(dest, box, this.palette);
-            }
+            decoration.paint(dest, box, this.palette);
         }
 
         /** {@inheritDoc} */

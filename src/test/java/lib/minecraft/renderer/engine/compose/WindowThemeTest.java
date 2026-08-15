@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -88,18 +87,24 @@ class WindowThemeTest {
             assertThat(theme.minimum(), is(equalTo(Window.Theme.VANILLA.minimum())));
     }
 
-    /** Paints one mark alone onto a transparent buffer at its own extent. */
-    private static PixelBuffer mark(Window window, Decoration decoration) {
-        Window.Extent extent = decoration.extent();
+    /**
+     * Paints one mark alone onto a transparent buffer at its own extent.
+     * <p>
+     * The box is built here rather than taken off a placement, because what is under test is what a
+     * kind paints and a placement would drag in what it holds - a button cannot be placed without
+     * the item its face carries, and the frame is what these assertions read.
+     */
+    private static PixelBuffer mark(Window window, Decoration kind) {
+        Window.Extent extent = kind.extent();
         PixelBuffer buffer = PixelBuffer.create(extent.width(), extent.height());
-        window.paintDecoration(buffer, MenuLayout.box(decoration, 1), decoration);
+        window.paintDecoration(buffer, new Window.Box(0, 0, extent.width(), extent.height(), 1), kind);
         return buffer;
     }
 
     @Test
     @DisplayName("an arrow is a shaft and a triangle, in the ink its cells are filled with")
     void anArrowIsAShaftAndATriangle() {
-        PixelBuffer arrow = mark(Window.Theme.VANILLA, new Decoration.Arrow(0, 0));
+        PixelBuffer arrow = mark(Window.Theme.VANILLA, Decoration.ARROW);
         int fill = Window.Palette.VANILLA.cellFill();
 
         int inked = 0;
@@ -125,7 +130,7 @@ class WindowThemeTest {
     @DisplayName("a button is a cell's bevel the other way up")
     void aButtonIsACellsBevelTheOtherWayUp() {
         Window.Palette palette = Window.Palette.VANILLA;
-        PixelBuffer button = mark(Window.Theme.VANILLA, new Decoration.Button(0, 0, ResourceId.parse("minecraft:knowledge_book")));
+        PixelBuffer button = mark(Window.Theme.VANILLA, Decoration.BUTTON);
 
         // A cell sinks into the panel - shadow along its top and left, light along its bottom and
         // right. A button stands off it, so every one of those four reads the other way.
@@ -141,7 +146,7 @@ class WindowThemeTest {
     @Test
     @DisplayName("a mark is re-inked with the panel it sits on")
     void aMarkIsReInkedWithThePanel() {
-        Decoration arrow = new Decoration.Arrow(0, 0);
+        Decoration arrow = Decoration.ARROW;
         PixelBuffer vanilla = mark(Window.Theme.VANILLA, arrow);
         PixelBuffer dark = mark(Window.Theme.DARK, arrow);
 
@@ -165,7 +170,7 @@ class WindowThemeTest {
     @Test
     @DisplayName("a plus is two bars crossing, in the ink its cells are filled with")
     void aPlusIsTwoBarsCrossing() {
-        PixelBuffer plus = mark(Window.Theme.VANILLA, new Decoration.Plus(0, 0));
+        PixelBuffer plus = mark(Window.Theme.VANILLA, Decoration.PLUS);
         int fill = Window.Palette.VANILLA.cellFill();
 
         int inked = 0;
@@ -188,7 +193,7 @@ class WindowThemeTest {
     @Test
     @DisplayName("a hammer is a picture, so it is not re-inked and its rows are doubled")
     void aHammerIsAPictureRatherThanAShape() {
-        Decoration hammer = new Decoration.Hammer(0, 0);
+        Decoration hammer = Decoration.HAMMER;
         PixelBuffer vanilla = mark(Window.Theme.VANILLA, hammer);
         PixelBuffer dark = mark(Window.Theme.DARK, hammer);
 
@@ -216,7 +221,7 @@ class WindowThemeTest {
     @Test
     @DisplayName("a field sinks into its panel in the panel's ink and fills with its own")
     void aFieldSinksIntoItsPanelButFillsWithItsOwn() {
-        Decoration field = new Decoration.Field(0, 0);
+        Decoration field = Decoration.FIELD;
         PixelBuffer vanilla = mark(Window.Theme.VANILLA, field);
         PixelBuffer dark = mark(Window.Theme.DARK, field);
         int w = 110, h = 16;
@@ -250,7 +255,7 @@ class WindowThemeTest {
         PixelBuffer buffer = PixelBuffer.create(22, 15);
         Window.Sliced sliced = Window.Sliced.of(
             PixelBuffer.create(8, 8), Optional.empty(), Optional.empty(), Optional.empty());
-        sliced.paintDecoration(buffer, MenuLayout.box(new Decoration.Arrow(0, 0), 1), new Decoration.Arrow(0, 0));
+        sliced.paintDecoration(buffer, Decoration.ARROW.at(0, 0).box(1), Decoration.ARROW);
 
         int painted = 0;
         for (int y = 0; y < 15; y++)

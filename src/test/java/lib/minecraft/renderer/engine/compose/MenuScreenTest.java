@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine.compose;
 
+import lib.minecraft.renderer.asset.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -10,6 +11,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Pins {@link MenuScreen} against the cell origins detected in the art the client ships.
@@ -204,6 +206,40 @@ class MenuScreenTest {
             assertThat("a screen whose panel is " + layout.width() + "x" + layout.height() + " wide enough",
                 layout.width() >= floor.width(), is(true));
             assertThat("and tall enough", layout.height() >= floor.height(), is(true));
+        }
+    }
+
+    @Test
+    @DisplayName("a mark carries an icon exactly when its kind draws one")
+    void aMarkCarriesAnIconExactlyWhenItsKindDrawsOne() {
+        // A kind and a position are two values now, so nothing about the type stops a button being
+        // placed with no item on its face or an arrow being handed one. The guard is what says so,
+        // and this is what says the guard is there.
+        assertThrows(IllegalArgumentException.class, () -> Decoration.BUTTON.at(5, 34));
+        assertThrows(IllegalArgumentException.class,
+            () -> Decoration.ARROW.at(90, 35, ResourceId.parse("minecraft:knowledge_book")));
+
+        assertThat("a button placed with its item is fine",
+            Decoration.BUTTON.at(5, 34, ResourceId.parse("minecraft:knowledge_book")).icon().isPresent(),
+            is(true));
+        assertThat("and every other mark is placed without one",
+            Decoration.ARROW.at(90, 35).icon().isEmpty(), is(true));
+    }
+
+    @Test
+    @DisplayName("every mark a shipped screen places sits inside its own panel")
+    void everyMarkSitsInsideItsOwnPanel() {
+        for (MenuScreen screen : MenuScreen.measured()) {
+            MenuLayout layout = screen.layout(true);
+
+            for (MenuLayout.Mark mark : layout.marks()) {
+                Window.Extent extent = mark.kind().extent();
+
+                assertThat(mark.kind() + " opens inside the panel", mark.x() >= 0 && mark.y() >= 0, is(true));
+                assertThat(mark.kind() + " closes inside it",
+                    mark.x() + extent.width() <= layout.width()
+                        && mark.y() + extent.height() <= layout.height(), is(true));
+            }
         }
     }
 

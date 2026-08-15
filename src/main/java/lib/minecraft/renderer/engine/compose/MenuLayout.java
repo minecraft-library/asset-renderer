@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -19,25 +20,45 @@ import java.util.Optional;
  * @param inventoryAnchor where the player's label starts, present exactly when the player section is
  * laid out
  * @param cells every cell, in the order they are laid out
- * @param decorations the marks the screen paints beside its cells, at the positions it declares
+ * @param marks the marks the screen paints beside its cells, at the positions it declares
  */
 public record MenuLayout(
     int width, int height,
     @NotNull MenuScreen.TitleX titleX, @NotNull Optional<Anchor> inventoryAnchor,
     @NotNull ConcurrentList<Cell> cells,
-    @NotNull ConcurrentList<Decoration> decorations
+    @NotNull ConcurrentList<Mark> marks
 ) {
 
     /**
-     * One mark's square as a {@link Window.Box} at the given output scale.
+     * One mark on one screen - which mark it is, where it sits, and what it holds.
+     * <p>
+     * A rectangle and an identity, which is the split a {@link Cell} already spells: what a mark
+     * paints and how big it comes out belong to the kind, and only the position belongs here.
      *
-     * @param decoration the mark
-     * @param scale the output pixels each Minecraft pixel occupies on a side
-     * @return the mark's box
+     * @param kind which mark
+     * @param x the left edge of its box, in Minecraft pixels from the panel's own corner
+     * @param y the top edge of its box
+     * @param icon the item drawn on its face, empty where the mark is drawn whole
      */
-    public static @NotNull Window.Box box(@NotNull Decoration decoration, int scale) {
-        Window.Extent extent = decoration.extent();
-        return new Window.Box(decoration.x(), decoration.y(), extent.width(), extent.height(), scale);
+    public record Mark(@NotNull Decoration kind, int x, int y, @NotNull Optional<ResourceId> icon) {
+
+        public Mark {
+            if (icon.isPresent() != kind.iconInset().isPresent())
+                throw new IllegalArgumentException(
+                    "Mark of '%s' carries an icon exactly when its kind draws one".formatted(kind));
+        }
+
+        /**
+         * This mark's square as a {@link Window.Box} at the given output scale.
+         *
+         * @param scale the output pixels each Minecraft pixel occupies on a side
+         * @return the mark's box
+         */
+        public @NotNull Window.Box box(int scale) {
+            Window.Extent extent = this.kind.extent();
+            return new Window.Box(this.x, this.y, extent.width(), extent.height(), scale);
+        }
+
     }
 
     /**
