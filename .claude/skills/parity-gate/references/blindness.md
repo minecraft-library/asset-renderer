@@ -74,7 +74,7 @@ No pack fixture ships a cit/ or ctm/ tree, so rules.json reports cit_rules: 0 an
 ## B3 - The multipart when-OR branch is never exercised, because no shipped block produces one
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/**/BlockState*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/Multipart*.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/BlockStateLoader.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/MultipartWhenDeserializer.java`
 - **sees** `sweep.block`, `manifest.dump.vanilla`
 - **blind** -
 - **source** measured by perturbing MultipartWhenDeserializer.java: 2 of 2 declared sees moved

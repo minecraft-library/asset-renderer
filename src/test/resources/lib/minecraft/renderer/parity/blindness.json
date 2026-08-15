@@ -66,12 +66,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/**/BlockState*.java",
-        "src/main/java/lib/minecraft/renderer/pipeline/**/Multipart*.java"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "The multipart when-OR branch is never exercised, because no shipped block produces one",
+      "claim_key": "blockstate-multipart",
       "id": "B3",
       "mode": "select",
       "probe": "grep the shipped blockstate JSON for a when containing an OR key; zero hits means the branch is still unreached and the rule holds",
@@ -82,8 +80,8 @@
       ],
       "source": "measured by perturbing MultipartWhenDeserializer.java: 2 of 2 declared sees moved",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/**/BlockState*.java",
-        "src/main/java/lib/minecraft/renderer/pipeline/**/Multipart*.java"
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/BlockStateLoader.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/MultipartWhenDeserializer.java"
       ]
     },
     {
