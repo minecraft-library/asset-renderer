@@ -332,11 +332,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/pack/PackAcquisition.java"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "The probes.json resolveIn sample is itself guarded against a salt-randomized findFirst",
+      "claim_key": "pack-acquisition-probe",
       "id": "B16",
       "mode": "select",
       "probe": "run parityDump over five JVMs and confirm probes.json is byte-identical in all five",
