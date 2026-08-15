@@ -62,6 +62,7 @@ import java.util.Optional;
  * @see Block.Variant
  * @see Block.Multipart
  */
+@Parity(claim = "loader-intermediates")
 @Parity(claim = "blockstate-multipart")
 @UtilityClass
 public class BlockStateLoader {

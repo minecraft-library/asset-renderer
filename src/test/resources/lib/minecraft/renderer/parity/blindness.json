@@ -153,11 +153,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/pack/BlockStateLoader.java"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "Intermediates are deliberately not dumped, so a LoadResult-shaped rework is dump-invisible whenever its outputs match",
+      "claim_key": "loader-intermediates",
       "id": "B7",
       "mode": "select",
       "probe": "reshape LoadResult without changing what the builder emits and confirm all 30 dump files are byte-identical",
