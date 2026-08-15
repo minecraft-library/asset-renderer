@@ -526,14 +526,13 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/option/**"
-      ],
+      "authored_paths": [],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs"
       ],
       "claim": "The option surface reaches every renderer that takes options, and nothing else",
+      "claim_key": "option-surface",
       "id": "B24",
       "mode": "select",
       "probe": "change a default on an option record and confirm the five sweeps move while all 30 dump files are byte-identical",

@@ -28,5 +28,13 @@
  * {@link lib.minecraft.renderer.AtlasRenderer AtlasRenderer} run composed, and sit beside
  * {@link lib.minecraft.renderer.option.AtlasOptions AtlasOptions} because what a caller asks an
  * atlas for and what it gets back read as one vocabulary.
+ *
+ * <p><b>Parity.</b> Every renderer entry point takes an options record, so a default or a resolution
+ * rule here reaches whatever that renderer draws - the same population the engine reaches, for the
+ * same reason. The dump is blind to all of it: it serialises loaded pipeline data and never
+ * constructs an options record.
  */
+@Parity(claim = "option-surface")
 package lib.minecraft.renderer.option;
+
+import lib.minecraft.renderer.parity.Parity;
