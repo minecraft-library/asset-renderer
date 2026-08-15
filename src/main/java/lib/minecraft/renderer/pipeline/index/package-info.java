@@ -10,6 +10,13 @@
  * They are the layer the loader-side pivots and bakes move onto, keeping every JSON loader a pure
  * {@code document.as(...)} read.
  *
+ * <p><b>Parity.</b> These builders run between the loaders and the renderer context, so a dump
+ * taken before them would serialise inputs that are identical whatever the builders did with
+ * them. It is taken after instead, which is what makes a change here visible at all.
+ *
  * @see lib.minecraft.renderer.pipeline.PipelineRendererContext
  */
+@Parity(claim = "index-and-loader")
 package lib.minecraft.renderer.pipeline.index;
+
+import lib.minecraft.renderer.parity.Parity;

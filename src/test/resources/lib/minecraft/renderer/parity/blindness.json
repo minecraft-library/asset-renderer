@@ -108,12 +108,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/index/**",
-        "src/main/java/lib/minecraft/renderer/pipeline/loader/**"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "A Pipeline.Result-level dump would clear a broken index loader, so the dump's altitude must be the renderer context",
+      "claim_key": "index-and-loader",
       "id": "B5",
       "mode": "select",
       "probe": "PipelineParityDump builds a PipelineRendererContext before dumping; check the dump entry point resolves the index rather than the LoadResult",
