@@ -216,14 +216,13 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java"
-      ],
+      "authored_paths": [],
       "blind": [
         "sweep.block",
         "sweep.item"
       ],
       "claim": "BlockRenderer never calls buildBox, and both item buildBox call sites are FaceTextures.uniform",
+      "claim_key": "box-builder",
       "id": "B10",
       "mode": "select",
       "probe": "./gradlew playerRender -Psheets=core-matrix,toggles,armor-per-slot and hash either side with git stash push -- src between the two renders",
