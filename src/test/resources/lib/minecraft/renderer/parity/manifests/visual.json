@@ -723,6 +723,10 @@
       "sha256": "b28d01e31e19f502a231225f334e102611f77157eefea82ccc746aefcdc7b336"
     },
     {
+      "path": "menu-render/chest_19x13.png",
+      "sha256": "451b2f69cac3d176604a4ca1e57a941f29dcf8308204317b1f0fc08aab2073f2"
+    },
+    {
       "path": "menu-render/chest_1row.png",
       "sha256": "6bb4d9ffe3a077a41789b1027c98a77cf8fc8e74ade2f61b277e11bfe51057b4"
     },
@@ -841,9 +845,9 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "06d72d0e1f2347b054d21caca7d827556f698464",
+    "asset_sha": "75b80e8aef548a6816b281bde2f3358ceba05558",
     "counts": {
-      "files": 208
+      "files": 209
     },
     "determinism_runs": 2,
     "flags": {},
@@ -851,7 +855,7 @@
     "parity_class": "neutral",
     "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "a fill carries an item id rather than being a constant for one, so a menu can name any filler; the item options the renderer builds from that id are the ones the constant built, so every row that already had a baseline is byte-identical across the change - the vanilla-shaped subjects, the filled server menu, the glint webp and the tooltip rows. The added rows are the two palettes that are not vanilla's, drawn on a chest and looked at rather than compared, there being no shipped counterpart to compare them against; both hashed identically across two captures taken either side of the commit",
+    "reason": "a menu panel at any extent: the driver gains a nineteen by thirteen chest at 356 by 258 Minecraft pixels, a size no shipped sheet composes; no stored row moved, the addition being the whole change, and the new row reproduced across two captures of the committed tree",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -861,7 +865,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-14T23:39:43Z",
+    "timestamp": "2026-08-15T11:13:47Z",
     "tool_version": "1.0.0"
   }
 }
