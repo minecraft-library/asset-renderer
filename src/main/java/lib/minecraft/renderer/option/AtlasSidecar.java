@@ -2,6 +2,8 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.AtlasRenderer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -22,6 +24,7 @@ import java.util.Optional;
  * @param count the tile count (== {@code tiles.size()})
  * @param tiles the tiles in grid order
  */
+@Parity(as = AtlasRenderer.class, mode = Mode.SUPPRESS)
 public record AtlasSidecar(int tileSize, int columns, int count, @NotNull List<AtlasTile> tiles) {
 
     /**

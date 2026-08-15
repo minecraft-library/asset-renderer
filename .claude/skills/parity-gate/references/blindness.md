@@ -206,7 +206,7 @@ Each index build records its own INFO entries, so reordering two of them is invi
 ## B15 - atlas.png can never be a byte gate
 
 - **mode** suppress
-- **triggers** `src/main/java/lib/minecraft/renderer/AtlasRenderer.java`, `src/main/java/lib/minecraft/renderer/option/Atlas*.java`, `src/test/java/lib/minecraft/renderer/example/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/AtlasRenderer.java`, `src/main/java/lib/minecraft/renderer/option/AtlasOptions.java`, `src/main/java/lib/minecraft/renderer/option/AtlasSidecar.java`, `src/main/java/lib/minecraft/renderer/option/AtlasTile.java`, `src/test/java/lib/minecraft/renderer/example/**`
 - **sees** -
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead; CLAUDE.md 'Gates'

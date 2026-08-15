@@ -312,12 +312,11 @@
     },
     {
       "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/AtlasRenderer.java",
-        "src/main/java/lib/minecraft/renderer/option/Atlas*.java",
         "src/test/java/lib/minecraft/renderer/example/**"
       ],
       "blind": [],
       "claim": "atlas.png can never be a byte gate",
+      "claim_key": "atlas-unhashable",
       "id": "B15",
       "mode": "suppress",
       "probe": "run generateAtlas twice with --rerun-tasks and hash build/atlas/atlas.png; the two differ",
@@ -326,7 +325,9 @@
       "source": "declares no store artifact, so its reason names the gate that answers instead; CLAUDE.md 'Gates'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/AtlasRenderer.java",
-        "src/main/java/lib/minecraft/renderer/option/Atlas*.java",
+        "src/main/java/lib/minecraft/renderer/option/AtlasOptions.java",
+        "src/main/java/lib/minecraft/renderer/option/AtlasSidecar.java",
+        "src/main/java/lib/minecraft/renderer/option/AtlasTile.java",
         "src/test/java/lib/minecraft/renderer/example/**"
       ]
     },
