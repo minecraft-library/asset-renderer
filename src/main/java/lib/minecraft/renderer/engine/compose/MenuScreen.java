@@ -2,7 +2,10 @@ package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -33,6 +36,7 @@ import java.util.Optional;
  * @param marks the marks the screen paints beside its cells, which hold no content and are
  * addressed by no slot index
  */
+@Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 public record MenuScreen(
     int topBand, int labelBand, int declaredSlack,
     int ownRows, int ownColumns, int ownOriginX,

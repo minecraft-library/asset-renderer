@@ -12,6 +12,8 @@ import lib.minecraft.renderer.engine.compose.Window;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.MenuSlot;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.text.font.MinecraftFont;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -45,6 +47,7 @@ import java.util.function.UnaryOperator;
  *
  * @see lib.minecraft.renderer.MenuRenderer
  */
+@Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class MenuOptions implements RenderOptions {

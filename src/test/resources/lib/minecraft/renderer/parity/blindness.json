@@ -1220,16 +1220,6 @@
     },
     {
       "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/MenuRenderer.java",
-        "src/main/java/lib/minecraft/renderer/engine/compose/ChromeDecomposition.java",
-        "src/main/java/lib/minecraft/renderer/engine/compose/ChromeSlicer.java",
-        "src/main/java/lib/minecraft/renderer/engine/compose/Decoration.java",
-        "src/main/java/lib/minecraft/renderer/engine/compose/MenuLayout.java",
-        "src/main/java/lib/minecraft/renderer/engine/compose/MenuScreen.java",
-        "src/main/java/lib/minecraft/renderer/engine/compose/Stencil.java",
-        "src/main/java/lib/minecraft/renderer/engine/compose/Window.java",
-        "src/main/java/lib/minecraft/renderer/option/MenuOptions.java",
-        "src/main/java/lib/minecraft/renderer/option/slot/MenuSlot.java",
         "src/test/java/lib/minecraft/renderer/visual/MenuRenderDriver.java"
       ],
       "blind": [
@@ -1249,6 +1239,7 @@
         "sweep.player"
       ],
       "claim": "A menu reaches the visual manifest and nothing else this store holds",
+      "claim_key": "menu-closure",
       "id": "B48",
       "mode": "demote",
       "probe": "perturb a menu geometry number - a band depth, a margin, a cell size - re-run the whole render bundle and read which artifacts move; the menu rows of manifest.visual move and nothing else does",

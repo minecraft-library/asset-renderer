@@ -1,11 +1,14 @@
 package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -23,6 +26,7 @@ import java.util.Optional;
  * and the other is already coloured. Handing one in would mean the arm that cannot honour it
  * ignoring it.
  */
+@Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 public interface Window {
 
     /**

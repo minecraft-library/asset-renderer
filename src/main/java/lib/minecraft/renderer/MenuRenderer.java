@@ -23,6 +23,9 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.MenuOptions;
 import lib.minecraft.renderer.option.slot.MenuSlot;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
@@ -44,6 +47,7 @@ import java.util.Optional;
  * A menu speaks Minecraft pixels throughout and reaches output pixels only through {@link #PX_SCALE},
  * which is what keeps the chrome exact rather than resampled.
  */
+@Parity(claim = "menu-closure", mode = Mode.DEMOTE, subject = Subject.MENU)
 public final class MenuRenderer implements Renderer<MenuOptions> {
 
     /**
