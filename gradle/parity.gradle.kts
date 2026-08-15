@@ -889,6 +889,13 @@ tasks.withType<Test>().configureEach {
     // same bytes for a javadoc edit that does not move a line. A shipped regeneration runbook lives
     // in one, so the one edit this guard exists to catch is the one Gradle cannot see.
     inputs.dir("src/test/java").withPropertyName("parityTestSources")
+    // The library's own sources, for the same reason one level over: BlindnessMapTest reads them as
+    // TEXT, looking for the @Parity declarations a generated trigger path stands for. They reach the
+    // task compiled, and that route cannot carry this - the annotation is SOURCE retained, so javac
+    // emits identical bytes whether a declaration is there or not, and adding, moving or deleting one
+    // is precisely the edit that would otherwise leave this task UP-TO-DATE with the guard that
+    // exists to catch it never running.
+    inputs.dir("src/main/java").withPropertyName("parityMainSources")
     inputs.dir(paritySkillReferences).withPropertyName("paritySkillReferences").optional()
     inputs.file(paritySkillFile).withPropertyName("paritySkillFile")
     // The git index, because the map's coverage and orphan checks resolve against `git ls-files`

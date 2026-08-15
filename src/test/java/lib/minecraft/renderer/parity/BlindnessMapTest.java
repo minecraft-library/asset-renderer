@@ -197,6 +197,7 @@ final class BlindnessMapTest {
         "paritySkillReferences", "paritySkillReferences",
         "paritySkillFile", "paritySkillFile",
         "parityTestSources", "\"src/test/java\"",
+        "parityMainSources", "\"src/main/java\"",
         "parityGitIndex", "\".git/index\"",
         "parityClaudeMd", "\"CLAUDE.md\"");
 
@@ -266,6 +267,12 @@ final class BlindnessMapTest {
 
     /** The suffix a renderer's file name ends in, which is what the roster is walked by. */
     private static final String RENDERER_SUFFIX = "Renderer.java";
+
+    /** The annotation token a derived trigger path stands for, as it is written in source. */
+    private static final String DECLARATION = "@Parity";
+
+    /** The file a package's declaration is written in, which is what a package glob stands for. */
+    private static final String PACKAGE_DECLARATION = "package-info.java";
 
     /** The skill body, whose frontmatter is what decides when the gate is offered at all. */
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
@@ -1192,6 +1199,62 @@ final class BlindnessMapTest {
     }
 
     @Test
+    @DisplayName("every derived trigger path still names a file that declares its claim")
+    void everyDerivedPathStillCarriesItsDeclaration() {
+        List<String> gone = new ArrayList<>();
+        List<String> silent = new ArrayList<>();
+        for (JsonObject rule : rules()) {
+            String key = rule.has("claim_key") ? rule.get("claim_key").getAsString() : "";
+            if (key.isEmpty()) continue;
+            Set<String> authored = strings(rule.getAsJsonArray("authored_paths"));
+            for (JsonElement glob : rule.getAsJsonArray("trigger_paths")) {
+                String trigger = glob.getAsString();
+                if (authored.contains(trigger)) continue;
+                Path carrier = Path.of(carrierOf(trigger));
+                if (!Files.isRegularFile(carrier)) {
+                    gone.add(rule.get("id").getAsString() + " -> " + carrier);
+                    continue;
+                }
+                // A token scan and never a parse, because a second reader of this grammar is a
+                // second thing to drift: the toolkit owns the parse and this says only that the
+                // file a generated path stands for still says something about this claim.
+                String source = text(carrier);
+                if (!source.contains(DECLARATION) || !(source.contains('"' + key + '"')
+                    || source.contains("as = ")))
+                    silent.add(rule.get("id").getAsString() + " -> " + carrier);
+            }
+        }
+
+        assertThat("generated trigger paths naming a file that is no longer there. A commit moved "
+            + "or renamed a file carrying a declaration and did not regenerate, so the planner "
+            + "fires this rule on a path nothing occupies and the change that really moved is "
+            + "planned by whatever else happens to claim its new home", gone, is(empty()));
+        assertThat("generated trigger paths naming a file that declares nothing about this claim. "
+            + "Either the declaration was deleted and the map still carries what it derived, or it "
+            + "was retargeted at another claim - and both leave a rule reaching a file whose own "
+            + "source no longer says so. A token scan, so a file joining by 'as' answers on the "
+            + "join rather than on the slug; what re-derives the exact set is the generator, and "
+            + "the toolkit's suite is what holds this file's answer to it", silent, is(empty()));
+    }
+
+    @Test
+    @DisplayName("every rule reaches at least one path")
+    void everyRuleHasAHome() {
+        List<String> homeless = rules().stream()
+            .filter(rule -> rule.getAsJsonArray("trigger_paths").isEmpty())
+            .map(rule -> rule.get("id").getAsString()
+                + (rule.has("claim_key") ? " (" + rule.get("claim_key").getAsString() + ")" : ""))
+            .toList();
+
+        assertThat("rules whose trigger list is empty. A rule's last carrier was deleted or its "
+            + "claim_key was typed wrong, so the generator had nothing to put in the list and the "
+            + "rule now fires on no path at all - which is not a rule that says nothing, it is a "
+            + "gate that silently stopped being consulted. Nothing else here can see it: every "
+            + "other check over this list is quantified over the paths it holds and is vacuously "
+            + "true of none", homeless, is(empty()));
+    }
+
+    @Test
     @DisplayName("the renderer roster and the parity subjects name each other exactly")
     void theSubjectRosterIsTheRendererRoster() {
         List<String> renderers = trackedFiles().stream()
@@ -1220,6 +1283,25 @@ final class BlindnessMapTest {
             + "upper-cased and stripped of the suffix, so a renderer whose name needs a word "
             + "boundary the constant has to spell fails here for somebody to decide rather than "
             + "resolving itself", subjects, equalTo(renderers));
+    }
+
+    /**
+     * The file a derived trigger path stands for.
+     *
+     * <p>A package's declaration is written in its {@code package-info.java} and the trigger it
+     * derives is that directory's glob, so the two spellings of a package's reach - its own
+     * compilation units and its whole tree - both answer with the one file that carries the line. A
+     * type's trigger is the file itself.
+     *
+     * @param trigger the generated trigger path
+     * @return the repo-relative path of the file that declares it
+     */
+    private static String carrierOf(String trigger) {
+        if (trigger.endsWith("/**"))
+            return trigger.substring(0, trigger.length() - 2) + PACKAGE_DECLARATION;
+        if (trigger.endsWith("/*"))
+            return trigger.substring(0, trigger.length() - 1) + PACKAGE_DECLARATION;
+        return trigger;
     }
 
     /**
