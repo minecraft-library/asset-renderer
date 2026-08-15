@@ -242,7 +242,7 @@ Dumping the registry would be a second copy of a production rule, and a dump tha
 ## B18 - CatharsisConfig is not itself dumped, and a Catharsis condition still reaches the packs dump through what it selects
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/cats/**`, `src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/cats/**`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisCondition.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisConfig.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisOverlays.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisTarget.java`
 - **sees** `sweep.block`, `sweep.item`, `manifest.dump.packs`
 - **blind** `manifest.dump.vanilla`
 - **source** measured by perturbing CatharsisCondition.java: 1 of 3 declared sees moved, and 1 declared blind held

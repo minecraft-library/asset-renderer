@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.parity.Parity;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -25,6 +26,7 @@ import java.util.Optional;
  * Unknown container shapes are traversed, not rejected - a config element the renderer does not model
  * simply contributes no default.
  */
+@Parity(claim = "catharsis-selection")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class CatharsisConfig {
 

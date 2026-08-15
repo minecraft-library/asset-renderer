@@ -378,14 +378,12 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java",
-        "src/main/java/lib/minecraft/renderer/asset/pack/cats/**"
-      ],
+      "authored_paths": [],
       "blind": [
         "manifest.dump.vanilla"
       ],
       "claim": "CatharsisConfig is not itself dumped, and a Catharsis condition still reaches the packs dump through what it selects",
+      "claim_key": "catharsis-selection",
       "id": "B18",
       "mode": "select",
       "probe": "grep the 14 dump sections for any catharsis or overlay key; there is none",
@@ -398,7 +396,10 @@
       "source": "measured by perturbing CatharsisCondition.java: 1 of 3 declared sees moved, and 1 declared blind held",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/pack/cats/**",
-        "src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java"
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisCondition.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisConfig.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisOverlays.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisTarget.java"
       ]
     },
     {
