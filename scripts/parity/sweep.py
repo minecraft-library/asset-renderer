@@ -16,7 +16,7 @@ from parity import ids as ids_mod
 from parity.norm import MissingInput, fixed, fsum, read_json, read_lines
 
 #: Spine 4.3. These and only these.
-SWEEPS = ("entity", "block", "item", "player", "armor", "glint")
+SWEEPS = ("entity", "block", "item", "player", "armor", "glint", "menu")
 
 DELTA = "mean_argb_delta"
 
@@ -225,7 +225,9 @@ def canonical_key(row: Row, sweep: str) -> str:
 
     That is what lets two sweeps' rows be joined to each other, which nothing in the repo can do.
     """
-    if sweep == "player":
+    # A player scope and a menu name are not resource ids and have no namespace to normalise, so
+    # both join on the key their own table printed.
+    if sweep in ("player", "menu"):
         return row.key
     try:
         return ids_mod.format_ref_stem(ids_mod.parse_as(row.key, _spelling(sweep)))

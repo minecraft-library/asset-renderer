@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.not;
 import lib.minecraft.renderer.support.BuildScripts;
 
 /**
- * One sort direction across the six sweep writers, asserted on their sources.
+ * One sort direction across every sweep writer, asserted on their sources.
  *
  * <p>Nothing downstream can notice a table ranked the other way - the store re-keys every row by
  * subject and the fleet sum is order-independent - so what is at risk is a human reading the raw
@@ -33,14 +33,14 @@ import lib.minecraft.renderer.support.BuildScripts;
  * <p>Read off the sources rather than off a run, because a run of one of these boots the pipeline and
  * renders a corpus.
  */
-@DisplayName("The six sweep writers rank their tables the same way")
+@DisplayName("The sweep writers rank their tables the same way")
 final class SweepSortDirectionTest {
 
-    /** Where the six writers live. */
+    /** Where the writers live. */
     private static final Path HOME = Path.of("src/test/java/lib/minecraft/renderer/visual");
 
     /**
-     * The six, named rather than globbed and held below to the writers the sweep producers run.
+     * The writers, named rather than globbed and held below to the writers the sweep producers run.
      *
      * <p>Naming them buys a reader the set at a glance; what makes the naming safe is that
      * relation, because a set typed once is one every case here goes on holding over after a member
@@ -48,7 +48,8 @@ final class SweepSortDirectionTest {
      */
     private static final List<String> WRITERS = List.of(
         "TestEntityParityVanilla.java", "TestBlockParityVanilla.java", "TestItemParityVanilla.java",
-        "TestPlayerParityVanilla.java", "TestArmorParityVanilla.java", "TestGlintParityVanilla.java");
+        "TestPlayerParityVanilla.java", "TestArmorParityVanilla.java", "TestGlintParityVanilla.java",
+        "TestMenuParityVanilla.java");
 
     /** Where the build file registers the task that runs each writer. */
 
@@ -75,7 +76,7 @@ final class SweepSortDirectionTest {
     private static final String READS_THE_DESCENDING_COPY = "for (Row r : worst";
 
     @Test
-    @DisplayName("the six named here are the writers the six sweep producers run")
+    @DisplayName("the writers named here are the ones the sweep producers run")
     void theNamedSetIsWhatTheSweepProducersRun() {
         ProducerWriters resolved = writersTheSweepProducersRun();
         List<String> run = resolved.writers();
@@ -84,7 +85,7 @@ final class SweepSortDirectionTest {
         assertThat("sweep producers whose writer the build file does not name",
             resolved.unreadable(), is(empty()));
         assertThat("the artifact roster registers no sweep at all", run, is(not(empty())));
-        assertThat("the six named here, against the writer each sweep producer actually runs",
+        assertThat("the writers named here, against the writer each sweep producer actually runs",
             WRITERS.stream().sorted().toList(), equalTo(run));
         assertThat("and the directory holds no writer the producers do not run", present, equalTo(run));
     }
@@ -160,7 +161,7 @@ final class SweepSortDirectionTest {
     }
 
     @Test
-    @DisplayName("each of the six sorts its rows exactly once, through the shared comparator")
+    @DisplayName("each writer sorts its rows exactly once, through the shared comparator")
     void everyWriterRanksThroughTheOneComparator() {
         List<String> without = new ArrayList<>();
         List<String> repeated = new ArrayList<>();

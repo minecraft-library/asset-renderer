@@ -246,9 +246,11 @@ class MenuRendererGeometryTest {
         assertThat("the player's label, ninety-four above a six-row chest's declared bottom",
             MenuScreen.chest(6).layout(true).inventoryAnchor(),
             is(equalTo(Optional.of(new MenuLayout.Anchor(8, 128)))));
-        assertThat("and above a shulker box's, which declares exactly what it draws",
+        // A shulker box declares 167 and draws 166, read off ShulkerBoxScreen's own (176, 167)
+        // construction, so its label sits a pixel below where its drawn height alone would put it.
+        assertThat("and above a shulker box's, which declares a pixel it never draws",
             MenuScreen.shulkerBox().layout(true).inventoryAnchor(),
-            is(equalTo(Optional.of(new MenuLayout.Anchor(8, 72)))));
+            is(equalTo(Optional.of(new MenuLayout.Anchor(8, 73)))));
         assertThat("and a hopper's", MenuScreen.hopper().layout(true).inventoryAnchor(),
             is(equalTo(Optional.of(new MenuLayout.Anchor(8, 39)))));
 

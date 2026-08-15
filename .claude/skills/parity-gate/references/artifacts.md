@@ -40,6 +40,7 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 13402 ms | yes |
 | `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 16490 ms | yes |
 | `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 31712 ms | yes |
+| `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | - | - | - | **no** |
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 2312 | - | yes |
 | `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 209 | - | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | - | yes |

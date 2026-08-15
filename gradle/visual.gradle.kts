@@ -212,6 +212,15 @@ register<JavaExec>("glintParityVanilla") {
     // global JavaExec forwarder near the top of this file.
 }
 
+register<JavaExec>("menuParityVanilla") {
+    description = "Per-subject container-screen parity report comparing Java MenuRenderer against the vanilla-reference-harness menu references at cache/.../references/menus/. Both sides share a canvas, so this is a direct diff rather than a bbox-aligned one. Writes per-subject diff panels and a TSV to cache/visual/menu-parity-vanilla/. Run renderVanillaMenuReferences first. -PmenuId=chest_3row"
+    group = "visual"
+    mainClass.set("lib.minecraft.renderer.visual.TestMenuParityVanilla")
+    classpath = sourceSets["test"].runtimeClasspath
+    val menuId = project.findProperty("menuId") as String?
+    args = if (menuId != null) listOf(menuId) else listOf()
+}
+
 register<JavaExec>("fluidRenderer") {
     description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/visual/fluid-renderer/ for visual inspection."
     group = "visual"

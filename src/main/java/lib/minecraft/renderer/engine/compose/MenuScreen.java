@@ -81,8 +81,8 @@ public record MenuScreen(
      * <p>
      * A chest is the one screen the client composes rather than blits whole - one sheet serves every
      * row count, in two draws that skip a source row between them - so its numbers are the composed
-     * panel's and sit one pixel above the sheet's below the container rows. It is also the one screen
-     * that declares a pixel it never draws, which is the pixel that draw skipped.
+     * panel's and sit one pixel above the sheet's below the container rows. The pixel that draw
+     * skipped is what it declares and never draws.
      *
      * @param rows how many rows the chest has, three for a single and six for a double
      * @return the screen
@@ -91,9 +91,16 @@ public record MenuScreen(
         return new MenuScreen(17, 13, 1, rows, COLUMNS, MARGIN, COLUMNS, TITLE_START, Concurrent.newList());
     }
 
-    /** The shulker box, a three-row container whose label band is one pixel short of a chest's. */
+    /**
+     * The shulker box, a three-row container whose label band is one pixel short of a chest's.
+     * <p>
+     * It declares a pixel it never draws, as a chest does, and for a different reason: a chest's is
+     * the source row its second blit skips, where this one is blitted whole and simply declares
+     * itself one taller than its art. The player's label is positioned from the declared height on
+     * both, so the two arrive at the same offset by different routes.
+     */
     public static @NotNull MenuScreen shulkerBox() {
-        return new MenuScreen(17, 12, 0, 3, COLUMNS, MARGIN, COLUMNS, TITLE_START, Concurrent.newList());
+        return new MenuScreen(17, 12, 1, 3, COLUMNS, MARGIN, COLUMNS, TITLE_START, Concurrent.newList());
     }
 
     /** The hopper, one row of five cells, sitting two pixels lower than a chest's first row. */

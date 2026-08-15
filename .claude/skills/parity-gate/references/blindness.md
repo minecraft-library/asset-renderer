@@ -375,7 +375,7 @@ These are message and constructor shapes on throwables. Nothing renders differen
 
 - **mode** select
 - **triggers** `harness/src/**`, `harness/build.gradle.kts`, `harness/settings.gradle.kts`, `harness/gradle.properties`, `harness/gradle/**`, `harness/gradlew`, `harness/gradlew.bat`, `harness/run-profile/**`
-- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.references`, `manifest.player-raw`
+- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.menu`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.references`, `manifest.player-raw`
 - **blind** -
 - **source** measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'
 
@@ -411,7 +411,7 @@ A task registration, a finalizer edge or a property read moves no rendered byte:
 
 - **mode** select
 - **triggers** `src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java`, `src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java`, `src/test/java/lib/minecraft/renderer/parity/SweepReport.java`, `src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java`, `src/test/java/lib/minecraft/renderer/visual/**`
-- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.visual`, `manifest.player-sheets`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`
+- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.menu`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.visual`, `manifest.player-sheets`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing ParityMetrics.java: 6 of 11 declared sees moved, and 2 declared blind held
 
@@ -627,7 +627,7 @@ These two files are where a dependency version is written down - ten strictly() 
 
 - **mode** demote
 - **triggers** `src/main/java/lib/minecraft/renderer/MenuRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/compose/ChromeDecomposition.java`, `src/main/java/lib/minecraft/renderer/engine/compose/ChromeSlicer.java`, `src/main/java/lib/minecraft/renderer/engine/compose/MenuLayout.java`, `src/main/java/lib/minecraft/renderer/engine/compose/MenuScreen.java`, `src/main/java/lib/minecraft/renderer/engine/compose/Window.java`, `src/main/java/lib/minecraft/renderer/option/MenuOptions.java`, `src/main/java/lib/minecraft/renderer/option/slot/MenuSlot.java`, `src/test/java/lib/minecraft/renderer/visual/MenuRenderDriver.java`
-- **sees** `manifest.visual`
+- **sees** `manifest.visual`, `sweep.menu`
 - **blind** `manifest.fluid`, `manifest.player-raw`, `manifest.player-sheets`, `manifest.portal`, `pin.block-crc`, `pin.fluid-crc`, `pin.player-crc`, `pin.portal-crc`, `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.player`
 - **source** measured by rewriting MenuRenderer, MenuOptions, MenuScreen, MenuLayout, Window and the visual driver together: manifest.visual alone moved and every other artifact the plan planned on those paths held; measured again on MenuRenderer alone, where the menu rows of manifest.visual moved and everything captured beside them held
 
