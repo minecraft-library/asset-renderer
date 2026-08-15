@@ -42,6 +42,19 @@ public interface Window {
     void paintCell(@NotNull PixelBuffer dest, @NotNull Box box);
 
     /**
+     * Paints one of a screen's marks over the box.
+     * <p>
+     * A window that draws from rules paints the mark in its own inks; a window sliced from art paints
+     * nothing, because whatever marks that art carries are already in the panel it slices. The item a
+     * button's face holds is not painted here - it is a render, and the renderer places it.
+     *
+     * @param dest the buffer to paint into
+     * @param box the mark's rect in Minecraft pixels, with its output scale
+     * @param decoration which mark to paint
+     */
+    void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Decoration decoration);
+
+    /**
      * Returns the smallest panel this window can paint, in Minecraft pixels - the size at which the
      * frame's own corners meet and the interior is empty. It is a floor the art imposes and never a
      * layout's: a screen with content to fit has its own larger floor, and the usable one is
@@ -218,6 +231,16 @@ public interface Window {
             blit(dest, ChromeSlicer.assemble(this.cell.get(), this.cellArt.get(), box.width(), box.height()), box);
         }
 
+        /**
+         * {@inheritDoc}
+         * <p>
+         * Nothing, because a panel sliced from art already carries whatever marks that art draws -
+         * the shipped crafting panel has its arrow painted into the texture, so a second one here
+         * would be drawn over the first.
+         */
+        @Override
+        public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Decoration decoration) {}
+
         /** {@inheritDoc} */
         @Override
         public @NotNull Extent minimum() {
@@ -388,6 +411,78 @@ public interface Window {
             for (int y = 0; y < h - 1; y++) put(dest, box, 0, y, palette.cellShadow());
             for (int x = 1; x < w; x++) put(dest, box, x, h - 1, palette.light());
             for (int y = 1; y < h; y++) put(dest, box, w - 1, y, palette.light());
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Decoration decoration) {
+            switch (decoration) {
+                case Decoration.Arrow ignored -> paintArrow(dest, box, this.palette);
+                case Decoration.Button ignored -> paintRaised(dest, box, this.palette);
+            }
+        }
+
+        /**
+         * Paints a right-pointing arrow filling the box - a shaft three deep across the left of it,
+         * and a triangle on the end whose rows narrow by one to a point.
+         * <p>
+         * It is drawn in the cell's own fill, which is what the shipped crafting panel draws its
+         * arrow in, so the mark and the cells it points between are re-inked by one value.
+         */
+        private static void paintArrow(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette) {
+            int w = box.width();
+            int h = box.height();
+            int head = (h + 1) / 2;
+            int shaft = w - head;
+            int middle = h / 2;
+            int ink = palette.cellFill();
+
+            for (int y = middle - 1; y <= middle + 1; y++)
+                for (int x = 0; x < shaft; x++)
+                    put(dest, box, x, y, ink);
+
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < head - Math.abs(y - middle); x++)
+                    put(dest, box, shaft + x, y, ink);
+        }
+
+        /**
+         * Paints a raised button filling the box - an outline chamfered a pixel at each corner, the
+         * light along the inside of its top and left, the shadow along its bottom and right, and the
+         * panel's own fill between them.
+         * <p>
+         * This is {@link #paintCell} the other way up. A cell is sunk into the panel and a button
+         * stands off it, which is one bevel read in two directions rather than two shapes.
+         */
+        private static void paintRaised(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Palette palette) {
+            int w = box.width();
+            int h = box.height();
+            if (w < 4 || h < 4) return;
+
+            for (int y = 2; y < h - 2; y++)
+                for (int x = 2; x < w - 2; x++)
+                    put(dest, box, x, y, palette.panel());
+
+            for (int x = 2; x < w - 2; x++) {
+                put(dest, box, x, 0, palette.outline());
+                put(dest, box, x, 1, palette.light());
+                put(dest, box, x, h - 2, palette.shadow());
+                put(dest, box, x, h - 1, palette.outline());
+            }
+
+            for (int y = 2; y < h - 2; y++) {
+                put(dest, box, 0, y, palette.outline());
+                put(dest, box, 1, y, palette.light());
+                put(dest, box, w - 2, y, palette.shadow());
+                put(dest, box, w - 1, y, palette.outline());
+            }
+
+            // The chamfer: one pixel of outline closing each corner, which is what leaves the corner
+            // itself unpainted so the panel shows through as it does under the frame's own corners.
+            put(dest, box, 1, 1, palette.outline());
+            put(dest, box, w - 2, 1, palette.outline());
+            put(dest, box, 1, h - 2, palette.outline());
+            put(dest, box, w - 2, h - 2, palette.outline());
         }
 
         /** {@inheritDoc} */

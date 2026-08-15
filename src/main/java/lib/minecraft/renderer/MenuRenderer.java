@@ -8,6 +8,7 @@ import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.compose.Decoration;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
 import lib.minecraft.renderer.engine.compose.MenuLayout;
@@ -109,7 +110,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         LayerStack<FrameLayer> stack = new LayerStack<>();
         place(stack, MenuSlot.CHROME, chromeOf(window, layout));
 
-        boolean anyAnimated = placeSlots(options, layout, stack, itemRenderer);
+        boolean anyAnimated = placeDecorationIcons(layout, stack, itemRenderer);
+        anyAnimated |= placeSlots(options, layout, stack, itemRenderer);
         anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer);
         anyAnimated |= placeLabels(options, layout, stack);
 
@@ -190,6 +192,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         window.paintPanel(chrome, layout.box(PX_SCALE));
         for (MenuLayout.Cell cell : layout.cells())
             window.paintCell(chrome, cell.box(PX_SCALE));
+        for (Decoration decoration : layout.decorations())
+            window.paintDecoration(chrome, MenuLayout.box(decoration, PX_SCALE), decoration);
 
         return chrome;
     }
@@ -300,6 +304,45 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         return options.mutate()
             .output(options.getOutput().mutate().canvasSize(CONTENT_PX).build())
             .build();
+    }
+
+    /**
+     * Draws the icon each of a screen's marks carries, returning whether any of them animated.
+     * <p>
+     * A mark's frame is chrome and its icon is a render, so the two are drawn by different parties:
+     * the window paints the raised button in its own inks and this places the item on its face. That
+     * split is what gives a pack its say - the item resolves through the pack stack like any other,
+     * so redrawing it redraws the button.
+     *
+     * @param layout the laid-out panel
+     * @param stack the layer stack to append to
+     * @param itemRenderer the renderer an icon goes through
+     * @return whether any icon resolved to animated content
+     */
+    static boolean placeDecorationIcons(
+        @NotNull MenuLayout layout,
+        @NotNull LayerStack<FrameLayer> stack,
+        @NotNull ItemRenderer itemRenderer
+    ) {
+        boolean anyAnimated = false;
+
+        for (Decoration decoration : layout.decorations()) {
+            Optional<ResourceId> icon = decoration.icon();
+            if (icon.isEmpty()) continue;
+
+            ImageData rendered = itemRenderer.render(ItemOptions.builder()
+                .itemId(icon.get().id())
+                .type(ItemOptions.Type.GUI_ICON)
+                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
+                .build());
+            if (rendered.isAnimated()) anyAnimated = true;
+
+            place(stack, MenuSlot.CONTENT, new FramePlacement(
+                (decoration.x() + Decoration.Button.ICON_INSET_X) * PX_SCALE,
+                (decoration.y() + Decoration.Button.ICON_INSET_Y) * PX_SCALE, rendered));
+        }
+
+        return anyAnimated;
     }
 
     /**

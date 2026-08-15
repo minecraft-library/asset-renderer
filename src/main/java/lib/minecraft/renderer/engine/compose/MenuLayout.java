@@ -19,12 +19,26 @@ import java.util.Optional;
  * @param inventoryAnchor where the player's label starts, present exactly when the player section is
  * laid out
  * @param cells every cell, in the order they are laid out
+ * @param decorations the marks the screen paints beside its cells, at the positions it declares
  */
 public record MenuLayout(
     int width, int height,
     @NotNull MenuScreen.TitleX titleX, @NotNull Optional<Anchor> inventoryAnchor,
-    @NotNull ConcurrentList<Cell> cells
+    @NotNull ConcurrentList<Cell> cells,
+    @NotNull ConcurrentList<Decoration> decorations
 ) {
+
+    /**
+     * One mark's square as a {@link Window.Box} at the given output scale.
+     *
+     * @param decoration the mark
+     * @param scale the output pixels each Minecraft pixel occupies on a side
+     * @return the mark's box
+     */
+    public static @NotNull Window.Box box(@NotNull Decoration decoration, int scale) {
+        Window.Extent extent = decoration.extent();
+        return new Window.Box(decoration.x(), decoration.y(), extent.width(), extent.height(), scale);
+    }
 
     /**
      * Where the container's own title starts.

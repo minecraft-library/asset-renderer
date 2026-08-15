@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -29,12 +30,15 @@ import java.util.Optional;
  * @param panelColumns how many cells wide the panel itself is, which is what its width comes to
  * @param titleX where the title starts
  * @param extras cells that are not part of the regular grid, such as a crafting result
+ * @param decorations marks the screen paints beside its cells, which hold no content and are
+ * addressed by no slot index
  */
 public record MenuScreen(
     int topBand, int labelBand, int declaredSlack,
     int ownRows, int ownColumns, int ownOriginX,
     int panelColumns, @NotNull TitleX titleX,
-    @NotNull ConcurrentList<MenuLayout.Cell> extras
+    @NotNull ConcurrentList<MenuLayout.Cell> extras,
+    @NotNull ConcurrentList<Decoration> decorations
 ) {
 
     /** side of one cell, and the pitch between two, in Minecraft pixels */
@@ -73,7 +77,7 @@ public record MenuScreen(
      * @return the screen
      */
     public static @NotNull MenuScreen grid(int rows, int columns) {
-        return new MenuScreen(17, 13, 0, rows, columns, MARGIN, columns, TITLE_START, Concurrent.newList());
+        return new MenuScreen(17, 13, 0, rows, columns, MARGIN, columns, TITLE_START, Concurrent.newList(), Concurrent.newList());
     }
 
     /**
@@ -88,7 +92,7 @@ public record MenuScreen(
      * @return the screen
      */
     public static @NotNull MenuScreen chest(int rows) {
-        return new MenuScreen(17, 13, 1, rows, COLUMNS, MARGIN, COLUMNS, TITLE_START, Concurrent.newList());
+        return new MenuScreen(17, 13, 1, rows, COLUMNS, MARGIN, COLUMNS, TITLE_START, Concurrent.newList(), Concurrent.newList());
     }
 
     /**
@@ -100,12 +104,12 @@ public record MenuScreen(
      * both, so the two arrive at the same offset by different routes.
      */
     public static @NotNull MenuScreen shulkerBox() {
-        return new MenuScreen(17, 12, 1, 3, COLUMNS, MARGIN, COLUMNS, TITLE_START, Concurrent.newList());
+        return new MenuScreen(17, 12, 1, 3, COLUMNS, MARGIN, COLUMNS, TITLE_START, Concurrent.newList(), Concurrent.newList());
     }
 
     /** The hopper, one row of five cells, sitting two pixels lower than a chest's first row. */
     public static @NotNull MenuScreen hopper() {
-        return new MenuScreen(19, 13, 0, 1, 5, centred(5), COLUMNS, TITLE_START, Concurrent.newList());
+        return new MenuScreen(19, 13, 0, 1, 5, centred(5), COLUMNS, TITLE_START, Concurrent.newList(), Concurrent.newList());
     }
 
     /**
@@ -113,19 +117,38 @@ public record MenuScreen(
      * rather than starting it a fixed distance in.
      */
     public static @NotNull MenuScreen dispenser() {
-        return new MenuScreen(16, 13, 0, 3, 3, centred(3), COLUMNS, new TitleX.Centred(), Concurrent.newList());
+        return new MenuScreen(16, 13, 0, 3, 3, centred(3), COLUMNS, new TitleX.Centred(), Concurrent.newList(), Concurrent.newList());
     }
 
     /**
      * The crafting table, a three by three that is <b>not</b> centred - its columns sit four pixels
      * left of where a dispenser's do - plus a result cell of 26 rather than 18, and a title starting
      * where a recipe book's tab would end.
+     * <p>
+     * It is the one shipped screen carrying marks: the arrow between its grid and its result, which
+     * the shipped panel paints into its own texture, and the button that opens a recipe book, which
+     * the client blits over the panel as a widget. Both are declared here rather than read off art,
+     * so both are re-inked with the panel they sit on.
      */
     public static @NotNull MenuScreen craftingTable() {
         ConcurrentList<MenuLayout.Cell> extras = Concurrent.newList();
         extras.add(new MenuLayout.Cell(119, 30, 26, MenuLayout.Role.RESULT));
-        return new MenuScreen(16, 13, 0, 3, 3, 29, COLUMNS, new TitleX.Inset(29), extras);
+
+        ConcurrentList<Decoration> marks = Concurrent.newList();
+        marks.add(new Decoration.Arrow(90, 35));
+        marks.add(new Decoration.Button(5, 34, RECIPE_BOOK_ITEM));
+
+        return new MenuScreen(16, 13, 0, 3, 3, 29, COLUMNS, new TitleX.Inset(29), extras, marks);
     }
+
+    /**
+     * The item the recipe-book button draws on its face.
+     * <p>
+     * The client's own button sprite is a raised frame with this item's texture composited onto it,
+     * pixel for pixel, so naming the item rather than the sprite reproduces the button and hands a
+     * pack that redraws the item a redrawn button at the same time.
+     */
+    private static final @NotNull ResourceId RECIPE_BOOK_ITEM = ResourceId.parse("minecraft:knowledge_book");
 
     /**
      * The anvil, whose row is two inputs and a result at their own spacing rather than a grid, so it
@@ -136,7 +159,7 @@ public record MenuScreen(
         extras.add(new MenuLayout.Cell(26, 46, CELL, MenuLayout.Role.CONTAINER));
         extras.add(new MenuLayout.Cell(75, 46, CELL, MenuLayout.Role.CONTAINER));
         extras.add(new MenuLayout.Cell(133, 46, CELL, MenuLayout.Role.RESULT));
-        return new MenuScreen(46, 19, 0, 1, 0, MARGIN, COLUMNS, new TitleX.Inset(60), extras);
+        return new MenuScreen(46, 19, 0, 1, 0, MARGIN, COLUMNS, new TitleX.Inset(60), extras, Concurrent.newList());
     }
 
     /**
@@ -261,7 +284,7 @@ public record MenuScreen(
 
         int height = this.topBand + this.ownRows * CELL;
         if (!playerSection)
-            return new MenuLayout(width(), height + MARGIN, this.titleX, Optional.empty(), cells);
+            return new MenuLayout(width(), height + MARGIN, this.titleX, Optional.empty(), cells, this.decorations);
 
         int playerTop = height + this.labelBand;
         for (int row = 0; row < PLAYER_ROWS; row++)
@@ -277,7 +300,7 @@ public record MenuScreen(
         MenuLayout.Anchor inventory =
             new MenuLayout.Anchor(TITLE_X, drawn + this.declaredSlack - INVENTORY_LABEL_RISE);
 
-        return new MenuLayout(width(), drawn, this.titleX, Optional.of(inventory), cells);
+        return new MenuLayout(width(), drawn, this.titleX, Optional.of(inventory), cells, this.decorations);
     }
 
     /**

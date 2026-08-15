@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.engine.compose.Decoration;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
 import lib.minecraft.renderer.engine.compose.MenuLayout;
 import lib.minecraft.renderer.engine.compose.MenuScreen;
@@ -417,6 +418,10 @@ class MenuRendererGeometryTest {
         /** {@inheritDoc} */
         @Override
         public void paintCell(@NotNull PixelBuffer dest, @NotNull Box box) {}
+
+        /** {@inheritDoc} */
+        @Override
+        public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Decoration decoration) {}
 
         /** {@inheritDoc} */
         @Override
