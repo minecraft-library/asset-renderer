@@ -37,6 +37,12 @@ import java.util.function.UnaryOperator;
  * them. A {@link MenuSlotContent} is either an item the renderer draws to the cell's size through
  * {@link ItemRenderer}, or a render the caller has already sized.
  *
+ * <p><b>Size.</b> {@link Type#CHEST} is laid out at whatever {@link #getRows() rows} and
+ * {@link #getColumns() columns} it is given. Nine columns is the panel the client composes out of one
+ * sheet; any other width is a grid carrying the same frame, which is four corner blocks and four bars
+ * of a one-pixel period and so serves a panel of any extent. A panel with room for neither the
+ * window's own frame nor one cell is refused rather than drawn.
+ *
  * @see lib.minecraft.renderer.MenuRenderer
  */
 @Getter

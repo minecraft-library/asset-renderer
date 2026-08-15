@@ -101,11 +101,13 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         validateScale(options);
 
         MenuLayout layout = layoutOf(options);
+        Window window = windowOf(this.context, options);
+        validateExtent(window, options, layout);
         validateSlots(options, layout);
 
         ItemRenderer itemRenderer = new ItemRenderer(this.context);
         LayerStack<FrameLayer> stack = new LayerStack<>();
-        place(stack, MenuSlot.CHROME, chromeOf(windowOf(this.context, options), layout));
+        place(stack, MenuSlot.CHROME, chromeOf(window, layout));
 
         boolean anyAnimated = placeSlots(options, layout, stack, itemRenderer);
         anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer);
@@ -369,6 +371,29 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         throw new RenderException(
             "Menu scale '%d' is not the scale a title rasterises at (expected '%d')",
             options.getPxScale(), PX_SCALE
+        );
+    }
+
+    /**
+     * Rejects a panel too small to be drawn, which is the larger of two independent floors on each
+     * axis - what the window's art needs to paint a frame, and what the screen needs to hold a cell.
+     * <p>
+     * Neither implies the other, so neither alone is the guard. Vanilla's drawn geometry closes at
+     * eight Minecraft pixels square, which a chest of no rows and no columns still clears with
+     * nowhere to put a cell; and a window sliced from art carries its border and every anchored
+     * feature in that floor, which can want more room than a screen full of cells would.
+     */
+    static void validateExtent(@NotNull Window window, @NotNull MenuOptions options, @NotNull MenuLayout layout) {
+        Window.Extent art = window.minimum();
+        Window.Extent content = screenOf(options).minimum();
+        int width = Math.max(art.width(), content.width());
+        int height = Math.max(art.height(), content.height());
+
+        if (layout.width() >= width && layout.height() >= height) return;
+
+        throw new RenderException(
+            "Menu panel '%dx%d' is under the '%dx%d' its window paints and its screen fills",
+            layout.width(), layout.height(), width, height
         );
     }
 

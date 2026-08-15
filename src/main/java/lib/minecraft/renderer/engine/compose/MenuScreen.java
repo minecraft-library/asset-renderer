@@ -211,6 +211,30 @@ public record MenuScreen(
     }
 
     /**
+     * Returns the smallest panel this screen fills - its top band, one cell of its own grid, every
+     * cell it places by hand, and the margin below whichever reaches furthest.
+     * <p>
+     * This is a content floor and never a {@link Window}'s. What a window answers is what its own art
+     * needs to paint a frame, and the two are independent quantities, so a panel is bound by whichever
+     * is greater on each axis. Vanilla's drawn geometry closes at eight Minecraft pixels square, well
+     * under the thirty-two by forty-two a chest-shaped screen needs for one cell, and a window sliced
+     * from art with anchored features can want far more than either.
+     *
+     * @return the minimum panel extent in Minecraft pixels
+     */
+    public @NotNull Window.Extent minimum() {
+        int width = this.ownOriginX + CELL + MARGIN;
+        int height = this.topBand + CELL + MARGIN;
+
+        for (MenuLayout.Cell cell : this.extras) {
+            width = Math.max(width, cell.x() + cell.size() + MARGIN);
+            height = Math.max(height, cell.y() + cell.size() + MARGIN);
+        }
+
+        return new Window.Extent(width, height);
+    }
+
+    /**
      * Lays this screen out.
      *
      * @param playerSection whether the player's inventory and hotbar are drawn below the container

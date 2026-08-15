@@ -180,4 +180,31 @@ class MenuScreenTest {
             assertThat(screen.layout(true).width(), is(equalTo(176)));
     }
 
+    @Test
+    @DisplayName("the smallest panel a chest fills is one cell inside its bands")
+    void theSmallestChestPanelIsOneCellInsideItsBands() {
+        assertThat("the top band, one cell and the bottom margin, by two margins and one cell across",
+            MenuScreen.chest(3).minimum(), is(equalTo(new Window.Extent(7 + 18 + 7, 17 + 18 + 7))));
+        assertThat("a grid of any width answers the same, its floor being one cell rather than its own",
+            MenuScreen.grid(13, 19).minimum(), is(equalTo(MenuScreen.chest(3).minimum())));
+        assertThat("a hopper's is wider, its row starting where a centred five does",
+            MenuScreen.hopper().minimum().width(), is(equalTo(43 + 18 + 7)));
+    }
+
+    @Test
+    @DisplayName("every measured screen clears the floor it declares, cells it places by hand included")
+    void everyMeasuredScreenClearsItsOwnFloor() {
+        for (MenuScreen screen : MenuScreen.measured()) {
+            // The container section alone, which is the smaller of the two panels a screen lays out -
+            // so a screen whose hand-placed cells fell off its own panel is caught here rather than
+            // hidden by the player band's height.
+            MenuLayout layout = screen.layout(false);
+            Window.Extent floor = screen.minimum();
+
+            assertThat("a screen whose panel is " + layout.width() + "x" + layout.height() + " wide enough",
+                layout.width() >= floor.width(), is(true));
+            assertThat("and tall enough", layout.height() >= floor.height(), is(true));
+        }
+    }
+
 }

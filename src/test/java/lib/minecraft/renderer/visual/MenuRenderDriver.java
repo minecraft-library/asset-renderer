@@ -29,11 +29,12 @@ import java.util.Map;
  * <p>
  * The roster is every screen the shipped art can be checked against - the four chest row counts one
  * sheet composes, the shulker box, the hopper, the dispenser and the crafting table - each with the
- * player's section drawn, so each names the same panel the client does. Beside them sit four subjects
+ * player's section drawn, so each names the same panel the client does. Beside them sit five subjects
  * that are about something other than the panel: a server-style menu, which is a six-row chest with
  * the caller's own slot map and a filled border over it, a crafting table whose enchanted slots
- * promote the whole menu through the compositor's animated branch, and the same chest in each of the
- * two palettes the client ships nothing to compare against.
+ * promote the whole menu through the compositor's animated branch, the same chest in each of the
+ * two palettes the client ships nothing to compare against, and a panel at a size the client ships no
+ * sheet for at all.
  * <p>
  * Usage: {@code ./gradlew menuRender}. Outputs land in {@code cache/visual/menu-render/}.
  */
@@ -171,6 +172,24 @@ public final class MenuRenderDriver {
                 slot(0, "minecraft:diamond"),
                 slot(4, "minecraft:iron_ingot"),
                 slot(26, "minecraft:diamond_sword")))
+            .build()), imageFactory);
+
+        // A panel at a size no shipped sheet composes. The frame is four corner blocks and four bars
+        // of a one-pixel period, so the same one serves any extent - what is read here is that the
+        // corners arrive unstretched, the bars carry their period the whole way, and the cells stay
+        // eighteen Minecraft pixels to the far corner. The five populated slots are the grid's four
+        // corners and its middle, which is where a lattice that had drifted would show it.
+        write("chest_19x13", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.CHEST)
+            .rows(13)
+            .columns(19)
+            .title("19 x 13")
+            .slots(slots(
+                slot(0, "minecraft:diamond"),
+                slot(18, "minecraft:iron_ingot"),
+                slot(123, "minecraft:diamond_sword"),
+                slot(228, "minecraft:iron_ingot"),
+                slot(246, "minecraft:diamond")))
             .build()), imageFactory);
 
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());

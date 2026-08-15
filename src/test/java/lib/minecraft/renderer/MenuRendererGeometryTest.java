@@ -16,6 +16,7 @@ import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.MenuOptions;
 import lib.minecraft.renderer.support.StubRendererContext;
 import lib.minecraft.text.ColorSegment;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +27,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -396,6 +398,114 @@ class MenuRendererGeometryTest {
         assertThat("two inputs and a result", anvil.slotCells().size(), is(equalTo(3)));
         assertThat("the second input sits where the anvil's own menu declares it",
             anvil.slotCells().get(1).x(), is(equalTo(75)));
+    }
+
+    /**
+     * A window whose art wants more room than any menu's content floor would ask for, which is what a
+     * panel sliced from art with anchored features along its bands comes to.
+     *
+     * @param side the smallest extent it paints, on both axes
+     */
+    private record WideFrame(int side) implements Window {
+
+        /** {@inheritDoc} */
+        @Override
+        public void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box) {}
+
+        /** {@inheritDoc} */
+        @Override
+        public void paintCell(@NotNull PixelBuffer dest, @NotNull Box box) {}
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Extent minimum() {
+            return new Extent(this.side, this.side);
+        }
+
+    }
+
+    @Test
+    @DisplayName("a window wanting more room than its panel has is refused on its own art")
+    void aWindowWantingMoreRoomThanItsPanelIsRefused() {
+        MenuOptions chest = chest(3, true);
+        MenuLayout laid = MenuRenderer.layoutOf(chest);
+
+        // 176 by 167 clears every content floor a chest has, so what refuses here is the art floor
+        // alone - the arm a guard reading the layout's own floor would never reach.
+        assertThat("a panel past every content floor", List.of(laid.width(), laid.height()),
+            is(equalTo(List.of(176, 167))));
+        assertThrows(RenderException.class, () -> MenuRenderer.validateExtent(new WideFrame(400), chest, laid));
+        assertDoesNotThrow(() -> MenuRenderer.validateExtent(Window.Theme.VANILLA, chest, laid));
+    }
+
+    @Test
+    @DisplayName("a panel with room for a frame but none for a cell is refused, which one floor admits")
+    void aPanelWithRoomForNoCellIsRefused() {
+        MenuRenderer renderer = new MenuRenderer(StubRendererContext.builder().build());
+        MenuOptions noRows = MenuOptions.builder().type(MenuOptions.Type.CHEST).rows(0).build();
+        MenuOptions noColumns = MenuOptions.builder().type(MenuOptions.Type.CHEST).rows(3).columns(0).build();
+
+        // Vanilla's drawn geometry closes at eight Minecraft pixels square. Both of these clear that
+        // on both axes and neither has room for a cell, so each is a panel the art floor would have
+        // admitted and the two together are why the refusal reads both.
+        assertThat("a chest of no rows is its two bands and nothing between them",
+            MenuRenderer.layoutOf(noRows).height(), is(equalTo(17 + MenuScreen.MARGIN)));
+        assertThat("and a grid of no columns is its two margins",
+            MenuRenderer.layoutOf(noColumns).width(), is(equalTo(2 * MenuScreen.MARGIN)));
+
+        assertThrows(RenderException.class, () -> renderer.render(noRows));
+        assertThrows(RenderException.class, () -> renderer.render(noColumns));
+    }
+
+    /** One Minecraft pixel of a rendered panel, a negative index counting back from the far edge. */
+    private static int mcPixel(PixelBuffer buffer, int x, int y) {
+        int width = buffer.width() / SCALE;
+        int height = buffer.height() / SCALE;
+        return buffer.getPixel(Math.floorMod(x, width) * SCALE, Math.floorMod(y, height) * SCALE);
+    }
+
+    @Test
+    @DisplayName("a panel past every size the client ships carries the same frame, the bars alone growing")
+    void aPanelPastEveryShippedSizeCarriesTheSameFrame() {
+        MenuOptions wide = MenuOptions.builder().type(MenuOptions.Type.CHEST).rows(13).columns(19).build();
+        PixelBuffer rendered = render(wide);
+        PixelBuffer shipped = render(chest(3, false));
+
+        assertThat("nineteen cells across and thirteen down, in Minecraft pixels",
+            (rendered.width() / SCALE) + "x" + (rendered.height() / SCALE),
+            is(equalTo((2 * 7 + 19 * 18) + "x" + (17 + 13 * 18 + 7))));
+        assertThat("and every one of them laid out",
+            MenuRenderer.layoutOf(wide).cells().size(), is(equalTo(19 * 13)));
+
+        // The frame is four corner blocks of four by four and four bars of a one-pixel period, so
+        // widening the panel lengthens the bars and moves nothing else. Reading a width the client
+        // ships no art for against one it does is what makes that falsifiable - a frame that
+        // stretched, or that read its own extent anywhere, would disagree here.
+        for (int y = -4; y < 4; y++)
+            for (int x = -4; x < 4; x++)
+                assertThat("the corner pixel at " + x + "," + y,
+                    mcPixel(rendered, x, y), is(equalTo(mcPixel(shipped, x, y))));
+
+        for (int depth = 0; depth < 4; depth++) {
+            assertThat("the top bar at depth " + depth,
+                mcPixel(rendered, 100, depth), is(equalTo(mcPixel(shipped, 100, depth))));
+            assertThat("the bottom bar at depth " + depth,
+                mcPixel(rendered, 100, -1 - depth), is(equalTo(mcPixel(shipped, 100, -1 - depth))));
+            assertThat("the left bar at depth " + depth,
+                mcPixel(rendered, depth, 40), is(equalTo(mcPixel(shipped, depth, 40))));
+            assertThat("the right bar at depth " + depth,
+                mcPixel(rendered, -1 - depth, 40), is(equalTo(mcPixel(shipped, -1 - depth, 40))));
+        }
+
+        // And the lattice reaches the far corner at its own pitch rather than at a stretched one.
+        Window.Palette palette = Window.Palette.VANILLA;
+        int lastX = MenuScreen.MARGIN + 18 * MenuScreen.CELL;
+        int lastY = 17 + 12 * MenuScreen.CELL;
+        assertThat("the last cell opens on its own shadow",
+            mcPixel(rendered, lastX, lastY), is(equalTo(palette.cellShadow())));
+        assertThat("and closes on the light",
+            mcPixel(rendered, lastX + MenuScreen.CELL - 1, lastY + MenuScreen.CELL - 1),
+            is(equalTo(palette.light())));
     }
 
     @Test
