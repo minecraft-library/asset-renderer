@@ -760,7 +760,7 @@
     },
     {
       "path": "menu-render/shulker_box.png",
-      "sha256": "f9181918e11907fef575d33e11e85973120ecdd98f4772dae55294ebc4a0cb5e"
+      "sha256": "6a6ca76ac422106521b5dbf7457df6058be9071df03e467f20493e152d0f27b1"
     },
     {
       "path": "menu-render/skyblock_crafting.png",
@@ -845,17 +845,17 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "75b80e8aef548a6816b281bde2f3358ceba05558",
+    "asset_sha": "4b66505f16ac4b7c82d76cd18b9599c05dcfbbce",
     "counts": {
       "files": 209
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
+    "parity_class": "moving",
     "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "a menu panel at any extent: the driver gains a nineteen by thirteen chest at 356 by 258 Minecraft pixels, a size no shipped sheet composes; no stored row moved, the addition being the whole change, and the new row reproduced across two captures of the committed tree",
+    "reason": "the reference tree gains a menus sub-tree of eight container screens the client draws through its own GUI pipeline, and the shulker box's driver render moves its player label one Minecraft pixel down: the screen declares 176x167 and blits art a pixel shorter, so its label is positioned from a declared height its drawn one does not give. Every other reference re-rendered byte-identically, which is what says the read-back lifted out of PipTarget moved nothing",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -865,7 +865,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-15T11:13:47Z",
+    "timestamp": "2026-08-15T12:36:07Z",
     "tool_version": "1.0.0"
   }
 }

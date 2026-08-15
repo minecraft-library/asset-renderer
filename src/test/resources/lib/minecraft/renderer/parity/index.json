@@ -78,11 +78,12 @@
     "manifest.references": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 2312,
+      "entries": 2320,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
-      "sha256": "38e17e9dba36520a0f0e6104ccdab66d371b84a19cc910701bdbca6b655988a7"
+      "last_duration_ms": 138824,
+      "promoted_at": "4b66505f16ac4b7c82d76cd18b9599c05dcfbbce",
+      "sha256": "c55323d14c812da4c4bbfd6db55ca5f5a7f93724ad237aef2d3bb9d4bdccb631"
     },
     "manifest.tooling-tables": {
       "baselined": true,
@@ -100,8 +101,8 @@
       "entries": 209,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "promoted_at": "75b80e8aef548a6816b281bde2f3358ceba05558",
-      "sha256": "562287fa8e1714783c3e66a02e02a0ef5598de5fc0346191e2c74d03e5f8aaaf"
+      "promoted_at": "4b66505f16ac4b7c82d76cd18b9599c05dcfbbce",
+      "sha256": "4ecd990a18913bc005974760f09d80cc2c84f829fb0f9f3cd6c87d07dd633e04"
     },
     "pin.block-crc": {
       "baselined": true,
