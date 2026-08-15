@@ -489,9 +489,7 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/kit/TrimKit.java"
-      ],
+      "authored_paths": [],
       "blind": [
         "sweep.entity",
         "sweep.block",
@@ -502,6 +500,7 @@
         "manifest.player-raw"
       ],
       "claim": "No parity sweep reaches the paletted trim permutation",
+      "claim_key": "trim-palette",
       "id": "B23",
       "mode": "select",
       "probe": "throw from TrimKit.permuteFrom and run all five sweeps; none of them fires it",

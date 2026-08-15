@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.parity.Parity;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -21,6 +22,7 @@ import java.util.Optional;
  * The algorithm is verified against the MC 26.1 deobfuscated client source
  * ({@code net.minecraft.client.renderer.texture.atlas.sources.PalettedPermutations}).
  */
+@Parity(claim = "trim-palette")
 @UtilityClass
 public class TrimKit {
 
