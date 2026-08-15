@@ -90,13 +90,33 @@ public record MenuLayout(
     public enum Role {
 
         /** A cell the container itself owns. */
-        CONTAINER,
+        CONTAINER(true),
         /** A cell of the player's main inventory. */
-        PLAYER_MAIN,
+        PLAYER_MAIN(false),
         /** A cell of the player's hotbar. */
-        HOTBAR,
+        HOTBAR(false),
         /** The cell a container's output sits in. */
-        RESULT
+        RESULT(true);
+
+        /** whether a caller's slot index reaches a cell of this role */
+        private final boolean addressed;
+
+        Role(boolean addressed) {
+            this.addressed = addressed;
+        }
+
+        /**
+         * Whether a caller's slot index reaches a cell of this role.
+         * <p>
+         * The player's own section is drawn and never addressed, so a menu's slot space is the
+         * container's cells and its result. Asking the role rather than listing the two that answer
+         * yes is what makes a fifth role impossible to add without deciding this.
+         *
+         * @return whether a slot index reaches it
+         */
+        public boolean addressed() {
+            return this.addressed;
+        }
 
     }
 
@@ -130,7 +150,7 @@ public record MenuLayout(
      */
     public @NotNull ConcurrentList<Cell> slotCells() {
         return this.cells.stream()
-            .filter(cell -> cell.role() == Role.CONTAINER || cell.role() == Role.RESULT)
+            .filter(cell -> cell.role().addressed())
             .collect(Concurrent.toList());
     }
 

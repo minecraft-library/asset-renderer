@@ -71,12 +71,6 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     static final int CONTENT_PX = CONTENT_MCPX * PX_SCALE;
 
     /**
-     * Rows the player's own inventory view carries - the three of main inventory and the hotbar,
-     * which that one screen draws as its own cells rather than as the band below a container's.
-     */
-    private static final int PLAYER_ROWS = 4;
-
-    /**
      * The renderer context resolving chrome art and each slot's item.
      */
     private final @NotNull RendererContext context;
@@ -101,9 +95,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     public @NotNull ImageData render(@NotNull MenuOptions options) {
         validateScale(options);
 
-        MenuLayout layout = layoutOf(options);
+        MenuScreen screen = options.screen();
+        MenuLayout layout = screen.layout(options.isPlayerInventory());
         Window window = windowOf(this.context, options);
-        validateExtent(window, options, layout);
+        validateExtent(window, screen, layout);
         validateSlots(options, layout);
 
         ItemRenderer itemRenderer = new ItemRenderer(this.context);
@@ -124,33 +119,13 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Returns the screen a menu type is laid out as.
-     *
-     * @param options the menu render options
-     * @return the screen
-     */
-    static @NotNull MenuScreen screenOf(@NotNull MenuOptions options) {
-        return switch (options.getType()) {
-            case PLAYER -> MenuScreen.grid(PLAYER_ROWS, MenuScreen.COLUMNS);
-            case CHEST -> options.getColumns() == MenuScreen.COLUMNS
-                ? MenuScreen.chest(options.getRows())
-                : MenuScreen.grid(options.getRows(), options.getColumns());
-            case SHULKER_BOX -> MenuScreen.shulkerBox();
-            case HOPPER -> MenuScreen.hopper();
-            case DISPENSER -> MenuScreen.dispenser();
-            case CRAFTING_TABLE -> MenuScreen.craftingTable();
-            case ANVIL -> MenuScreen.anvil();
-        };
-    }
-
-    /**
      * Lays a menu out, drawing the player's section only where the caller asked for it.
      *
      * @param options the menu render options
      * @return the layout
      */
     static @NotNull MenuLayout layoutOf(@NotNull MenuOptions options) {
-        return screenOf(options).layout(options.isPlayerInventory());
+        return options.screen().layout(options.isPlayerInventory());
     }
 
     /**
@@ -543,9 +518,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * nowhere to put a cell; and a window sliced from art carries its border and every anchored
      * feature in that floor, which can want more room than a screen full of cells would.
      */
-    static void validateExtent(@NotNull Window window, @NotNull MenuOptions options, @NotNull MenuLayout layout) {
+    static void validateExtent(@NotNull Window window, @NotNull MenuScreen screen, @NotNull MenuLayout layout) {
         Window.Extent art = window.minimum();
-        Window.Extent content = screenOf(options).minimum();
+        Window.Extent content = screen.minimum();
         int width = Math.max(art.width(), content.width());
         int height = Math.max(art.height(), content.height());
 

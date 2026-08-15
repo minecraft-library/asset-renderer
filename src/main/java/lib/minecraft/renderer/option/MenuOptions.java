@@ -200,6 +200,36 @@ public class MenuOptions implements RenderOptions {
     }
 
     /**
+     * Rows the player's own view draws as its own cells, which is the three of main inventory and
+     * the hotbar.
+     */
+    private static final int PLAYER_VIEW_ROWS = 4;
+
+    /**
+     * Returns the screen this menu is laid out as.
+     * <p>
+     * The roster lives here rather than in the renderer because a {@link Type} is what selects one
+     * and this is what owns the type - and because the chest's arm reads {@link #rows} and
+     * {@link #columns}, which is a question only these options can answer. Every number a screen
+     * carries stays on {@link MenuScreen}; what is chosen here is which of them.
+     *
+     * @return the screen
+     */
+    public @NotNull MenuScreen screen() {
+        return switch (this.type) {
+            case PLAYER -> MenuScreen.grid(PLAYER_VIEW_ROWS, MenuScreen.COLUMNS);
+            case CHEST -> this.columns == MenuScreen.COLUMNS
+                ? MenuScreen.chest(this.rows)
+                : MenuScreen.grid(this.rows, this.columns);
+            case SHULKER_BOX -> MenuScreen.shulkerBox();
+            case HOPPER -> MenuScreen.hopper();
+            case DISPENSER -> MenuScreen.dispenser();
+            case CRAFTING_TABLE -> MenuScreen.craftingTable();
+            case ANVIL -> MenuScreen.anvil();
+        };
+    }
+
+    /**
      * What one menu slot holds.
      * <p>
      * The two arms differ in who decides how big the content is. An {@link Item} is sized by the

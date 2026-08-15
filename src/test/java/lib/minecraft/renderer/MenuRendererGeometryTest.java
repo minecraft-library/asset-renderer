@@ -132,7 +132,7 @@ class MenuRendererGeometryTest {
     }
 
     private static MenuScreen screenOf(MenuOptions.Type type) {
-        return MenuRenderer.screenOf(MenuOptions.builder().type(type).build());
+        return MenuOptions.builder().type(type).build().screen();
     }
 
     @Test
@@ -156,11 +156,11 @@ class MenuRendererGeometryTest {
     @DisplayName("nine columns is the chest the client composes, and any other width is a plain grid")
     void nineColumnsIsTheChestTheClientComposes() {
         assertThat("a chest at its own width",
-            MenuRenderer.screenOf(chest(3, false)), is(equalTo(MenuScreen.chest(3))));
+            chest(3, false).screen(), is(equalTo(MenuScreen.chest(3))));
 
         MenuOptions oneCell = MenuOptions.builder().type(MenuOptions.Type.CHEST).rows(1).columns(1).build();
         assertThat("and a panel there is no sheet to compose",
-            MenuRenderer.screenOf(oneCell), is(equalTo(MenuScreen.grid(1, 1))));
+            oneCell.screen(), is(equalTo(MenuScreen.grid(1, 1))));
         assertThat("which at one cell is a panel one cell wide",
             MenuRenderer.layoutOf(oneCell).width(), is(equalTo(2 * MenuScreen.MARGIN + MenuScreen.CELL)));
     }
@@ -435,14 +435,15 @@ class MenuRendererGeometryTest {
     @DisplayName("a window wanting more room than its panel has is refused on its own art")
     void aWindowWantingMoreRoomThanItsPanelIsRefused() {
         MenuOptions chest = chest(3, true);
+        MenuScreen screen = chest.screen();
         MenuLayout laid = MenuRenderer.layoutOf(chest);
 
         // 176 by 167 clears every content floor a chest has, so what refuses here is the art floor
         // alone - the arm a guard reading the layout's own floor would never reach.
         assertThat("a panel past every content floor", List.of(laid.width(), laid.height()),
             is(equalTo(List.of(176, 167))));
-        assertThrows(RenderException.class, () -> MenuRenderer.validateExtent(new WideFrame(400), chest, laid));
-        assertDoesNotThrow(() -> MenuRenderer.validateExtent(Window.Theme.VANILLA, chest, laid));
+        assertThrows(RenderException.class, () -> MenuRenderer.validateExtent(new WideFrame(400), screen, laid));
+        assertDoesNotThrow(() -> MenuRenderer.validateExtent(Window.Theme.VANILLA, screen, laid));
     }
 
     @Test

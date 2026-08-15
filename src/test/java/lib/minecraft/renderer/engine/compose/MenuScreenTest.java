@@ -210,6 +210,22 @@ class MenuScreenTest {
     }
 
     @Test
+    @DisplayName("a slot index reaches the container's cells and its result, and nothing else")
+    void aSlotIndexReachesTheContainersCellsAndItsResult() {
+        assertThat("a container's own cell", MenuLayout.Role.CONTAINER.addressed(), is(true));
+        assertThat("and the cell its output sits in", MenuLayout.Role.RESULT.addressed(), is(true));
+        assertThat("the player's main inventory is drawn and never addressed",
+            MenuLayout.Role.PLAYER_MAIN.addressed(), is(false));
+        assertThat("as is the hotbar", MenuLayout.Role.HOTBAR.addressed(), is(false));
+
+        // The two together are the slot space, so an anvil's three cells are what its caller can
+        // reach and the twenty-seven below them are not.
+        MenuLayout anvil = MenuScreen.anvil().layout(true);
+        assertThat("an anvil addresses three cells", anvil.slotCells().size(), is(equalTo(3)));
+        assertThat("out of the thirty-nine it draws", anvil.cells().size(), is(equalTo(39)));
+    }
+
+    @Test
     @DisplayName("a mark carries an icon exactly when its kind draws one")
     void aMarkCarriesAnIconExactlyWhenItsKindDrawsOne() {
         // A kind and a position are two values now, so nothing about the type stops a button being
