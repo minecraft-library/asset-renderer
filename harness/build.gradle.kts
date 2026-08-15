@@ -71,6 +71,9 @@ loom {
             // Armor-only fast path: render just the armored-mob diagnostics under armor/,
             // skipping the full block/item/entity sweep. Driven by renderVanillaArmorReferences.
             optionalProperty("refharnessArmorOnly")?.let { property("refharness.armorOnly", it) }
+            // Menus-only fast path: render just the container screens under menus/, skipping the
+            // full block/item/entity sweep. Driven by renderVanillaMenuReferences.
+            optionalProperty("refharnessMenusOnly")?.let { property("refharness.menusOnly", it) }
             // Whole-tree sweep: every reference sweep in one client boot, so a change to a
             // renderer two sweeps share cannot leave one of them behind. Driven by
             // renderVanillaAllReferences.

@@ -7,6 +7,7 @@ import lib.minecraft.refharness.sweep.DepthQuantumSweep;
 import lib.minecraft.refharness.sweep.EntitySweep;
 import lib.minecraft.refharness.sweep.GlintSweep;
 import lib.minecraft.refharness.sweep.ItemSweep;
+import lib.minecraft.refharness.sweep.MenuSweep;
 import lib.minecraft.refharness.sweep.PitchRollSweep;
 import lib.minecraft.refharness.sweep.PlayerSweep;
 
@@ -23,7 +24,7 @@ public enum HarnessMode {
      * it.
      */
     FULL,
-    /** Every reference sweep there is, in one run - {@link #FULL}'s four plus glint and armor. */
+    /** Every reference sweep there is, in one run - {@link #FULL}'s four plus glint, armor and menus. */
     EVERY,
     /** Only the animated-glint frame sequences. */
     GLINT,
@@ -31,6 +32,8 @@ public enum HarnessMode {
     PLAYERS,
     /** Only the armored-mob diagnostics. */
     ARMOR,
+    /** Only the container-screen references. */
+    MENUS,
     /** Only the diagnostic pitch x roll pose sweep, which writes outside the reference tree. */
     PITCH_ROLL,
     /** Only the diagnostic depth-quantum probe, which writes outside the reference tree. */
@@ -52,6 +55,7 @@ public enum HarnessMode {
         if (HarnessConfig.GLINT_ONLY) selected.add(GLINT);
         if (HarnessConfig.PLAYERS_ONLY) selected.add(PLAYERS);
         if (HarnessConfig.ARMOR_ONLY) selected.add(ARMOR);
+        if (HarnessConfig.MENUS_ONLY) selected.add(MENUS);
         if (HarnessConfig.PITCH_ROLL_SWEEP) selected.add(PITCH_ROLL);
         if (HarnessConfig.DEPTH_QUANTUM_PROBE) selected.add(DEPTH_QUANTUM);
         if (selected.size() > 1)
@@ -68,10 +72,11 @@ public enum HarnessMode {
         return switch (this) {
             case FULL -> List.of(new BlockSweep(), new ItemSweep(), new EntitySweep(), new PlayerSweep());
             case EVERY -> List.of(new BlockSweep(), new ItemSweep(), new EntitySweep(), new PlayerSweep(),
-                new GlintSweep(), new ArmorSweep());
+                new GlintSweep(), new ArmorSweep(), new MenuSweep());
             case GLINT -> List.of(new GlintSweep());
             case PLAYERS -> List.of(new PlayerSweep());
             case ARMOR -> List.of(new ArmorSweep());
+            case MENUS -> List.of(new MenuSweep());
             case PITCH_ROLL -> List.of(new PitchRollSweep());
             case DEPTH_QUANTUM -> List.of(new DepthQuantumSweep());
         };

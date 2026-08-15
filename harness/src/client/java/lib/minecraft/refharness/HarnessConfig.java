@@ -2,6 +2,7 @@ package lib.minecraft.refharness;
 
 import lib.minecraft.refharness.sweep.ArmorSweep;
 import lib.minecraft.refharness.sweep.GlintSweep;
+import lib.minecraft.refharness.sweep.MenuSweep;
 import lib.minecraft.refharness.sweep.PlayerSweep;
 
 import java.nio.file.Path;
@@ -105,6 +106,15 @@ public final class HarnessConfig {
      * {@code -PrefharnessArmorOnly=true} on {@code renderVanillaArmorReferences}.
      */
     public static final boolean ARMOR_ONLY = Boolean.getBoolean("refharness.armorOnly");
+
+    /**
+     * When {@code true}, the harness runs <em>only</em> the {@link MenuSweep} (the shipped container
+     * screens under {@code menus/}), skipping every other sweep. A menu is the one subject drawn
+     * through the client's own GUI pipeline rather than by submitting geometry, so it is the sweep
+     * whose mechanism is worth iterating on alone. Pair with {@code -PrefharnessMenusOnly=true} on
+     * {@code renderVanillaMenuReferences}.
+     */
+    public static final boolean MENUS_ONLY = Boolean.getBoolean("refharness.menusOnly");
 
     /**
      * When {@code true}, the harness runs <em>every</em> reference sweep in one boot - the block /

@@ -1,0 +1,130 @@
+{
+  "//": "parity.sweep.menu · regen: ./gradlew parityCapture -Partifacts=sweep.menu",
+  "artifact": "sweep.menu",
+  "format": 1,
+  "key": "subject",
+  "kind": "sweep-table",
+  "provenance": {
+    "artifact": "sweep.menu",
+    "asset_dirty": false,
+    "asset_sha": "f7aa87338a8bc20907a03f0db6cba69c7a22cbdc",
+    "counts": {
+      "failed": 0,
+      "rows": 10
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "shaped",
+    "population_changed": true,
+    "producer": "menuParityVanilla",
+    "reason": "the anvil drawn with its four marks, its name field and both caret forms; two rows each, both byte-identical to the client, so the sum holds at 0.0407 and the whole of it is still the crafting table's four authored specks",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "reference_manifest_digest": "f1ebd44e1d0736ee7b24836e6fcd98339f5eead4994134440fc0486aea52d668",
+    "timestamp": "2026-08-15T15:31:44Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 13757
+  },
+  "rows": [
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "anvil",
+      "vanilla_coverage": "0.9994"
+    },
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "anvil_named",
+      "vanilla_coverage": "0.9994"
+    },
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9992",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "chest_1row",
+      "vanilla_coverage": "0.9992"
+    },
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9993",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "chest_2row",
+      "vanilla_coverage": "0.9993"
+    },
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "chest_3row",
+      "vanilla_coverage": "0.9994"
+    },
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9995",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "chest_6row",
+      "vanilla_coverage": "0.9995"
+    },
+    {
+      "differing_pixels": "16",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "0.0407",
+      "status": "ok",
+      "subject": "crafting_table",
+      "vanilla_coverage": "0.9994"
+    },
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "dispenser",
+      "vanilla_coverage": "0.9994"
+    },
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9992",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "hopper",
+      "vanilla_coverage": "0.9992"
+    },
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "shulker_box",
+      "vanilla_coverage": "0.9994"
+    }
+  ],
+  "summary": {
+    "buckets": {
+      "<0.25": 10,
+      "<0.50": 10,
+      "<0.75": 10,
+      "<1.00": 10,
+      "failed": 0,
+      "total": 10
+    },
+    "failed": 0,
+    "rows": 10,
+    "sum": "0.0407"
+  }
+}

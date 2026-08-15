@@ -61,14 +61,40 @@ public class GradientKit {
         int xMcPx, int yMcPx,
         long tick
     ) {
+        return drawSegment(g, segment, spec, text, xMcPx, yMcPx, tick, true);
+    }
+
+    /**
+     * Draws a gradient segment with the drop shadow declinable, so a gradient title declines one
+     * where a plain title does rather than keeping a shadow the caller asked to be rid of.
+     *
+     * @param g the graphics whose target buffer receives the glyphs
+     * @param segment the styled segment (supplies font style + decorations + italic)
+     * @param spec the gradient spec
+     * @param text the segment text after obfuscation substitution
+     * @param xMcPx the segment start cursor X in mcPixels
+     * @param yMcPx the baseline Y in mcPixels
+     * @param tick the absolute animation tick driving scroll phase
+     * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
+     * @return the advance width in mcPixels
+     */
+    public static int drawSegment(
+        @NotNull MinecraftGraphics g,
+        @NotNull ColorSegment segment,
+        @NotNull GradientSpec spec,
+        @NotNull String text,
+        int xMcPx, int yMcPx,
+        long tick,
+        boolean dropShadow
+    ) {
         MinecraftFont font = MinecraftFont.Vanilla.of(segment.fontStyle());
         int segWidthOut = measureCodepoints(text, font);
         if (segWidthOut <= 0) return 0;
 
         if (spec.bandPx() == GradientSpec.PER_LETTER)
-            drawPerLetter(g.target(), segment, spec, font, text, segWidthOut, xMcPx, yMcPx, tick);
+            drawPerLetter(g.target(), segment, spec, font, text, segWidthOut, xMcPx, yMcPx, tick, dropShadow);
         else
-            drawPerPixel(g.target(), segment, spec, font, text, segWidthOut, xMcPx, yMcPx, tick);
+            drawPerPixel(g.target(), segment, spec, font, text, segWidthOut, xMcPx, yMcPx, tick, dropShadow);
         return segWidthOut / MinecraftFont.MC_PIXEL_SCALE;
     }
 
@@ -99,7 +125,8 @@ public class GradientKit {
         @NotNull String text,
         int segWidthOut,
         int xMcPx, int yMcPx,
-        long tick
+        long tick,
+        boolean dropShadow
     ) {
         int scale = MinecraftFont.MC_PIXEL_SCALE;
         int baseX = xMcPx * scale;
@@ -108,17 +135,19 @@ public class GradientKit {
         int[] codepoints = text.codePoints().toArray();
 
         // Shadow pass (offset +1,+1 mcPx), darkened per-glyph color.
-        int cursor = 0;
-        for (int cp : codepoints) {
-            MinecraftGlyph glyph = font.glyph(cp);
-            int rgb = shadowRgb(sample(spec, letterT(cursor, glyph.advanceWidth(), segWidthOut, spec, tick)));
-            blitGlyphTinted(target, glyph, baseX + shadowOff + cursor, baseY + shadowOff, rgb);
-            drawDecorations(target, segment, baseX + shadowOff + cursor, baseY + shadowOff, glyph.advanceWidth(), rgb);
-            cursor += glyph.advanceWidth();
+        if (dropShadow) {
+            int cursor = 0;
+            for (int cp : codepoints) {
+                MinecraftGlyph glyph = font.glyph(cp);
+                int rgb = shadowRgb(sample(spec, letterT(cursor, glyph.advanceWidth(), segWidthOut, spec, tick)));
+                blitGlyphTinted(target, glyph, baseX + shadowOff + cursor, baseY + shadowOff, rgb);
+                drawDecorations(target, segment, baseX + shadowOff + cursor, baseY + shadowOff, glyph.advanceWidth(), rgb);
+                cursor += glyph.advanceWidth();
+            }
         }
 
         // Main pass.
-        cursor = 0;
+        int cursor = 0;
         for (int cp : codepoints) {
             MinecraftGlyph glyph = font.glyph(cp);
             int rgb = sample(spec, letterT(cursor, glyph.advanceWidth(), segWidthOut, spec, tick));
@@ -171,7 +200,8 @@ public class GradientKit {
         @NotNull String text,
         int segWidthOut,
         int xMcPx, int yMcPx,
-        long tick
+        long tick,
+        boolean dropShadow
     ) {
         int scale = MinecraftFont.MC_PIXEL_SCALE;
         int baseX = xMcPx * scale;
@@ -187,14 +217,17 @@ public class GradientKit {
         PixelColor shadow = (px, py) -> shadowRgb(main.at(px - delta, py - delta));
 
         // Shadow pass (offset +delta), then main pass.
-        int cursor = 0;
-        for (int cp : codepoints) {
-            MinecraftGlyph glyph = font.glyph(cp);
-            blitGlyphMasked(target, glyph, baseX + delta + cursor, baselineY + delta, shadow);
-            fillDecorationsMasked(target, segment, baseX + delta + cursor, baselineY + delta, glyph.advanceWidth(), shadow);
-            cursor += glyph.advanceWidth();
+        if (dropShadow) {
+            int cursor = 0;
+            for (int cp : codepoints) {
+                MinecraftGlyph glyph = font.glyph(cp);
+                blitGlyphMasked(target, glyph, baseX + delta + cursor, baselineY + delta, shadow);
+                fillDecorationsMasked(target, segment, baseX + delta + cursor, baselineY + delta, glyph.advanceWidth(), shadow);
+                cursor += glyph.advanceWidth();
+            }
         }
-        cursor = 0;
+
+        int cursor = 0;
         for (int cp : codepoints) {
             MinecraftGlyph glyph = font.glyph(cp);
             blitGlyphMasked(target, glyph, baseX + cursor, baselineY, main);

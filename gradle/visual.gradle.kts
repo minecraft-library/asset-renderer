@@ -112,7 +112,7 @@ register<JavaExec>("loreTooltip") {
 }
 
 register<JavaExec>("menuRender") {
-    description = "Renders the vanilla-style chest chrome menus (SkyBlock crafting + vanilla crafting) to cache/visual/menu-render/ for visual inspection."
+    description = "Renders every menu subject - the eight shipped container screens, a server-style menu, an animated one, a re-inked one and an oversized one - to cache/visual/menu-render/ for visual inspection."
     group = "visual"
     mainClass.set("lib.minecraft.renderer.visual.MenuRenderDriver")
     classpath = sourceSets["test"].runtimeClasspath
@@ -210,6 +210,15 @@ register<JavaExec>("glintParityVanilla") {
     args = if (itemId != null) listOf(itemId) else listOf()
     // -Dasset.glint.* sysprops (e.g. -Dasset.glint.itemScale=1.0) auto-forward to this fork via the
     // global JavaExec forwarder near the top of this file.
+}
+
+register<JavaExec>("menuParityVanilla") {
+    description = "Per-subject container-screen parity report comparing Java MenuRenderer against the vanilla-reference-harness menu references at cache/.../references/menus/. Both sides share a canvas, so this is a direct diff rather than a bbox-aligned one. Writes per-subject diff panels and a TSV to cache/visual/menu-parity-vanilla/. Run renderVanillaMenuReferences first. -PmenuId=chest_3row"
+    group = "visual"
+    mainClass.set("lib.minecraft.renderer.visual.TestMenuParityVanilla")
+    classpath = sourceSets["test"].runtimeClasspath
+    val menuId = project.findProperty("menuId") as String?
+    args = if (menuId != null) listOf(menuId) else listOf()
 }
 
 register<JavaExec>("fluidRenderer") {

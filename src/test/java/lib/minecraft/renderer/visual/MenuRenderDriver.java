@@ -9,6 +9,7 @@ import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
+import lib.minecraft.renderer.engine.compose.Window;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.MenuOptions;
@@ -23,12 +24,19 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Diagnostic task that renders the vanilla-style chest chrome menus through {@link MenuRenderer} so
- * the chest-slot chrome can be eyeballed. Covers the three menus that draw the gray "vanilla chest"
- * chrome ({@code drawVanillaChestChrome}): a {@link MenuOptions.Type#SKYBLOCK_CRAFTING} 9x6 chest with
- * a filled border, a {@link MenuOptions.Type#VANILLA_CRAFTING} 3x3 table, and a second 3x3 table whose
- * enchanted slots promote the whole menu through the compositor's animated branch. This is a
- * <b>functional / visual</b> tool ("does it render") - there is no parity gate.
+ * Diagnostic task that renders menus through {@link MenuRenderer} so a panel can be eyeballed. This is
+ * a <b>functional / visual</b> tool ("does it render").
+ * <p>
+ * The roster is every screen the shipped art can be checked against - the four chest row counts one
+ * sheet composes, the shulker box, the hopper, the dispenser, the crafting table and the anvil, twice
+ * - each with the player's section drawn, so each names the same panel the client does. The anvil is
+ * there twice because it is the only screen with a text field, and a field is the one mark whose
+ * content is the caller's: once named and once bare with its caret declined. Beside them sit four
+ * subjects that are about something other than the panel: a server-style menu, which is a six-row
+ * chest with the caller's own slot map and a filler behind the rest, a crafting table whose enchanted
+ * slots promote the whole menu through the compositor's animated branch, the same chest in a palette
+ * the client ships nothing to compare against, and a panel at a size the client ships no sheet for at
+ * all.
  * <p>
  * Usage: {@code ./gradlew menuRender}. Outputs land in {@code cache/visual/menu-render/}.
  */
@@ -60,38 +68,141 @@ public final class MenuRenderDriver {
         MenuRenderer renderer = new MenuRenderer(context);
         ImageFactory imageFactory = new ImageFactory();
 
-        MenuOptions skyblockCrafting = MenuOptions.builder()
-            .type(MenuOptions.Type.SKYBLOCK_CRAFTING)
-            .title("Craft Item")
-            .fill(MenuOptions.Fill.BLACK_STAINED_GLASS_PANE)
-            .slots(slots(
-                slot(0, "minecraft:iron_ingot"), slot(1, "minecraft:iron_ingot"), slot(2, "minecraft:iron_ingot"),
-                slot(3, "minecraft:iron_ingot"), slot(5, "minecraft:iron_ingot"),
-                slot(6, "minecraft:iron_ingot"), slot(7, "minecraft:iron_ingot"), slot(8, "minecraft:iron_ingot"),
-                slot(9, "minecraft:diamond_sword")))
-            .build();
-        write("skyblock_crafting", renderer.render(skyblockCrafting), imageFactory);
+        // One sheet composes every chest row count, and each composition is its own panel - so the
+        // four the client can build are four subjects rather than one at four heights. The player's
+        // section is armed on each, because that is the panel the client draws.
+        for (int rows : new int[] { 1, 2, 3, 6 }) {
+            MenuOptions chest = MenuOptions.builder()
+                .type(MenuOptions.Type.CHEST)
+                .rows(rows)
+                .playerInventory(true)
+                .title(rows == 6 ? "Large Chest" : "Chest")
+                .slots(slots(
+                    slot(0, "minecraft:diamond"),
+                    slot(4, "minecraft:iron_ingot"),
+                    slot(rows * 9 - 1, "minecraft:diamond_sword")))
+                .build();
+            write("chest_" + rows + "row", renderer.render(chest), imageFactory);
+        }
 
-        MenuOptions vanillaCrafting = MenuOptions.builder()
-            .type(MenuOptions.Type.VANILLA_CRAFTING)
+        // The four screens the client ships whole rather than composing. Each carries the title the
+        // client gives it, which is what puts a centred one - the dispenser's - on a rendered panel.
+        write("shulker_box", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.SHULKER_BOX)
+            .playerInventory(true)
+            .title("Shulker Box")
+            .slots(slots(
+                slot(0, "minecraft:diamond"),
+                slot(13, "minecraft:iron_ingot"),
+                slot(26, "minecraft:diamond_sword")))
+            .build()), imageFactory);
+
+        write("hopper", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.HOPPER)
+            .playerInventory(true)
+            .title("Item Hopper")
+            .slots(slots(slot(0, "minecraft:diamond"), slot(4, "minecraft:iron_ingot")))
+            .build()), imageFactory);
+
+        write("dispenser", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.DISPENSER)
+            .playerInventory(true)
+            .title("Dispenser")
+            .slots(slots(slot(0, "minecraft:diamond"), slot(4, "minecraft:iron_ingot"), slot(8, "minecraft:diamond")))
+            .build()), imageFactory);
+
+        write("crafting_table", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.CRAFTING_TABLE)
+            .playerInventory(true)
             .title("Crafting")
             .slots(slots(
-                slot(0, "minecraft:diamond"), slot(4, "minecraft:stick"), slot(7, "minecraft:stick"),
+                slot(0, "minecraft:iron_ingot"), slot(1, "minecraft:iron_ingot"), slot(2, "minecraft:iron_ingot"),
+                slot(4, "minecraft:iron_ingot"),
+                slot(7, "minecraft:iron_ingot"),
                 slot(9, "minecraft:diamond_sword")))
-            .build();
-        write("vanilla_crafting", renderer.render(vanillaCrafting), imageFactory);
+            .build()), imageFactory);
+
+        write("anvil", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.ANVIL)
+            .playerInventory(true)
+            .title("Repair & Name")
+            .fieldText("Excalibur")
+            .slots(slots(
+                slot(0, "minecraft:diamond_sword"),
+                slot(1, "minecraft:diamond"),
+                slot(2, "minecraft:diamond_sword")))
+            .build()), imageFactory);
+
+        // The same screen with its field empty and its caret declined, which is the pair of choices
+        // no other subject here has to make: a field is the one mark whose content is a caller's and
+        // whose caret is a frozen instant of something that blinks.
+        write("anvil_bare", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.ANVIL)
+            .playerInventory(true)
+            .title("Repair & Name")
+            .caret(false)
+            .build()), imageFactory);
+
+        // A server menu is a chest with the caller's own slot map over it and a filler behind the
+        // rest, which is the whole of what makes one: a screen a server dresses is not a shape of its
+        // own. These are the positions such a menu puts a crafting grid and its output at.
+        write("server_menu", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.CHEST)
+            .rows(6)
+            .title("Craft Item")
+            .fill(MenuOptions.Fill.of("minecraft:black_stained_glass_pane"))
+            .slots(slots(
+                slot(10, "minecraft:iron_ingot"), slot(11, "minecraft:iron_ingot"), slot(12, "minecraft:iron_ingot"),
+                slot(19, "minecraft:iron_ingot"), slot(21, "minecraft:iron_ingot"),
+                slot(28, "minecraft:iron_ingot"), slot(29, "minecraft:iron_ingot"), slot(30, "minecraft:iron_ingot"),
+                slot(23, "minecraft:diamond_sword")))
+            .build()), imageFactory);
 
         // An enchanted slot makes its item render animated, which promotes the whole menu through
         // the compositor's animated branch - the one path that reads a child's declared loop length
         // to decide how long the merged loop runs and which child frame each output frame samples.
         MenuOptions glintedCrafting = MenuOptions.builder()
-            .type(MenuOptions.Type.VANILLA_CRAFTING)
+            .type(MenuOptions.Type.CRAFTING_TABLE)
             .title("Enchanting")
             .slots(slots(
                 slot(0, "minecraft:diamond"), enchantedSlot(4, "minecraft:diamond_sword"),
                 enchantedSlot(9, "minecraft:diamond_sword")))
             .build();
         write("glinted_crafting", renderer.render(glintedCrafting), imageFactory);
+
+        // The palette that is not vanilla's, on a shape one of the eight above already draws, so what
+        // this is read for is the ink alone - the panel, the two bevels and the cells. It has no
+        // client-side counterpart to be checked against, which is why it is looked at rather than
+        // compared.
+        write("themed_dark", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.CHEST)
+            .rows(3)
+            .playerInventory(true)
+            .theme(Window.Theme.DARK)
+            .title("Dark Theme")
+            .slots(slots(
+                slot(0, "minecraft:diamond"),
+                slot(4, "minecraft:iron_ingot"),
+                slot(26, "minecraft:diamond_sword")))
+            .build()), imageFactory);
+
+        // A panel at a size no shipped sheet composes. The frame is four corner blocks and four bars
+        // of a one-pixel period, so the same one serves any extent - what is read here is that the
+        // corners arrive unstretched, the bars carry their period the whole way, and the cells stay
+        // eighteen Minecraft pixels to the far corner. The five populated slots are the grid's four
+        // corners and its middle, which is where a lattice that had drifted would show it.
+        write("chest_19x13", renderer.render(MenuOptions.builder()
+            .type(MenuOptions.Type.CHEST)
+            .rows(13)
+            .columns(19)
+            .title("19 x 13")
+            .slots(slots(
+                slot(0, "minecraft:diamond"),
+                slot(18, "minecraft:iron_ingot"),
+                slot(123, "minecraft:diamond_sword"),
+                slot(228, "minecraft:iron_ingot"),
+                slot(246, "minecraft:diamond")))
+            .build()), imageFactory);
 
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
     }
@@ -109,7 +220,7 @@ public final class MenuRenderDriver {
             .type(ItemOptions.Type.GUI_ICON)
             .enchanted(true)
             .build();
-        return Map.entry(index, new MenuOptions.MenuSlotContent(itemId, options, 1));
+        return Map.entry(index, MenuOptions.MenuSlotContent.of(options));
     }
 
     /**

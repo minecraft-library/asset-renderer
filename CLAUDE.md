@@ -68,6 +68,18 @@ writes a capture, `parityCompare` reports movers, `parityPromote` makes a captur
 - `BlockGeometryKitTest` builds fixtures by reflection into private parser-populated fields, so a
   rename compiles clean and fails at runtime.
 
+**Coining an artifact is an edit to the roster and to the index, and the index row goes in first.** A
+registration in `ParityArtifacts.ALL` owes an `index.json` row carrying the `determinism_floor` -
+`parityCapture` refuses without one, because how many runs prove the thing reproducible is otherwise
+unanswerable - and that row carries **no `file` member** until a promotion writes the file it would
+name. A `file` naming a path nothing has written yet fails `ParityIndexTest`'s citation walk instead,
+so the two spellings of "declared but not yet baselined" are not interchangeable.
+
+**`test` and `slowTest` are producers, so nothing captures while the fast suite is red.**
+`-Partifacts` narrows which capture steps write, never which producers run, and `-x test` moves the
+failure rather than removing it. A change that leaves the suite red cannot be gated at all - which is
+what makes the index row above the first edit of a new artifact rather than the last.
+
 **A test class's own name and path are store state.** `index.json` homes fourteen rows at a
 `sources[*].test_class` or `external[*].home` FQN and `ParityIndexTest` resolves each against the
 source tree; `blindness.json` announces ten test paths verbatim as `B38` trigger paths and
@@ -223,7 +235,7 @@ and `-PjmhProfilers=gc,stack`. Forks get `-Xmx2g` plus the Vector module. Benche
 
 The [vanilla-reference-harness] is `harness/`, its own Gradle build with its own `gradlew`. It
 renders every subject through the real Minecraft client at a locked iso pose; those PNGs are the
-byte-stable ground truth the six sweeps diff against, one sub-tree each under
+byte-stable ground truth the seven sweeps diff against, one sub-tree each under
 `cache/asset-renderer/vanilla/<mc>/references/`. Internals live in
 [vanilla-reference-harness/CLAUDE.md]. The Java side walks vanilla model bytecode into
 `entity_models.json` and `entity_geometry.json`.
@@ -232,6 +244,10 @@ byte-stable ground truth the six sweeps diff against, one sub-tree each under
   it by construction.
 - The sweeps are diagnostic reports, not pass/fail gates; one becomes a gate only when its table is
   compared against a baseline.
+- Six sweeps submit geometry and the menu sweep does not: a container screen is captured by driving
+  the client's own GUI pipeline into an offscreen target, which is the one place the harness redirects
+  a render target rather than freezing state. Its subjects share a canvas with the Java side by
+  construction, so it diffs directly and a size disagreement is the finding.
 - The player and armour sweeps rescale **both sides** before diffing, so their delta is a LOOK gauge.
   Their raw renders are the byte gate: `vanilla.png` / `java.png` are what the renderers produced,
   and `aligned_*.png` is the resample the delta, the diff and the panel come from.
@@ -514,6 +530,70 @@ multipart assembly.
 - The harness applies the identical predicate to the same shipped `items/<name>.json`, deliberately
   not a runtime proxy, so the two repos cannot drift on which blocks are icons.
 - A block entity does not stop a block from having an icon vanilla bakes from a block model.
+
+## Menus
+
+One arithmetic and one painter. `MenuScreen` is where a shipped container puts its cells, `MenuLayout`
+is the arithmetic between that and a `Window`, and `MenuRenderer` places content on what the layout
+produced - so what a caller chooses is which screen the client ships, what goes in its cells and what
+paints its chrome, and none of the three is a render path of its own. Everything is in Minecraft
+pixels and reaches output pixels only through `MinecraftFont.MC_PIXEL_SCALE`, which is what keeps the
+chrome exact rather than resampled.
+
+- **A screen's declared height is read off its own construction, never off how it is blitted.** A
+  chest and a shulker box each declare a pixel they never draw and reach it by different routes: the
+  chest's is the source row its second blit skips, the shulker box's is a whole blit of art one
+  shorter than the `(176, 167)` it constructs itself with. Both position the player's label from the
+  declared height, so a slack inferred from the blit count puts one of them a pixel high. The hopper,
+  dispenser and crafting table declare exactly what they draw.
+- **The canvas is the drawn height, never the declared one.** `ContainerScreen` composes a chest from
+  two blits totalling `rows*18 + 113` against a declared `rows*18 + 114`, blit B reading source
+  `v=126` while the container half ends at row 124, so the declared box's bottom scanline is never
+  painted and everything below the container rows sits a pixel higher than the sheet.
+- The frame is four 4x4 corner blocks and four bars of a **1 mcPx period**, and nothing about it is
+  per-menu - one frame reproduces the 4 px ring of every shipped container at its own height with no
+  differing pixel. A panel of any extent is those same corners and longer bars, which is what makes a
+  width the client ships no sheet for renderable and testable against one it does.
+- A panel is refused below the larger **per axis** of two independent floors: `Window.minimum()` is
+  what the art needs to paint a frame and `MenuScreen.minimum()` is what the screen needs to hold a
+  cell. Neither implies the other, and reading one refuses almost nothing - vanilla's drawn geometry
+  closes at eight Minecraft pixels square, which a chest of no rows and no columns clears with
+  nowhere to put a cell, while a window sliced from art can want more room than a screen full of them.
+- `MinecraftFontMetrics.getAscent()` answers **output** pixels where `TextKit.drawLine` takes
+  Minecraft ones. Use `getAscentMcPixels()`; never divide at a call site.
+- A window carries its own ink and is handed no palette: a `Window.Theme` holds one and a
+  `Window.Sliced` is already coloured, so passing one would mean the arm that cannot honour it
+  ignoring the argument. Only the vanilla palette is measured against shipped art; the rest are
+  authored, and none of them inks text, so a caller choosing a dark theme sets the label colour too.
+- The player's section is an option a caller asks for, and it is nine cells at the margin whatever
+  the panel width. Every parity subject arms it, because both gates compare against a panel that has
+  one - the shipped art and the client's own screen.
+- **A mark the panel would have drawn itself re-inks; anything else carries its own inks.** The
+  arrow, the plus and a button's bevel are shapes in the palette's roles, so a re-inked panel carries
+  re-inked marks. The anvil's hammer is a picture and the inside of its name field is an input
+  widget, and a palette has nothing to say about either - the same line a button's face already sits
+  on, its item being full-colour over a bevel that re-inks. The field's **outer** ring is what proves
+  the line rather than breaking it: those two inks are a cell's own bit for bit, so the well sinks
+  into whatever panel it is cut into while its olive stays the widget's.
+- **The anvil's art cannot be its own oracle.** Where its name field goes the shipped panel holds a
+  110x16 rectangle of flat red the client covers on every draw and never once shows, so a window
+  sliced from that texture paints the red. That is why the field is drawn from rules - not to keep
+  its ink free, which is the reason every other mark is declared, but because the art is a hole. It
+  reproduces the shipped text-field sprite whole, and the panel's remaining residual is exactly that
+  rectangle.
+- A field is chrome and content split the way a button is: the window sinks the well, the renderer
+  puts the text in it. The text is drawn plain rather than parsed for format codes, because the
+  client's own field filters them out of what can be typed, and it carries the drop shadow a
+  container's labels decline - it is a widget's text and not the panel's.
+- **A field shows the end of what was typed rather than the start**, and its caret has two forms the
+  value's length picks between: vanilla appends a `_` glyph after the text and cannot once the field
+  is full, so at the cap it fills an unshadowed bar beside it instead. The anvil caps at 50, so a
+  name at exactly that length is what draws the second form. The caret is a frozen instant of
+  something that blinks on the wall clock, so it is a caller's choice rather than a phase.
+- **Two gates answer for a menu and neither substitutes for the other.** The shipped-art oracle is
+  byte-exact about chrome, costs seconds and boots no client; the harness menu sweep renders each
+  screen through the client's own GUI pipeline and is the only one that sees what a composed screen
+  adds - its labels, its slots through vanilla's GUI item atlas, and the composition itself.
 
 ## Porting a new entity
 

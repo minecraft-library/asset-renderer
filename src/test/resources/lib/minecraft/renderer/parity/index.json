@@ -78,11 +78,12 @@
     "manifest.references": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 2312,
+      "entries": 2322,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
-      "sha256": "38e17e9dba36520a0f0e6104ccdab66d371b84a19cc910701bdbca6b655988a7"
+      "last_duration_ms": 138071,
+      "promoted_at": "494a152fd3bf76bc2290aada4291024e0e49791e",
+      "sha256": "820fe12044c09d426d2b12a03612b283422d04383727c7d262838d73808ef3c9"
     },
     "manifest.tooling-tables": {
       "baselined": true,
@@ -97,11 +98,11 @@
     "manifest.visual": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 199,
+      "entries": 210,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
-      "sha256": "66ceb9453d58a62a6ffb34489bc7e4936b86136470b3cb2389657c2c85d8b827"
+      "promoted_at": "f7aa87338a8bc20907a03f0db6cba69c7a22cbdc",
+      "sha256": "f13ad9e74dd95facd7a5e6417ec7dc427b2c0af0c1caadf6021e8eb6df7d84eb"
     },
     "pin.block-crc": {
       "baselined": true,
@@ -233,6 +234,17 @@
       "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
       "sha256": "c87bf90ba4d1576c149518279650710dd185e9ae217e116815e5927e09f68112",
       "sum": "128.9575"
+    },
+    "sweep.menu": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 10,
+      "file": "sweeps/menu.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 13757,
+      "promoted_at": "f7aa87338a8bc20907a03f0db6cba69c7a22cbdc",
+      "sha256": "660d220aad82d0bf439267c9ef9f0a2681d8e52fb4acf774eb8cddf1568cac07",
+      "sum": "0.0407"
     },
     "sweep.player": {
       "baselined": true,

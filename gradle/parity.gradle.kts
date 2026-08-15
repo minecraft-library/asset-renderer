@@ -458,6 +458,7 @@ val parityArtifacts = listOf(
     ParityArtifact("sweep.player", listOf("playerParityVanilla"), "cache/visual/player-parity-vanilla"),
     ParityArtifact("sweep.armor", listOf("armorParityVanilla"), "cache/visual/armor-parity-vanilla"),
     ParityArtifact("sweep.glint", listOf("glintParityVanilla"), "cache/visual/glint-parity-vanilla", listOf("itemId")),
+    ParityArtifact("sweep.menu", listOf("menuParityVanilla"), "cache/visual/menu-parity-vanilla", listOf("menuId")),
     ParityArtifact("manifest.references", listOf("renderVanillaAllReferences"), parityReferenceRoot, listOf("refharnessTargets")),
     ParityArtifact("manifest.visual", listOf("visualSweepSet"), "cache/visual"),
     // Shares manifest.visual's parent and its member mechanism, and covers a disjoint file set: that
@@ -601,7 +602,7 @@ fun resolveParityArtifacts(spec: String?): List<ParityArtifact> {
 val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDump")
 
 /** Every sub-tree the reference tree holds, so a partial run can name what it did NOT refresh. */
-val referenceSubTrees = listOf("blocks", "items", "entities", "players", "glint", "armor")
+val referenceSubTrees = listOf("blocks", "items", "entities", "players", "glint", "armor", "menus")
 
 /** The whole-suite producers, which order a capture step but are never finalized by one. */
 val paritySuiteProducers = setOf("test", "slowTest")
@@ -976,15 +977,19 @@ tasks {
     registerHarnessRun("renderVanillaGlintReferences", "refharnessGlintOnly", "GLINT", true, listOf("glint"),
         "Runs the harness in GLINT mode: references/glint/ only. ~43 s. Then run glintParityVanilla.")
 
-    // forwardsTargets = false on the next two, and the reason is in the sweep rather than in the task:
-    // PlayerSweep.honoursTargetFilter() and ArmorSweep.honoursTargetFilter() both return false because
-    // neither sweep's subjects have a registry id, so a filter would match nothing and the run would
-    // write no reference at all.
+    // forwardsTargets = false on the next three, and the reason is in the sweep rather than in the task:
+    // PlayerSweep.honoursTargetFilter(), ArmorSweep.honoursTargetFilter() and
+    // MenuSweep.honoursTargetFilter() all return false because none of those sweeps' subjects have a
+    // registry id, so a filter would match nothing and the run would write no reference at all.
     registerHarnessRun("renderVanillaPlayerReferences", "refharnessPlayersOnly", "PLAYERS", false, listOf("players"),
         "Runs the harness in PLAYERS mode: references/players/ only. Then run playerParityVanilla.")
 
     registerHarnessRun("renderVanillaArmorReferences", "refharnessArmorOnly", "ARMOR", false, listOf("armor"),
         "Runs the harness in ARMOR mode: references/armor/ only. ~27 s. Then run armorParityVanilla.")
+
+    registerHarnessRun("renderVanillaMenuReferences", "refharnessMenusOnly", "MENUS", false, listOf("menus"),
+        "Runs the harness in MENUS mode: references/menus/ only - the eight shipped container screens, " +
+        "each drawn through the client's own GUI pipeline. Then run menuParityVanilla.")
 
     registerHarnessRun("renderVanillaAllReferences", "refharnessEverySweep", "EVERY", true, referenceSubTrees,
         "Runs every sweep in ONE client boot and writes the whole reference tree. ~152 s, which is 43 s " +

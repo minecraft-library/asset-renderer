@@ -13,5 +13,17 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew parityPlan*)",
+      "Bash(./gradlew parityExpect*)",
+      "Bash(./gradlew parityCapture*)",
+      "Bash(./gradlew parityCompare*)",
+      "Bash(./gradlew paritySelfTest*)",
+      "Bash(./gradlew slowTest*)",
+      "Bash(./gradlew menuRender*)",
+      "Bash(./gradlew entityParityVanilla*)"
+    ]
   }
 }

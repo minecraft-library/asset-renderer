@@ -684,55 +684,99 @@
     },
     {
       "path": "lore-tooltip/accessory.png",
-      "sha256": "e48751da45e38e848e385fc62fec893c164d2a944a006e30c7fca08f066845b9"
+      "sha256": "b5bed95d9b84604fd4bdd4afc49118a00e9323361e9aac0359fb52a5128e40d6"
     },
     {
       "path": "lore-tooltip/gradient_band1.png",
-      "sha256": "db54f43c3fe21e4d9afba4b628463d6f30ad601bb73e034b26af8e013c900b58"
+      "sha256": "91a044b6665f914a6336d6c927aa3d2c0bd2b087280d5d4000bddbf0ea71e4b4"
     },
     {
       "path": "lore-tooltip/gradient_band8.png",
-      "sha256": "9b7eeeb7f0aad0b56ad81b13cd800ec3b8a4ee80497b370699defc3184e6182a"
+      "sha256": "d4af76d6755e627ae31ee34e55f0093c6a9f35233b3afcf266489f1b1fa64a9f"
     },
     {
       "path": "lore-tooltip/gradient_italic_shear.png",
-      "sha256": "5558466d2783e7c9441ae879944df95f61434c29419ed6b87a833d8fa4b090ba"
+      "sha256": "10c91c2ad827cc2a98d3c0d96873e77d001aca2ed08f79a66af49f0a666db436"
     },
     {
       "path": "lore-tooltip/gradient_perletter.png",
-      "sha256": "0bdcfab83d7b709bbe80de597ec66453657535d314d9384d203b8f496f251c56"
+      "sha256": "efada720243f95d4a8aca21310982b95e7f1e8d9118009d7844d519522b6a785"
     },
     {
       "path": "lore-tooltip/gradient_scroll.gif",
-      "sha256": "ca144c4dde339c1a941d75d560abd25fd45ebc8e70b227535826e9faf0f9776c"
+      "sha256": "f9714051a7f9542dc3bce0af91e50e66fdfdbb8b408192fb0854a80ea8e0212e"
     },
     {
       "path": "lore-tooltip/weapon.gif",
-      "sha256": "f046d1d6ea346875ed76a281a9868d72de7226342d5a053d6e6a9405039f6327"
+      "sha256": "9b58134b0b417f5706ba4508fe667c72b6195964936eb2f0b8fce54909f95ee3"
     },
     {
       "path": "lore-tooltip/weapon.webp",
-      "sha256": "a44dadabd190ac2c45cdb345037e5d6682e84e99d77b4ec4cd0dbb0ea640367f"
+      "sha256": "14356516bdbc08b5560c005f8dc043bacbecb6baeb8df1c5dcdafeb41bd6259b"
     },
     {
       "path": "lore-tooltip/weapon_lossy.webp",
-      "sha256": "4f929db7c1628efb13e03e2a864226af939b345948d35cbc6b7a14f446a663c7"
+      "sha256": "7646f996fd1eabeabeb94f0022baa2ac88ac7fa863e2b8a13cec3ae546420d6e"
     },
     {
       "path": "lore-tooltip/weapon_static.webp",
-      "sha256": "d429c15aa08e9715d3ca47c37351e2270a3e445e347ff782c02601e5222fcbd3"
+      "sha256": "b28d01e31e19f502a231225f334e102611f77157eefea82ccc746aefcdc7b336"
+    },
+    {
+      "path": "menu-render/anvil.png",
+      "sha256": "a548af42599f6dc0a377d12374e7d576316955e7369983804c8b2a56a56a0f8c"
+    },
+    {
+      "path": "menu-render/anvil_bare.png",
+      "sha256": "f9a476be576296864976408ccbe9f60fa466ca9af104f03dce1c0adeb9be0a05"
+    },
+    {
+      "path": "menu-render/chest_19x13.png",
+      "sha256": "451b2f69cac3d176604a4ca1e57a941f29dcf8308204317b1f0fc08aab2073f2"
+    },
+    {
+      "path": "menu-render/chest_1row.png",
+      "sha256": "6bb4d9ffe3a077a41789b1027c98a77cf8fc8e74ade2f61b277e11bfe51057b4"
+    },
+    {
+      "path": "menu-render/chest_2row.png",
+      "sha256": "68f3a8d1ca7190c4b63cf33828d34f37873a071638f73fbc423237828fb4c1e2"
+    },
+    {
+      "path": "menu-render/chest_3row.png",
+      "sha256": "cdba12786bca9836a1f3bf48abe1dee0876a69f4989376034d76adca0aa3b16c"
+    },
+    {
+      "path": "menu-render/chest_6row.png",
+      "sha256": "33b9a121653f9b9781901e8fb700723e5b3cd359a4aad01b54e747aa8f9ff5db"
+    },
+    {
+      "path": "menu-render/crafting_table.png",
+      "sha256": "cd3b9268b024723618ecb55000908c68add8099202a6218c3f632b7ce97f64bf"
+    },
+    {
+      "path": "menu-render/dispenser.png",
+      "sha256": "4a0542ee7109e61f78c4271f2bc139caefb27594ccf69f75aef0ae42a2d88dfa"
     },
     {
       "path": "menu-render/glinted_crafting.webp",
-      "sha256": "fe45959177d4e5e61ebaa644dec94ccfca2fd5b43e8ddad8e298bb6fcb7def27"
+      "sha256": "fd182f2c5c048898fac8e99cc0b315eb57ef6842278d44056817f1c207ff4131"
     },
     {
-      "path": "menu-render/skyblock_crafting.png",
-      "sha256": "cc9a370fdb80be4eaebddfc677c22ab66e5d848643a554fbbbc8a51b6439c350"
+      "path": "menu-render/hopper.png",
+      "sha256": "75d76be2f13773f757147915ae88082e47a0fa2dacddee52d2ef9d9be2262138"
     },
     {
-      "path": "menu-render/vanilla_crafting.png",
-      "sha256": "fb415fa91d5b012ab01fe40d0920d3607be00002cdb83326d89fa214b003c3ab"
+      "path": "menu-render/server_menu.png",
+      "sha256": "254ae2961d3374b20f3d785e182d1d054755ada55d8940d56750fe9470d9b848"
+    },
+    {
+      "path": "menu-render/shulker_box.png",
+      "sha256": "6a6ca76ac422106521b5dbf7457df6058be9071df03e467f20493e152d0f27b1"
+    },
+    {
+      "path": "menu-render/themed_dark.png",
+      "sha256": "6ed918d0a7983f6ad0eae59792ff37aa63f9b930573460d64cfe750d3f284cb6"
     },
     {
       "path": "projection-smoke/minecraft_tnt__CABINET__base.png",
@@ -805,17 +849,17 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+    "asset_sha": "f7aa87338a8bc20907a03f0db6cba69c7a22cbdc",
     "counts": {
-      "files": 199
+      "files": 210
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "moving",
+    "parity_class": "shaped",
     "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "Whole-store capture on a clean tree at the end of the parity-cleanup follow-up. Twenty-three of twenty-four artifacts are byte-identical to the previous baseline, including all six sweeps after a full ground-truth re-render, so the six landed phases moved no hashed byte and the reference tree had no staleness to shed. manifest.visual gains 46 rows and moves none: its membership was widened from six sub-trees to eight, and entity-projections and projection-smoke are hashed here for the first time.",
+    "reason": "the anvil drawn with its four marks, its name field and both caret forms; two rows each, both byte-identical to the client, so the sum holds at 0.0407 and the whole of it is still the crafting table's four authored specks",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -825,7 +869,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-07T16:43:08Z",
+    "timestamp": "2026-08-15T15:31:36Z",
     "tool_version": "1.0.0"
   }
 }

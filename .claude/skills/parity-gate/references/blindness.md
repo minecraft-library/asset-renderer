@@ -375,7 +375,7 @@ These are message and constructor shapes on throwables. Nothing renders differen
 
 - **mode** select
 - **triggers** `harness/src/**`, `harness/build.gradle.kts`, `harness/settings.gradle.kts`, `harness/gradle.properties`, `harness/gradle/**`, `harness/gradlew`, `harness/gradlew.bat`, `harness/run-profile/**`
-- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.references`, `manifest.player-raw`
+- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.menu`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.references`, `manifest.player-raw`
 - **blind** -
 - **source** measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'
 
@@ -398,12 +398,12 @@ The toolkit reads a producer's output and writes the canonical form; it renders 
 ## B31 - The build wiring decides what runs, and renders nothing itself
 
 - **mode** select
-- **triggers** `build.gradle.kts`, `settings.gradle.kts`, `gradle/**`, `gradle.properties`, `gradlew`, `gradlew.bat`, `src/jmh/**`
+- **triggers** `settings.gradle.kts`, `gradle/**`, `gradle.properties`, `gradlew`, `gradlew.bat`, `src/jmh/**`
 - **sees** -
 - **blind** -
-- **source** measured by perturbing build.gradle.kts: 0 of 0 declared sees moved
+- **source** measured by perturbing a task registration in build.gradle.kts: 0 of 0 declared sees moved. A version pin in that same file is a different kind of edit and does move rows, which is B47's measurement and why the file is no longer on this list
 
-A task registration, a finalizer edge or a property read moves no rendered byte: what it changes is which producer runs and what argv it runs with. The gate is running the tasks and reading their argv, which is why the Gradle phases of this effort gate on task lists and resolved command lines rather than on a sum. Two declarations in the build file escape that: visualSweepProducers and the player-raw aggregator's dependencies decide which producers run and therefore what the two cache/visual manifests hold, so B41 names those artifacts for the build file. This list stays empty because every other glob here is wiring around producers rather than a statement of what one of them covers.
+A task registration, a finalizer edge or a property read moves no rendered byte: what it changes is which producer runs and what argv it runs with. The gate is running the tasks and reading their argv, which is why the Gradle phases of this effort gate on task lists and resolved command lines rather than on a sum. Where a version is written down this stops being true, and B47 speaks for those two files instead - the root build file, which also declares the dependency set, and the version catalog under this glob. What is left here is wiring around producers rather than a statement of what one of them covers, and the member list that decides what the two cache/visual manifests hold is B41's claim over the two files it is typed in.
 
 *Probe:* read back the resolved commandLine of every task the change touches and compare it to the one it replaced
 
@@ -411,7 +411,7 @@ A task registration, a finalizer edge or a property read moves no rendered byte:
 
 - **mode** select
 - **triggers** `src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java`, `src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java`, `src/test/java/lib/minecraft/renderer/parity/SweepReport.java`, `src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java`, `src/test/java/lib/minecraft/renderer/visual/**`
-- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.visual`, `manifest.player-sheets`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`
+- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.menu`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.visual`, `manifest.player-sheets`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing ParityMetrics.java: 6 of 11 declared sees moved, and 2 declared blind held
 
@@ -610,6 +610,30 @@ Their coplanar pairs are exactly coincident, so both interpolation forms agree b
 A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.
 
 *Probe:* -Dasset.snap.grid=N and a texel-fetch perturbation both move block rows where -Dasset.depth.range=N does not
+
+## B47 - A version declaration decides which rendering code runs, so bumping one can move any rendered byte
+
+- **mode** select
+- **triggers** `build.gradle.kts`, `gradle/libs.versions.toml`
+- **sees** `digest.colormap-lut`, `manifest.fluid`, `manifest.player-raw`, `manifest.player-sheets`, `manifest.portal`, `manifest.visual`, `pin.block-crc`, `pin.fluid-crc`, `pin.kit-corners`, `pin.player-crc`, `pin.portal-crc`, `pin.vanilla-iso-pose`, `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.player`
+- **blind** `digest.shipped-tables`, `manifest.references`, `manifest.tooling-tables`, `pin.corpus-count`
+- **source** measured by bumping the minecraft-library:text pin from 117775e to 172ed90: 13 of 199 manifest.visual rows moved, every one of them a render that draws text, and the other thirteen artifacts captured beside it held
+
+These two files are where a dependency version is written down - ten strictly() pins in the build file and the third-party versions in the catalog, JOML's among them - and a version is a statement about which code a producer runs, not about which producer runs. So an edit here can move a rendered byte without a line of this repo's source changing, which is the opposite of what B31 says about the wiring it still speaks for. The four artifacts listed blind are the ones no library reaches: the shipped-tables digest and the corpus count are taken over bytes and fixtures that ship in this repo, and the reference manifest and the tooling tables are produced by two separate Gradle builds whose own dependency declarations live in their own files. The sees list is the mechanism's consequence rather than one perturbation's: a single pin was measured and the rest follow from a version swapping code, so narrowing it is a measurement somebody can take.
+
+*Probe:* bump one strictly() pin to a sha jitpack serves, re-run the render bundle, and read which rows move
+
+## B48 - A menu reaches the visual manifest and nothing else this store holds
+
+- **mode** demote
+- **triggers** `src/main/java/lib/minecraft/renderer/MenuRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/compose/ChromeDecomposition.java`, `src/main/java/lib/minecraft/renderer/engine/compose/ChromeSlicer.java`, `src/main/java/lib/minecraft/renderer/engine/compose/Decoration.java`, `src/main/java/lib/minecraft/renderer/engine/compose/MenuLayout.java`, `src/main/java/lib/minecraft/renderer/engine/compose/MenuScreen.java`, `src/main/java/lib/minecraft/renderer/engine/compose/Stencil.java`, `src/main/java/lib/minecraft/renderer/engine/compose/Window.java`, `src/main/java/lib/minecraft/renderer/option/MenuOptions.java`, `src/main/java/lib/minecraft/renderer/option/slot/MenuSlot.java`, `src/test/java/lib/minecraft/renderer/visual/MenuRenderDriver.java`
+- **sees** `manifest.visual`, `sweep.menu`
+- **blind** `manifest.fluid`, `manifest.player-raw`, `manifest.player-sheets`, `manifest.portal`, `pin.block-crc`, `pin.fluid-crc`, `pin.player-crc`, `pin.portal-crc`, `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.player`
+- **source** measured by rewriting MenuRenderer, MenuOptions, MenuScreen, MenuLayout, Window and the visual driver together: manifest.visual alone moved and every other artifact the plan planned on those paths held; measured again on MenuRenderer alone, where the menu rows of manifest.visual moved and everything captured beside them held; and measured a third time for Decoration alone, by widening the arrow's extent by one Minecraft pixel and re-running the two menu producers - the sweep's crafting table went 0.0407 to 0.20 and its anvil 0.0000 to 0.16, three menu-render digests moved with them, and reverting restored all fifty-four producer outputs byte-identically. Nothing else in this store can load the class: Decoration is referenced by MenuRenderer, MenuLayout, MenuScreen and Window and by no other production file, and all four are trigger paths here. Stencil rides the same closure and is narrower still - it is package-private, so nothing outside this package can name it at all, and the two production files that do are Window and Decoration
+
+A menu is drawn by one renderer over one option record and one layout, and no other producer in this store draws one. The five sweeps render entities, blocks, items, the player and its armour, and the glint sweep an overlay over an item; the four CRC pins are taken over renders of those same subjects; and the four other manifests hold fluid, portal and player-sheet output. manifest.visual is the only artifact that hashes what the menu driver writes, so it is the only one a menu can move. Three rules select on these same paths for reasons that are true of the directories rather than of these files - the engine glob, the option surface and the visual mains - and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim paths and never a glob: the compose package holds the compositor, the timeline and the tooltip chrome, the slot package holds nine other slot enums, and the option package holds every option record there is, so a glob over any of the three would hide a sweep from a change that moves it.
+
+*Probe:* perturb a menu geometry number - a band depth, a margin, a cell size - re-run the whole render bundle and read which artifacts move; the menu rows of manifest.visual move and nothing else does
 
 ## Paths that reach nothing
 

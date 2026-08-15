@@ -9243,6 +9243,46 @@
       "sha256": "fc592fec4e906f262a8acca64f60eab0fda9f9cc710dc42b2e121475edd78c79"
     },
     {
+      "path": "menus/anvil.png",
+      "sha256": "0e2502b60a752491325d3939d23a7543cc86e86d9b7ac3f7a6096fe41944e7cc"
+    },
+    {
+      "path": "menus/anvil_named.png",
+      "sha256": "46654afe67f905e53fd0e4b1cfae486998b424e742933564636d1b257e2cf3ae"
+    },
+    {
+      "path": "menus/chest_1row.png",
+      "sha256": "86ea1e3971f9b900bce4b68c0e1b4d4899fe231f54c6b5a0d7a93dc1028baaf6"
+    },
+    {
+      "path": "menus/chest_2row.png",
+      "sha256": "1b685d62cba8009c1dcf42180728a61598bcf5e45de70c6e1c3a646153463b04"
+    },
+    {
+      "path": "menus/chest_3row.png",
+      "sha256": "bb7e129e57715fe081390b9c70b0b9c00aba0bbebf643b8d7038a76a81f995d4"
+    },
+    {
+      "path": "menus/chest_6row.png",
+      "sha256": "57ef010812946eec848d74159845915bcf0651eea03c2e188800f24f3c5b89e6"
+    },
+    {
+      "path": "menus/crafting_table.png",
+      "sha256": "4b02f9e81d1dd07ccb19e08555347fee8f13a2765c5732c376cde2905c4832ae"
+    },
+    {
+      "path": "menus/dispenser.png",
+      "sha256": "221b87d35ec7eef05623b626a1579055fc3264b53dd3acd5d4f4d8fe47dab840"
+    },
+    {
+      "path": "menus/hopper.png",
+      "sha256": "8ab99f779b6f286829583cd6f65ea7285350bcc0f04dfb6978c1ada9379831af"
+    },
+    {
+      "path": "menus/shulker_box.png",
+      "sha256": "f42cfd5a9b8c3d6bc24d8c52222608670ef5e1b6d90df08528b2b5c1d1b0e3f4"
+    },
+    {
       "path": "players/full.png",
       "sha256": "d94eb65248813bafbad6ac48eeeefb929053b9f4657fa6dc90e15024ddae04f4"
     },
@@ -9257,16 +9297,18 @@
   "provenance": {
     "artifact": "manifest.references",
     "asset_dirty": false,
-    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "asset_sha": "494a152fd3bf76bc2290aada4291024e0e49791e",
     "counts": {
-      "files": 2312
+      "files": 2322
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
+    "mode": "EVERY",
+    "parity_class": "shaped",
+    "population_changed": true,
     "producer": "renderVanillaAllReferences",
-    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 2/5, references: 2312 entries, 0 movers across two full harness renders, and every sweep reported failed=0 in both (blocks 1091, items 479, entities 402, players 2, glint 330, armor 7). Digest-for-digest identical to the P0 refs-baseline capture on all 2312, and exactly one key wider than refs-L39 - glint/atlas_uv.json - which is the Q-9 glob widening, with nothing else added, dropped or differing.",
+    "reason": "the anvil rendered through the client unnamed and named; two references added, none of the 2320 moved",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -9276,7 +9318,8 @@
       "players": 2
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-08-01T02:36:26Z",
-    "tool_version": "1.0.0"
+    "timestamp": "2026-08-15T15:00:28Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 138071
   }
 }

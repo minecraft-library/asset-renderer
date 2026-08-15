@@ -107,6 +107,7 @@ public final class ParityArtifacts {
         Registration.store("sweep.player", 2, "playerParityVanilla"),
         Registration.store("sweep.armor", 2, "armorParityVanilla"),
         Registration.store("sweep.glint", 2, "glintParityVanilla"),
+        Registration.store("sweep.menu", 2, "menuParityVanilla"),
 
         // --- render-manifest. Two-run reproducibility is the precondition that makes a digest
         // comparison admissible at all; the dump pair carries 5 because that is what was measured.

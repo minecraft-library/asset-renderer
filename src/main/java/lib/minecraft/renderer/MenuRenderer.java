@@ -2,258 +2,483 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.StaticImageData;
-import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.compose.Decoration;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
+import lib.minecraft.renderer.engine.compose.MenuLayout;
+import lib.minecraft.renderer.engine.compose.MenuScreen;
 import lib.minecraft.renderer.engine.compose.Timeline;
+import lib.minecraft.renderer.engine.compose.Window;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
-import lib.minecraft.renderer.engine.kit.NineSliceKit;
 import lib.minecraft.renderer.engine.kit.TextKit;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.MenuOptions;
 import lib.minecraft.renderer.option.slot.MenuSlot;
-import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
-import lib.minecraft.text.font.MinecraftFontMetrics;
 import lib.minecraft.text.font.MinecraftGraphics;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * Renders an inventory-style menu (chest, player, crafting, anvil) by dispatching to one of
- * five sub-renderers based on {@link MenuOptions#getType()}.
+ * Renders an inventory-style menu by laying its cells out as a {@link MenuScreen} and painting them
+ * through a {@link Window}, then placing the caller's slot content on the cells that layout produced.
  * <p>
- * Each sub-renderer is a {@code public static final} inner class implementing
- * {@link Renderer Renderer&lt;MenuOptions&gt;}:
- * <ul>
- * <li>{@link Generic} - shared flow for {@link MenuOptions.Type#PLAYER PLAYER},
- * {@link MenuOptions.Type#CHEST CHEST}, {@link MenuOptions.Type#CUSTOM CUSTOM}, and
- * {@link MenuOptions.Type#SLOT SLOT}. Builds a rectangular grid with the generic theme
- * chrome.</li>
- * <li>{@link VanillaCrafting} - 5x3 canvas for the Minecraft crafting table with a 3x3 grid
- * and an output slot at column 4.</li>
- * <li>{@link VanillaAnvil} - 5-column canvas with a rename textbox and the three input /
- * decoration / output slot row.</li>
- * <li>{@link SkyblockCrafting} - 9x6 Hypixel chest chrome with the SkyBlock crafting layout
- * baked into chest slots.</li>
- * <li>{@link SkyblockAnvil} - 9x6 chest chrome with the SkyBlock combine menu slots, an
- * isometric anvil decoration, and red stained glass pane borders.</li>
- * </ul>
- * Shared chrome drawing (chest bevels, slot insets, craft arrows, plus signs, hammer sprite,
- * rename textbox), slot coordinate math, filler application, composite/merge, and validation
- * helpers live as package-private static methods on this class so every sub-renderer reaches
- * them without duplication. The sub-renderers each own only the constants and layout logic
- * unique to their menu type.
+ * There is one flow, because a menu is one arithmetic and one painter. What a caller chooses is which
+ * screen the client ships, what goes in its cells and what paints its chrome; none of the three is a
+ * render path of its own. A menu whose slots sit where no shipped screen puts them is one of those
+ * screens with the caller's own slot map over it.
+ * <p>
+ * A menu speaks Minecraft pixels throughout and reaches output pixels only through {@link #PX_SCALE},
+ * which is what keeps the chrome exact rather than resampled.
  */
 public final class MenuRenderer implements Renderer<MenuOptions> {
 
-    // --- Shared geometry constants ---
-
     /**
-     * Edge length in pixels of one square inventory slot cell.
+     * Output pixels one Minecraft pixel occupies on a side. It is the font's, because a title drawn
+     * at any other scale would not line up with the panel it sits on.
      */
-    static final int SLOT_SIZE = 36;
+    static final int PX_SCALE = MinecraftFont.MC_PIXEL_SCALE;
 
     /**
-     * Padding in pixels between the canvas edge and the slot grid.
+     * The prefix a caller's format codes carry, which is the client's own rather than the ampersand a
+     * chat plugin uses.
      */
-    static final int INSET = 4;
+    private static final char SECTION_SIGN = '§';
 
     /**
-     * Height in pixels of the title band above the slot grid.
+     * The side of the content a cell holds, in Minecraft pixels. Every cell holds the same amount of
+     * it however big the cell is - a crafting result is a cell of 26 around an item of 16, which is
+     * why this is a constant and the inset that centres it is not.
      */
-    static final int TITLE_HEIGHT = 24;
+    private static final int CONTENT_MCPX = 16;
 
     /**
-     * Height in pixels reserved below the slot row for the anvil XP-cost label, added only when a
-     * cost is present.
+     * The side of the content a cell holds, in output pixels.
      */
-    static final int XP_LABEL_HEIGHT = 20;
-
-    // --- Shared SkyBlock chest (9x6) dimensions ---
+    static final int CONTENT_PX = CONTENT_MCPX * PX_SCALE;
 
     /**
-     * Column count of the SkyBlock chest container (9 wide).
+     * The renderer context resolving chrome art and each slot's item.
      */
-    static final int SKYBLOCK_CHEST_COLS = 9;
+    private final @NotNull RendererContext context;
 
     /**
-     * Row count of the SkyBlock chest container (6 tall).
-     */
-    static final int SKYBLOCK_CHEST_ROWS = 6;
-
-    /**
-     * Total addressable slots in the SkyBlock chest container ({@code 9 * 6 = 54}).
-     */
-    static final int SKYBLOCK_CHEST_SLOTS = SKYBLOCK_CHEST_COLS * SKYBLOCK_CHEST_ROWS;
-
-    // --- Shared vanilla chrome palette ---
-
-    /**
-     * Vanilla slot highlight / outer-bevel edge colour (white).
-     */
-    static final int CHROME_BORDER_HIGHLIGHT = 0xFFFFFFFF;
-
-    /**
-     * Vanilla slot shadow / inner-bevel edge colour (mid-grey).
-     */
-    static final int CHROME_BORDER_SHADOW = 0xFF555555;
-
-    /**
-     * Interior fill colour of the vanilla anvil rename textbox.
-     */
-    static final int ANVIL_TEXTBOX_BEIGE = 0xFFE5D4AC;
-
-    /**
-     * The vanilla inventory slot-cell sprite id ({@code textures/gui/sprites/container/slot.png}) - the
-     * real 18x18 sunken slot texture blitted per slot in place of the former hand-drawn bevels.
-     */
-    static final @NotNull String SLOT_SPRITE_ID = "minecraft:gui/sprites/container/slot";
-
-    /**
-     * The slot sprite's scaling: {@code stretch} (the vanilla slot ships no {@code gui.scaling} mcmeta,
-     * so it inherits the spec default), stretched to each slot rect via {@link NineSliceKit}.
-     */
-    private static final @NotNull MCMeta.GuiScaling SLOT_SCALING = new MCMeta.GuiScaling(
-        MCMeta.GuiScaling.Type.STRETCH, -1, -1, new MCMeta.GuiScaling.Border(0, 0, 0, 0), false);
-
-    /**
-     * Shared renderer for the flat-grid {@code PLAYER}/{@code CHEST}/{@code CUSTOM}/{@code SLOT} types.
-     */
-    private final @NotNull Generic generic;
-
-    /**
-     * Renderer for the vanilla crafting-table menu.
-     */
-    private final @NotNull VanillaCrafting vanillaCrafting;
-
-    /**
-     * Renderer for the vanilla anvil menu.
-     */
-    private final @NotNull VanillaAnvil vanillaAnvil;
-
-    /**
-     * Renderer for the SkyBlock crafting menu.
-     */
-    private final @NotNull SkyblockCrafting skyblockCrafting;
-
-    /**
-     * Renderer for the SkyBlock "Combine Items" anvil menu.
-     */
-    private final @NotNull SkyblockAnvil skyblockAnvil;
-
-    /**
-     * Constructs a new {@code MenuRenderer} bound to the given renderer context, eagerly building
-     * each sub-renderer so a {@link #render} call is a plain type dispatch.
+     * Constructs a new {@code MenuRenderer} bound to the given renderer context.
      *
      * @param context the renderer context supplying pack / model / texture lookups
      */
     public MenuRenderer(@NotNull RendererContext context) {
-        this.generic = new Generic(context);
-        this.vanillaCrafting = new VanillaCrafting(context);
-        this.vanillaAnvil = new VanillaAnvil(context);
-        this.skyblockCrafting = new SkyblockCrafting(context);
-        this.skyblockAnvil = new SkyblockAnvil(context);
+        this.context = context;
     }
 
     /**
-     * Validates the fill option, then dispatches to the sub-renderer keyed by
-     * {@link MenuOptions#getType()}.
+     * Lays the menu's screen out, paints its chrome through the window the options select, and places
+     * every populated cell on it.
      *
      * @param options the menu render options
      * @return the composited menu image
      */
     @Override
     public @NotNull ImageData render(@NotNull MenuOptions options) {
-        validateFill(options);
+        validateScale(options);
 
-        return switch (options.getType()) {
-            case VANILLA_CRAFTING -> this.vanillaCrafting.render(options);
-            case VANILLA_ANVIL -> this.vanillaAnvil.render(options);
-            case SKYBLOCK_CRAFTING -> this.skyblockCrafting.render(options);
-            case SKYBLOCK_ANVIL -> this.skyblockAnvil.render(options);
-            case PLAYER, CHEST, CUSTOM, SLOT -> this.generic.render(options);
-        };
+        MenuScreen screen = options.screen();
+        MenuLayout layout = screen.layout(options.isPlayerInventory());
+        Window window = windowOf(this.context, options);
+        validateExtent(window, screen, layout);
+        validateSlots(options, layout);
+
+        ItemRenderer itemRenderer = new ItemRenderer(this.context);
+        LayerStack<FrameLayer> stack = new LayerStack<>();
+        place(stack, MenuSlot.CHROME, chromeOf(window, layout));
+
+        boolean anyAnimated = placeDecorationIcons(layout, stack, itemRenderer);
+        anyAnimated |= placeSlots(options, layout, stack, itemRenderer);
+        anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer);
+        anyAnimated |= placeLabels(options, layout, stack);
+        placeFieldText(options, layout, stack);
+
+        return composite(layout, stack, anyAnimated, options);
     }
 
     // ---------------------------------------------------------------------------------------
-    // Shared helpers reachable from every sub-renderer.
+    // Geometry: one screen per type, one layout per screen.
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Lays a menu out, drawing the player's section only where the caller asked for it.
+     *
+     * @param options the menu render options
+     * @return the layout
+     */
+    static @NotNull MenuLayout layoutOf(@NotNull MenuOptions options) {
+        return options.screen().layout(options.isPlayerInventory());
+    }
+
+    /**
+     * Returns the window a menu's chrome is painted by - the art the caller named, or the theme's
+     * drawn geometry where they named none.
+     *
+     * @param context the renderer context resolving the art
+     * @param options the menu render options
+     * @return the window
+     */
+    static @NotNull Window windowOf(@NotNull RendererContext context, @NotNull MenuOptions options) {
+        return options.getChromeSprite()
+            .<Window>map(id -> Window.Sliced.resolve(context, id, options.getCellSprite()))
+            .orElse(options.getTheme());
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Shared helpers.
     // ---------------------------------------------------------------------------------------
 
     /**
      * Appends a single {@link FramePlacement} to {@code stack} under {@code slot}, wrapped as a
-     * {@link FrameLayer}. Shared by every menu sub-renderer so a placement lands in its slot without
-     * repeating the {@code sink -> sink.add(...)} wrapper at each call site.
+     * {@link FrameLayer}, so a placement lands in its slot without repeating the
+     * {@code sink -> sink.add(...)} wrapper at each call site.
      */
     private static void place(@NotNull LayerStack<FrameLayer> stack, @NotNull MenuSlot slot, @NotNull FramePlacement placement) {
         stack.append(slot, sink -> sink.add(placement));
     }
 
     /**
-     * Appends filler layers to every non-claimed chest slot according to
-     * {@link MenuOptions#getFill() options.fill}. Returns whether any of the filler layers
-     * resolved to animated content so the caller can keep its {@code anyAnimated} flag
-     * accurate.
+     * Paints the panel and every cell of a layout, in Minecraft pixels replicated to output ones.
+     *
+     * @param window the window painting the chrome
+     * @param layout the laid-out panel
+     * @return the painted chrome buffer
      */
-    static boolean appendFillerLayers(
-        @NotNull MenuOptions options,
-        @NotNull LayerStack<FrameLayer> stack,
-        @NotNull ItemRenderer itemRenderer,
-        @NotNull ConcurrentSet<Integer> claimed
-    ) {
-        if (options.getFill() == MenuOptions.Fill.EMPTY) return false;
+    static @NotNull PixelBuffer paintChrome(@NotNull Window window, @NotNull MenuLayout layout) {
+        PixelBuffer chrome = PixelBuffer.create(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
 
-        ItemOptions fillerOptions = switch (options.getFill()) {
-            case BLACK_STAINED_GLASS_PANE -> ItemOptions.builder()
-                .itemId("minecraft:black_stained_glass_pane")
-                .type(ItemOptions.Type.GUI_ICON)
-                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SLOT_SIZE - 4).build())
-                .build();
-            case EMPTY -> throw new RenderException("EMPTY handled above");
-        };
-        ImageData fillerImage = itemRenderer.render(fillerOptions);
-        boolean fillerAnimated = fillerImage.isAnimated();
+        window.paintPanel(chrome, layout.box(PX_SCALE));
+        for (MenuLayout.Cell cell : layout.cells())
+            window.paintCell(chrome, cell.box(PX_SCALE));
+        for (MenuLayout.Mark mark : layout.marks())
+            window.paintDecoration(chrome, mark.box(PX_SCALE), mark.kind());
 
-        for (int chestSlot = 0; chestSlot < SKYBLOCK_CHEST_SLOTS; chestSlot++) {
-            if (claimed.contains(chestSlot)) continue;
-            place(stack, MenuSlot.CONTENT, new FramePlacement(
-                chestSlotX(chestSlot) + 2,
-                chestSlotY(chestSlot) + 2,
-                fillerImage
-            ));
-        }
-
-        return fillerAnimated;
+        return chrome;
     }
 
     /**
-     * Final composite step shared by every render path. Fast-paths a single-frame static
-     * composite when nothing is animated; otherwise promotes everything to animated output via
-     * {@link FrameCompositor#merge}.
+     * The chrome layer of a menu, which carries the panel and its cells and no ink at all - a label is
+     * a layer of its own, so nothing a menu draws later can overpaint chrome that was drawn earlier
+     * into one buffer.
+     *
+     * @param window the window painting the chrome
+     * @param layout the laid-out panel
+     * @return the chrome placement at the panel's origin
+     */
+    static @NotNull FramePlacement chromeOf(@NotNull Window window, @NotNull MenuLayout layout) {
+        return new FramePlacement(0, 0, StaticImageData.of(paintChrome(window, layout).toBufferedImage()));
+    }
+
+    /**
+     * Places a menu's labels over its chrome, returning whether they animated. Nothing is appended
+     * where the menu has no label to draw.
+     *
+     * @param options the menu render options
+     * @param layout the laid-out panel
+     * @param stack the layer stack to append to
+     * @return whether the label layer animates
+     */
+    static boolean placeLabels(
+        @NotNull MenuOptions options,
+        @NotNull MenuLayout layout,
+        @NotNull LayerStack<FrameLayer> stack
+    ) {
+        Optional<ImageData> labels = labelLayer(options, layout);
+        if (labels.isEmpty()) return false;
+
+        place(stack, MenuSlot.TEXT, new FramePlacement(0, 0, labels.get()));
+        return labels.get().isAnimated();
+    }
+
+    /**
+     * Places content in a cell, centred - one Minecraft pixel in on an ordinary cell of 18 and five
+     * in on a crafting result of 26.
+     *
+     * @param cell the cell to place in
+     * @param content what to draw in it
+     * @return the placement, in output pixels
+     */
+    static @NotNull FramePlacement inCell(@NotNull MenuLayout.Cell cell, @NotNull ImageData content) {
+        int inset = (cell.size() - CONTENT_MCPX) / 2;
+        return new FramePlacement((cell.x() + inset) * PX_SCALE, (cell.y() + inset) * PX_SCALE, content);
+    }
+
+    /**
+     * Renders each of the caller's populated slots onto the cell its index reaches, returning whether
+     * any of them animated.
+     *
+     * @param options the menu render options
+     * @param layout the laid-out panel
+     * @param stack the layer stack to append to
+     * @param itemRenderer the renderer an item slot's content goes through
+     * @return whether any slot resolved to animated content
+     */
+    static boolean placeSlots(
+        @NotNull MenuOptions options,
+        @NotNull MenuLayout layout,
+        @NotNull LayerStack<FrameLayer> stack,
+        @NotNull ItemRenderer itemRenderer
+    ) {
+        ConcurrentList<MenuLayout.Cell> cells = layout.slotCells();
+        boolean anyAnimated = false;
+
+        for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
+            ImageData rendered = contentOf(entry.getValue(), itemRenderer);
+            if (rendered.isAnimated()) anyAnimated = true;
+
+            place(stack, MenuSlot.SLOT, inCell(cells.get(entry.getKey()), rendered));
+        }
+
+        return anyAnimated;
+    }
+
+    /**
+     * Draws what a slot holds. An item is sized here because a cell's size is the renderer's to know;
+     * a render the caller produced arrives at the size they gave it.
+     *
+     * @param content what the slot holds
+     * @param itemRenderer the renderer an item goes through
+     * @return the drawn content
+     */
+    static @NotNull ImageData contentOf(@NotNull MenuOptions.MenuSlotContent content, @NotNull ItemRenderer itemRenderer) {
+        return switch (content) {
+            case MenuOptions.MenuSlotContent.Item item -> itemRenderer.render(intoSlot(item.options()));
+            case MenuOptions.MenuSlotContent.Rendered rendered -> rendered.content().get();
+        };
+    }
+
+    /**
+     * Returns the caller's item options at the size a slot holds.
+     * <p>
+     * A slot is a fixed size and the item in it is drawn to fit, which is why the size is the
+     * renderer's answer rather than the caller's: an item asked for at its own default carries a
+     * canvas of its own, and nothing about that canvas knows what a slot is. Everything else the
+     * caller asked for survives.
+     *
+     * @param options the caller's item options
+     * @return the options at a slot's content size
+     */
+    static @NotNull ItemOptions intoSlot(@NotNull ItemOptions options) {
+        return options.mutate()
+            .output(options.getOutput().mutate().canvasSize(CONTENT_PX).build())
+            .build();
+    }
+
+    /**
+     * Draws the icon each of a screen's marks carries, returning whether any of them animated.
+     * <p>
+     * A mark's frame is chrome and its icon is a render, so the two are drawn by different parties:
+     * the window paints the raised button in its own inks and this places the item on its face. That
+     * split is what gives a pack its say - the item resolves through the pack stack like any other,
+     * so redrawing it redraws the button.
+     *
+     * @param layout the laid-out panel
+     * @param stack the layer stack to append to
+     * @param itemRenderer the renderer an icon goes through
+     * @return whether any icon resolved to animated content
+     */
+    static boolean placeDecorationIcons(
+        @NotNull MenuLayout layout,
+        @NotNull LayerStack<FrameLayer> stack,
+        @NotNull ItemRenderer itemRenderer
+    ) {
+        boolean anyAnimated = false;
+
+        for (MenuLayout.Mark mark : layout.marks()) {
+            Optional<ResourceId> icon = mark.icon();
+            if (icon.isEmpty()) continue;
+
+            ImageData rendered = itemRenderer.render(ItemOptions.builder()
+                .itemId(icon.get().id())
+                .type(ItemOptions.Type.GUI_ICON)
+                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
+                .build());
+            if (rendered.isAnimated()) anyAnimated = true;
+
+            Decoration.Inset inset = mark.kind().iconInset().orElseThrow();
+            place(stack, MenuSlot.CONTENT, new FramePlacement(
+                (mark.x() + inset.x()) * PX_SCALE,
+                (mark.y() + inset.y()) * PX_SCALE, rendered));
+        }
+
+        return anyAnimated;
+    }
+
+    /**
+     * The insert caret's own extent - one Minecraft pixel wide, opening a pixel above the glyph
+     * cells and running four below them, which is the bar vanilla fills rather than a glyph.
+     */
+    private static final int CARET_RISE = 1, CARET_HEIGHT = 11;
+
+    /**
+     * Draws what a screen's text field holds and the caret marking where typing would continue.
+     * <p>
+     * The field's well is chrome and its text is a render, the same split a button's face takes: the
+     * window sinks the well in its own inks and this puts the text in it. Nothing is drawn for a
+     * screen that has no field, which is every screen but the anvil.
+     * <p>
+     * The text is drawn plain rather than parsed for format codes, because the client's own field
+     * filters them out of what can be typed, and it carries a drop shadow where a container's labels
+     * decline one - it is a widget's text and not the panel's.
+     *
+     * @param options the menu render options, supplying the text and whether a caret is drawn
+     * @param layout the laid-out panel, carrying the field among its marks
+     * @param stack the layer stack to append to
+     */
+    static void placeFieldText(
+        @NotNull MenuOptions options,
+        @NotNull MenuLayout layout,
+        @NotNull LayerStack<FrameLayer> stack
+    ) {
+        Optional<MenuLayout.Mark> field = layout.marks().stream()
+            .filter(mark -> mark.kind().textWell().isPresent())
+            .findFirst();
+        if (field.isEmpty()) return;
+
+        Decoration.TextWell well = field.get().kind().textWell().orElseThrow();
+        String typed = typedInto(options.getFieldText(), well.maxLength());
+        String shown = visibleTail(typed, well.innerWidth());
+        if (shown.isEmpty() && !options.isCaret()) return;
+
+        PixelBuffer buffer = PixelBuffer.create(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
+        MinecraftGraphics g = new MinecraftGraphics(buffer);
+        int textX = field.get().x() + well.inset().x();
+        int textY = field.get().y() + well.inset().y();
+        int baseline = textY + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+        int drawn = shown.isEmpty() ? 0
+            : TextKit.drawLine(g, plain(shown), textX, baseline, well.argb(), 0L, 0L, true);
+
+        if (options.isCaret()) drawCaret(g, buffer, typed, textX + drawn, textY, baseline, well);
+
+        place(stack, MenuSlot.TEXT, new FramePlacement(0, 0, StaticImageData.of(buffer.toBufferedImage())));
+    }
+
+    /**
+     * What a field actually holds, which is the caller's text cut to the field's own cap the way the
+     * client's own cuts anything typed past it.
+     *
+     * @param text what the caller asked for
+     * @param maxLength how many characters the field accepts
+     * @return the text the field holds
+     */
+    static @NotNull String typedInto(@NotNull String text, int maxLength) {
+        return text.length() <= maxLength ? text : text.substring(0, maxLength);
+    }
+
+    /**
+     * The part of the text a field shows - its longest tail that fits, because a field scrolls to
+     * keep the end of what was typed in view rather than the beginning.
+     *
+     * @param typed what the field holds
+     * @param innerWidth how wide the text may run, in Minecraft pixels
+     * @return the visible tail, empty where even the last character does not fit
+     */
+    static @NotNull String visibleTail(@NotNull String typed, int innerWidth) {
+        for (int from = 0; from < typed.length(); from++) {
+            String tail = typed.substring(from);
+            if (TextKit.measureLineMcPixels(plain(tail)) <= innerWidth) return tail;
+        }
+
+        return "";
+    }
+
+    /**
+     * Draws the caret in whichever of its two forms the text's length selects.
+     * <p>
+     * Vanilla appends an underscore glyph after the text, and stops being able to once the field is
+     * full - there is no position past the last character to append at - so at the cap it fills a
+     * bar beside it instead. The glyph carries the text's drop shadow and the bar carries none,
+     * being a fill rather than a draw.
+     */
+    private static void drawCaret(
+        @NotNull MinecraftGraphics g, @NotNull PixelBuffer buffer,
+        String typed, int caretX, int textY, int baseline, @NotNull Decoration.TextWell well
+    ) {
+        if (typed.length() < well.maxLength()) {
+            TextKit.drawLine(g, plain("_"), caretX, baseline, well.argb(), 0L, 0L, true);
+            return;
+        }
+
+        for (int y = 0; y < CARET_HEIGHT * PX_SCALE; y++) {
+            int py = (textY - CARET_RISE) * PX_SCALE + y;
+            if (py < 0 || py >= buffer.height()) continue;
+
+            for (int x = 0; x < PX_SCALE; x++) {
+                int px = caretX * PX_SCALE + x;
+                if (px < 0 || px >= buffer.width()) continue;
+                buffer.setPixel(px, py, well.argb());
+            }
+        }
+    }
+
+    /**
+     * One run of unstyled text as a line, for the draws that take a caller's characters as they
+     * arrived rather than as a format string.
+     */
+    private static @NotNull LineSegment plain(@NotNull String text) {
+        return LineSegment.builder().withSegments(new ColorSegment(text)).build();
+    }
+
+    /**
+     * Appends filler layers to every cell the caller populated none of, according to
+     * {@link MenuOptions#getFill() options.fill}. Returns whether the filler resolved to animated
+     * content so the caller can keep its {@code anyAnimated} flag accurate.
+     */
+    static boolean appendFillerLayers(
+        @NotNull MenuOptions options,
+        @NotNull MenuLayout layout,
+        @NotNull LayerStack<FrameLayer> stack,
+        @NotNull ItemRenderer itemRenderer
+    ) {
+        Optional<ResourceId> filler = options.getFill().itemId();
+        if (filler.isEmpty()) return false;
+
+        ConcurrentList<MenuLayout.Cell> cells = layout.slotCells();
+        ItemOptions fillerOptions = ItemOptions.builder()
+            .itemId(filler.get().id())
+            .type(ItemOptions.Type.GUI_ICON)
+            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
+            .build();
+        ImageData fillerImage = itemRenderer.render(fillerOptions);
+
+        for (int index = 0; index < cells.size(); index++) {
+            if (options.getSlots().containsKey(index)) continue;
+            place(stack, MenuSlot.CONTENT, inCell(cells.get(index), fillerImage));
+        }
+
+        return fillerImage.isAnimated();
+    }
+
+    /**
+     * Final composite step. Fast-paths a single-frame static composite when nothing is animated;
+     * otherwise promotes everything to animated output via {@link FrameCompositor#merge}.
      */
     static @NotNull ImageData composite(
-        int canvasW, int canvasH,
+        @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack,
         boolean anyAnimated,
         @NotNull MenuOptions options
     ) {
+        int canvasW = layout.width() * PX_SCALE;
+        int canvasH = layout.height() * PX_SCALE;
         ConcurrentList<FramePlacement> placements = Concurrent.newList();
         Layers.foldInto(stack, options.getLayerDecorator(), placements);
 
@@ -270,43 +495,49 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Rejects non-{@code EMPTY} {@link MenuOptions#getFill() fill} on menu types that do not
-     * support decorative fillers. Only the SkyBlock menu types ({@code SKYBLOCK_CRAFTING},
-     * {@code SKYBLOCK_ANVIL}) wrap their functional slots in a larger container with filler
-     * slots; every other type is rejected with a clear message so operator misconfiguration is
-     * caught at render time rather than producing a blank menu.
+     * Rejects a scale a title cannot be drawn at. {@link MinecraftGraphics} converts Minecraft pixels
+     * to output ones through the compile-time {@link MinecraftFont#MC_PIXEL_SCALE}, so a panel painted
+     * at any other scale would carry a label that does not line up with it. The member exists to make
+     * that pin visible rather than to offer a choice.
      */
-    static void validateFill(@NotNull MenuOptions options) {
-        if (options.getFill() == MenuOptions.Fill.EMPTY) return;
-        if (isSkyblockType(options.getType())) return;
+    static void validateScale(@NotNull MenuOptions options) {
+        if (options.getPxScale() == PX_SCALE) return;
 
         throw new RenderException(
-            "Fill option '%s' is only supported for SKYBLOCK menu types; got '%s'",
-            options.getFill(), options.getType()
+            "Menu scale '%d' is not the scale a title rasterises at (expected '%d')",
+            options.getPxScale(), PX_SCALE
         );
     }
 
-    private static boolean isSkyblockType(@NotNull MenuOptions.Type type) {
-        return type == MenuOptions.Type.SKYBLOCK_CRAFTING
-            || type == MenuOptions.Type.SKYBLOCK_ANVIL;
+    /**
+     * Rejects a panel too small to be drawn, which is the larger of two independent floors on each
+     * axis - what the window's art needs to paint a frame, and what the screen needs to hold a cell.
+     * <p>
+     * Neither implies the other, so neither alone is the guard. Vanilla's drawn geometry closes at
+     * eight Minecraft pixels square, which a chest of no rows and no columns still clears with
+     * nowhere to put a cell; and a window sliced from art carries its border and every anchored
+     * feature in that floor, which can want more room than a screen full of cells would.
+     */
+    static void validateExtent(@NotNull Window window, @NotNull MenuScreen screen, @NotNull MenuLayout layout) {
+        Window.Extent art = window.minimum();
+        Window.Extent content = screen.minimum();
+        int width = Math.max(art.width(), content.width());
+        int height = Math.max(art.height(), content.height());
+
+        if (layout.width() >= width && layout.height() >= height) return;
+
+        throw new RenderException(
+            "Menu panel '%dx%d' is under the '%dx%d' its window paints and its screen fills",
+            layout.width(), layout.height(), width, height
+        );
     }
 
     /**
-     * Validates that every caller-supplied slot index sits within the legal range for the
-     * menu type. Each sub-renderer calls this at the top of its {@code render} so out-of-range
-     * slots fail fast with a descriptive {@link IllegalArgumentException} rather than producing
-     * a silently clipped output.
+     * Validates that every caller-supplied slot index addresses a cell the laid-out screen has, so an
+     * out-of-range slot fails fast rather than producing a silently clipped output.
      */
-    static void validateSlots(@NotNull MenuOptions options) {
-        int maxSlot = switch (options.getType()) {
-            case PLAYER -> 35;
-            case CHEST -> options.getRows() * 9 - 1;
-            case CUSTOM -> options.getRows() * options.getColumns() - 1;
-            case SLOT -> 0;
-            case VANILLA_CRAFTING, SKYBLOCK_CRAFTING -> 9;
-            case VANILLA_ANVIL -> 2;
-            case SKYBLOCK_ANVIL -> 2;
-        };
+    static void validateSlots(@NotNull MenuOptions options, @NotNull MenuLayout layout) {
+        int maxSlot = layout.slotCells().size() - 1;
 
         for (Integer slot : options.getSlots().keySet()) {
             if (slot < 0 || slot > maxSlot)
@@ -314,301 +545,78 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         }
     }
 
-    /**
-     * Returns the canvas X origin of a chest slot by its zero-based 9x6 index.
-     */
-    static int chestSlotX(int chestSlot) {
-        return INSET + (chestSlot % SKYBLOCK_CHEST_COLS) * SLOT_SIZE;
-    }
-
-    /**
-     * Returns the canvas Y origin of a chest slot by its zero-based 9x6 index.
-     */
-    static int chestSlotY(int chestSlot) {
-        return INSET + (chestSlot / SKYBLOCK_CHEST_COLS) * SLOT_SIZE + TITLE_HEIGHT;
-    }
-
-    /**
-     * Flat-theme chrome for the generic menu types. Uses the {@link MenuOptions#getTheme()
-     * theme} to pick background + slot colours, then fills a rectangular slot grid with no
-     * beveled edges.
-     */
-    static void drawGenericChrome(@NotNull PixelBuffer chrome, int rows, int cols, @NotNull MenuOptions options) {
-        MenuOptions.Theme theme = options.getTheme();
-        chrome.fill(theme.getBackgroundArgb());
-
-        for (int row = 0; row < rows; row++) {
-            for (int col = 0; col < cols; col++) {
-                int x = INSET + col * SLOT_SIZE;
-                int y = INSET + TITLE_HEIGHT + row * SLOT_SIZE;
-                chrome.fillRect(x, y, SLOT_SIZE - 2, SLOT_SIZE - 2, theme.getSlotArgb());
-            }
-        }
-    }
-
-    /**
-     * Erases a slot position by overpainting it with the given background colour. Used by the
-     * vanilla crafting layout to remove the beveled slot insets at column 3, rows 0 and 2
-     * where the arrow area should look like empty chrome rather than an empty slot.
-     */
-    static void drawSlotBackground(@NotNull PixelBuffer chrome, int col, int row, int argb) {
-        int x = INSET + col * SLOT_SIZE;
-        int y = INSET + TITLE_HEIGHT + row * SLOT_SIZE;
-        chrome.fillRect(x, y, SLOT_SIZE, SLOT_SIZE, argb);
-    }
-
-    /**
-     * Draws a vanilla-style Minecraft chest GUI chrome onto the buffer. The outer border uses a raised
-     * 2-pixel bevel (light highlight on top/left, dark shadow on bottom/right) and the title band the
-     * classic inventory palette ({@code 0xFFC6C6C6} background, white highlights, dark-gray shadows);
-     * each slot cell is blitted from the vanilla {@code container/slot} sprite via {@link NineSliceKit}
-     * in place of the former hand-drawn bevels.
-     *
-     * @param chrome the chrome buffer to draw onto
-     * @param rows the slot-grid row count
-     * @param cols the slot-grid column count
-     * @param slotSprite the resolved vanilla slot sprite, or empty to leave slots as bare panel
-     */
-    static void drawVanillaChestChrome(@NotNull PixelBuffer chrome, int rows, int cols, @NotNull Optional<PixelBuffer> slotSprite) {
-        int w = chrome.width();
-        int h = chrome.height();
-
-        final int background = 0xFFC6C6C6;
-        final int borderHighlight = CHROME_BORDER_HIGHLIGHT;
-        final int borderShadow = CHROME_BORDER_SHADOW;
-        final int titleBand = 0xFFB4B4B4;
-        final int borderThickness = 2;
-
-        chrome.fill(background);
-
-        chrome.fillRect(0, 0, w, borderThickness, borderHighlight);
-        chrome.fillRect(0, 0, borderThickness, h, borderHighlight);
-        chrome.fillRect(0, h - borderThickness, w, borderThickness, borderShadow);
-        chrome.fillRect(w - borderThickness, 0, borderThickness, h, borderShadow);
-
-        chrome.fillRect(borderThickness, borderThickness,
-            w - 2 * borderThickness, TITLE_HEIGHT - borderThickness, titleBand);
-        chrome.fillRect(borderThickness, TITLE_HEIGHT,
-            w - 2 * borderThickness, 1, borderShadow);
-
-        for (int row = 0; row < rows; row++) {
-            for (int col = 0; col < cols; col++) {
-                int sx = INSET + col * SLOT_SIZE;
-                int sy = INSET + TITLE_HEIGHT + row * SLOT_SIZE;
-                drawSlotCell(chrome, sx, sy, SLOT_SIZE - 2, SLOT_SIZE - 2, slotSprite);
-            }
-        }
-    }
-
-    /**
-     * Blits one inventory slot cell into the given rect from the vanilla {@code container/slot} sprite
-     * via {@link NineSliceKit} (stretched to the rect). An empty sprite - the slot texture
-     * unresolved - draws nothing, leaving the panel background showing (missing textures drop, no
-     * procedural fallback).
-     * <p>
-     * Serves the regular grid and the layouts that place cells outside it alike, e.g. the vanilla
-     * anvil slot row below the rename textbox.
-     *
-     * @param chrome the chrome buffer to draw onto
-     * @param x the slot rect x origin
-     * @param y the slot rect y origin
-     * @param w the slot rect width
-     * @param h the slot rect height
-     * @param slotSprite the resolved slot sprite, or empty to draw nothing
-     */
-    static void drawSlotCell(@NotNull PixelBuffer chrome, int x, int y, int w, int h, @NotNull Optional<PixelBuffer> slotSprite) {
-        if (slotSprite.isEmpty()) return;
-        NineSliceKit.draw(chrome, slotSprite.get(), SLOT_SCALING, x, y, w, h, MinecraftFont.MC_PIXEL_SCALE, 1.0f);
-    }
-
-    /**
-     * Resolves the vanilla {@code container/slot} sprite through the pack stack (a grayscale texture,
-     * decoded gamma-safe), pinned to its tick-0 frame when a pack ships an animated variant, or empty
-     * when no pack supplies it.
-     *
-     * @param context the renderer context resolving the slot texture
-     * @return the decoded slot sprite, or empty when unresolved
-     */
-    static @NotNull Optional<PixelBuffer> resolveSlotSprite(@NotNull RendererContext context) {
-        return new Textures(context).tryResolveTextureAtTick(SLOT_SPRITE_ID, 0);
-    }
-
-    /**
-     * Draws a craft arrow centred on the given (col, row) slot position. The arrow bounding
-     * box is inset a third of the slot on each side so the arrow sits visually within the slot
-     * without touching the beveled edges.
-     */
-    static void drawCraftArrowInSlot(@NotNull PixelBuffer chrome, int col, int row) {
-        int padX = SLOT_SIZE / 6;
-        int padY = SLOT_SIZE / 3;
-        int x = INSET + col * SLOT_SIZE + padX;
-        int y = INSET + TITLE_HEIGHT + row * SLOT_SIZE + padY;
-        int w = SLOT_SIZE - 2 * padX;
-        int h = SLOT_SIZE - 2 * padY;
-        drawCraftArrow(chrome, x, y, w, h, CHROME_BORDER_SHADOW);
-    }
-
-    /**
-     * Draws a right-pointing arrow programmatically: a rectangular body on the left and a
-     * triangular head tapering to a single pixel on the right. The caller supplies a bounding
-     * box; the arrow fits within it.
-     * <p>
-     * Proportions: the body occupies roughly the left 60% of the bounding box, with a height
-     * that is about one third of the total. The head occupies the remaining 40% and extends
-     * vertically almost to the top and bottom of the bounding box at its base before tapering
-     * linearly to the tip at the bounding box's right edge.
-     *
-     * @param chrome the target buffer
-     * @param x the bounding box minimum X
-     * @param y the bounding box minimum Y
-     * @param width the bounding box width
-     * @param height the bounding box height
-     * @param argb the arrow colour
-     */
-    static void drawCraftArrow(@NotNull PixelBuffer chrome, int x, int y, int width, int height, int argb) {
-        if (width <= 0 || height <= 0) return;
-
-        int bodyWidth = Math.max(1, width * 3 / 5);
-        int bodyThickness = Math.max(2, height / 3);
-        int bodyY = y + (height - bodyThickness) / 2;
-
-        chrome.fillRect(x, bodyY, bodyWidth, bodyThickness, argb);
-
-        int headLength = width - bodyWidth;
-        if (headLength <= 0) return;
-
-        int headBaseHalf = Math.max(1, (height - 1) / 2);
-        int centerY = y + height / 2;
-
-        for (int i = 0; i < headLength; i++) {
-            int halfH = headBaseHalf * (headLength - i) / headLength;
-            int hx = x + bodyWidth + i;
-            int hTop = centerY - halfH;
-            int hHeight = 2 * halfH + 1;
-            chrome.fillRect(hx, hTop, 1, hHeight, argb);
-        }
-    }
-
-    /**
-     * Draws a craft arrow at an explicit Y position (rather than a slot row index). Used by
-     * layouts that have custom vertical spacing above the slot row, like the vanilla anvil
-     * with its rename textbox sitting between the title and the slot row.
-     */
-    static void drawCraftArrowInSlotAt(@NotNull PixelBuffer chrome, int col, int y) {
-        int padX = SLOT_SIZE / 6;
-        int padY = SLOT_SIZE / 3;
-        int x = INSET + col * SLOT_SIZE + padX;
-        int w = SLOT_SIZE - 2 * padX;
-        int h = SLOT_SIZE - 2 * padY;
-        drawCraftArrow(chrome, x, y + padY, w, h, CHROME_BORDER_SHADOW);
-    }
-
-    /**
-     * Draws a centred plus sign inside the slot-sized cell at the given column and explicit Y
-     * position. Proportions match the craft arrow so the two decorations line up visually.
-     */
-    static void drawPlusInSlot(@NotNull PixelBuffer chrome, int col, int y) {
-        int pad = SLOT_SIZE / 4;
-        int x = INSET + col * SLOT_SIZE + pad;
-        int size = SLOT_SIZE - 2 * pad;
-        drawPlus(chrome, x, y + pad, size, CHROME_BORDER_SHADOW);
-    }
-
-    /**
-     * Draws a simple {@code +} sign inside the given bounding square. The horizontal and
-     * vertical bars both have a thickness proportional to the box size (roughly a quarter).
-     */
-    static void drawPlus(@NotNull PixelBuffer chrome, int x, int y, int size, int argb) {
-        if (size <= 0) return;
-        int thickness = Math.max(2, size / 4);
-        int offset = (size - thickness) / 2;
-        chrome.fillRect(x, y + offset, size, thickness, argb);
-        chrome.fillRect(x + offset, y, thickness, size, argb);
-    }
-
-    /**
-     * Draws the beige rename textbox used by the vanilla anvil. A dark outer border wraps a
-     * cream-coloured interior, matching the classic Minecraft anvil GUI textbox style where
-     * the player types a new item name. Does not render any text - callers that want a
-     * placeholder or a typed string need to blit it on top after this call.
-     */
-    static void drawRenameTextbox(@NotNull PixelBuffer chrome, int x, int y, int width, int height) {
-        if (width <= 4 || height <= 4) return;
-        final int borderColor = 0xFF373737;
-        final int beigeColor = ANVIL_TEXTBOX_BEIGE;
-
-        chrome.fillRect(x, y, width, height, borderColor);
-        chrome.fillRect(x + 2, y + 2, width - 4, height - 4, beigeColor);
-    }
-
-    /**
-     * Draws a stylised hammer sprite programmatically in the given colour. The sprite has a
-     * rectangular head occupying the top third of the bounding box and a handle roughly a
-     * quarter of the width, centred horizontally beneath the head.
-     */
-    static void drawHammer(@NotNull PixelBuffer chrome, int x, int y, int width, int height, int argb) {
-        if (width <= 0 || height <= 0) return;
-        int headHeight = Math.max(3, height / 3);
-        int handleWidth = Math.max(2, width / 4);
-        int handleHeight = height - headHeight;
-        int handleX = x + (width - handleWidth) / 2;
-        int handleY = y + headHeight;
-
-        chrome.fillRect(x, y, width, headHeight, argb);
-        chrome.fillRect(handleX, handleY, handleWidth, handleHeight, argb);
-    }
-
     // ---------------------------------------------------------------------------------------
-    // Title / label drawing helpers.
+    // Labels.
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Builds the chrome {@link ImageData} layer for a menu. When the title contains
-     * obfuscated segments ({@code §k}), the result is an animated {@link ImageData} with
-     * one second of unique obfuscation frames; otherwise a single static frame is returned.
+     * Builds the label layer for a menu - the container's own title, and the player's label where the
+     * player section is drawn. When a label carries an obfuscated segment ({@code §k}) the layer is
+     * animated over one second of unique frames; otherwise it is a single frame.
+     * <p>
+     * Empty where a menu has no label to draw at all, which is what keeps a caller who asked for no
+     * title from paying for a whole transparent canvas per frame.
      *
-     * @param baseChrome the chrome buffer with all static pixel content already drawn
-     * @param options the menu options (supplies title and FPS)
-     * @param titleX the horizontal origin for the title text
-     * @param defaultTitleArgb the colour used for title segments with no explicit colour
-     * @return a static or animated chrome layer
+     * @param options the menu options, supplying the labels, their colour and the frame rate
+     * @param layout the laid-out panel, supplying both anchors
+     * @return the label layer, empty where there is nothing to draw
      */
-    static @NotNull ImageData renderChrome(
-        @NotNull PixelBuffer baseChrome,
-        @NotNull MenuOptions options,
-        int titleX,
-        int defaultTitleArgb
-    ) {
-        String title = options.getTitle();
-        if (title.isEmpty())
-            return StaticImageData.of(baseChrome.toBufferedImage());
+    static @NotNull Optional<ImageData> labelLayer(@NotNull MenuOptions options, @NotNull MenuLayout layout) {
+        ConcurrentList<Label> labels = Concurrent.newList();
 
-        LineSegment titleLine = ColorSegment.fromLegacy(title);
-        boolean animated = hasTitleObfuscation(titleLine);
+        if (!options.getTitle().isEmpty()) {
+            LineSegment title = parse(options.getTitle());
+            labels.add(new Label(title, layout.titleAnchor(TextKit.measureLineMcPixels(title))));
+        }
+
+        if (!options.getInventoryTitle().isEmpty())
+            layout.inventoryAnchor().ifPresent(anchor ->
+                labels.add(new Label(parse(options.getInventoryTitle()), anchor)));
+
+        if (labels.isEmpty()) return Optional.empty();
+
+        int w = layout.width() * PX_SCALE;
+        int h = layout.height() * PX_SCALE;
+        int argb = options.getDefaultTitleArgb();
+        boolean animated = labels.stream().anyMatch(label -> isObfuscated(label.line()));
 
         if (!animated) {
-            drawTitleSegments(baseChrome, titleLine, titleX, INSET, TITLE_HEIGHT, defaultTitleArgb, 0);
-            return StaticImageData.of(baseChrome.toBufferedImage());
+            PixelBuffer buffer = PixelBuffer.create(w, h);
+            drawLabels(buffer, labels, argb, 0);
+            return Optional.of(StaticImageData.of(buffer.toBufferedImage()));
         }
 
-        int w = baseChrome.width();
-        int h = baseChrome.height();
         // One second of unique obfuscation frames: a wall-rate loop of framesPerSecond frames, the
         // frame index doubling as the per-frame obfuscation seed.
-        return new Timeline.FpsLoop(options.getFramesPerSecond(), options.getFramesPerSecond())
+        return Optional.of(new Timeline.FpsLoop(options.getFramesPerSecond(), options.getFramesPerSecond())
             .wrap(f -> {
                 PixelBuffer frameBuffer = PixelBuffer.create(w, h);
-                frameBuffer.blit(baseChrome, 0, 0);
-                drawTitleSegments(frameBuffer, titleLine, titleX, INSET, TITLE_HEIGHT, defaultTitleArgb, f);
+                drawLabels(frameBuffer, labels, argb, f);
                 return frameBuffer;
-            });
+            }));
     }
 
     /**
-     * Returns whether any segment of the title line is obfuscated ({@code §k}), which forces the
-     * chrome layer to be rendered as an animated multi-frame result.
+     * One label and where it starts.
+     *
+     * @param line the parsed text
+     * @param anchor the panel-relative origin of its glyph cells
      */
-    private static boolean hasTitleObfuscation(@NotNull LineSegment line) {
+    private record Label(@NotNull LineSegment line, @NotNull MenuLayout.Anchor anchor) {}
+
+    /**
+     * Parses caller text on the section sign, which is the prefix the client's own format codes carry.
+     * An ampersand is a character a title may hold and is left as one.
+     */
+    private static @NotNull LineSegment parse(@NotNull String text) {
+        return ColorSegment.fromLegacy(text, SECTION_SIGN);
+    }
+
+    /**
+     * Returns whether any segment of a line is obfuscated ({@code §k}), which is what makes the label
+     * layer animate.
+     */
+    private static boolean isObfuscated(@NotNull LineSegment line) {
         for (ColorSegment segment : line.getSegments())
             if (segment.isObfuscated()) return true;
 
@@ -616,486 +624,25 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Renders pre-parsed title segments onto the buffer. Delegates font style resolution,
-     * colour mapping, shadow, and obfuscation to {@link TextKit}.
+     * Draws every label at its anchor, without a drop shadow - the client's own label draws decline
+     * one.
+     * <p>
+     * An anchor is the top of a glyph cell, which the vanilla font opens a capital on, and the draw
+     * takes the baseline an ascent below it. The ascent is asked for in Minecraft pixels, because the
+     * metrics answer in output ones by default and the draw is in Minecraft ones.
      */
-    private static void drawTitleSegments(
+    private static void drawLabels(
         @NotNull PixelBuffer buffer,
-        @NotNull LineSegment titleLine,
-        int titleX, int bandTop, int bandHeight,
+        @NotNull ConcurrentList<Label> labels,
         int defaultArgb,
         long frameSeed
     ) {
-        MinecraftFontMetrics metrics = MinecraftFont.Vanilla.REGULAR.metrics();
-        int textY = bandTop + (bandHeight - metrics.getHeight()) / 2 + metrics.getAscent();
         MinecraftGraphics g = new MinecraftGraphics(buffer);
-        TextKit.drawLine(g, titleLine, titleX / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, defaultArgb, frameSeed);
-    }
-
-    /**
-     * Renders the textbox label inside the rename textbox interior. The text is drawn in
-     * white, left-aligned with a small horizontal padding. Does nothing when the label is
-     * empty.
-     */
-    static void drawTextboxLabel(
-        @NotNull PixelBuffer buffer,
-        @NotNull String label,
-        int innerX, int innerY, int innerH
-    ) {
-        if (label.isEmpty()) return;
-
-        MinecraftFontMetrics metrics = MinecraftFont.Vanilla.REGULAR.metrics();
-        int textY = innerY + (innerH - metrics.getHeight()) / 2 + metrics.getAscent();
-        MinecraftGraphics g = new MinecraftGraphics(buffer);
-        TextKit.drawText(g, label, (innerX + 2) / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.Vanilla.REGULAR, ColorMath.WHITE);
-    }
-
-    /**
-     * Renders the XP cost label right-aligned in the given area, displayed as
-     * {@code "Enchantment Cost: X"} in green ({@code 0x80FF20}), matching the vanilla
-     * Minecraft anvil style. Does nothing when cost is zero or negative.
-     */
-    static void drawXpCost(@NotNull PixelBuffer buffer, int cost, int canvasW, int areaTop, int areaHeight) {
-        if (cost <= 0) return;
-
-        String text = "Enchantment Cost: " + cost;
-        int xpGreen = 0xFF80FF20;
-        MinecraftFontMetrics metrics = MinecraftFont.Vanilla.REGULAR.metrics();
-        int textX = canvasW - INSET - 4 - TextKit.measureText(text, MinecraftFont.Vanilla.REGULAR);
-        int textY = areaTop + (areaHeight - metrics.getHeight()) / 2 + metrics.getAscent();
-        MinecraftGraphics g = new MinecraftGraphics(buffer);
-        TextKit.drawText(g, text, textX / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.Vanilla.REGULAR, xpGreen);
-    }
-
-    // ---------------------------------------------------------------------------------------
-    // Sub-renderers.
-    // ---------------------------------------------------------------------------------------
-
-    /**
-     * Generic rectangular menu renderer for the simple types that just place caller slots on a
-     * flat-themed grid without any decoration: {@link MenuOptions.Type#PLAYER PLAYER},
-     * {@link MenuOptions.Type#CHEST CHEST}, {@link MenuOptions.Type#CUSTOM CUSTOM},
-     * {@link MenuOptions.Type#SLOT SLOT}.
-     */
-    @RequiredArgsConstructor
-    public static final class Generic implements Renderer<MenuOptions> {
-
-        /**
-         * The renderer context, forwarded to the per-slot {@link ItemRenderer}.
-         */
-        private final @NotNull RendererContext context;
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull MenuOptions options) {
-            validateSlots(options);
-
-            int rows = resolveRows(options);
-            int cols = resolveColumns(options);
-            int canvasW = cols * SLOT_SIZE + 2 * INSET;
-            int canvasH = rows * SLOT_SIZE + 2 * INSET + TITLE_HEIGHT;
-
-            PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
-            drawGenericChrome(chrome, rows, cols, options);
-            int defaultTitleArgb = options.getTheme().getDefaultTitleArgb();
-            ImageData chromeData = renderChrome(chrome, options, INSET + 4, defaultTitleArgb);
-
-            ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            LayerStack<FrameLayer> stack = new LayerStack<>();
-            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
-
-            boolean anyAnimated = chromeData.isAnimated();
-            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
-                int slotIndex = entry.getKey();
-                MenuOptions.MenuSlotContent content = entry.getValue();
-                ImageData rendered = itemRenderer.render(content.options());
-                if (rendered.isAnimated()) anyAnimated = true;
-
-                int col = slotIndex % cols;
-                int row = slotIndex / cols;
-                int x = INSET + col * SLOT_SIZE;
-                int y = INSET + TITLE_HEIGHT + row * SLOT_SIZE;
-                place(stack, MenuSlot.SLOT, new FramePlacement(x, y, rendered));
-            }
-
-            return composite(canvasW, canvasH, stack, anyAnimated, options);
-        }
-
-        /**
-         * Resolves the row count for a generic menu type: {@code PLAYER} is fixed at 4,
-         * {@code CHEST}/{@code CUSTOM} take the options' row count, and {@code SLOT} is a single
-         * row. The dedicated-renderer types are unreachable here and throw defensively.
-         *
-         * @param options the menu render options
-         * @return the row count for the generic grid
-         * @throws RenderException when called for a type owned by a dedicated sub-renderer
-         */
-        private static int resolveRows(@NotNull MenuOptions options) {
-            return switch (options.getType()) {
-                case PLAYER -> 4;
-                case CHEST, CUSTOM -> options.getRows();
-                case SLOT -> 1;
-                case VANILLA_CRAFTING, VANILLA_ANVIL, SKYBLOCK_CRAFTING, SKYBLOCK_ANVIL ->
-                    throw new RenderException("Type '%s' uses a dedicated renderer", options.getType());
-            };
-        }
-
-        /**
-         * Resolves the column count for a generic menu type: {@code PLAYER}/{@code CHEST} are fixed
-         * at 9 wide, {@code CUSTOM} takes the options' column count, and {@code SLOT} is a single
-         * column. The dedicated-renderer types are unreachable here and throw defensively.
-         *
-         * @param options the menu render options
-         * @return the column count for the generic grid
-         * @throws RenderException when called for a type owned by a dedicated sub-renderer
-         */
-        private static int resolveColumns(@NotNull MenuOptions options) {
-            return switch (options.getType()) {
-                case PLAYER, CHEST -> 9;
-                case CUSTOM -> options.getColumns();
-                case SLOT -> 1;
-                case VANILLA_CRAFTING, VANILLA_ANVIL, SKYBLOCK_CRAFTING, SKYBLOCK_ANVIL ->
-                    throw new RenderException("Type '%s' uses a dedicated renderer", options.getType());
-            };
-        }
-
-    }
-
-    /**
-     * Dedicated renderer for the vanilla Minecraft crafting table. Uses a 5x3 canvas with the
-     * 3x3 input grid at columns 0..2 and the output slot at column 4, row 1, with a craft
-     * arrow drawn at column 3. Fixes the pre-existing bug where slot 9 overflowed a generic
-     * 3x3 resolveRows/resolveColumns layout.
-     */
-    @RequiredArgsConstructor
-    public static final class VanillaCrafting implements Renderer<MenuOptions> {
-
-        /**
-         * Canvas column count: the 3-wide input grid, a spacer/arrow column, and the output column.
-         */
-        private static final int COLS = 5;
-
-        /**
-         * Canvas row count matching the 3x3 input grid height.
-         */
-        private static final int ROWS = 3;
-
-        /**
-         * Caller slot index to (col, row) position on the 5x3 vanilla crafting canvas. Slots
-         * 0..8 form the 3x3 input grid in reading order, slot 9 is the output at column 4,
-         * row 1.
-         */
-        private static final int @NotNull [] @NotNull [] SLOT_COORDS = {
-            {0, 0}, {1, 0}, {2, 0},
-            {0, 1}, {1, 1}, {2, 1},
-            {0, 2}, {1, 2}, {2, 2},
-            {4, 1}
-        };
-
-        /**
-         * The renderer context, forwarded to the per-slot {@link ItemRenderer}.
-         */
-        private final @NotNull RendererContext context;
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull MenuOptions options) {
-            validateSlots(options);
-
-            int canvasW = COLS * SLOT_SIZE + 2 * INSET;
-            int canvasH = ROWS * SLOT_SIZE + 2 * INSET + TITLE_HEIGHT;
-
-            Optional<PixelBuffer> slotSprite = resolveSlotSprite(this.context);
-            PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
-            drawVanillaChestChrome(chrome, ROWS, COLS, slotSprite);
-            drawSlotBackground(chrome, 3, 0, 0xFFC6C6C6);
-            drawSlotBackground(chrome, 3, 2, 0xFFC6C6C6);
-            drawCraftArrowInSlot(chrome, 3, 1);
-            ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
-
-            ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            LayerStack<FrameLayer> stack = new LayerStack<>();
-            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
-
-            boolean anyAnimated = chromeData.isAnimated();
-            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
-                int callerSlot = entry.getKey();
-                int[] coord = SLOT_COORDS[callerSlot];
-                MenuOptions.MenuSlotContent content = entry.getValue();
-                ImageData rendered = itemRenderer.render(content.options());
-                if (rendered.isAnimated()) anyAnimated = true;
-
-                int x = INSET + coord[0] * SLOT_SIZE;
-                int y = INSET + TITLE_HEIGHT + coord[1] * SLOT_SIZE;
-                place(stack, MenuSlot.SLOT, new FramePlacement(x, y, rendered));
-            }
-
-            return composite(canvasW, canvasH, stack, anyAnimated, options);
-        }
-
-    }
-
-    /**
-     * Dedicated renderer for the vanilla Minecraft anvil menu. Uses a 5-column canvas with a
-     * rename textbox spanning the full width under the title bar, then a single slot row laid
-     * out as {@code [input1] [+] [input2] [arrow] [output]}. The title bar carries a white
-     * programmatic hammer sprite in its top-left corner.
-     */
-    @RequiredArgsConstructor
-    public static final class VanillaAnvil implements Renderer<MenuOptions> {
-
-        /**
-         * Canvas column count laid out as {@code [input1] [+] [input2] [arrow] [output]}.
-         */
-        private static final int COLS = 5;
-
-        /**
-         * Height in pixels of the rename-textbox band between the title and the slot row.
-         */
-        private static final int TEXTBOX_HEIGHT = 30;
-
-        /**
-         * Caller slot index to column on the single slot row of the vanilla anvil layout.
-         * Index 0 is the first input, index 1 is the second input, index 2 is the output. The
-         * columns leave slot 1 (the {@code +} sign) and slot 3 (the craft arrow) as decorative
-         * columns.
-         */
-        private static final int @NotNull [] SLOT_COLS = { 0, 2, 4 };
-
-        /**
-         * The renderer context, forwarded to the per-slot {@link ItemRenderer}.
-         */
-        private final @NotNull RendererContext context;
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull MenuOptions options) {
-            validateSlots(options);
-
-            int canvasW = COLS * SLOT_SIZE + 2 * INSET;
-            int xpLabelHeight = options.getXpCost() > 0 ? XP_LABEL_HEIGHT : 0;
-            int canvasH = TITLE_HEIGHT + TEXTBOX_HEIGHT + SLOT_SIZE + 2 * INSET + xpLabelHeight;
-
-            Optional<PixelBuffer> slotSprite = resolveSlotSprite(this.context);
-            PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
-            drawVanillaChestChrome(chrome, 0, COLS, slotSprite);
-            drawHammer(chrome, INSET + 4, (TITLE_HEIGHT - 16) / 2 + 2, 16, 16, CHROME_BORDER_HIGHLIGHT);
-
-            int textboxX = INSET + SLOT_SIZE / 2;
-            int textboxY = INSET + TITLE_HEIGHT + 4;
-            int textboxW = canvasW - 2 * INSET - SLOT_SIZE;
-            int textboxH = TEXTBOX_HEIGHT - 8;
-            drawRenameTextbox(chrome, textboxX, textboxY, textboxW, textboxH);
-
-            int slotRowY = INSET + TITLE_HEIGHT + TEXTBOX_HEIGHT;
-            for (int col : SLOT_COLS) {
-                int sx = INSET + col * SLOT_SIZE;
-                drawSlotCell(chrome, sx, slotRowY, SLOT_SIZE - 2, SLOT_SIZE - 2, slotSprite);
-            }
-
-            drawPlusInSlot(chrome, 1, slotRowY);
-            drawCraftArrowInSlotAt(chrome, 3, slotRowY);
-
-            drawTextboxLabel(chrome, options.getTextboxLabel(), textboxX + 2, textboxY + 2, textboxH - 4);
-            drawXpCost(chrome, options.getXpCost(), canvasW, slotRowY + SLOT_SIZE, xpLabelHeight);
-
-            ImageData chromeData = renderChrome(chrome, options, INSET + 24, 0xFF404040);
-
-            ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            LayerStack<FrameLayer> stack = new LayerStack<>();
-            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
-
-            boolean anyAnimated = chromeData.isAnimated();
-            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
-                int callerSlot = entry.getKey();
-                int col = SLOT_COLS[callerSlot];
-                MenuOptions.MenuSlotContent content = entry.getValue();
-                ImageData rendered = itemRenderer.render(content.options());
-                if (rendered.isAnimated()) anyAnimated = true;
-                int x = INSET + col * SLOT_SIZE;
-                place(stack, MenuSlot.SLOT, new FramePlacement(x, slotRowY, rendered));
-            }
-
-            return composite(canvasW, canvasH, stack, anyAnimated, options);
-        }
-
-    }
-
-    /**
-     * Dedicated renderer for the SkyBlock crafting menu. Validates the caller's slot input
-     * (max 9), draws a 9x6 vanilla-style gray chest chrome with a craft arrow between the grid
-     * and the output, translates caller slots 0..9 into chest positions via
-     * {@link #SLOT_MAP}, and fills the remaining 44 chest slots according to
-     * {@link MenuOptions#getFill() options.fill}.
-     */
-    @RequiredArgsConstructor
-    public static final class SkyblockCrafting implements Renderer<MenuOptions> {
-
-        /**
-         * Maps the 10 caller slot indices (0..8 for the 3x3 crafting grid in reading order, 9
-         * for the craft-result output) to their positions on the underlying 9x6 Hypixel chest.
-         * The 3x3 grid sits at chest slots 10/11/12/19/20/21/28/29/30 and the output is at
-         * chest slot 23, matching the standard "Craft Item" menu.
-         */
-        private static final int @NotNull [] SLOT_MAP = {
-            10, 11, 12,
-            19, 20, 21,
-            28, 29, 30,
-            23
-        };
-
-        /**
-         * Chest slot where the craft arrow is drawn, between the grid and slot 23.
-         */
-        private static final int ARROW_SLOT = 22;
-
-        /**
-         * The renderer context, forwarded to the per-slot {@link ItemRenderer}.
-         */
-        private final @NotNull RendererContext context;
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull MenuOptions options) {
-            validateSlots(options);
-
-            int canvasW = SKYBLOCK_CHEST_COLS * SLOT_SIZE + 2 * INSET;
-            int canvasH = SKYBLOCK_CHEST_ROWS * SLOT_SIZE + 2 * INSET + TITLE_HEIGHT;
-
-            Optional<PixelBuffer> slotSprite = resolveSlotSprite(this.context);
-            PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
-            drawVanillaChestChrome(chrome, SKYBLOCK_CHEST_ROWS, SKYBLOCK_CHEST_COLS, slotSprite);
-            drawCraftArrowInSlot(chrome, ARROW_SLOT % SKYBLOCK_CHEST_COLS, ARROW_SLOT / SKYBLOCK_CHEST_COLS);
-            ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
-
-            ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            LayerStack<FrameLayer> stack = new LayerStack<>();
-            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
-
-            ConcurrentSet<Integer> claimed = Concurrent.newSet();
-            for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
-            claimed.add(ARROW_SLOT);
-
-            boolean anyAnimated = chromeData.isAnimated();
-            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
-                int callerSlot = entry.getKey();
-                int chestSlot = SLOT_MAP[callerSlot];
-                MenuOptions.MenuSlotContent content = entry.getValue();
-                ImageData rendered = itemRenderer.render(content.options());
-                if (rendered.isAnimated()) anyAnimated = true;
-                place(stack, MenuSlot.SLOT, new FramePlacement(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
-            }
-
-            anyAnimated |= appendFillerLayers(options, stack, itemRenderer, claimed);
-
-            return composite(canvasW, canvasH, stack, anyAnimated, options);
-        }
-
-    }
-
-    /**
-     * Dedicated renderer for the SkyBlock "Combine Items" anvil menu. Uses the same 9x6 chest
-     * canvas as SkyBlock crafting but with three caller slots (two inputs + output), a baked-in
-     * isometric anvil decoration at chest slot 22, red stained glass panes along the hardcoded
-     * decorative slots, and the {@link MenuOptions#getFill() fill} option applied to
-     * everything else.
-     */
-    @RequiredArgsConstructor
-    public static final class SkyblockAnvil implements Renderer<MenuOptions> {
-
-        /**
-         * Maps the 3 caller slot indices to their chest positions on the SkyBlock "Combine
-         * Items" anvil: {@code 0} = first input, {@code 1} = second input, {@code 2} = output.
-         */
-        private static final int @NotNull [] SLOT_MAP = { 29, 33, 13 };
-
-        /**
-         * Chest slot where the decorative isometric anvil is rendered.
-         */
-        private static final int DECORATION_SLOT = 22;
-
-        /**
-         * Chest slots permanently filled with red stained glass panes - a decorative border
-         * around the functional slots plus the entire navigation row at the bottom of the
-         * chest.
-         */
-        private static final int @NotNull [] RED_PANE_SLOTS = {
-            11, 12, 14, 15, 20, 24,
-            45, 46, 47, 48, 49, 50, 51, 52, 53
-        };
-
-        /**
-         * The renderer context, forwarded to the per-slot {@link ItemRenderer} and the anvil
-         * decoration's {@link BlockRenderer}.
-         */
-        private final @NotNull RendererContext context;
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull MenuOptions options) {
-            validateSlots(options);
-
-            int canvasW = SKYBLOCK_CHEST_COLS * SLOT_SIZE + 2 * INSET;
-            int canvasH = SKYBLOCK_CHEST_ROWS * SLOT_SIZE + 2 * INSET + TITLE_HEIGHT;
-
-            Optional<PixelBuffer> slotSprite = resolveSlotSprite(this.context);
-            PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
-            drawVanillaChestChrome(chrome, SKYBLOCK_CHEST_ROWS, SKYBLOCK_CHEST_COLS, slotSprite);
-            ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
-
-            ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            BlockRenderer blockRenderer = new BlockRenderer(this.context);
-            LayerStack<FrameLayer> stack = new LayerStack<>();
-            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
-
-            ConcurrentSet<Integer> claimed = Concurrent.newSet();
-            for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
-            claimed.add(DECORATION_SLOT);
-            for (int chestSlot : RED_PANE_SLOTS) claimed.add(chestSlot);
-
-            boolean anyAnimated = chromeData.isAnimated();
-
-            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
-                int callerSlot = entry.getKey();
-                int chestSlot = SLOT_MAP[callerSlot];
-                MenuOptions.MenuSlotContent content = entry.getValue();
-                ImageData rendered = itemRenderer.render(content.options());
-                if (rendered.isAnimated()) anyAnimated = true;
-                place(stack, MenuSlot.SLOT, new FramePlacement(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
-            }
-
-            BlockOptions decorationOptions = BlockOptions.builder()
-                .blockId("minecraft:anvil")
-                .type(BlockOptions.Type.ISOMETRIC_3D)
-                .output(OutputOptions.builder().canvasSize(SLOT_SIZE - 4).antiAlias(false).build())
-                .build();
-            ImageData decoration = blockRenderer.render(decorationOptions);
-            if (decoration.isAnimated()) anyAnimated = true;
-            place(stack, MenuSlot.CONTENT, new FramePlacement(
-                chestSlotX(DECORATION_SLOT) + 2,
-                chestSlotY(DECORATION_SLOT) + 2,
-                decoration
-            ));
-
-            ItemOptions redPaneOptions = ItemOptions.builder()
-                .itemId("minecraft:red_stained_glass_pane")
-                .type(ItemOptions.Type.GUI_ICON)
-                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SLOT_SIZE - 4).build())
-                .build();
-            ImageData redPane = itemRenderer.render(redPaneOptions);
-            if (redPane.isAnimated()) anyAnimated = true;
-            for (int chestSlot : RED_PANE_SLOTS) {
-                place(stack, MenuSlot.CONTENT, new FramePlacement(
-                    chestSlotX(chestSlot) + 2,
-                    chestSlotY(chestSlot) + 2,
-                    redPane
-                ));
-            }
-
-            anyAnimated |= appendFillerLayers(options, stack, itemRenderer, claimed);
-            return composite(canvasW, canvasH, stack, anyAnimated, options);
-        }
-
+        int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+
+        for (Label label : labels)
+            TextKit.drawLine(g, label.line(), label.anchor().x(), label.anchor().y() + ascentMcPx,
+                defaultArgb, frameSeed, frameSeed, false);
     }
 
 }

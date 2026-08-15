@@ -1,10 +1,7 @@
 package lib.minecraft.refharness.pip;
 
 import com.mojang.blaze3d.ProjectionType;
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.platform.Lighting;
-import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
@@ -19,7 +16,6 @@ import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -98,7 +94,9 @@ public final class PipTarget implements AutoCloseable {
             RenderSystem.outputDepthTextureOverride = null;
         }
 
-        writeTextureToPng(out);
+        // The extent is handed in rather than read inside, because the read-back completes on a later
+        // frame and these two fields are reset by ensureTextures / close.
+        TextureReadback.writeToPng(colorTexture, textureWidth, textureHeight, debugName, out);
         return true;
     }
 
@@ -118,43 +116,6 @@ public final class PipTarget implements AutoCloseable {
         depthTextureView = device.createTextureView(depthTexture);
         textureWidth = width;
         textureHeight = height;
-    }
-
-    private void writeTextureToPng(Path outputPath) throws IOException {
-        Files.createDirectories(outputPath.getParent());
-        // Capture as locals: copyTextureToBuffer's callback runs async (pending tasks are executed on
-        // a later frame). By the time it fires, this target's textureWidth / textureHeight may have
-        // been reset by close() / ensureTextures(), and reading them as 0 produces NativeImage(0, 0)
-        // -> IllegalArgumentException.
-        final int width = textureWidth;
-        final int height = textureHeight;
-        final int pixelSize = colorTexture.getFormat().pixelSize();
-        long byteSize = (long) width * height * pixelSize;
-        GpuBuffer buffer = RenderSystem.getDevice().createBuffer(
-            () -> "refharness-" + debugName + "-readback", /*usage*/ 9, byteSize);
-        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
-        IOException[] err = new IOException[1];
-
-        encoder.copyTextureToBuffer(colorTexture, buffer, 0L, () -> {
-            try (GpuBuffer.MappedView read = encoder.mapBuffer(buffer, true, false);
-                 NativeImage image = new NativeImage(width, height, false)) {
-                for (int y = 0; y < height; y++) {
-                    for (int x = 0; x < width; x++) {
-                        int argb = read.data().getInt((x + y * width) * pixelSize);
-                        // Y-flip + alpha preservation for transparent backgrounds. PIP textures are
-                        // bottom-up like OpenGL framebuffers.
-                        image.setPixelABGR(x, height - y - 1, argb);
-                    }
-                }
-                image.writeToFile(outputPath);
-            } catch (IOException ex) {
-                err[0] = ex;
-            } finally {
-                buffer.close();
-            }
-        }, /*mipLevel*/ 0);
-
-        if (err[0] != null) throw err[0];
     }
 
     private void closeTextures() {
