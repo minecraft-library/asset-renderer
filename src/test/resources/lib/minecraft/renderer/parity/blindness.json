@@ -1301,11 +1301,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/parity/**"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "The parity vocabulary states where a claim applies and renders nothing",
+      "claim_key": "parity-vocabulary",
       "id": "B49",
       "mode": "select",
       "probe": "javap -v the compiled package-info of a package that declares one: no @Parity descriptor is in the constant pool. Capture any artifact either side of an edit here and every stored byte is identical",

@@ -309,6 +309,18 @@ class TheShippedMap(unittest.TestCase):
     def rules(self):
         return blindness.load(self.STORE)[0]
 
+    def test_every_declaration_the_tree_carries_is_one_the_map_accepts(self):
+        """The whole of the reader's refusals, run against the shipped tree and the shipped rows.
+
+        The one that has to be checked here rather than at a fixture is the join: a declaration
+        naming a slug no rule carries reads as though the file said something and plans nothing,
+        and it is reachable by writing the declaration one commit before the row that answers it.
+        """
+        files = [path.relative_to(REPO).as_posix()
+                 for path in (REPO / declarations.SOURCE_ROOT).rglob("*")
+                 if path.is_file()]
+        declarations.verify(declarations.scan(REPO), declarations.claims_of(self.rules()), files)
+
     def test_the_generated_triggers_reproduce_from_the_tree(self):
         """A hand-edited generated array states a reach no declaration declares, and the next run
         of the generator reverts it in silence."""
