@@ -74,7 +74,7 @@ public record MenuLayout(
         PLAYER_MAIN,
         /** A cell of the player's hotbar. */
         HOTBAR,
-        /** A cell outside the regular grid, such as a crafting result. */
+        /** The cell a container's output sits in. */
         RESULT
 
     }
