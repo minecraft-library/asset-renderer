@@ -87,11 +87,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/pack/**"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "A vanilla-only dump leaves the pack-rule code dark, so the packs configuration is not optional - but a loader in this package is not pack-rule code and reaches both dumps",
+      "claim_key": "pack-resolution",
       "id": "B4",
       "mode": "select",
       "probe": "run parityDump and compare rules.json between the two configs: the vanilla one is empty and the packs one is not",
