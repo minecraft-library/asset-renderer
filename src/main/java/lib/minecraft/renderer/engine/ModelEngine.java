@@ -67,6 +67,7 @@ import java.util.stream.IntStream;
  * ({@link #sortBackToFront}); a pass vanilla registers with the depth write disabled skips it
  * here too, so its nested layers accumulate against the opaque depth behind them.
  */
+@Parity(claim = "depth-immunity-limit")
 @Parity(claim = "depth-immunity")
 public class ModelEngine {
 

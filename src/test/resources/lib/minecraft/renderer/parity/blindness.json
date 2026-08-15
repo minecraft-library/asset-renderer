@@ -1154,12 +1154,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
-        "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "The block and item immunity is to DEPTH only and does not generalise",
+      "claim_key": "depth-immunity-limit",
       "id": "B11b",
       "mode": "select",
       "probe": "-Dasset.snap.grid=N and a texel-fetch perturbation both move block rows where -Dasset.depth.range=N does not",

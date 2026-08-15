@@ -12,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
  * keeps the coverage snap from moving depth. (The 2D coverage math these pair with lives on
  * {@link RasterMath}.)
  */
+@Parity(claim = "depth-immunity-limit")
 @Parity(claim = "depth-immunity")
 @UtilityClass
 public class DepthMath {
