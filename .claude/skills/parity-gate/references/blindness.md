@@ -254,7 +254,7 @@ The fabric:overlays plus catharsis:pack half of pack resolution has no dump sect
 ## B19 - parityDump is blind to everything downstream of the load, so an engine or renderer change is demoted regardless of the dump verdict
 
 - **mode** demote
-- **triggers** `src/main/java/lib/minecraft/renderer/*Renderer.java`, `src/main/java/lib/minecraft/renderer/engine/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/*`, `src/main/java/lib/minecraft/renderer/engine/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `manifest.fluid`, `manifest.portal`, `manifest.player-sheets`, `manifest.player-raw`, `manifest.visual`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing ModelEngine.java: 12 of 14 declared sees moved, and 2 declared blind held
@@ -502,18 +502,6 @@ B37 covers the mechanism that writes a self-captured file; none of the values in
 Four suites that read the store to assert against it, and the two renderers behind them, whose output is markdown - the skill's reference files and the store's own README, neither of which any artifact digests. Listed here rather than cut out of B37, so a file ADDED to that package keeps answering with B37's whole list until somebody decides otherwise. A demotion answers for the paths that fired it and for no others, which is what makes this list safe to widen: a commit carrying one of these readers beside a real writer still plans the writer's bundle, and that pairing is the ordinary shape of work in this package rather than an edge case.
 
 *Probe:* edit any one of them and capture any artifact B37 names; every stored byte is identical, and the only thing that fails is the suite that gates the file
-
-## B40 - The root package's documentation declares nothing, so it is read by a reader and by no producer
-
-- **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/package-info.java`
-- **sees** -
-- **blind** -
-- **source** measured by perturbing package-info.java: 0 of 0 declared sees moved; the one match the blanket package-info glob had
-
-This is the one package-info in the tree that sits in no package another rule already claims - the library root, whose own types are claimed by B19's renderer glob and whose sub-packages are claimed one by one. A rule rather than a no_reach glob because a blanket **/package-info.java entry was defeated on every other match, a rule having claimed the file first, so it read as a javadoc exemption while being one nowhere; and a javadoc edit inside a ruled package still plans that package's bundle, which is the rule-wins precedence working. This file has no such package below it to plan for, and what it reaches is nothing.
-
-*Probe:* open the file: it carries a package declaration and javadoc and no member, and no artifact digests a javadoc
 
 ## B41 - The two manifests a member list separates are DECLARED in these two files, so editing either adds or drops rows with no producer having run
 

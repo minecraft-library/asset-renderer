@@ -394,9 +394,7 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/*Renderer.java"
-      ],
+      "authored_paths": [],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs"
@@ -425,7 +423,7 @@
       ],
       "source": "measured by perturbing ModelEngine.java: 12 of 14 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/*Renderer.java",
+        "src/main/java/lib/minecraft/renderer/*",
         "src/main/java/lib/minecraft/renderer/engine/**"
       ]
     },
@@ -999,22 +997,6 @@
         "src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java",
         "src/test/java/lib/minecraft/renderer/parity/SweepReport.java",
         "src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java"
-      ]
-    },
-    {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/package-info.java"
-      ],
-      "blind": [],
-      "claim": "The root package's documentation declares nothing, so it is read by a reader and by no producer",
-      "id": "B40",
-      "mode": "select",
-      "probe": "open the file: it carries a package declaration and javadoc and no member, and no artifact digests a javadoc",
-      "reason": "This is the one package-info in the tree that sits in no package another rule already claims - the library root, whose own types are claimed by B19's renderer glob and whose sub-packages are claimed one by one. A rule rather than a no_reach glob because a blanket **/package-info.java entry was defeated on every other match, a rule having claimed the file first, so it read as a javadoc exemption while being one nowhere; and a javadoc edit inside a ruled package still plans that package's bundle, which is the rule-wins precedence working. This file has no such package below it to plan for, and what it reaches is nothing.",
-      "sees": [],
-      "source": "measured by perturbing package-info.java: 0 of 0 declared sees moved; the one match the blanket package-info glob had",
-      "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/package-info.java"
       ]
     },
     {
