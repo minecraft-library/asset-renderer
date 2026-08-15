@@ -759,20 +759,16 @@
       "sha256": "75d76be2f13773f757147915ae88082e47a0fa2dacddee52d2ef9d9be2262138"
     },
     {
+      "path": "menu-render/server_menu.png",
+      "sha256": "254ae2961d3374b20f3d785e182d1d054755ada55d8940d56750fe9470d9b848"
+    },
+    {
       "path": "menu-render/shulker_box.png",
       "sha256": "6a6ca76ac422106521b5dbf7457df6058be9071df03e467f20493e152d0f27b1"
     },
     {
-      "path": "menu-render/skyblock_crafting.png",
-      "sha256": "254ae2961d3374b20f3d785e182d1d054755ada55d8940d56750fe9470d9b848"
-    },
-    {
       "path": "menu-render/themed_dark.png",
       "sha256": "6ed918d0a7983f6ad0eae59792ff37aa63f9b930573460d64cfe750d3f284cb6"
-    },
-    {
-      "path": "menu-render/themed_skyblock.png",
-      "sha256": "61a57b84307e444ef8de0a4b3839b4d31061e3c9714f9e88c553ae3c115f2dba"
     },
     {
       "path": "projection-smoke/minecraft_tnt__CABINET__base.png",
@@ -845,17 +841,17 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "4b66505f16ac4b7c82d76cd18b9599c05dcfbbce",
+    "asset_sha": "b37cf477f254e1268286498a16e1f9ec1fa6f01e",
     "counts": {
-      "files": 209
+      "files": 208
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "moving",
+    "parity_class": "neutral",
     "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "the reference tree gains a menus sub-tree of eight container screens the client draws through its own GUI pipeline, and the shulker box's driver render moves its player label one Minecraft pixel down: the screen declares 176x167 and blits art a pixel shorter, so its label is positioned from a declared height its drawn one does not give. Every other reference re-rendered byte-identically, which is what says the read-back lifted out of PipTarget moved nothing",
+    "reason": "the SkyBlock theme and its palette are gone, a server menu being a chest with a caller's own slot map and a filler rather than a shape of its own, so the subject that rendered the theme drops and the one that rendered the menu keeps its bytes under a name that says what it is. No stored value moved: the added row's digest equals the dropped one's",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -865,7 +861,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-15T12:36:07Z",
+    "timestamp": "2026-08-15T13:15:00Z",
     "tool_version": "1.0.0"
   }
 }
