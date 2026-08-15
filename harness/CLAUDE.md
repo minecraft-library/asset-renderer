@@ -1,6 +1,6 @@
 # vanilla-reference-harness
 
-Single-purpose headless Fabric mod that drives the real MC client to produce the byte-stable ground-truth PNGs [asset-renderer]'s parity tests diff against - this mod lives inside that repo, at `harness/`, and stays its own Gradle build. Four sweeps: **blocks** (true 3D, not item icons), **entities**, **non-block items** (GUI icons), and **animated glint**. **README is the user-facing reference** (architecture, mixin catalog, family map, configuration); this file is the session-refresh / contributor's quick reference.
+Single-purpose headless Fabric mod that drives the real MC client to produce the byte-stable ground-truth PNGs [asset-renderer]'s parity tests diff against - this mod lives inside that repo, at `harness/`, and stays its own Gradle build. Seven sweeps: **blocks** (true 3D, not item icons), **entities**, **non-block items** (GUI icons), the **player**, **armored mobs**, **animated glint**, and **container screens**. **README is the user-facing reference** (architecture, mixin catalog, family map, configuration); this file is the session-refresh / contributor's quick reference.
 
 ## Build / run
 - JDK 25 (Loom toolchain; `JAVA_25` mixin compat), Gradle 9.4.1, Fabric Loom 1.16-SNAPSHOT, Fabric Loader 0.19.2, Fabric API 0.147.0+26.1.2, MC 26.1.2.
@@ -14,13 +14,24 @@ Single-purpose headless Fabric mod that drives the real MC client to produce the
 
 ## Sweep architecture
 
-`RefHarnessRenderer` advances one sweep step per client tick after a 60-tick warmup. A run's sweeps come from `HarnessMode` - `FULL` is block → item → entity → player, `EVERY` is those four plus glint and armor; `GLINT`, `PLAYERS`, `ARMOR` and `PITCH_ROLL` each run one sweep alone. Setting two mode properties now **throws** rather than letting the first silently win. **`FULL` is the odd name** - `EVERY` is the one that renders the whole reference tree, and the gap between them is where stale ground truth accumulated twice.
+`RefHarnessRenderer` advances one sweep step per client tick after a 60-tick warmup. A run's sweeps come from `HarnessMode` - `FULL` is block → item → entity → player, `EVERY` is those four plus glint, armor and menus; `GLINT`, `PLAYERS`, `ARMOR`, `MENUS` and `PITCH_ROLL` each run one sweep alone. Setting two mode properties now **throws** rather than letting the first silently win. **`FULL` is the odd name** - `EVERY` is the one that renders the whole reference tree, and the gap between them is where stale ground truth accumulated twice.
 
 Every sweep implements `api.Sweep` (`outputDir` / `enumerate` / `key` / `canvas` / `render`, plus the `prepare` / `beforeSubject` / `afterSweep` hooks) and is driven by `api.SweepRunner`, which owns the work index, the tally, the completion latch and the one-PNG-per-tick pacing. **Every sweep renders exactly one subject per tick**, entity variants included - the readback is async, so firing a second render before the prior one lands would corrupt it.
 
 Drawing goes through `pip.PipTarget`: one offscreen `RGBA8 + DEPTH32` target per renderer, `copyTextureToBuffer` → `NativeImage` → PNG. The target is allocated only once a renderer has committed to drawing (decline before draw), and its GPU textures are deliberately leaked at end-of-sweep rather than closed into an in-flight callback.
 
-Adding a subject is one `Sweep` in `sweep/`, optionally one `FrameRenderer` in `frame/`, and one row in `HarnessMode`.
+Adding a subject is one `Sweep` in `sweep/`, optionally one `FrameRenderer` in `frame/`, one row in `HarnessMode` - **including the `EVERY` arm**, which is the one that renders the whole tree - and, for a narrowing mode, one `optionalProperty(...)?.let { property(...) }` line in `build.gradle.kts`. **Miss that last line and the mode silently runs `FULL`**: the `-P` never becomes the system property `HarnessConfig` reads, so the task named for one sub-tree re-renders every other one instead and reports success.
+
+## Capturing a GUI (the menu sweep)
+
+`MenuSweep` is the one sweep that submits no geometry. A container screen is worth comparing against only as the client composes it - the panel, its two labels, its slots through vanilla's own GUI item atlas - so the capture drives vanilla's own extract-then-draw and changes only where the draw lands.
+
+- **`GuiRenderer` cannot be redirected the way everything else here is.** It resolves `Minecraft.getMainRenderTarget()` at one call site inside its private `draw` and never reads `RenderSystem.outputColorTextureOverride`, which is what `PipTarget` sets and what every other offscreen render depends on - a grep of the extracted client finds exactly four classes holding that field (`GuiItemAtlas`, `PictureInPictureRenderer`, `LevelRenderer`, `RenderType`) and `GuiRenderer` is not one. `MenuRenderTargetMixin` swaps the target at that call site instead, reading `GuiTarget.override`, which is the `GlintClock` pattern: a plain holder the sweep arms and clears so the redirect is inert for every frame that is not being captured. It needs a real `RenderTarget` (a `TextureTarget`), not a `GpuTextureView`.
+- **The panel is the background half of a screen's state, and the caller is what draws it.** `AbstractContainerScreen.extractRenderState` calls only `extractContents` / `extractCarriedItem` / `extractSnapbackItem` / `extractTooltip` - that yields the labels and the slots and no panel at all. The blit lives in each screen's own `extractBackground` override, so a capture calls **both** entry points, background first.
+- That override reaches its blit through `super`, so the base `Screen.extractBackground` runs first and, with a level loaded, draws the blurred world plus a dark tint behind the panel. `SuppressScreenBackdropMixin` cancels the base only - the cancel returns from `Screen`'s own body and the subclass's blits are untouched - and is gated on a capture being armed as well as on headless.
+- `GameRenderer.guiRenderer` and `.fogRenderer` are private with no getters; `GameRendererAccessor` opens both. The draw is `guiRenderer.render(fogRenderer.getBuffer(FogMode.NONE))`.
+- Three pieces of global state move for the duration and go back in a `finally`: `windowRenderState.{width, height, guiScale}` (the GUI projection is built from these, so they are what puts the panel on the canvas at one Minecraft pixel per `GUI_SCALE`), the `GuiRenderState` the extract fills, and the target. `screen.init(w, h)` at the panel's own size is what makes `leftPos == topPos == 0`; `mouseX = mouseY = -1` neutralises the slot highlight and the tooltip together, being one test in vanilla rather than two.
+- The read-back is `pip/TextureReadback`, shared with `PipTarget` rather than copied. It takes the extent as parameters because the copy's callback runs a frame later, by which time the target that owns the texture may have resized - passing them in is what makes handing it a field that is re-read later unrepresentable.
 
 ## Mixin convention
 
