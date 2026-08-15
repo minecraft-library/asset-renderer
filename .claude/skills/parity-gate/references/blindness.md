@@ -230,7 +230,7 @@ PackAcquisition.namespaces builds a per-run-salted set, so a findFirst over it f
 ## B17 - synthesis.json dumps the SOURCES rather than the synthesizer's registry
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer*.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `sweep.item`
 - **blind** -
 - **source** measured by perturbing TextureSynthesizer.java: 0 of 3 declared sees moved

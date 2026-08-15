@@ -350,11 +350,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer*.java"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "synthesis.json dumps the SOURCES rather than the synthesizer's registry",
+      "claim_key": "texture-synthesis",
       "id": "B17",
       "mode": "select",
       "probe": "read synthesis.json and confirm every key is an input texture id rather than a synthesized one",
@@ -366,7 +365,7 @@
       ],
       "source": "measured by perturbing TextureSynthesizer.java: 0 of 3 declared sees moved",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer*.java"
+        "src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer.java"
       ]
     },
     {
