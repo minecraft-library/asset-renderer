@@ -438,11 +438,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/**"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "The dump serialises what a pipeline read layer loaded, so every read layer reaches it",
+      "claim_key": "pipeline-reads",
       "id": "B20",
       "mode": "select",
       "probe": "perturb a value a read layer resolves and confirm the dump files move while no render artifact does",
