@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
@@ -17,6 +18,7 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -39,6 +41,7 @@ import java.util.Optional;
  * headless render, since there is no wearer skin source). A pack that ships no such asset drops the
  * wings entirely (the no-missing-texture-fallback contract).
  */
+@Parity(as = PlayerRenderer.class)
 @UtilityClass
 public class ElytraKit {
 

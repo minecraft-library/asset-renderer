@@ -44,6 +44,8 @@ import lib.minecraft.renderer.option.slot.PlayerSlot2D;
 import lib.minecraft.renderer.option.slot.PlayerSlot3D;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -77,6 +79,7 @@ import java.util.Optional;
  * Skin resolution is shared via the outer class, with URL-fetched skins cached for the
  * renderer's lifetime.
  */
+@Parity(claim = "player-geometry", subject = Subject.PLAYER)
 public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**

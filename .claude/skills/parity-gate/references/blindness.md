@@ -146,7 +146,7 @@ TestPlayerParityVanilla is a main that alpha-crops AND rescales both sides to a 
 ## B9 - No artifact renders BUST, the cape, or any 2D player path, and the 3D player geometry under these paths reaches every player artifact including the sweep
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/PlayerRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/face/HumanoidPart.java`, `src/main/java/lib/minecraft/renderer/option/*Player*.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/PlayerRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/face/HumanoidPart.java`, `src/main/java/lib/minecraft/renderer/option/PlayerOptions.java`
 - **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`, `sweep.player`
 - **blind** -
 - **source** measured by perturbing HumanoidPart.java: 4 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home

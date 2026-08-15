@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.face;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.PlayerRenderer;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -42,6 +44,7 @@ import java.util.EnumMap;
  * Left leg base   16..32, 48..64   Left leg overlay   0..16, 48..64
  * </pre>
  */
+@Parity(as = PlayerRenderer.class)
 @Getter
 @Accessors(fluent = true)
 public enum HumanoidPart {

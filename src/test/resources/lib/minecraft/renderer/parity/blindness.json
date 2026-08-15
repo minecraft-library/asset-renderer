@@ -193,14 +193,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/PlayerRenderer.java",
-        "src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java",
-        "src/main/java/lib/minecraft/renderer/option/*Player*.java",
-        "src/main/java/lib/minecraft/renderer/face/HumanoidPart.java"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "No artifact renders BUST, the cape, or any 2D player path, and the 3D player geometry under these paths reaches every player artifact including the sweep",
+      "claim_key": "player-geometry",
       "id": "B9",
       "mode": "select",
       "probe": "perturb the wing build's fit frame and re-render -Psheets=toggles: elytra_only_3_4_ and elytra_cape_3_4_ move and none of the other eleven cells do",
@@ -216,7 +212,7 @@
         "src/main/java/lib/minecraft/renderer/PlayerRenderer.java",
         "src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java",
         "src/main/java/lib/minecraft/renderer/face/HumanoidPart.java",
-        "src/main/java/lib/minecraft/renderer/option/*Player*.java"
+        "src/main/java/lib/minecraft/renderer/option/PlayerOptions.java"
       ]
     },
     {
