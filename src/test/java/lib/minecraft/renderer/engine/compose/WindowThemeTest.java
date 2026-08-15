@@ -52,7 +52,7 @@ class WindowThemeTest {
     void aReInkingActuallyChangesTheInk() {
         PixelBuffer vanilla = paint(Window.Theme.VANILLA, 96, 64);
 
-        for (Window.Theme theme : List.of(Window.Theme.DARK, Window.Theme.SKYBLOCK)) {
+        for (Window.Theme theme : List.of(Window.Theme.DARK)) {
             PixelBuffer other = paint(theme, 96, 64);
 
             int same = 0;

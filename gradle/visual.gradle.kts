@@ -112,7 +112,7 @@ register<JavaExec>("loreTooltip") {
 }
 
 register<JavaExec>("menuRender") {
-    description = "Renders the vanilla-style chest chrome menus (SkyBlock crafting + vanilla crafting) to cache/visual/menu-render/ for visual inspection."
+    description = "Renders every menu subject - the eight shipped container screens, a server-style menu, an animated one, a re-inked one and an oversized one - to cache/visual/menu-render/ for visual inspection."
     group = "visual"
     mainClass.set("lib.minecraft.renderer.visual.MenuRenderDriver")
     classpath = sourceSets["test"].runtimeClasspath

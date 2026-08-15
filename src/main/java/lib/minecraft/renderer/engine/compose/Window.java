@@ -110,12 +110,6 @@ public interface Window {
         public static final @NotNull Palette DARK =
             new Palette(0xFF000000, 0xFF606060, 0xFF141414, 0xFF303030, 0xFF1A1A1A, 0xFF0D0D0D);
 
-        /**
-         * A deep-purple palette for the same geometry, authored on the same terms as {@link #DARK}.
-         */
-        public static final @NotNull Palette SKYBLOCK =
-            new Palette(0xFF000000, 0xFF3C3C5A, 0xFF0F0F17, 0xFF1E1E2E, 0xFF111122, 0xFF080811);
-
     }
 
     /**
@@ -279,11 +273,7 @@ public interface Window {
         /**
          * A dark re-inking of the same geometry.
          */
-        DARK(Palette.DARK),
-        /**
-         * A deep-purple re-inking of the same geometry.
-         */
-        SKYBLOCK(Palette.SKYBLOCK);
+        DARK(Palette.DARK);
 
         /**
          * The ink this theme paints the shared geometry in.

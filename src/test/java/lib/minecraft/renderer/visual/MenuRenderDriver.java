@@ -29,12 +29,12 @@ import java.util.Map;
  * <p>
  * The roster is every screen the shipped art can be checked against - the four chest row counts one
  * sheet composes, the shulker box, the hopper, the dispenser and the crafting table - each with the
- * player's section drawn, so each names the same panel the client does. Beside them sit five subjects
+ * player's section drawn, so each names the same panel the client does. Beside them sit four subjects
  * that are about something other than the panel: a server-style menu, which is a six-row chest with
- * the caller's own slot map and a filled border over it, a crafting table whose enchanted slots
- * promote the whole menu through the compositor's animated branch, the same chest in each of the
- * two palettes the client ships nothing to compare against, and a panel at a size the client ships no
- * sheet for at all.
+ * the caller's own slot map and a filler behind the rest, a crafting table whose enchanted slots
+ * promote the whole menu through the compositor's animated branch, the same chest in a palette the
+ * client ships nothing to compare against, and a panel at a size the client ships no sheet for at
+ * all.
  * <p>
  * Usage: {@code ./gradlew menuRender}. Outputs land in {@code cache/visual/menu-render/}.
  */
@@ -120,9 +120,10 @@ public final class MenuRenderDriver {
                 slot(9, "minecraft:diamond_sword")))
             .build()), imageFactory);
 
-        // A server menu is a chest with the caller's own slot map over it. These are the positions a
-        // "Craft Item" menu puts its grid and its output at, on the six-row chest that carries them.
-        write("skyblock_crafting", renderer.render(MenuOptions.builder()
+        // A server menu is a chest with the caller's own slot map over it and a filler behind the
+        // rest, which is the whole of what makes one: a screen a server dresses is not a shape of its
+        // own. These are the positions such a menu puts a crafting grid and its output at.
+        write("server_menu", renderer.render(MenuOptions.builder()
             .type(MenuOptions.Type.CHEST)
             .rows(6)
             .title("Craft Item")
@@ -146,28 +147,16 @@ public final class MenuRenderDriver {
             .build();
         write("glinted_crafting", renderer.render(glintedCrafting), imageFactory);
 
-        // The two palettes that are not vanilla's, on a shape one of the eight above already draws,
-        // so what these are read for is the ink alone - the panel, the two bevels and the cells.
-        // Neither has a client-side counterpart to be checked against, which is why they are looked
-        // at rather than compared.
+        // The palette that is not vanilla's, on a shape one of the eight above already draws, so what
+        // this is read for is the ink alone - the panel, the two bevels and the cells. It has no
+        // client-side counterpart to be checked against, which is why it is looked at rather than
+        // compared.
         write("themed_dark", renderer.render(MenuOptions.builder()
             .type(MenuOptions.Type.CHEST)
             .rows(3)
             .playerInventory(true)
             .theme(Window.Theme.DARK)
             .title("Dark Theme")
-            .slots(slots(
-                slot(0, "minecraft:diamond"),
-                slot(4, "minecraft:iron_ingot"),
-                slot(26, "minecraft:diamond_sword")))
-            .build()), imageFactory);
-
-        write("themed_skyblock", renderer.render(MenuOptions.builder()
-            .type(MenuOptions.Type.CHEST)
-            .rows(3)
-            .playerInventory(true)
-            .theme(Window.Theme.SKYBLOCK)
-            .title("SkyBlock Theme")
             .slots(slots(
                 slot(0, "minecraft:diamond"),
                 slot(4, "minecraft:iron_ingot"),
