@@ -42,6 +42,13 @@
  * ({@link lib.minecraft.renderer.option option} / {@code option.spec}, e.g.
  * {@link lib.minecraft.renderer.option.spec.DyeColor DyeColor}) or, when a value type is a pure math
  * primitive, in {@link lib.minecraft.renderer.tensor tensor}.
+ *
+ * <p><b>Parity.</b> These are the records the pipeline builds and the renderers consume, and the
+ * dump's sections are a projection of exactly those records - so a change here is visible on both
+ * sides at once. That makes this the one package family with no blindness to claim.
  */
+@Parity(claim = "asset-layer")
 package lib.minecraft.renderer.asset;
+
+import lib.minecraft.renderer.parity.Parity;
 

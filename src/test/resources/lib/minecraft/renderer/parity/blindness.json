@@ -559,11 +559,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/asset/**"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "The asset DTO layer is what every renderer reads and what the dump serialises, so it reaches both",
+      "claim_key": "asset-layer",
       "id": "B25",
       "mode": "select",
       "probe": "add a field to a dumped record and confirm both the dump and a sweep move",
