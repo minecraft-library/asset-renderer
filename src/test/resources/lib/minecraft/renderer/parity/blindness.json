@@ -448,13 +448,12 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java"
-      ],
+      "authored_paths": [],
       "blind": [
         "sweep.item"
       ],
       "claim": "sweep.item is blind to the whole of BlockIndexBuilder, by two independent hops",
+      "claim_key": "block-index-item-blind",
       "id": "B21",
       "mode": "select",
       "probe": "read ItemIndexBuilder.load's parameter list for any block-index type, and grep ItemRenderer for findBlock outside GuiIcon; both come back empty",

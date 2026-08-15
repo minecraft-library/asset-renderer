@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
  * door halves, growth stages) are kept. {@link #INVISIBLE_BLOCK_NAMES} is the one explicit
  * exception: those ids carry a real texture but vanilla renders them invisible, so they are dropped too.
  */
+@Parity(claim = "block-index-item-blind")
 @Parity(claim = "index-resolution")
 @UtilityClass
 public class BlockIndexBuilder {
