@@ -635,6 +635,18 @@ A menu is drawn by one renderer over one option record and one layout, and no ot
 
 *Probe:* perturb a menu geometry number - a band depth, a margin, a cell size - re-run the whole render bundle and read which artifacts move; the menu rows of manifest.visual move and nothing else does
 
+## B49 - The parity vocabulary states where a claim applies and renders nothing
+
+- **mode** select
+- **triggers** `src/main/java/lib/minecraft/renderer/parity/**`
+- **sees** -
+- **blind** -
+- **source** declares no store artifact, so its reason names the gate that answers instead; retention is SOURCE and no class file carries the descriptor
+
+A new top-level sub-package of the renderer root is reached by no other rule's triggers, so it needs one of its own or the coverage check has a tracked file nothing speaks for. What it holds is the annotation a package or a type declares its own parity reach with and the three closed vocabularies that annotation names. Retention is SOURCE, and javac drops the descriptor before it writes a class file - so no compiled artifact carries a declaration, no renderer classpath is widened by one, and nothing on any producer's path can read one. What does read them is the planner, from source, when it resolves which artifacts a change set can move, which is why an edit here moves what a plan proposes to capture and never what a producer emits. The gate is ./gradlew test, which compiles the package and holds the roster to the renderers this library ships.
+
+*Probe:* javap -v the compiled package-info of a package that declares one: no @Parity descriptor is in the constant pool. Capture any artifact either side of an edit here and every stored byte is identical
+
 ## Paths that reach nothing
 
 Covered and reaching nothing is a different answer from "I do not know". A changed

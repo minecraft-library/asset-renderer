@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -252,6 +253,19 @@ final class BlindnessMapTest {
      */
     private static final List<String> MEMBERSHIP_DECLARATIONS =
         List.of("gradle/visual.gradle.kts", "scripts/parity/manifest.py");
+
+    /**
+     * The directory a renderer is a direct child of.
+     *
+     * <p>The library root itself rather than the tree below it, because that is where the roster is
+     * defined from: a renderer sits directly in it by construction, and a walk that descended would
+     * take every {@code *Renderer.java} in the packages beneath - names the roster has no constant
+     * for and is not claiming to have one for.
+     */
+    private static final String LIBRARY_ROOT = "src/main/java/lib/minecraft/renderer/";
+
+    /** The suffix a renderer's file name ends in, which is what the roster is walked by. */
+    private static final String RENDERER_SUFFIX = "Renderer.java";
 
     /** The skill body, whose frontmatter is what decides when the gate is offered at all. */
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
@@ -1175,6 +1189,37 @@ final class BlindnessMapTest {
         assertThat("a suppression outranks both by removing its own sees as well as its blind, so an "
             + "artifact it names is inadmissible whatever selected it", seesFor("a/x.java", map),
             is(empty()));
+    }
+
+    @Test
+    @DisplayName("the renderer roster and the parity subjects name each other exactly")
+    void theSubjectRosterIsTheRendererRoster() {
+        List<String> renderers = trackedFiles().stream()
+            .filter(path -> path.startsWith(LIBRARY_ROOT))
+            .map(path -> path.substring(LIBRARY_ROOT.length()))
+            .filter(name -> !name.contains("/") && name.endsWith(RENDERER_SUFFIX))
+            .map(name -> name.substring(0, name.length() - RENDERER_SUFFIX.length()))
+            // The interface strips to nothing, which is how it excludes itself: it is the one file
+            // matching the walk that names no renderer, and dropping it by name would go on dropping
+            // whatever took that name.
+            .filter(stem -> !stem.isEmpty())
+            .map(stem -> stem.toUpperCase(Locale.ROOT))
+            .sorted()
+            .toList();
+        List<String> subjects = Stream.of(Subject.values()).map(Enum::name).sorted().toList();
+
+        assertThat("renderers directly under the library root, which is the walk the roster is "
+            + "defined from. An empty list is a walk that has stopped finding anything - a moved "
+            + "source root, or a suffix nothing ends in any more - and the comparison below would "
+            + "then hold only for an empty enum", renderers, is(not(empty())));
+        assertThat("the renderers this library ships, against the constants a claim names one by. "
+            + "The roster is a closed vocabulary a claim asserts a file belongs to, so a renderer "
+            + "with no constant cannot be named at all and a constant with no renderer names "
+            + "something that is not there - and either way the claim that a file belongs to one "
+            + "renderer and no other stops being a closure anything can be held to. Compared "
+            + "upper-cased and stripped of the suffix, so a renderer whose name needs a word "
+            + "boundary the constant has to spell fails here for somebody to decide rather than "
+            + "resolving itself", subjects, equalTo(renderers));
     }
 
     /**
