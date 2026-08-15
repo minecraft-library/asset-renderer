@@ -1135,15 +1135,13 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
-        "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
-      ],
+      "authored_paths": [],
       "blind": [
         "sweep.block",
         "sweep.item"
       ],
       "claim": "Blocks and items are structurally immune to a DEPTH change: 0 of 1055 and 0 of 479 rows move",
+      "claim_key": "depth-immunity",
       "id": "B11a",
       "mode": "select",
       "probe": "-Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved",
