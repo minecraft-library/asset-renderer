@@ -652,9 +652,7 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/exception/**"
-      ],
+      "authored_paths": [],
       "blind": [
         "sweep.entity",
         "sweep.block",
@@ -665,6 +663,7 @@
         "manifest.player-raw"
       ],
       "claim": "The exception types carry no behaviour a parity artifact can observe",
+      "claim_key": "exception-types",
       "id": "B28",
       "mode": "select",
       "probe": "change a detail message and confirm no sweep row moves; change a supertype and confirm the sweep fails to run at all",
