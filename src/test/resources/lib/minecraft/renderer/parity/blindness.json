@@ -619,14 +619,13 @@
       ]
     },
     {
-      "authored_paths": [
-        "src/main/java/lib/minecraft/renderer/face/**"
-      ],
+      "authored_paths": [],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs"
       ],
       "claim": "The face vocabulary decides winding, UV pairing and per-face shade, so it reaches every 3D render",
+      "claim_key": "face-vocabulary",
       "id": "B27",
       "mode": "select",
       "probe": "flip one CornerPhase index array and confirm CornerPhaseTest fails while all 30 dump files are byte-identical",
