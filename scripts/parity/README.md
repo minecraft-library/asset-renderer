@@ -121,6 +121,7 @@ Every module in the package. `lab/` has a README of its own naming its six.
 | `promote.py` | the one act that may write production, and every refusal in front of it |
 | `compare.py` | the key-joined A/B of two stored artifacts, and the five ordered classes |
 | `blindness.py` | reach resolution - which artifacts can SEE a change, and which are structurally blind |
+| `declarations.py` | the `@Parity` declarations, read out of source text: the lexer, every refusal, and the trigger paths a claim's carriers derive |
 | `provenance.py` | the record that makes a baseline self-identifying: the commit, the tree state, the reference set |
 | `manifest.py` | tree digest manifests - build, verify, and the generated `sha256sum` view |
 | `sweep.py` | the sweep-table reader in both the producer's TSV form and the stored one, and the one implementation of the fleet sum and the buckets |

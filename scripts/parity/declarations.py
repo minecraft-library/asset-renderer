@@ -1,0 +1,587 @@
+"""What the source says about its own parity reach: the ``@Parity`` declarations, read from text.
+
+A declaration joins one compilation unit to one named claim in the blindness map. This module is the
+one reader of them, and everything it answers is a pure function of ``(source tree, map)``.
+
+**It reads source and never bytecode, and the usual reason for that is wrong.** A ``SOURCE``-retention
+annotation leaves no trace in a class file - but javac still WRITES one for an annotated package
+declaration, a 114-byte synthetic ``package-info.class`` whose only attribute is ``SourceFile``,
+because it decides whether to emit that file by asking whether the package declaration carries any
+annotation at all, before retention is consulted, and the class writer then drops the annotation. A
+bytecode reader would therefore open a valid class file, find zero annotations and conclude the
+package declares nothing. That is a silent wrong answer over every package carrying a line, which is
+the one failure this whole mechanism exists against.
+
+**It lexes and does not strip.** A one-regex comment strip has a live counter-example in this tree: a
+loader carries ``renderer/*.json`` inside a printf format string, which opens a phantom comment that
+swallows to the next ``*/`` eleven lines later, taking two code lines and a whole javadoc block with
+it, silently. :func:`blank` is a four-state lexer that blanks comments and string literals while
+preserving newlines and offsets, so a line number is still a line number afterwards and a ``@Parity``
+inside a string is invisible to the scan rather than counted.
+
+**Every refusal here has zero instances in the tree**, which is what makes refusing them free. Each
+would otherwise produce a plausible wrong answer rather than a crash - a declaration that reads as
+though the file said something while the planner plans nothing - so the refusal names the file, the
+line, the shape and the fix. The one non-fatal answer is a ``@Parity`` the lexer found inside a
+comment or a string: the prose is correct and the reader is simply not counting it, which is the only
+thing its author could be wrong about.
+"""
+
+from __future__ import annotations
+
+import posixpath
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Iterable, Sequence
+
+from parity.blindness import compile_glob
+
+#: The source root declarations are read from. Nothing outside it is scanned or derivable.
+SOURCE_ROOT = "src/main/java"
+
+#: The library's own root package, the one package a ``PACKAGE`` scope is legal on.
+LIBRARY_ROOT = "lib/minecraft/renderer"
+
+#: Where the vocabulary itself lives, which is what the constant lists are read out of.
+VOCABULARY = f"{SOURCE_ROOT}/{LIBRARY_ROOT}/parity"
+
+#: The annotation's own simple name.
+ANNOTATION = "Parity"
+
+#: The file whose declaration is its package's rather than a type's.
+PACKAGE_INFO = "package-info.java"
+
+#: The members a declaration may carry, against the vocabulary each one takes.
+MEMBERS = {"claim": None, "as": None, "mode": "Mode", "scope": "Scope", "subject": "Subject"}
+
+#: The modes that narrow, so a declaration of one has to say so at the call site.
+NARROWING = ("DEMOTE", "SUPPRESS")
+
+#: How a stored row spells each declared mode.
+STORED_MODE = {"SELECT": "select", "DEMOTE": "demote", "SUPPRESS": "suppress"}
+
+_ANNOTATION_AT = re.compile(r"@\s*" + ANNOTATION + r"\b")
+_DOTTED_AFTER = re.compile(r"\s*\.\s*(\w+)")
+_ENUM_CONSTANT = re.compile(r"^\s*([A-Z][A-Z0-9_]*)\s*(?=[,;}])", re.MULTILINE)
+_TYPE_KEYWORD = re.compile(r"\b(?:@\s*interface|class|interface|enum|record)\b")
+_PACKAGE_KEYWORD = re.compile(r"\bpackage\s+([\w.]+)\s*;")
+_MEMBER = re.compile(r"^\s*(\w+)\s*=\s*(.+?)\s*$", re.DOTALL)
+
+
+class DeclarationError(Exception):
+    """A declaration the reader refuses rather than resolving to a plausible wrong answer."""
+
+    def __init__(self, path: str, line: int, shape: str, fix: str) -> None:
+        self.path = path
+        self.line = line
+        self.shape = shape
+        self.fix = fix
+        super().__init__(f"{path}:{line}: {shape} - {fix}")
+
+
+@dataclass(frozen=True)
+class Report:
+    """A ``@Parity`` the lexer found somewhere the scan does not count, named rather than refused."""
+
+    path: str
+    line: int
+    where: str
+
+
+@dataclass(frozen=True)
+class Declaration:
+    """One ``@Parity`` on a package declaration or on a top-level type.
+
+    ``written`` is the member names the source spells, before any default is materialised. The
+    guard that holds every carrier of one claim to one mode compares what was WRITTEN: a joining
+    declaration declines to repeat its claim's subject, so a comparison over materialised defaults
+    would have every joiner asserting the claim is about no renderer and refusing the claim it
+    belongs to.
+    """
+
+    path: str
+    line: int
+    on: str
+    claim: str
+    joins: str
+    mode: str
+    scope: str
+    subject: tuple[str, ...]
+    written: frozenset[str]
+
+    @property
+    def trigger_path(self) -> str:
+        """The trigger this declaration derives, in the map's own glob grammar."""
+        if self.on != "package":
+            return self.path
+        directory = self.path[: -len(PACKAGE_INFO) - 1]
+        return f"{directory}/**" if self.scope == "SUBTREE" else f"{directory}/*"
+
+
+@dataclass
+class Scan:
+    """Every declaration the source root carries, and every mention it declined to count."""
+
+    declarations: list[Declaration] = field(default_factory=list)
+    reports: list[Report] = field(default_factory=list)
+
+    def by_claim(self) -> dict[str, list[Declaration]]:
+        """The declarations of each claim, keyed by slug, in the order the tree was walked."""
+        out: dict[str, list[Declaration]] = {}
+        for declaration in self.declarations:
+            out.setdefault(declaration.claim, []).append(declaration)
+        return out
+
+
+def blank(source: str) -> str:
+    """Blank every comment and string literal, preserving newlines and every offset.
+
+    Four states and one lookahead. A blanked character becomes a space so that an offset into the
+    result is the same offset into the original and a line number survives; a newline inside a block
+    comment or a text block stays a newline for the same reason.
+
+    Text blocks are lexed before ordinary strings, because ``\"\"\"`` opens one and its first two
+    characters are an empty string literal to any reader that checks ``"`` first.
+    """
+    out = list(source)
+    index = 0
+    end = len(source)
+    while index < end:
+        if source.startswith("//", index):
+            while index < end and source[index] != "\n":
+                out[index] = " "
+                index += 1
+        elif source.startswith("/*", index):
+            out[index] = out[index + 1] = " "
+            index += 2
+            while index < end and not source.startswith("*/", index):
+                if source[index] != "\n":
+                    out[index] = " "
+                index += 1
+            for _ in range(2):
+                if index < end:
+                    out[index] = " "
+                    index += 1
+        elif source.startswith('"""', index):
+            for offset in range(3):
+                out[index + offset] = " "
+            index += 3
+            while index < end and not source.startswith('"""', index):
+                if source[index] == "\\":
+                    out[index] = " "
+                    index += 1
+                if index < end and source[index] != "\n":
+                    out[index] = " "
+                index += 1
+            for _ in range(3):
+                if index < end:
+                    out[index] = " "
+                    index += 1
+        elif source[index] in "\"'":
+            quote = source[index]
+            out[index] = " "
+            index += 1
+            while index < end and source[index] != quote:
+                if source[index] == "\n":
+                    # An unterminated literal. Stopping at the newline keeps one bad line from
+                    # blanking the rest of the file, which is the precedent's own defect.
+                    break
+                if source[index] == "\\":
+                    out[index] = " "
+                    index += 1
+                if index < end and source[index] != "\n":
+                    out[index] = " "
+                index += 1
+            if index < end and source[index] == quote:
+                out[index] = " "
+                index += 1
+        else:
+            index += 1
+    return "".join(out)
+
+
+def enum_constants(source: str) -> tuple[str, ...]:
+    """The constants an enum declares, read off its own source.
+
+    The vocabularies are read rather than transcribed, so a constant added to one is accepted here
+    without this module being edited - the enum file is the definition, and a second copy of it
+    would be a second thing to keep true.
+    """
+    body = blank(source)
+    opening = body.find("{")
+    return tuple(_ENUM_CONSTANT.findall(body[opening:])) if opening >= 0 else ()
+
+
+def vocabularies(repo_root: Path) -> dict[str, tuple[str, ...]]:
+    """The constants each closed vocabulary declares, read out of the annotation's own package."""
+    out: dict[str, tuple[str, ...]] = {}
+    for name in ("Mode", "Scope", "Subject"):
+        target = repo_root / VOCABULARY / f"{name}.java"
+        if not target.is_file():
+            raise DeclarationError(f"{VOCABULARY}/{name}.java", 1, "the vocabulary is absent",
+                                   "restore the enum the declarations are written against")
+        out[name] = enum_constants(target.read_text(encoding="utf-8"))
+    return out
+
+
+def _line_of(source: str, offset: int) -> int:
+    return source.count("\n", 0, offset) + 1
+
+
+def _split(arguments: str) -> list[str]:
+    """The top-level comma-separated arguments, so a braced subject list stays one argument."""
+    out: list[str] = []
+    depth = 0
+    current = ""
+    for char in arguments:
+        if char in "{(":
+            depth += 1
+        elif char in "})":
+            depth -= 1
+        if char == "," and depth == 0:
+            out.append(current)
+            current = ""
+        else:
+            current += char
+    if current.strip():
+        out.append(current)
+    return out
+
+
+def _constant(path: str, line: int, member: str, enum: str, value: str,
+              vocabulary: Sequence[str]) -> str:
+    """One enum constant, qualified or bare, checked against the member's own vocabulary."""
+    text = value.strip()
+    qualified = text.split(".")
+    if len(qualified) == 2:
+        if qualified[0].strip() != enum:
+            raise DeclarationError(path, line, f"'{member}' takes a {enum} and reads '{text}'",
+                                   f"write {enum}.<constant> or the bare constant")
+        text = qualified[1].strip()
+    elif len(qualified) != 1:
+        raise DeclarationError(path, line, f"'{member}' reads '{value.strip()}'",
+                               f"write {enum}.<constant> or the bare constant")
+    if text not in vocabulary:
+        raise DeclarationError(path, line, f"{enum} declares no constant '{text}'",
+                               "write one of: " + ", ".join(vocabulary))
+    return text
+
+
+def _members(path: str, line: int, arguments: str,
+             vocabulary: dict[str, tuple[str, ...]]) -> dict[str, object]:
+    """The members a declaration spells, each checked against its own grammar."""
+    out: dict[str, object] = {}
+    for argument in _split(arguments):
+        matched = _MEMBER.match(argument)
+        if not matched:
+            raise DeclarationError(path, line, f"the argument '{argument.strip()}' names no member",
+                                   "every argument is '<member> = <value>'")
+        name, value = matched.group(1), matched.group(2)
+        if name not in MEMBERS:
+            raise DeclarationError(path, line, f"'{name}' is not a member of @{ANNOTATION}",
+                                   "the members are: " + ", ".join(sorted(MEMBERS)))
+        if name in out:
+            raise DeclarationError(path, line, f"'{name}' is written twice",
+                                   "one value per member")
+        if name == "claim":
+            literal = re.fullmatch(r'"([^"]*)"', value)
+            if not literal:
+                raise DeclarationError(path, line, f"'claim' reads '{value}' and not a string",
+                                       'write claim = "<slug>"')
+            out[name] = literal.group(1)
+        elif name == "as":
+            reference = re.fullmatch(r"([\w.]+)\s*\.\s*class", value)
+            if not reference:
+                raise DeclarationError(path, line, f"'as' reads '{value}' and not a class literal",
+                                       "write as = <Type>.class")
+            out[name] = reference.group(1).rsplit(".", 1)[-1]
+        elif name == "subject":
+            braced = re.fullmatch(r"\{(.*)}", value, re.DOTALL)
+            listed = braced.group(1) if braced else value
+            constants = [part for part in _split(listed) if part.strip()]
+            out[name] = tuple(
+                _constant(path, line, name, "Subject", part, vocabulary["Subject"])
+                for part in constants)
+        else:
+            out[name] = _constant(path, line, name, MEMBERS[name], value, vocabulary[MEMBERS[name]])
+    return out
+
+
+def _target(path: str, line: int, body: str, after: int) -> str:
+    """Whether the declaration below this annotation is a package or a type."""
+    package = _PACKAGE_KEYWORD.search(body, after)
+    kind = _TYPE_KEYWORD.search(body, after)
+    if package and (not kind or package.start() < kind.start()):
+        return "package"
+    if kind:
+        return "type"
+    raise DeclarationError(path, line, f"the @{ANNOTATION} declares nothing",
+                           "put it on a package declaration or on a top-level type")
+
+
+def parse(path: str, source: str, vocabulary: dict[str, tuple[str, ...]],
+          library_root: str = f"{SOURCE_ROOT}/{LIBRARY_ROOT}") -> tuple[list[Declaration], list[Report]]:
+    """Every declaration one compilation unit carries, and every mention it declines to count.
+
+    :param path the compilation unit's repo-relative path
+    :param source its text
+    :param vocabulary the constants each closed vocabulary declares
+    :param library_root the repo-relative directory of the one package a ``PACKAGE`` scope is legal on
+    """
+    body = blank(source)
+    declarations: list[Declaration] = []
+    reports: list[Report] = []
+    directory = path.rsplit("/", 1)[0] if "/" in path else ""
+    is_package_info = path.rsplit("/", 1)[-1] == PACKAGE_INFO
+    is_library_root = directory == library_root
+
+    for found in _ANNOTATION_AT.finditer(source):
+        start, after = found.start(), found.end()
+        line = _line_of(source, start)
+        if not _ANNOTATION_AT.match(body, start):
+            reports.append(Report(path, line, "a comment or a string literal"))
+            continue
+        dotted = _DOTTED_AFTER.match(body, after)
+        if dotted:
+            raise DeclarationError(
+                path, line, f"@{ANNOTATION}.{dotted.group(1)} is the container spelling",
+                f"stack two @{ANNOTATION} lines instead")
+        if body.count("{", 0, start) - body.count("}", 0, start) != 0:
+            raise DeclarationError(
+                path, line, f"the @{ANNOTATION} is inside a type body",
+                "a nested type resolves to its file's path, which its enclosing declaration "
+                "already claims - declare it on the top-level type")
+
+        arguments = ""
+        cursor = after
+        while cursor < len(body) and body[cursor].isspace():
+            cursor += 1
+        if cursor < len(body) and body[cursor] == "(":
+            depth, index = 0, cursor
+            while index < len(body):
+                if body[index] == "(":
+                    depth += 1
+                elif body[index] == ")":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                index += 1
+            if depth != 0:
+                raise DeclarationError(path, line, "the argument list never closes",
+                                       "balance the parentheses")
+            # Balanced against the blanked text, so a parenthesis inside a string cannot close the
+            # list, and read out of the original, because a blanked string literal is spaces.
+            arguments = source[cursor + 1:index]
+            if "\n" in arguments:
+                raise DeclarationError(
+                    path, line, "the argument list spans more than one line",
+                    "a declaration is one line - drop a member rather than wrapping it")
+            after = index + 1
+
+        spelled = _members(path, line, arguments, vocabulary)
+        on = _target(path, line, body, after)
+        if on == "package" and not is_package_info:
+            raise DeclarationError(path, line, "the package declaration is not in " + PACKAGE_INFO,
+                                   f"declare a package's claim in its own {PACKAGE_INFO}")
+        if is_package_info and _TYPE_KEYWORD.search(body):
+            raise DeclarationError(path, line, f"this {PACKAGE_INFO} also declares a type",
+                                   "a package doc holds no code, so the two claims cannot be told "
+                                   "apart - move the type to its own file")
+
+        claim = str(spelled.get("claim", ""))
+        joins = str(spelled.get("as", ""))
+        if bool(claim) == bool(joins):
+            shape = "names both a claim and an as" if claim else "names neither a claim nor an as"
+            raise DeclarationError(path, line, f"the declaration {shape}",
+                                   'write exactly one of claim = "<slug>" or as = <Type>.class')
+        if "scope" in spelled and on != "package":
+            raise DeclarationError(path, line, "'scope' is written on a type",
+                                   "scope is read on a package declaration alone - drop it")
+        scope = str(spelled.get("scope", "SUBTREE"))
+        if scope == "PACKAGE" and not is_library_root:
+            raise DeclarationError(
+                path, line, "'scope' is PACKAGE outside the library root",
+                "a leaf package answers for its tree, so a package added below it inherits what "
+                "its parent claims - drop the member")
+
+        declarations.append(Declaration(
+            path=path, line=line, on=on, claim=claim, joins=joins,
+            mode=str(spelled.get("mode", "SELECT")), scope=scope,
+            subject=tuple(spelled.get("subject", ())), written=frozenset(spelled)))
+    return declarations, reports
+
+
+@dataclass(frozen=True)
+class Claim:
+    """What a stored row says about one claim, which is what a declaration is checked against."""
+
+    key: str
+    mode: str
+    trigger_paths: tuple[str, ...]
+
+
+def claims_of(rules: Iterable) -> tuple[Claim, ...]:
+    """The claims a rule list carries, keyed by the slug a declaration joins by."""
+    return tuple(
+        Claim(key=getattr(rule, "claim_key", "") or "", mode=rule.mode,
+              trigger_paths=tuple(rule.trigger_paths))
+        for rule in rules)
+
+
+def scan(repo_root: Path, source_root: str = SOURCE_ROOT, library_root: str = LIBRARY_ROOT,
+         vocabulary: dict[str, tuple[str, ...]] | None = None) -> Scan:
+    """Every declaration the source root carries, with every join resolved to a slug.
+
+    An ``as`` is one level deep and never a chain: it names a type that names a claim, so the
+    indirection a reader follows is one hop into ``src/main/java`` and stops there.
+
+    :param repo_root the repository root every path is relative to
+    :param source_root the tree to walk, relative to it
+    :param library_root the library's own root package, relative to the source root
+    :param vocabulary the closed vocabularies, read out of the annotation's own package when absent
+    """
+    vocabulary = vocabulary if vocabulary is not None else vocabularies(repo_root)
+    root = repo_root / source_root
+    root_directory = posixpath.normpath(f"{source_root}/{library_root}")
+    raw: list[Declaration] = []
+    result = Scan()
+    for target in sorted(root.rglob("*.java")):
+        path = target.relative_to(repo_root).as_posix()
+        found, reports = parse(path, target.read_text(encoding="utf-8"), vocabulary, root_directory)
+        raw.extend(found)
+        result.reports.extend(reports)
+
+    anchors: dict[str, Declaration] = {}
+    for declaration in raw:
+        if declaration.on != "type":
+            continue
+        name = declaration.path.rsplit("/", 1)[-1][: -len(".java")]
+        anchors.setdefault(name, declaration)
+
+    for declaration in raw:
+        if not declaration.joins:
+            result.declarations.append(declaration)
+            continue
+        anchor = anchors.get(declaration.joins)
+        if anchor is None:
+            raise DeclarationError(
+                declaration.path, declaration.line,
+                f"'as' names {declaration.joins}, which carries no declaration",
+                f"point at a type that declares a claim, or write claim = \"<slug>\" here")
+        if anchor.path == declaration.path:
+            raise DeclarationError(declaration.path, declaration.line,
+                                   "'as' names this file's own type",
+                                   'a declaration joins another type or writes claim = "<slug>"')
+        if anchor.joins:
+            raise DeclarationError(
+                declaration.path, declaration.line,
+                f"'as' names {declaration.joins}, which joins by 'as' itself",
+                "the indirection is one level - point at the type that names the claim")
+        result.declarations.append(
+            Declaration(path=declaration.path, line=declaration.line, on=declaration.on,
+                        claim=anchor.claim, joins=declaration.joins, mode=declaration.mode,
+                        scope=declaration.scope, subject=declaration.subject,
+                        written=declaration.written))
+
+    _refuse_two_declarations_of_one_claim(result)
+    return result
+
+
+def _refuse_two_declarations_of_one_claim(result: Scan) -> None:
+    """One claim may not reach one path twice - refuse, rather than merging, picking or last-winning."""
+    for claim, declarations in result.by_claim().items():
+        seen: dict[str, Declaration] = {}
+        for declaration in declarations:
+            first = seen.get(declaration.path)
+            if first is not None:
+                raise DeclarationError(
+                    declaration.path, declaration.line,
+                    f"'{claim}' is declared twice in this file",
+                    f"it is already declared at line {first.line} - one declaration per claim")
+            seen[declaration.path] = declaration
+        packages = [one for one in declarations if one.on == "package"]
+        for package in packages:
+            pattern = compile_glob(package.trigger_path)
+            for other in declarations:
+                if other is package or not pattern.match(other.path):
+                    continue
+                raise DeclarationError(
+                    other.path, other.line,
+                    f"'{claim}' is already declared by {package.path}",
+                    "a package declaration is carried by every file below it, so this line adds "
+                    "nothing to the union while reading as though it did - drop it")
+
+
+def derive(result: Scan) -> dict[str, list[str]]:
+    """The trigger paths each claim's declarations derive, sorted, keyed by slug."""
+    out: dict[str, list[str]] = {}
+    for claim, declarations in result.by_claim().items():
+        out[claim] = sorted({one.trigger_path for one in declarations})
+    return out
+
+
+def verify(result: Scan, claims: Sequence[Claim], files: Sequence[str]) -> None:
+    """Refuse every declaration the map contradicts or that subtracts from nothing.
+
+    Split from :func:`scan` because these three need the map and the tree beside the source, and
+    everything :func:`scan` refuses is answerable from one compilation unit or from the source root.
+    """
+    stored = {claim.key: claim for claim in claims if claim.key}
+    derived = derive(result)
+    for claim, declarations in result.by_claim().items():
+        row = stored.get(claim)
+        if row is None:
+            raise DeclarationError(
+                declarations[0].path, declarations[0].line,
+                f"no rule carries the claim '{claim}'",
+                "the file reads as though it said something and plans nothing - coin the row "
+                "first, or fix the slug")
+        narrowing = row.mode in ("demote", "suppress")
+        for declaration in declarations:
+            if narrowing and "mode" not in declaration.written:
+                raise DeclarationError(
+                    declaration.path, declaration.line,
+                    f"'{claim}' is a {row.mode} and this declaration does not say so",
+                    f"write mode = Mode.{row.mode.upper()} - whether a file takes something back "
+                    "is what a reader needs at the call site")
+            if narrowing and declaration.on == "package" and "scope" not in declaration.written:
+                raise DeclarationError(
+                    declaration.path, declaration.line,
+                    f"'{claim}' is a {row.mode} and its scope is left at the default",
+                    "a wider scope over-plans for a selection and under-plans for a subtraction - "
+                    "write the scope this subtraction is meant to reach")
+        if not narrowing:
+            continue
+        reached = {path for glob in derived[claim] for path in files if compile_glob(glob).match(path)}
+        elsewhere = any(
+            compile_glob(glob).match(path)
+            for other in claims if other.key != claim
+            for glob in other.trigger_paths
+            for path in reached)
+        if reached and not elsewhere:
+            raise DeclarationError(
+                declarations[0].path, declarations[0].line,
+                f"'{claim}' subtracts on paths no other claim reaches",
+                "a demotion removes what another claim selected on the same path, so this one "
+                "removes nothing while reading at the call site as though it did")
+
+
+def mode_disagreements(result: Scan, claims: Sequence[Claim]) -> list[str]:
+    """Carriers of one claim that wrote different modes, or a mode the stored row does not carry.
+
+    Read off what the source WROTE, before any default is materialised: the declarations that join
+    a claim decline to repeat its subject, so a comparison over materialised defaults would have
+    every joiner asserting the claim is about no renderer and refusing the claim it belongs to.
+    """
+    stored = {claim.key: claim.mode for claim in claims if claim.key}
+    out: list[str] = []
+    for claim, declarations in sorted(result.by_claim().items()):
+        row = stored.get(claim)
+        written = {one.mode for one in declarations if "mode" in one.written}
+        if len(written) > 1:
+            out.append(f"{claim}: carriers wrote " + ", ".join(sorted(written)))
+        for spelled in sorted(written):
+            if row is not None and STORED_MODE[spelled] != row:
+                out.append(f"{claim}: a carrier wrote {spelled} and the row carries {row}")
+    return out

@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -75,12 +76,18 @@ class UnknownReach(Exception):
             + " - add a rule (or a no_reach glob) rather than guessing the reach")
 
 
+@lru_cache(maxsize=None)
 def compile_glob(glob: str) -> re.Pattern[str]:
     """Translate one repo-relative glob to a regex.
 
     ``**`` spans path segments, ``*`` and ``?`` do not. The Java side compiles the identical grammar,
     because a map whose two readers disagree about what a glob matches is worse than no map: the test
     would pass on a rule the planner never fires.
+
+    Cached because it is pure and the callers are quadratic in the worst case - resolving a change
+    set walks every rule's globs for every path, and a scan of the source tree walks them again for
+    every file. The compiled pattern is immutable, so the cache hands out one object rather than a
+    copy.
     """
     out = ["^"]
     index = 0
