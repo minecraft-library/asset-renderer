@@ -101,8 +101,8 @@
       "entries": 208,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "promoted_at": "b37cf477f254e1268286498a16e1f9ec1fa6f01e",
-      "sha256": "a272d1627086c8bb490da2578c7094e867ad1098c08b8c2172f6440c58331295"
+      "promoted_at": "c61d7a7498bda19547b1ceed05b9f4bbe5d94288",
+      "sha256": "cdeb9343d43196593bd788a319305463bc85dab5b5e30687785fb91504bddba1"
     },
     "pin.block-crc": {
       "baselined": true,
@@ -241,10 +241,10 @@
       "entries": 8,
       "file": "sweeps/menu.json",
       "kind": "sweep-table",
-      "last_duration_ms": 12702,
-      "promoted_at": "39dd01b6c70a14e225653a809616f0543dddf202",
-      "sha256": "e9d1477c922dc1bf66b13befa8f067a421a5765520853e713b25b96f1389d1e3",
-      "sum": "4.2157"
+      "last_duration_ms": 13087,
+      "promoted_at": "c61d7a7498bda19547b1ceed05b9f4bbe5d94288",
+      "sha256": "051fe7f1f7a1a18eaaf54febf1762f8133e24086caa494609c6b11d2f7a12444",
+      "sum": "0.0407"
     },
     "sweep.player": {
       "baselined": true,

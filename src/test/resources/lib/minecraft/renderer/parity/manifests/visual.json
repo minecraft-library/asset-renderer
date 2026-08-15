@@ -744,7 +744,7 @@
     },
     {
       "path": "menu-render/crafting_table.png",
-      "sha256": "73d46e18f5342accd11617862732f3f5f0394aca348db421101e25bbaea0d15c"
+      "sha256": "cd3b9268b024723618ecb55000908c68add8099202a6218c3f632b7ce97f64bf"
     },
     {
       "path": "menu-render/dispenser.png",
@@ -752,7 +752,7 @@
     },
     {
       "path": "menu-render/glinted_crafting.webp",
-      "sha256": "4b7289a34afeb898628ca6430099e05d2596191d7aa4dfe7f1a6ef637bc786a0"
+      "sha256": "fd182f2c5c048898fac8e99cc0b315eb57ef6842278d44056817f1c207ff4131"
     },
     {
       "path": "menu-render/hopper.png",
@@ -841,17 +841,16 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "b37cf477f254e1268286498a16e1f9ec1fa6f01e",
+    "asset_sha": "c61d7a7498bda19547b1ceed05b9f4bbe5d94288",
     "counts": {
       "files": 208
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
-    "population_changed": true,
+    "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "the SkyBlock theme and its palette are gone, a server menu being a chest with a caller's own slot map and a filler rather than a shape of its own, so the subject that rendered the theme drops and the one that rendered the menu keeps its bytes under a name that says what it is. No stored value moved: the added row's digest equals the dropped one's",
+    "reason": "the crafting table draws its arrow and its recipe-book button from rules, so both re-ink with the panel. The arrow reproduces the shipped texture's own hundred and six pixels exactly and the button is a cell's bevel inverted with the knowledge book's item icon on its face, which is what the client's sprite is built from. The sweep row falls from 1536 differing pixels to 16, the remainder being four pixels vanilla's sprite carries in a colour no palette role holds",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -861,7 +860,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-15T13:15:00Z",
+    "timestamp": "2026-08-15T13:54:47Z",
     "tool_version": "1.0.0"
   }
 }
