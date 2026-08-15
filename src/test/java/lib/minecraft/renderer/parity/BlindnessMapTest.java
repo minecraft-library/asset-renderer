@@ -274,6 +274,41 @@ final class BlindnessMapTest {
     /** The file a package's declaration is written in, which is what a package glob stands for. */
     private static final String PACKAGE_DECLARATION = "package-info.java";
 
+    /** The source root a declaration can be written in, and the only one derivable. */
+    private static final String MAIN_SOURCES = "src/main/java";
+
+    /** The lead-in a claiming package's own paragraph opens with. */
+    private static final String PARITY_PARAGRAPH = "<p><b>Parity.</b>";
+
+    /** A subject a declaration names, in either the single-constant or the braced form. */
+    private static final Pattern DECLARED_SUBJECT =
+        Pattern.compile("subject\\s*=\\s*\\{?([^)}]*)}?");
+
+    /** One constant inside a subject list. */
+    private static final Pattern SUBJECT_CONSTANT = Pattern.compile("Subject\\.(\\w+)");
+
+    /**
+     * The stored artifact whose name identifies each renderer that has one.
+     *
+     * <p>Seven of the eleven. The atlas renderer's output is registered as no artifact by decision -
+     * it does not reproduce, so a digest over it would be a gate failing for its own reasons - and
+     * the grid, layout and text renderers have none at all. Those four appear nowhere among the
+     * store's ids, which is the fact the roster exists to carry: a subject is the only place in this
+     * repository a reader learns that the text renderer is in the parity picture and is ungated.
+     *
+     * <p>Written down rather than derived from the id grammar, because {@code sweep.armor} and
+     * {@code sweep.glint} are named for what is drawn rather than for who draws it, and a rule that
+     * split ids on a dot would hand each of them a renderer that does not exist.
+     */
+    private static final Map<String, String> IDENTIFYING_ARTIFACT = Map.of(
+        "BLOCK", "sweep.block",
+        "ENTITY", "sweep.entity",
+        "FLUID", "manifest.fluid",
+        "ITEM", "sweep.item",
+        "MENU", "sweep.menu",
+        "PLAYER", "sweep.player",
+        "PORTAL", "manifest.portal");
+
     /** The skill body, whose frontmatter is what decides when the gate is offered at all. */
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
 
@@ -764,8 +799,56 @@ final class BlindnessMapTest {
                     orphaned.add(rule.get("id").getAsString() + " -> " + glob.getAsString());
             }
         }
-        assertThat("git tracks nothing these trigger globs match - a rename orphaned the rule, so the "
-            + "gate it speaks for silently stopped being consulted", orphaned, is(empty()));
+        assertThat("git tracks nothing these trigger globs match, which is now two failures rather "
+            + "than one. Over an authored path it is what it always was: a rename orphaned the rule "
+            + "and the gate it speaks for silently stopped being consulted. Over a generated path it "
+            + "is a move nobody regenerated, so the map states a reach no declaration makes - which "
+            + "the scan above names more precisely, and this one catches whether or not the file it "
+            + "points at still exists", orphaned, is(empty()));
+    }
+
+    @Test
+    @DisplayName("no authored path under the scanned source root is an exact file")
+    void noAuthoredPathIsAnExactSourceFile() {
+        List<String> exact = new ArrayList<>();
+        for (JsonObject rule : rules())
+            for (JsonElement path : rule.getAsJsonArray("authored_paths")) {
+                String authored = path.getAsString();
+                if (authored.startsWith(MAIN_SOURCES + "/") && !authored.contains("*")
+                    && !authored.contains("?"))
+                    exact.add(rule.get("id").getAsString() + " -> " + authored);
+            }
+
+        assertThat("authored paths under the source root that name one file exactly. That is the "
+            + "one path shape a move leaves stale, and it is the shape this whole mechanism exists "
+            + "to retire: a file under this root can carry its own declaration, so an exact path "
+            + "authored beside it is a second handle on the same claim that nothing keeps honest. "
+            + "A glob here is different and stays allowed - it says something no single file can",
+            exact, is(empty()));
+    }
+
+    @Test
+    @DisplayName("every claiming package says in prose what it claims")
+    void everyClaimingPackageStatesItInProse() {
+        List<String> silent = trackedFiles().stream()
+            .filter(path -> path.startsWith(MAIN_SOURCES + "/") && path.endsWith(PACKAGE_DECLARATION))
+            .filter(path -> text(Path.of(path)).contains(DECLARATION))
+            .filter(path -> !text(Path.of(path)).contains(PARITY_PARAGRAPH))
+            .sorted()
+            .toList();
+        List<String> claiming = trackedFiles().stream()
+            .filter(path -> path.startsWith(MAIN_SOURCES + "/") && path.endsWith(PACKAGE_DECLARATION))
+            .filter(path -> text(Path.of(path)).contains(DECLARATION))
+            .toList();
+
+        assertThat("no package in the source root declares a claim, which would leave the check "
+            + "below true of nothing", claiming, is(not(empty())));
+        assertThat("packages that declare a claim and whose javadoc says nothing about it. A package "
+            + "declaration is carried by every file below it, so its whole meaning would otherwise "
+            + "sit in a file in another source tree and a reader standing in the package would have "
+            + "no way to know it was in one. Presence of the paragraph only and never agreement with "
+            + "the row: prose cannot be held to a measurement, and a check that pretended otherwise "
+            + "would make the guard a liar rather than the paragraph", silent, is(empty()));
     }
 
     @Test
@@ -1255,6 +1338,43 @@ final class BlindnessMapTest {
     }
 
     @Test
+    @DisplayName("a claim naming one renderer reaches that renderer's picture and no other's")
+    void everyRendererArtifactIsNamedByItsSubject() {
+        List<String> contradicted = new ArrayList<>();
+        List<String> absent = new ArrayList<>();
+        List<String> checked = new ArrayList<>();
+        for (JsonObject rule : rules()) {
+            String key = rule.has("claim_key") ? rule.get("claim_key").getAsString() : "";
+            Set<String> named = subjectsOf(rule);
+            if (key.isEmpty() || named.size() != 1) continue;
+            String subject = named.iterator().next();
+            Set<String> sees = strings(rule.getAsJsonArray("sees"));
+            checked.add(key + " -> " + subject);
+            IDENTIFYING_ARTIFACT.forEach((renderer, artifact) -> {
+                if (renderer.equals(subject)) {
+                    if (!sees.contains(artifact)) absent.add(key + " names " + subject
+                        + " and does not reach " + artifact);
+                } else if (sees.contains(artifact)) {
+                    contradicted.add(key + " names " + subject + " and reaches " + artifact);
+                }
+            });
+        }
+
+        assertThat("no claim names exactly one renderer, which would leave both clauses below true "
+            + "of nothing", checked, is(not(empty())));
+        assertThat("claims naming one renderer that reach a different renderer's own picture. "
+            + "Naming a single subject asserts that the files the claim reaches belong to that "
+            + "renderer and to no other, and this is the half of that assertion a guard can hold it "
+            + "to", contradicted, is(empty()));
+        assertThat("claims naming a renderer whose own picture they do not reach. The converse is "
+            + "deliberately NOT asserted: a claim reaching exactly one renderer's artifact is a fact "
+            + "about which sweeps happen to move rather than about ownership - three claims over "
+            + "shared pipeline code reach one sweep each and belong to no renderer at all - so "
+            + "requiring a subject there would put a false name on each of them", absent,
+            is(empty()));
+    }
+
+    @Test
     @DisplayName("the renderer roster and the parity subjects name each other exactly")
     void theSubjectRosterIsTheRendererRoster() {
         List<String> renderers = trackedFiles().stream()
@@ -1283,6 +1403,36 @@ final class BlindnessMapTest {
             + "upper-cased and stripped of the suffix, so a renderer whose name needs a word "
             + "boundary the constant has to spell fails here for somebody to decide rather than "
             + "resolving itself", subjects, equalTo(renderers));
+    }
+
+    /**
+     * The renderers a rule's own carriers name it as being about.
+     *
+     * <p>Read off the declarations rather than out of the map, because the subject lives only in
+     * source - and by token scan rather than by a parse, for the reason the derived-path scan is one:
+     * the toolkit owns the grammar and a second reader of it here would be a second thing to drift.
+     * A joining declaration writes no subject, so the union over a claim's carriers is what its
+     * anchor wrote.
+     *
+     * @param rule the rule
+     * @return the constants its carriers name, empty where none does
+     */
+    private static Set<String> subjectsOf(JsonObject rule) {
+        Set<String> out = new TreeSet<>();
+        Set<String> authored = strings(rule.getAsJsonArray("authored_paths"));
+        for (JsonElement glob : rule.getAsJsonArray("trigger_paths")) {
+            // The derived half alone. An authored entry is a glob in the map's own grammar and names
+            // no file to read; only a path some declaration produced has a carrier to look in.
+            if (authored.contains(glob.getAsString())) continue;
+            Path carrier = Path.of(carrierOf(glob.getAsString()));
+            if (!Files.isRegularFile(carrier)) continue;
+            Matcher declared = DECLARED_SUBJECT.matcher(text(carrier));
+            while (declared.find()) {
+                Matcher constant = SUBJECT_CONSTANT.matcher(declared.group(1));
+                while (constant.find()) out.add(constant.group(1));
+            }
+        }
+        return out;
     }
 
     /**
