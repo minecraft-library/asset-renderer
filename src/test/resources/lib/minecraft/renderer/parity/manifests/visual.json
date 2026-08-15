@@ -723,6 +723,14 @@
       "sha256": "b28d01e31e19f502a231225f334e102611f77157eefea82ccc746aefcdc7b336"
     },
     {
+      "path": "menu-render/anvil.png",
+      "sha256": "a548af42599f6dc0a377d12374e7d576316955e7369983804c8b2a56a56a0f8c"
+    },
+    {
+      "path": "menu-render/anvil_bare.png",
+      "sha256": "f9a476be576296864976408ccbe9f60fa466ca9af104f03dce1c0adeb9be0a05"
+    },
+    {
       "path": "menu-render/chest_19x13.png",
       "sha256": "451b2f69cac3d176604a4ca1e57a941f29dcf8308204317b1f0fc08aab2073f2"
     },
@@ -841,16 +849,17 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "c61d7a7498bda19547b1ceed05b9f4bbe5d94288",
+    "asset_sha": "f7aa87338a8bc20907a03f0db6cba69c7a22cbdc",
     "counts": {
-      "files": 208
+      "files": 210
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "moving",
+    "parity_class": "shaped",
+    "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "the crafting table draws its arrow and its recipe-book button from rules, so both re-ink with the panel. The arrow reproduces the shipped texture's own hundred and six pixels exactly and the button is a cell's bevel inverted with the knowledge book's item icon on its face, which is what the client's sprite is built from. The sweep row falls from 1536 differing pixels to 16, the remainder being four pixels vanilla's sprite carries in a colour no palette role holds",
+    "reason": "the anvil drawn with its four marks, its name field and both caret forms; two rows each, both byte-identical to the client, so the sum holds at 0.0407 and the whole of it is still the crafting table's four authored specks",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -860,7 +869,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-15T13:54:47Z",
+    "timestamp": "2026-08-15T15:31:36Z",
     "tool_version": "1.0.0"
   }
 }
