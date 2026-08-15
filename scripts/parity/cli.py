@@ -22,6 +22,7 @@ from parity import VERSION
 from parity import blindness as blindness_mod
 from parity import capture as capture_mod
 from parity import compare as compare_mod
+from parity import declarations as declarations_mod
 from parity import ids as ids_mod
 from parity import promote as promote_mod
 from parity import provenance as provenance_mod
@@ -194,6 +195,23 @@ def _cmd_ids(args: argparse.Namespace) -> int:
     formatted = ids_mod.format_as(sid, spelling)
     _emit(args, formatted, {"formatted": formatted, "spelling": spelling.value})
     return OK
+
+
+def _cmd_triggers(args: argparse.Namespace) -> int:
+    """Regenerate every rule's ``trigger_paths`` from its authored half and the source tree.
+
+    The one writer of a generated member of the map. ``--check`` answers what would move and writes
+    nothing, which is what the guard over this runs: a hand-edited generated array states a reach no
+    declaration declares, and the next run of this command would revert it in silence.
+    """
+    base = _bases(args)
+    moved = declarations_mod.regenerate(base, store_mod.resolve_store(args.store, base),
+                                        check=args.check)
+    verb = "would move" if args.check else "regenerated"
+    text = (f"triggers: {verb} {len(moved)} rule(s)"
+            + (" - " + ", ".join(moved) if moved else ""))
+    _emit(args, text, {"moved": moved, "checked": bool(args.check)})
+    return DIFFERENCES if moved and args.check else OK
 
 
 def _cmd_selftest(args: argparse.Namespace) -> int:
@@ -1179,6 +1197,12 @@ def _register(subparsers: Any) -> dict[str, Command]:
     format_parser.add_argument("--spelling", required=True,
                                choices=[spelling.value for spelling in ids_mod.Spelling])
     table["ids"] = _cmd_ids
+
+    triggers_parser = subparsers.add_parser(
+        "triggers", help="regenerate every rule's trigger_paths from the source tree")
+    triggers_parser.add_argument("--check", action="store_true",
+                                 help="answer what would move and write nothing")
+    table["triggers"] = _cmd_triggers
 
     selftest_parser = subparsers.add_parser("selftest", help="run the toolkit's own unittest suite")
     selftest_parser.add_argument("-k", dest="pattern", default=None, metavar="PATTERN")

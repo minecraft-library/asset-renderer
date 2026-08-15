@@ -35,7 +35,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from parity.blindness import compile_glob
+from parity.blindness import BLINDNESS_FILE, compile_glob
+from parity.norm import read_json, write_json
 
 #: The source root declarations are read from. Nothing outside it is scanned or derivable.
 SOURCE_ROOT = "src/main/java"
@@ -565,6 +566,43 @@ def verify(result: Scan, claims: Sequence[Claim], files: Sequence[str]) -> None:
                 f"'{claim}' subtracts on paths no other claim reaches",
                 "a demotion removes what another claim selected on the same path, so this one "
                 "removes nothing while reading at the call site as though it did")
+
+
+def regenerate(repo_root: Path, store_root: Path, check: bool = False) -> list[str]:
+    """Rewrite every rule's ``trigger_paths`` as the sorted union of its two halves.
+
+    The authored half is what no annotation in the main source set can reach - a ``.kts``, a
+    ``.py``, a path in the harness build, a test class whose own path is already store state. The
+    derived half is what the declarations carrying that rule's ``claim_key`` say. A rule with
+    neither derives nothing and comes back with its authored list sorted, which is the whole of what
+    "generated" means for it.
+
+    The union is a set and the output is sorted, because a generated array whose order is a property
+    of how somebody last edited it cannot be compared byte for byte - which is what the guard over
+    this function does. The authored order survives where it is authored.
+
+    :param repo_root the repository root the source tree is scanned from
+    :param store_root the store root holding the map
+    :param check answer what would move without writing
+    :returns: the ids whose ``trigger_paths`` moved, in the order the rules sit in the file
+    """
+    target = store_root / BLINDNESS_FILE
+    payload = read_json(target)
+    derived = derive(scan(repo_root))
+    moved: list[str] = []
+    for row in payload.get("rules", []):
+        authored = row.get("authored_paths")
+        if authored is None:
+            raise DeclarationError(
+                target.as_posix(), 1, f"rule {row.get('id')} carries no authored_paths",
+                "every rule declares the half no declaration can derive, empty where there is none")
+        union = sorted(set(authored) | set(derived.get(row.get("claim_key", ""), ())))
+        if union != row.get("trigger_paths"):
+            moved.append(row["id"])
+            row["trigger_paths"] = union
+    if moved and not check:
+        write_json(target, payload)
+    return moved
 
 
 def mode_disagreements(result: Scan, claims: Sequence[Claim]) -> list[str]:

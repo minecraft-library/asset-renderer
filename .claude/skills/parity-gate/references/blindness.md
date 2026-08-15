@@ -62,7 +62,7 @@ capture, which does not affect the strips it writes.
 ## B2 - CIT and CTM rules are dark in both parityDump configurations, and the rule package's other parsers are not
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/**`, `src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/Ctm*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/Cit*.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/**`, `src/main/java/lib/minecraft/renderer/pipeline/**/Cit*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/Ctm*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java`
 - **sees** `digest.shipped-tables`, `manifest.dump.packs`
 - **blind** `manifest.dump.vanilla`
 - **source** measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; CLAUDE.md 'The pack filter'
@@ -110,7 +110,7 @@ BlockIndexBuilder, ItemIndexBuilder and EntityIndexBuilder run between the loade
 ## B6 - The dump sees data rather than behaviour, so a resolution-logic change is not pinned by index identity
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java`, `src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java`, `src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java`
 - **sees** `sweep.block`, `sweep.item`, `sweep.entity`, `manifest.dump.vanilla`, `manifest.dump.packs`
 - **blind** -
 - **source** measured by perturbing ItemIndexBuilder.java: 3 of 5 declared sees moved
@@ -146,7 +146,7 @@ TestPlayerParityVanilla is a main that alpha-crops AND rescales both sides to a 
 ## B9 - No artifact renders BUST, the cape, or any 2D player path, and the 3D player geometry under these paths reaches every player artifact including the sweep
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/PlayerRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/option/*Player*.java`, `src/main/java/lib/minecraft/renderer/face/HumanoidPart.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/PlayerRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/face/HumanoidPart.java`, `src/main/java/lib/minecraft/renderer/option/*Player*.java`
 - **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`, `sweep.player`
 - **blind** -
 - **source** measured by perturbing HumanoidPart.java: 4 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
@@ -242,7 +242,7 @@ Dumping the registry would be a second copy of a production rule, and a dump tha
 ## B18 - CatharsisConfig is not itself dumped, and a Catharsis condition still reaches the packs dump through what it selects
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java`, `src/main/java/lib/minecraft/renderer/asset/pack/cats/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/cats/**`, `src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java`
 - **sees** `sweep.block`, `sweep.item`, `manifest.dump.packs`
 - **blind** `manifest.dump.vanilla`
 - **source** measured by perturbing CatharsisCondition.java: 1 of 3 declared sees moved, and 1 declared blind held
@@ -254,7 +254,7 @@ The fabric:overlays plus catharsis:pack half of pack resolution has no dump sect
 ## B19 - parityDump is blind to everything downstream of the load, so an engine or renderer change is demoted regardless of the dump verdict
 
 - **mode** demote
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/**`, `src/main/java/lib/minecraft/renderer/*Renderer.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/*Renderer.java`, `src/main/java/lib/minecraft/renderer/engine/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `manifest.fluid`, `manifest.portal`, `manifest.player-sheets`, `manifest.player-raw`, `manifest.visual`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing ModelEngine.java: 12 of 14 declared sees moved, and 2 declared blind held
@@ -374,7 +374,7 @@ These are message and constructor shapes on throwables. Nothing renders differen
 ## B29 - A harness render change rewrites the ground truth every sweep diffs against
 
 - **mode** select
-- **triggers** `harness/src/**`, `harness/build.gradle.kts`, `harness/settings.gradle.kts`, `harness/gradle.properties`, `harness/gradle/**`, `harness/gradlew`, `harness/gradlew.bat`, `harness/run-profile/**`
+- **triggers** `harness/build.gradle.kts`, `harness/gradle.properties`, `harness/gradle/**`, `harness/gradlew`, `harness/gradlew.bat`, `harness/run-profile/**`, `harness/settings.gradle.kts`, `harness/src/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.menu`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.references`, `manifest.player-raw`
 - **blind** -
 - **source** measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'
@@ -398,7 +398,7 @@ The toolkit reads a producer's output and writes the canonical form; it renders 
 ## B31 - The build wiring decides what runs, and renders nothing itself
 
 - **mode** select
-- **triggers** `settings.gradle.kts`, `gradle/**`, `gradle.properties`, `gradlew`, `gradlew.bat`, `src/jmh/**`
+- **triggers** `gradle.properties`, `gradle/**`, `gradlew`, `gradlew.bat`, `settings.gradle.kts`, `src/jmh/**`
 - **sees** -
 - **blind** -
 - **source** measured by perturbing a task registration in build.gradle.kts: 0 of 0 declared sees moved. A version pin in that same file is a different kind of edit and does move rows, which is B47's measurement and why the file is no longer on this list
@@ -482,7 +482,7 @@ B33's claim - that the test tree asserts rather than emits - is false for these 
 ## B38 - Each of these tests declares a self-captured artifact and computes the value stored under it, so its own edit is what moves that value
 
 - **mode** select
-- **triggers** `src/test/java/lib/minecraft/renderer/BlockRendererRasterPinTest.java`, `src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java`, `src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/util/BundledResourceShaTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/ClientAcquisitionIntegrationTest.java`
+- **triggers** `src/test/java/lib/minecraft/renderer/BlockRendererRasterPinTest.java`, `src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java`, `src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/ClientAcquisitionIntegrationTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/util/BundledResourceShaTest.java`
 - **sees** `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
 - **blind** -
 - **source** measured by perturbing FluidRendererFrameBakePinTest.java: 1 of 9 declared sees moved; the ARTIFACT declarations B37's two globs do not contain
@@ -554,7 +554,7 @@ The generators are a separate Gradle build, so its build script is what puts ASM
 ## B44 - The tooling wrapper selects a Gradle version and emits nothing
 
 - **mode** select
-- **triggers** `tooling/gradlew`, `tooling/gradlew.bat`, `tooling/gradle/**`
+- **triggers** `tooling/gradle/**`, `tooling/gradlew`, `tooling/gradlew.bat`
 - **sees** -
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead

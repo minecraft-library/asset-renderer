@@ -6,11 +6,13 @@ from quietly becoming a wrong answer at some later edit. The fixtures are real J
 open; nothing compiles them, because they live under ``scripts/``.
 """
 
+import tempfile
 import unittest
 from pathlib import Path
 
-from parity import declarations
+from parity import blindness, declarations
 from parity.declarations import Claim, DeclarationError
+from parity.norm import write_json
 
 FIXTURES = Path(__file__).resolve().parent / "data" / "declarations"
 REPO = Path(__file__).resolve().parents[3]
@@ -282,6 +284,55 @@ class TheShippedTree(unittest.TestCase):
 
     def test_nothing_in_the_tree_is_a_mention_the_reader_declines(self):
         self.assertEqual(declarations.scan(REPO).reports, [])
+
+
+class TheShippedMap(unittest.TestCase):
+    """The two halves of every trigger list, against the tree and against the rows."""
+
+    STORE = REPO / "src/test/resources/lib/minecraft/renderer/parity"
+
+    def rules(self):
+        return blindness.load(self.STORE)[0]
+
+    def test_the_generated_triggers_reproduce_from_the_tree(self):
+        """A hand-edited generated array states a reach no declaration declares, and the next run
+        of the generator reverts it in silence."""
+        self.assertEqual(declarations.regenerate(REPO, self.STORE, check=True), [])
+
+    def test_every_declaration_of_a_claim_agrees_on_its_mode(self):
+        """Two carriers of one claim writing different modes, or one writing a mode the row does
+        not carry, leaves a reader at the call site reading a mode the claim no longer has."""
+        self.assertEqual(
+            declarations.mode_disagreements(declarations.scan(REPO),
+                                            declarations.claims_of(self.rules())),
+            [])
+
+    def test_every_rule_declares_the_half_no_declaration_can_derive(self):
+        """The generator refuses a rule without one rather than reading an absent list as empty,
+        which would silently generate away every path that rule authored."""
+        self.assertTrue(all(isinstance(rule.authored_paths, tuple) for rule in self.rules()))
+        self.assertTrue(any(rule.authored_paths for rule in self.rules()))
+
+    def test_a_rule_missing_its_authored_half_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = Path(directory)
+            write_json(store / "blindness.json",
+                       {"artifact": "roster.blindness-rules", "format": 1, "key": "id",
+                        "kind": "blindness-roster", "no_reach": [],
+                        "rules": [{"id": "B1", "claim": "c", "mode": "select", "probe": "p",
+                                   "reason": "r", "sees": [], "blind": [], "source": "s",
+                                   "trigger_paths": ["a/**"]}]})
+            with self.assertRaises(DeclarationError) as raised:
+                declarations.regenerate(REPO, store, check=True)
+        self.assertIn("carries no authored_paths", raised.exception.shape)
+
+    def test_every_trigger_list_is_the_sorted_union_of_its_two_halves(self):
+        derived = declarations.derive(declarations.scan(REPO))
+        for rule in self.rules():
+            self.assertEqual(
+                list(rule.trigger_paths),
+                sorted(set(rule.authored_paths) | set(derived.get(rule.claim_key, ()))),
+                rule.id)
 
 
 if __name__ == "__main__":

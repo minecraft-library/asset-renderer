@@ -119,7 +119,13 @@ def matches(path: str, globs: Iterable[str]) -> bool:
 
 @dataclass(frozen=True)
 class Rule:
-    """One row of the map."""
+    """One row of the map.
+
+    ``trigger_paths`` is where the claim applies and is the operand of every reader here and in
+    Java. It is generated: the sorted union of ``authored_paths``, the half no annotation can reach,
+    with every path the declarations carrying this row's ``claim_key`` derive from the source tree.
+    A rule with no ``claim_key`` derives nothing, so its two lists are one list.
+    """
 
     id: str
     claim: str
@@ -130,6 +136,8 @@ class Rule:
     mode: str
     probe: str
     source: str
+    claim_key: str = ""
+    authored_paths: tuple[str, ...] = ()
 
 
 @dataclass
@@ -187,6 +195,8 @@ def load(store_root: Path) -> tuple[list[Rule], tuple[str, ...]]:
             mode=row.get("mode", "select"),
             probe=row.get("probe", ""),
             source=row.get("source", ""),
+            claim_key=row.get("claim_key", ""),
+            authored_paths=tuple(row.get("authored_paths", ())),
         )
         for row in payload.get("rules", [])
     ]

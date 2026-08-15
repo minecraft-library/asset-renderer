@@ -91,6 +91,7 @@ renamed or retired without the row moving with it.
 | `capture-normalize` | read a producer's raw output into the working root as canonical JSON |
 | `capture-index` | write _run/_capture.json then COMPLETE last |
 | `plan` | resolve which artifacts can SEE the working tree's change |
+| `triggers` | regenerate every rule's trigger_paths from the source tree; `--check` writes nothing |
 | `expect` | register the movers a phase intends |
 | `provenance` | gather a run-provenance record |
 | `promote-plan` | read-only: what promoting would change |

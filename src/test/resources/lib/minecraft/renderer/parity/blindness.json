@@ -1,5 +1,5 @@
 {
-  "//": "parity.roster.blindness-rules · regen: hand-authored; render the human view with ./gradlew test --tests \"*ParityReferencesTest\" -Dasset.parity.regenerateViews=true --rerun",
+  "//": "parity.roster.blindness-rules · regen: trigger_paths from python scripts/parity triggers, everything else hand-authored; render the human view with ./gradlew test --tests \"*ParityReferencesTest\" -Dasset.parity.regenerateViews=true --rerun",
   "artifact": "roster.blindness-rules",
   "format": 1,
   "key": "id",
@@ -43,6 +43,12 @@
   ],
   "rules": [
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/asset/pack/rule/**",
+        "src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/**/Ctm*.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/**/Cit*.java"
+      ],
       "blind": [
         "manifest.dump.vanilla"
       ],
@@ -58,12 +64,16 @@
       "source": "measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; CLAUDE.md 'The pack filter'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/pack/rule/**",
-        "src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/**/Cit*.java",
         "src/main/java/lib/minecraft/renderer/pipeline/**/Ctm*.java",
-        "src/main/java/lib/minecraft/renderer/pipeline/**/Cit*.java"
+        "src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java"
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/**/BlockState*.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/**/Multipart*.java"
+      ],
       "blind": [],
       "claim": "The multipart when-OR branch is never exercised, because no shipped block produces one",
       "id": "B3",
@@ -81,6 +91,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/**"
+      ],
       "blind": [],
       "claim": "A vanilla-only dump leaves the pack-rule code dark, so the packs configuration is not optional - but a loader in this package is not pack-rule code and reaches both dumps",
       "id": "B4",
@@ -100,6 +113,10 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/index/**",
+        "src/main/java/lib/minecraft/renderer/pipeline/loader/**"
+      ],
       "blind": [],
       "claim": "A Pipeline.Result-level dump would clear a broken index loader, so the dump's altitude must be the renderer context",
       "id": "B5",
@@ -121,6 +138,10 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java",
+        "src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java"
+      ],
       "blind": [],
       "claim": "The dump sees data rather than behaviour, so a resolution-logic change is not pinned by index identity",
       "id": "B6",
@@ -136,11 +157,14 @@
       ],
       "source": "measured by perturbing ItemIndexBuilder.java: 3 of 5 declared sees moved",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java",
-        "src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java"
+        "src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java"
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/BlockStateLoader.java"
+      ],
       "blind": [],
       "claim": "Intermediates are deliberately not dumped, so a LoadResult-shaped rework is dump-invisible whenever its outputs match",
       "id": "B7",
@@ -158,6 +182,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/test/java/lib/minecraft/renderer/visual/TestPlayerParityVanilla.java"
+      ],
       "blind": [],
       "claim": "sweep.player asserts nothing, so it can never fail - which is not the same as its rows not moving",
       "id": "B8",
@@ -176,6 +203,12 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/PlayerRenderer.java",
+        "src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java",
+        "src/main/java/lib/minecraft/renderer/option/*Player*.java",
+        "src/main/java/lib/minecraft/renderer/face/HumanoidPart.java"
+      ],
       "blind": [],
       "claim": "No artifact renders BUST, the cape, or any 2D player path, and the 3D player geometry under these paths reaches every player artifact including the sweep",
       "id": "B9",
@@ -192,11 +225,14 @@
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/PlayerRenderer.java",
         "src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java",
-        "src/main/java/lib/minecraft/renderer/option/*Player*.java",
-        "src/main/java/lib/minecraft/renderer/face/HumanoidPart.java"
+        "src/main/java/lib/minecraft/renderer/face/HumanoidPart.java",
+        "src/main/java/lib/minecraft/renderer/option/*Player*.java"
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java"
+      ],
       "blind": [
         "sweep.block",
         "sweep.item"
@@ -220,6 +256,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/test/java/lib/minecraft/renderer/visual/TestPlayerRender.java"
+      ],
       "blind": [],
       "claim": "A short -Psheets= list is a hole rather than a sample",
       "id": "B12",
@@ -235,6 +274,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "tooling/src/main/java/**"
+      ],
       "blind": [
         "sweep.entity",
         "sweep.block",
@@ -265,6 +307,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "tooling/src/main/java/**"
+      ],
       "blind": [],
       "claim": "A byte-identical emitted table is not the same claim as an unchanged run",
       "id": "B14",
@@ -281,6 +326,11 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/AtlasRenderer.java",
+        "src/main/java/lib/minecraft/renderer/option/Atlas*.java",
+        "src/test/java/lib/minecraft/renderer/example/**"
+      ],
       "blind": [],
       "claim": "atlas.png can never be a byte gate",
       "id": "B15",
@@ -296,6 +346,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/PackAcquisition.java"
+      ],
       "blind": [],
       "claim": "The probes.json resolveIn sample is itself guarded against a salt-randomized findFirst",
       "id": "B16",
@@ -312,6 +365,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer*.java"
+      ],
       "blind": [],
       "claim": "synthesis.json dumps the SOURCES rather than the synthesizer's registry",
       "id": "B17",
@@ -329,6 +385,10 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java",
+        "src/main/java/lib/minecraft/renderer/asset/pack/cats/**"
+      ],
       "blind": [
         "manifest.dump.vanilla"
       ],
@@ -344,11 +404,15 @@
       ],
       "source": "measured by perturbing CatharsisCondition.java: 1 of 3 declared sees moved, and 1 declared blind held",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java",
-        "src/main/java/lib/minecraft/renderer/asset/pack/cats/**"
+        "src/main/java/lib/minecraft/renderer/asset/pack/cats/**",
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java"
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/**",
+        "src/main/java/lib/minecraft/renderer/*Renderer.java"
+      ],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs"
@@ -376,11 +440,14 @@
       ],
       "source": "measured by perturbing ModelEngine.java: 12 of 14 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/**",
-        "src/main/java/lib/minecraft/renderer/*Renderer.java"
+        "src/main/java/lib/minecraft/renderer/*Renderer.java",
+        "src/main/java/lib/minecraft/renderer/engine/**"
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/**"
+      ],
       "blind": [],
       "claim": "The dump serialises what a pipeline read layer loaded, so every read layer reaches it",
       "id": "B20",
@@ -397,6 +464,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java"
+      ],
       "blind": [
         "sweep.item"
       ],
@@ -415,6 +485,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java"
+      ],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs"
@@ -434,6 +507,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/kit/TrimKit.java"
+      ],
       "blind": [
         "sweep.entity",
         "sweep.block",
@@ -458,6 +534,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/option/**"
+      ],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs"
@@ -489,6 +568,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/asset/**"
+      ],
       "blind": [],
       "claim": "The asset DTO layer is what every renderer reads and what the dump serialises, so it reaches both",
       "id": "B25",
@@ -513,6 +595,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/tensor/**"
+      ],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs"
@@ -545,6 +630,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/face/**"
+      ],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs"
@@ -576,6 +664,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/exception/**"
+      ],
       "blind": [
         "sweep.entity",
         "sweep.block",
@@ -597,6 +688,16 @@
       ]
     },
     {
+      "authored_paths": [
+        "harness/src/**",
+        "harness/build.gradle.kts",
+        "harness/settings.gradle.kts",
+        "harness/gradle.properties",
+        "harness/gradle/**",
+        "harness/gradlew",
+        "harness/gradlew.bat",
+        "harness/run-profile/**"
+      ],
       "blind": [],
       "claim": "A harness render change rewrites the ground truth every sweep diffs against",
       "id": "B29",
@@ -616,17 +717,20 @@
       ],
       "source": "measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'",
       "trigger_paths": [
-        "harness/src/**",
         "harness/build.gradle.kts",
-        "harness/settings.gradle.kts",
         "harness/gradle.properties",
         "harness/gradle/**",
         "harness/gradlew",
         "harness/gradlew.bat",
-        "harness/run-profile/**"
+        "harness/run-profile/**",
+        "harness/settings.gradle.kts",
+        "harness/src/**"
       ]
     },
     {
+      "authored_paths": [
+        "scripts/parity/**"
+      ],
       "blind": [],
       "claim": "A toolkit change alters how every artifact is COMPUTED and how none of them is produced",
       "id": "B30",
@@ -640,6 +744,14 @@
       ]
     },
     {
+      "authored_paths": [
+        "settings.gradle.kts",
+        "gradle/**",
+        "gradle.properties",
+        "gradlew",
+        "gradlew.bat",
+        "src/jmh/**"
+      ],
       "blind": [],
       "claim": "The build wiring decides what runs, and renders nothing itself",
       "id": "B31",
@@ -649,15 +761,25 @@
       "sees": [],
       "source": "measured by perturbing a task registration in build.gradle.kts: 0 of 0 declared sees moved. A version pin in that same file is a different kind of edit and does move rows, which is B47's measurement and why the file is no longer on this list",
       "trigger_paths": [
-        "settings.gradle.kts",
-        "gradle/**",
         "gradle.properties",
+        "gradle/**",
         "gradlew",
         "gradlew.bat",
+        "settings.gradle.kts",
         "src/jmh/**"
       ]
     },
     {
+      "authored_paths": [
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java",
+        "src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepReport.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java",
+        "src/test/java/lib/minecraft/renderer/visual/**"
+      ],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs"
@@ -694,6 +816,10 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/test/java/**",
+        "src/test/resources/**"
+      ],
       "blind": [],
       "claim": "The rest of the test suite asserts rather than emits, so no stored artifact sees it",
       "id": "B33",
@@ -708,6 +834,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/test/resources/lib/minecraft/renderer/parity/**"
+      ],
       "blind": [],
       "claim": "The parity store's own files are the baseline a comparison reads, never something a run produces",
       "id": "B34",
@@ -721,6 +850,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/resources/lib/minecraft/renderer/*.json"
+      ],
       "blind": [],
       "claim": "The ten shipped tables are pipeline INPUT, so a change to one reaches every render that loads it",
       "id": "B35",
@@ -746,6 +878,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/resources/META-INF/services/**"
+      ],
       "blind": [],
       "claim": "The GsonContributor service registration configures every pipeline decode, so nothing that loads is blind to it",
       "id": "B36",
@@ -769,6 +904,10 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/test/java/lib/minecraft/renderer/parity/**",
+        "src/test/java/lib/minecraft/renderer/pipeline/dump/**"
+      ],
       "blind": [],
       "claim": "The dump sections and every self-captured file are written by these two packages, so a change to one rewrites the FORM of everything below it",
       "id": "B37",
@@ -795,6 +934,16 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/test/java/lib/minecraft/renderer/BlockRendererRasterPinTest.java",
+        "src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java",
+        "src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java",
+        "src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java",
+        "src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java",
+        "src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java",
+        "src/test/java/lib/minecraft/renderer/pipeline/util/BundledResourceShaTest.java",
+        "src/test/java/lib/minecraft/renderer/pipeline/ClientAcquisitionIntegrationTest.java"
+      ],
       "blind": [],
       "claim": "Each of these tests declares a self-captured artifact and computes the value stored under it, so its own edit is what moves that value",
       "id": "B38",
@@ -816,15 +965,30 @@
       "trigger_paths": [
         "src/test/java/lib/minecraft/renderer/BlockRendererRasterPinTest.java",
         "src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java",
-        "src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java",
         "src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java",
+        "src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java",
         "src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java",
+        "src/test/java/lib/minecraft/renderer/pipeline/ClientAcquisitionIntegrationTest.java",
         "src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java",
-        "src/test/java/lib/minecraft/renderer/pipeline/util/BundledResourceShaTest.java",
-        "src/test/java/lib/minecraft/renderer/pipeline/ClientAcquisitionIntegrationTest.java"
+        "src/test/java/lib/minecraft/renderer/pipeline/util/BundledResourceShaTest.java"
       ]
     },
     {
+      "authored_paths": [
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java",
+        "src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/ParityIndexTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java",
+        "src/test/java/lib/minecraft/renderer/parity/ParityReferences.java",
+        "src/test/java/lib/minecraft/renderer/parity/ParityReferencesTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/ParityViews.java",
+        "src/test/java/lib/minecraft/renderer/parity/ParityViewsTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepReport.java",
+        "src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java"
+      ],
       "blind": [
         "manifest.dump.vanilla",
         "manifest.dump.packs",
@@ -862,6 +1026,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/package-info.java"
+      ],
       "blind": [],
       "claim": "The root package's documentation declares nothing, so it is read by a reader and by no producer",
       "id": "B40",
@@ -875,6 +1042,10 @@
       ]
     },
     {
+      "authored_paths": [
+        "gradle/visual.gradle.kts",
+        "scripts/parity/manifest.py"
+      ],
       "blind": [],
       "claim": "The two manifests a member list separates are DECLARED in these two files, so editing either adds or drops rows with no producer having run",
       "id": "B41",
@@ -892,6 +1063,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "tooling/src/test/java/**"
+      ],
       "blind": [],
       "claim": "The tooling source set's own tests assert over hand-built bytecode and emit nothing",
       "id": "B42",
@@ -905,6 +1079,10 @@
       ]
     },
     {
+      "authored_paths": [
+        "tooling/build.gradle.kts",
+        "tooling/settings.gradle.kts"
+      ],
       "blind": [],
       "claim": "The tooling build's own script decides what the flows emit and where",
       "id": "B43",
@@ -922,6 +1100,11 @@
       ]
     },
     {
+      "authored_paths": [
+        "tooling/gradlew",
+        "tooling/gradlew.bat",
+        "tooling/gradle/**"
+      ],
       "blind": [],
       "claim": "The tooling wrapper selects a Gradle version and emits nothing",
       "id": "B44",
@@ -931,12 +1114,15 @@
       "sees": [],
       "source": "declares no store artifact, so its reason names the gate that answers instead",
       "trigger_paths": [
+        "tooling/gradle/**",
         "tooling/gradlew",
-        "tooling/gradlew.bat",
-        "tooling/gradle/**"
+        "tooling/gradlew.bat"
       ]
     },
     {
+      "authored_paths": [
+        "client/src/main/java/**"
+      ],
       "blind": [],
       "claim": "Client acquisition decides which bytes both the renderer and the generators read at all",
       "id": "B45",
@@ -955,6 +1141,10 @@
       ]
     },
     {
+      "authored_paths": [
+        "client/build.gradle.kts",
+        "client/settings.gradle.kts"
+      ],
       "blind": [],
       "claim": "The client build's script wires a leaf and emits nothing",
       "id": "B46",
@@ -969,6 +1159,10 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
+        "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
+      ],
       "blind": [
         "sweep.block",
         "sweep.item"
@@ -986,6 +1180,10 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
+        "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
+      ],
       "blind": [],
       "claim": "The block and item immunity is to DEPTH only and does not generalise",
       "id": "B11b",
@@ -1007,6 +1205,10 @@
       ]
     },
     {
+      "authored_paths": [
+        "build.gradle.kts",
+        "gradle/libs.versions.toml"
+      ],
       "blind": [
         "digest.shipped-tables",
         "manifest.references",
@@ -1045,6 +1247,19 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/MenuRenderer.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/ChromeDecomposition.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/ChromeSlicer.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/Decoration.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/MenuLayout.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/MenuScreen.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/Stencil.java",
+        "src/main/java/lib/minecraft/renderer/engine/compose/Window.java",
+        "src/main/java/lib/minecraft/renderer/option/MenuOptions.java",
+        "src/main/java/lib/minecraft/renderer/option/slot/MenuSlot.java",
+        "src/test/java/lib/minecraft/renderer/visual/MenuRenderDriver.java"
+      ],
       "blind": [
         "manifest.fluid",
         "manifest.player-raw",
@@ -1086,6 +1301,9 @@
       ]
     },
     {
+      "authored_paths": [
+        "src/main/java/lib/minecraft/renderer/parity/**"
+      ],
       "blind": [],
       "claim": "The parity vocabulary states where a claim applies and renders nothing",
       "id": "B49",
