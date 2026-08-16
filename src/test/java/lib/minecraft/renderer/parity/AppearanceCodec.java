@@ -136,7 +136,7 @@ public final class AppearanceCodec {
         if (resolved.isEmpty()) return malformed(fileName, "head '" + parts.getFirst() + "' resolves to no model");
         Head head = resolved.get();
 
-        EntityAppearance.EntityAppearanceBuilder appearance = EntityAppearance.builder();
+        EntityAppearance.Builder appearance = EntityAppearance.builder();
         head.variant().ifPresent(v -> appearance.variant(Optional.of(v)));
         Set<String> toggles = new TreeSet<>();
         Map<String, String> equipment = new TreeMap<>();

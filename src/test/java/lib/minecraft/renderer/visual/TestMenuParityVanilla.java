@@ -107,7 +107,7 @@ public final class TestMenuParityVanilla {
      * count it carries itself and ignores the argument.
      */
     private static @NotNull Subject subject(@NotNull String name, @NotNull MenuOptions.Type type, int rows) {
-        MenuOptions.MenuOptionsBuilder options = MenuOptions.builder()
+        MenuOptions.Builder options = MenuOptions.builder()
             .type(type)
             .playerInventory(true)
             .title(name);

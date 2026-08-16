@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option.spec;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -11,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
  * second skin layer by {@code renderOverlay}.
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class SkinOptions {
 
     /**
@@ -45,16 +44,6 @@ public class SkinOptions {
      * Whether to render the second skin layer (hat, jacket, sleeves, trousers).
      */
     private final boolean renderOverlay = true;
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull SkinOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with empty skin / cape sources, the cape hidden and the overlay layer on.

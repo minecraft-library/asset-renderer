@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.asset.Block;
@@ -44,7 +43,7 @@ import java.util.function.UnaryOperator;
  * @see lib.minecraft.renderer.BlockRenderer
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class BlockOptions implements RenderOptions {
 
     /**
@@ -120,16 +119,6 @@ public class BlockOptions implements RenderOptions {
      * consulted by the 3D isometric path.
      */
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull BlockOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with every field at its default value.

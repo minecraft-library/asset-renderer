@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import org.jetbrains.annotations.NotNull;
 
@@ -23,7 +22,7 @@ import java.util.Set;
  * {@code state} falls back to the default texture).
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class EntityAppearance {
 
     /** The {@link #getState() state} token a tamed subject selects - the wolf's tame coat. */
@@ -277,16 +276,6 @@ public class EntityAppearance {
      */
     public static @NotNull EntityAppearance defaults() {
         return builder().build();
-    }
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a few
-     * axes changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull EntityAppearanceBuilder mutate() {
-        return this.toBuilder();
     }
 
 }

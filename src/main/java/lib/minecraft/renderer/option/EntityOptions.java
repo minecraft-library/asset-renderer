@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -37,7 +36,7 @@ import java.util.function.UnaryOperator;
  * opted into.
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class EntityOptions implements RenderOptions {
 
     /**
@@ -144,16 +143,6 @@ public class EntityOptions implements RenderOptions {
      * and is always emitted first. Defaults to {@linkplain UnaryOperator#identity() identity}.
      */
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull EntityOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with every field at its default value.

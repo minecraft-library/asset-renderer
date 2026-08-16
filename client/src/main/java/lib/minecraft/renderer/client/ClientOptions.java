@@ -2,7 +2,6 @@ package lib.minecraft.renderer.client;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import org.jetbrains.annotations.NotNull;
@@ -16,7 +15,7 @@ import java.nio.file.Path;
  * existing cached client jar.
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class ClientOptions {
 
     /**
@@ -40,16 +39,6 @@ public class ClientOptions {
      * When true, re-download the client jar even if a cached copy exists.
      */
     private final boolean forceDownload = false;
-
-    /**
-     * Opens a pre-populated builder seeded with this instance's field values for deriving a
-     * variant configuration.
-     *
-     * @return a builder copy of these options
-     */
-    public @NotNull ClientOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an options instance with every field at its default (version {@code 26.1}, cache

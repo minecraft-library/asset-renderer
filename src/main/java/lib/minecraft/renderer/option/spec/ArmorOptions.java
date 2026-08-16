@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option.spec;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import org.jetbrains.annotations.NotNull;
 
@@ -18,7 +17,7 @@ import java.util.Optional;
  * Every slot defaults to {@link Optional#empty()}, so the default is an unarmored subject.
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class ArmorOptions {
 
     /**
@@ -92,16 +91,6 @@ public class ArmorOptions {
      */
     public boolean hasEnchanted() {
         return equipped().values().stream().anyMatch(ArmorPiece::enchanted);
-    }
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull ArmorOptionsBuilder mutate() {
-        return this.toBuilder();
     }
 
     /**

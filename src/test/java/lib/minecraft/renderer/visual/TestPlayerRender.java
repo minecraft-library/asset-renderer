@@ -359,7 +359,7 @@ public final class TestPlayerRender {
     }
 
     /** Builder seeded with the account's live skin URL (or the default skin when the account has none). */
-    private static PlayerOptions.@NotNull PlayerOptionsBuilder accountBase(int size, @NotNull Optional<String> skinUrl) {
+    private static PlayerOptions.@NotNull Builder accountBase(int size, @NotNull Optional<String> skinUrl) {
         return PlayerOptions.builder().output(sweepRender(size)).skin(accountSkinBase(skinUrl).build());
     }
 
@@ -367,7 +367,7 @@ public final class TestPlayerRender {
      * A {@link SkinOptions} builder seeded with the account's live skin URL, or the default skin id
      * when the account has none.
      */
-    private static SkinOptions.SkinOptionsBuilder accountSkinBase(@NotNull Optional<String> skinUrl) {
+    private static SkinOptions.Builder accountSkinBase(@NotNull Optional<String> skinUrl) {
         TextureOptions skin = skinUrl.isPresent()
             ? TextureOptions.builder().url(skinUrl).build()
             : TextureOptions.builder().id(Optional.of(SKIN_ID)).build();
@@ -515,14 +515,14 @@ public final class TestPlayerRender {
     // Helpers.
     // ---------------------------------------------------------------------------------------
 
-    private static PlayerOptions.@NotNull PlayerOptionsBuilder base(int size) {
+    private static PlayerOptions.@NotNull Builder base(int size) {
         return PlayerOptions.builder()
             .skin(skinBase().build())
             .output(sweepRender(size));
     }
 
     /** A {@link SkinOptions} builder seeded with the sweep's default (Steve) skin source. */
-    private static SkinOptions.SkinOptionsBuilder skinBase() {
+    private static SkinOptions.Builder skinBase() {
         return SkinOptions.builder().skin(TextureOptions.builder().id(Optional.of(SKIN_ID)).build());
     }
 
@@ -531,8 +531,8 @@ public final class TestPlayerRender {
         return OutputOptions.builder().canvasSize(size).supersample(SSAA).build();
     }
 
-    private static PlayerOptions.@NotNull PlayerOptionsBuilder allSlots(
-        PlayerOptions.@NotNull PlayerOptionsBuilder builder,
+    private static PlayerOptions.@NotNull Builder allSlots(
+        PlayerOptions.@NotNull Builder builder,
         @NotNull ArmorPiece piece
     ) {
         return builder

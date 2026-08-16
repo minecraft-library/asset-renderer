@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option.spec;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -10,7 +9,7 @@ import org.jetbrains.annotations.NotNull;
  * tick, frame count, ticks-per-frame and playback schedule, plus the portal loop-crossfade fraction.
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class AnimationOptions {
 
     /**
@@ -93,16 +92,6 @@ public class AnimationOptions {
      * nothing on a static subject. The parity floor is preserved mechanically - the default is static.
      */
     private final boolean deriveTimeline = false;
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull AnimationOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with every field at its default value.

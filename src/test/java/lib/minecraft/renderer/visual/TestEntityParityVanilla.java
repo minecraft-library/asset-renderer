@@ -210,7 +210,7 @@ public final class TestEntityParityVanilla {
             int vw = vanillaImg.getWidth();
             int vh = vanillaImg.getHeight();
 
-            EntityOptions.EntityOptionsBuilder optionsBuilder = EntityOptions.builder()
+            EntityOptions.Builder optionsBuilder = EntityOptions.builder()
                 .entityId(Optional.of(subject.key().entityId()))
                 .appearance(subject.key().appearance())
                 .fitMode(EntityOptions.FitMode.GROUP_BOUNDS);

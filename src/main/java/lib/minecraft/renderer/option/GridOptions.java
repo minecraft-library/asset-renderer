@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
@@ -29,7 +28,7 @@ import java.util.function.UnaryOperator;
  * @see lib.minecraft.renderer.engine.compose.FrameCompositor
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class GridOptions implements RenderOptions {
 
     /**
@@ -75,16 +74,6 @@ public class GridOptions implements RenderOptions {
      * relative to the built-in cells. Defaults to {@linkplain UnaryOperator#identity() identity}.
      */
     private final @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator = UnaryOperator.identity();
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull GridOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with every field at its default value.

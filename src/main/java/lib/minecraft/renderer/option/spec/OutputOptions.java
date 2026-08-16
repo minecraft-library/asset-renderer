@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option.spec;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
@@ -23,7 +22,7 @@ import org.jetbrains.annotations.NotNull;
  * @see Renderer
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class OutputOptions {
 
     /**
@@ -87,16 +86,6 @@ public class OutputOptions {
         return this.projection == Projection.VANILLA_ISO
             && this.rotation.equals(EulerRotation.NONE)
             && this.facing.equals(Facing.DEFAULT);
-    }
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull OutputOptionsBuilder mutate() {
-        return this.toBuilder();
     }
 
     /**

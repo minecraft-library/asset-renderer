@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
@@ -22,7 +21,7 @@ import org.jetbrains.annotations.Nullable;
  * @see lib.minecraft.renderer.PortalRenderer
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class PortalOptions implements RenderOptions {
 
     /**
@@ -67,15 +66,6 @@ public class PortalOptions implements RenderOptions {
      * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */
     private final @NotNull Background background = Background.TRANSPARENT;
-
-    /**
-     * A builder pre-populated with this instance's field values, for deriving a variant.
-     *
-     * @return the seeded builder
-     */
-    public @NotNull PortalOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * The default portal options - a static isometric 3D {@linkplain Portal#END_PORTAL end portal}

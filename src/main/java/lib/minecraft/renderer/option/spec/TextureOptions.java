@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option.spec;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -12,7 +11,7 @@ import java.util.Optional;
  * absolute URL (2), then a pack-resolvable texture id (3).
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class TextureOptions {
 
     /**
@@ -29,16 +28,6 @@ public class TextureOptions {
      * Pack-resolvable texture id (priority 3).
      */
     private final @NotNull Optional<String> id = Optional.empty();
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull TextureOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with every source empty.

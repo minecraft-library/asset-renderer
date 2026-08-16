@@ -57,7 +57,7 @@ import java.util.function.UnaryOperator;
  */
 @Parity(as = PlayerRenderer.class)
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class PlayerOptions implements RenderOptions {
 
     /**
@@ -104,15 +104,6 @@ public class PlayerOptions implements RenderOptions {
      * Defaults to {@linkplain UnaryOperator#identity() identity}. Only consulted by the 3D path.
      */
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> geometryLayerDecorator = UnaryOperator.identity();
-
-    /**
-     * A builder pre-populated with this instance's field values, for deriving a variant.
-     *
-     * @return the seeded builder
-     */
-    public @NotNull PlayerOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * The default player options - a 3D {@linkplain Type#SKULL skull} with the neutral

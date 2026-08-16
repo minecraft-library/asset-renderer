@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.parity.Mode;
@@ -22,7 +21,7 @@ import java.util.Optional;
  */
 @Parity(as = AtlasRenderer.class, mode = Mode.SUPPRESS)
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class AtlasOptions implements RenderOptions {
 
     /**
@@ -66,16 +65,6 @@ public class AtlasOptions implements RenderOptions {
      * it off via the builder.
      */
     private final boolean progressLogging = true;
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull AtlasOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with every field at its default value.

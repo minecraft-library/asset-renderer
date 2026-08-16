@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.compose.Timeline;
@@ -28,7 +27,7 @@ import java.util.function.UnaryOperator;
  * @see lib.minecraft.renderer.TextRenderer
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class TextOptions implements RenderOptions {
 
     /**
@@ -125,15 +124,6 @@ public class TextOptions implements RenderOptions {
      * {@linkplain UnaryOperator#identity() identity}.
      */
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
-
-    /**
-     * A builder pre-populated with this instance's field values, for deriving a variant.
-     *
-     * @return the seeded builder
-     */
-    public @NotNull TextOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * The default text options - an empty {@linkplain Style#LORE lore} tooltip with vanilla-matched

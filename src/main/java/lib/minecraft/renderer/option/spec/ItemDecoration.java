@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option.spec;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import org.jetbrains.annotations.NotNull;
@@ -14,7 +13,7 @@ import java.util.Optional;
  * slot/colour, leather/potion/firework tints, banner base dye, and banner pattern layers.
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class ItemDecoration {
 
     /**
@@ -66,16 +65,6 @@ public class ItemDecoration {
      * items. Empty for plain banners / shields.
      */
     private final @NotNull ConcurrentList<BannerLayer> bannerLayers = Concurrent.newList();
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull ItemDecorationBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with every decoration input unset.

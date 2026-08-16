@@ -107,7 +107,7 @@ public final class EntityIndexBuilder {
             if (group.getValue().size() <= 1) continue;
             Entity entity = definitions.get(group.getKey());
             if (entity == null) continue;
-            definitions.put(group.getKey(), entity.toBuilder().members(group.getValue()).build());
+            definitions.put(group.getKey(), entity.mutate().members(group.getValue()).build());
         }
     }
 
@@ -213,7 +213,7 @@ public final class EntityIndexBuilder {
                 coats.put(option.getKey(), buildVariantRow(familyId, option.getValue(), ctx));
             Entity base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
             Entity.Axes baseAxes = base.axes();
-            definitions.put(familyId, base.toBuilder()
+            definitions.put(familyId, base.mutate()
                 .axes(new Entity.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.babyOverlays(),
                     baseAxes.largeShape(), baseAxes.sizeModels(), baseAxes.sizeScales(), Map.copyOf(coats),
                     Optional.ofNullable(defaultOption), stateDefaultOf(family), sizeDefaultOf(family)))

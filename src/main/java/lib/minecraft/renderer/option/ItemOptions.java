@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
@@ -47,7 +46,7 @@ import java.util.function.UnaryOperator;
  * @see lib.minecraft.renderer.ItemRenderer
  */
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class ItemOptions implements RenderOptions {
 
     /**
@@ -144,16 +143,6 @@ public class ItemOptions implements RenderOptions {
      * stack unchanged. Only consulted for {@link Type#GUI_2D} renders.
      */
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull ItemOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with every field at its default value.

@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
@@ -49,7 +48,7 @@ import java.util.function.UnaryOperator;
  */
 @Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 @Getter
-@ClassBuilder(style = NamingStyle.LOMBOK)
+@ClassBuilder
 public class MenuOptions implements RenderOptions {
 
     /**
@@ -165,15 +164,6 @@ public class MenuOptions implements RenderOptions {
      * content, text). Defaults to {@linkplain UnaryOperator#identity() identity}.
      */
     private final @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator = UnaryOperator.identity();
-
-    /**
-     * A builder pre-populated with this instance's field values, for deriving a variant.
-     *
-     * @return the seeded builder
-     */
-    public @NotNull MenuOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * The default menu options - an empty single {@linkplain Type#CHEST chest} (3 rows x 9 columns)
