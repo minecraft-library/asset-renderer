@@ -672,9 +672,9 @@ An ignore rule decides what git tracks and no producer consults it. Both the roo
 
 *Probe:* add a pattern and capture: no artifact's population changes, because every manifest walks an allowlist of member directories rather than asking git what is tracked
 
-### `scripts/euler_reference_svg.py`
+### `src/test/resources/scripts/euler_reference_svg.py`
 
-A standalone authoring script that regenerates one javadoc illustration. It is not imported by the toolkit, not invoked by any Gradle task, and its output is a comment.
+A standalone authoring script that regenerates one javadoc illustration. It is not imported by the toolkit, not invoked by any Gradle task, and its output is a comment. It sits under the test resource root and processTestResources excludes the directory holding it, so no suite can reach it as a fixture either. The glob names the file rather than the directory, so a second script there is a decision somebody makes rather than a reach answer that arrives with the file.
 
 *Probe:* run it and diff the tree: the only file it writes is the SVG inlined in EulerRotation's javadoc, and no artifact digests a javadoc
 

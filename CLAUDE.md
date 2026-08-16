@@ -701,9 +701,11 @@ Entity:
 
 ## Developer scripts
 
-No script is bundled into the JAR. `parity/scripts/parity/` is the parity toolkit, run as
-`python parity/scripts/parity <command>` and documented in its own `README.md`.
-`scripts/euler_reference_svg.py` regenerates the SVG in `EulerRotation`'s javadoc.
+`parity/scripts/parity/` is the parity toolkit, run as `python parity/scripts/parity <command>` and
+documented in its own `README.md`. Every other developer script lives in
+`src/test/resources/scripts/`, which `processTestResources` excludes whole, so one is neither a
+fixture nor a shipped resource - `euler_reference_svg.py` regenerates the SVG in `EulerRotation`'s
+javadoc and is the only one today.
 
 [vanilla-reference-harness]: harness
 [vanilla-reference-harness/CLAUDE.md]: harness/CLAUDE.md

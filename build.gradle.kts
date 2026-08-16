@@ -232,8 +232,12 @@ tasks {
     // build/resources/test would only ever be a second answer - and a stale one, since a value
     // promoted seconds ago would not be in it. Excluding it also keeps roughly half a megabyte of
     // baselines out of anything this build packages.
+    // The developer scripts beside it are authored to be run by hand, and no test opens one, so the
+    // directory is excluded whole rather than file by file - a script added next year is a script,
+    // not a fixture, and inheriting the exclusion is the answer that needs no edit here.
     processTestResources {
         exclude("lib/minecraft/renderer/parity/**")
+        exclude("scripts/**")
     }
 
 

@@ -31,9 +31,9 @@
       "reason": "An ignore rule decides what git tracks and no producer consults it. Both the root file and the harness's own are covered; the harness's deliberately leaves Loom's run directory unignored so a run/ that fills with config and logs shows up in git status, which is a statement about what a reader sees rather than about any rendered byte."
     },
     {
-      "glob": "scripts/euler_reference_svg.py",
+      "glob": "src/test/resources/scripts/euler_reference_svg.py",
       "probe": "run it and diff the tree: the only file it writes is the SVG inlined in EulerRotation's javadoc, and no artifact digests a javadoc",
-      "reason": "A standalone authoring script that regenerates one javadoc illustration. It is not imported by the toolkit, not invoked by any Gradle task, and its output is a comment."
+      "reason": "A standalone authoring script that regenerates one javadoc illustration. It is not imported by the toolkit, not invoked by any Gradle task, and its output is a comment. It sits under the test resource root and processTestResources excludes the directory holding it, so no suite can reach it as a fixture either. The glob names the file rather than the directory, so a second script there is a decision somebody makes rather than a reach answer that arrives with the file."
     },
     {
       "glob": "harness/COMMIT-MAP.tsv",

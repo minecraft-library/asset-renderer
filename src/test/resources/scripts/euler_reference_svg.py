@@ -339,14 +339,13 @@ emit("</svg>")
 
 
 # Output is written to the doc-files folder next to EulerRotation.java so
-# javadoc picks it up automatically. Path is computed relative to this script
-# so it works regardless of the current working directory.
-script_dir = Path(__file__).resolve().parent
-out_path = (script_dir
-            / ".."
+# javadoc picks it up automatically. The repo root is derived from this script's
+# own location, so the current working directory never matters.
+repo_root = Path(__file__).resolve().parents[4]
+out_path = (repo_root
             / "src" / "main" / "java"
             / "lib" / "minecraft" / "renderer"
-            / "tensor" / "doc-files" / "euler_reference.svg").resolve()
+            / "tensor" / "doc-files" / "euler_reference.svg")
 
 out_path.parent.mkdir(parents=True, exist_ok=True)
 # newline="\n" so Python does not translate the joined LF to the platform separator: this writes a

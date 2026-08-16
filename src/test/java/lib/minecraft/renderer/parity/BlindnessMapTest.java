@@ -147,16 +147,20 @@ final class BlindnessMapTest {
      * coverage check stays green over a file no rule speaks for any more. Everything else the excuse
      * list holds up is uncontested, so deleting its rule really would show up as uncovered.
      *
-     * <p>All three are READMEs under a directory a rule claims, matched by the markdown glob. Written
-     * down rather than counted, so a fourth is a decision somebody makes - narrow the glob, or accept
-     * that the path can be absorbed - rather than a widening that arrives with the file.
+     * <p>Each sits under a directory some rule claims wholesale while carrying an excuse that says
+     * something narrower and truer about it: three READMEs matched by the markdown glob, and one
+     * authoring script named by a glob of its own, under a resource root whose rule speaks for the
+     * test suite. Written down rather than counted, so a fifth is a decision somebody makes - narrow
+     * the glob, or accept that the path can be absorbed - rather than a widening that arrives with
+     * the file.
      *
      * <p>Sorted, because the comparison is against a file list and a list is ordered.
      */
     private static final List<String> ABSORBABLE_BY_AN_EXCUSE = List.of(
         "parity/scripts/parity/README.md",
         "parity/scripts/parity/lab/README.md",
-        "src/test/resources/lib/minecraft/renderer/parity/README.md");
+        "src/test/resources/lib/minecraft/renderer/parity/README.md",
+        "src/test/resources/scripts/euler_reference_svg.py");
 
     /**
      * The directories the repository walk skips, at any depth.
