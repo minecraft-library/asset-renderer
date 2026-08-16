@@ -1,6 +1,10 @@
 rootProject.name = "asset-renderer-client"
 
-// A leaf. Both the renderer and the generators include this build; it includes nothing.
+// Both the renderer and the generators include this build. The one it includes itself is the
+// annotation vocabulary it declares its own parity reach in, which resolves nothing and ships
+// nothing.
+includeBuild("../parity")
+
 dependencyResolutionManagement {
     versionCatalogs {
         create("libs") {

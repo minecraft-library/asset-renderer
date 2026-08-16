@@ -259,9 +259,7 @@
       ]
     },
     {
-      "authored_paths": [
-        "tooling/src/main/java/**"
-      ],
+      "authored_paths": [],
       "blind": [
         "sweep.entity",
         "sweep.block",
@@ -278,6 +276,7 @@
         "manifest.player-raw"
       ],
       "claim": "Every test and sweep in the repo is structurally blind to a tooling/ change",
+      "claim_key": "tooling-blindness",
       "id": "B13",
       "mode": "demote",
       "probe": "run the flow, diff the emitted table against a capture taken at the clean tree (never git diff, which conflates a byte this change moved with one that was going to move regardless), and diff the flow's INFO log",
@@ -288,15 +287,14 @@
       ],
       "source": "measured by perturbing ToolingPotionColors.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'",
       "trigger_paths": [
-        "tooling/src/main/java/**"
+        "tooling/src/main/java/lib/minecraft/renderer/tooling/**"
       ]
     },
     {
-      "authored_paths": [
-        "tooling/src/main/java/**"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "A byte-identical emitted table is not the same claim as an unchanged run",
+      "claim_key": "tooling-log-order",
       "id": "B14",
       "mode": "select",
       "probe": "reorder two index builds and confirm the tables are byte-identical while the log is not",
@@ -307,7 +305,7 @@
       ],
       "source": "measured by perturbing GlintItemsWalk.java: 0 of 2 declared sees moved; CLAUDE.md 'Tooling'",
       "trigger_paths": [
-        "tooling/src/main/java/**"
+        "tooling/src/main/java/lib/minecraft/renderer/tooling/**"
       ]
     },
     {
@@ -1021,11 +1019,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "tooling/src/test/java/**"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "The tooling source set's own tests assert over hand-built bytecode and emit nothing",
+      "claim_key": "tooling-suite",
       "id": "B42",
       "mode": "select",
       "probe": "run ./gradlew toolingTest, then capture any artifact and confirm it is byte-identical",
@@ -1033,7 +1030,7 @@
       "sees": [],
       "source": "declares no store artifact, so its reason names the gate that answers instead",
       "trigger_paths": [
-        "tooling/src/test/java/**"
+        "tooling/src/test/java/lib/minecraft/renderer/tooling/**"
       ]
     },
     {
@@ -1078,11 +1075,10 @@
       ]
     },
     {
-      "authored_paths": [
-        "client/src/main/java/**"
-      ],
+      "authored_paths": [],
       "blind": [],
       "claim": "Client acquisition decides which bytes both the renderer and the generators read at all",
+      "claim_key": "client-acquisition",
       "id": "B45",
       "mode": "select",
       "probe": "change what extractClientJar streams out and re-run the dump and a flow; both move, because both read the tree it wrote",
@@ -1095,7 +1091,7 @@
       ],
       "source": "declared from what the module writes; both the pack stack and the class walks resolve against the tree it extracts",
       "trigger_paths": [
-        "client/src/main/java/**"
+        "client/src/main/java/lib/minecraft/renderer/client/**"
       ]
     },
     {

@@ -182,7 +182,7 @@ The ten offline sheet groups hash as 104 files and the elytra and both cape view
 ## B13 - Every test and sweep in the repo is structurally blind to a tooling/ change
 
 - **mode** demote
-- **triggers** `tooling/src/main/java/**`
+- **triggers** `tooling/src/main/java/lib/minecraft/renderer/tooling/**`
 - **sees** `manifest.tooling-tables`, `report.diagnostics-log`
 - **blind** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `pin.player-crc`, `pin.block-crc`, `pin.portal-crc`, `manifest.player-raw`
 - **source** measured by perturbing ToolingPotionColors.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'
@@ -194,7 +194,7 @@ They all read the SHIPPED JSON that a generator refactor does not regenerate, so
 ## B14 - A byte-identical emitted table is not the same claim as an unchanged run
 
 - **mode** select
-- **triggers** `tooling/src/main/java/**`
+- **triggers** `tooling/src/main/java/lib/minecraft/renderer/tooling/**`
 - **sees** `report.diagnostics-log`, `manifest.tooling-tables`
 - **blind** -
 - **source** measured by perturbing GlintItemsWalk.java: 0 of 2 declared sees moved; CLAUDE.md 'Tooling'
@@ -518,7 +518,7 @@ manifest.visual and manifest.player-raw both take cache/visual as their source a
 ## B42 - The tooling source set's own tests assert over hand-built bytecode and emit nothing
 
 - **mode** select
-- **triggers** `tooling/src/test/java/**`
+- **triggers** `tooling/src/test/java/lib/minecraft/renderer/tooling/**`
 - **sees** -
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead
@@ -554,7 +554,7 @@ A wrapper script and its distribution pin decide which Gradle runs the tooling b
 ## B45 - Client acquisition decides which bytes both the renderer and the generators read at all
 
 - **mode** select
-- **triggers** `client/src/main/java/**`
+- **triggers** `client/src/main/java/lib/minecraft/renderer/client/**`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `manifest.tooling-tables`, `report.diagnostics-log`
 - **blind** -
 - **source** declared from what the module writes; both the pack stack and the class walks resolve against the tree it extracts
