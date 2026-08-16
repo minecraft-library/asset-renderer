@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  * I hold", a gate reference asks "what can see my change, what produces it, and what will it cost".
  *
  * <p><b>There is deliberately no second spelling of this in the toolkit.</b> The skill design names a
- * {@code python scripts/parity report render --references} that would write the same two files;
+ * {@code python parity/scripts/parity report render --references} that would write the same two files;
  * shipping both would be two implementations of one rendering, which is the class of duplication this
  * store exists to remove. Java owns it because the gate that catches a stale reference is
  * {@code ./gradlew test}, which must not need an interpreter.

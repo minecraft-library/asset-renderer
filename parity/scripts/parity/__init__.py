@@ -1,7 +1,7 @@
 """The parity toolkit - one writer, one store root, one id grammar.
 
-Invoked as ``python scripts/parity <command>``. See ``README.md`` for the command table and the
-six exit codes.
+Invoked as ``python parity/scripts/parity <command>``. See ``README.md`` for the command table
+and the six exit codes.
 
 The interpreter floor is checked here rather than at first use, so a too-old interpreter fails
 with a sentence naming its own version instead of a SyntaxError or an AttributeError several

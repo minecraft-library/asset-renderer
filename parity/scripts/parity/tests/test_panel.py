@@ -102,7 +102,7 @@ class Shapes(unittest.TestCase):
         self.assertEqual(bbox["vanilla"]["y0"], 0)
 
 
-SWEEP_OUTPUT = Path(__file__).resolve().parents[3] / "cache/visual/entity-parity-vanilla"
+SWEEP_OUTPUT = Path(__file__).resolve().parents[4] / "cache/visual/entity-parity-vanilla"
 
 
 @unittest.skipUnless(pixels.available() and SWEEP_OUTPUT.is_dir(), "sweep output or pixels absent")

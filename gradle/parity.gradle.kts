@@ -54,7 +54,7 @@ abstract class ParityToolkitTask @Inject constructor(
     @get:Input
     abstract val pythonExe: Property<String>
 
-    /** The toolkit command and its arguments, after `scripts/parity`. */
+    /** The toolkit command and its arguments, after `parity/scripts/parity`. */
     @get:Input
     abstract val argv: ListProperty<String>
 
@@ -68,7 +68,7 @@ abstract class ParityToolkitTask @Inject constructor(
         if (doomed.isNotEmpty()) fsOps.delete { delete(*doomed.toTypedArray()) }
         execOps.exec {
             executable = pythonExe.get()
-            args(listOf("scripts/parity") + argv.get())
+            args(listOf("parity/scripts/parity") + argv.get())
             environment("PYTHONUTF8", "1")
         }
     }
@@ -282,7 +282,7 @@ val parityTriggerRoots: FileCollection = files(
     fileTree("src/jmh") { exclude(parityWalkSkips) },
     fileTree("tooling") { exclude(parityWalkSkips) },
     fileTree("client") { exclude(parityWalkSkips) },
-    fileTree("scripts/parity") { exclude(parityWalkSkips) },
+    fileTree("parity/scripts/parity") { exclude(parityWalkSkips) },
     fileTree("harness") { exclude(parityWalkSkips) }
 )
 
@@ -365,15 +365,15 @@ val parityPythonExe: String = parityProperty("pythonExe")
  * join or a digest - that is the toolkit's job and there is one of it.
  *
  * `PYTHONUTF8=1` forces UTF-8 on a Windows host whose default codepage is 1252. There is deliberately
- * no `PYTHONPATH`: the directory form `python scripts/parity <command>` needs none, and one
+ * no `PYTHONPATH`: the directory form `python parity/scripts/parity <command>` needs none, and one
  * invocation form is what the build, the skill and a human all type.
  *
  * @receiver the Exec task being pointed at the toolkit
- * @param argv the toolkit command and its arguments, after `scripts/parity`
+ * @param argv the toolkit command and its arguments, after `parity/scripts/parity`
  */
 fun org.gradle.process.ExecSpec.parityToolkit(vararg argv: String) {
     executable = parityPythonExe
-    args(listOf("scripts/parity") + argv)
+    args(listOf("parity/scripts/parity") + argv)
     environment("PYTHONUTF8", "1")
 }
 

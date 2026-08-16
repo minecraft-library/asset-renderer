@@ -386,7 +386,7 @@ The harness produces the reference tree, so a change to a frame renderer or the 
 ## B30 - A toolkit change alters how every artifact is COMPUTED and how none of them is produced
 
 - **mode** select
-- **triggers** `scripts/parity/**`
+- **triggers** `parity/scripts/parity/**`
 - **sees** -
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead; the toolkit is the one producer of every stored byte
@@ -506,7 +506,7 @@ Four suites that read the store to assert against it, and the two renderers behi
 ## B41 - The two manifests a member list separates are DECLARED in these two files, so editing either adds or drops rows with no producer having run
 
 - **mode** select
-- **triggers** `gradle/visual.gradle.kts`, `scripts/parity/manifest.py`
+- **triggers** `gradle/visual.gradle.kts`, `parity/scripts/parity/manifest.py`
 - **sees** `manifest.visual`, `manifest.player-raw`
 - **blind** -
 - **source** measured by perturbing manifest.py: 2 of 2 declared sees moved; correction to B30 and B31's claim that a toolkit or build-script change reaches nothing - these two files hold the membership the two cache/visual manifests are defined over, and the build file holds their producers' render defaults

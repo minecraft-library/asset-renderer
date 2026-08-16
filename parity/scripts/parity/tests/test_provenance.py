@@ -17,7 +17,7 @@ from parity import capture, provenance
 from parity.norm import (canonical_json, read_json, sha256_file, sha256_text, write_json,
                          write_text)
 
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(__file__).resolve().parents[4]
 
 #: Where `parity` is importable from, for a case whose subject is a fresh interpreter's environment.
 TOOLKIT = Path(__file__).resolve().parents[2]

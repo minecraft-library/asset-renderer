@@ -62,8 +62,8 @@ def rows_member(kind: str) -> str | None:
 
 
 def repo_root() -> Path:
-    """The repo containing ``scripts/parity/``, so the working directory never matters."""
-    return Path(__file__).resolve().parents[2]
+    """The repo containing ``parity/scripts/parity/``, so the working directory never matters."""
+    return Path(__file__).resolve().parents[3]
 
 
 def artifact_files(root: Path) -> list[tuple[str, bool]]:

@@ -11,7 +11,7 @@ from parity.norm import MissingInput, Refused, read_json, write_json, write_text
 from parity.norm import fixed as norm_fixed
 
 DATA = Path(__file__).resolve().parent / "data"
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(__file__).resolve().parents[4]
 
 
 class Wipe(unittest.TestCase):

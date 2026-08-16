@@ -8,7 +8,7 @@ from pathlib import Path
 from parity import ids, norm
 
 DATA = Path(__file__).resolve().parent / "data"
-REFERENCES = Path(__file__).resolve().parents[3] / "cache/asset-renderer/vanilla/26.1/references"
+REFERENCES = Path(__file__).resolve().parents[4] / "cache/asset-renderer/vanilla/26.1/references"
 
 
 class RefStem(unittest.TestCase):

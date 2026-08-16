@@ -370,7 +370,7 @@ def empty_expected() -> dict:
     """``expect --empty`` writes this, which is what makes the gate ``diff == manifest`` rather
     than ``diff == empty`` even when the manifest is empty."""
     return {
-        "//": "parity.report.expected-diff · regen: python scripts/parity expect --empty",
+        "//": "parity.report.expected-diff · regen: python parity/scripts/parity expect --empty",
         "artifact": "report.expected-diff",
         "format": 1,
         "kind": "expected-diff",

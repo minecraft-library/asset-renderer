@@ -150,7 +150,7 @@ final class ParityTaskWiringTest {
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
 
     /** Where the toolkit lives, whose modules answer which one writes the budget's column. */
-    private static final Path TOOLKIT = Path.of("scripts/parity");
+    private static final Path TOOLKIT = Path.of("parity/scripts/parity");
 
     /** The index-row column the plan's budget sums, which is where an artifact's cost is read. */
     private static final String BUDGET_COLUMN = "last_duration_ms";

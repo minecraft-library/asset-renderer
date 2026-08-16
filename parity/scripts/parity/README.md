@@ -7,7 +7,7 @@ hand-run tree hashes the corpus accumulated.
 ## Invocation
 
 ```
-python scripts/parity <command> [options]
+python parity/scripts/parity <command> [options]
 ```
 
 One form for Gradle, for the skill and for a human. No shebang, no `./`, no `PYTHONPATH`, no
@@ -15,9 +15,9 @@ One form for Gradle, for the skill and for a human. No shebang, no `./`, no `PYT
 `sys.path` and imports the package absolutely, so nothing has to be configured. `--repo-root`
 defaults to the repo containing this directory, so the working directory never matters.
 
-`python -m parity` happens to resolve for anyone who already has `scripts/` on `PYTHONPATH`, but it
-is **not** a supported spelling and appears in no task, skill or procedure. One form means one
-string to grep for.
+`python -m parity` happens to resolve for anyone who already has `parity/scripts/` on `PYTHONPATH`,
+but it is **not** a supported spelling and appears in no task, skill or procedure. One form means
+one string to grep for.
 
 Interpreter floor **3.11**, checked in `__init__.py` so a too-old interpreter fails with a sentence
 naming its own version rather than a SyntaxError several frames deep.
@@ -27,10 +27,10 @@ naming its own version rather than a SyntaxError several frames deep.
 Accepted by every command, on either side of the subcommand.
 
 ```
---repo-root DIR       the repo containing scripts/parity  (default: derived)
---root DIR            the WORKING root                    (default: cache/parity/current)
---store DIR           the production store                (default: src/test/resources/lib/minecraft/renderer/parity)
---format {text,json}  stdout form                         (default: text)
+--repo-root DIR       the repo containing parity/scripts/parity (default: derived)
+--root DIR            the WORKING root                          (default: cache/parity/current)
+--store DIR           the production store                      (default: src/test/resources/lib/minecraft/renderer/parity)
+--format {text,json}  stdout form                               (default: text)
 --out FILE            write the primary artifact here instead of stdout
 -q, --quiet           suppress progress on stderr; never affects stdout
 --version
@@ -42,8 +42,8 @@ There is **no `--slot`**. The working root is a path, and an A/B before-side is 
 rather than merely discouraged.
 
 **stdout carries the answer and nothing else.** Progress, warnings and diagnostics go to stderr and
-never to stdout, so `python scripts/parity <cmd> --format json | <consumer>` is safe. Progress is a
-line per artifact from the commands that loop over a set - `capture-normalize`, `compare` and
+never to stdout, so `python parity/scripts/parity <cmd> --format json | <consumer>` is safe. Progress
+is a line per artifact from the commands that loop over a set - `capture-normalize`, `compare` and
 `promote-apply` - and `-q` suppresses those and nothing else: a warning about the record being
 written is not verbosity, and hiding one is how a capture stamps a null nobody was told about. No
 command reads stdin: every operand is a path, because a piped operand cannot be named in a
@@ -134,7 +134,7 @@ Every module in the package. `lab/` has a README of its own naming its six.
 | `pixels.py` | the whole optional-dependency surface: nothing else may import numpy or Pillow |
 | `cli.py` | the argparse tree and the one place an exception becomes an exit code |
 | `lab/` | the `[PX]` fragment family - probes, never a gate. Its own README names all six and records what was deliberately not ported. |
-| `tests/` | `unittest`, run by `python scripts/parity selftest`; fast and offline |
+| `tests/` | `unittest`, run by `python parity/scripts/parity selftest`; fast and offline |
 
 `norm` being the sole writer is enforced by a test that reads the package's own source, so a module
 written next year is covered without being registered anywhere. The table above is enforced the
@@ -145,5 +145,5 @@ one a table nobody checks would leave out.
 
 The gate path is **stdlib only**. Pillow and numpy are admitted for pixel work alone, are optional
 at runtime, and are unreachable from any command that produces or verifies a stored artifact - a
-test asserts they appear in `pixels.py` and nowhere else. `python scripts/parity doctor` reports
-what is importable.
+test asserts they appear in `pixels.py` and nowhere else. `python parity/scripts/parity doctor`
+reports what is importable.

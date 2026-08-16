@@ -76,7 +76,8 @@ def _globals() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--repo-root", default=None, metavar="DIR",
-                        help="the repo containing scripts/parity (default: derived, so cwd never matters)")
+                        help="the repo containing parity/scripts/parity"
+                             " (default: derived, so cwd never matters)")
     parser.add_argument("--root", default=None, metavar="DIR",
                         help=f"the WORKING root (default: {store_mod.WORKING}); must be relative and under cache/")
     parser.add_argument("--store", default=None, metavar="DIR",
@@ -1413,7 +1414,7 @@ def _register(subparsers: Any) -> dict[str, Command]:
 def build_parser() -> tuple[argparse.ArgumentParser, dict[str, Command]]:
     """The command parser. The globals are shown in its help and consumed before it runs."""
     parser = argparse.ArgumentParser(
-        prog="python scripts/parity",
+        prog="python parity/scripts/parity",
         description="The parity toolkit: one writer, one store root, one id grammar.",
         parents=[_globals()],
     )

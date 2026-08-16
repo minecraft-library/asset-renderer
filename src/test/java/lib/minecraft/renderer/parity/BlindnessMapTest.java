@@ -154,8 +154,8 @@ final class BlindnessMapTest {
      * <p>Sorted, because the comparison is against a file list and a list is ordered.
      */
     private static final List<String> ABSORBABLE_BY_AN_EXCUSE = List.of(
-        "scripts/parity/README.md",
-        "scripts/parity/lab/README.md",
+        "parity/scripts/parity/README.md",
+        "parity/scripts/parity/lab/README.md",
         "src/test/resources/lib/minecraft/renderer/parity/README.md");
 
     /**
@@ -253,7 +253,7 @@ final class BlindnessMapTest {
      * <p>Sorted, because that comparison is against a file list and a list is ordered.
      */
     private static final List<String> MEMBERSHIP_DECLARATIONS =
-        List.of("gradle/visual.gradle.kts", "scripts/parity/manifest.py");
+        List.of("gradle/visual.gradle.kts", "parity/scripts/parity/manifest.py");
 
     /**
      * The directory a renderer is a direct child of.
@@ -1737,9 +1737,9 @@ final class BlindnessMapTest {
      * @return the artifact id to its member sub-directories, in declaration order
      */
     private static Map<String, List<String>> declaredMembers() {
-        String toolkit = text(Path.of("scripts/parity/manifest.py"));
+        String toolkit = text(Path.of("parity/scripts/parity/manifest.py"));
         int start = toolkit.indexOf("SUBTREES = {");
-        if (start < 0) throw new AssertionError("scripts/parity/manifest.py declares no SUBTREES");
+        if (start < 0) throw new AssertionError("parity/scripts/parity/manifest.py declares no SUBTREES");
         int end = toolkit.indexOf("\n}", start);
         if (end < 0) throw new AssertionError("SUBTREES has no line-initial closing brace");
         Map<String, List<String>> out = new LinkedHashMap<>();

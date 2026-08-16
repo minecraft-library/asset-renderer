@@ -29,7 +29,7 @@ from parity.norm import read_text
 README = Path(__file__).resolve().parents[1] / "README.md"
 
 #: The repository root, which is where the toolkit's two callers live.
-_REPO = README.parents[2]
+_REPO = README.parents[3]
 
 #: One markdown table body row's first cell, when that cell is a single inline code span.
 _ROW = re.compile(r"^\| `([^`]+)` \|")
@@ -48,7 +48,7 @@ _DIRECT_ARGV = re.compile(r"parityToolkit\(\"([a-z-]+)\"")
 _ARGV_SITE = re.compile(r"parityToolkit\(\*buildList \{|parityToolkit\(\"|argv\.set\(buildList \{")
 
 #: The hook's one invocation, a JS array literal whose head is the interpreter's own argument.
-_HOOK_ARGV = re.compile(r"\['scripts/parity',([^\]]*)\]")
+_HOOK_ARGV = re.compile(r"\['parity/scripts/parity',([^\]]*)\]")
 
 #: The one command whose registration is conditional, so a bare interpreter has nineteen and not
 #: twenty. It is documented either way - a reader without the optional pair has to be able to find
@@ -148,7 +148,7 @@ class TheAutomationNote(unittest.TestCase):
 
     def test_it_names_every_command_the_build_or_the_hook_invokes(self):
         hook = _HOOK_ARGV.search(self.hook)
-        self.assertIsNotNone(hook, "the hook spells no `scripts/parity` argv")
+        self.assertIsNotNone(hook, "the hook spells no `parity/scripts/parity` argv")
         invoked = set(self.heads) | (set(re.findall(r"'([a-z-]+)'", hook.group(1)))
                                      & set(cli.build_parser()[1]))
         named = set(_SPAN.findall(_paragraph("The build invokes")))

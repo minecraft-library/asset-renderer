@@ -15,7 +15,7 @@ from parity.declarations import Claim, DeclarationError
 from parity.norm import write_json
 
 FIXTURES = Path(__file__).resolve().parent / "data" / "declarations"
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(__file__).resolve().parents[4]
 
 #: The shipped vocabularies, so a fixture is parsed against the constants the tree really declares.
 VOCABULARY = declarations.vocabularies(REPO)

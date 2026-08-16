@@ -19,7 +19,7 @@
  *      of them exits 0 in silence. A broken hook must never block work, so there is exactly one
  *      path in this file that writes to stdout and every other path returns quietly.
  *
- * It runs no measurement. It shells to `python scripts/parity plan --gate-exit`, which reads
+ * It runs no measurement. It shells to `python parity/scripts/parity plan --gate-exit`, which reads
  * `blindness.json`, git's changed set and the newest `_run/last-verdict.json` under
  * `cache/parity/`, and answers in its exit code:
  * 0 nothing sees the change, 10 seen and ungated, 20 already gated for this tree, 5 a changed path
@@ -266,7 +266,7 @@ function main() {
 
   const done = spawnSync(
     python,
-    ['scripts/parity', '--root', HOOK_ROOT, 'plan', '--changed-from-git', '--gate-exit', '--quiet'],
+    ['parity/scripts/parity', '--root', HOOK_ROOT, 'plan', '--changed-from-git', '--gate-exit', '--quiet'],
     { cwd: REPO, timeout: TIMEOUT_MS, encoding: 'utf8', env: { ...process.env, PYTHONUTF8: '1' } },
   );
 

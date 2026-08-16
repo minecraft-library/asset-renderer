@@ -701,8 +701,8 @@ Entity:
 
 ## Developer scripts
 
-Scripts live in `scripts/`, not bundled into the JAR. `scripts/parity/` is the parity toolkit, run as
-`python scripts/parity <command>` and documented in its own `README.md`.
+No script is bundled into the JAR. `parity/scripts/parity/` is the parity toolkit, run as
+`python parity/scripts/parity <command>` and documented in its own `README.md`.
 `scripts/euler_reference_svg.py` regenerates the SVG in `EulerRotation`'s javadoc.
 
 [vanilla-reference-harness]: harness

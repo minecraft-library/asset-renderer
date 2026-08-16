@@ -401,7 +401,7 @@ class TheTwoIdNamespaces(unittest.TestCase):
     #: skill, the store's Java (which renders two of the skill's reference files), and the build
     #: scripts the tasks each refusal comes out of are registered in - the root one and the parity one
     #: the split moved those registrations into.
-    SURFACES = ("scripts/parity", ".claude/skills/parity-gate",
+    SURFACES = ("parity/scripts/parity", ".claude/skills/parity-gate",
                 "src/test/java/lib/minecraft/renderer/parity", "build.gradle.kts",
                 "gradle/parity.gradle.kts")
 
@@ -414,7 +414,7 @@ class TheTwoIdNamespaces(unittest.TestCase):
     #: `blindness.py`'s uncovered-path exception IS refusal R1's implementation, `procedures.md` is
     #: the runbook telling an operator what to do about one, and `ParityReferences` renders the
     #: sentence the skill's own map carries.
-    REACHED = ("scripts/parity/blindness.py",
+    REACHED = ("parity/scripts/parity/blindness.py",
                ".claude/skills/parity-gate/references/procedures.md",
                "src/test/java/lib/minecraft/renderer/parity/ParityReferences.java")
 
