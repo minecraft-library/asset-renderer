@@ -148,14 +148,16 @@ public final class MenuRenderDriver {
         // own. These are the positions such a menu puts a crafting grid and its output at.
         write("server_menu", renderer.render(MenuOptions.builder()
             .type(MenuOptions.Type.CHEST)
-            .rows(6)
+            .rows(5)
             .title("Craft Item")
             .fill(MenuOptions.Fill.of("minecraft:black_stained_glass_pane"))
+            .playerInventory(false)
             .slots(slots(
                 slot(10, "minecraft:iron_ingot"), slot(11, "minecraft:iron_ingot"), slot(12, "minecraft:iron_ingot"),
                 slot(19, "minecraft:iron_ingot"), slot(21, "minecraft:iron_ingot"),
                 slot(28, "minecraft:iron_ingot"), slot(29, "minecraft:iron_ingot"), slot(30, "minecraft:iron_ingot"),
-                slot(23, "minecraft:diamond_sword")))
+                slot(23, "minecraft:barrier"),
+                slot(25, "minecraft:diamond_sword")))
             .build()), imageFactory);
 
         // An enchanted slot makes its item render animated, which promotes the whole menu through
