@@ -14,7 +14,8 @@ import java.util.regex.Pattern;
  * non-leading positions - so every id is letter-led, hyphen-separated, and free of consecutive,
  * leading, or trailing hyphens. This is the pack-addressed key the resolution rule consults when an
  * id's prefix is not a live namespace (see the resolution design); it is derived from a pack's
- * naming inputs by {@link PackIdDeriver}, never chosen by hand for user packs.
+ * naming inputs by {@link lib.minecraft.renderer.pipeline.pack.PackIdDeriver PackIdDeriver}, never
+ * chosen by hand for user packs.
  *
  * <p>The reserved constants {@link #VANILLA} and {@link #MINECRAFT} are never produced by
  * {@link #normalize} for a user pack: {@code vanilla} is the base pack's fixed id and {@code minecraft}

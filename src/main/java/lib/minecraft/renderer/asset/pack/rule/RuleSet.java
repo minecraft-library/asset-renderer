@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.rule.RuleScanner;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

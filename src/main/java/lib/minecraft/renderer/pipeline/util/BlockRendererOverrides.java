@@ -6,6 +6,7 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockModelReader;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;

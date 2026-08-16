@@ -105,6 +105,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private final @NotNull Textures textures;
 
+    /** The bone the elytra wings hang from - vanilla's torso part on every winged entity. */
+    private static final @NotNull String BODY_BONE = "body";
+
     /**
      * The entity's model-to-world facing - the humanoid {@code R_Y(180)} yaw flip (same as the player's,
      * turning the {@code +Z} front to the camera) composed with vanilla
@@ -115,9 +118,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@code R(30,225,0) * ENTITY_FACING = R(30,45,0) * flip180} reproduces the shipped orientation, and
      * any projection swapped in keeps the entity upright AND facing.
      */
-    /** The bone the elytra wings hang from - vanilla's torso part on every winged entity. */
-    private static final @NotNull String BODY_BONE = "body";
-
     private static final @NotNull Matrix4f ENTITY_FACING = Matrix4f.IDENTITY.scale(-1f, -1f, 1f);
 
     /** The entity's model-to-world {@link Placement} - {@link #ENTITY_FACING} as a placement. */
@@ -404,7 +404,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * present - looked up against the Java atlas via the pack stack) &gt; the {@code <variant>_baby}
      * texture when the resolved definition renders the baby mesh &gt; an
      * {@link EntityAppearance#getState() state} selection matching one of the definition's
-     * {@link Entity#stateTextures() state textures} (wolf
+     * {@link Entity.Axes#stateTextures() state textures} (wolf
      * {@code tame}/{@code angry}) &gt; the entity's own
      * {@link Entity#textureRef() texture_ref}. Each model-form ref is resolved against the vanilla
      * pack at {@code minecraft:entity/<ref>} via {@link Textures#resolveEntityTextureAtTick}.
@@ -444,7 +444,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * The baby texture when the resolved definition renders the baby mesh - the baby mesh has its
      * own UV layout, so it binds the matching {@code <variant>_baby} texture carried in
-     * {@link Entity#stateTextures() stateTextures} under {@code "baby"}.
+     * {@link Entity.Axes#stateTextures() stateTextures} under {@code "baby"}.
      * Empty when the render is not a baby, the entity has no baby mesh, or no baby texture is
      * present (so the caller falls through to the state / default texture).
      */

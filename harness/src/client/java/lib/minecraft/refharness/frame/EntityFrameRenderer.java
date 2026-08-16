@@ -8,12 +8,16 @@ import lib.minecraft.refharness.api.FrameRenderer;
 import lib.minecraft.refharness.api.HarnessPose;
 import lib.minecraft.refharness.pip.PipScope;
 import lib.minecraft.refharness.pip.PipTarget;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.world.entity.Entity;
 import org.joml.Quaternionf;
@@ -23,9 +27,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.parity.Subject;
 
 /**
  * Renders an {@link Entity} via the vanilla GUI entity pipeline ({@link EntityRenderDispatcher}
@@ -124,7 +125,7 @@ public final class EntityFrameRenderer implements FrameRenderer<Entity> {
 
     /**
      * Measures the entity's screen-space bounds at the standard iso pose, mirroring the
-     * exact transform chain {@link #renderAndWrite} uses but skipping the GPU work. The
+     * exact transform chain {@link #renderInternal} uses but skipping the GPU work. The
      * returned bounds are in entity-local screen coords (post-iso, pre-canvas-scale) and
      * are the same units the bounds walker collects internally - the sweeper unions these
      * across family members to size the family canvas.

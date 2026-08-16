@@ -521,7 +521,7 @@ public class ModelEngine {
      * units of vanilla's (95,158,75,233). Slime delta 14.86 -> 0.09.
      * <p>
      * Gates on {@link SurfaceTraits#translucent()} or the pass's declared
-     * {@link SurfaceTraits#sorted()} rather than on {@link SurfaceTraits#cullBackFaces()}, so
+     * {@link PassDeclaration#sorted()} rather than on {@link SurfaceTraits#cullBackFaces()}, so
      * alpha-cutout no-cull cubes (warden tendrils, mushroom block-overlays whose texels are strictly
      * alpha 0 or 255) stay in emission order. Sorting those would shuffle a base/overlay coplanar
      * pair non-deterministically because their alpha-255 fragments depth-resolve on emission-order
@@ -529,7 +529,7 @@ public class ModelEngine {
      * regression an earlier {@code !cullBackFaces()} version produced (mooshroom 0.56 -&gt; 4.48).
      * <p>
      * The {@code sorted} arm is vanilla's {@code RenderSetup.sortOnUpload}, which the energy swirl
-     * declares. It only bites alongside {@link SurfaceTraits#writesDepth()} - with no depth write
+     * declares. It only bites alongside {@link PassDeclaration#writesDepth()} - with no depth write
      * every fragment passes, and saturating addition does not care what order it arrives in.
      * <p>
      * Non-translucent triangles stay in emission order because that order <em>is</em> the

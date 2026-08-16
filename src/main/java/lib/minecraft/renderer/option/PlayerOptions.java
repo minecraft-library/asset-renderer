@@ -5,6 +5,7 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.PlayerRenderer;
+import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -124,7 +125,7 @@ public class PlayerOptions implements RenderOptions {
      * statement of the same numbers - {@link #SKULL} is one 8x8 head, {@link #BUST} is 20 by 16 from
      * the torso's floor to the head's ceiling, {@link #FULL} the 32 by 16 of the whole vanilla body.
      * <p>
-     * <p>Both layouts fall out of the same two inputs and neither is tabulated: {@link #boxes} seats
+     * Both layouts fall out of the same two inputs and neither is tabulated: {@link #boxes} seats
      * each part in this scope's own model frame for the 3D render, and {@link #layout2D} places each
      * part's canvas rectangle for the 2D one. A scope's four union integers and each part's own pixel
      * box are all either of them reads, which is why they are answered here rather than at a renderer.

@@ -327,8 +327,8 @@ public interface Window {
      * Nothing here reads a texture.
      * <p>
      * Two marks are drawn in inks the theme does not own, and both carry their own rather than
-     * borrowing a role: a {@link Decoration.Hammer} is a picture, and the inside of a
-     * {@link Decoration.Field} is an input widget's. Neither is something a panel would have drawn
+     * borrowing a role: a {@link Decoration#HAMMER} is a picture, and the inside of a
+     * {@link Decoration#FIELD} is an input widget's. Neither is something a panel would have drawn
      * itself, which is the line - what re-inks is what the panel owns.
      */
     @Getter(style = NamingStyle.FLUENT)

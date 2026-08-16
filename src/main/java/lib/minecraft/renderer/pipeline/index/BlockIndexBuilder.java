@@ -18,6 +18,7 @@ import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.ApplyDto;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.BlockStates;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.MultipartPart;

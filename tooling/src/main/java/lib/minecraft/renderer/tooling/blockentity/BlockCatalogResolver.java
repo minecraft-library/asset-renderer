@@ -171,7 +171,7 @@ final class BlockCatalogResolver {
         return sheet + "_" + stripSuffix(blockLocal, SHULKER_BASE_LOCAL);
     }
 
-    /** Bed: the 16 dyed beds under bed_head in DyeColor declaration order, texture entity/bed/<color>. */
+    /** Bed: the 16 dyed beds under bed_head in DyeColor declaration order, texture {@code entity/bed/<color>}. */
     private void bed(@NotNull Map<String, List<Row>> rows) {
         String sheet = sheetBase(BlockFamilyPolicies.CatalogFamily.BED);
         Map<String, Row> byColour = new LinkedHashMap<>();
@@ -258,7 +258,7 @@ final class BlockCatalogResolver {
     // multi-split families
     // ------------------------------------------------------------------------------------
 
-    /** Signs: split standing vs wall by id suffix; texture entity/signs/<wood>. */
+    /** Signs: split standing vs wall by id suffix; texture {@code entity/signs/<wood>}. */
     private void signs(@NotNull Map<String, List<Row>> rows, @NotNull String texturePrefix) {
         for (String field : this.subject.blockFields()) {
             String blockLocal = blockLocal(field);

@@ -33,7 +33,7 @@ import java.util.Optional;
  * <p>
  * The raw merge runs over the {@link PackStack} effective file set: for each model id the winning
  * pack's bytes, with that pack's {@code pack.mcmeta filter.block} erasing matching lower-pack rows
- * before its own merge in (via {@link MCMeta.Pack#hides}). Raw JSON merges later-wins on the resolved
+ * before its own merge in (via {@link MCMeta.Pack#hidesFile}). Raw JSON merges later-wins on the resolved
  * model id <em>before</em> parent-chain inheritance runs, so a higher-priority child model still
  * inherits from a vanilla parent that lives only in the base pack, and a pack parent retro-affects
  * every vanilla child - exactly the vanilla client's per-file resolution against the effective set
