@@ -18,6 +18,9 @@ import net.minecraft.world.level.Level;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 
 /**
  * Renders an {@link ItemStack} via the vanilla GUI item pipeline ({@link ItemModelResolver}
@@ -37,6 +40,7 @@ import java.nio.file.Path;
  * <p>Shares allocations across calls through its {@link PipTarget}: the colour and depth textures
  * are reused while the requested canvas stays the same size.
  */
+@Parity(claim = "harness-gui-item-frame", mode = Mode.DEMOTE, subject = Subject.ITEM)
 public final class ItemFrameRenderer implements FrameRenderer<ItemStack> {
 
     /**

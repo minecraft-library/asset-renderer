@@ -31,6 +31,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 
 /**
  * Container-screen sweep. Renders each shipped menu through the client's own GUI pipeline, so the
@@ -48,6 +51,7 @@ import java.util.function.Consumer;
  * extent rather than its declared one - a chest declares a bottom scanline it never paints - so a
  * subject that agreed everywhere would still carry a row of difference if the declared box were used.
  */
+@Parity(claim = "harness-menu-sweep", mode = Mode.DEMOTE, subject = Subject.MENU)
 public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

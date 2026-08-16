@@ -34,6 +34,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Renders a block as its inventory icon where vanilla has one, and as its 3D block model where
@@ -81,6 +83,7 @@ import java.util.List;
  * <p>Lifecycle mirrors {@link ItemFrameRenderer}: PIP textures are reused across calls while
  * the requested canvas stays the same size.
  */
+@Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE)
 public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

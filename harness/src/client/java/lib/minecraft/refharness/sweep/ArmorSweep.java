@@ -26,6 +26,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Sweep over a small roster of <b>armored</b> mobs, adult and baby. The main entity sweep builds
@@ -45,6 +47,7 @@ import java.util.Optional;
  * handful of one-off diagnostics rather than a byte-stable reference set, and the consuming diff
  * crops and aligns both sides by silhouette anyway.
  */
+@Parity(claim = "harness-armor-sweep", mode = Mode.DEMOTE)
 public final class ArmorSweep implements Sweep<ArmorSweep.Subject> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

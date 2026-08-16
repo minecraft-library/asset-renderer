@@ -23,6 +23,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 
 /**
  * Renders an {@link Entity} via the vanilla GUI entity pipeline ({@link EntityRenderDispatcher}
@@ -50,6 +53,7 @@ import java.util.Map;
  *       bounds underestimate the rendered extent and the entity slightly clips.</li>
  * </ul>
  */
+@Parity(claim = "harness-entity-frame", mode = Mode.DEMOTE, subject = Subject.ENTITY)
 public final class EntityFrameRenderer implements FrameRenderer<Entity> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

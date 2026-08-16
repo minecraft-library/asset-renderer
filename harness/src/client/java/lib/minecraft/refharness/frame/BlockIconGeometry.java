@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Resolver for the geometry a block's inventory icon is drawn from, shared by
@@ -48,6 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * the private {@link QuadCollection} field the standard cuboid item model holds - so the reference
  * carries vanilla's own bake rather than a re-derivation of it.
  */
+@Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE)
 final class BlockIconGeometry {
 
     private BlockIconGeometry() {

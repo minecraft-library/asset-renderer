@@ -2,6 +2,8 @@ package lib.minecraft.refharness.frame;
 
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.levelgen.PositionalRandomFactory;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * A {@link RandomSource} whose integer rolls are pinned to {@code 0}, forcing vanilla's weighted
@@ -25,6 +27,7 @@ import net.minecraft.world.level.levelgen.PositionalRandomFactory;
  * any future caller still gets well-formed values. This is the block-side analogue of the harness's
  * other determinism fixes (noon lightmap pin, shaking-mob suppression).
  */
+@Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE)
 final class FirstVariantRandomSource implements RandomSource {
 
     private final RandomSource delegate = RandomSource.create();

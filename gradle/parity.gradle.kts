@@ -659,6 +659,14 @@ fun TaskContainer.registerHarnessRun(
     // directory, which in a long-lived daemon is usually but not guaranteed the project directory -
     // and this value is what the harness writes its whole reference tree into.
     val referenceDir = layout.projectDirectory.dir(parityReferenceRoot).asFile
+    // A probe is handed the reference tree's PARENT, and the empty `refreshes` list is what says it is
+    // one. Every sweep writes through SweepRunner, which resolves each path against
+    // `outputRoot / sweep.outputDir()`, so a probe handed the tree itself lands INSIDE it - and
+    // manifest.references walks that root for `*.png` at any depth with no member list, so one probe
+    // run would enter its whole grid as rows of a manifest no reference render had touched. The store
+    // already says where a probe's output belongs: index.json homes probe.depth-quantum at a SIBLING
+    // of the tree, "written deliberately outside the reference tree". This is what makes that true.
+    val outputDir = if (refreshes.isEmpty()) referenceDir.parentFile else referenceDir
     val argv = mutableListOf<String>()
     if (isWindows) {
         argv += "cmd"
@@ -669,7 +677,7 @@ fun TaskContainer.registerHarnessRun(
     argv += "--no-daemon"
     // -P propagates through the harness's build.gradle to its Loom run config, which sets the system
     // property the mod reads. -D would only reach the wrapper's JVM, never the forked client.
-    argv += "-PrefharnessOutputDir=${referenceDir.absolutePath}"
+    argv += "-PrefharnessOutputDir=${outputDir.absolutePath}"
     if (modeFlag != null) argv += "-P$modeFlag=true"
     if (forwardsTargets && project.hasProperty("refharnessTargets"))
         argv += "-PrefharnessTargets=${project.property("refharnessTargets")}"
@@ -684,8 +692,8 @@ fun TaskContainer.registerHarnessRun(
         // cohort, and both are discarded with its gitignored logs. failed= is the only signal a
         // partially failed sweep leaves, so the stream is tee'd rather than swallowed.
         standardOutput = TeeStream(System.out, FileOutputStream(log))
-        referenceDir.mkdirs()
-        println("$name -> $parityReferenceRoot")
+        outputDir.mkdirs()
+        println("$name -> ${outputDir.toPath().toAbsolutePath().normalize()}")
         if (refreshes.isNotEmpty() && stale.isNotEmpty())
             println("$name does NOT refresh ${stale.joinToString()} - those sub-trees keep whatever " +
                 "produced them. After any harness render change run renderVanillaAllReferences.")

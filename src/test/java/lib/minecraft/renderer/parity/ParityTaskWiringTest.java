@@ -1120,6 +1120,37 @@ final class ParityTaskWiringTest {
     }
 
     @Test
+    @DisplayName("a run that refreshes nothing writes outside the tree it refreshes nothing in")
+    void aProbeIsHandedTheReferenceTreesParent() {
+        String registration = collapsed(toBlankLine(REGISTERS_A_HARNESS_RUN));
+
+        assertThat("the same predicate the two edges above read, deciding the one thing that makes "
+                + "'refreshes nothing' true of the filesystem rather than only of the wiring. Every "
+                + "sweep writes through SweepRunner, which resolves each path against the output root "
+                + "it is handed, so a probe handed the tree itself lands INSIDE it - and the reference "
+                + "manifest walks that root for images at any depth with no member list, so one probe "
+                + "run enters its whole grid as rows of a manifest no render had touched",
+            registration,
+            containsString("val outputDir = if (refreshes.isEmpty()) referenceDir.parentFile "
+                + "else referenceDir"));
+        assertThat("and it is that value the run is handed, not the tree it was derived from",
+            registration, containsString("argv += \"-PrefharnessOutputDir=${outputDir.absolutePath}\""));
+        assertThat("the tree itself reaches the argv through nothing else, so the branch above is "
+                + "the whole of what decides where a run writes",
+            registration, not(containsString("-PrefharnessOutputDir=${referenceDir")));
+
+        // The version segment and no more of the path. The whole home would carry a `cache/` literal,
+        // which is one of the three markers the slow-tag rule reads as a test that touches the cache -
+        // and this one reads a tracked JSON file. The fragment is what carries the claim anyway: the
+        // probe's directory sits directly under the version, which is where the reference tree sits.
+        assertThat("the store's own declaration of where a probe's output lives, which is what the "
+                + "branch makes true: a SIBLING of the reference tree rather than a directory in it. "
+                + "Read from index.json rather than restated, because that file is what a reader "
+                + "resolves the path against", read(ParityStore.PRODUCTION.resolve("index.json")),
+            containsString("<version>/depth-quantum-probe/"));
+    }
+
+    @Test
     @DisplayName("a row measured against the reference tree is ordered after any render of it")
     void whatReadsTheReferenceTreeRunsAfterARenderOfIt() {
         assertThat("a render landing between a sweep and the capture of it has that capture stamp "

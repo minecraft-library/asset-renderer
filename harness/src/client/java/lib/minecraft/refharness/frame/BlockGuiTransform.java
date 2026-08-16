@@ -22,6 +22,8 @@ import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Resolver for a block's authored {@code display.gui} transform, shared by
@@ -40,6 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * identity sentinel, the resolver returns {@link #DEFAULT_BLOCK_GUI} - the same {@code [30,225,0]}
  * pose the harness applied unconditionally before.
  */
+@Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE)
 final class BlockGuiTransform {
 
     private BlockGuiTransform() {

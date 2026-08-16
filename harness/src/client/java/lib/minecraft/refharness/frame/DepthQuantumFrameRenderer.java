@@ -15,6 +15,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Measures how finely the GPU can tell two depths apart, by rendering two overlapping quads a swept
@@ -75,6 +77,7 @@ import java.util.Map;
  * cells as bounded below rather than as a measurement, and take the fine end of the answer from the
  * centre cells, whose separation is representable all the way down.
  */
+@Parity(claim = "harness-probe-sweep", mode = Mode.DEMOTE)
 public final class DepthQuantumFrameRenderer implements AutoCloseable {
 
     /**

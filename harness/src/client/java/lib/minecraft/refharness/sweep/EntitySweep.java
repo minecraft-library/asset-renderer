@@ -33,6 +33,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 
 /**
  * Entity sweep. Each subject is a transient entity, allocated without being added to any level, so
@@ -60,6 +63,7 @@ import java.util.TreeSet;
  * cohort keeps each group sized to itself, and is what makes adding a cohort provably unable to move
  * a reference that already exists.
  */
+@Parity(claim = "harness-entity-sweep", mode = Mode.DEMOTE, subject = Subject.ENTITY)
 public final class EntitySweep implements Sweep<EntitySweep.Subject> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

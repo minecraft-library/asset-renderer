@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Diagnostic depth-quantum probe. Renders two overlapping quads a swept distance apart and lets the
@@ -35,6 +37,7 @@ import java.util.List;
  * quantise away, so its band must come out green. A run where either control disagrees is measuring
  * something other than the depth test.
  */
+@Parity(claim = "harness-probe-sweep", mode = Mode.DEMOTE)
 public final class DepthQuantumSweep implements Sweep<DepthQuantumFrameRenderer.Cell> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

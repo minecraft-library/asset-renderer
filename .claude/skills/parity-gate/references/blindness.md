@@ -647,6 +647,126 @@ The vocabulary module's build script declares its toolchain and its encoding and
 
 *Probe:* change the toolchain or add a repository and capture any artifact; every stored byte is identical, and no consumer's classpath gains an entry because the build resolves none
 
+## B51 - The menu sweep and its frame renderer reach the menu references and no other sub-tree
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/MenuFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/MenuSweep.java`
+- **sees** `sweep.menu`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+MenuSweep is the one sweep that submits no geometry: it drives the client's own GUI pipeline into an offscreen target and writes menus/. MenuFrameRenderer is reached from it and from nothing else. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu references are what sweep.menu diffs against, and manifest.references hashes the whole tree, so those two are the whole answer.
+
+*Probe:* widen the panel and re-render the whole tree: menus/ moves and the other six sub-trees hash identically, so every sweep but the menu one is measured against ground truth nobody touched
+
+## B52 - The block sweep and the four types only it reaches write blocks/ and nothing else
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/BlockEntityFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/frame/BlockFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/frame/BlockGuiTransform.java`, `harness/src/client/java/lib/minecraft/refharness/frame/BlockIconGeometry.java`, `harness/src/client/java/lib/minecraft/refharness/frame/FirstVariantRandomSource.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/BlockSweep.java`
+- **sees** `sweep.block`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+BlockSweep routes each block to BlockFrameRenderer or BlockEntityFrameRenderer, and the icon geometry, the GUI transform and the first-variant random source are reached from those two and from no other sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. A block item is drawn here rather than by the item sweep, which renders only non-BlockItems, so the two do not share a subject.
+
+*Probe:* perturb the icon predicate and re-render: blocks/ moves and items/ does not, because ItemSweep enumerates the complement of what BlockSweep draws
+
+## B53 - The item sweep enumerates the non-block items and writes items/ alone
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/sweep/ItemSweep.java`
+- **sees** `sweep.item`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.menu`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+ItemSweep renders every non-BlockItem through the vanilla GUI inventory-icon path into items/. It shares ItemFrameRenderer with the glint sweep, which is why that renderer carries a wider claim of its own; the sweep itself is read by nothing. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* drop a subject from the enumeration and re-render: items/ loses a file and glint/ keeps all of its, because GlintSweep enumerates its own foil roster
+
+## B54 - The GUI item frame renderer draws for the item sweep and for the foil half of the glint one
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/ItemFrameRenderer.java`
+- **sees** `sweep.item`, `sweep.glint`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.menu`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+ItemFrameRenderer is constructed by ItemSweep and by GlintSweep, which uses it for the always-foil GUI items and EntityFrameRenderer for the worn-armour diagnostics. So it reaches two sub-trees rather than one, and reaches the other five through nothing. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* perturb the icon draw and re-render: items/ and glint/ both move, and blocks/, entities/, players/, armor/ and menus/ hash identically
+
+## B55 - The entity sweep enumerates the entity roster and writes entities/ alone
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/sweep/EntitySweep.java`
+- **sees** `sweep.entity`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+EntitySweep is the enumeration and the family-fit pre-pass for entities/; the frame renderer it drives is shared with the armour and glint sweeps and carries its own wider claim. Nothing else constructs EntitySweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The armour sweep names its own fixed roster of armoured mobs rather than reading this one.
+
+*Probe:* add a variant to the enumeration and re-render: entities/ gains a file and armor/ keeps its seven, because ArmorSweep names its subjects itself
+
+## B56 - The entity frame renderer and its bounds walker draw every mob any sweep renders
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/EntityBoundsWalker.java`, `harness/src/client/java/lib/minecraft/refharness/frame/EntityFrameRenderer.java`
+- **sees** `sweep.entity`, `sweep.armor`, `sweep.glint`, `manifest.player-raw`, `manifest.references`
+- **blind** `sweep.block`, `sweep.item`, `sweep.menu`, `sweep.player`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+EntityFrameRenderer is constructed by EntitySweep, ArmorSweep, GlintSweep and the pitch-roll probe, and EntityBoundsWalker is reached from it. So it writes entities/, armor/ and the worn half of glint/, and manifest.player-raw rides armor/ because one of that artifact's two members is the armour sweep's own parity output. It reaches blocks/, items/, menus/ and players/ through nothing: the player has a frame renderer of its own. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* perturb the bounds walk and re-render: entities/, armor/ and glint/ move together and blocks/, items/, menus/ and players/ hash identically
+
+## B57 - The armour sweep names its own subjects and writes armor/ alone
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/sweep/ArmorSweep.java`
+- **sees** `sweep.armor`, `manifest.player-raw`, `manifest.references`
+- **blind** `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+ArmorSweep renders a fixed roster of armoured mobs, adult and baby, that the entity sweep cannot produce because it equips nothing and ages nothing. It reads the appearance applier and the entity frame renderer, both of which carry wider claims of their own, and nothing reads it. manifest.player-raw rides it because one of that artifact's two members is this sweep's parity output. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* drop a subject from the roster and re-render: armor/ loses a file and entities/ keeps every one of its, because the entity sweep enumerates the registry rather than this roster
+
+## B58 - The glint sweep steps its own clock and writes glint/ alone
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/sweep/GlintSweep.java`
+- **sees** `sweep.glint`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.item`, `sweep.menu`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+GlintSweep renders each foil subject over a fixed frame count, stepping the harness glint clock, and writes glint/ plus the atlas-UV sidecar beside it - the one reference byte written outside SweepRunner, and it lands in this sweep's own directory. The two renderers it drives carry wider claims; nothing reads the sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* change the frame count and re-render: glint/ changes population and items/ keeps its count, even though the two draw overlapping subjects through one renderer
+
+## B59 - The player sweep and its frame renderer write players/ and no other sub-tree
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/PlayerFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/PlayerSweep.java`
+- **sees** `sweep.player`, `manifest.player-raw`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+PlayerSweep drives PlayerFrameRenderer, which is reached from it and from nothing else - the player is the one subject with a frame renderer no other sweep shares. manifest.player-raw rides it because one of that artifact's two members is this sweep's parity output. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* perturb the player pose and re-render: players/ moves and entities/ holds, even though both draw a humanoid
+
+## B60 - A probe writes outside the reference tree, so nothing this store holds can see one
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/DepthQuantumFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/DepthQuantumSweep.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/PitchRollSweep.java`
+- **sees** -
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`, `manifest.player-raw`, `manifest.references`
+- **source** declared from where the run tasks put a probe's output: registerHarnessRun branches on an empty refresh list and hands those two the tree's parent, and manifest.references walks the tree itself - so no glob of that walk can reach a probe's grid
+
+The pitch-roll and depth-quantum sweeps refresh no reference: their run tasks hand them the reference tree's PARENT as an output root, so their directories are siblings of the tree rather than members of it, which is where index.json already homes the depth-quantum probe. Neither is read by any other sweep. So no stored artifact is defined over what they write, and the gate for a change here is that the harness still compiles - which check reaches through harnessClasses - and an actual probe run, whose output is evidence rather than a value a gate reproduces.
+
+*Probe:* run either probe and capture every artifact: no stored byte moves, and the probe's own directory appears beside the reference tree rather than inside it
+
 ## Paths that reach nothing
 
 Covered and reaching nothing is a different answer from "I do not know". A changed
