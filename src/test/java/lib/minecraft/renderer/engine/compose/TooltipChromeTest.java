@@ -144,7 +144,7 @@ class TooltipChromeTest {
      *
      * @return the partly built text options
      */
-    private static TextOptions.TextOptionsBuilder loreBuilder() {
+    private static TextOptions.Builder loreBuilder() {
         ConcurrentList<LineSegment> lines = Concurrent.newList();
         lines.add(LineSegment.builder().withSegments(ColorSegment.builder().withText("Sprite Chrome").build()).build());
         return TextOptions.builder().style(TextOptions.Style.LORE).lines(lines);

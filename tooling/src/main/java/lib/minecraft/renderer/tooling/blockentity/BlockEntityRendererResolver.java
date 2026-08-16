@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.gson.JsonTree;
 import org.jetbrains.annotations.NotNull;
 
@@ -9,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
  * {@code geometry}, {@code y_axis}, {@code tinted}, {@code inventory}, {@code icon},
  * {@code parts}, {@code blocks}.
  */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class BlockEntityRendererResolver {
 
     private final @NotNull BlockEntitySubject subject;
@@ -17,22 +20,6 @@ final class BlockEntityRendererResolver {
     private final @NotNull BlockGuiResolver gui;
     private final @NotNull BlockCatalogResolver catalog;
     private final @NotNull InventoryTransformResolver transform;
-
-    BlockEntityRendererResolver(
-        @NotNull BlockEntitySubject subject,
-        @NotNull BlockGeometrySourceResolver.Split split,
-        @NotNull BlockTintFlagResolver tint,
-        @NotNull BlockGuiResolver gui,
-        @NotNull BlockCatalogResolver catalog,
-        @NotNull InventoryTransformResolver transform
-    ) {
-        this.subject = subject;
-        this.split = split;
-        this.tint = tint;
-        this.gui = gui;
-        this.catalog = catalog;
-        this.transform = transform;
-    }
 
     /**
      * The model node - invocation order IS on-disk member order.

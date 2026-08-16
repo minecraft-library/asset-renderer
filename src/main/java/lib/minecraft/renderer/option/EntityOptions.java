@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -7,9 +9,6 @@ import lib.minecraft.renderer.option.slot.EntitySlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.ArmorOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -37,21 +36,19 @@ import java.util.function.UnaryOperator;
  * opted into.
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder
 public class EntityOptions implements RenderOptions {
 
     /**
      * Namespaced entity id for lookup, e.g. {@code "minecraft:zombie"}. Empty (default) resolves
      * to no entity.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<String> entityId = Optional.empty();
 
     /**
      * Optional texture id override, resolvable through the active pack stack. Empty (default)
      * uses the entity's own default texture.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<String> textureId = Optional.empty();
 
     /**
@@ -60,11 +57,9 @@ public class EntityOptions implements RenderOptions {
      * (the default) has no effect on the render. Only consulted under the model form. Lower
      * precedence than {@link #getTextureId() textureId} for texture resolution.
      */
-    @lombok.Builder.Default
     private final @NotNull EntityAppearance appearance = EntityAppearance.defaults();
 
     /** The worn armor pieces (helmet, chestplate, leggings, boots). */
-    @lombok.Builder.Default
     private final @NotNull ArmorOptions armor = ArmorOptions.defaults();
 
     /**
@@ -74,7 +69,6 @@ public class EntityOptions implements RenderOptions {
      * canvas dynamically from the entity's screen bounds for parity work. See each constant's
      * javadoc for the precise sizing math.
      */
-    @lombok.Builder.Default
     private final @NotNull FitMode fitMode = FitMode.OUTPUT_SIZE;
 
     /**
@@ -91,7 +85,6 @@ public class EntityOptions implements RenderOptions {
      * Default {@code 0} so the BOUNDS modes are unchanged from current parity behaviour
      * without an explicit override.
      */
-    @lombok.Builder.Default
     private final int padding = 0;
 
     /**
@@ -104,7 +97,6 @@ public class EntityOptions implements RenderOptions {
      * number and sizes the same canvas from the other side, so changing it means editing both
      * constants in one commit.
      */
-    @lombok.Builder.Default
     private final int pixelsPerBlock = 256;
 
     /**
@@ -117,7 +109,6 @@ public class EntityOptions implements RenderOptions {
      * and applies the same cap from the other side, so changing it means editing both constants in
      * one commit.
      */
-    @lombok.Builder.Default
     private final int maxCanvasSize = 1024;
 
     /**
@@ -127,7 +118,6 @@ public class EntityOptions implements RenderOptions {
     public static final @NotNull OutputOptions DEFAULT_OUTPUT = OutputOptions.defaults();
 
     /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
-    @lombok.Builder.Default
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
@@ -138,14 +128,12 @@ public class EntityOptions implements RenderOptions {
      * when the caller opts in with {@code frameCount > 1}. Sidecar-less entity textures (the whole
      * vanilla roster) resolve unchanged, so the default render is byte-identical.
      */
-    @lombok.Builder.Default
     private final @NotNull AnimationOptions animation = AnimationOptions.defaults();
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
      * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */
-    @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
@@ -154,18 +142,7 @@ public class EntityOptions implements RenderOptions {
      * built-in {@link EntitySlot} slots, or replace the stack. The base body is built separately
      * and is always emitted first. Defaults to {@linkplain UnaryOperator#identity() identity}.
      */
-    @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull EntityOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with every field at its default value.

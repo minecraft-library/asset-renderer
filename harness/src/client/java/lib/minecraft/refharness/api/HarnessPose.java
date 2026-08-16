@@ -1,8 +1,10 @@
 package lib.minecraft.refharness.api;
 
+import dev.simplified.annotations.UtilityClass;
 import org.joml.Quaternionf;
 
 /** The presentation poses every harness subject is rendered at. */
+@UtilityClass
 public final class HarnessPose {
 
     /**
@@ -22,6 +24,4 @@ public final class HarnessPose {
         (float) Math.toRadians(210.0),
         (float) Math.toRadians(45.0),
         0f);
-
-    private HarnessPose() {}
 }

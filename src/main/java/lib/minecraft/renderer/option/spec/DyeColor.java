@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.option.spec;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.Accessors;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -81,8 +81,7 @@ public sealed interface DyeColor {
      * relationship this doc claims against the code, instead of taking sixteen transcribed constants
      * on trust.
      */
-    @Getter
-    @Accessors(fluent = true)
+    @Getter(style = NamingStyle.FLUENT)
     @RequiredArgsConstructor
     enum Vanilla implements DyeColor {
 

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.kernel;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.gson.JsonTree;
 import dev.simplified.gson.exception.JsonException;
 import org.jetbrains.annotations.NotNull;
@@ -37,6 +39,7 @@ import java.util.zip.ZipFile;
  * {@code ClassNode} is mutable but the tooling convention is read-only access, so handing
  * the same node to multiple readers is safe under that convention.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ClassNodeCache implements AutoCloseable {
 
     /** JVM class-file entry suffix inside the jar. */
@@ -51,10 +54,6 @@ public final class ClassNodeCache implements AutoCloseable {
 
     private final @NotNull ZipFile zip;
     private final @NotNull ConcurrentMap<String, ClassNode> nodes = new ConcurrentHashMap<>();
-
-    private ClassNodeCache(@NotNull ZipFile zip) {
-        this.zip = zip;
-    }
 
     /**
      * Opens a cache over the given jar - THE only {@code new ZipFile} in tooling.

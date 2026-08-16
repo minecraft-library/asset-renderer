@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -20,9 +21,8 @@ import java.util.function.Function;
  * chain, the recognizer sentinel and the budget bind on yields with the sentinel tested first,
  * and the budget only answers {@link Exit#BUDGET} when it refused a yield that arrived.
  */
+@UtilityClass
 final class Drive {
-
-    private Drive() {}
 
     /** Whether the stage stack asks the loop to stop. */
     enum Verdict { CONTINUE, HALT }

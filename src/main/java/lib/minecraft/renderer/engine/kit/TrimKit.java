@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.engine.kit;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.parity.Parity;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

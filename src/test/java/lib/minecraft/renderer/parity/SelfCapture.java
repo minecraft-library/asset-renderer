@@ -2,6 +2,7 @@ package lib.minecraft.renderer.parity;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assumptions;
 
@@ -49,6 +50,7 @@ import java.util.Optional;
  * envelope spells its payload with. One rule per direction, so a new row of an existing kind states
  * nothing and cannot state it differently.
  */
+@UtilityClass
 public final class SelfCapture {
 
     /** The three names an artifact kind spells its envelope with, by the id's kind prefix. */
@@ -67,8 +69,6 @@ public final class SelfCapture {
      * observed value beats a {@code --flag} guessed on the build side.
      */
     private static final @NotNull String FLAGS = "_flags";
-
-    private SelfCapture() {}
 
     /**
      * Aborts the calling test when the store index says this artifact has no baseline yet.

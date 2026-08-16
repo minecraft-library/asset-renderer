@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.engine.texture;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
@@ -16,8 +18,6 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.exception.RenderException;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

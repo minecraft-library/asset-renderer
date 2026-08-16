@@ -1,5 +1,6 @@
 package lib.minecraft.refharness;
 
+import dev.simplified.annotations.UtilityClass;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.GenericMessageScreen;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * fails silently when the named world doesn't exist; programmatic creation is the
  * cheapest way to get a guaranteed-fresh {@code ClientLevel} on every invocation.
  */
+@UtilityClass
 public final class WorldBootstrap {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
@@ -43,8 +45,6 @@ public final class WorldBootstrap {
      * reports one - the watchdog prints it to name the screen a stuck run settled on.
      */
     private static volatile String lastScreen = "none";
-
-    private WorldBootstrap() {}
 
     /**
      * Hooks {@link ScreenEvents#AFTER_INIT} so the first screen that is not a loading step triggers

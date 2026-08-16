@@ -1,10 +1,9 @@
 package lib.minecraft.renderer.asset.pack.item;
 
+import dev.simplified.annotations.EqualsAndHashCode;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Arrays;
 
 /**
  * A {@code special}-node {@code transformation} - vanilla's {@code com.mojang.math.Transformation}
@@ -28,6 +27,7 @@ import java.util.Arrays;
  * @param scale the per-axis scale, {@code [x, y, z]}
  * @param translation the translation, {@code [x, y, z]}
  */
+@EqualsAndHashCode
 public record SpecialTransform(
     float @NotNull [] leftRotation,
     float @NotNull [] rightRotation,
@@ -76,25 +76,6 @@ public record SpecialTransform(
     /** Builds a {@link Quaternionf} from a {@code [x, y, z, w]} component array. */
     private static @NotNull Quaternionf quaternion(float @NotNull [] q) {
         return new Quaternionf(q[0], q[1], q[2], q[3]);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        SpecialTransform that = (SpecialTransform) o;
-        return Arrays.equals(leftRotation, that.leftRotation)
-            && Arrays.equals(rightRotation, that.rightRotation)
-            && Arrays.equals(scale, that.scale)
-            && Arrays.equals(translation, that.translation);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = Arrays.hashCode(leftRotation);
-        result = 31 * result + Arrays.hashCode(rightRotation);
-        result = 31 * result + Arrays.hashCode(scale);
-        result = 31 * result + Arrays.hashCode(translation);
-        return result;
     }
 
 }

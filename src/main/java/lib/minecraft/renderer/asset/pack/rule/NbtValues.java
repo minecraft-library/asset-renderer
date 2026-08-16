@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.asset.pack.rule;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.nbt.NbtFactory;
 import lib.minecraft.nbt.tag.ByteTag;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.NumericalTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**

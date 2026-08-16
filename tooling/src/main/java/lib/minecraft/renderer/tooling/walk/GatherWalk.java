@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -13,13 +15,10 @@ import java.util.function.Predicate;
  *
  * @param <G> the gathered value type
  */
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public final class GatherWalk<G> {
 
     private final @NotNull Descriptor descriptor;
-
-    GatherWalk(@NotNull Descriptor descriptor) {
-        this.descriptor = descriptor;
-    }
 
     private @NotNull GatherWalk<G> fold(@NotNull Descriptor.Fold fold) {
         return new GatherWalk<>(this.descriptor.withFold(fold));

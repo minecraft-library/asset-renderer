@@ -1,12 +1,11 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -22,39 +21,34 @@ import java.util.Optional;
  */
 @Parity(as = AtlasRenderer.class, mode = Mode.SUPPRESS)
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder
 public class AtlasOptions implements RenderOptions {
 
     /**
      * Which model kind(s) to include in the atlas - blocks, items, or both
      */
-    @lombok.Builder.Default
     private final @NotNull Source source = Source.BOTH;
 
     /**
      * Optional predicate filter evaluated per model id; only ids passing the predicate are
      * rendered. Empty (default) admits every id from the selected {@link #source}
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<java.util.function.Predicate<String>> filter = Optional.empty();
 
     /**
      * Output tile dimensions in pixels (square)
      */
-    @lombok.Builder.Default
     private final int tileSize = 128;
 
     /**
      * Number of tile columns per row in the output atlas
      */
-    @lombok.Builder.Default
     private final int columns = 16;
 
     /**
      * Background fill for empty tile areas (solid colour or checkerboard), defaulting to
      * {@link Background#TRANSPARENT}
      */
-    @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
@@ -62,7 +56,6 @@ public class AtlasOptions implements RenderOptions {
      * {@code false} (default), only the first frame (tick 0) is used, producing a static
      * snapshot suitable for atlas previews.
      */
-    @lombok.Builder.Default
     private final boolean animated = false;
 
     /**
@@ -71,18 +64,7 @@ public class AtlasOptions implements RenderOptions {
      * leave this enabled; programmatic consumers that don't want their logs cluttered can flip
      * it off via the builder.
      */
-    @lombok.Builder.Default
     private final boolean progressLogging = true;
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull AtlasOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with every field at its default value.

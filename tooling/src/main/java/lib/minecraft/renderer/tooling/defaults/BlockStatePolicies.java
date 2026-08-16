@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.defaults;
 
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -9,6 +10,7 @@ import org.jetbrains.annotations.NotNull;
  * The block-defaults flow's complete policy roster - the one genuinely undetectable
  * default-state fact. Never fetches ({@code PolicyPurityTest}).
  */
+@RequiredArgsConstructor
 enum BlockStatePolicies implements NavigationPolicy {
 
     /**
@@ -26,11 +28,6 @@ enum BlockStatePolicies implements NavigationPolicy {
 
     private final @NotNull String value;
     private final @NotNull String provenance;
-
-    BlockStatePolicies(@NotNull String value, @NotNull String provenance) {
-        this.value = value;
-        this.provenance = provenance;
-    }
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {

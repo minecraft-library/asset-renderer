@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine.kit;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
@@ -8,7 +9,6 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.engine.compose.RasterPass;
 import lib.minecraft.renderer.engine.compose.Timeline;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

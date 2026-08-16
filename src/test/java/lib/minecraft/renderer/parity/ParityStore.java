@@ -3,6 +3,7 @@ package lib.minecraft.renderer.parity;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.util.Map;
  * by path also means a value promoted seconds ago is the value the next read sees, rather than
  * whatever {@code build/resources/test} last copied.
  */
+@UtilityClass
 public final class ParityStore {
 
     /** The tracked production store: the last known value of every parity artifact. */
@@ -52,8 +54,6 @@ public final class ParityStore {
     private static final @NotNull Map<String, String> ROOT_FILES = Map.of(
         "report.oracle-index", "index.json",
         "roster.blindness-rules", "blindness.json");
-
-    private ParityStore() {}
 
     /**
      * Returns the store-relative path an artifact id maps to.

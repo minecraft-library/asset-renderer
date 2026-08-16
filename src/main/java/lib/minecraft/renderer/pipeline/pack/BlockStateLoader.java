@@ -11,6 +11,7 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -20,7 +21,6 @@ import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
 import lib.minecraft.renderer.parity.Parity;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

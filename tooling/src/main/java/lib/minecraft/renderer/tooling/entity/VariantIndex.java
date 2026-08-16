@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.gson.JsonTree;
 import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
@@ -36,6 +38,7 @@ import java.util.Map;
  * are skipped. Enum-map variants (horse coats) are the variant axis resolver's
  * per-subject detection, not table data - they carry no {@code data/} directory.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 final class VariantIndex {
 
     /**
@@ -79,11 +82,6 @@ final class VariantIndex {
 
     private final @NotNull Map<String, List<Variant>> tables;
     private final @NotNull Map<String, String> holderDefaults;
-
-    private VariantIndex(@NotNull Map<String, List<Variant>> tables, @NotNull Map<String, String> holderDefaults) {
-        this.tables = tables;
-        this.holderDefaults = holderDefaults;
-    }
 
     /**
      * Reads every variant table and holder default out of the jar, once.

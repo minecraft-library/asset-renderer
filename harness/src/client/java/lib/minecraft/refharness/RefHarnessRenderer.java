@@ -1,5 +1,6 @@
 package lib.minecraft.refharness;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
 import lib.minecraft.refharness.api.SweepRunner;
@@ -25,6 +26,7 @@ import java.util.List;
  * placement. The world still has to exist because entity construction requires a level reference,
  * but its rendering output is never captured.
  */
+@UtilityClass
 public final class RefHarnessRenderer {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
@@ -36,8 +38,6 @@ public final class RefHarnessRenderer {
      * the list order is the sweep order.
      */
     private static List<SweepRunner<?>> runners = List.of();
-
-    private RefHarnessRenderer() {}
 
     static void start(Minecraft client) {
         LOG.info("RefHarnessRenderer.start: building sweeps. level={}, player={}",

@@ -1,12 +1,11 @@
 package lib.minecraft.renderer.option.spec;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.tensor.EulerRotation;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -23,7 +22,7 @@ import org.jetbrains.annotations.NotNull;
  * @see Renderer
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder
 public class OutputOptions {
 
     /**
@@ -31,27 +30,23 @@ public class OutputOptions {
      * share this frame, so one value here is the tile dimension every one of them agrees on out of
      * the box.
      */
-    @lombok.Builder.Default
     private final int canvasSize = 256;
 
     /**
      * Graphical projection posing the camera and its lens. Defaults to {@link Projection#VANILLA_ISO}.
      */
-    @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_ISO;
 
     /**
      * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
      * {@link Facing#DEFAULT} (no reflection).
      */
-    @lombok.Builder.Default
     private final @NotNull Facing facing = Facing.DEFAULT;
 
     /**
      * User-override model rotation applied before the camera transform, in degrees. Defaults to
      * {@link EulerRotation#NONE}.
      */
-    @lombok.Builder.Default
     private final @NotNull EulerRotation rotation = EulerRotation.NONE;
 
     /**
@@ -63,14 +58,12 @@ public class OutputOptions {
      * rather than to any one renderer - every reader used to spell {@code Math.max(1, ...)} around this
      * accessor for itself, which put one rule in six places and left a seventh reader without it.
      */
-    @lombok.Builder.Default
     private final int supersample = 1;
 
     /**
      * Whether to apply FXAA post-processing on the rasterized buffer. Default {@code false}; when
      * {@link #supersample} is {@code > 1}, FXAA runs on the hi-res buffer before downsampling.
      */
-    @lombok.Builder.Default
     private final boolean antiAlias = false;
 
     /**
@@ -93,16 +86,6 @@ public class OutputOptions {
         return this.projection == Projection.VANILLA_ISO
             && this.rotation.equals(EulerRotation.NONE)
             && this.facing.equals(Facing.DEFAULT);
-    }
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull OutputOptionsBuilder mutate() {
-        return this.toBuilder();
     }
 
     /**

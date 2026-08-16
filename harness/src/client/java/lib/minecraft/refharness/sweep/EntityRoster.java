@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.sweep;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.refharness.api.Appearance;
 import lib.minecraft.refharness.api.SweepContext;
 import net.minecraft.core.Registry;
@@ -27,9 +28,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /** The hand-maintained tables that decide which entities are swept and how they are grouped. */
+@UtilityClass
 public final class EntityRoster {
-
-    private EntityRoster() {}
 
     /**
      * Allowlist of {@link MobCategory#MISC} entity types that should still be rendered despite the

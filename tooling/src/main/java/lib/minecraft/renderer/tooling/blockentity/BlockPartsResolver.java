@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -16,10 +17,8 @@ import java.util.List;
  * <p>{@code offset} stays the deliberate int channel; it is omitted when the roster carries none
  * (the banner flag composes with no offset), present as {@code [0, 0, 0]} for the pot sides.
  */
+@UtilityClass
 final class BlockPartsResolver {
-
-    private BlockPartsResolver() {
-    }
 
     /**
      * The split's {@code parts} array, or {@code null} when it composes no sub-models.

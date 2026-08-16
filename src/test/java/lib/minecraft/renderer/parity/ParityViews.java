@@ -2,6 +2,7 @@ package lib.minecraft.renderer.parity;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -29,6 +30,7 @@ import java.util.Map;
  * and measures nothing - naming a promote command here would tell a reader to run a re-baseline to
  * fix a stale rendering, which is the implicit re-baseline the store forbids.
  */
+@UtilityClass
 public final class ParityViews {
 
     /** The views that are tracked in the production store, and therefore have to be regenerable. */
@@ -37,8 +39,6 @@ public final class ParityViews {
     /** How to rewrite a stale view from the JSON already in the store. Measures nothing. */
     public static final @NotNull String REGEN_COMMAND =
         "./gradlew test --tests \"*ParityViewsTest\" -Dasset.parity.regenerateViews=true --rerun";
-
-    private ParityViews() {}
 
     /**
      * Renders one tracked view.

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.defaults;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -39,6 +41,7 @@ import java.util.function.Function;
  * helper, promoted to ClassKit only if a second flow needs it). The {@code "Property;"} suffix match
  * is tightened to the properties-package prefix to avoid over-broad matches.
  */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class PropertyDefinitionResolver {
 
     /**
@@ -62,10 +65,6 @@ final class PropertyDefinitionResolver {
      * enum owner -> (constant field name -> serialised name), clinit-ordered.
      */
     private final @NotNull Map<String, Map<String, String>> enumNameCache = new HashMap<>();
-
-    PropertyDefinitionResolver(@NotNull ClassNodeCache cache) {
-        this.cache = cache;
-    }
 
     // ------------------------------------------------------------------------------------
     // the five declaration shapes

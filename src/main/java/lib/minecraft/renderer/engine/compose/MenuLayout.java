@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.engine.compose;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.MenuRenderer;
@@ -91,6 +94,8 @@ public record MenuLayout(
     /**
      * What a cell belongs to, which is what decides whether a caller's slot index reaches it.
      */
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     public enum Role {
 
         /** A cell the container itself owns. */
@@ -102,25 +107,14 @@ public record MenuLayout(
         /** The cell a container's output sits in. */
         RESULT(true);
 
-        /** whether a caller's slot index reaches a cell of this role */
-        private final boolean addressed;
-
-        Role(boolean addressed) {
-            this.addressed = addressed;
-        }
-
         /**
-         * Whether a caller's slot index reaches a cell of this role.
+         * whether a caller's slot index reaches a cell of this role
          * <p>
          * The player's own section is drawn and never addressed, so a menu's slot space is the
          * container's cells and its result. Asking the role rather than listing the two that answer
          * yes is what makes a fifth role impossible to add without deciding this.
-         *
-         * @return whether a slot index reaches it
          */
-        public boolean addressed() {
-            return this.addressed;
-        }
+        private final boolean addressed;
 
     }
 

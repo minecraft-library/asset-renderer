@@ -5,7 +5,7 @@
  * <ul>
  *   <li><b>Shared sub-option bags</b> - {@code OutputOptions} (render frame), {@code ArmorOptions}
  *       (worn armor), {@code SkinOptions} / {@code TextureOptions} (player skin / cape sources),
- *       {@code AnimationOptions}. Each is a small {@code @Builder} value nested into a renderer's
+ *       {@code AnimationOptions}. Each is a small {@code @ClassBuilder} value nested into a renderer's
  *       options so a concern shared by several renderers is declared once instead of re-spelled per
  *       renderer.</li>
  *   <li><b>Caller-supplied value types the options reference</b> -

@@ -60,7 +60,7 @@ class EntityRendererFacingTest {
         entityRenderer = new EntityRenderer(ClientAssetsExtension.context(), entities);
     }
 
-    private static EntityOptions.EntityOptionsBuilder base() {
+    private static EntityOptions.Builder base() {
         return EntityOptions.builder()
             .entityId(Optional.of(ENTITY))
             .output(baseRender())

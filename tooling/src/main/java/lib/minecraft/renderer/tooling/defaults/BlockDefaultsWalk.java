@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.defaults;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -16,10 +17,8 @@ import java.util.TreeMap;
  * default object under {@code blocks} ({@code {}} when property-less, distinguishing resolved-empty
  * from walk-failed).
  */
+@UtilityClass
 public final class BlockDefaultsWalk {
-
-    private BlockDefaultsWalk() {
-    }
 
     /**
      * Runs the decode over every block in the registry index, appending to {@code blocks} and

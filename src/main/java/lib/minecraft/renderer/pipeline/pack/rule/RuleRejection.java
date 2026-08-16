@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -8,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
  * dropping a filter and over-matching. Caught at the top of each parse, logged via
  * {@link RuleDiagnostics}, and turned into a skipped rule. Never escapes the rule layer.
  */
+@Getter(value = AccessLevel.PACKAGE, style = NamingStyle.FLUENT)
 final class RuleRejection extends RuntimeException {
 
     /** The property key that failed to parse. */
@@ -27,24 +31,6 @@ final class RuleRejection extends RuntimeException {
         super(reason);
         this.key = key;
         this.value = value;
-    }
-
-    /**
-     * The property key that failed to parse.
-     *
-     * @return the key
-     */
-    @NotNull String key() {
-        return this.key;
-    }
-
-    /**
-     * The offending value.
-     *
-     * @return the value
-     */
-    @NotNull String value() {
-        return this.value;
     }
 
 }

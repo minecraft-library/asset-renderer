@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -13,7 +14,6 @@ import lib.minecraft.renderer.parity.ParityMetrics;
 import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.parity.SweepReport;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -107,7 +107,7 @@ public final class TestMenuParityVanilla {
      * count it carries itself and ignores the argument.
      */
     private static @NotNull Subject subject(@NotNull String name, @NotNull MenuOptions.Type type, int rows) {
-        MenuOptions.MenuOptionsBuilder options = MenuOptions.builder()
+        MenuOptions.Builder options = MenuOptions.builder()
             .type(type)
             .playerInventory(true)
             .title(name);

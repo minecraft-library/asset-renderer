@@ -2,6 +2,7 @@ package lib.minecraft.renderer.visual;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.codec.gif.GifImageWriter;
 import dev.simplified.image.codec.gif.GifWriteOptions;
@@ -30,7 +31,6 @@ import lib.minecraft.renderer.parity.ParityMetrics;
 import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.parity.SweepReport;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -275,7 +275,7 @@ public final class TestGlintParityVanilla {
         long @NotNull [] schedule
     ) {
         ArmorPiece leather = ArmorPiece.of(ArmorMaterial.LEATHER);
-        PlayerOptions.PlayerOptionsBuilder builder = PlayerOptions.builder()
+        PlayerOptions.Builder builder = PlayerOptions.builder()
             .type(PlayerOptions.Type.FULL)
             .dimension(PlayerOptions.Dimension.THREE_D)
             .skin(SkinOptions.builder()
@@ -286,7 +286,7 @@ public final class TestGlintParityVanilla {
                 .antiAlias(false)
                 .canvasSize(RENDER_SIZE)
                 .build());
-        ArmorOptions.ArmorOptionsBuilder armor = ArmorOptions.builder();
+        ArmorOptions.Builder armor = ArmorOptions.builder();
         switch (itemId) {
             case "minecraft:leather_helmet" -> armor.helmet(Optional.of(leather));
             case "minecraft:leather_chestplate" -> armor.chestplate(Optional.of(leather));

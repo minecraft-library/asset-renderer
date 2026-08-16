@@ -1,5 +1,7 @@
 package lib.minecraft.refharness.api;
 
+import dev.simplified.annotations.UtilityClass;
+
 import java.util.Optional;
 
 /**
@@ -16,11 +18,10 @@ import java.util.Optional;
  * override: the mixin runs deep inside vanilla's own render-state extraction, with no argument the
  * harness controls. A selection left set would silently reach the next subject.
  */
+@UtilityClass
 public final class AppearanceRequest {
 
     private static volatile Appearance current;
-
-    private AppearanceRequest() {}
 
     /**
      * Records the appearance the next measurement or draw was asked for.

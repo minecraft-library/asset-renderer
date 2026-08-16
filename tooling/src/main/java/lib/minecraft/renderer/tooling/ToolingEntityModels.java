@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryWalk;
@@ -17,10 +18,8 @@ import java.util.List;
  * geometry flow in one session: discovery, registry walk, {@code entity_models.json},
  * {@code entity_geometry.json}.
  */
+@UtilityClass
 public final class ToolingEntityModels {
-
-    private ToolingEntityModels() {
-    }
 
     /**
      * Runs the flow, writes its table, and applies the session's strict gate.

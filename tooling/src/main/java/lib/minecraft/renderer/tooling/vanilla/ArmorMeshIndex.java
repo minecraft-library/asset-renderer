@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
 import lib.minecraft.renderer.tooling.geometry.BabyMeshTransform;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
@@ -71,6 +73,7 @@ import java.util.Objects;
  * The renderer applies it to the shell alone; the wearer's own body carries the same transformer
  * baked into its geometry, so nothing is applied twice.
  */
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ArmorMeshIndex {
 
     /**
@@ -215,10 +218,6 @@ public final class ArmorMeshIndex {
     }
 
     private final @NotNull Map<String, Set> sets;
-
-    private ArmorMeshIndex(@NotNull Map<String, Set> sets) {
-        this.sets = sets;
-    }
 
     /**
      * Walks {@code createRoots} once and builds the index.

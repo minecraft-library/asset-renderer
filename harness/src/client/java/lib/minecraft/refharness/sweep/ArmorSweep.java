@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.sweep;
 
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.refharness.HarnessConfig;
 import lib.minecraft.refharness.api.Appearance;
 import lib.minecraft.refharness.api.Bounds;
@@ -8,6 +9,8 @@ import lib.minecraft.refharness.api.RefKey;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
 import lib.minecraft.refharness.frame.EntityFrameRenderer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
@@ -26,8 +29,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Sweep over a small roster of <b>armored</b> mobs, adult and baby. The main entity sweep builds
@@ -68,6 +69,7 @@ public final class ArmorSweep implements Sweep<ArmorSweep.Subject> {
      * pairs one of these with an entity type and an age. Kept tiny on purpose - the point is to
      * measure how far the baby render sits from vanilla, not to enumerate materials.
      */
+    @RequiredArgsConstructor
     private enum Material {
 
         IRON(Items.IRON_HELMET, Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS, Optional.empty()),
@@ -79,14 +81,6 @@ public final class ArmorSweep implements Sweep<ArmorSweep.Subject> {
         private final Item leggings;
         private final Item boots;
         private final Optional<Integer> dyeRgb;
-
-        Material(Item helmet, Item chestplate, Item leggings, Item boots, Optional<Integer> dyeRgb) {
-            this.helmet = helmet;
-            this.chestplate = chestplate;
-            this.leggings = leggings;
-            this.boots = boots;
-            this.dyeRgb = dyeRgb;
-        }
 
         /** Filename fragment: the lowercased material, plus the dye when one applies. */
         private String suffix() {

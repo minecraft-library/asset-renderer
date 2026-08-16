@@ -1,5 +1,7 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
@@ -48,6 +50,7 @@ import java.util.Optional;
  * which is what keeps the chrome exact rather than resampled.
  */
 @Parity(claim = "menu-closure", mode = Mode.DEMOTE, subject = Subject.MENU)
+@RequiredArgsConstructor(access = AccessLevel.PUBLIC)
 public final class MenuRenderer implements Renderer<MenuOptions> {
 
     /**
@@ -78,15 +81,6 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * The renderer context resolving chrome art and each slot's item.
      */
     private final @NotNull RendererContext context;
-
-    /**
-     * Constructs a new {@code MenuRenderer} bound to the given renderer context.
-     *
-     * @param context the renderer context supplying pack / model / texture lookups
-     */
-    public MenuRenderer(@NotNull RendererContext context) {
-        this.context = context;
-    }
 
     /**
      * Lays the menu's screen out, paints its chrome through the window the options select, and places

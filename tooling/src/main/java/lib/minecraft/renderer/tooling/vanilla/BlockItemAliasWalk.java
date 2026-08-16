@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -45,6 +47,7 @@ import java.util.TreeMap;
  *       {@code Block[]} allocation, and the secondaries are the array-store getstatics.</li>
  * </ul>
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class BlockItemAliasWalk {
 
     /** The factory-lambda return descriptor the two-block item registrations produce. */
@@ -64,11 +67,6 @@ public final class BlockItemAliasWalk {
 
     /** Secondary block id to its standing block's id, sorted by secondary id for byte-stable output. */
     private final @NotNull TreeMap<String, String> aliases = new TreeMap<>();
-
-    private BlockItemAliasWalk(@NotNull BlockRegistryIndex index, @NotNull Diagnostics diagnostics) {
-        this.index = index;
-        this.diagnostics = diagnostics;
-    }
 
     /**
      * Walks {@code Items.<clinit>} and writes the {@code aliases} object into {@code root}: each

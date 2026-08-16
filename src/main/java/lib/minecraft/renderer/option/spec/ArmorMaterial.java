@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.option.spec;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.asset.ResourceId;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 /**

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.option;
 
-import lombok.experimental.UtilityClass;
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**

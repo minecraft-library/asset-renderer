@@ -1,12 +1,14 @@
 package lib.minecraft.renderer.pipeline.util;
 
 import com.google.gson.Gson;
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.JsonTree;
 import dev.simplified.gson.exception.JsonException;
 import lib.minecraft.renderer.exception.PipelineException;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -14,7 +16,7 @@ import org.jetbrains.annotations.NotNull;
  *
  * <p>{@link #open(byte[])} parses the payload and asserts the {@code format == 2} discriminator. The
  * envelope members are validated and not retained - a caller learns a bad {@code format} from the
- * throw. The parsed node is exposed through {@link #payload()} for structural reads and
+ * throw. The parsed node is exposed through {@link #payload} for structural reads and
  * {@link #as(Class)} for whole-document deserialisation into a typed DTO.
  *
  * <p>Reading reuses the {@link JsonTree} read surface rather than a bespoke navigator.
@@ -34,6 +36,8 @@ public final class ResourceDocument {
     /** Shared Gson configured with the project defaults, used by {@link #as(Class)}. */
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
+    /** The validated payload node, carrying the tooling {@link JsonTree} read surface. */
+    @Getter(style = NamingStyle.FLUENT)
     private final @NotNull JsonTree payload;
 
     /**
@@ -76,8 +80,4 @@ public final class ResourceDocument {
         return GSON.fromJson(payload.toGson(), type);
     }
 
-    /** The validated payload node, carrying the tooling {@link JsonTree} read surface. */
-    public @NotNull JsonTree payload() {
-        return this.payload;
-    }
 }

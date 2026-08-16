@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine.compose;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -37,6 +38,7 @@ import java.util.Optional;
  *
  * @see ChromeDecomposition
  */
+@UtilityClass
 @Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 public final class ChromeSlicer {
 
@@ -64,8 +66,6 @@ public final class ChromeSlicer {
      * rather than as a restatement of the band.
      */
     private static final int MIN_REPEATS = 3;
-
-    private ChromeSlicer() {}
 
     /**
      * Decomposes an image.

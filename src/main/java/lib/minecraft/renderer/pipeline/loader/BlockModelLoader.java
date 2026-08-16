@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.loader;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.PackStack;
@@ -12,7 +13,6 @@ import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.loader.BlockModelReader.BlockModelEntry;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashSet;

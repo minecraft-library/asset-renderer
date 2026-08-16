@@ -3,6 +3,7 @@ package lib.minecraft.renderer.parity;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.List;
  * can throw, where a {@code private static final float[]} was a constant that could be emptied and
  * still report green - which is exactly what once turned a golden array into a no-op.
  */
+@UtilityClass
 public final class Pins {
 
     /**
@@ -35,8 +37,6 @@ public final class Pins {
      */
     private static final @NotNull String COMMIT_FIRST =
         "commit the change first - a capture from a dirty tree is refused at promotion - then: ";
-
-    private Pins() {}
 
     /**
      * Returns a pinned CRC32.

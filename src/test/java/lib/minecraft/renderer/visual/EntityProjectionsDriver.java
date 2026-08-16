@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
@@ -44,9 +45,8 @@ import java.util.Optional;
  *
  * <p>Usage: {@code ./gradlew entityProjections [-PentityId=minecraft:zombie] [-PrenderSize=256]}.
  */
+@UtilityClass
 public final class EntityProjectionsDriver {
-
-    private EntityProjectionsDriver() {}
 
     /** Output root for the contact sheet + per-projection cell PNGs. */
     private static final Path OUTPUT_DIR = Path.of("cache/visual/entity-projections");

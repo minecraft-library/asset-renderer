@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine.kit;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -10,7 +11,6 @@ import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.FluidOptions;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

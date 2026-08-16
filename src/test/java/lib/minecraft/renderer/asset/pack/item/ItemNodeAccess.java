@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.pack.item;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.pipeline.dump.PipelineParityDump;
 import org.jetbrains.annotations.NotNull;
 
@@ -20,9 +21,8 @@ import java.util.List;
  *
  * @see PipelineParityDump
  */
+@UtilityClass
 public final class ItemNodeAccess {
-
-    private ItemNodeAccess() {}
 
     /**
      * Returns a select node's cases as their two public halves, in list order.

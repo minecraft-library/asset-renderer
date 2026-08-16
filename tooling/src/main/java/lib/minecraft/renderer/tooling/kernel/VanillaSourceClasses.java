@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.kernel;
 
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -13,10 +14,8 @@ import java.util.List;
  * vanilla names. Entity- and block-specific constants that are derivable do not live here
  * either - they are derivations or policy rows.
  */
+@UtilityClass
 public final class VanillaSourceClasses {
-
-    private VanillaSourceClasses() {
-    }
 
     /** Vanilla class internal names and compositional package roots. */
     public static final class Types {

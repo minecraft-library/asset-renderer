@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.index;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
@@ -10,7 +11,6 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.parity.Parity;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;

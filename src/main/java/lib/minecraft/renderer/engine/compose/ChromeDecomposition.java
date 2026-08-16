@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.engine.compose;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.parity.Mode;
@@ -41,6 +44,8 @@ public record ChromeDecomposition(
      * The four edges a band can sit on. {@link #TOP} and {@link #BOTTOM} run across, so their slices
      * are columns; {@link #LEFT} and {@link #RIGHT} run down, so theirs are rows.
      */
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     public enum Edge {
 
         /** The top band, sliced into columns. */
@@ -57,19 +62,6 @@ public record ChromeDecomposition(
          * measured on.
          */
         private final boolean across;
-
-        Edge(boolean across) {
-            this.across = across;
-        }
-
-        /**
-         * Returns whether this band runs across the image rather than down it.
-         *
-         * @return true for the top and bottom bands
-         */
-        public boolean across() {
-            return this.across;
-        }
 
     }
 

@@ -13,13 +13,13 @@ import org.jetbrains.annotations.NotNull;
  * arbitrary types. Sub-option value objects composed into an options bag ({@link OutputOptions},
  * {@code ArmorOptions}, and siblings) are not options themselves and do not implement it.
  * <p>
- * The two accessors are declared here rather than left as per-class Lombok getters so a reader holding
+ * The two accessors are declared here rather than left as per-class generated getters so a reader holding
  * an {@code O extends RenderOptions} can ask for them at all - the background a finished frame
  * composites over, and the frame a subject is projected through. Both are {@code default} because
  * neither is total over the implementors: <b>six</b> of the eleven declare an {@code output} field and
  * <b>nine</b> a {@code background}, so declaring either abstract would force five public options classes
  * to grow a member they have no use for. Every type that does carry the field overrides the default with
- * its own Lombok accessor, so a default answers only where the field is genuinely absent.
+ * its own generated accessor, so a default answers only where the field is genuinely absent.
  * <p>
  * <b>A type with no such field answers the neutral value, and that is a real cost rather than a free
  * convenience.</b> Atlas, grid, layout, menu and text options project nothing - they compose images that

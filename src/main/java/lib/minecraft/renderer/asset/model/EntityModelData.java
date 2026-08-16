@@ -6,6 +6,10 @@ import com.google.gson.annotations.SerializedName;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
+import dev.simplified.annotations.AllArgsConstructor;
+import dev.simplified.annotations.EqualsAndHashCode;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NoArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
@@ -15,14 +19,10 @@ import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * A minimal entity model schema produced by the Java-derived entity-models pipeline
@@ -41,6 +41,7 @@ import java.util.Objects;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode
 public class EntityModelData {
 
     /**
@@ -105,21 +106,6 @@ public class EntityModelData {
         return this.textureSize.height();
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        EntityModelData that = (EntityModelData) o;
-        return Objects.equals(textureSize, that.textureSize)
-            && Float.compare(inventoryYRotation, that.inventoryYRotation) == 0
-            && cull == that.cull
-            && Objects.equals(bones, that.bones);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(textureSize, inventoryYRotation, bones, cull);
-    }
-
     /**
      * A single bone in an entity model, with a parent-relative pivot, rotation, and zero or more
      * cubes. Matching vanilla {@code ModelPart}, the {@link #pivot} is the bone's offset from its
@@ -135,6 +121,7 @@ public class EntityModelData {
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
+    @EqualsAndHashCode
     public static class Bone {
 
         /**
@@ -192,23 +179,6 @@ public class EntityModelData {
         @SerializedName("parent")
         private @Nullable String parent = null;
 
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-            Bone that = (Bone) o;
-            return Objects.equals(pivot, that.pivot)
-                && Objects.equals(rotation, that.rotation)
-                && Objects.equals(bindPoseRotation, that.bindPoseRotation)
-                && Float.compare(scale, that.scale) == 0
-                && Objects.equals(cubes, that.cubes)
-                && Objects.equals(parent, that.parent);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(pivot, cubes, rotation, bindPoseRotation, scale, parent);
-        }
-
     }
 
     /**
@@ -220,6 +190,7 @@ public class EntityModelData {
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
+    @EqualsAndHashCode
     public static class Cube {
 
         /**
@@ -288,25 +259,6 @@ public class EntityModelData {
         @SerializedName("face_uv")
         private @NotNull ConcurrentMap<String, FaceUv> faceUv = Concurrent.newMap();
 
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-            Cube that = (Cube) o;
-            return mirror == that.mirror
-                && Objects.equals(origin, that.origin)
-                && Objects.equals(size, that.size)
-                && Objects.equals(uv, that.uv)
-                && Objects.equals(grow, that.grow)
-                && Objects.equals(pivot, that.pivot)
-                && Objects.equals(rotation, that.rotation)
-                && Objects.equals(faceUv, that.faceUv);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(origin, size, uv, grow, mirror, pivot, rotation, faceUv);
-        }
-
         /**
          * Reads the geometry {@code grow} value into the {@link #grow} vector: a scalar {@code g}
          * broadcasts to {@code (g, g, g)}, an {@code [x, y, z]} array is read per-axis. Writes the
@@ -364,6 +316,7 @@ public class EntityModelData {
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
+    @EqualsAndHashCode
     public static class FaceUv {
 
         /**
@@ -376,19 +329,6 @@ public class EntityModelData {
          */
         @SerializedName("uv_size")
         private @NotNull Vector2f uvSize = Vector2f.ZERO;
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-            FaceUv that = (FaceUv) o;
-            return Objects.equals(uv, that.uv)
-                && Objects.equals(uvSize, that.uvSize);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(uv, uvSize);
-        }
 
     }
 

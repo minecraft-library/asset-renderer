@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset;
 
+import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.equipment.LayerType;
@@ -15,7 +16,6 @@ import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lombok.Builder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -82,7 +82,7 @@ import java.util.Set;
  *     entity's group-union fit window ({@code EntityOptions.FitMode.GROUP_BOUNDS}), the SAME list on
  *     each member of the group; empty for a singleton entity with no group
  */
-@Builder(toBuilder = true)
+@ClassBuilder
 public record Entity(
     @NotNull ResourceId id,
     @NotNull EntityModelData model,
@@ -111,7 +111,7 @@ public record Entity(
      * @return an otherwise-identical definition with an empty block-overlay list
      */
     public @NotNull Entity withoutBlockOverlays() {
-        return toBuilder().blockOverlays(List.of()).build();
+        return mutate().blockOverlays(List.of()).build();
     }
 
     /**
@@ -161,7 +161,7 @@ public record Entity(
         Entity definition = appearance.getVariant()
             .map(coat -> this.axes().variants().getOrDefault(coat, this))
             .orElse(this);
-        EntityBuilder builder = definition.toBuilder();
+        Builder builder = definition.mutate();
         // The worn shell resolves ahead of the age fork and outside it, because the axis that
         // selects a wearer's second shell is the wearer's own - six swap on age and the armor stand
         // on size - and vanilla picks the set off the flag alone rather than off the body mesh.

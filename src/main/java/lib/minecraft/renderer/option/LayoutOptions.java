@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
@@ -9,7 +12,6 @@ import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.LayoutSlot;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.Supplier;
@@ -18,7 +20,7 @@ import java.util.function.UnaryOperator;
 /**
  * Configures a single {@link LayoutRenderer} invocation.
  *
- * <p>Uses a hand-written (non-Lombok) builder so the {@link Builder#child(Renderer, RenderOptions)
+ * <p>Uses a hand-written builder so the {@link Builder#child(Renderer, RenderOptions)
  * child(Renderer, Options)} overload can erase the child's options type parameter cleanly -
  * each child is captured as a {@link Supplier} of {@link ImageData} whose render is deferred until
  * the layout renderer walks the tree.
@@ -26,6 +28,7 @@ import java.util.function.UnaryOperator;
  * @see lib.minecraft.renderer.LayoutRenderer
  */
 @Getter
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class LayoutOptions implements RenderOptions {
 
     /**
@@ -52,20 +55,6 @@ public class LayoutOptions implements RenderOptions {
      * Transform applied to the default child {@link FrameLayer} stack before it runs.
      */
     private final @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator;
-
-    private LayoutOptions(
-        @NotNull Layout layout,
-        @NotNull ConcurrentList<Supplier<ImageData>> children,
-        int framesPerSecond,
-        @NotNull Background background,
-        @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator
-    ) {
-        this.layout = layout;
-        this.children = children;
-        this.framesPerSecond = framesPerSecond;
-        this.background = background;
-        this.layerDecorator = layerDecorator;
-    }
 
     /**
      * A new builder seeded with the defaults.

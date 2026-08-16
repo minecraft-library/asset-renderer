@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.engine;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

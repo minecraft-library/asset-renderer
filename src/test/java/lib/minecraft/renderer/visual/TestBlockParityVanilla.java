@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -15,7 +16,6 @@ import lib.minecraft.renderer.parity.ParityMetrics;
 import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.parity.SweepReport;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

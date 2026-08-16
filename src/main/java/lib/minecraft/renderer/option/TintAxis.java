@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.option.spec.DyeColor;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,8 +23,7 @@ import java.util.Optional;
  * constant here plus its {@code tint_by} emission in the tooling - never a new appearance field and a
  * new hard-coded token branch in the renderer.
  */
-@Getter
-@Accessors(fluent = true)
+@Getter(style = NamingStyle.FLUENT)
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum TintAxis {
 

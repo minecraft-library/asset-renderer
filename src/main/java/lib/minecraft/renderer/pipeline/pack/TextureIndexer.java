@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.PackStack;
@@ -8,7 +9,6 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;

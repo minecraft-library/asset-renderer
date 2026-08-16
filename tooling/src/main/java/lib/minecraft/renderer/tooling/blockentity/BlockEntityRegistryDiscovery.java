@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -41,10 +44,8 @@ import java.util.Map;
  * share the renderer + geometry, and the chest family split (BlockFamilyPolicies) fans the
  * blocks back out at catalog time.
  */
+@UtilityClass
 public final class BlockEntityRegistryDiscovery {
-
-    private BlockEntityRegistryDiscovery() {
-    }
 
     /**
      * Walks both registries, joins the type registrations against the renderer registrations,
@@ -189,16 +190,12 @@ public final class BlockEntityRegistryDiscovery {
     private record TypeRegistration(@NotNull String id, @NotNull List<String> blockFields) {}
 
     /** A subject under construction, accumulating the block fields of every type sharing its renderer. */
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private static final class Pending {
 
         private final @NotNull String id;
         private final @NotNull String rendererClass;
         private final @NotNull List<String> blockFields = new ArrayList<>();
-
-        private Pending(@NotNull String id, @NotNull String rendererClass) {
-            this.id = id;
-            this.rendererClass = rendererClass;
-        }
 
     }
 

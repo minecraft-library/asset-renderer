@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -19,6 +21,7 @@ import java.util.function.Consumer;
  * emits to stderr. One line per event, carrying the event kind, the current node, the firing
  * stage and every installed cell's content.
  */
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 final class WalkDump {
 
     /** The arming property, in the auto-forwarded {@code asset.*} namespace. */
@@ -28,10 +31,6 @@ final class WalkDump {
     static @Nullable Consumer<String> sink;
 
     private final @NotNull Consumer<String> target;
-
-    private WalkDump(@NotNull Consumer<String> target) {
-        this.target = target;
-    }
 
     /**
      * The dump for one run, or {@code null} when unarmed. The property is read once here, so an

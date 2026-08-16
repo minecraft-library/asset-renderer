@@ -3,9 +3,13 @@ package lib.minecraft.refharness.frame;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
 import lib.minecraft.refharness.api.AppearanceRequest;
 import lib.minecraft.refharness.api.Bounds;
 import lib.minecraft.refharness.pip.PipScope;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.Model;
@@ -42,8 +46,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Measures an entity's screen-space silhouette by walking its model the way vanilla draws it.
@@ -1945,20 +1947,14 @@ final class EntityBoundsWalker implements AutoCloseable {
     /**
      * Mutable 2D bounds accumulator.
      */
+    @AllArgsConstructor(access = AccessLevel.PACKAGE)
     private static final class ScreenBounds {
         float minX = Float.POSITIVE_INFINITY;
-        float minY = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY;
         float maxY = Float.NEGATIVE_INFINITY;
 
         ScreenBounds() {}
-
-        ScreenBounds(float minX, float maxX, float minY, float maxY) {
-            this.minX = minX;
-            this.maxX = maxX;
-            this.minY = minY;
-            this.maxY = maxY;
-        }
 
         void expand(float x, float y) {
             if (x < minX) minX = x;

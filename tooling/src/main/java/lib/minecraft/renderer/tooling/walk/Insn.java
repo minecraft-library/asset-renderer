@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -16,9 +17,8 @@ import java.util.function.Predicate;
  * (an {@code INVOKEINTERFACE}, an opcode-parameterised match) spells
  * {@code opcode(op).ofType(..).where(..)} on the walk instead of a wider factory.
  */
+@UtilityClass
 public final class Insn {
-
-    private Insn() {}
 
     /**
      * Builds a recognizer from a node-class token and a predicate on the narrowed type.

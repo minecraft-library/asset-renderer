@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.engine;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
@@ -140,6 +142,7 @@ public class ModelEngine {
      * The pack-aware texture-resolution service bound to this engine's context, shared with kits and
      * layers that resolve textures against the same render.
      */
+    @Getter(style = NamingStyle.FLUENT)
     private final @NotNull Textures textures;
 
     /**
@@ -199,14 +202,6 @@ public class ModelEngine {
      */
     public @NotNull Matrix4f orient(@NotNull EulerRotation rotation) {
         return cameraSide(buildModelRotation(rotation));
-    }
-
-    /**
-     * The pack-aware texture-resolution service bound to this engine's context, for kits and layers
-     * that resolve textures while sharing the engine's render.
-     */
-    public @NotNull Textures textures() {
-        return this.textures;
     }
 
     /**

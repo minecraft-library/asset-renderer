@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -26,6 +28,7 @@ import java.util.TreeMap;
  *
  * <p>Both levels are sorted by key so the emitted table is independent of zip directory order.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 final class EquipmentAssetIndex {
 
     /** The equipment-definition subtree of the jar ({@code assets/minecraft/equipment/}). */
@@ -39,10 +42,6 @@ final class EquipmentAssetIndex {
     private static final @NotNull String TEXTURE_KEY = "texture";
 
     private final @NotNull Map<String, Map<String, String>> byLayerType;
-
-    private EquipmentAssetIndex(@NotNull Map<String, Map<String, String>> byLayerType) {
-        this.byLayerType = byLayerType;
-    }
 
     /**
      * Reads and inverts the whole equipment corpus, once.

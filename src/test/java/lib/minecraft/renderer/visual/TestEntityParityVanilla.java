@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
@@ -18,7 +19,6 @@ import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.parity.SweepReport;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -210,7 +210,7 @@ public final class TestEntityParityVanilla {
             int vw = vanillaImg.getWidth();
             int vh = vanillaImg.getHeight();
 
-            EntityOptions.EntityOptionsBuilder optionsBuilder = EntityOptions.builder()
+            EntityOptions.Builder optionsBuilder = EntityOptions.builder()
                 .entityId(Optional.of(subject.key().entityId()))
                 .appearance(subject.key().appearance())
                 .fitMode(EntityOptions.FitMode.GROUP_BOUNDS);

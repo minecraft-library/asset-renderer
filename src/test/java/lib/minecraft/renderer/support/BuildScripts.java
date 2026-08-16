@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.support;
 
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -25,6 +26,7 @@ import java.util.stream.Stream;
  * a declaration read to the next blank line cannot run off the end of one script and into the next.
  * Order is the root first and the applied scripts sorted, so two runs read identical bytes.
  */
+@UtilityClass
 public final class BuildScripts {
 
     /** The root build script, applied by nothing and applying the rest. */
@@ -32,9 +34,6 @@ public final class BuildScripts {
 
     /** Where the applied scripts live, and a declared parity trigger root. */
     public static final @NotNull String SCRIPT_DIR = "gradle";
-
-    private BuildScripts() {
-    }
 
     /**
      * Every build script as one text, the root first.

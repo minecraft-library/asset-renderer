@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.example;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import dev.simplified.gson.exception.JsonException;
 import dev.simplified.image.ImageFactory;
@@ -59,6 +60,7 @@ import java.util.Optional;
  * <p>Animated packs emit only {@code atlas.webp}; slice diagnostics need the raster
  * {@code atlas.png}, so a webp-only run is a clean error line rather than a stack trace.
  */
+@UtilityClass
 public final class AtlasGenerator {
 
     private static final @NotNull String DIAGNOSE_FLAG = "--diagnose";
@@ -80,9 +82,6 @@ public final class AtlasGenerator {
      * job consults a threshold, it does not navigate bytecode.
      */
     private static final double SPARSE_CONTENT_THRESHOLD = 0.02;
-
-    private AtlasGenerator() {
-    }
 
     /**
      * The decoded atlas raster paired with its typed sidecar, as the diagnostic passes read them

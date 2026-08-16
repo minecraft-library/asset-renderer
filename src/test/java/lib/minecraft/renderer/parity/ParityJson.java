@@ -7,6 +7,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.internal.LazilyParsedNumber;
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -43,6 +44,7 @@ import java.util.Map;
  * sum is formatted by the toolkit itself out of the same helper - a string either way, so the one
  * number a thousand rows are summed into is spelled like the thousand.
  */
+@UtilityClass
 public final class ParityJson {
 
     private static final @NotNull Gson PRETTY = new GsonBuilder()
@@ -50,8 +52,6 @@ public final class ParityJson {
         .serializeSpecialFloatingPointValues()
         .disableHtmlEscaping()
         .create();
-
-    private ParityJson() {}
 
     /**
      * Writes a store file in canonical form: keys recursively sorted, pretty-printed, UTF-8, LF, one

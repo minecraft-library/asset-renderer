@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset;
 
+import dev.simplified.annotations.EqualsAndHashCode;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
@@ -14,10 +15,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.Color;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -431,6 +430,7 @@ public record Block(
          *     untinted (the banner post's wood), so {@link BlockGeometryKit#buildFromBones} receives
          *     the dye tint only for a tinted model
          */
+        @EqualsAndHashCode
         public record BoneModel(
             @NotNull EntityModelData model,
             boolean sourceYUp,
@@ -485,35 +485,6 @@ public record Block(
                 return pre;
             }
 
-            /**
-             * {@inheritDoc}
-             *
-             * <p>Overrides the record's generated {@code equals} so {@code inventoryTransform}
-             * compares by element ({@link Arrays#equals}) rather than by reference identity.
-             */
-            @Override
-            public boolean equals(Object o) {
-                if (o == null || getClass() != o.getClass()) return false;
-                BoneModel that = (BoneModel) o;
-                return Float.compare(this.inventoryYRotation, that.inventoryYRotation) == 0
-                    && this.sourceYUp == that.sourceYUp
-                    && this.entityFlip == that.entityFlip
-                    && this.tinted == that.tinted
-                    && Objects.equals(this.model, that.model)
-                    && Arrays.equals(this.inventoryTransform, that.inventoryTransform);
-            }
-
-            /**
-             * {@inheritDoc}
-             *
-             * <p>Overrides the record's generated {@code hashCode} so {@code inventoryTransform}
-             * hashes by content ({@link Arrays#hashCode}), staying consistent with {@link #equals}.
-             */
-            @Override
-            public int hashCode() {
-                return Objects.hash(this.model, this.sourceYUp, this.inventoryYRotation, this.entityFlip, Arrays.hashCode(this.inventoryTransform), this.tinted);
-            }
-
         }
 
         /**
@@ -533,39 +504,12 @@ public record Block(
          * @param offset model-unit shift applied to every composed vertex ({@code [0, 0, 16]} to place
          *     the bed foot one block past the head)
          */
+        @EqualsAndHashCode
         public record Part(
             @NotNull BoneModel boneModel,
             @NotNull String texture,
             float @NotNull [] offset
-        ) {
-
-            /**
-             * {@inheritDoc}
-             *
-             * <p>Overrides the record's generated {@code equals} so the {@code offset} float array
-             * compares by element ({@link Arrays#equals}) rather than by reference identity.
-             */
-            @Override
-            public boolean equals(Object o) {
-                if (o == null || getClass() != o.getClass()) return false;
-                Part part = (Part) o;
-                return Objects.equals(this.boneModel, part.boneModel)
-                    && Objects.equals(this.texture, part.texture)
-                    && Arrays.equals(this.offset, part.offset);
-            }
-
-            /**
-             * {@inheritDoc}
-             *
-             * <p>Overrides the record's generated {@code hashCode} so the {@code offset} float array
-             * hashes by content ({@link Arrays#hashCode}), staying consistent with {@link #equals}.
-             */
-            @Override
-            public int hashCode() {
-                return Objects.hash(this.boneModel, this.texture, Arrays.hashCode(this.offset));
-            }
-
-        }
+        ) {}
 
     }
 

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
@@ -9,9 +11,6 @@ import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.GridSlot;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.UnaryOperator;
@@ -29,51 +28,44 @@ import java.util.function.UnaryOperator;
  * @see lib.minecraft.renderer.engine.compose.FrameCompositor
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder
 public class GridOptions implements RenderOptions {
 
     /**
      * Tile images to place on the grid, each carrying its own cell coordinate. Empty by default
      */
-    @lombok.Builder.Default
     private final @NotNull ConcurrentList<GridTile> tiles = Concurrent.newList();
 
     /**
      * Cell dimensions in pixels (square)
      */
-    @lombok.Builder.Default
     private final int cellSize = 64;
 
     /**
      * Number of columns in the grid
      */
-    @lombok.Builder.Default
     private final int columns = 1;
 
     /**
      * Number of rows in the grid
      */
-    @lombok.Builder.Default
     private final int rows = 1;
 
     /**
      * Pixel gap between adjacent cells; {@code 0} (default) abuts cells with no separation
      */
-    @lombok.Builder.Default
     private final int separation = 0;
 
     /**
      * Background fill for empty grid areas (solid colour or checkerboard), defaulting to
      * {@link Background#TRANSPARENT}
      */
-    @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
      * Output frame rate for the animated composite; consulted only when a tile is animated - a fully
      * static grid ignores it. Defaults to {@code 30}.
      */
-    @lombok.Builder.Default
     private final int framesPerSecond = 30;
 
     /**
@@ -81,18 +73,7 @@ public class GridOptions implements RenderOptions {
      * {@link GridSlot#CELL}) before it runs, letting callers splice custom layers (overlays, watermarks)
      * relative to the built-in cells. Defaults to {@linkplain UnaryOperator#identity() identity}.
      */
-    @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator = UnaryOperator.identity();
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull GridOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * Builds an instance with every field at its default value.

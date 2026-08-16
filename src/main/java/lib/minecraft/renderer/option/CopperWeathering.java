@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.option;
 
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.Accessors;
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -17,8 +17,7 @@ import java.util.Locale;
  * {@code CopperGolemOxidationLevels.getOxidationLevel}'s per-state
  * {@code CopperGolemOxidationLevel(texture, eyeTexture)} pairs.
  */
-@Getter
-@Accessors(fluent = true)
+@Getter(style = NamingStyle.FLUENT)
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum CopperWeathering {
 

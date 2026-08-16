@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -12,9 +13,8 @@ import org.objectweb.asm.tree.FieldInsnNode;
  * {@link Polarity}, folding the {@code javac} compiled-{@code !flag} branch shape into one
  * {@code POSITIVE} / {@code NEGATIVE} discriminator.
  */
+@UtilityClass
 public final class BooleanStores {
-
-    private BooleanStores() {}
 
     /**
      * Relationship between a decoded boolean r-value and the field it reads. {@link #POSITIVE}:

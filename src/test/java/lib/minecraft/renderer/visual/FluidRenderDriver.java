@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
@@ -43,9 +44,8 @@ import java.util.Optional;
  * Usage: {@code ./gradlew fluidRenderer}. Takes no {@code -P} flags; sizes are
  * fixed at {@link #STATIC_SIZE} / {@link #ANIMATED_SIZE}.
  */
+@UtilityClass
 public final class FluidRenderDriver {
-
-    private FluidRenderDriver() {}
 
     /** Output directory for all fluid renders. */
     private static final Path OUTPUT_DIR = Path.of("cache/visual/fluid-renderer");

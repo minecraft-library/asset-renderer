@@ -88,7 +88,11 @@ git checkout -b feat/my-feature master
 
 ### Code Style
 
-The repository uses Lombok for boilerplate reduction and enforces a consistent Javadoc, exception, and control-flow style.
+The repository uses [Simplified Annotations](https://github.com/simplified-dev/annotations) for boilerplate reduction and enforces a consistent Javadoc, exception, and control-flow style.
+
+#### Accessor naming
+
+`@Getter` and `@Setter` default to `style = NamingStyle.SIMPLIFIED`, which mints bean-shaped `getX()` / `isX()` / `setX(..)`. A field or type whose accessors read `x()` must say so - write `@Getter(style = NamingStyle.FLUENT)` at that site and import `dev.simplified.annotations.NamingStyle`. Nothing infers the shape from the call sites: a bare `@Getter` over a fluent site mints `getX()` and every `x()` caller stops resolving.
 
 #### Javadoc
 
@@ -97,7 +101,7 @@ The repository uses Lombok for boilerplate reduction and enforces a consistent J
 - **Tags** - Always include `@param`, `@return`, `@throws` where applicable. Lowercase sentence fragments, no trailing period. Single space after the parameter name - never column-align.
 - **Cross-references** - Use `{@link}` / `{@linkplain}` / `@see`. Use `{@code}` for inline code. Import link targets so they render with short names.
 - **Overrides** - Use `/** {@inheritDoc} */` for methods that override library/framework types. Do not rewrite the parent doc.
-- **Field getters** - Field-like interface methods (no params, non-void return) use a noun-phrase fragment without `@return` and without "Gets"/"Returns". Lombok `@Getter` implementations carry their doc on the field, not a separate method Javadoc block.
+- **Field getters** - Field-like interface methods (no params, non-void return) use a noun-phrase fragment without `@return` and without "Gets"/"Returns". `@Getter` implementations carry their doc on the field, not a separate method Javadoc block.
 - **Structure** - `<p>` on its own line between paragraphs; `<ul>` / `<li>` for lists; `<b>` for emphasis inside list items.
 - **Forbidden tags** - Never use `@author` or `@since`.
 

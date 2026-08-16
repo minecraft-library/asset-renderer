@@ -1,6 +1,7 @@
 package lib.minecraft.refharness;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.refharness.mixin.MenuRenderTargetMixin;
 
 /**
@@ -17,6 +18,7 @@ import lib.minecraft.refharness.mixin.MenuRenderTargetMixin;
  * thread before the draw and read inside a separately compiled mixin handler. Null restores vanilla
  * behaviour, so the redirect is inert for every frame that is not being captured.
  */
+@UtilityClass
 public final class GuiTarget {
 
     /**
@@ -24,6 +26,4 @@ public final class GuiTarget {
      * main target.
      */
     public static volatile RenderTarget override;
-
-    private GuiTarget() {}
 }

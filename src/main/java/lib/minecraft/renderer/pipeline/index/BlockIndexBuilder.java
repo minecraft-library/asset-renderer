@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.index;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -20,7 +21,6 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.ApplyDto;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.BlockStates;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.MultipartPart;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

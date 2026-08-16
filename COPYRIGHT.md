@@ -50,10 +50,10 @@ The Custom Item Textures (CIT) and Connected Textures (CTM) format support imple
 | [simplified-dev/image](https://github.com/simplified-dev/image) | Apache-2.0 | `ImageData`, `PixelBuffer`, PNG I/O |
 | [simplified-dev/gson-extras](https://github.com/simplified-dev/gson-extras) | Apache-2.0 | Gson adapters and helpers |
 | [simplified-dev/client](https://github.com/simplified-dev/client) | Apache-2.0 | HTTP client for Piston API downloads |
+| [simplified-dev/annotations](https://github.com/simplified-dev/annotations) | Apache-2.0 | Annotation processor for accessors, builders and constructors |
 | [minecraft-library/text](https://github.com/minecraft-library/text) | Apache-2.0 | Font loading for `TextRenderer`; source of `RendererException` / `FontException` base classes |
 | [ASM](https://asm.ow2.io/) | BSD-3-Clause | Client-JAR bytecode scanning in `tooling/` |
 | [Gson](https://github.com/google/gson) | Apache-2.0 | JSON parsing for blockstates, models, and bundled snapshots |
-| [Lombok](https://projectlombok.org/) | MIT | Compile-time boilerplate reduction |
 | [JMH](https://github.com/openjdk/jmh) | GPL-2.0 with Classpath Exception | Benchmark harness (test-scope only) |
 | [Fabric Loader](https://github.com/FabricMC/fabric-loader) | Apache-2.0 | Mod loader the `harness/` build runs the client under |
 | [Fabric API](https://github.com/FabricMC/fabric) | Apache-2.0 | Screen and client-tick events the harness hooks |

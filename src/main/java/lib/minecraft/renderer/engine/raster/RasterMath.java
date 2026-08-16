@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.engine.raster;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.tensor.Vector2f;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**

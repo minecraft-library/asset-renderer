@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.equipment;
 
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
@@ -34,6 +35,7 @@ import java.util.Set;
  *       whenever the layer is the baby layer, and there is no baby trim atlas to sample either.</li>
  * </ul>
  */
+@RequiredArgsConstructor
 public enum ArmorForm {
 
     /** The shell every armored humanoid wears at full size, on the {@code humanoid} sheets. */
@@ -53,10 +55,6 @@ public enum ArmorForm {
     ));
 
     private final @NotNull Map<ArmorSlot, List<String>> parts;
-
-    ArmorForm(@NotNull Map<ArmorSlot, List<String>> parts) {
-        this.parts = parts;
-    }
 
     /**
      * The shell parts a slot's armor names. A helmet also covers those parts' <em>children</em>,

@@ -1,11 +1,10 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,19 +21,17 @@ import org.jetbrains.annotations.Nullable;
  * @see lib.minecraft.renderer.PortalRenderer
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder
 public class PortalOptions implements RenderOptions {
 
     /**
      * The portal variant - drives {@code PORTAL_LAYERS} count and per-layer colour table selection.
      */
-    @lombok.Builder.Default
     private final @NotNull Portal portal = Portal.END_PORTAL;
 
     /**
      * Render type - isometric 3D cube / slab or flat 2D top-face icon.
      */
-    @lombok.Builder.Default
     private final @NotNull Type type = Type.ISOMETRIC_3D;
 
     /**
@@ -51,7 +48,6 @@ public class PortalOptions implements RenderOptions {
     public static final @NotNull OutputOptions DEFAULT_OUTPUT = OutputOptions.defaults();
 
     /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
-    @lombok.Builder.Default
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
@@ -63,24 +59,13 @@ public class PortalOptions implements RenderOptions {
             AnimationOptions.builder().ticksPerFrame(8).build();
 
     /** The animation timing (seed tick, frame count, ticks per frame, loop crossfade). */
-    @lombok.Builder.Default
     private final @NotNull AnimationOptions animation = DEFAULT_ANIMATION;
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
      * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */
-    @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
-
-    /**
-     * A builder pre-populated with this instance's field values, for deriving a variant.
-     *
-     * @return the seeded builder
-     */
-    public @NotNull PortalOptionsBuilder mutate() {
-        return this.toBuilder();
-    }
 
     /**
      * The default portal options - a static isometric 3D {@linkplain Portal#END_PORTAL end portal}

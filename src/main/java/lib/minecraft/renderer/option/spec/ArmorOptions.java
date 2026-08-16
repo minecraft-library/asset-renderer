@@ -1,9 +1,8 @@
 package lib.minecraft.renderer.option.spec;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumMap;
@@ -18,31 +17,27 @@ import java.util.Optional;
  * Every slot defaults to {@link Optional#empty()}, so the default is an unarmored subject.
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder
 public class ArmorOptions {
 
     /**
      * Helmet armor piece.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> helmet = Optional.empty();
 
     /**
      * Chestplate armor piece.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> chestplate = Optional.empty();
 
     /**
      * Leggings armor piece.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> leggings = Optional.empty();
 
     /**
      * Boots armor piece.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> boots = Optional.empty();
 
     /**
@@ -51,7 +46,6 @@ public class ArmorOptions {
      * {@code type=armor} rule retexture that slot. Kept beside the {@link ArmorPiece} slots rather than
      * on the piece so every {@code ArmorPiece.of(...)} call site stays untouched.
      */
-    @lombok.Builder.Default
     private final @NotNull Map<ArmorSlot, ItemContext> items = Map.of();
 
     /**
@@ -97,16 +91,6 @@ public class ArmorOptions {
      */
     public boolean hasEnchanted() {
         return equipped().values().stream().anyMatch(ArmorPiece::enchanted);
-    }
-
-    /**
-     * Opens a builder seeded from this instance's current values, for deriving a variant with a
-     * few fields changed.
-     *
-     * @return a builder pre-populated from this instance
-     */
-    public @NotNull ArmorOptionsBuilder mutate() {
-        return this.toBuilder();
     }
 
     /**

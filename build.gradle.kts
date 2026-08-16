@@ -100,9 +100,9 @@ tasks.withType<JavaCompile>().configureEach {
 }
 // The fifth consumer, and the only one that is not a JVM launch: javadoc resolves the incubator
 // module at doclet time, so without this `SimdOps` reports the package as not visible. The task is
-// red at HEAD for an unrelated reason - Lombok generates the builders it cannot see - so this makes
-// two of its errors go away and no gate become usable; wiring it is about the flag being wired
-// everywhere it is read rather than about the exit code.
+// red at HEAD for an unrelated reason - an annotation processor generates builders the doclet cannot
+// see - so this makes two of its errors go away and no gate become usable; wiring it is about the
+// flag being wired everywhere it is read rather than about the exit code.
 tasks.withType<Javadoc>().configureEach {
     (options as StandardJavadocDocletOptions).addStringOption("-add-modules", "jdk.incubator.vector")
 }
@@ -128,13 +128,10 @@ repositories {
 
 dependencies {
     // Simplified Annotations
+    compileOnly(libs.simplified.annotations)
     annotationProcessor(libs.simplified.annotations)
-
-    // Lombok Annotations
-    compileOnly(libs.lombok)
-    annotationProcessor(libs.lombok)
-    testCompileOnly(libs.lombok)
-    testAnnotationProcessor(libs.lombok)
+    testCompileOnly(libs.simplified.annotations)
+    testAnnotationProcessor(libs.simplified.annotations)
 
     // Tests
     testImplementation(libs.hamcrest)
@@ -156,28 +153,28 @@ dependencies {
     // picks the stale SNAPSHOT JAR over our pin and produces NoSuchMethodError at runtime.
     // Each upstream lib also strict-pins its own internal deps to these same hashes so
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
-    api("com.github.simplified-dev:collections") { version { strictly("652c22d") } }
-    api("com.github.simplified-dev:utils") { version { strictly("7c2feb7") } }
-    api("com.github.simplified-dev:image") { version { strictly("953ca92") } }
-    api("com.github.simplified-dev:gson-extras") { version { strictly("2ba8143") } }
-    api("com.github.simplified-dev:reflection") { version { strictly("7a28c3a") } }
-    api("com.github.simplified-dev:client") { version { strictly("3d87a03") } }
+    api("com.github.simplified-dev:collections") { version { strictly("8ca6cb8") } }
+    api("com.github.simplified-dev:utils") { version { strictly("821499b") } }
+    api("com.github.simplified-dev:image") { version { strictly("a4d0ad8") } }
+    api("com.github.simplified-dev:gson-extras") { version { strictly("f143dc1") } }
+    api("com.github.simplified-dev:reflection") { version { strictly("6c3b7c5") } }
+    api("com.github.simplified-dev:client") { version { strictly("1ca9934") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via Pipeline.
-    api("com.github.simplified-api:mojang") { version { strictly("5c2bda6") } }
+    api("com.github.simplified-api:mojang") { version { strictly("d678198") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend.
-    api("com.github.minecraft-library:text") { version { strictly("172ed90") } }
+    api("com.github.minecraft-library:text") { version { strictly("929dab6") } }
 
     // nbt-factory (github.com/minecraft-library/nbt-factory, group dev.sbs rewritten by jitpack).
     // Supplies the NBT tag model (CompoundTag/ListTag/NumericalTag) + parse surface
     // (fromBase64/fromByteArray/fromSnbt) the pipeline.pack.rule CIT nbt-conditional layer walks;
     // the built-in getPath is compound-only, so the rule layer supplies its own list/wildcard walker.
-    api("com.github.minecraft-library:nbt-factory") { version { strictly("f8b5f52") } }
+    api("com.github.minecraft-library:nbt-factory") { version { strictly("1fee2e2") } }
 
     // Gson
     api(libs.gson)
@@ -281,8 +278,8 @@ dependencies {
     jmh(libs.jmh.core)
     jmh(libs.jmh.generator.annprocess)
     jmhAnnotationProcessor(libs.jmh.generator.annprocess)
-    jmhCompileOnly(libs.lombok)
-    jmhAnnotationProcessor(libs.lombok)
+    jmhCompileOnly(libs.simplified.annotations)
+    jmhAnnotationProcessor(libs.simplified.annotations)
 }
 
 jmh {

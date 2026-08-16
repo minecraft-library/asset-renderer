@@ -1,5 +1,6 @@
 package lib.minecraft.refharness;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.refharness.sweep.ArmorSweep;
 import lib.minecraft.refharness.sweep.GlintSweep;
 import lib.minecraft.refharness.sweep.MenuSweep;
@@ -17,6 +18,7 @@ import java.nio.file.Paths;
  * exception - they are frozen literals rather than properties, for the reason
  * given on each.
  */
+@UtilityClass
 public final class HarnessConfig {
 
     /**
@@ -144,6 +146,4 @@ public final class HarnessConfig {
      * re-renders nothing.
      */
     public static final boolean DEPTH_QUANTUM_PROBE = Boolean.getBoolean("refharness.depthQuantumProbe");
-
-    private HarnessConfig() {}
 }

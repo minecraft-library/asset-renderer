@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.client.ClientAcquisition;
@@ -31,9 +32,8 @@ import java.nio.file.Path;
  * Usage: {@code ./gradlew itemRender2D [-PitemId=minecraft:diamond_sword]
  * [-PrenderSize=256] [-Ptype=gui|held] [-Psupersample=2] [-PantiAlias=true]}.
  */
+@UtilityClass
 public final class ItemRenderDriver {
-
-    private ItemRenderDriver() {}
 
     /** Default item id list when no {@code args[0]} is supplied; mixes plain items with trim variants. */
     private static final String[] DEFAULT_ITEMS = {

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,13 +17,10 @@ import java.util.function.Predicate;
  *
  * @param <G> the latched value type
  */
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public final class LatchWalk<G> {
 
     private final @NotNull Descriptor descriptor;
-
-    LatchWalk(@NotNull Descriptor descriptor) {
-        this.descriptor = descriptor;
-    }
 
     private @NotNull LatchWalk<G> fold(@NotNull Descriptor.Fold fold) {
         return new LatchWalk<>(this.descriptor.withFold(fold));

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -11,6 +13,7 @@ import java.util.Map;
  * Declared facts for the overlay / layer resolvers - the escape hatch the generic engines
  * consult only after a structural miss; never fetches ({@code PolicyPurityTest}).
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 enum EntityOverlayPolicies implements NavigationPolicy {
 
     /**
@@ -69,11 +72,6 @@ enum EntityOverlayPolicies implements NavigationPolicy {
 
     private final @NotNull Object value;
     private final @NotNull String provenance;
-
-    EntityOverlayPolicies(@NotNull Object value, @NotNull String provenance) {
-        this.value = value;
-        this.provenance = provenance;
-    }
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {

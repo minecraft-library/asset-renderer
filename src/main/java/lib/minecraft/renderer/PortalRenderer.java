@@ -1,5 +1,6 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
@@ -17,7 +18,6 @@ import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.option.PortalOptions;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.tensor.Box;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.stream.IntStream;

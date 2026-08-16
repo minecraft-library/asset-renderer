@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.defaults;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -28,6 +30,7 @@ import java.util.TreeMap;
  * <p>Session-scoped: the per-property default memo lives here. Result keys are sorted
  * ({@code TreeMap}) so the emitted default object is byte-stable.
  */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class BlockDefaultStateResolver {
 
     private static final @NotNull String INTEGER_BOXED = "java/lang/Integer";
@@ -53,11 +56,6 @@ final class BlockDefaultStateResolver {
      * owner+'.'+field -> any()-default value; null reserved before recursion (cycle guard).
      */
     private final @NotNull Map<String, String> defaultValueCache = new HashMap<>();
-
-    BlockDefaultStateResolver(@NotNull ClassNodeCache cache, @NotNull PropertyDefinitionResolver properties) {
-        this.cache = cache;
-        this.properties = properties;
-    }
 
     /**
      * Resolves a block's default blockstate: property -> value, keys sorted.

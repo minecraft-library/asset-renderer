@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.kit.ItemStackKit;
@@ -31,9 +32,8 @@ import java.nio.file.Path;
  * </ul>
  * With no flag the render lands under the {@code default/} label directory.
  */
+@UtilityClass
 public final class StackCountBadgeDriver {
-
-    private StackCountBadgeDriver() {}
 
     /** Root output directory for all labelled renders + diff runs. */
     private static final Path OUTPUT_DIR = Path.of("cache/visual/stack-count-badge");

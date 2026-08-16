@@ -3,6 +3,7 @@ package lib.minecraft.renderer.parity;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
  * time, so a reference file cannot claim a population the store does not have - which is exactly what
  * went stale three times in the design documents before a line of code was written.
  */
+@UtilityClass
 public final class ParityReferences {
 
     /** Where the skill's reference files live, relative to the project directory. */
@@ -47,8 +49,6 @@ public final class ParityReferences {
     /** How to rewrite a stale reference from the JSON already in the store. Measures nothing. */
     public static final @NotNull String REGEN_COMMAND =
         "./gradlew test --tests \"*ParityReferencesTest\" -Dasset.parity.regenerateViews=true --rerun";
-
-    private ParityReferences() {}
 
     /**
      * Renders one generated reference file.
@@ -142,7 +142,7 @@ public final class ParityReferences {
         out.add("| task | why it has no id |");
         out.add("|---|---|");
         out.add("| `generateAtlas` (with `-Pdiagnose` / `-PsourceFilter` / `-PskipRender`) | `AtlasRenderer` dispatches its tiles on `parallelStream` by design, so two runs place the same sprites at different offsets and the output can never be hashed (blindness rule B15). A must-not-crash smoke check. |");
-        out.add("| `javadoc` | RED at HEAD, and every error is the same one: a Lombok-generated builder an annotation processor produces and the doclet cannot see. Its exit code carries no information. The incubator module flag is wired onto it like every other consumer, which is why the two errors that were about `SimdOps` are gone and the task is still red. |");
+        out.add("| `javadoc` | RED at HEAD, and every error is the same one: a builder an annotation processor produces and the doclet cannot see. Its exit code carries no information. The incubator module flag is wired onto it like every other consumer, which is why the two errors that were about `SimdOps` are gone and the task is still red. |");
         out.add("| `jmh` | Benchmark scores, not rendered bytes. `jmh-regression-gate` is the separate skill that compares them. |");
         out.add("| `redstoneTints`, `stackCountBadge`, `blockFlipbook` | Authoring and version-bump tools. No stored artifact is defined over any of their output directories - none is a member of `manifest.visual` - so what they write is compared against nothing this store holds. |");
         out.add("| `blockRender3D`, `entityProjections`, `entityRender3D`, `itemDayCycle`, `itemRender2D`, `loreTooltip`, `menuRender`, `projectionSmoke` | Visual producers whose `cache/visual` sub-tree is a member of `manifest.visual`, so the rows they write are gated under that id and captured by `visualSweepSet` rather than by a task of their own. |");

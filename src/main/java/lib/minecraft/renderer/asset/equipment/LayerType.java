@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.asset.equipment;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.asset.pack.rule.CitType;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;

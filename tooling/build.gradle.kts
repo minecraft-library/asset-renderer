@@ -36,16 +36,15 @@ dependencies {
     implementation("org.ow2.asm:asm:9.8")
     implementation("org.ow2.asm:asm-tree:9.8")
 
-    compileOnly(libs.lombok)
-    annotationProcessor(libs.lombok)
+    compileOnly(libs.simplified.annotations)
     annotationProcessor(libs.simplified.annotations)
 
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)
     testImplementation(libs.junit.platform.launcher)
     testImplementation(libs.hamcrest)
-    testCompileOnly(libs.lombok)
-    testAnnotationProcessor(libs.lombok)
+    testCompileOnly(libs.simplified.annotations)
+    testAnnotationProcessor(libs.simplified.annotations)
 }
 
 tasks.withType<JavaCompile>().configureEach {

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.geometry;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
@@ -23,10 +24,8 @@ import java.util.Map;
  * a fallback literal; {@code GeometryRefClosureTest} then fails on the dangling reference,
  * which is the loud path working.
  */
+@UtilityClass
 public final class GeometryFlow {
-
-    private GeometryFlow() {
-    }
 
     /**
      * Asserts the client jar carries both sides of the package gate the parser applies to an

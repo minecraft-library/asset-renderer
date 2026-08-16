@@ -1,5 +1,6 @@
 package lib.minecraft.refharness;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.refharness.mixin.GlintTexturingMixin;
 import lib.minecraft.refharness.sweep.GlintSweep;
 
@@ -18,6 +19,7 @@ import lib.minecraft.refharness.sweep.GlintSweep;
  * inside the (same-thread, but separately compiled) mixin handler; {@code -1} disables the override
  * and restores vanilla wall-clock behaviour.
  */
+@UtilityClass
 public final class GlintClock {
 
     /**
@@ -25,6 +27,4 @@ public final class GlintClock {
      * wall-clock derivation.
      */
     public static volatile long overrideT = -1;
-
-    private GlintClock() {}
 }

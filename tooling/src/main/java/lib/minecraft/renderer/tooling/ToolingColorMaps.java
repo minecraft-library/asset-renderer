@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.colormap.ColorMapWalk;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -11,10 +12,8 @@ import lib.minecraft.renderer.tooling.kernel.ToolingSession;
  * three vanilla colormap PNGs read straight from the jar (no pack extraction) as base64
  * big-endian ARGB pixels.
  */
+@UtilityClass
 public final class ToolingColorMaps {
-
-    private ToolingColorMaps() {
-    }
 
     /**
      * Runs the flow, writes its table, and applies the session's strict gate.

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -20,6 +22,7 @@ import java.util.function.Function;
  * @param <C> the commit node type
  * @param <G> the folded value type
  */
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public final class CommitWalk<C extends AbstractInsnNode, G> {
 
     /**
@@ -29,17 +32,12 @@ public final class CommitWalk<C extends AbstractInsnNode, G> {
      * entry - and the post-commit usage convention makes the intended face statically known at
      * each site.
      */
+    @AllArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class Commit<C extends AbstractInsnNode, G> {
 
         private final @NotNull AbstractInsnNode node;
         private final @NotNull List<Object> values;
         private final @Nullable Object single;
-
-        private Commit(@NotNull AbstractInsnNode node, @NotNull List<Object> values, @Nullable Object single) {
-            this.node = node;
-            this.values = values;
-            this.single = single;
-        }
 
         static @NotNull Commit<?, ?> gathered(@NotNull AbstractInsnNode node, @NotNull List<Object> values) {
             return new Commit<>(node, values, values.isEmpty() ? null : values.getLast());
@@ -70,10 +68,6 @@ public final class CommitWalk<C extends AbstractInsnNode, G> {
     }
 
     private final @NotNull Descriptor descriptor;
-
-    CommitWalk(@NotNull Descriptor descriptor) {
-        this.descriptor = descriptor;
-    }
 
     private @NotNull Walk<Commit<C, G>> events() {
         return new Walk<>(this.descriptor);

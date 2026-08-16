@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.pack.rule;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.pipeline.dump.PipelineParityDump;
 import org.jetbrains.annotations.NotNull;
@@ -15,9 +16,8 @@ import org.jetbrains.annotations.NotNull;
  *
  * @see PipelineParityDump
  */
+@UtilityClass
 public final class NbtLiteralText {
-
-    private NbtLiteralText() {}
 
     /**
      * Returns a literal tag's SNBT form.

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -24,6 +26,7 @@ import java.util.Map;
  * <p>A row whose fact sits at a walkable member declares that {@link Navigation} coordinate in
  * place of a value; the consuming resolver re-enters the engine there and reads it.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 enum BlockFamilyPolicies implements NavigationPolicy {
 
     /**
@@ -208,11 +211,6 @@ enum BlockFamilyPolicies implements NavigationPolicy {
 
     private final @NotNull Object value;
     private final @NotNull String provenance;
-
-    BlockFamilyPolicies(@NotNull Object value, @NotNull String provenance) {
-        this.value = value;
-        this.provenance = provenance;
-    }
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {

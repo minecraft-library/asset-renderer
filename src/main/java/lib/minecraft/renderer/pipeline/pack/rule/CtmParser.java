@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -13,7 +14,6 @@ import lib.minecraft.renderer.asset.pack.rule.CtmTarget;
 import lib.minecraft.renderer.asset.pack.rule.TileRef;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.parity.Parity;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
