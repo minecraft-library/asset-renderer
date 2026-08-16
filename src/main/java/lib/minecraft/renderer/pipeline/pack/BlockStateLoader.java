@@ -352,11 +352,11 @@ public class BlockStateLoader {
             private static @NotNull ConcurrentList<ApplyDto> weighted(@NotNull JsonElement json) {
                 if (!json.isJsonArray() || json.getAsJsonArray().size() < 2) return Concurrent.newList();
 
-                ConcurrentList<ApplyDto> entries = Concurrent.newList();
+                ArrayList<ApplyDto> entries = new ArrayList<>();
                 for (JsonElement entry : json.getAsJsonArray())
                     if (entry.isJsonObject()) entries.add(new ApplyDto(entry.getAsJsonObject(), Concurrent.newList()));
 
-                return entries.size() < 2 ? Concurrent.newList() : entries.toUnmodifiable();
+                return entries.size() < 2 ? Concurrent.newList() : Concurrent.adoptList(entries).toUnmodifiable();
             }
         }
     }

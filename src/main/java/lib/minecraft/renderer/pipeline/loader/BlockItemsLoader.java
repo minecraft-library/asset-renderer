@@ -1,12 +1,14 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Map;
+import java.util.LinkedHashMap;
 
 /**
  * The reader for the block-to-item alias map.
@@ -24,20 +26,21 @@ public final class BlockItemsLoader {
     private static final @NotNull String RESOURCE_NAME = "block_items.json";
 
     /**
-     * Reads the secondary-to-standing block-item alias map from {@code block_items.json}.
+     * Reads the secondary-to-standing block-item alias map from {@code block_items.json}. Iteration
+     * order mirrors the on-disk JSON.
      *
      * @return secondary block id to the standing block id whose item it shares; blocks that own their
      *     own item are absent
      * @throws PipelineException if the resource is missing or has no {@code aliases} object
      */
-    public static @NotNull Map<String, String> load() {
+    public static @NotNull ConcurrentMap<String, String> load() {
         ResourceDocument document = BundledResource.require(RESOURCE_NAME);
         AliasDoc doc = document.as(AliasDoc.class);
         if (doc.aliases() == null)
             throw new PipelineException("Block-items resource '%s' has no 'aliases' object", RESOURCE_NAME);
-        return doc.aliases();
+        return Concurrent.adoptLinkedMap(doc.aliases()).toUnmodifiable();
     }
 
     /** The {@code block_items.json} payload: the secondary-to-standing block-item alias map. */
-    record AliasDoc(@NotNull Map<String, String> aliases) {}
+    record AliasDoc(@NotNull LinkedHashMap<String, String> aliases) {}
 }

@@ -20,6 +20,7 @@ import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
@@ -254,14 +255,14 @@ public class CitParser {
     private static @NotNull ConcurrentMap<String, ResourceId> parseSubEntries(
         @NotNull Properties props, @NotNull String prefix, @NotNull String propsDir, @NotNull String citRoot, boolean texture
     ) {
-        ConcurrentMap<String, ResourceId> entries = Concurrent.newMap();
+        HashMap<String, ResourceId> entries = new HashMap<>();
         for (String key : props.stringPropertyNames()) {
             if (!key.startsWith(prefix)) continue;
             String name = key.substring(prefix.length());
             String value = props.getProperty(key);
             entries.put(name, texture ? resolveTexturePath(value, propsDir, citRoot, name) : resolveModelPath(value, propsDir, citRoot));
         }
-        return entries.toUnmodifiable();
+        return Concurrent.adoptMap(entries).toUnmodifiable();
     }
 
     /**

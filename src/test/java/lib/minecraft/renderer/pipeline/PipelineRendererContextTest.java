@@ -48,7 +48,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -226,7 +225,7 @@ class PipelineRendererContextTest {
         context = new PipelineRendererContext(
             stack, blockIndex, itemIndex, itemTrees, itemModels, entityIndex, colorMaps,
             blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, synthesizer,
-            Map.of(),
+            Concurrent.newMap(),
             Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
     }
 

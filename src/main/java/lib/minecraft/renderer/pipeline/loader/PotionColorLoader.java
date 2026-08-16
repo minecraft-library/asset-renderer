@@ -1,13 +1,15 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.Color;
-import java.util.Map;
+import java.util.LinkedHashMap;
 
 /**
  * A loader that reads the bundled vanilla potion effect colour table from the
@@ -32,17 +34,21 @@ public class PotionColorLoader {
 
     /**
      * Reads the effect colour table from {@code potion_colors.json} natively through the shared
-     * read layer, decoding each value through the {@link Color} codec.
+     * read layer, decoding each value through the {@link Color} codec and flattening it to its packed
+     * ARGB int - the form every caller wants, so no caller repeats the unpack. Iteration order mirrors
+     * the on-disk JSON.
      *
-     * @return a map of namespaced effect id to ARGB colour
+     * @return a map of namespaced effect id to packed ARGB
      * @throws PipelineException if the classpath resource is missing or malformed
      */
-    public static @NotNull Map<String, Color> load() {
+    public static @NotNull ConcurrentMap<String, Integer> load() {
         ResourceDocument document = BundledResource.require(RESOURCE_NAME);
-        return document.as(PotionColorTable.class).effects();
+        LinkedHashMap<String, Integer> colors = new LinkedHashMap<>();
+        document.as(PotionColorTable.class).effects().forEach((effectId, color) -> colors.put(effectId, color.getRGB()));
+        return Concurrent.adoptLinkedMap(colors).toUnmodifiable();
     }
 
     /** The {@code potion_colors.json} payload: the effect-keyed colour map. */
-    private record PotionColorTable(@NotNull Map<String, Color> effects) {}
+    private record PotionColorTable(@NotNull LinkedHashMap<String, Color> effects) {}
 
 }

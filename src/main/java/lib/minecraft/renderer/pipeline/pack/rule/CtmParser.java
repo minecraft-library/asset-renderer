@@ -18,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
@@ -172,19 +173,19 @@ public class CtmParser {
             idSegments.add(segments[i]);
             i++;
         }
-        ConcurrentMap<String, ConcurrentList<String>> properties = Concurrent.newMap();
+        HashMap<String, ConcurrentList<String>> properties = new HashMap<>();
         for (; i < segments.length; i++) {
             int eq = segments[i].indexOf('=');
             if (eq < 0) continue;
             String key = segments[i].substring(0, eq);
-            List<String> values = new ArrayList<>();
+            ArrayList<String> values = new ArrayList<>();
             for (String value : segments[i].substring(eq + 1).split(","))
                 if (!value.isBlank()) values.add(value);
             properties.put(key, Concurrent.adoptList(values).toUnmodifiable());
         }
         String id = String.join(":", idSegments);
         ResourceId block = id.contains(":") ? ResourceId.parse(id) : new ResourceId(MINECRAFT, id);
-        return new BlockMatch(block, properties.toUnmodifiable());
+        return new BlockMatch(block, Concurrent.adoptMap(properties).toUnmodifiable());
     }
 
     // --- tiles --------------------------------------------------------------------------------
@@ -239,7 +240,7 @@ public class CtmParser {
     // --- extras -------------------------------------------------------------------------------
 
     private static @NotNull CtmExtras parseExtras(@NotNull Properties props, int width, int height) {
-        ConcurrentMap<Integer, String> compact = Concurrent.newMap();
+        HashMap<Integer, String> compact = new HashMap<>();
         for (String key : props.stringPropertyNames()) {
             if (!key.startsWith("ctm.")) continue;
             String indexPart = key.substring("ctm.".length());
@@ -253,7 +254,7 @@ public class CtmParser {
         int tintIndex = parseInt(props, "tintIndex", -1);
         Optional<String> tintBlock = optional(props.getProperty("tintBlock"));
         Optional<String> layer = optional(props.getProperty("layer"));
-        return new CtmExtras(compact.toUnmodifiable(), innerSeams, tintIndex, tintBlock, layer, width, height);
+        return new CtmExtras(Concurrent.adoptMap(compact).toUnmodifiable(), innerSeams, tintIndex, tintBlock, layer, width, height);
     }
 
     // --- shared -------------------------------------------------------------------------------

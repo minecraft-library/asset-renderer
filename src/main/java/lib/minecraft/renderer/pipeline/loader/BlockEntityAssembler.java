@@ -81,11 +81,12 @@ public final class BlockEntityAssembler {
             }
         }
 
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants = Concurrent.newMap();
+        HashMap<String, ConcurrentMap<String, Block.Variant>> variants = new HashMap<>();
         for (Map.Entry<String, HashMap<String, Block.Variant>> variant : variantModels.entrySet())
             variants.put(variant.getKey(), Concurrent.adoptMap(variant.getValue()).toUnmodifiable());
 
-        return new BlockModelLoader.LoadResult(Concurrent.adoptMap(result).toUnmodifiable(), variants.toUnmodifiable());
+        return new BlockModelLoader.LoadResult(
+            Concurrent.adoptMap(result).toUnmodifiable(), Concurrent.adoptMap(variants).toUnmodifiable());
     }
 
     /**
