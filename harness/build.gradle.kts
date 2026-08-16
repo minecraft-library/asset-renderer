@@ -95,6 +95,11 @@ dependencies {
     // No `mappings` line: Minecraft 26.1+ ships unobfuscated.
     implementation("net.fabricmc:fabric-loader:$loader_version")
     implementation("net.fabricmc.fabric-api:fabric-api:$fabric_api_version")
+
+    // The @Parity vocabulary, on the source set that holds every Java file here. `compileOnly`
+    // because retention is SOURCE: javac needs the types to resolve a declaration and drops the
+    // descriptor before it writes the class file, so nothing reaches the mod jar or a running client.
+    "clientCompileOnly"("lib.minecraft:asset-renderer-parity:0.1.0")
 }
 
 tasks.processResources {

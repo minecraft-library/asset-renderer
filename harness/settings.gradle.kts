@@ -18,3 +18,8 @@ pluginManagement {
 }
 
 rootProject.name = "vanilla-reference-harness"
+
+// The annotation vocabulary this build declares its own parity reach in, and the only build it
+// includes. It resolves nothing, ships nothing and is taken compileOnly, so the mod jar Loom
+// assembles is unchanged by it.
+includeBuild("../parity")

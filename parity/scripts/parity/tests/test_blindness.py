@@ -308,8 +308,10 @@ class TheShippedMap(unittest.TestCase):
         self.assertEqual(reach.no_reach, ["harness/CLAUDE.md"])
 
     def test_a_harness_renderer_still_reaches_the_reference_tree(self):
+        """A path that EXISTS, because the trigger it has to match is derived from the tree."""
         reach = blindness.resolve(
-            ["harness/src/client/java/EntityFrameRenderer.java"], self.rules, self.no_reach)
+            ["harness/src/client/java/lib/minecraft/refharness/frame/EntityFrameRenderer.java"],
+            self.rules, self.no_reach)
         self.assertIn("manifest.references", reach.sees)
 
     def test_the_self_capture_writers_are_not_resolved_as_emitting_nothing(self):
