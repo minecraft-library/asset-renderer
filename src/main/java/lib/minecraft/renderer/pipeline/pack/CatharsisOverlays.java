@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.parity.Parity;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -22,6 +23,7 @@ import java.util.Optional;
  * <p>Owning only the evaluator: the pack layer stacks the returned directories over the pack root
  * exactly as it stacks vanilla format-gated overlays.
  */
+@Parity(claim = "catharsis-selection")
 @UtilityClass
 public class CatharsisOverlays {
 

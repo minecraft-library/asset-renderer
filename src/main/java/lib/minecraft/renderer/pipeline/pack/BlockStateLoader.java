@@ -19,6 +19,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
+import lib.minecraft.renderer.parity.Parity;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -61,6 +62,8 @@ import java.util.Optional;
  * @see Block.Variant
  * @see Block.Multipart
  */
+@Parity(claim = "loader-intermediates")
+@Parity(claim = "blockstate-multipart")
 @UtilityClass
 public class BlockStateLoader {
 

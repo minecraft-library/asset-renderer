@@ -28,7 +28,7 @@ given beside a registration, and rejects a registration missing any of `-Partifa
 is resolved and before any task of it executes, so a malformed invocation costs no producer run. The
 fourth is a working root outside `cache/`, which each of the five tasks rejects as it is configured -
 earlier still, and on any invocation that so much as realizes one of them to read its description.
-The toolkit raises 5 for all four, which is what a hand `python scripts/parity ...` call meets.
+The toolkit raises 5 for all four, which is what a hand `python parity/scripts/parity ...` call meets.
 
 `plan --gate-exit` answers on a different scale and is not part of this table: `0` nothing sees the
 change, `10` seen and ungated, `20` already gated for this tree. All three mean the command

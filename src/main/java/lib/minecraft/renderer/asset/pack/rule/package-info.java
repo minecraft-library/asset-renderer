@@ -27,4 +27,7 @@
  * <p><b>Parity.</b> Vanilla ships no {@code optifine/} tree, so every rule-layer behavior is inert
  * with only vanilla loaded - the byte-parity contract holds without gating.
  */
+@Parity(claim = "pack-rule-layer")
 package lib.minecraft.renderer.asset.pack.rule;
+
+import lib.minecraft.renderer.parity.Parity;

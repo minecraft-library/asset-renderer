@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.kit.TrimKit;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
@@ -27,6 +28,7 @@ import java.util.function.Function;
  * only the trim atlas, and every vanilla trim reference is served by the item renderer's explicit
  * {@link TrimKit} branch before resolution, so this synthesiser never fires there - inert on vanilla.
  */
+@Parity(claim = "texture-synthesis")
 public final class TextureSynthesizer {
 
     /** The empty synthesiser - no sources, never synthesises (test / stub contexts). */

@@ -1,6 +1,9 @@
 package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.MenuRenderer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -24,6 +27,7 @@ import java.util.Map;
  * @param interiorPeriodY the interior's repeat period down, meaningful when it tiles
  * @param stretchInner whether an unmodelled run resamples when it grows rather than repeating
  */
+@Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 public record ChromeDecomposition(
     int width, int height,
     int left, int top, int right, int bottom,

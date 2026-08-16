@@ -62,7 +62,7 @@ capture, which does not affect the strips it writes.
 ## B2 - CIT and CTM rules are dark in both parityDump configurations, and the rule package's other parsers are not
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/**`, `src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/Ctm*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/Cit*.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/**`, `src/main/java/lib/minecraft/renderer/pipeline/pack/rule/CitParser.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/rule/CtmParser.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/rule/RuleScanner.java`
 - **sees** `digest.shipped-tables`, `manifest.dump.packs`
 - **blind** `manifest.dump.vanilla`
 - **source** measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; CLAUDE.md 'The pack filter'
@@ -74,7 +74,7 @@ No pack fixture ships a cit/ or ctm/ tree, so rules.json reports cit_rules: 0 an
 ## B3 - The multipart when-OR branch is never exercised, because no shipped block produces one
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/**/BlockState*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/Multipart*.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/BlockStateLoader.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/MultipartWhenDeserializer.java`
 - **sees** `sweep.block`, `manifest.dump.vanilla`
 - **blind** -
 - **source** measured by perturbing MultipartWhenDeserializer.java: 2 of 2 declared sees moved
@@ -110,7 +110,7 @@ BlockIndexBuilder, ItemIndexBuilder and EntityIndexBuilder run between the loade
 ## B6 - The dump sees data rather than behaviour, so a resolution-logic change is not pinned by index identity
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java`, `src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/CtmNeighborResolver.java`, `src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java`, `src/main/java/lib/minecraft/renderer/pipeline/index/EntityIndexBuilder.java`, `src/main/java/lib/minecraft/renderer/pipeline/index/ItemIndexBuilder.java`
 - **sees** `sweep.block`, `sweep.item`, `sweep.entity`, `manifest.dump.vanilla`, `manifest.dump.packs`
 - **blind** -
 - **source** measured by perturbing ItemIndexBuilder.java: 3 of 5 declared sees moved
@@ -146,7 +146,7 @@ TestPlayerParityVanilla is a main that alpha-crops AND rescales both sides to a 
 ## B9 - No artifact renders BUST, the cape, or any 2D player path, and the 3D player geometry under these paths reaches every player artifact including the sweep
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/PlayerRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/option/*Player*.java`, `src/main/java/lib/minecraft/renderer/face/HumanoidPart.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/PlayerRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/face/HumanoidPart.java`, `src/main/java/lib/minecraft/renderer/option/PlayerOptions.java`
 - **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`, `sweep.player`
 - **blind** -
 - **source** measured by perturbing HumanoidPart.java: 4 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
@@ -182,7 +182,7 @@ The ten offline sheet groups hash as 104 files and the elytra and both cape view
 ## B13 - Every test and sweep in the repo is structurally blind to a tooling/ change
 
 - **mode** demote
-- **triggers** `tooling/src/main/java/**`
+- **triggers** `tooling/src/main/java/lib/minecraft/renderer/tooling/**`
 - **sees** `manifest.tooling-tables`, `report.diagnostics-log`
 - **blind** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `pin.player-crc`, `pin.block-crc`, `pin.portal-crc`, `manifest.player-raw`
 - **source** measured by perturbing ToolingPotionColors.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'
@@ -194,7 +194,7 @@ They all read the SHIPPED JSON that a generator refactor does not regenerate, so
 ## B14 - A byte-identical emitted table is not the same claim as an unchanged run
 
 - **mode** select
-- **triggers** `tooling/src/main/java/**`
+- **triggers** `tooling/src/main/java/lib/minecraft/renderer/tooling/**`
 - **sees** `report.diagnostics-log`, `manifest.tooling-tables`
 - **blind** -
 - **source** measured by perturbing GlintItemsWalk.java: 0 of 2 declared sees moved; CLAUDE.md 'Tooling'
@@ -206,7 +206,7 @@ Each index build records its own INFO entries, so reordering two of them is invi
 ## B15 - atlas.png can never be a byte gate
 
 - **mode** suppress
-- **triggers** `src/main/java/lib/minecraft/renderer/AtlasRenderer.java`, `src/main/java/lib/minecraft/renderer/option/Atlas*.java`, `src/test/java/lib/minecraft/renderer/example/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/AtlasRenderer.java`, `src/main/java/lib/minecraft/renderer/option/AtlasOptions.java`, `src/main/java/lib/minecraft/renderer/option/AtlasSidecar.java`, `src/main/java/lib/minecraft/renderer/option/AtlasTile.java`, `src/test/java/lib/minecraft/renderer/example/**`
 - **sees** -
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead; CLAUDE.md 'Gates'
@@ -230,7 +230,7 @@ PackAcquisition.namespaces builds a per-run-salted set, so a findFirst over it f
 ## B17 - synthesis.json dumps the SOURCES rather than the synthesizer's registry
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer*.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `sweep.item`
 - **blind** -
 - **source** measured by perturbing TextureSynthesizer.java: 0 of 3 declared sees moved
@@ -242,7 +242,7 @@ Dumping the registry would be a second copy of a production rule, and a dump tha
 ## B18 - CatharsisConfig is not itself dumped, and a Catharsis condition still reaches the packs dump through what it selects
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java`, `src/main/java/lib/minecraft/renderer/asset/pack/cats/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/cats/**`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisCondition.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisConfig.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisOverlays.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisTarget.java`
 - **sees** `sweep.block`, `sweep.item`, `manifest.dump.packs`
 - **blind** `manifest.dump.vanilla`
 - **source** measured by perturbing CatharsisCondition.java: 1 of 3 declared sees moved, and 1 declared blind held
@@ -254,7 +254,7 @@ The fabric:overlays plus catharsis:pack half of pack resolution has no dump sect
 ## B19 - parityDump is blind to everything downstream of the load, so an engine or renderer change is demoted regardless of the dump verdict
 
 - **mode** demote
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/**`, `src/main/java/lib/minecraft/renderer/*Renderer.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/*`, `src/main/java/lib/minecraft/renderer/engine/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `manifest.fluid`, `manifest.portal`, `manifest.player-sheets`, `manifest.player-raw`, `manifest.visual`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing ModelEngine.java: 12 of 14 declared sees moved, and 2 declared blind held
@@ -374,19 +374,19 @@ These are message and constructor shapes on throwables. Nothing renders differen
 ## B29 - A harness render change rewrites the ground truth every sweep diffs against
 
 - **mode** select
-- **triggers** `harness/src/**`, `harness/build.gradle.kts`, `harness/settings.gradle.kts`, `harness/gradle.properties`, `harness/gradle/**`, `harness/gradlew`, `harness/gradlew.bat`, `harness/run-profile/**`
+- **triggers** `harness/build.gradle.kts`, `harness/gradle.properties`, `harness/gradle/**`, `harness/gradlew`, `harness/gradlew.bat`, `harness/run-profile/**`, `harness/settings.gradle.kts`, `harness/src/client/java/lib/minecraft/refharness/**`, `harness/src/client/resources/**`, `harness/src/main/resources/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.menu`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.references`, `manifest.player-raw`
 - **blind** -
 - **source** measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'
 
-The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix. The triggers are the harness's SOURCE and the wiring that boots it, enumerated rather than written as one glob over the tree: the claim is about a render, and a markdown file under harness/ cannot move a reference byte while a rule matching it costs a whole-client re-render. The root build compiles none of those sources itself - the harness is its own Gradle build with its own wrapper - so ./gradlew test passes over a harness that does not compile and the next thing to notice is a client boot. harnessClasses shells to that wrapper and costs seconds, and ./gradlew check depends on it.
+The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix. The triggers are the harness's SOURCE and the wiring that boots it, never one glob over the tree: the claim is about a render, and a markdown file under harness/ cannot move a reference byte while a rule matching it costs a whole-client re-render. The Java half is derived from the root package's own declaration and the rest is enumerated here - the two resource files that decide which mixins apply and which entrypoints run, and the build wiring, which no annotation can reach. The root build compiles none of those sources itself - the harness is its own Gradle build with its own wrapper - so ./gradlew test passes over a harness that does not compile and the next thing to notice is a client boot. harnessClasses shells to that wrapper and costs seconds, and ./gradlew check depends on it.
 
 *Probe:* re-render with the change stashed: a reference that moves was stale, and one that does not was not reached
 
 ## B30 - A toolkit change alters how every artifact is COMPUTED and how none of them is produced
 
 - **mode** select
-- **triggers** `scripts/parity/**`
+- **triggers** `parity/scripts/parity/**`
 - **sees** -
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead; the toolkit is the one producer of every stored byte
@@ -398,7 +398,7 @@ The toolkit reads a producer's output and writes the canonical form; it renders 
 ## B31 - The build wiring decides what runs, and renders nothing itself
 
 - **mode** select
-- **triggers** `settings.gradle.kts`, `gradle/**`, `gradle.properties`, `gradlew`, `gradlew.bat`, `src/jmh/**`
+- **triggers** `gradle.properties`, `gradle/**`, `gradlew`, `gradlew.bat`, `settings.gradle.kts`, `src/jmh/**`
 - **sees** -
 - **blind** -
 - **source** measured by perturbing a task registration in build.gradle.kts: 0 of 0 declared sees moved. A version pin in that same file is a different kind of edit and does move rows, which is B47's measurement and why the file is no longer on this list
@@ -482,7 +482,7 @@ B33's claim - that the test tree asserts rather than emits - is false for these 
 ## B38 - Each of these tests declares a self-captured artifact and computes the value stored under it, so its own edit is what moves that value
 
 - **mode** select
-- **triggers** `src/test/java/lib/minecraft/renderer/BlockRendererRasterPinTest.java`, `src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java`, `src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/util/BundledResourceShaTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/ClientAcquisitionIntegrationTest.java`
+- **triggers** `src/test/java/lib/minecraft/renderer/BlockRendererRasterPinTest.java`, `src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java`, `src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/ClientAcquisitionIntegrationTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/util/BundledResourceShaTest.java`
 - **sees** `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
 - **blind** -
 - **source** measured by perturbing FluidRendererFrameBakePinTest.java: 1 of 9 declared sees moved; the ARTIFACT declarations B37's two globs do not contain
@@ -503,22 +503,10 @@ Four suites that read the store to assert against it, and the two renderers behi
 
 *Probe:* edit any one of them and capture any artifact B37 names; every stored byte is identical, and the only thing that fails is the suite that gates the file
 
-## B40 - The root package's documentation declares nothing, so it is read by a reader and by no producer
-
-- **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/package-info.java`
-- **sees** -
-- **blind** -
-- **source** measured by perturbing package-info.java: 0 of 0 declared sees moved; the one match the blanket package-info glob had
-
-This is the one package-info in the tree that sits in no package another rule already claims - the library root, whose own types are claimed by B19's renderer glob and whose sub-packages are claimed one by one. A rule rather than a no_reach glob because a blanket **/package-info.java entry was defeated on every other match, a rule having claimed the file first, so it read as a javadoc exemption while being one nowhere; and a javadoc edit inside a ruled package still plans that package's bundle, which is the rule-wins precedence working. This file has no such package below it to plan for, and what it reaches is nothing.
-
-*Probe:* open the file: it carries a package declaration and javadoc and no member, and no artifact digests a javadoc
-
 ## B41 - The two manifests a member list separates are DECLARED in these two files, so editing either adds or drops rows with no producer having run
 
 - **mode** select
-- **triggers** `gradle/visual.gradle.kts`, `scripts/parity/manifest.py`
+- **triggers** `gradle/visual.gradle.kts`, `parity/scripts/parity/manifest.py`
 - **sees** `manifest.visual`, `manifest.player-raw`
 - **blind** -
 - **source** measured by perturbing manifest.py: 2 of 2 declared sees moved; correction to B30 and B31's claim that a toolkit or build-script change reaches nothing - these two files hold the membership the two cache/visual manifests are defined over, and the build file holds their producers' render defaults
@@ -530,7 +518,7 @@ manifest.visual and manifest.player-raw both take cache/visual as their source a
 ## B42 - The tooling source set's own tests assert over hand-built bytecode and emit nothing
 
 - **mode** select
-- **triggers** `tooling/src/test/java/**`
+- **triggers** `tooling/src/test/java/lib/minecraft/renderer/tooling/**`
 - **sees** -
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead
@@ -554,7 +542,7 @@ The generators are a separate Gradle build, so its build script is what puts ASM
 ## B44 - The tooling wrapper selects a Gradle version and emits nothing
 
 - **mode** select
-- **triggers** `tooling/gradlew`, `tooling/gradlew.bat`, `tooling/gradle/**`
+- **triggers** `tooling/gradle/**`, `tooling/gradlew`, `tooling/gradlew.bat`
 - **sees** -
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead
@@ -566,7 +554,7 @@ A wrapper script and its distribution pin decide which Gradle runs the tooling b
 ## B45 - Client acquisition decides which bytes both the renderer and the generators read at all
 
 - **mode** select
-- **triggers** `client/src/main/java/**`
+- **triggers** `client/src/main/java/lib/minecraft/renderer/client/**`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `manifest.tooling-tables`, `report.diagnostics-log`
 - **blind** -
 - **source** declared from what the module writes; both the pack stack and the class walks resolve against the tree it extracts
@@ -635,6 +623,150 @@ A menu is drawn by one renderer over one option record and one layout, and no ot
 
 *Probe:* perturb a menu geometry number - a band depth, a margin, a cell size - re-run the whole render bundle and read which artifacts move; the menu rows of manifest.visual move and nothing else does
 
+## B49 - The parity vocabulary states where a claim applies and renders nothing
+
+- **mode** select
+- **triggers** `parity/src/main/java/lib/minecraft/renderer/parity/**`
+- **sees** -
+- **blind** -
+- **source** declares no store artifact, so its reason names the gate that answers instead; retention is SOURCE and no class file carries the descriptor
+
+The one source root of its own Gradle build, reached by no other rule's triggers, so it needs one of its own or the coverage check has a tracked file nothing speaks for. What it holds is the annotation a package or a type declares its own parity reach with and the three closed vocabularies that annotation names, importing nothing but java.lang.annotation. Retention is SOURCE, and javac drops the descriptor before it writes a class file - so no compiled artifact carries a declaration, the renderer takes the build compileOnly and its published JAR carries none of the five, and nothing on any producer's path can read one. What does read them is the planner, from source, when it resolves which artifacts a change set can move, which is why an edit here moves what a plan proposes to capture and never what a producer emits. The gate is ./gradlew test, which compiles the package through the included build and holds the roster to the renderers this library ships.
+
+*Probe:* javap -v the compiled package-info of a package that declares one: no @Parity descriptor is in the constant pool. Capture any artifact either side of an edit here and every stored byte is identical
+
+## B50 - The parity build's script wires a leaf that declares no dependency at all
+
+- **mode** select
+- **triggers** `parity/build.gradle.kts`, `parity/settings.gradle.kts`
+- **sees** -
+- **blind** -
+- **source** declares no store artifact, so its reason names the gate that answers instead
+
+The vocabulary module's build script declares its toolchain and its encoding and nothing else - it names no repository and no dependency, the five types importing java.lang.annotation alone. What the module HOLDS is B49's claim, over its sources. It carries no wrapper of its own: every build that writes a declaration resolves it as an included build rather than invoking it, and each takes it compileOnly, so an edit here cannot widen a published classpath even in principle. The gate for an edit here is that those builds still compile, which `check` reaches through `test`, `toolingTest` and `harnessClasses`.
+
+*Probe:* change the toolchain or add a repository and capture any artifact; every stored byte is identical, and no consumer's classpath gains an entry because the build resolves none
+
+## B51 - The menu sweep and its frame renderer reach the menu references and no other sub-tree
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/MenuFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/MenuSweep.java`
+- **sees** `sweep.menu`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+MenuSweep is the one sweep that submits no geometry: it drives the client's own GUI pipeline into an offscreen target and writes menus/. MenuFrameRenderer is reached from it and from nothing else. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu references are what sweep.menu diffs against, and manifest.references hashes the whole tree, so those two are the whole answer.
+
+*Probe:* widen the panel and re-render the whole tree: menus/ moves and the other six sub-trees hash identically, so every sweep but the menu one is measured against ground truth nobody touched
+
+## B52 - The block sweep and the four types only it reaches write blocks/ and nothing else
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/BlockEntityFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/frame/BlockFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/frame/BlockGuiTransform.java`, `harness/src/client/java/lib/minecraft/refharness/frame/BlockIconGeometry.java`, `harness/src/client/java/lib/minecraft/refharness/frame/FirstVariantRandomSource.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/BlockSweep.java`
+- **sees** `sweep.block`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+BlockSweep routes each block to BlockFrameRenderer or BlockEntityFrameRenderer, and the icon geometry, the GUI transform and the first-variant random source are reached from those two and from no other sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. A block item is drawn here rather than by the item sweep, which renders only non-BlockItems, so the two do not share a subject.
+
+*Probe:* perturb the icon predicate and re-render: blocks/ moves and items/ does not, because ItemSweep enumerates the complement of what BlockSweep draws
+
+## B53 - The item sweep enumerates the non-block items and writes items/ alone
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/sweep/ItemSweep.java`
+- **sees** `sweep.item`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.menu`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+ItemSweep renders every non-BlockItem through the vanilla GUI inventory-icon path into items/. It shares ItemFrameRenderer with the glint sweep, which is why that renderer carries a wider claim of its own; the sweep itself is read by nothing. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* drop a subject from the enumeration and re-render: items/ loses a file and glint/ keeps all of its, because GlintSweep enumerates its own foil roster
+
+## B54 - The GUI item frame renderer draws for the item sweep and for the foil half of the glint one
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/ItemFrameRenderer.java`
+- **sees** `sweep.item`, `sweep.glint`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.menu`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+ItemFrameRenderer is constructed by ItemSweep and by GlintSweep, which uses it for the always-foil GUI items and EntityFrameRenderer for the worn-armour diagnostics. So it reaches two sub-trees rather than one, and reaches the other five through nothing. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* perturb the icon draw and re-render: items/ and glint/ both move, and blocks/, entities/, players/, armor/ and menus/ hash identically
+
+## B55 - The entity sweep enumerates the entity roster and writes entities/ alone
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/sweep/EntitySweep.java`
+- **sees** `sweep.entity`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+EntitySweep is the enumeration and the family-fit pre-pass for entities/; the frame renderer it drives is shared with the armour and glint sweeps and carries its own wider claim. Nothing else constructs EntitySweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The armour sweep names its own fixed roster of armoured mobs rather than reading this one.
+
+*Probe:* add a variant to the enumeration and re-render: entities/ gains a file and armor/ keeps its seven, because ArmorSweep names its subjects itself
+
+## B56 - The entity frame renderer and its bounds walker draw every mob any sweep renders
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/EntityBoundsWalker.java`, `harness/src/client/java/lib/minecraft/refharness/frame/EntityFrameRenderer.java`
+- **sees** `sweep.entity`, `sweep.armor`, `sweep.glint`, `manifest.player-raw`, `manifest.references`
+- **blind** `sweep.block`, `sweep.item`, `sweep.menu`, `sweep.player`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+EntityFrameRenderer is constructed by EntitySweep, ArmorSweep, GlintSweep and the pitch-roll probe, and EntityBoundsWalker is reached from it. So it writes entities/, armor/ and the worn half of glint/, and manifest.player-raw rides armor/ because one of that artifact's two members is the armour sweep's own parity output. It reaches blocks/, items/, menus/ and players/ through nothing: the player has a frame renderer of its own. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* perturb the bounds walk and re-render: entities/, armor/ and glint/ move together and blocks/, items/, menus/ and players/ hash identically
+
+## B57 - The armour sweep names its own subjects and writes armor/ alone
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/sweep/ArmorSweep.java`
+- **sees** `sweep.armor`, `manifest.player-raw`, `manifest.references`
+- **blind** `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+ArmorSweep renders a fixed roster of armoured mobs, adult and baby, that the entity sweep cannot produce because it equips nothing and ages nothing. It reads the appearance applier and the entity frame renderer, both of which carry wider claims of their own, and nothing reads it. manifest.player-raw rides it because one of that artifact's two members is this sweep's parity output. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* drop a subject from the roster and re-render: armor/ loses a file and entities/ keeps every one of its, because the entity sweep enumerates the registry rather than this roster
+
+## B58 - The glint sweep steps its own clock and writes glint/ alone
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/sweep/GlintSweep.java`
+- **sees** `sweep.glint`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.item`, `sweep.menu`, `sweep.player`, `manifest.player-raw`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+GlintSweep renders each foil subject over a fixed frame count, stepping the harness glint clock, and writes glint/ plus the atlas-UV sidecar beside it - the one reference byte written outside SweepRunner, and it lands in this sweep's own directory. The two renderers it drives carry wider claims; nothing reads the sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* change the frame count and re-render: glint/ changes population and items/ keeps its count, even though the two draw overlapping subjects through one renderer
+
+## B59 - The player sweep and its frame renderer write players/ and no other sub-tree
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/PlayerFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/PlayerSweep.java`
+- **sees** `sweep.player`, `manifest.player-raw`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`
+- **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
+
+PlayerSweep drives PlayerFrameRenderer, which is reached from it and from nothing else - the player is the one subject with a frame renderer no other sweep shares. manifest.player-raw rides it because one of that artifact's two members is this sweep's parity output. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.
+
+*Probe:* perturb the player pose and re-render: players/ moves and entities/ holds, even though both draw a humanoid
+
+## B60 - A probe writes outside the reference tree, so nothing this store holds can see one
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/DepthQuantumFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/DepthQuantumSweep.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/PitchRollSweep.java`
+- **sees** -
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`, `manifest.player-raw`, `manifest.references`
+- **source** declared from where the run tasks put a probe's output: registerHarnessRun branches on an empty refresh list and hands those two the tree's parent, and manifest.references walks the tree itself - so no glob of that walk can reach a probe's grid
+
+The pitch-roll and depth-quantum sweeps refresh no reference: their run tasks hand them the reference tree's PARENT as an output root, so their directories are siblings of the tree rather than members of it, which is where index.json already homes the depth-quantum probe. Neither is read by any other sweep. So no stored artifact is defined over what they write, and the gate for a change here is that the harness still compiles - which check reaches through harnessClasses - and an actual probe run, whose output is evidence rather than a value a gate reproduces.
+
+*Probe:* run either probe and capture every artifact: no stored byte moves, and the probe's own directory appears beside the reference tree rather than inside it
+
 ## Paths that reach nothing
 
 Covered and reaching nothing is a different answer from "I do not know". A changed
@@ -672,9 +804,9 @@ An ignore rule decides what git tracks and no producer consults it. Both the roo
 
 *Probe:* add a pattern and capture: no artifact's population changes, because every manifest walks an allowlist of member directories rather than asking git what is tracked
 
-### `scripts/euler_reference_svg.py`
+### `src/test/resources/scripts/euler_reference_svg.py`
 
-A standalone authoring script that regenerates one javadoc illustration. It is not imported by the toolkit, not invoked by any Gradle task, and its output is a comment.
+A standalone authoring script that regenerates one javadoc illustration. It is not imported by the toolkit, not invoked by any Gradle task, and its output is a comment. It sits under the test resource root and processTestResources excludes the directory holding it, so no suite can reach it as a fixture either. The glob names the file rather than the directory, so a second script there is a decision somebody makes rather than a reach answer that arrives with the file.
 
 *Probe:* run it and diff the tree: the only file it writes is the SVG inlined in EulerRotation's javadoc, and no artifact digests a javadoc
 

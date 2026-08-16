@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.engine.raster;
 
 import lib.minecraft.renderer.engine.ModelEngine;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -11,6 +12,8 @@ import org.jetbrains.annotations.NotNull;
  * keeps the coverage snap from moving depth. (The 2D coverage math these pair with lives on
  * {@link RasterMath}.)
  */
+@Parity(claim = "depth-immunity-limit")
+@Parity(claim = "depth-immunity")
 @UtilityClass
 public class DepthMath {
 

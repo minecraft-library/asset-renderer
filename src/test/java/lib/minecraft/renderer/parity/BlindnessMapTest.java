@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -146,16 +147,20 @@ final class BlindnessMapTest {
      * coverage check stays green over a file no rule speaks for any more. Everything else the excuse
      * list holds up is uncontested, so deleting its rule really would show up as uncovered.
      *
-     * <p>All three are READMEs under a directory a rule claims, matched by the markdown glob. Written
-     * down rather than counted, so a fourth is a decision somebody makes - narrow the glob, or accept
-     * that the path can be absorbed - rather than a widening that arrives with the file.
+     * <p>Each sits under a directory some rule claims wholesale while carrying an excuse that says
+     * something narrower and truer about it: three READMEs matched by the markdown glob, and one
+     * authoring script named by a glob of its own, under a resource root whose rule speaks for the
+     * test suite. Written down rather than counted, so a fifth is a decision somebody makes - narrow
+     * the glob, or accept that the path can be absorbed - rather than a widening that arrives with
+     * the file.
      *
      * <p>Sorted, because the comparison is against a file list and a list is ordered.
      */
     private static final List<String> ABSORBABLE_BY_AN_EXCUSE = List.of(
-        "scripts/parity/README.md",
-        "scripts/parity/lab/README.md",
-        "src/test/resources/lib/minecraft/renderer/parity/README.md");
+        "parity/scripts/parity/README.md",
+        "parity/scripts/parity/lab/README.md",
+        "src/test/resources/lib/minecraft/renderer/parity/README.md",
+        "src/test/resources/scripts/euler_reference_svg.py");
 
     /**
      * The directories the repository walk skips, at any depth.
@@ -196,6 +201,7 @@ final class BlindnessMapTest {
         "paritySkillReferences", "paritySkillReferences",
         "paritySkillFile", "paritySkillFile",
         "parityTestSources", "\"src/test/java\"",
+        "parityMainSources", "\"src/main/java\"",
         "parityGitIndex", "\".git/index\"",
         "parityClaudeMd", "\"CLAUDE.md\"");
 
@@ -251,7 +257,71 @@ final class BlindnessMapTest {
      * <p>Sorted, because that comparison is against a file list and a list is ordered.
      */
     private static final List<String> MEMBERSHIP_DECLARATIONS =
-        List.of("gradle/visual.gradle.kts", "scripts/parity/manifest.py");
+        List.of("gradle/visual.gradle.kts", "parity/scripts/parity/manifest.py");
+
+    /**
+     * The directory a renderer is a direct child of.
+     *
+     * <p>The library root itself rather than the tree below it, because that is where the roster is
+     * defined from: a renderer sits directly in it by construction, and a walk that descended would
+     * take every {@code *Renderer.java} in the packages beneath - names the roster has no constant
+     * for and is not claiming to have one for.
+     */
+    private static final String LIBRARY_ROOT = "src/main/java/lib/minecraft/renderer/";
+
+    /** The suffix a renderer's file name ends in, which is what the roster is walked by. */
+    private static final String RENDERER_SUFFIX = "Renderer.java";
+
+    /** The annotation token a derived trigger path stands for, as it is written in source. */
+    private static final String DECLARATION = "@Parity";
+
+    /** The file a package's declaration is written in, which is what a package glob stands for. */
+    private static final String PACKAGE_DECLARATION = "package-info.java";
+
+    /**
+     * The source roots a declaration can be written in, which are the only paths derivable.
+     *
+     * <p>The toolkit's own list in the same order, and the two parting company is silent in both
+     * directions: a root only there leaves the checks below saying nothing about a tree the scan
+     * reads, and a root only here fails them over declarations nothing can derive. Written down
+     * rather than read out of the toolkit, because a check that took its operand from the thing it
+     * checks would agree with whatever that says.
+     */
+    private static final List<String> SOURCE_ROOTS = List.of("src/main/java", "parity/src/main/java",
+        "tooling/src/main/java", "tooling/src/test/java", "client/src/main/java",
+        "harness/src/client/java");
+
+    /** The lead-in a claiming package's own paragraph opens with. */
+    private static final String PARITY_PARAGRAPH = "<p><b>Parity.</b>";
+
+    /** A subject a declaration names, in either the single-constant or the braced form. */
+    private static final Pattern DECLARED_SUBJECT =
+        Pattern.compile("subject\\s*=\\s*\\{?([^)}]*)}?");
+
+    /** One constant inside a subject list. */
+    private static final Pattern SUBJECT_CONSTANT = Pattern.compile("Subject\\.(\\w+)");
+
+    /**
+     * The stored artifact whose name identifies each renderer that has one.
+     *
+     * <p>Seven of the eleven. The atlas renderer's output is registered as no artifact by decision -
+     * it does not reproduce, so a digest over it would be a gate failing for its own reasons - and
+     * the grid, layout and text renderers have none at all. Those four appear nowhere among the
+     * store's ids, which is the fact the roster exists to carry: a subject is the only place in this
+     * repository a reader learns that the text renderer is in the parity picture and is ungated.
+     *
+     * <p>Written down rather than derived from the id grammar, because {@code sweep.armor} and
+     * {@code sweep.glint} are named for what is drawn rather than for who draws it, and a rule that
+     * split ids on a dot would hand each of them a renderer that does not exist.
+     */
+    private static final Map<String, String> IDENTIFYING_ARTIFACT = Map.of(
+        "BLOCK", "sweep.block",
+        "ENTITY", "sweep.entity",
+        "FLUID", "manifest.fluid",
+        "ITEM", "sweep.item",
+        "MENU", "sweep.menu",
+        "PLAYER", "sweep.player",
+        "PORTAL", "manifest.portal");
 
     /** The skill body, whose frontmatter is what decides when the gate is offered at all. */
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
@@ -743,8 +813,55 @@ final class BlindnessMapTest {
                     orphaned.add(rule.get("id").getAsString() + " -> " + glob.getAsString());
             }
         }
-        assertThat("git tracks nothing these trigger globs match - a rename orphaned the rule, so the "
-            + "gate it speaks for silently stopped being consulted", orphaned, is(empty()));
+        assertThat("git tracks nothing these trigger globs match, which is now two failures rather "
+            + "than one. Over an authored path it is what it always was: a rename orphaned the rule "
+            + "and the gate it speaks for silently stopped being consulted. Over a generated path it "
+            + "is a move nobody regenerated, so the map states a reach no declaration makes - which "
+            + "the scan above names more precisely, and this one catches whether or not the file it "
+            + "points at still exists", orphaned, is(empty()));
+    }
+
+    @Test
+    @DisplayName("no authored path under a scanned source root is an exact file")
+    void noAuthoredPathIsAnExactSourceFile() {
+        List<String> exact = new ArrayList<>();
+        for (JsonObject rule : rules())
+            for (JsonElement path : rule.getAsJsonArray("authored_paths")) {
+                String authored = path.getAsString();
+                if (underASourceRoot(authored) && !authored.contains("*") && !authored.contains("?"))
+                    exact.add(rule.get("id").getAsString() + " -> " + authored);
+            }
+
+        assertThat("authored paths under a source root that name one file exactly. That is the "
+            + "one path shape a move leaves stale, and it is the shape this whole mechanism exists "
+            + "to retire: a file under this root can carry its own declaration, so an exact path "
+            + "authored beside it is a second handle on the same claim that nothing keeps honest. "
+            + "A glob here is different and stays allowed - it says something no single file can",
+            exact, is(empty()));
+    }
+
+    @Test
+    @DisplayName("every claiming package says in prose what it claims")
+    void everyClaimingPackageStatesItInProse() {
+        List<String> silent = trackedFiles().stream()
+            .filter(path -> underASourceRoot(path) && path.endsWith(PACKAGE_DECLARATION))
+            .filter(path -> text(Path.of(path)).contains(DECLARATION))
+            .filter(path -> !text(Path.of(path)).contains(PARITY_PARAGRAPH))
+            .sorted()
+            .toList();
+        List<String> claiming = trackedFiles().stream()
+            .filter(path -> underASourceRoot(path) && path.endsWith(PACKAGE_DECLARATION))
+            .filter(path -> text(Path.of(path)).contains(DECLARATION))
+            .toList();
+
+        assertThat("no package in any source root declares a claim, which would leave the check "
+            + "below true of nothing", claiming, is(not(empty())));
+        assertThat("packages that declare a claim and whose javadoc says nothing about it. A package "
+            + "declaration is carried by every file below it, so its whole meaning would otherwise "
+            + "sit in a file in another source tree and a reader standing in the package would have "
+            + "no way to know it was in one. Presence of the paragraph only and never agreement with "
+            + "the row: prose cannot be held to a measurement, and a check that pretended otherwise "
+            + "would make the guard a liar rather than the paragraph", silent, is(empty()));
     }
 
     @Test
@@ -1177,6 +1294,179 @@ final class BlindnessMapTest {
             is(empty()));
     }
 
+    @Test
+    @DisplayName("every derived trigger path still names a file that declares its claim")
+    void everyDerivedPathStillCarriesItsDeclaration() {
+        List<String> gone = new ArrayList<>();
+        List<String> silent = new ArrayList<>();
+        for (JsonObject rule : rules()) {
+            String key = rule.has("claim_key") ? rule.get("claim_key").getAsString() : "";
+            if (key.isEmpty()) continue;
+            Set<String> authored = strings(rule.getAsJsonArray("authored_paths"));
+            for (JsonElement glob : rule.getAsJsonArray("trigger_paths")) {
+                String trigger = glob.getAsString();
+                if (authored.contains(trigger)) continue;
+                Path carrier = Path.of(carrierOf(trigger));
+                if (!Files.isRegularFile(carrier)) {
+                    gone.add(rule.get("id").getAsString() + " -> " + carrier);
+                    continue;
+                }
+                // A token scan and never a parse, because a second reader of this grammar is a
+                // second thing to drift: the toolkit owns the parse and this says only that the
+                // file a generated path stands for still says something about this claim.
+                String source = text(carrier);
+                if (!source.contains(DECLARATION) || !(source.contains('"' + key + '"')
+                    || source.contains("as = ")))
+                    silent.add(rule.get("id").getAsString() + " -> " + carrier);
+            }
+        }
+
+        assertThat("generated trigger paths naming a file that is no longer there. A commit moved "
+            + "or renamed a file carrying a declaration and did not regenerate, so the planner "
+            + "fires this rule on a path nothing occupies and the change that really moved is "
+            + "planned by whatever else happens to claim its new home", gone, is(empty()));
+        assertThat("generated trigger paths naming a file that declares nothing about this claim. "
+            + "Either the declaration was deleted and the map still carries what it derived, or it "
+            + "was retargeted at another claim - and both leave a rule reaching a file whose own "
+            + "source no longer says so. A token scan, so a file joining by 'as' answers on the "
+            + "join rather than on the slug; what re-derives the exact set is the generator, and "
+            + "the toolkit's suite is what holds this file's answer to it", silent, is(empty()));
+    }
+
+    @Test
+    @DisplayName("every rule reaches at least one path")
+    void everyRuleHasAHome() {
+        List<String> homeless = rules().stream()
+            .filter(rule -> rule.getAsJsonArray("trigger_paths").isEmpty())
+            .map(rule -> rule.get("id").getAsString()
+                + (rule.has("claim_key") ? " (" + rule.get("claim_key").getAsString() + ")" : ""))
+            .toList();
+
+        assertThat("rules whose trigger list is empty. A rule's last carrier was deleted or its "
+            + "claim_key was typed wrong, so the generator had nothing to put in the list and the "
+            + "rule now fires on no path at all - which is not a rule that says nothing, it is a "
+            + "gate that silently stopped being consulted. Nothing else here can see it: every "
+            + "other check over this list is quantified over the paths it holds and is vacuously "
+            + "true of none", homeless, is(empty()));
+    }
+
+    @Test
+    @DisplayName("a claim naming one renderer reaches that renderer's picture and no other's")
+    void everyRendererArtifactIsNamedByItsSubject() {
+        List<String> contradicted = new ArrayList<>();
+        List<String> absent = new ArrayList<>();
+        List<String> checked = new ArrayList<>();
+        for (JsonObject rule : rules()) {
+            String key = rule.has("claim_key") ? rule.get("claim_key").getAsString() : "";
+            Set<String> named = subjectsOf(rule);
+            if (key.isEmpty() || named.size() != 1) continue;
+            String subject = named.iterator().next();
+            Set<String> sees = strings(rule.getAsJsonArray("sees"));
+            checked.add(key + " -> " + subject);
+            IDENTIFYING_ARTIFACT.forEach((renderer, artifact) -> {
+                if (renderer.equals(subject)) {
+                    if (!sees.contains(artifact)) absent.add(key + " names " + subject
+                        + " and does not reach " + artifact);
+                } else if (sees.contains(artifact)) {
+                    contradicted.add(key + " names " + subject + " and reaches " + artifact);
+                }
+            });
+        }
+
+        assertThat("no claim names exactly one renderer, which would leave both clauses below true "
+            + "of nothing", checked, is(not(empty())));
+        assertThat("claims naming one renderer that reach a different renderer's own picture. "
+            + "Naming a single subject asserts that the files the claim reaches belong to that "
+            + "renderer and to no other, and this is the half of that assertion a guard can hold it "
+            + "to", contradicted, is(empty()));
+        assertThat("claims naming a renderer whose own picture they do not reach. The converse is "
+            + "deliberately NOT asserted: a claim reaching exactly one renderer's artifact is a fact "
+            + "about which sweeps happen to move rather than about ownership - three claims over "
+            + "shared pipeline code reach one sweep each and belong to no renderer at all - so "
+            + "requiring a subject there would put a false name on each of them", absent,
+            is(empty()));
+    }
+
+    @Test
+    @DisplayName("the renderer roster and the parity subjects name each other exactly")
+    void theSubjectRosterIsTheRendererRoster() {
+        List<String> renderers = trackedFiles().stream()
+            .filter(path -> path.startsWith(LIBRARY_ROOT))
+            .map(path -> path.substring(LIBRARY_ROOT.length()))
+            .filter(name -> !name.contains("/") && name.endsWith(RENDERER_SUFFIX))
+            .map(name -> name.substring(0, name.length() - RENDERER_SUFFIX.length()))
+            // The interface strips to nothing, which is how it excludes itself: it is the one file
+            // matching the walk that names no renderer, and dropping it by name would go on dropping
+            // whatever took that name.
+            .filter(stem -> !stem.isEmpty())
+            .map(stem -> stem.toUpperCase(Locale.ROOT))
+            .sorted()
+            .toList();
+        List<String> subjects = Stream.of(Subject.values()).map(Enum::name).sorted().toList();
+
+        assertThat("renderers directly under the library root, which is the walk the roster is "
+            + "defined from. An empty list is a walk that has stopped finding anything - a moved "
+            + "source root, or a suffix nothing ends in any more - and the comparison below would "
+            + "then hold only for an empty enum", renderers, is(not(empty())));
+        assertThat("the renderers this library ships, against the constants a claim names one by. "
+            + "The roster is a closed vocabulary a claim asserts a file belongs to, so a renderer "
+            + "with no constant cannot be named at all and a constant with no renderer names "
+            + "something that is not there - and either way the claim that a file belongs to one "
+            + "renderer and no other stops being a closure anything can be held to. Compared "
+            + "upper-cased and stripped of the suffix, so a renderer whose name needs a word "
+            + "boundary the constant has to spell fails here for somebody to decide rather than "
+            + "resolving itself", subjects, equalTo(renderers));
+    }
+
+    /**
+     * The renderers a rule's own carriers name it as being about.
+     *
+     * <p>Read off the declarations rather than out of the map, because the subject lives only in
+     * source - and by token scan rather than by a parse, for the reason the derived-path scan is one:
+     * the toolkit owns the grammar and a second reader of it here would be a second thing to drift.
+     * A joining declaration writes no subject, so the union over a claim's carriers is what its
+     * anchor wrote.
+     *
+     * @param rule the rule
+     * @return the constants its carriers name, empty where none does
+     */
+    private static Set<String> subjectsOf(JsonObject rule) {
+        Set<String> out = new TreeSet<>();
+        Set<String> authored = strings(rule.getAsJsonArray("authored_paths"));
+        for (JsonElement glob : rule.getAsJsonArray("trigger_paths")) {
+            // The derived half alone. An authored entry is a glob in the map's own grammar and names
+            // no file to read; only a path some declaration produced has a carrier to look in.
+            if (authored.contains(glob.getAsString())) continue;
+            Path carrier = Path.of(carrierOf(glob.getAsString()));
+            if (!Files.isRegularFile(carrier)) continue;
+            Matcher declared = DECLARED_SUBJECT.matcher(text(carrier));
+            while (declared.find()) {
+                Matcher constant = SUBJECT_CONSTANT.matcher(declared.group(1));
+                while (constant.find()) out.add(constant.group(1));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The file a derived trigger path stands for.
+     *
+     * <p>A package's declaration is written in its {@code package-info.java} and the trigger it
+     * derives is that directory's glob, so the two spellings of a package's reach - its own
+     * compilation units and its whole tree - both answer with the one file that carries the line. A
+     * type's trigger is the file itself.
+     *
+     * @param trigger the generated trigger path
+     * @return the repo-relative path of the file that declares it
+     */
+    private static String carrierOf(String trigger) {
+        if (trigger.endsWith("/**"))
+            return trigger.substring(0, trigger.length() - 2) + PACKAGE_DECLARATION;
+        if (trigger.endsWith("/*"))
+            return trigger.substring(0, trigger.length() - 1) + PACKAGE_DECLARATION;
+        return trigger;
+    }
+
     /**
      * Every artifact a rule list names in either direction.
      *
@@ -1432,6 +1722,16 @@ final class BlindnessMapTest {
         return path.equals(root) || path.startsWith(root + "/");
     }
 
+    /**
+     * Whether a repo-relative path sits under any root the scan reads declarations from.
+     *
+     * @param path the repo-relative path
+     * @return whether some source root reaches it
+     */
+    private static boolean underASourceRoot(String path) {
+        return SOURCE_ROOTS.stream().anyMatch(root -> under(root, path));
+    }
+
     /** The build file's text. */
     private static String buildFile() {
         return BuildScripts.all();
@@ -1460,9 +1760,9 @@ final class BlindnessMapTest {
      * @return the artifact id to its member sub-directories, in declaration order
      */
     private static Map<String, List<String>> declaredMembers() {
-        String toolkit = text(Path.of("scripts/parity/manifest.py"));
+        String toolkit = text(Path.of("parity/scripts/parity/manifest.py"));
         int start = toolkit.indexOf("SUBTREES = {");
-        if (start < 0) throw new AssertionError("scripts/parity/manifest.py declares no SUBTREES");
+        if (start < 0) throw new AssertionError("parity/scripts/parity/manifest.py declares no SUBTREES");
         int end = toolkit.indexOf("\n}", start);
         if (end < 0) throw new AssertionError("SUBTREES has no line-initial closing brace");
         Map<String, List<String>> out = new LinkedHashMap<>();

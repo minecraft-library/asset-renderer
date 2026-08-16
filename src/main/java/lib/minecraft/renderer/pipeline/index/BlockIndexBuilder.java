@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.ItemModelContext;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.ApplyDto;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.BlockStates;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.MultipartPart;
@@ -51,6 +52,9 @@ import java.util.stream.Collectors;
  * door halves, growth stages) are kept. {@link #INVISIBLE_BLOCK_NAMES} is the one explicit
  * exception: those ids carry a real texture but vanilla renders them invisible, so they are dropped too.
  */
+@Parity(claim = "block-icon-selection")
+@Parity(claim = "block-index-item-blind")
+@Parity(claim = "index-resolution")
 @UtilityClass
 public class BlockIndexBuilder {
 

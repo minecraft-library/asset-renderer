@@ -15,6 +15,7 @@ import lib.minecraft.renderer.asset.pack.rule.IntRanges;
 import lib.minecraft.renderer.asset.pack.rule.NbtPath;
 import lib.minecraft.renderer.asset.pack.rule.NbtPredicate;
 import lib.minecraft.renderer.asset.pack.rule.NbtRule;
+import lib.minecraft.renderer.parity.Parity;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -30,6 +31,7 @@ import java.util.Properties;
  * four texture / model path forms (the filename default, bare names, {@code ./}-relative, and
  * {@code assets/minecraft/} relative) at parse so the matcher never re-derives paths.
  */
+@Parity(claim = "pack-rule-layer")
 @UtilityClass
 public class CitParser {
 

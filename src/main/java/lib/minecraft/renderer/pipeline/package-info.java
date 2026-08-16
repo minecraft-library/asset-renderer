@@ -36,9 +36,17 @@
  * {@code GsonContributor} {@link java.util.ServiceLoader ServiceLoader} SPI, so any downstream
  * {@code GsonSettings.defaults()} build deserializes asset JSON automatically.
  *
+ * <p><b>Parity.</b> The dump is a serialisation of the loaded pipeline state, so a read layer that
+ * resolves a different value moves a dumped byte. This is the wide claim beside the narrower ones
+ * the packages below carry, and what it answers for alone are the utilities and the context class.
+ * It reaches no render at all: nothing here draws, so no sweep and no render pin is on its list.
+ *
  * @see lib.minecraft.renderer.client.ClientAcquisition
  * @see lib.minecraft.renderer.pipeline.PipelineRendererContext
  * @see lib.minecraft.renderer.engine.RendererContext
  */
+@Parity(claim = "pipeline-reads")
 package lib.minecraft.renderer.pipeline;
+
+import lib.minecraft.renderer.parity.Parity;
 

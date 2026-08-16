@@ -17,6 +17,7 @@ import lib.minecraft.renderer.engine.raster.RasterMath;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -66,6 +67,8 @@ import java.util.stream.IntStream;
  * ({@link #sortBackToFront}); a pass vanilla registers with the depth write disabled skips it
  * here too, so its nested layers accumulate against the opaque depth behind them.
  */
+@Parity(claim = "depth-immunity-limit")
+@Parity(claim = "depth-immunity")
 public class ModelEngine {
 
     /**

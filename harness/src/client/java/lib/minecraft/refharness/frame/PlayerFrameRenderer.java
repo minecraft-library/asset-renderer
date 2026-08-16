@@ -29,6 +29,8 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.Consumer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Renders the vanilla {@link PlayerModel} (default steve skin) to an offscreen PNG under the same
@@ -50,6 +52,7 @@ import java.util.function.Consumer;
  * {@code refharness.headless} the {@code SkipSetupAnimMixin} suppresses the model's {@code setupAnim},
  * so the authored bind pose is rendered (consistent with every other harness subject).
  */
+@Parity(claim = "harness-player-sweep", mode = Mode.DEMOTE)
 public final class PlayerFrameRenderer implements FrameRenderer<PlayerFrameRenderer.Scope> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

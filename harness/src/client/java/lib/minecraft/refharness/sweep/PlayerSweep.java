@@ -13,6 +13,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 
 /**
  * Player-reference sweep. Renders the vanilla player model at the two scopes that have a vanilla
@@ -20,6 +23,7 @@ import java.util.Locale;
  * lands at a bare {@code <scope>.png}, the ground truth the sibling asset-renderer's player output
  * is diffed against.
  */
+@Parity(claim = "harness-player-sweep", mode = Mode.DEMOTE, subject = Subject.PLAYER)
 public final class PlayerSweep implements Sweep<PlayerFrameRenderer.Scope> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

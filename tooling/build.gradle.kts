@@ -23,6 +23,13 @@ dependencies {
     // tables are written in travels as values.
     implementation("lib.minecraft:asset-renderer-client:0.1.0")
 
+    // The @Parity vocabulary, resolved the same way. `compileOnly` on both source sets because
+    // retention is SOURCE: javac needs the types to resolve a declaration and drops the descriptor
+    // before it writes the class file, so nothing here can read one at run time and no emitted table
+    // is a function of it.
+    compileOnly("lib.minecraft:asset-renderer-parity:0.1.0")
+    testCompileOnly("lib.minecraft:asset-renderer-parity:0.1.0")
+
     // 9.8 added support for Java 25 class files (major version 69), which the Minecraft version named
     // by the harness's gradle.properties emits. It is declared here and nowhere else, which is what
     // keeps it off every renderer classpath and out of the published JAR.

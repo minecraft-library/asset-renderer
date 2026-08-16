@@ -61,6 +61,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Renders a block-entity-bearing {@link BlockState} via vanilla's
@@ -111,6 +113,7 @@ import java.util.function.Consumer;
  * walkers ({@link BedRenderer#getExtents}, {@link BannerRenderer#getExtents}) to size the fit, then
  * submits through the unchanged vanilla BE renderer so sprites / dye / patterns stay vanilla-correct.
  */
+@Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE)
 public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

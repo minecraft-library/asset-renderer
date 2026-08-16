@@ -147,7 +147,7 @@ final class ParityJsonTest {
         assertThat("and the refusal really is at the capture, which is the whole reason the "
                 + "asymmetry above is admissible rather than a hole. Read off the toolkit's writer, "
                 + "because a sentence here saying so is not the mechanism",
-            Files.readString(Path.of("scripts/parity/norm.py")), containsString("allow_nan=False"));
+            Files.readString(Path.of("parity/scripts/parity/norm.py")), containsString("allow_nan=False"));
     }
 
     /**

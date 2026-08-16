@@ -14,6 +14,7 @@ import lib.minecraft.renderer.option.spec.ArmorOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Box;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -54,6 +55,7 @@ import java.util.function.UnaryOperator;
  *
  * @see lib.minecraft.renderer.PlayerRenderer
  */
+@Parity(as = PlayerRenderer.class)
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class PlayerOptions implements RenderOptions {

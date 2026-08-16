@@ -1,6 +1,9 @@
 package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.MenuRenderer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -21,6 +24,7 @@ import java.util.List;
  * @param rows the picture, one character per authored pixel, every row the same length
  * @param pixel Minecraft pixels a side each authored pixel is drawn as
  */
+@Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 record Stencil(@NotNull List<String> rows, int pixel) {
 
     /**

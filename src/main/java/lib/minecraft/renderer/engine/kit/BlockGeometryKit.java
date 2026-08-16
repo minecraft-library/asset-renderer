@@ -18,6 +18,7 @@ import lib.minecraft.renderer.face.CornerPhase;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.face.Unwrap;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -41,6 +42,7 @@ import java.util.Set;
  * normals on {@link Face}, vertex winding on {@link CornerPhase}, default UV derivation on
  * {@link Unwrap}.
  */
+@Parity(claim = "box-builder")
 @UtilityClass
 public class BlockGeometryKit {
 

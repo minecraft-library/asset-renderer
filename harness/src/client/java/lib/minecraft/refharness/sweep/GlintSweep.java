@@ -32,6 +32,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Animated-glint reference sweep. Renders each glint subject as a deterministic sequence of
@@ -54,6 +56,7 @@ import java.util.Map;
  * {@code TestGlintParityVanilla}, which holds the same two values and drives its own frames off
  * them.</b>
  */
+@Parity(claim = "harness-glint-sweep", mode = Mode.DEMOTE)
 public final class GlintSweep implements Sweep<GlintSweep.Frame> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

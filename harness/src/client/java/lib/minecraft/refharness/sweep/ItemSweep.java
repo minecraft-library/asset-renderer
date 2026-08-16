@@ -19,6 +19,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 
 /**
  * Non-block item sweep. Walks the item registry and renders every entry that is <em>not</em> a
@@ -29,6 +32,7 @@ import java.util.List;
  * icon pipeline. Output dimensions are fixed and square. Most 2D item icons are unit-scale 16x16
  * sprites; the larger canvas lets the inventory display transform breathe without clipping.
  */
+@Parity(claim = "harness-item-sweep", mode = Mode.DEMOTE, subject = Subject.ITEM)
 public final class ItemSweep implements Sweep<Item> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

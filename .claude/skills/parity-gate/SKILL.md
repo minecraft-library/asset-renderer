@@ -1,6 +1,6 @@
 ---
 name: parity-gate
-description: Gate a change against the parity store immediately before a commit. Auto-invoked when the next act is a commit ("commit this", "land this", "ready to commit", "gate this", "run the gate", "is this byte-neutral", "did anything move", "re-baseline", "promote the baseline") AND the working tree touches src/main/java/lib/minecraft/renderer/**, src/test/java/lib/minecraft/renderer/**, tooling/**, client/**, src/main/resources/lib/minecraft/renderer/*.json, src/main/resources/META-INF/services/**, gradle/**, build.gradle.kts, scripts/parity/manifest.py or harness/**. Resolves which artifacts in the parity store can SEE the change and which are structurally BLIND, runs the cheapest sufficient bundle via parityPlan / parityCapture / parityCompare, and reports moved rows against the last known baseline. Do NOT invoke mid-edit, mid-diagnosis, for a scoped single-subject sweep (-PentityId / -PblockId / -PitemId), for a reference re-render, or for a docs-only / notes-only / CLAUDE.md-only commit.
+description: Gate a change against the parity store immediately before a commit. Auto-invoked when the next act is a commit ("commit this", "land this", "ready to commit", "gate this", "run the gate", "is this byte-neutral", "did anything move", "re-baseline", "promote the baseline") AND the working tree touches src/main/java/lib/minecraft/renderer/**, src/test/java/lib/minecraft/renderer/**, tooling/**, client/**, src/main/resources/lib/minecraft/renderer/*.json, src/main/resources/META-INF/services/**, gradle/**, build.gradle.kts, parity/scripts/parity/manifest.py or harness/**. Resolves which artifacts in the parity store can SEE the change and which are structurally BLIND, runs the cheapest sufficient bundle via parityPlan / parityCapture / parityCompare, and reports moved rows against the last known baseline. Do NOT invoke mid-edit, mid-diagnosis, for a scoped single-subject sweep (-PentityId / -PblockId / -PitemId), for a reference re-render, or for a docs-only / notes-only / CLAUDE.md-only commit.
 auto_invoke: true
 tags: [parity, gate, baseline, verification, pre-commit, asset-renderer]
 ---
@@ -21,15 +21,15 @@ All three must hold:
    `src/test/java/lib/minecraft/renderer/**`, `tooling/**`, `client/**`,
    `src/main/resources/lib/minecraft/renderer/*.json`,
    `src/main/resources/META-INF/services/**`, `gradle/**`, `build.gradle.kts`,
-   `scripts/parity/manifest.py`, or
+   `parity/scripts/parity/manifest.py`, or
    `harness/**` - the same list the frontmatter carries, and a `BlindnessMapTest` case holds the two
    to each other and to the map. It is a coarse prefix list and not an exact one: every path some
    rule gives a non-empty `sees` is under one of these, and the converse does not hold - a path
    under one of these can reach nothing. The build file and the manifest module are announced for
    what they declare rather than for being build and toolkit files: the member list that separates
    the two `cache/visual` manifests is typed in exactly those two, so editing either redefines what
-   a manifest holds with no producer having run, and the rest of `scripts/parity/**` reaches nothing
-   and is not announced. The root build file is announced for a second thing it declares, the
+   a manifest holds with no producer having run, and the rest of `parity/scripts/parity/**` reaches
+   nothing and is not announced. The root build file is announced for a second thing it declares, the
    dependency set: a version is a statement about which code a producer runs rather than about which
    producer runs, so bumping a pin moves rendered bytes with no line of this repo's source having
    changed, and the version catalog under `gradle/**` says the same thing about the third-party half.
@@ -45,8 +45,8 @@ Also invoke for: "re-baseline" / "promote the baseline", which enters at the pro
 this is deterministic", which enters at the determinism pre-flight.
 
 The repo-local `PreToolUse` hook covers the same moment from the other side: it fires on
-`git commit`, asks `python scripts/parity plan --gate-exit` the same question, and emits one `ask`
-when the answer is "seen and ungated" and one when the map refuses a changed path no rule covers.
+`git commit`, asks `python parity/scripts/parity plan --gate-exit` the same question, and emits one
+`ask` when the answer is "seen and ungated" and one when the map refuses a changed path no rule covers.
 It never denies and it fails open, so its silence is never evidence. It is an attention mechanism,
 not the gate.
 

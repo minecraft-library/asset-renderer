@@ -18,6 +18,8 @@ import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.Consumer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Renders a container screen through the client's own GUI pipeline into an offscreen target, then
@@ -36,6 +38,7 @@ import java.util.function.Consumer;
  * {@code mouseX = mouseY = -1} so no slot is hovered - that suppresses the slot highlight and the
  * tooltip together, being one test in vanilla rather than two.
  */
+@Parity(claim = "harness-menu-sweep", mode = Mode.DEMOTE)
 public final class MenuFrameRenderer implements AutoCloseable {
 
     /**

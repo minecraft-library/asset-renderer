@@ -2,7 +2,10 @@ package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -22,6 +25,7 @@ import java.util.Optional;
  * @param cells every cell, in the order they are laid out
  * @param marks the marks the screen paints beside its cells, at the positions it declares
  */
+@Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 public record MenuLayout(
     int width, int height,
     @NotNull MenuScreen.TitleX titleX, @NotNull Optional<Anchor> inventoryAnchor,

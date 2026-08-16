@@ -3,12 +3,15 @@ package lib.minecraft.renderer.engine.compose;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.engine.compose.ChromeDecomposition.Anchor;
 import lib.minecraft.renderer.engine.compose.ChromeDecomposition.Band;
 import lib.minecraft.renderer.engine.compose.ChromeDecomposition.Border;
 import lib.minecraft.renderer.engine.compose.ChromeDecomposition.Edge;
 import lib.minecraft.renderer.engine.compose.ChromeDecomposition.Feature;
 import lib.minecraft.renderer.engine.compose.ChromeDecomposition.Interior;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -34,6 +37,7 @@ import java.util.Optional;
  *
  * @see ChromeDecomposition
  */
+@Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 public final class ChromeSlicer {
 
     /**

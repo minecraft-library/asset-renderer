@@ -30,8 +30,14 @@ store holds is blind to one.
   wired because the flag belongs everywhere it is read, not because the task becomes usable.
 - ASM 9.8 reads Java 25 class files; the tooling flows walk client-jar bytecode with it. It is
   declared in the tooling build alone, so it is on no renderer classpath and in no published JAR.
-- Three builds sit beside this one: `client` and `tooling`, which it includes, and the harness, which
-  it reaches by shelling into that wrapper, as it does the generator flows.
+- Four builds sit beside this one: `client`, `tooling` and `parity`, which it includes, and the
+  harness, which it reaches by shelling into that wrapper, as it does the generator flows.
+- `parity/` is the smallest leaf: five annotation types under `lib.minecraft.renderer.parity`
+  importing nothing but `java.lang.annotation`, and the parity toolkit's Python package beside them
+  at `parity/scripts/parity/`. Every build that writes a `@Parity` declaration includes it and takes
+  it **`compileOnly`** - retention is `SOURCE`, so javac drops the descriptor before it writes a class
+  file and no published artifact carries one. The renderer's test tree is the exception and takes it
+  outright, because a roster guard reads `Subject.values()` at run time.
 - `client/` is a leaf holding client-jar acquisition - `ClientAcquisition`, `ClientOptions`,
   `ClientAssets`, `VanillaSourcePaths` - under `lib.minecraft.renderer.client`. Both this build and
   the generators read it and it reads neither. It is the one place in the repo that touches the
@@ -67,6 +73,20 @@ writes a capture, `parityCompare` reports movers, `parityPromote` makes a captur
   code.
 - `BlockGeometryKitTest` builds fixtures by reflection into private parser-populated fields, so a
   rename compiles clean and fails at runtime.
+
+**A rule's trigger list is two halves and only one of them is authored.** A rule carrying a
+`claim_key` derives its triggers from the `@Parity` declarations naming that slug, and `trigger_paths`
+is the sorted union of that with `authored_paths` - so moving a claiming package moves the rule, and
+hand-editing a generated array states a reach no declaration makes. `python parity/scripts/parity
+triggers` regenerates; `--check` answers what would move. The authored half is what no annotation can
+reach: a `.kts`, a `.py`, a resource file, a path in a build with no Java at all.
+
+A declaration is read from **source, never bytecode** - retention is `SOURCE`, and javac still writes
+a synthetic `package-info.class` for an annotated package with the annotation dropped, so a bytecode
+reader would find zero annotations and conclude the package declares nothing. Six source roots are
+scanned: the renderer's, `parity`'s, both of `tooling`'s, `client`'s and the harness's client root.
+**`Scope.PACKAGE` is legal on the renderer's library root alone** and refused everywhere else - a leaf
+package answers for its tree, so a package added below one inherits what its parent claims.
 
 **Coining an artifact is an edit to the roster and to the index, and the index row goes in first.** A
 registration in `ParityArtifacts.ALL` owes an `index.json` row carrying the `determinism_floor` -
@@ -701,9 +721,11 @@ Entity:
 
 ## Developer scripts
 
-Scripts live in `scripts/`, not bundled into the JAR. `scripts/parity/` is the parity toolkit, run as
-`python scripts/parity <command>` and documented in its own `README.md`.
-`scripts/euler_reference_svg.py` regenerates the SVG in `EulerRotation`'s javadoc.
+`parity/scripts/parity/` is the parity toolkit, run as `python parity/scripts/parity <command>` and
+documented in its own `README.md`. Every other developer script lives in
+`src/test/resources/scripts/`, which `processTestResources` excludes whole, so one is neither a
+fixture nor a shipped resource - `euler_reference_svg.py` regenerates the SVG in `EulerRotation`'s
+javadoc and is the only one today.
 
 [vanilla-reference-harness]: harness
 [vanilla-reference-harness/CLAUDE.md]: harness/CLAUDE.md

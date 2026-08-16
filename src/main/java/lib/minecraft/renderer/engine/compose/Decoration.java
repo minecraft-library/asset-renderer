@@ -1,7 +1,10 @@
 package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -31,6 +34,7 @@ import java.util.Optional;
  * What a decoration is <b>not</b> is a cell. Nothing addresses one by slot index, nothing places
  * content in one, and the layout's own cell list does not carry them.
  */
+@Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 public enum Decoration {
 
     /**

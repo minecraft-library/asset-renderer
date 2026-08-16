@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -10,5 +11,6 @@ import org.jetbrains.annotations.NotNull;
  * @param packFormat the renderer's target pack format major number
  * @param minecraftVersion the renderer's target Minecraft version (e.g. {@code 26.1})
  */
+@Parity(claim = "catharsis-selection")
 public record CatharsisTarget(int packFormat, @NotNull String minecraftVersion) {
 }

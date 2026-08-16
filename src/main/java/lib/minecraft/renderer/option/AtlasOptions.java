@@ -1,6 +1,9 @@
 package lib.minecraft.renderer.option;
 
 import dev.simplified.image.Background;
+import lib.minecraft.renderer.AtlasRenderer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,6 +20,7 @@ import java.util.Optional;
  * tile in it, and the caller (typically the {@code generateAtlas} Gradle task) decides where to
  * write them and in what form.
  */
+@Parity(as = AtlasRenderer.class, mode = Mode.SUPPRESS)
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class AtlasOptions implements RenderOptions {

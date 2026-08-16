@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.option.ItemModelContext;
+import lib.minecraft.renderer.parity.Parity;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -40,6 +41,7 @@ import java.util.Set;
  * {@code alwaysGlinted} flag from the glint-item set (parsed from the vanilla
  * {@code Items} registry) that drives the automatic enchantment foil on intrinsically-foil items.
  */
+@Parity(claim = "index-resolution")
 @UtilityClass
 public class ItemIndexBuilder {
 

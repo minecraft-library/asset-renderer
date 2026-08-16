@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
@@ -15,6 +16,7 @@ import java.util.Optional;
  * {@link Unknown} and evaluates {@code false} - the overlay stays inert and the pack degrades to its
  * root content, never erroring.
  */
+@Parity(claim = "catharsis-selection")
 public sealed interface CatharsisCondition permits CatharsisCondition.Config, CatharsisCondition.Version, CatharsisCondition.Unknown {
 
     /**

@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Diagnostic pose sweep. Renders one entity at every combination of pitch and roll, both stepped in
@@ -34,6 +36,7 @@ import java.util.List;
  * family-locked canvas would crop the frames where the model rotates outside it. Frames are
  * therefore not pixel-comparable with each other, and this sweep writes outside the reference tree.
  */
+@Parity(claim = "harness-probe-sweep", mode = Mode.DEMOTE)
 public final class PitchRollSweep implements Sweep<PitchRollSweep.Frame> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

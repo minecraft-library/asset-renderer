@@ -1,10 +1,13 @@
 package lib.minecraft.renderer.option;
 
+import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.FluidRenderer;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import org.jetbrains.annotations.NotNull;
 
@@ -33,6 +36,7 @@ import java.util.stream.Collectors;
  * @param width the tile's pixel width
  * @param height the tile's pixel height
  */
+@Parity(as = AtlasRenderer.class, mode = Mode.SUPPRESS)
 public record AtlasTile(
     @NotNull String id,
     @NotNull Kind kind,

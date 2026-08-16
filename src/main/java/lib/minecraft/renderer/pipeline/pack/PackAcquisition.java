@@ -19,6 +19,7 @@ import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleScanner;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -46,6 +47,7 @@ import java.util.TreeSet;
  * downstream loader reads through the container SPI. The vanilla base pack is a real
  * {@link PackContainer.Directory} over the tree {@code ClientAcquisition.extractClientJar} produces.
  */
+@Parity(claim = "pack-acquisition-probe")
 @UtilityClass
 public final class PackAcquisition {
 

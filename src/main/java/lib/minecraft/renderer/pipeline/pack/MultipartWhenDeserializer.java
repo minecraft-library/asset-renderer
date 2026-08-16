@@ -5,6 +5,7 @@ import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Type;
@@ -26,6 +27,7 @@ import java.util.Map;
  * Deliberately carries no static state (no {@code Gson} field) so instantiating it during
  * {@code GsonSettings.defaults()} assembly never re-enters the builder.
  */
+@Parity(claim = "blockstate-multipart")
 public final class MultipartWhenDeserializer implements JsonDeserializer<Block.Multipart.When> {
 
     @Override

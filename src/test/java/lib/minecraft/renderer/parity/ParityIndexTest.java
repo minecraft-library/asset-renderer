@@ -101,7 +101,7 @@ final class ParityIndexTest {
     private static final String DETERMINISM_FLOOR = "determinism_floor";
 
     /** Where the toolkit derives the summary object a captured sweep carries beside its rows. */
-    private static final Path SWEEP_MODULE = Path.of("scripts/parity/sweep.py");
+    private static final Path SWEEP_MODULE = Path.of("parity/scripts/parity/sweep.py");
 
     /** That derivation's returned mapping, which is every member a citation of it can name. */
     private static final Pattern DERIVES_THE_SUMMARY =
@@ -944,7 +944,7 @@ final class ParityIndexTest {
      * @return the directory names, sorted
      */
     private static List<String> toolkitVisualMembers() {
-        String body = declarationBody(read(Path.of("scripts/parity/manifest.py")),
+        String body = declarationBody(read(Path.of("parity/scripts/parity/manifest.py")),
             "\"manifest.visual\": (", ")");
         List<String> out = new ArrayList<>();
         Matcher matcher = Pattern.compile("\"([^\"]+)\"").matcher(body);

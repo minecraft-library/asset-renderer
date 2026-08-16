@@ -20,6 +20,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 
 /**
  * Block sweep. Every block's ground truth is a 3D render at the standard iso pose: the inventory
@@ -46,6 +49,7 @@ import java.util.List;
  * <p>No block is ever placed in the world: there is no camera dependency, no per-tick re-snap, no
  * falling-block corner case and no support-block rig.
  */
+@Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE, subject = Subject.BLOCK)
 public final class BlockSweep implements Sweep<Block> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

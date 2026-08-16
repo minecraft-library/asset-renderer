@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.pack.rule;
 
+import lib.minecraft.renderer.parity.Parity;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -24,6 +25,7 @@ import java.util.Optional;
  * <p>The {@code switch} over {@link CtmNeighborhood} is exhaustive against its sealed permits: a
  * future {@code Connected} occupancy would force a transition-table branch here at compile time.
  */
+@Parity(claim = "index-resolution")
 @UtilityClass
 public class CtmNeighborResolver {
 

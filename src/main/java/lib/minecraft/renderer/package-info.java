@@ -70,9 +70,20 @@
  * {@code FluidOptions}, {@code PortalOptions}) composes that one frame, so a caller building with
  * all defaults gets a consistent tile dimension across renderers.
  *
+ * <p><b>Parity.</b> Every renderer is a direct member of this package, so a change to one reaches
+ * the five sweeps, the four render CRC pins and the manifests taken beside them, and the pipeline
+ * dump is blind to all of it. The scope stops here rather than descending: the packages below
+ * carry their own claims, and a subtraction that reached them would strip both dump manifests
+ * from every file that reads a pipeline.
+ *
  * @see lib.minecraft.renderer.Renderer
  * @see lib.minecraft.renderer.option
  * @see lib.minecraft.renderer.engine
  * @see lib.minecraft.renderer.pipeline
  */
+@Parity(claim = "engine-renders", mode = Mode.DEMOTE, scope = Scope.PACKAGE)
 package lib.minecraft.renderer;
+
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Scope;

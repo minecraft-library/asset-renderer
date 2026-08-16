@@ -42,6 +42,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Measures an entity's screen-space silhouette by walking its model the way vanilla draws it.
@@ -60,6 +62,7 @@ import java.util.function.Consumer;
  * {@code setupRotations}, {@code scale}, a renderer's model field, a living renderer's layer list -
  * are all protected or private on their declaring classes.
  */
+@Parity(claim = "harness-entity-frame", mode = Mode.DEMOTE)
 final class EntityBoundsWalker implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

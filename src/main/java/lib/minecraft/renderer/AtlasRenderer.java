@@ -19,6 +19,9 @@ import lib.minecraft.renderer.option.GridOptions;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.PortalOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashSet;
@@ -43,6 +46,7 @@ import java.util.stream.IntStream;
  * misbehaving model never aborts the run. Both per-tile failure warnings and per-100-tile
  * progress logs are gated on {@link AtlasOptions#isProgressLogging()}.
  */
+@Parity(claim = "atlas-unhashable", mode = Mode.SUPPRESS, subject = Subject.ATLAS)
 public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**

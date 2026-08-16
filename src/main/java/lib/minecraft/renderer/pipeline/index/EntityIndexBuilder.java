@@ -25,6 +25,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.Size;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.pipeline.util.ArgbHex;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
@@ -57,6 +58,7 @@ import java.util.Set;
  * coat is therefore a selection over a row rather than a row. That makes the collision unrepresentable
  * instead of merely unlikely, which is why it must not be reintroduced as a convenience.
  */
+@Parity(claim = "index-resolution")
 public final class EntityIndexBuilder {
 
     private static final @NotNull String TEXTURE_PREFIX = "minecraft:textures/entity/";

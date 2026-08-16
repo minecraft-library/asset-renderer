@@ -12,6 +12,7 @@ import lib.minecraft.renderer.asset.pack.rule.CtmRule;
 import lib.minecraft.renderer.asset.pack.rule.CtmTarget;
 import lib.minecraft.renderer.asset.pack.rule.TileRef;
 import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.parity.Parity;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,6 +30,7 @@ import java.util.regex.Pattern;
  * mismatch rejects the rule fail-closed. Filename inference gives {@code block_<name>.properties} a
  * block target and {@code <name>.properties} a tile target.
  */
+@Parity(claim = "pack-rule-layer")
 @UtilityClass
 public class CtmParser {
 

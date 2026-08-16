@@ -26,6 +26,11 @@ dependencies {
     api("com.github.simplified-dev:gson-extras") { version { strictly("2ba8143") } }
     api(libs.gson)
 
+    // The @Parity vocabulary, resolved through the included build. `compileOnly` because retention
+    // is SOURCE: javac needs the types to resolve a declaration and drops the descriptor before it
+    // writes the class file, so neither dependent build inherits a type from it.
+    compileOnly("lib.minecraft:asset-renderer-parity:0.1.0")
+
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
     annotationProcessor(libs.simplified.annotations)
