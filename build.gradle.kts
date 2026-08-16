@@ -186,6 +186,15 @@ dependencies {
     // argument PipelineRendererContext.of takes, so a consumer standing a context up names the type.
     // It is the one module the generators share with this one, and it depends on neither.
     api("lib.minecraft:asset-renderer-client:0.1.0")
+
+    // The @Parity vocabulary, resolved through the included build. `compileOnly` because retention is
+    // SOURCE: javac needs the types to resolve a declaration and drops the descriptor before it
+    // writes the class file, so nothing downstream can read one and the published JAR carries none of
+    // the five. The test tree takes it as an ordinary dependency instead - BlindnessMapTest reads
+    // Subject.values() to hold the roster to the renderers this library ships, and that is a live
+    // enum at test runtime rather than an annotation javac erased.
+    compileOnly("lib.minecraft:asset-renderer-parity:0.1.0")
+    testImplementation("lib.minecraft:asset-renderer-parity:0.1.0")
 }
 
 idea {

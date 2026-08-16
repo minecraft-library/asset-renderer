@@ -38,14 +38,21 @@ from typing import Iterable, Sequence
 from parity.blindness import BLINDNESS_FILE, compile_glob
 from parity.norm import Refused, read_json, write_json
 
-#: The source root declarations are read from. Nothing outside it is scanned or derivable.
-SOURCE_ROOT = "src/main/java"
+#: The source roots declarations are read from, in scan order. Nothing outside them is scanned or
+#: derivable. The renderer's own root is first because it is where the library root sits.
+SOURCE_ROOTS = ("src/main/java", "parity/src/main/java", "tooling/src/main/java",
+                "tooling/src/test/java", "client/src/main/java", "harness/src/client/java")
 
-#: The library's own root package, the one package a ``PACKAGE`` scope is legal on.
+#: The library's own root package, the one package a ``PACKAGE`` scope is legal on, resolved against
+#: the FIRST source root alone. Every other root refuses the narrow arm: a leaf package answers for
+#: its tree everywhere, and one library root per source root would invent five more places the arm is
+#: legal for no measured need.
 LIBRARY_ROOT = "lib/minecraft/renderer"
 
-#: Where the vocabulary itself lives, which is what the constant lists are read out of.
-VOCABULARY = f"{SOURCE_ROOT}/{LIBRARY_ROOT}/parity"
+#: Where the vocabulary itself lives, which is what the constant lists are read out of. Its own build
+#: rather than the renderer's - the five types import nothing but ``java.lang.annotation``, so a build
+#: that writes a declaration compiles against them without inheriting anything else.
+VOCABULARY = f"parity/src/main/java/{LIBRARY_ROOT}/parity"
 
 #: The annotation's own simple name.
 ANNOTATION = "Parity"
@@ -326,7 +333,7 @@ def _target(path: str, line: int, body: str, after: int) -> str:
 
 
 def parse(path: str, source: str, vocabulary: dict[str, tuple[str, ...]],
-          library_root: str = f"{SOURCE_ROOT}/{LIBRARY_ROOT}") -> tuple[list[Declaration], list[Report]]:
+          library_root: str = f"{SOURCE_ROOTS[0]}/{LIBRARY_ROOT}") -> tuple[list[Declaration], list[Report]]:
     """Every declaration one compilation unit carries, and every mention it declines to count.
 
     :param path the compilation unit's repo-relative path
@@ -441,28 +448,39 @@ def claims_of(rules: Iterable) -> tuple[Claim, ...]:
         for rule in rules)
 
 
-def scan(repo_root: Path, source_root: str = SOURCE_ROOT, library_root: str = LIBRARY_ROOT,
+def scan(repo_root: Path, source_roots: Sequence[str] = SOURCE_ROOTS,
+         library_root: str = LIBRARY_ROOT,
          vocabulary: dict[str, tuple[str, ...]] | None = None) -> Scan:
-    """Every declaration the source root carries, with every join resolved to a slug.
+    """Every declaration the source roots carry, with every join resolved to a slug.
 
     An ``as`` is one level deep and never a chain: it names a type that names a claim, so the
-    indirection a reader follows is one hop into ``src/main/java`` and stops there.
+    indirection a reader follows is one hop into another root and stops there. The anchor it lands on
+    is looked up across every root at once, because a claim is one thing wherever it is written down.
+
+    The library root is resolved against the FIRST root alone, so ``Scope.PACKAGE`` stays legal on the
+    one package it is legal on today and every other root refuses it. A root that does not exist on
+    this checkout contributes nothing rather than raising - a source tree is a property of the
+    checkout, and refusing one would make the scan depend on which builds happen to be present.
 
     :param repo_root the repository root every path is relative to
-    :param source_root the tree to walk, relative to it
-    :param library_root the library's own root package, relative to the source root
+    :param source_roots the trees to walk, relative to it, in scan order
+    :param library_root the library's own root package, relative to the first source root
     :param vocabulary the closed vocabularies, read out of the annotation's own package when absent
     """
     vocabulary = vocabulary if vocabulary is not None else vocabularies(repo_root)
-    root = repo_root / source_root
-    root_directory = posixpath.normpath(f"{source_root}/{library_root}")
+    root_directory = posixpath.normpath(f"{source_roots[0]}/{library_root}")
     raw: list[Declaration] = []
     result = Scan()
-    for target in sorted(root.rglob("*.java")):
-        path = target.relative_to(repo_root).as_posix()
-        found, reports = parse(path, target.read_text(encoding="utf-8"), vocabulary, root_directory)
-        raw.extend(found)
-        result.reports.extend(reports)
+    for source_root in source_roots:
+        root = repo_root / source_root
+        if not root.is_dir():
+            continue
+        for target in sorted(root.rglob("*.java")):
+            path = target.relative_to(repo_root).as_posix()
+            found, reports = parse(path, target.read_text(encoding="utf-8"), vocabulary,
+                                   root_directory)
+            raw.extend(found)
+            result.reports.extend(reports)
 
     anchors: dict[str, Declaration] = {}
     for declaration in raw:

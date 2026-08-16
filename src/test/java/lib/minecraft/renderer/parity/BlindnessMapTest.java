@@ -278,8 +278,18 @@ final class BlindnessMapTest {
     /** The file a package's declaration is written in, which is what a package glob stands for. */
     private static final String PACKAGE_DECLARATION = "package-info.java";
 
-    /** The source root a declaration can be written in, and the only one derivable. */
-    private static final String MAIN_SOURCES = "src/main/java";
+    /**
+     * The source roots a declaration can be written in, which are the only paths derivable.
+     *
+     * <p>The toolkit's own list in the same order, and the two parting company is silent in both
+     * directions: a root only there leaves the checks below saying nothing about a tree the scan
+     * reads, and a root only here fails them over declarations nothing can derive. Written down
+     * rather than read out of the toolkit, because a check that took its operand from the thing it
+     * checks would agree with whatever that says.
+     */
+    private static final List<String> SOURCE_ROOTS = List.of("src/main/java", "parity/src/main/java",
+        "tooling/src/main/java", "tooling/src/test/java", "client/src/main/java",
+        "harness/src/client/java");
 
     /** The lead-in a claiming package's own paragraph opens with. */
     private static final String PARITY_PARAGRAPH = "<p><b>Parity.</b>";
@@ -812,18 +822,17 @@ final class BlindnessMapTest {
     }
 
     @Test
-    @DisplayName("no authored path under the scanned source root is an exact file")
+    @DisplayName("no authored path under a scanned source root is an exact file")
     void noAuthoredPathIsAnExactSourceFile() {
         List<String> exact = new ArrayList<>();
         for (JsonObject rule : rules())
             for (JsonElement path : rule.getAsJsonArray("authored_paths")) {
                 String authored = path.getAsString();
-                if (authored.startsWith(MAIN_SOURCES + "/") && !authored.contains("*")
-                    && !authored.contains("?"))
+                if (underASourceRoot(authored) && !authored.contains("*") && !authored.contains("?"))
                     exact.add(rule.get("id").getAsString() + " -> " + authored);
             }
 
-        assertThat("authored paths under the source root that name one file exactly. That is the "
+        assertThat("authored paths under a source root that name one file exactly. That is the "
             + "one path shape a move leaves stale, and it is the shape this whole mechanism exists "
             + "to retire: a file under this root can carry its own declaration, so an exact path "
             + "authored beside it is a second handle on the same claim that nothing keeps honest. "
@@ -835,17 +844,17 @@ final class BlindnessMapTest {
     @DisplayName("every claiming package says in prose what it claims")
     void everyClaimingPackageStatesItInProse() {
         List<String> silent = trackedFiles().stream()
-            .filter(path -> path.startsWith(MAIN_SOURCES + "/") && path.endsWith(PACKAGE_DECLARATION))
+            .filter(path -> underASourceRoot(path) && path.endsWith(PACKAGE_DECLARATION))
             .filter(path -> text(Path.of(path)).contains(DECLARATION))
             .filter(path -> !text(Path.of(path)).contains(PARITY_PARAGRAPH))
             .sorted()
             .toList();
         List<String> claiming = trackedFiles().stream()
-            .filter(path -> path.startsWith(MAIN_SOURCES + "/") && path.endsWith(PACKAGE_DECLARATION))
+            .filter(path -> underASourceRoot(path) && path.endsWith(PACKAGE_DECLARATION))
             .filter(path -> text(Path.of(path)).contains(DECLARATION))
             .toList();
 
-        assertThat("no package in the source root declares a claim, which would leave the check "
+        assertThat("no package in any source root declares a claim, which would leave the check "
             + "below true of nothing", claiming, is(not(empty())));
         assertThat("packages that declare a claim and whose javadoc says nothing about it. A package "
             + "declaration is carried by every file below it, so its whole meaning would otherwise "
@@ -1711,6 +1720,16 @@ final class BlindnessMapTest {
      */
     private static boolean under(String root, String path) {
         return path.equals(root) || path.startsWith(root + "/");
+    }
+
+    /**
+     * Whether a repo-relative path sits under any root the scan reads declarations from.
+     *
+     * @param path the repo-relative path
+     * @return whether some source root reaches it
+     */
+    private static boolean underASourceRoot(String path) {
+        return SOURCE_ROOTS.stream().anyMatch(root -> under(root, path));
     }
 
     /** The build file's text. */

@@ -23,7 +23,7 @@ VOCABULARY = declarations.vocabularies(REPO)
 
 def scan(name):
     """One fixture tree, whose library root is its ``root`` package."""
-    return declarations.scan(FIXTURES / name, source_root=".", library_root="root",
+    return declarations.scan(FIXTURES / name, source_roots=(".",), library_root="root",
                              vocabulary=VOCABULARY)
 
 
@@ -99,7 +99,7 @@ class Vocabularies(unittest.TestCase):
     def test_the_subject_roster_is_every_renderer(self):
         shipped = sorted(
             path.name[: -len("Renderer.java")].upper()
-            for path in (REPO / declarations.SOURCE_ROOT / declarations.LIBRARY_ROOT).glob("*Renderer.java")
+            for path in (REPO / declarations.SOURCE_ROOTS[0] / declarations.LIBRARY_ROOT).glob("*Renderer.java")
             if path.name != "Renderer.java")
         self.assertEqual(sorted(VOCABULARY["Subject"]), shipped)
 
@@ -318,7 +318,7 @@ class TheShippedMap(unittest.TestCase):
         and it is reachable by writing the declaration one commit before the row that answers it.
         """
         files = [path.relative_to(REPO).as_posix()
-                 for path in (REPO / declarations.SOURCE_ROOT).rglob("*")
+                 for path in (REPO / declarations.SOURCE_ROOTS[0]).rglob("*")
                  if path.is_file()]
         declarations.verify(declarations.scan(REPO), declarations.claims_of(self.rules()), files)
 

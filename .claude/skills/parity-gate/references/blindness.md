@@ -626,14 +626,26 @@ A menu is drawn by one renderer over one option record and one layout, and no ot
 ## B49 - The parity vocabulary states where a claim applies and renders nothing
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/parity/**`
+- **triggers** `parity/src/main/java/lib/minecraft/renderer/parity/**`
 - **sees** -
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead; retention is SOURCE and no class file carries the descriptor
 
-A new top-level sub-package of the renderer root is reached by no other rule's triggers, so it needs one of its own or the coverage check has a tracked file nothing speaks for. What it holds is the annotation a package or a type declares its own parity reach with and the three closed vocabularies that annotation names. Retention is SOURCE, and javac drops the descriptor before it writes a class file - so no compiled artifact carries a declaration, no renderer classpath is widened by one, and nothing on any producer's path can read one. What does read them is the planner, from source, when it resolves which artifacts a change set can move, which is why an edit here moves what a plan proposes to capture and never what a producer emits. The gate is ./gradlew test, which compiles the package and holds the roster to the renderers this library ships.
+The one source root of its own Gradle build, reached by no other rule's triggers, so it needs one of its own or the coverage check has a tracked file nothing speaks for. What it holds is the annotation a package or a type declares its own parity reach with and the three closed vocabularies that annotation names, importing nothing but java.lang.annotation. Retention is SOURCE, and javac drops the descriptor before it writes a class file - so no compiled artifact carries a declaration, the renderer takes the build compileOnly and its published JAR carries none of the five, and nothing on any producer's path can read one. What does read them is the planner, from source, when it resolves which artifacts a change set can move, which is why an edit here moves what a plan proposes to capture and never what a producer emits. The gate is ./gradlew test, which compiles the package through the included build and holds the roster to the renderers this library ships.
 
 *Probe:* javap -v the compiled package-info of a package that declares one: no @Parity descriptor is in the constant pool. Capture any artifact either side of an edit here and every stored byte is identical
+
+## B50 - The parity build's script wires a leaf that declares no dependency at all
+
+- **mode** select
+- **triggers** `parity/build.gradle.kts`, `parity/settings.gradle.kts`
+- **sees** -
+- **blind** -
+- **source** declares no store artifact, so its reason names the gate that answers instead
+
+The vocabulary module's build script declares its toolchain and its encoding and nothing else - it names no repository and no dependency, the five types importing java.lang.annotation alone. What the module HOLDS is B49's claim, over its sources. It carries no wrapper of its own: every build that writes a declaration resolves it as an included build rather than invoking it, and each takes it compileOnly, so an edit here cannot widen a published classpath even in principle. The gate for an edit here is that those builds still compile, which `check` reaches through `test`, `toolingTest` and `harnessClasses`.
+
+*Probe:* change the toolchain or add a repository and capture any artifact; every stored byte is identical, and no consumer's classpath gains an entry because the build resolves none
 
 ## Paths that reach nothing
 

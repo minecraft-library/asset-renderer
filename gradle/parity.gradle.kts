@@ -282,7 +282,7 @@ val parityTriggerRoots: FileCollection = files(
     fileTree("src/jmh") { exclude(parityWalkSkips) },
     fileTree("tooling") { exclude(parityWalkSkips) },
     fileTree("client") { exclude(parityWalkSkips) },
-    fileTree("parity/scripts/parity") { exclude(parityWalkSkips) },
+    fileTree("parity") { exclude(parityWalkSkips) },
     fileTree("harness") { exclude(parityWalkSkips) }
 )
 
