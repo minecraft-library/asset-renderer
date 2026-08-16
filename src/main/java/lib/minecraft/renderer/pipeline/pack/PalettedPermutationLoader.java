@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.annotations.SerializedName;
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.PackContainer;
@@ -55,11 +57,11 @@ public class PalettedPermutationLoader {
      * @param stack the resolved pack stack
      * @return the ordered paletted-permutation sources (lower packs first)
      */
-    public static @NotNull List<PalettedPermutationSource> load(@NotNull PackStack stack) {
-        List<PalettedPermutationSource> sources = new ArrayList<>();
+    public static @NotNull ConcurrentList<PalettedPermutationSource> load(@NotNull PackStack stack) {
+        ArrayList<PalettedPermutationSource> sources = new ArrayList<>();
         for (PackSubtree.Entry entry : PackSubtree.walk(stack, ATLASES))
             parseAtlas(entry.container(), entry.entryPath(), sources);
-        return List.copyOf(sources);
+        return Concurrent.adoptList(sources).toUnmodifiable();
     }
 
     /** Parses one atlas file, appending each {@code paletted_permutations} source it declares. */

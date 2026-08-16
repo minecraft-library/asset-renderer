@@ -4,6 +4,7 @@ import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.BannerPattern;
@@ -57,11 +58,9 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * The production {@link RendererContext} implementation, built once at bootstrap from the extracted
@@ -96,7 +95,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntities;
     private final @NotNull TextureSynthesizer synthesizer;
-    private final @NotNull Map<ResourceId, EquipmentModel> equipmentModels;
+    private final @NotNull ConcurrentMap<ResourceId, EquipmentModel> equipmentModels;
 
     /**
      * The block ids in atlas-grouping order (primary tag then id), precomputed once, shared unmodifiable.
@@ -125,32 +124,38 @@ public final class PipelineRendererContext implements RendererContext {
         BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack);
 
         ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates = BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack));
-        Map<String, String> blockItemAliases = BlockItemsLoader.load();
+        ConcurrentMap<String, String> blockItemAliases = BlockItemsLoader.load();
 
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
-        Map<String, Block.Tint> blockTints = BlockTintsLoader.load();
+        ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
         ConcurrentMap<String, List<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
-        Set<String> glintItems = GlintItemsLoader.load();
+        ConcurrentSet<String> glintItems = GlintItemsLoader.load();
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(stack);
-        HashMap<String, Integer> potionColors = new HashMap<>();
-        PotionColorLoader.load().forEach((effectId, color) -> potionColors.put(effectId, color.getRGB()));
-        ConcurrentMap<String, Integer> potionEffectColors = Concurrent.adoptMap(potionColors).toUnmodifiable();
+        ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
         ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(stack);
 
         BlockModelLoader.LoadResult beResult = BlockModelLoader.load(stack);
         ConcurrentMap<String, Block.Entity> blockEntities = beResult.models();
 
         BlockTables blockTables = new BlockTables(
-            models.blocks(), blockTints, itemDefinitions, blockDefaultStates, blockItemAliases,
-            blockEntities, beResult.variants(), itemTrees, models.items());
+            models.blocks(),
+            blockTints,
+            itemDefinitions,
+            blockDefaultStates,
+            blockItemAliases,
+            blockEntities,
+            beResult.variants(),
+            itemTrees,
+            models.items()
+        );
         ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(blockTables, blockStates, blockTags);
         ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(
             itemTints, glintItems, models.items(), itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
-        Map<ResourceId, EquipmentModel> equipmentModels = EquipmentModelLoader.load(stack);
+        ConcurrentMap<ResourceId, EquipmentModel> equipmentModels = EquipmentModelLoader.load(stack);
 
         return new PipelineRendererContext(
             stack,
@@ -288,8 +293,7 @@ public final class PipelineRendererContext implements RendererContext {
     /**
      * Sorts the block ids by primary tag then id (both case-insensitive); the shared, precomputed order.
      */
-    private static @NotNull ConcurrentList<String> sortedBlockIds(
-        @NotNull ConcurrentMap<String, Block> blockIndex, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
+    private static @NotNull ConcurrentList<String> sortedBlockIds(@NotNull ConcurrentMap<String, Block> blockIndex, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
         ArrayList<String> ids = new ArrayList<>(blockIndex.keySet());
         ids.sort((a, b) -> {
             String groupA = primaryTag(a, blockIndex, blockTags);
@@ -365,10 +369,12 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
         GlintPolicy glint = this.stack.rules().glintFor(context);
+
         for (CitRule rule : this.stack.rules().citRules()) {
             if (rule.type() != CitType.ITEM) continue;
             if (rule.matches(context)) return CitResult.of(rule.output(), glint);
         }
+
         return glint == GlintPolicy.DEFAULT ? CitResult.NONE : CitResult.NONE.withGlint(glint);
     }
 
@@ -385,10 +391,12 @@ public final class PipelineRendererContext implements RendererContext {
     public @NotNull CitResult resolveArmorTextureOverride(
         @NotNull ArmorMaterial material, @NotNull LayerType layerType, @NotNull ItemContext item) {
         CitType want = layerType.citType();
+
         for (CitRule rule : this.stack.rules().citRules()) {
             if (rule.type() != want) continue;
             if (rule.matches(item)) return CitResult.of(rule.output(), GlintPolicy.DEFAULT);
         }
+
         return CitResult.NONE;
     }
 
@@ -403,8 +411,7 @@ public final class PipelineRendererContext implements RendererContext {
     public @NotNull Optional<ResourceId> resolveConnectedTexture(
         @NotNull String blockId, @NotNull Map<String, String> state,
         @NotNull String baseTextureId, @NotNull Face face) {
-        return this.stack.rules().connectedTextureFor(
-            new CtmContext(blockId, state, baseTextureId, face));
+        return this.stack.rules().connectedTextureFor(new CtmContext(blockId, state, baseTextureId, face));
     }
 
     /**

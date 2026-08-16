@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.annotations.SerializedName;
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -55,11 +57,11 @@ public class EquipmentModelLoader {
      * @param stack the resolved pack stack
      * @return the equipment-asset index, deterministically ordered by asset id
      */
-    public static @NotNull Map<ResourceId, EquipmentModel> load(@NotNull PackStack stack) {
-        Map<ResourceId, EquipmentModel> models = new TreeMap<>(Comparator.comparing(ResourceId::id));
+    public static @NotNull ConcurrentMap<ResourceId, EquipmentModel> load(@NotNull PackStack stack) {
+        TreeMap<ResourceId, EquipmentModel> models = new TreeMap<>(Comparator.comparing(ResourceId::id));
         for (PackSubtree.Entry entry : PackSubtree.walk(stack, EQUIPMENT))
             parseFile(entry, models);
-        return Collections.unmodifiableSortedMap((TreeMap<ResourceId, EquipmentModel>) models);
+        return Concurrent.adoptTreeMap(models).toUnmodifiable();
     }
 
     /** Parses one equipment file, storing (replacing) its model under {@code <namespace>:<stem>}. */

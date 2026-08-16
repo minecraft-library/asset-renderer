@@ -1,12 +1,14 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Set;
+import java.util.LinkedHashSet;
 
 /**
  * A loader that reads the bundled "always glinted" vanilla item set from the
@@ -31,17 +33,17 @@ public class GlintItemsLoader {
 
     /**
      * Reads the always-glinted item set from {@code glint_items.json} natively through the shared
-     * read layer.
+     * read layer. Iteration order mirrors the on-disk JSON.
      *
      * @return the set of namespaced item ids that carry an always-on glint override
      * @throws PipelineException if the classpath resource is missing or malformed
      */
-    public static @NotNull Set<String> load() {
+    public static @NotNull ConcurrentSet<String> load() {
         ResourceDocument document = BundledResource.require(RESOURCE_NAME);
-        return document.as(GlintItemTable.class).items();
+        return Concurrent.adoptLinkedSet(document.as(GlintItemTable.class).items()).toUnmodifiable();
     }
 
     /** The {@code glint_items.json} payload: the sorted always-glinted item ids. */
-    private record GlintItemTable(@NotNull Set<String> items) {}
+    private record GlintItemTable(@NotNull LinkedHashSet<String> items) {}
 
 }

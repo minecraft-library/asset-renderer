@@ -1,13 +1,12 @@
 package lib.minecraft.renderer.pipeline.loader;
 
+import dev.simplified.collection.ConcurrentMap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.awt.Color;
-import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -21,27 +20,22 @@ class PotionColorLoaderTest {
     @Test
     @DisplayName("fire_resistance effect resolves to the MC 26.1 orange colour")
     void fireResistanceMatches() {
-        Map<String, Color> colors = PotionColorLoader.load();
-        Color argb = colors.get("minecraft:fire_resistance");
-        assertThat(argb, is(equalTo(new Color(0xFFFF9900, true))));
+        ConcurrentMap<String, Integer> colors = PotionColorLoader.load();
+        assertThat(colors.get("minecraft:fire_resistance"), is(new Color(0xFFFF9900, true).getRGB()));
     }
 
     @Test
     @DisplayName("conduit_power resolves to its MC 26.1 cyan colour")
     void conduitPowerMatches() {
-        Map<String, Color> colors = PotionColorLoader.load();
-        Color argb = colors.get("minecraft:conduit_power");
-        assertThat(argb, is(equalTo(new Color(0xFF1DC2D1, true))));
+        ConcurrentMap<String, Integer> colors = PotionColorLoader.load();
+        assertThat(colors.get("minecraft:conduit_power"), is(new Color(0xFF1DC2D1, true).getRGB()));
     }
 
     @Test
     @DisplayName("every entry has the full opaque alpha channel")
     void alphaIsOpaque() {
-        Map<String, Color> colors = PotionColorLoader.load();
-        colors.forEach((effectId, color) -> {
-            int alpha = (color.getRGB() >>> 24) & 0xFF;
-            assertThat(effectId + " alpha", alpha, is(0xFF));
-        });
+        ConcurrentMap<String, Integer> colors = PotionColorLoader.load();
+        colors.forEach((effectId, argb) -> assertThat(effectId + " alpha", (argb >>> 24) & 0xFF, is(0xFF)));
     }
 
 }

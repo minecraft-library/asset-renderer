@@ -26,7 +26,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
@@ -119,7 +118,7 @@ class PipelineRendererContextArmorOverrideTest {
             stack, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(),
-            new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Map.of(),
+            new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
             Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
     }
 

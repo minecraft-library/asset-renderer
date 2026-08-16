@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
@@ -8,7 +10,7 @@ import lib.minecraft.renderer.pipeline.util.ResourceDocument;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.Color;
-import java.util.Map;
+import java.util.LinkedHashMap;
 
 /**
  * A loader that reads the bundled vanilla block tint table from the {@code block_tints.json}
@@ -43,12 +45,12 @@ public class BlockTintsLoader {
      * @return a map keyed by namespaced block id
      * @throws PipelineException if the resource is missing or cannot be parsed
      */
-    public static @NotNull Map<String, Block.Tint> load() {
+    public static @NotNull ConcurrentMap<String, Block.Tint> load() {
         ResourceDocument document = BundledResource.require(RESOURCE_NAME);
-        return document.as(TintTable.class).tints();
+        return Concurrent.adoptLinkedMap(document.as(TintTable.class).tints()).toUnmodifiable();
     }
 
     /** The {@code block_tints.json} payload: the block-keyed tint map ({@code dropped} is ignored). */
-    record TintTable(@NotNull Map<String, Block.Tint> tints) {}
+    record TintTable(@NotNull LinkedHashMap<String, Block.Tint> tints) {}
 
 }
