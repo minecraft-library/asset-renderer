@@ -6,13 +6,20 @@ tables the renderer loads at runtime. Its own Gradle build with its own wrapper,
 
 ## Build
 
-`tooling/settings.gradle.kts` includes `../client` and nothing else. That leaf holds client-jar
-acquisition and is the whole of what this build shares with the renderer; the vocabulary the shipped
-tables are written in travels as values rather than as the renderer's enums, so nothing here resolves
-against it. ASM is declared here alone - it is on no renderer classpath and in no published JAR.
+`tooling/settings.gradle.kts` includes `../client` and `../parity`. The first holds client-jar
+acquisition and is the whole of what this build shares with the renderer at run time; the vocabulary
+the shipped tables are written in travels as values rather than as the renderer's enums, so nothing
+here resolves against it. ASM is declared here alone - it is on no renderer classpath and in no
+published JAR.
 
-Reaching for a renderer type here is not a missing dependency to add. Either the type belongs in
-`client`, or the value it carries travels as one.
+`../parity` is the five `@Parity` annotation types, taken **`compileOnly` on both source sets**.
+Retention is `SOURCE`, so javac drops the descriptor before it writes a class file: nothing here can
+read a declaration at run time and no emitted table is a function of one. Both packages' claims are
+declared in their own `package-info.java` rather than as a glob in the renderer's blindness map, so
+moving one moves the rule.
+
+Reaching for any other renderer type here is not a missing dependency to add. Either the type belongs
+in `client`, or the value it carries travels as one.
 
 The renderer drives the eight flows by shelling into this wrapper, the same shape `harnessClasses`
 uses for the harness, so `./gradlew blockTints` works from either side and the task names are what
