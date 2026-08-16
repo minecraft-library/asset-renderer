@@ -434,6 +434,10 @@ public record Entity(
 
         /**
          * Translation by {@code (x, y, z)} in entity-local units.
+         *
+         * @param x the offset along the X axis, in entity-local units
+         * @param y the offset along the Y axis, in entity-local units
+         * @param z the offset along the Z axis, in entity-local units
          */
         record Translate(float x, float y, float z) implements TransformOp {
             @Override
@@ -444,6 +448,8 @@ public record Entity(
 
         /**
          * Rotation around the Y axis by {@code degrees}.
+         *
+         * @param degrees the rotation about the Y axis, in degrees
          */
         record RotateY(float degrees) implements TransformOp {
             @Override
@@ -455,6 +461,8 @@ public record Entity(
         /**
          * Rotation around the X axis by {@code degrees} (the enderman carried block's {@code Axis.XP} tilt,
          * the iron golem flower's {@code Axis.XP} lay-flat).
+         *
+         * @param degrees the rotation about the X axis, in degrees
          */
         record RotateX(float degrees) implements TransformOp {
             @Override
@@ -467,6 +475,8 @@ public record Entity(
          * Rotation around the Z axis by {@code degrees} (a {@code mulPose(rotationDegrees)} on
          * {@code Axis.ZP}). Vocabulary-only in 26.1 - no vanilla block-overlay layer emits a {@code rotate_z}
          * row - but present so a future one composes in the correct PoseStack order.
+         *
+         * @param degrees the rotation about the Z axis, in degrees
          */
         record RotateZ(float degrees) implements TransformOp {
             @Override
@@ -477,6 +487,10 @@ public record Entity(
 
         /**
          * Per-axis scale {@code (x, y, z)}. Negative components flip the axis.
+         *
+         * @param x the scale factor along the X axis
+         * @param y the scale factor along the Y axis
+         * @param z the scale factor along the Z axis
          */
         record Scale(float x, float y, float z) implements TransformOp {
             @Override

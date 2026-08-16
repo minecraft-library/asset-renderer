@@ -14,7 +14,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Cold texture-pack load benchmark - measures a fresh {@link ClientAcquisition#run} invocation on an
+ * Cold texture-pack load benchmark - measures a fresh {@link ClientAcquisition#acquire} invocation on an
  * already-cached pack root (so the network hop is excluded, but all PNG decode, JSON parse, and
  * {@code ImageIO.read} work is on the critical path). Times the parallel pack-load scaling that
  * every renderer benchmark amortises away in its trial {@code @Setup}.

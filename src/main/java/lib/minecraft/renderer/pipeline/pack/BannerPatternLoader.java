@@ -65,14 +65,12 @@ public class BannerPatternLoader {
 
     /**
      * Parses a single pattern file and stores the resulting {@link BannerPattern} under its
-     * derived registry id. The id is the entry path relative to {@code patternPrefix} (with the
-     * {@code .json} suffix stripped and the {@code minecraft:} namespace prepended). Files with no
+     * derived registry id. The id is the entry's namespace prefix joined to its stem, so the
+     * {@code .json} suffix is dropped and the namespace prepended. Files with no
      * {@code asset_id} field are skipped silently; a missing {@code translation_key} yields the empty
      * string.
      *
-     * @param container the pack container to read through
-     * @param patternPrefix the registry root the entry is relativized against for id derivation
-     * @param entry the pattern JSON entry path to parse
+     * @param entry the pattern JSON entry to parse
      * @param result the running map that receives the parsed entry
      * @throws RuntimeException if the file cannot be read
      */

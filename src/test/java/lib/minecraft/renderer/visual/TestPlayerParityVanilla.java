@@ -34,7 +34,7 @@ import java.util.Optional;
 /**
  * Per-scope player parity report comparing the Java pipeline's 3D {@link PlayerRenderer} output against
  * the vanilla-reference-harness ground truth in the reference tree's {@code players/}.
- * The harness renders the vanilla {@link net.minecraft.client.model.player.PlayerModel} (default steve skin)
+ * The harness renders the vanilla {@code PlayerModel} (default steve skin)
  * under vanilla's inventory {@code ENTITY_IN_UI} lighting, so its output is the canonical baseline the Java
  * player aims to match - specifically the parity gate for R7 (player lit like a humanoid entity, not like a
  * block icon).

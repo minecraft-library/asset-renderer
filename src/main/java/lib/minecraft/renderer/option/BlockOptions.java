@@ -140,7 +140,7 @@ public class BlockOptions implements RenderOptions {
         ISOMETRIC_3D,
 
         /**
-         * A single flat 2D block face, selected by {@link #getFace() face}.
+         * A single flat 2D block face, selected by {@link BlockOptions#face face}.
          */
         BLOCK_FACE_2D
 

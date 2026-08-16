@@ -13,7 +13,7 @@ import org.openjdk.jmh.annotations.TearDown;
 
 /**
  * Shared {@link Scope#Benchmark} state for every rendering benchmark. Loads the asset pipeline
- * once per JMH trial via {@link ClientAcquisition#run} so the pack-download + PNG-decode + JSON-parse cost
+ * once per JMH trial via {@link ClientAcquisition#acquire} so the pack-download + PNG-decode + JSON-parse cost
  * does not contaminate the per-iteration measurements each concrete benchmark captures.
  * <p>
  * Subclasses override {@link #onSetupTrial()} to pre-build their renderer(s) and option builders

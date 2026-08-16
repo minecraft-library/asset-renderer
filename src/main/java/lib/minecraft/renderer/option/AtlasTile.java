@@ -78,7 +78,9 @@ public record AtlasTile(
         }
 
         /**
-         * The lowercase kind name used in the sidecar JSON schema.
+         * Derives the lowercase kind name used in the sidecar JSON schema.
+         *
+         * @return the lowercase kind name
          */
         public @NotNull String jsonName() {
             return this.name().toLowerCase(Locale.ROOT);
@@ -152,7 +154,9 @@ public record AtlasTile(
         }
 
         /**
-         * The lowercase source name used in the sidecar JSON schema.
+         * Derives the lowercase source name used in the sidecar JSON schema.
+         *
+         * @return the lowercase source name
          */
         public @NotNull String jsonName() {
             return this.name().toLowerCase(Locale.ROOT);

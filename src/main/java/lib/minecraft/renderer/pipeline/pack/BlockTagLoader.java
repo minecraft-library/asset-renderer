@@ -98,7 +98,7 @@ public class BlockTagLoader {
      * also re-append already-flattened ids); an unknown tag id resolves to nothing.
      *
      * @param tagId the namespaced tag id to flatten
-     * @param raw the full raw tag map from {@link #scanRawTags}, keyed by tag id
+     * @param raw the full raw tag map from {@link #parseRawTag}, keyed by tag id
      * @param out the accumulating concrete-block-id list, mutated in place
      * @param visited tag ids already entered on this resolution, mutated in place
      */

@@ -42,7 +42,7 @@ import lib.minecraft.renderer.parity.Parity;
  * {@code EntityRenderDispatcher}), a player is not a spawnable entity, so this bakes the
  * {@link ModelLayers#PLAYER} layer and submits the model directly via
  * {@link SubmitNodeCollector#submitModel}. The pose chain replicates the entity harness's iso
- * presentation - {@code scale(1,1,-1)} chirality, {@link #ISO_ROTATION}, then the
+ * presentation - {@code scale(1,1,-1)} chirality, {@link HarnessPose#ISO}, then the
  * {@code LivingEntityRenderer.submit} humanoid chain ({@code R_Y(180)}, {@code scale(-1,-1,1)},
  * {@code translate(0,-1.501,0)}) - so the Y-down vanilla model lands upright, front-facing, at the
  * shared iso pose, matching asset-renderer's presented player pose ({@code [30,45,0]}).

@@ -15,9 +15,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 /**
- * Static gradient-text rendering utilities - the compose-side realization of {@link GradientSpec}
- * (06 half 2). Splits into a pure color-evaluation core (unit-testable) and per-segment draw paths
- * driven by the {@link #PER_LETTER per-letter} vs per-pixel fidelity lever.
+ * Static gradient-text rendering utilities - the compose-side realization of {@link GradientSpec}.
+ * Splits into a pure color-evaluation core (unit-testable) and per-segment draw paths driven by the
+ * {@link GradientSpec#PER_LETTER per-letter} vs per-pixel fidelity lever.
  * <p>
  * The color evaluator {@link #sample(GradientSpec, float)} maps a normalized position {@code t}
  * along the segment to an rgb; {@link #scrolledT} slides {@code t} by the scroll phase derived from
