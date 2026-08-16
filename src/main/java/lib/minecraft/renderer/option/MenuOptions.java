@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
@@ -15,9 +18,6 @@ import lib.minecraft.renderer.option.slot.MenuSlot;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.text.font.MinecraftFont;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -49,7 +49,7 @@ import java.util.function.UnaryOperator;
  */
 @Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public class MenuOptions implements RenderOptions {
 
     /**
@@ -61,47 +61,40 @@ public class MenuOptions implements RenderOptions {
     /**
      * Menu layout type - selects the chrome and slot geometry.
      */
-    @lombok.Builder.Default
     private final @NotNull Type type = Type.CHEST;
 
     /**
      * Number of slot rows, read by {@link Type#CHEST} alone. Every other screen ships one grid and
      * carries its own.
      */
-    @lombok.Builder.Default
     private final int rows = 3;
 
     /**
      * Number of slot columns, read by {@link Type#CHEST} alone. Nine is the chest the client
      * composes; any other width is a panel it ships no sheet for, and is laid out as a plain grid.
      */
-    @lombok.Builder.Default
     private final int columns = 9;
 
     /**
      * Zero-based slot index to content mapping; unmapped slots render transparent.
      */
-    @lombok.Builder.Default
     private final @NotNull ConcurrentMap<Integer, MenuSlotContent> slots = Concurrent.newMap();
 
     /**
      * Menu title text rendered in the header; empty suppresses the title bar text.
      */
-    @lombok.Builder.Default
     private final @NotNull String title = "";
 
     /**
      * Label drawn above the player's own cells, and only where {@link #playerInventory} draws them.
      * Empty suppresses it.
      */
-    @lombok.Builder.Default
     private final @NotNull String inventoryTitle = "Inventory";
 
     /**
      * ARGB both labels are drawn in where a segment names no colour of its own. The default is what
      * vanilla draws a container's labels in.
      */
-    @lombok.Builder.Default
     private final int defaultTitleArgb = 0xFF404040;
 
     /**
@@ -112,7 +105,6 @@ public class MenuOptions implements RenderOptions {
      * field does with it, and text too wide for the field scrolls so its end stays in view - a field
      * shows the end of what was typed into it.
      */
-    @lombok.Builder.Default
     private final @NotNull String fieldText = "";
 
     /**
@@ -123,21 +115,18 @@ public class MenuOptions implements RenderOptions {
      * the client shows on opening the screen, and a caller rendering a menu as an illustration
      * rather than as a screenshot turns it off.
      */
-    @lombok.Builder.Default
     private final boolean caret = true;
 
     /**
      * Whether the player's own inventory and hotbar are drawn below the container's cells. A caller
      * gets the container section alone and asks for the band.
      */
-    @lombok.Builder.Default
     private final boolean playerInventory = false;
 
     /**
      * The window the chrome is painted by where {@link #chromeSprite} names no art, which is
      * vanilla's geometry in one of its palettes.
      */
-    @lombok.Builder.Default
     private final @NotNull Window.Theme theme = Window.Theme.VANILLA;
 
     /**
@@ -145,14 +134,12 @@ public class MenuOptions implements RenderOptions {
      * {@linkplain #theme theme}'s ink. Art named here and not resolvable raises rather than falling
      * back, so a pack that ships a broken panel is distinguishable from one that ships none.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<ResourceId> chromeSprite = Optional.empty();
 
     /**
      * The art one cell is sliced out of, read only where {@link #chromeSprite} names a panel. Empty
      * where that panel's art draws its own cells.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<ResourceId> cellSprite = Optional.of(ResourceId.parse(SLOT_SPRITE));
 
     /**
@@ -160,19 +147,16 @@ public class MenuOptions implements RenderOptions {
      * other value: a title is rasterised through that constant, so a panel drawn at a second scale
      * would carry a label that does not line up with it.
      */
-    @lombok.Builder.Default
     private final int pxScale = MinecraftFont.MC_PIXEL_SCALE;
 
     /**
      * What to draw in the cells a caller populated none of. Ignored where nothing is left over.
      */
-    @lombok.Builder.Default
     private final @NotNull Fill fill = Fill.EMPTY;
 
     /**
      * Target frame rate for animated output when any slot contains an animated item.
      */
-    @lombok.Builder.Default
     private final int framesPerSecond = 30;
 
     /**
@@ -180,7 +164,6 @@ public class MenuOptions implements RenderOptions {
      * letting callers splice custom layers relative to the built-in {@link MenuSlot}s (chrome, item slots,
      * content, text). Defaults to {@linkplain UnaryOperator#identity() identity}.
      */
-    @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator = UnaryOperator.identity();
 
     /**

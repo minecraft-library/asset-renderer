@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -22,6 +24,7 @@ import java.util.Set;
  * entry coordinates and the handful of facts that a bytecode walk genuinely cannot see (why the
  * same gui-yaw maps to different inventory rotations; why the bell hangs un-flipped).
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 enum BlockTransformPolicies implements NavigationPolicy {
 
     /**
@@ -188,11 +191,6 @@ enum BlockTransformPolicies implements NavigationPolicy {
 
     private final @NotNull Object value;
     private final @NotNull String provenance;
-
-    BlockTransformPolicies(@NotNull Object value, @NotNull String provenance) {
-        this.value = value;
-        this.provenance = provenance;
-    }
 
     /**
      * {@inheritDoc}

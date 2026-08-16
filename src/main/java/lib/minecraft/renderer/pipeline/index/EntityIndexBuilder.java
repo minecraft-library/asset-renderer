@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.index;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.BlendMode;
@@ -59,6 +60,7 @@ import java.util.Set;
  * instead of merely unlikely, which is why it must not be reintroduced as a convenience.
  */
 @Parity(claim = "index-resolution")
+@UtilityClass
 public final class EntityIndexBuilder {
 
     private static final @NotNull String TEXTURE_PREFIX = "minecraft:textures/entity/";
@@ -68,8 +70,6 @@ public final class EntityIndexBuilder {
     private static final float MODEL_UNITS_PER_BLOCK = 16f;
 
     private static final int WHITE = 0xFFFFFFFF;
-
-    private EntityIndexBuilder() {}
 
     /**
      * Assembles the entity index from the raw model tree and the geometry table.

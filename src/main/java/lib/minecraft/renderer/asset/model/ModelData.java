@@ -1,15 +1,15 @@
 package lib.minecraft.renderer.asset.model;
 
+import dev.simplified.annotations.EqualsAndHashCode;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NoArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * The fully-resolved block or item model parsed from a vanilla JSON file under
@@ -25,6 +25,7 @@ import java.util.Objects;
  */
 @Getter
 @NoArgsConstructor
+@EqualsAndHashCode
 public class ModelData {
 
     /**
@@ -89,21 +90,6 @@ public class ModelData {
             if (item ? key.startsWith("layer") : !key.equals("particle")) return false;
         }
         return true;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        ModelData that = (ModelData) o;
-        return ambientocclusion == that.ambientocclusion
-            && Objects.equals(textures, that.textures)
-            && Objects.equals(elements, that.elements)
-            && Objects.equals(display, that.display);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(ambientocclusion, textures, elements, display);
     }
 
 }

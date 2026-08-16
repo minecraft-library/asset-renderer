@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.geometry;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,10 +30,8 @@ import org.jetbrains.annotations.NotNull;
  *       CEILING / WALL).</li>
  * </ul>
  */
+@UtilityClass
 final class GeometryIds {
-
-    private GeometryIds() {
-    }
 
     /**
      * Mints the key for a request.

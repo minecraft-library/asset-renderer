@@ -2,6 +2,7 @@ package lib.minecraft.renderer.visual;
 
 import api.simplified.mojang.exception.MojangApiException;
 import api.simplified.mojang.response.MojangProfile;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
@@ -24,7 +25,6 @@ import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tensor.EulerRotation;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

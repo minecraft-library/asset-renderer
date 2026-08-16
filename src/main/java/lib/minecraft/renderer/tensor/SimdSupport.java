@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tensor;
 
-import lombok.experimental.UtilityClass;
+import dev.simplified.annotations.UtilityClass;
 
 /**
  * Runtime probe for the JDK incubator Vector API ({@code jdk.incubator.vector}).

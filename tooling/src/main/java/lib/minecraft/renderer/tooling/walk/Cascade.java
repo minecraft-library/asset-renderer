@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -17,6 +19,7 @@ import java.util.function.Function;
  * claims and fires after the commit on a shared node; an element no stage consumed is the
  * fall-through event that strict cells clear on.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 final class Cascade {
 
     private final @Nullable Descriptor.Fold fold;
@@ -35,10 +38,6 @@ final class Cascade {
     private Drive.Sink sink = new Drive.Sink() {};
     private @NotNull List<Function<Object, Object>> post = List.of();
     private final @Nullable WalkDump dump = WalkDump.armed();
-
-    private Cascade(@Nullable Descriptor.Fold fold) {
-        this.fold = fold;
-    }
 
     static @NotNull Cascade tier1(@NotNull Descriptor.Fold fold) {
         return new Cascade(fold);

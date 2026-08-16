@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.sweep;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.refharness.api.Appearance;
 import lib.minecraft.refharness.api.SweepContext;
 import net.minecraft.nbt.CompoundTag;
@@ -25,11 +26,10 @@ import org.slf4j.LoggerFactory;
  * its markings share an integer, and a tropical fish's pattern shares one with both of its colours.
  * Building the payload first lets those axes compose instead of overwriting each other.
  */
+@UtilityClass
 final class AppearanceApplier {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
-
-    private AppearanceApplier() {}
 
     /**
      * Builds one subject, rotation-zeroed and ready to render.

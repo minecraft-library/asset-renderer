@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -19,9 +22,8 @@ import java.util.function.Function;
  * across commits is declared with {@code clearing(subset)} on the commit rather than managed by
  * hand.
  */
+@UtilityClass
 public final class Cells {
-
-    private Cells() {}
 
     /** What every cell shares: the engine-owned clear and an optional decode-consume face. */
     public abstract static sealed class Cell<G> permits Window, ListCell, Latch, Flag, Slots {
@@ -64,16 +66,12 @@ public final class Cells {
      * and the stack-shaped sites read destructively with {@link #takeLast}, which never
      * recovers what a push already evicted.
      */
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class Window<G> extends Cell<G> {
 
         private final @NotNull Function<AbstractInsnNode, @Nullable G> decoder;
         private final int keep;
         private final @NotNull Deque<G> entries = new ArrayDeque<>();
-
-        private Window(@NotNull Function<AbstractInsnNode, @Nullable G> decoder, int keep) {
-            this.decoder = decoder;
-            this.keep = keep;
-        }
 
         @Override
         @Nullable G decode(@NotNull AbstractInsnNode node) {

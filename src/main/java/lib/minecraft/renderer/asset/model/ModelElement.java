@@ -1,15 +1,14 @@
 package lib.minecraft.renderer.asset.model;
 
 import com.google.gson.annotations.SerializedName;
+import dev.simplified.annotations.EqualsAndHashCode;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NoArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentMap;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Arrays;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -22,6 +21,7 @@ import java.util.Optional;
  */
 @Getter
 @NoArgsConstructor
+@EqualsAndHashCode
 public class ModelElement {
 
     /**
@@ -62,26 +62,6 @@ public class ModelElement {
     @SerializedName("light_emission")
     private int lightEmission = 0;
 
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        ModelElement that = (ModelElement) o;
-        return shade == that.shade
-            && lightEmission == that.lightEmission
-            && Arrays.equals(from, that.from)
-            && Arrays.equals(to, that.to)
-            && Objects.equals(faces, that.faces)
-            && Objects.equals(rotation, that.rotation);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = Objects.hash(faces, rotation, shade, lightEmission);
-        result = 31 * result + Arrays.hashCode(from);
-        result = 31 * result + Arrays.hashCode(to);
-        return result;
-    }
-
     /**
      * Element-level rotation applied before the face UV projection. Matches vanilla's
      * {@code elements[i].rotation} schema.
@@ -91,30 +71,12 @@ public class ModelElement {
      * @param angle the rotation angle in degrees, one of {@code -45}, {@code -22.5}, {@code 0}, {@code 22.5}, {@code 45}
      * @param rescale whether the element is rescaled to preserve its footprint after rotation
      */
+    @EqualsAndHashCode
     public record ElementRotation(
         float @NotNull [] origin,
         @NotNull String axis,
         float angle,
         boolean rescale
-    ) {
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-            ElementRotation that = (ElementRotation) o;
-            return Float.compare(angle, that.angle) == 0
-                && rescale == that.rescale
-                && Objects.equals(axis, that.axis)
-                && Arrays.equals(origin, that.origin);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hash(axis, angle, rescale);
-            result = 31 * result + Arrays.hashCode(origin);
-            return result;
-        }
-
-    }
+    ) {}
 
 }

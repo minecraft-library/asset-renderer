@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline;
 
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -52,7 +53,6 @@ import lib.minecraft.renderer.pipeline.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

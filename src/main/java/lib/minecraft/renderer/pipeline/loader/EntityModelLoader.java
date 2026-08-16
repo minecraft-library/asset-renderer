@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.loader;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
@@ -27,12 +28,11 @@ import java.util.Optional;
  * mesh surgery, the axes pivot, and the cross-entity grouping are {@link EntityIndexBuilder}'s concern,
  * not this reader's.
  */
+@UtilityClass
 public final class EntityModelLoader {
 
     private static final @NotNull String MODELS_RESOURCE = "entity_models.json";
     private static final @NotNull String GEOMETRY_RESOURCE = "entity_geometry.json";
-
-    private EntityModelLoader() {}
 
     /**
      * Reads the entity model catalog natively from the bundled resources, then hands the two raw reads to

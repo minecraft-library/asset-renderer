@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.asset;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.equipment.LayerType;
@@ -15,7 +17,6 @@ import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lombok.Builder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -82,7 +83,7 @@ import java.util.Set;
  *     entity's group-union fit window ({@code EntityOptions.FitMode.GROUP_BOUNDS}), the SAME list on
  *     each member of the group; empty for a singleton entity with no group
  */
-@Builder(toBuilder = true)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public record Entity(
     @NotNull ResourceId id,
     @NotNull EntityModelData model,

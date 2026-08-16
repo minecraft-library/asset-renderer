@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.tensor;
 
+import dev.simplified.annotations.UtilityClass;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**

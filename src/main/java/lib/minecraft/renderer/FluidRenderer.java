@@ -1,5 +1,6 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
@@ -21,7 +22,6 @@ import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.option.FluidOptions;
 import lib.minecraft.renderer.option.slot.FluidSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 /**

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
@@ -40,9 +41,8 @@ import java.nio.file.Path;
  *
  * <p>Usage: {@code ./gradlew blockFlipbook [-PrenderSize=256]}.
  */
+@UtilityClass
 public final class BlockFlipbookDriver {
-
-    private BlockFlipbookDriver() {}
 
     /** Block-index members carrying vanilla animated textures (see the class javadoc for the mapping). */
     private static final String[] FLIPBOOK_BLOCKS = {

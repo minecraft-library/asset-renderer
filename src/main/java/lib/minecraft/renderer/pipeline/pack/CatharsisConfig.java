@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.parity.Parity;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

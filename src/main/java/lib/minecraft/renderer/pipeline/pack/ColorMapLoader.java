@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

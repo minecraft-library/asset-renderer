@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -40,10 +41,8 @@ import java.util.Map;
  *       an unknown one is a loud {@link Diagnostics#error}.</li>
  * </ul>
  */
+@UtilityClass
 final class TintRegistrationResolver {
-
-    private TintRegistrationResolver() {
-    }
 
     /**
      * The classification of one committed registration: a tint (target + optional constant) or a

@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.face;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.parity.Parity;
@@ -7,9 +10,6 @@ import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
@@ -45,8 +45,7 @@ import java.util.EnumMap;
  * </pre>
  */
 @Parity(as = PlayerRenderer.class)
-@Getter
-@Accessors(fluent = true)
+@Getter(style = NamingStyle.FLUENT)
 public enum HumanoidPart {
 
     //        bone name      min px          max px        base uv   overlay uv

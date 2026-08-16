@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.parity;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.spec.ArmorOptions;
 import org.jetbrains.annotations.NotNull;
@@ -98,14 +100,11 @@ public record AppearanceKey(@NotNull String entityId,
         ARMOR_DYE("armor_dye");
 
         /** The token name this axis is spelled with. */
+        @Getter(style = NamingStyle.FLUENT)
         private final @NotNull String token;
 
         Axis(@NotNull String token) {
             this.token = token;
-        }
-
-        public @NotNull String token() {
-            return this.token;
         }
 
         /**

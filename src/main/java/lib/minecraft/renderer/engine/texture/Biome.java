@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.engine.texture;
 
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.Accessors;
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -192,8 +192,7 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
      * 26.1 biome JSON (via {@code slowTest}, see the per-section comments in the constant table).
      * Grass overrides are the hardcoded badlands / cherry-grove values from the same source.
      */
-    @Getter
-    @Accessors(fluent = true)
+    @Getter(style = NamingStyle.FLUENT)
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     enum Vanilla implements Biome {
 
@@ -397,6 +396,7 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
     /**
      * Mutable builder for a {@link Custom} biome.
      */
+    @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
     final class Builder {
 
         private final @NotNull String id;
@@ -407,17 +407,6 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
         private @NotNull Optional<Integer> dryFoliageColorOverride = Optional.empty();
         private @NotNull Optional<Integer> waterColorOverride = Optional.empty();
         private @NotNull GrassColorModifier grassColorModifier = GrassColorModifier.NONE;
-
-        /**
-         * Starts a builder for a custom biome with the given identifier. Temperature and downfall
-         * default to {@code 0.5}, all colour overrides to empty, and the grass colour modifier to
-         * {@link GrassColorModifier#NONE}.
-         *
-         * @param id the biome identifier
-         */
-        Builder(@NotNull String id) {
-            this.id = id;
-        }
 
         /**
          * Sets the biome temperature.

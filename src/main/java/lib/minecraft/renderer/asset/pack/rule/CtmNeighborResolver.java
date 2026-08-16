@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.asset.pack.rule;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.parity.Parity;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

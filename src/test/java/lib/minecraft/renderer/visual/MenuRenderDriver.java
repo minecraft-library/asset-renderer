@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
@@ -40,9 +41,8 @@ import java.util.Map;
  * <p>
  * Usage: {@code ./gradlew menuRender}. Outputs land in {@code cache/visual/menu-render/}.
  */
+@UtilityClass
 public final class MenuRenderDriver {
-
-    private MenuRenderDriver() {}
 
     /** Output directory for the menu renders. */
     private static final Path OUTPUT_DIR = Path.of("cache/visual/menu-render");

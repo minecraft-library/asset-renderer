@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.engine.compose;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -328,6 +331,8 @@ public interface Window {
      * {@link Decoration.Field} is an input widget's. Neither is something a panel would have drawn
      * itself, which is the line - what re-inks is what the panel owns.
      */
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     enum Theme implements Window {
 
         /**
@@ -345,20 +350,6 @@ public interface Window {
          * The ink this theme paints the shared geometry in.
          */
         private final @NotNull Palette palette;
-
-        Theme(@NotNull Palette palette) {
-            this.palette = palette;
-        }
-
-        /**
-         * The ink this theme paints in, which is what anything drawn over its panel matches itself
-         * against.
-         *
-         * @return the palette
-         */
-        public @NotNull Palette palette() {
-            return this.palette;
-        }
 
         /**
          * Role codes the frame's corner blocks and edge periods are written in. The code leaving the

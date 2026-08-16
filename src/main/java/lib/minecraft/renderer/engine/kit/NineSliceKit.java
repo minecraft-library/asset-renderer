@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.engine.kit;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.Resample;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**

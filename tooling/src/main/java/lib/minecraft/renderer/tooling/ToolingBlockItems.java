@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
@@ -14,10 +15,8 @@ import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
  * writes the secondary-to-standing alias map read at runtime so an aliased block's inventory icon
  * poses through its standing block item's {@code display.gui}.
  */
+@UtilityClass
 public final class ToolingBlockItems {
-
-    private ToolingBlockItems() {
-    }
 
     /**
      * Runs the flow, writes its table, and applies the session's strict gate.

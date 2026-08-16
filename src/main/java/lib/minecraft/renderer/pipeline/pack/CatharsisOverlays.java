@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.parity.Parity;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

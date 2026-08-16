@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -7,9 +10,6 @@ import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.option.slot.FluidSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,20 +26,18 @@ import java.util.function.UnaryOperator;
  * accepts precomputed values so the renderer stays scene-agnostic.
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public class FluidOptions implements RenderOptions {
 
     /**
      * The fluid to render - drives texture selection and tintability. Defaults to
      * {@link Fluid#WATER}.
      */
-    @lombok.Builder.Default
     private final @NotNull Fluid fluid = Fluid.WATER;
 
     /**
      * Render type - isometric 3D cube or flat 2D source-face icon.
      */
-    @lombok.Builder.Default
     private final @NotNull Type type = Type.ISOMETRIC_3D;
 
     /**
@@ -50,7 +48,6 @@ public class FluidOptions implements RenderOptions {
      * neighbors' levels. That computation lives in the caller; {@code FluidRenderer} just
      * consumes the precomputed values.
      */
-    @lombok.Builder.Default
     private final @NotNull CornerHeights cornerHeights = CornerHeights.FULL;
 
     /**
@@ -60,14 +57,12 @@ public class FluidOptions implements RenderOptions {
      * <p>
      * Vanilla derives this from the gradient of neighbor fluid heights - again caller's concern.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<Float> flowAngleRadians = Optional.empty();
 
     /**
      * Biome used for tinting water, routed through {@code Block.TintTarget.WATER}. Ignored for
      * lava. Defaults to {@link Biome.Vanilla#PLAINS}.
      */
-    @lombok.Builder.Default
     private final @NotNull Biome biome = Biome.Vanilla.PLAINS;
 
     /**
@@ -85,7 +80,6 @@ public class FluidOptions implements RenderOptions {
     public static final @NotNull OutputOptions DEFAULT_OUTPUT = OutputOptions.defaults();
 
     /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
-    @lombok.Builder.Default
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
@@ -95,14 +89,12 @@ public class FluidOptions implements RenderOptions {
     public static final @NotNull AnimationOptions DEFAULT_ANIMATION = AnimationOptions.defaults();
 
     /** The animation timing (seed tick, frame count, ticks per frame). */
-    @lombok.Builder.Default
     private final @NotNull AnimationOptions animation = DEFAULT_ANIMATION;
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
      * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */
-    @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
@@ -110,7 +102,6 @@ public class FluidOptions implements RenderOptions {
      * letting callers splice custom layers relative to the {@link FluidSlot} slot. Defaults to
      * {@linkplain UnaryOperator#identity() identity}. Only consulted by the 3D isometric path.
      */
-    @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
 
     /**

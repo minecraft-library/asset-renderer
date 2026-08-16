@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**

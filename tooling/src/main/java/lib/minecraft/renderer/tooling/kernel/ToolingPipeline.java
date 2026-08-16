@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.tooling.kernel;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.client.ClientAcquisition;
-import lib.minecraft.renderer.client.exception.ClientException;
 import lib.minecraft.renderer.client.ClientOptions;
-import lombok.experimental.UtilityClass;
+import lib.minecraft.renderer.client.exception.ClientException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

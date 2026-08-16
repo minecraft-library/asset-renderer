@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.option.spec;
 
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -10,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
  * tick, frame count, ticks-per-frame and playback schedule, plus the portal loop-crossfade fraction.
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public class AnimationOptions {
 
     /**
@@ -38,19 +38,16 @@ public class AnimationOptions {
     /**
      * Animation seed tick - frame 0 samples at this tick.
      */
-    @lombok.Builder.Default
     private final int startTick = 0;
 
     /**
      * Number of output frames; 1 = static, &gt;1 = animated.
      */
-    @lombok.Builder.Default
     private final int frameCount = 1;
 
     /**
      * Vanilla ticks advanced between successive output frames.
      */
-    @lombok.Builder.Default
     private final int ticksPerFrame = 1;
 
     /**
@@ -69,7 +66,6 @@ public class AnimationOptions {
      * subdivided schedule declares a longer tick than intended. Write WebP for these, or drop back
      * to {@code 1} for a strip that has to be a GIF.
      */
-    @lombok.Builder.Default
     private final int subTickSteps = 1;
 
     /**
@@ -78,14 +74,12 @@ public class AnimationOptions {
      * {@link Schedule#TEXTURE_STRIP}, the authored-rate flipbook every subject rendered before the
      * alternative existed.
      */
-    @lombok.Builder.Default
     private final @NotNull Schedule schedule = Schedule.TEXTURE_STRIP;
 
     /**
      * Fraction of frameCount used as a shifted-continuation crossfade for a seamless loop; consumed
      * only by the portal parallax bake, inert for the simple fluid strip loop.
      */
-    @lombok.Builder.Default
     private final float loopFadeBridgePct = 0.2f;
 
     /**
@@ -98,7 +92,6 @@ public class AnimationOptions {
      * a subject with no animated texture degrades to a single static frame, so requesting it costs
      * nothing on a static subject. The parity floor is preserved mechanically - the default is static.
      */
-    @lombok.Builder.Default
     private final boolean deriveTimeline = false;
 
     /**

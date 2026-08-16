@@ -1,12 +1,12 @@
 package lib.minecraft.refharness.sweep;
 
+import dev.simplified.annotations.UtilityClass;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 
 /** Preparation every sweep applies to a freshly constructed entity before it is rendered. */
+@UtilityClass
 final class EntitySubjects {
-
-    private EntitySubjects() {}
 
     /**
      * Forces the entity's rotation state to zero before render-state extraction, so its pose comes

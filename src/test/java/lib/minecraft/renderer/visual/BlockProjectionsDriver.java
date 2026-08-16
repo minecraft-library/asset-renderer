@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.client.ClientAcquisition;
@@ -29,9 +30,8 @@ import java.util.Map;
  * <p>
  * Usage: {@code ./gradlew projectionSmoke [-PblockId=minecraft:tnt] [-PrenderSize=512]}
  */
+@UtilityClass
 public final class BlockProjectionsDriver {
-
-    private BlockProjectionsDriver() {}
 
     /**
      * Named sample camera rotations applied to {@link Projection#ISOMETRIC}, exercising the

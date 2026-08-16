@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.pipeline.loader;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.Color;

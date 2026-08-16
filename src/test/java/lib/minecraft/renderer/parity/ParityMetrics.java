@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.parity;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.Background;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.DiffType;
@@ -24,9 +25,8 @@ import java.awt.image.BufferedImage;
  * {@link #padToCanvas} reconciles two differently-sized renders onto a common transparent canvas
  * without resampling.
  */
+@UtilityClass
 public final class ParityMetrics {
-
-    private ParityMetrics() {}
 
     /**
      * Computes per-pixel ARGB statistics over the two images' overlapping

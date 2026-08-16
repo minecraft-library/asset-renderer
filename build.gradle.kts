@@ -100,9 +100,9 @@ tasks.withType<JavaCompile>().configureEach {
 }
 // The fifth consumer, and the only one that is not a JVM launch: javadoc resolves the incubator
 // module at doclet time, so without this `SimdOps` reports the package as not visible. The task is
-// red at HEAD for an unrelated reason - Lombok generates the builders it cannot see - so this makes
-// two of its errors go away and no gate become usable; wiring it is about the flag being wired
-// everywhere it is read rather than about the exit code.
+// red at HEAD for an unrelated reason - an annotation processor generates builders the doclet cannot
+// see - so this makes two of its errors go away and no gate become usable; wiring it is about the
+// flag being wired everywhere it is read rather than about the exit code.
 tasks.withType<Javadoc>().configureEach {
     (options as StandardJavadocDocletOptions).addStringOption("-add-modules", "jdk.incubator.vector")
 }

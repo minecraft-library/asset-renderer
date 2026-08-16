@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.kernel;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.Trace;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -36,21 +39,13 @@ import java.util.function.Function;
  * {@code null}: a coordinate declaring a recipe asserts the recipe still runs, and a partial replay
  * would answer a fact nothing derived.
  */
+@RequiredArgsConstructor(access = AccessLevel.PUBLIC)
 public final class TraceReplay {
 
     /** The caller label the loud re-entries tag their drift message with. */
     private static final @NotNull String CONTEXT = "a dataflow trace replay";
 
     private final @NotNull ClassNodeCache cache;
-
-    /**
-     * Creates a replay engine over one session's cache.
-     *
-     * @param cache the per-session cache every re-entry loads through
-     */
-    public TraceReplay(@NotNull ClassNodeCache cache) {
-        this.cache = cache;
-    }
 
     /**
      * Replays a coordinate's trace and answers the value its last step leaves.
@@ -321,15 +316,11 @@ public final class TraceReplay {
     }
 
     /** The replay's position - the member it stands in, and the instruction it reads from. */
+    @AllArgsConstructor(access = AccessLevel.PRIVATE)
     private static final class Cursor {
 
         private @NotNull MethodNode member;
         private @NotNull AbstractInsnNode node;
-
-        private Cursor(@NotNull MethodNode member, @NotNull AbstractInsnNode node) {
-            this.member = member;
-            this.node = node;
-        }
 
     }
 

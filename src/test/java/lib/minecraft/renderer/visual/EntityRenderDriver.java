@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
@@ -85,9 +86,8 @@ import java.util.stream.Collectors;
  * <p>
  * Usage: {@code ./gradlew entityRender3D [-PrenderSize=512] [-PentityId=minecraft:zombie] [-Pprojection=ISOMETRIC]}.
  */
+@UtilityClass
 public final class EntityRenderDriver {
-
-    private EntityRenderDriver() {}
 
     /** Output directory for the per-entity PNGs, one per appearance the knobs select. */
     private static final Path OUTPUT_DIR = Path.of("cache/visual/entity-render-3d");

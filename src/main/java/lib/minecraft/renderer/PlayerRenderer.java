@@ -2,6 +2,7 @@ package lib.minecraft.renderer;
 
 import api.simplified.mojang.MojangContract;
 import api.simplified.mojang.request.MojangDomain;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -51,7 +52,6 @@ import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -692,7 +692,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * Appends the worn-armor layer for a player scope: the scope's own
-     * {@link PlayerOptions.Type#boxes() part boxes} handed to {@link ArmorKit#buildHumanoidArmor3D}
+     * {@link PlayerOptions.Type}'s {@code boxes} handed to {@link ArmorKit#buildHumanoidArmor3D}
      * with the four equipped slots. Shared by the SKULL / BUST / FULL 3D renderers so the append and
      * armor call live here once.
      *

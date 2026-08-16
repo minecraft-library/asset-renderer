@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.compose.Timeline;
@@ -8,9 +11,6 @@ import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.TextSlot;
 import lib.minecraft.text.LineSegment;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -28,7 +28,7 @@ import java.util.function.UnaryOperator;
  * @see lib.minecraft.renderer.TextRenderer
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public class TextOptions implements RenderOptions {
 
     /**
@@ -61,20 +61,17 @@ public class TextOptions implements RenderOptions {
     /**
      * Rendering style - {@link Style#LORE} tooltip chrome or plain {@link Style#CHAT} text.
      */
-    @lombok.Builder.Default
     private final @NotNull Style style = Style.LORE;
 
     /**
      * Styled text segments to render; each {@link LineSegment} is drawn as its own line (the
      * renderer does not itself re-wrap segments).
      */
-    @lombok.Builder.Default
     private final @NotNull ConcurrentList<LineSegment> lines = Concurrent.newList();
 
     /**
      * Padding in mcPixels between the tooltip border and the text content (1 mcPixel = 2 output pixels at native sampling).
      */
-    @lombok.Builder.Default
     private final int padding = TOOLTIP_PADDING_MCPX;
 
     /**
@@ -83,14 +80,12 @@ public class TextOptions implements RenderOptions {
      * {@link #chromeSprites}) draws the legacy chrome; entry points that own a {@code RendererContext}
      * resolve the sprite pair and select {@link TooltipChrome.Vanilla#SPRITE}.
      */
-    @lombok.Builder.Default
     private final @NotNull TooltipChrome chrome = TooltipChrome.Vanilla.PROCEDURAL;
 
     /**
      * The resolved chrome sprite pair for the {@link TooltipChrome.Vanilla#SPRITE} path, resolved by the
      * caller through the pack stack. Empty for the context-free / procedural path.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<TooltipChrome.ChromeSprites> chromeSprites = Optional.empty();
 
     /**
@@ -98,7 +93,6 @@ public class TextOptions implements RenderOptions {
      * {@link #VANILLA_TOOLTIP_BG_ALPHA}, matching the vanilla tooltip background
      * {@code 0xF0100010} constant used in every version from 1.8.9 through 26.1.
      */
-    @lombok.Builder.Default
     private final int backgroundAlpha = VANILLA_TOOLTIP_BG_ALPHA;
 
     /**
@@ -106,7 +100,6 @@ public class TextOptions implements RenderOptions {
      * {@link #VANILLA_TOOLTIP_BORDER_ALPHA}, matching the vanilla tooltip border endpoints
      * {@code 0x505000FF} and {@code 0x5028007F}.
      */
-    @lombok.Builder.Default
     private final int borderAlpha = VANILLA_TOOLTIP_BORDER_ALPHA;
 
     /**
@@ -114,19 +107,16 @@ public class TextOptions implements RenderOptions {
      * for callers that pre-wrap their {@link #lines} to vanilla tooltip width; the renderer does not
      * wrap on its own.
      */
-    @lombok.Builder.Default
     private final int wrapWidth = VANILLA_WRAP_WIDTH_CHARS;
 
     /**
      * Total number of frames produced when obfuscated text is present.
      */
-    @lombok.Builder.Default
     private final int frameCount = 20;
 
     /**
      * Target output frame rate; matches vanilla's tick-synced obfuscation refresh.
      */
-    @lombok.Builder.Default
     private final int framesPerSecond = VANILLA_TICK_FPS;
 
     /**
@@ -134,7 +124,6 @@ public class TextOptions implements RenderOptions {
      * runs, letting callers splice custom passes relative to the {@link TextSlot} slots. Defaults to
      * {@linkplain UnaryOperator#identity() identity}.
      */
-    @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
 
     /**

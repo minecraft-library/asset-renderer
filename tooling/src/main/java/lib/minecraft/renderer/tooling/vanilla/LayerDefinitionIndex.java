@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
 import lib.minecraft.renderer.tooling.geometry.BabyMeshTransform;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
@@ -38,6 +40,7 @@ import java.util.Map;
  * so entities sharing a layer factory through a no-op delegate resolve to the same
  * geometry key by construction, at every call site.
  */
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public final class LayerDefinitionIndex {
 
     /** The Guava builder the createRoots map is assembled on (JDK/Guava name, not vanilla - stays local). */
@@ -111,10 +114,6 @@ public final class LayerDefinitionIndex {
     }
 
     private final @NotNull Map<String, Entry> entries;
-
-    private LayerDefinitionIndex(@NotNull Map<String, Entry> entries) {
-        this.entries = entries;
-    }
 
     /**
      * Walks {@code LayerDefinitions.createRoots} once and builds the index. Tracks

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.visual;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.codec.gif.GifImageWriter;
 import dev.simplified.image.codec.gif.GifWriteOptions;
@@ -30,7 +31,6 @@ import lib.minecraft.renderer.parity.ParityMetrics;
 import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.parity.SweepReport;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

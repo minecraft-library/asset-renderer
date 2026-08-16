@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.engine.light;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**

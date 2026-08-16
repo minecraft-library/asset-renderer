@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline.util;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.exception.PipelineException;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;

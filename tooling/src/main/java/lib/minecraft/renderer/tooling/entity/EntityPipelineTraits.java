@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -47,6 +49,7 @@ import java.util.Set;
  * accepting every static in its hierarchy - a base class's helpers are inherited by every subclass,
  * and crediting a layer with one it never calls would classify the whole corpus alike.
  */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class EntityPipelineTraits {
 
     /**
@@ -128,10 +131,6 @@ final class EntityPipelineTraits {
      * Factory name to whether its {@code RenderSetup} declares {@code sortOnUpload} - the per-factory memo.
      */
     private final @NotNull Map<String, Boolean> factorySorts = new LinkedHashMap<>();
-
-    EntityPipelineTraits(@NotNull ClassNodeCache cache) {
-        this.cache = cache;
-    }
 
     /**
      * The trait set of a {@code RenderTypes} factory, empty when the factory or its pipeline

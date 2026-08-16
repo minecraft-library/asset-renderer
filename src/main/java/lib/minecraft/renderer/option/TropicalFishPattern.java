@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.option;
 
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.Accessors;
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -17,8 +17,7 @@ import java.util.Locale;
  * Names and shape/index mappings mirror {@code TropicalFishPatternLayer}'s per-pattern texture
  * constants.
  */
-@Getter
-@Accessors(fluent = true)
+@Getter(style = NamingStyle.FLUENT)
 public enum TropicalFishPattern {
 
     KOB(Shape.SMALL, 1),
@@ -68,8 +67,7 @@ public enum TropicalFishPattern {
      * The two tropical-fish body shapes - the small ({@code tropical_a}) and large ({@code tropical_b})
      * meshes, each carrying the {@code tropical_<letter>} texture-atlas letter.
      */
-    @Getter
-    @Accessors(fluent = true)
+    @Getter(style = NamingStyle.FLUENT)
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public enum Shape {
         SMALL("a"),

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.face;
 
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -35,6 +36,7 @@ import org.jetbrains.annotations.NotNull;
  * 3: (x0, y1, z0)   7: (x0, y1, z1)
  * </pre>
  */
+@RequiredArgsConstructor
 public enum CornerPhase {
 
     /**
@@ -106,11 +108,6 @@ public enum CornerPhase {
 
     private final int @NotNull [] @NotNull [] vertexIndices;
     private final int @NotNull [] @NotNull [] uvSlots;
-
-    CornerPhase(int @NotNull [] @NotNull [] vertexIndices, int @NotNull [] @NotNull [] uvSlots) {
-        this.vertexIndices = vertexIndices;
-        this.uvSlots = uvSlots;
-    }
 
     /**
      * Returns the four vertex indices this phase walks a face's corners in, addressing the canonical

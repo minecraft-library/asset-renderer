@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.kernel;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Type;

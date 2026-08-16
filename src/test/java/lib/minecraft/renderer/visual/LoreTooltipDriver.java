@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
@@ -52,9 +53,8 @@ import java.util.Optional;
  * Usage: {@code ./gradlew loreTooltip}. Takes no {@code -P} flags; outputs land in
  * {@code cache/visual/lore-tooltip/}.
  */
+@UtilityClass
 public final class LoreTooltipDriver {
-
-    private LoreTooltipDriver() {}
 
     /** Output directory for all lore renders. */
     private static final Path OUTPUT_DIR = Path.of("cache/visual/lore-tooltip");

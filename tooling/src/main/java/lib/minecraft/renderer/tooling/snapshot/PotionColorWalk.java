@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
@@ -34,10 +35,8 @@ import java.util.TreeMap;
  * {@link Diagnostics#warn} rather than being silently dropped. Output is sorted by effect id;
  * colour forced fully opaque.
  */
+@UtilityClass
 public final class PotionColorWalk {
-
-    private PotionColorWalk() {
-    }
 
     /**
      * Walks the effect colour table and populates {@code root}'s {@code effects} node.

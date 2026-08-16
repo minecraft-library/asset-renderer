@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
@@ -21,6 +22,7 @@ import java.util.Set;
  * ({@code BlockRegistryIndex}), and the bytecode shapes the potion and glint walks match on -
  * ships as derivation with NO policy fallback and is absent from this roster.
  */
+@RequiredArgsConstructor
 enum SnapshotShapePolicies implements NavigationPolicy {
 
     /**
@@ -66,11 +68,6 @@ enum SnapshotShapePolicies implements NavigationPolicy {
 
     private final @NotNull Object value;
     private final @NotNull String provenance;
-
-    SnapshotShapePolicies(@NotNull Object value, @NotNull String provenance) {
-        this.value = value;
-        this.provenance = provenance;
-    }
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {

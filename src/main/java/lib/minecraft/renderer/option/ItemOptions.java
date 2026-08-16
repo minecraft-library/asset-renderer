@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
@@ -13,9 +16,6 @@ import lib.minecraft.renderer.option.slot.ItemSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -47,27 +47,24 @@ import java.util.function.UnaryOperator;
  * @see lib.minecraft.renderer.ItemRenderer
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public class ItemOptions implements RenderOptions {
 
     /**
      * Namespaced item id to render, e.g. {@code "minecraft:diamond_sword"}. Empty (default)
      * resolves to no item
      */
-    @lombok.Builder.Default
     private final @NotNull String itemId = "";
 
     /**
      * Render type - 2D GUI icon or 3D held-item view
      */
-    @lombok.Builder.Default
     private final @NotNull Type type = Type.GUI_2D;
 
     /**
      * When {@code true}, compose an enchantment glint on top of the rendered item. Superseded by
      * {@link #glintOverride} when that is present. Animated unless {@link #animateGlint} is off.
      */
-    @lombok.Builder.Default
     private final boolean enchanted = false;
 
     /**
@@ -76,18 +73,15 @@ public class ItemOptions implements RenderOptions {
      * {@code false} to obtain the pre-glint base icon a glint-parity harness composites its own
      * deterministic animated schedule onto.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<Boolean> glintOverride = Optional.empty();
 
     /** The item-icon decoration inputs (tint, trim, leather/potion/firework colour, banner). */
-    @lombok.Builder.Default
     private final @NotNull ItemDecoration decoration = ItemDecoration.defaults();
 
     /**
      * Target frame rate for animated output in frames per second; drives glint scroll speed and
      * loop period
      */
-    @lombok.Builder.Default
     private final int framesPerSecond = 30;
 
     /**
@@ -95,14 +89,12 @@ public class ItemOptions implements RenderOptions {
      * foil. When {@code false} the renderer composites a single static frame-0 glint instead - the
      * atlas sets this so glinted tiles never promote the whole grid to an animated output.
      */
-    @lombok.Builder.Default
     private final boolean animateGlint = true;
 
     /**
      * Whether to render the vanilla-style durability bar when the item has taken damage. On by
      * default; damage level is read from {@link #context}
      */
-    @lombok.Builder.Default
     private final boolean showDamageBar = true;
 
     /**
@@ -113,7 +105,6 @@ public class ItemOptions implements RenderOptions {
             OutputOptions.builder().projection(Projection.VANILLA_GUI_ITEM).build();
 
     /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
-    @lombok.Builder.Default
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
@@ -124,14 +115,12 @@ public class ItemOptions implements RenderOptions {
      * of the squashed raw strip, and plays its flipbook when the caller opts in with
      * {@code frameCount > 1}.
      */
-    @lombok.Builder.Default
     private final @NotNull AnimationOptions animation = AnimationOptions.defaults();
 
     /**
      * Render-time item context used by CIT matching, the damage bar, and the stack-count overlay.
      * Defaults to {@link ItemContext#EMPTY}
      */
-    @lombok.Builder.Default
     private final @NotNull ItemContext context = ItemContext.EMPTY;
 
     /**
@@ -140,14 +129,12 @@ public class ItemOptions implements RenderOptions {
      * Defaults to the neutral {@link ItemModelContext#gui()}, under which the render reuses the
      * pipeline-baked item byte-for-byte; a caller supplying non-neutral options re-walks the tree.
      */
-    @lombok.Builder.Default
     private final @NotNull ItemModelContext itemModel = ItemModelContext.gui();
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
      * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */
-    @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
@@ -156,7 +143,6 @@ public class ItemOptions implements RenderOptions {
      * the stack entirely. Defaults to {@linkplain UnaryOperator#identity() identity} - the built-in
      * stack unchanged. Only consulted for {@link Type#GUI_2D} renders.
      */
-    @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
 
     /**

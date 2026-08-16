@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
@@ -41,6 +43,7 @@ import java.util.List;
  * Same-class factory helpers ({@code baseTransformation}) inline (depth-bounded); the standing
  * sign's attachment branch is evaluated against the seeded attachment enum.
  */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class TransformWalker {
 
     private static final int MAX_INLINE_DEPTH = 2;
@@ -66,10 +69,6 @@ final class TransformWalker {
     private static final @NotNull String FLOOR_CONSTANT = "FLOOR";
 
     private final @NotNull ClassNodeCache cache;
-
-    TransformWalker(@NotNull ClassNodeCache cache) {
-        this.cache = cache;
-    }
 
     /**
      * Decomposes a renderer's GUI transform into the inventory tuple, or {@code null} when the
@@ -115,16 +114,13 @@ final class TransformWalker {
     }
 
     /** One method activation: an operand stack of {@link Val}s and seeded slots, carried by the machine. */
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private final class Frame {
 
         private final @NotNull Interp<Val> machine;
         private @Nullable State finalTransform;
         private @Nullable Val returnValue;
         private boolean stopReached;
-
-        private Frame(@NotNull Interp<Val> machine) {
-            this.machine = machine;
-        }
 
         /** Seeds float params with the reference yaw and any attachment-typed param with {@code attachment}. */
         private void seedParameters(@NotNull MethodNode method, @Nullable String attachment) {

@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.asset.model;
 
 import com.google.gson.annotations.SerializedName;
+import dev.simplified.annotations.EqualsAndHashCode;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NoArgsConstructor;
 import lib.minecraft.renderer.tensor.Vector4f;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -15,6 +15,7 @@ import java.util.Optional;
  */
 @Getter
 @NoArgsConstructor
+@EqualsAndHashCode
 public class ModelFace {
 
     /**
@@ -46,21 +47,5 @@ public class ModelFace {
      * The UV rotation in degrees, a multiple of 90.
      */
     private int rotation = 0;
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        ModelFace that = (ModelFace) o;
-        return tintIndex == that.tintIndex
-            && rotation == that.rotation
-            && Objects.equals(texture, that.texture)
-            && Objects.equals(uv, that.uv)
-            && Objects.equals(cullface, that.cullface);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(texture, uv, cullface, tintIndex, rotation);
-    }
 
 }

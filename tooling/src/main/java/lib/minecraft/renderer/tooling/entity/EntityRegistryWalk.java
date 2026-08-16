@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -12,10 +13,8 @@ import java.util.List;
  * Builds the session-wide indexes once, loops the subjects in registry order appending one
  * model per subject, and hosts the post-pass linker hook.
  */
+@UtilityClass
 public final class EntityRegistryWalk {
-
-    private EntityRegistryWalk() {
-    }
 
     /**
      * Runs the per-subject resolver chain over every subject, appending to

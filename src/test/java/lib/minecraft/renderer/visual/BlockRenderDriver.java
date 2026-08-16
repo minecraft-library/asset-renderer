@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.client.ClientAcquisition;
@@ -29,9 +30,8 @@ import java.nio.file.Path;
  * <p>
  * Usage: {@code ./gradlew blockRender3D [-PblockId=minecraft:tnt] [-PrenderSize=512] [-Pssaa=2]}
  */
+@UtilityClass
 public final class BlockRenderDriver {
-
-    private BlockRenderDriver() {}
 
     /** Default block id list when no {@code args[0]} is supplied (mix of non-full cube shapes). */
     private static final String[] DEFAULT_BLOCKS = {

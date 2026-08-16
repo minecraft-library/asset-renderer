@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
@@ -29,10 +30,8 @@ import java.util.TreeSet;
  * The item id is the first LDC string since the last registration. Output is sorted namespaced
  * ids (7 at 26.1).
  */
+@UtilityClass
 public final class GlintItemsWalk {
-
-    private GlintItemsWalk() {
-    }
 
     /**
      * Walks the always-glinted item set and populates {@code root}'s {@code items} node.

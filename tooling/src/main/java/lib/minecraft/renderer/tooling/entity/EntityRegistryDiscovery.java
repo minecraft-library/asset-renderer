@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -51,10 +52,8 @@ import java.util.Set;
  * <p>Mobs whose renderer registration is missing or unresolvable land as WARN diagnostics
  * rather than a JSON side table.
  */
+@UtilityClass
 public final class EntityRegistryDiscovery {
-
-    private EntityRegistryDiscovery() {
-    }
 
     /**
      * Walks the three registries, joins the {@code EntityType} registrations against the

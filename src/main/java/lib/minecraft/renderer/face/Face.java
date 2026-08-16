@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.face;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lombok.Getter;
-import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,8 +41,7 @@ import java.util.Map;
  * Callers that have a surface normal rather than a face resolve it via {@link #fromNormal(Vector3f)};
  * callers that have a direction string use {@link #fromName(String)}.
  */
-@Getter
-@Accessors(fluent = true)
+@Getter(style = NamingStyle.FLUENT)
 public enum Face {
 
     //     outward normal                lighting   element inversion   atlas U coefficients

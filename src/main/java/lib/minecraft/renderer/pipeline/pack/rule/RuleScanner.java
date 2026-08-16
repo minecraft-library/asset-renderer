@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -15,7 +16,6 @@ import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.pipeline.pack.PackSubtree;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.ByteArrayInputStream;

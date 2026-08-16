@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -17,6 +19,7 @@ import java.util.function.Function;
  * budgets, visited sets) is minted by the terminal, so one descriptor walked twice yields the
  * identical sequence.
  */
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 final class Descriptor {
 
     /** Where a walk starts and which way it steps. */
@@ -145,16 +148,6 @@ final class Descriptor {
 
     Descriptor(@NotNull Source source) {
         this(source, false, null, null, -1, List.of());
-    }
-
-    private Descriptor(@NotNull Source source, boolean realOnly, @Nullable AbstractInsnNode sentinelNode,
-        @Nullable Match<?> sentinelMatch, int limit, @NotNull List<Stage> stages) {
-        this.source = source;
-        this.realOnly = realOnly;
-        this.sentinelNode = sentinelNode;
-        this.sentinelMatch = sentinelMatch;
-        this.limit = limit;
-        this.stages = stages;
     }
 
     @NotNull Descriptor real() {

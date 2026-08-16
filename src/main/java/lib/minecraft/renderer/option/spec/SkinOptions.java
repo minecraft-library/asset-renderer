@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.option.spec;
 
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -11,25 +11,22 @@ import org.jetbrains.annotations.NotNull;
  * second skin layer by {@code renderOverlay}.
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public class SkinOptions {
 
     /**
      * The skin texture source.
      */
-    @lombok.Builder.Default
     private final @NotNull TextureOptions skin = TextureOptions.defaults();
 
     /**
      * The cape texture source (rendered only when {@code renderCape}).
      */
-    @lombok.Builder.Default
     private final @NotNull TextureOptions cape = TextureOptions.defaults();
 
     /**
      * Whether to render the cape behind the torso (3D bust / full only).
      */
-    @lombok.Builder.Default
     private final boolean renderCape = false;
 
     /**
@@ -37,19 +34,16 @@ public class SkinOptions {
      * static {@code minecraft:elytra} wing skin when it supplies no source, mirroring how the cape
      * degrades.
      */
-    @lombok.Builder.Default
     private final @NotNull TextureOptions elytra = TextureOptions.defaults();
 
     /**
      * Whether to render elytra wings behind the torso (3D bust / full only).
      */
-    @lombok.Builder.Default
     private final boolean renderElytra = false;
 
     /**
      * Whether to render the second skin layer (hat, jacket, sleeves, trousers).
      */
-    @lombok.Builder.Default
     private final boolean renderOverlay = true;
 
     /**

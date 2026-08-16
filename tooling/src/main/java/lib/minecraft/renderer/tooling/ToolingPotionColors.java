@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
@@ -10,10 +11,8 @@ import lib.minecraft.renderer.tooling.snapshot.PotionColorWalk;
  * Entry point of the {@code potionColors} Gradle task - the potion-colour flow: every effect
  * colour from a {@code MobEffects.<clinit>} walk, sorted by effect id and forced fully opaque.
  */
+@UtilityClass
 public final class ToolingPotionColors {
-
-    private ToolingPotionColors() {
-    }
 
     /**
      * Runs the flow, writes its table, and applies the session's strict gate.

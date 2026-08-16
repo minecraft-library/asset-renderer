@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.option;
 
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.parity;
 
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -22,9 +23,8 @@ import java.util.stream.Collectors;
  * deliberately different numbers, because a floor that doubled as the record would let a declaration
  * pass for evidence.
  */
+@UtilityClass
 public final class ParityArtifacts {
-
-    private ParityArtifacts() {}
 
     /** Where an artifact's value lives, which decides which map of {@code index.json} registers it. */
     public enum Home {

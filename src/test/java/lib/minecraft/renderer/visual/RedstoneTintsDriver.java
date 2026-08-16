@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.client.ClientAcquisition;
@@ -35,9 +36,8 @@ import java.nio.file.Path;
  * <p>
  * Usage: {@code ./gradlew redstoneTints [-PrenderSize=64]}
  */
+@UtilityClass
 public final class RedstoneTintsDriver {
-
-    private RedstoneTintsDriver() {}
 
     /**
      * Synthetic pack id used for the temp pack directory. Sanitised the same way a pack id

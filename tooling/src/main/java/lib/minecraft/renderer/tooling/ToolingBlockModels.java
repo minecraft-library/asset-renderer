@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.blockentity.BlockEntityRegistryDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.BlockEntityRegistryWalk;
@@ -20,10 +21,8 @@ import java.util.List;
  * <p>Pure jar to JSON: every registered BER emits (incl. enchanting_table / lectern), and the
  * version is derived rather than merged with a previous run or filtered by a whitelist.
  */
+@UtilityClass
 public final class ToolingBlockModels {
-
-    private ToolingBlockModels() {
-    }
 
     /**
      * Runs the flow, writes its table, and applies the session's strict gate.

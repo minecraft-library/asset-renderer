@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
@@ -13,10 +14,8 @@ import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
  * targets derived from the source bodies and renderer-capability drops recorded in
  * {@code dropped[]}.
  */
+@UtilityClass
 public final class ToolingBlockTints {
-
-    private ToolingBlockTints() {
-    }
 
     /**
      * Runs the flow, writes its table, and applies the session's strict gate.

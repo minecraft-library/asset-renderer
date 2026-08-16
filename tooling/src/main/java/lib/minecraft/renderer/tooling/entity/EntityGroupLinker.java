@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -25,6 +26,7 @@ import java.util.Optional;
  * and is barred from NON-root membership, while variant bases stay eligible as roots
  * (mooshroom to cow).
  */
+@UtilityClass
 final class EntityGroupLinker {
 
     /** The factory-class stem prefixes that never appear in an entity id (the adult / baby name strips). */
@@ -32,9 +34,6 @@ final class EntityGroupLinker {
 
     /** The factory-class suffix every vanilla model class carries. */
     private static final @NotNull String STEM_SUFFIX = "Model";
-
-    private EntityGroupLinker() {
-    }
 
     /**
      * Appends {@code group_of} to every linked non-root model (the put lands last in the

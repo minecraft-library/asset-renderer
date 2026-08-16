@@ -1,12 +1,13 @@
 package lib.minecraft.renderer.engine.kit;
 
+import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.option.spec.BannerLayer;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -73,6 +74,7 @@ public class BannerKit {
      * The texture atlas variant to pull pattern masks from. Banners use
      * {@code entity/banner/<assetId>}; shields use {@code entity/shield/<assetId>}.
      */
+    @RequiredArgsConstructor
     public enum Variant {
 
         /**
@@ -96,10 +98,6 @@ public class BannerKit {
         SHIELD_BLOCK_3D("entity/shield");
 
         private final @NotNull String atlasPath;
-
-        Variant(@NotNull String atlasPath) {
-            this.atlasPath = atlasPath;
-        }
 
         /**
          * Builds the namespaced texture id for a pattern's mask under this variant's atlas.

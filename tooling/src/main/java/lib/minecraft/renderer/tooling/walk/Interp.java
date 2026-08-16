@@ -1,5 +1,9 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
@@ -30,6 +34,7 @@ import java.util.Map;
  *
  * @param <V> the interpreted value type
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class Interp<V> {
 
     /**
@@ -93,21 +98,25 @@ public final class Interp<V> {
 
     private final @NotNull Domain<V> domain;
     private final @NotNull OnUnknown onUnknown;
+
+    /** The float-arithmetic carriage this machine runs under. */
+    @Getter(style = NamingStyle.FLUENT)
     private final @NotNull Width width;
+
     private final @NotNull Deque<V> stack = new ArrayDeque<>();
     private final @NotNull Map<Integer, V> slots = new LinkedHashMap<>();
     private final @NotNull Deque<Map<Integer, V>> slotFrames = new ArrayDeque<>();
     private int capacity = -1;
     private @Nullable Runnable overflowWarning;
     private boolean @NotNull [] overflowWarned = {false};
-    private int depth = Integer.MAX_VALUE;
-    private boolean poisoned;
 
-    private Interp(@NotNull Domain<V> domain, @NotNull OnUnknown onUnknown, @NotNull Width width) {
-        this.domain = domain;
-        this.onUnknown = onUnknown;
-        this.width = width;
-    }
+    /** The remaining inline-frame budget. */
+    @Getter(style = NamingStyle.FLUENT)
+    private int depth = Integer.MAX_VALUE;
+
+    /** Whether the machine has met something it refuses to reason past. */
+    @Getter(style = NamingStyle.FLUENT)
+    private boolean poisoned;
 
     /**
      * Creates a machine over a domain.
@@ -143,16 +152,6 @@ public final class Interp<V> {
     public @NotNull Interp<V> overflowWarning(@NotNull Runnable warning) {
         this.overflowWarning = warning;
         return this;
-    }
-
-    /** The float-arithmetic carriage this machine runs under. */
-    public @NotNull Width width() {
-        return this.width;
-    }
-
-    /** The remaining inline-frame budget. */
-    public int depth() {
-        return this.depth;
     }
 
     /**
@@ -347,11 +346,6 @@ public final class Interp<V> {
         if (saved == null) throw new ToolingException("closeSlotFrame without an open frame");
         this.slots.clear();
         this.slots.putAll(saved);
-    }
-
-    /** Whether the machine has met something it refuses to reason past. */
-    public boolean poisoned() {
-        return this.poisoned;
     }
 
     /** Marks the machine unusable - every later step is a no-op. */

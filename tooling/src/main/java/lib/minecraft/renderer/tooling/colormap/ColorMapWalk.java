@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.colormap;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -31,10 +32,8 @@ import java.util.Locale;
  * present-but-corrupt PNG aborts the run. Pixel contract: 256x256 ARGB, row-major, packed
  * big-endian 4 bytes/px, base64 - round-trips {@code ColorMapLoader.asIntBuffer()}.
  */
+@UtilityClass
 public final class ColorMapWalk {
-
-    private ColorMapWalk() {
-    }
 
     /**
      * Reads every declared colormap and populates {@code root}'s {@code maps} node.

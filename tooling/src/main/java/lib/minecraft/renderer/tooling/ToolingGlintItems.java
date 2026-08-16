@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
@@ -11,10 +12,8 @@ import lib.minecraft.renderer.tooling.snapshot.GlintItemsWalk;
  * every item whose {@code Items} registration sets {@code ENCHANTMENT_GLINT_OVERRIDE = true},
  * from an {@code Items.<clinit>} walk, as sorted namespaced ids.
  */
+@UtilityClass
 public final class ToolingGlintItems {
-
-    private ToolingGlintItems() {
-    }
 
     /**
      * Runs the flow, writes its table, and applies the session's strict gate.

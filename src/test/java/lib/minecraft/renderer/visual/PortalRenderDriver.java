@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
@@ -33,9 +34,8 @@ import java.util.Locale;
  * Usage: {@code ./gradlew portalRenderer}. Takes no {@code -P} flags; sizes are
  * fixed at {@link #STATIC_SIZE} / {@link #ANIMATED_SIZE}.
  */
+@UtilityClass
 public final class PortalRenderDriver {
-
-    private PortalRenderDriver() {}
 
     /** Output directory for all portal renders. */
     private static final Path OUTPUT_DIR = Path.of("cache/visual/portal-renderer");

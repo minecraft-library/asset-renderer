@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.sweep;
 
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.refharness.api.Appearance;
 import lib.minecraft.refharness.api.SweepContext;
 import net.minecraft.core.component.DataComponents;
@@ -44,6 +45,7 @@ import java.util.Locale;
  * vanilla packs more than one axis into a single tag - a horse's coat and its markings share an
  * integer, and a tropical fish's pattern shares one with both of its colours.
  */
+@RequiredArgsConstructor
 enum TraitAxis {
 
     /**
@@ -424,10 +426,6 @@ enum TraitAxis {
     static final String ANGRY = "angry";
 
     private final String axis;
-
-    TraitAxis(String axis) {
-        this.axis = axis;
-    }
 
     /** The token name this axis is spelled with in a reference name. */
     String token() {

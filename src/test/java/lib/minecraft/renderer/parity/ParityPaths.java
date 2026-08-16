@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.parity;
 
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
@@ -14,6 +15,7 @@ import java.nio.file.Path;
  * {@code asset.parity.references}; the default here is what lets a bare {@code java} invocation and a
  * fork that never saw the property agree.
  */
+@UtilityClass
 public final class ParityPaths {
 
     /**
@@ -25,8 +27,6 @@ public final class ParityPaths {
      */
     public static final @NotNull Path REFERENCES = Path.of(
         System.getProperty("asset.parity.references", "cache/asset-renderer/vanilla/26.1/references"));
-
-    private ParityPaths() {}
 
     /**
      * Returns one sub-tree of the reference tree.

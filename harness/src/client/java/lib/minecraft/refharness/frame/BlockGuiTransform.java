@@ -1,6 +1,9 @@
 package lib.minecraft.refharness.frame;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import dev.simplified.annotations.UtilityClass;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.item.ItemModel;
 import net.minecraft.client.renderer.item.ItemModelResolver;
@@ -22,8 +25,6 @@ import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Resolver for a block's authored {@code display.gui} transform, shared by
@@ -43,10 +44,8 @@ import lib.minecraft.renderer.parity.Parity;
  * pose the harness applied unconditionally before.
  */
 @Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE)
+@UtilityClass
 final class BlockGuiTransform {
-
-    private BlockGuiTransform() {
-    }
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 

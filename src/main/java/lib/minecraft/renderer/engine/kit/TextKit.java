@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.engine.kit;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Random;

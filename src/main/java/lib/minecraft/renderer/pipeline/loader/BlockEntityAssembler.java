@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.loader;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
@@ -12,7 +13,6 @@ import lib.minecraft.renderer.pipeline.loader.BlockModelReader.BlockModelEntry;
 import lib.minecraft.renderer.pipeline.loader.BlockModelReader.BlockRef;
 import lib.minecraft.renderer.pipeline.loader.BlockModelReader.InventoryDto;
 import lib.minecraft.renderer.pipeline.loader.BlockModelReader.PartRef;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

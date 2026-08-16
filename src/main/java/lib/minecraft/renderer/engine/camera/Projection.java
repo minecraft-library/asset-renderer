@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.engine.camera;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tensor.EulerRotation;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -31,8 +31,7 @@ import org.jetbrains.annotations.NotNull;
  * plain facing-neutral iso display pose shared by blocks, players, and entities; each renderer applies
  * its subject's facing separately as a model-to-world {@code Placement}.
  */
-@Getter
-@Accessors(fluent = true)
+@Getter(style = NamingStyle.FLUENT)
 @RequiredArgsConstructor
 public enum Projection {
 

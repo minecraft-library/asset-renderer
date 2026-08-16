@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.parity;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
@@ -21,9 +22,8 @@ import java.util.zip.CRC32;
  * tidied - eight promoted CRC32s were taken under it, and reversing it would move every one of them
  * while changing nothing about any render.
  */
+@UtilityClass
 public final class RenderDigest {
-
-    private RenderDigest() {}
 
     /**
      * Returns the first frame's full ARGB pixel array.

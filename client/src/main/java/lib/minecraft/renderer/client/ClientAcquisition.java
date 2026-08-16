@@ -8,13 +8,13 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.client.Client;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
 import dev.simplified.gson.GsonSettings;
-import dev.simplified.util.Lazy;
+import dev.simplified.lazy.Lazy;
 import lib.minecraft.renderer.client.exception.ClientException;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;

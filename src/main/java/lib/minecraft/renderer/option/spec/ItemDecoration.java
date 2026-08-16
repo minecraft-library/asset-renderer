@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.option.spec;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -14,14 +14,13 @@ import java.util.Optional;
  * slot/colour, leather/potion/firework tints, banner base dye, and banner pattern layers.
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public class ItemDecoration {
 
     /**
      * Optional ARGB tint applied to colour-overlay items (leather armour, spawn eggs). Empty
      * (default) uses the item's intrinsic tint.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<Integer> tintColor = Optional.empty();
 
     /**
@@ -29,7 +28,6 @@ public class ItemDecoration {
      * this and {@link #trimColor} are present, the renderer resolves the trim texture via
      * paletted permutation and composites it as an overlay.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<ArmorSlot> trimSlot = Optional.empty();
 
     /**
@@ -38,41 +36,35 @@ public class ItemDecoration {
      * {@link ArmorTrim.Color#IRON_DARKER} for an iron trim on iron armor) so the pattern stays
      * visible. Ignored when {@link #trimSlot} is absent.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<ArmorTrim.Color> trimColor = Optional.empty();
 
     /**
      * ARGB override colour for the leather-armour tint layer. Empty (default) uses vanilla's
      * default leather colour.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<Integer> leatherColor = Optional.empty();
 
     /**
      * ARGB override colour for potion contents (the liquid overlay). Empty (default) uses the
      * effect's registered colour.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<Integer> potionColor = Optional.empty();
 
     /**
      * ARGB override colour for firework stars. Empty (default) uses the star's own colour.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<Integer> fireworkColor = Optional.empty();
 
     /**
      * The base dye colour (banner field / shield base) for banner and shield items. Defaults
      * to white when absent.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<DyeColor> baseDye = Optional.empty();
 
     /**
      * Ordered list of pattern layers composited on top of the base dye for banner and shield
      * items. Empty for plain banners / shields.
      */
-    @lombok.Builder.Default
     private final @NotNull ConcurrentList<BannerLayer> bannerLayers = Concurrent.newList();
 
     /**

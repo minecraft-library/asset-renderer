@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine.compose;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
@@ -7,7 +8,6 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**

@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.client;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -16,19 +16,17 @@ import java.nio.file.Path;
  * existing cached client jar.
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public class ClientOptions {
 
     /**
      * The target Minecraft client version; defaults to the hardcoded 26.1 build.
      */
-    @lombok.Builder.Default
     private final @NotNull String version = "26.1";
 
     /**
      * The cache root directory. Defaults to {@code ./cache/asset-renderer}.
      */
-    @lombok.Builder.Default
     private final @NotNull File cacheRoot = new File("cache/asset-renderer");
 
     /**
@@ -36,13 +34,11 @@ public class ClientOptions {
      * priority order - later entries win overlay merges. Each is assigned a render priority of
      * {@code 1..N} (vanilla is {@code 0}) and materialised through the pack acquirer during a run.
      */
-    @lombok.Builder.Default
     private final @NotNull ConcurrentList<File> texturePacks = Concurrent.newList();
 
     /**
      * When true, re-download the client jar even if a cached copy exists.
      */
-    @lombok.Builder.Default
     private final boolean forceDownload = false;
 
     /**

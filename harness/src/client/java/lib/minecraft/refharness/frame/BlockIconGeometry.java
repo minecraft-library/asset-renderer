@@ -1,6 +1,9 @@
 package lib.minecraft.refharness.frame;
 
 import com.google.gson.JsonObject;
+import dev.simplified.annotations.UtilityClass;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.renderer.item.ItemModel;
@@ -23,8 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Resolver for the geometry a block's inventory icon is drawn from, shared by
@@ -51,10 +52,8 @@ import lib.minecraft.renderer.parity.Parity;
  * carries vanilla's own bake rather than a re-derivation of it.
  */
 @Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE)
+@UtilityClass
 final class BlockIconGeometry {
-
-    private BlockIconGeometry() {
-    }
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 

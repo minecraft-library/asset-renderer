@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -14,13 +16,10 @@ import java.util.function.BiConsumer;
  * @param <K> the latched key type
  * @param <V> the decoded value type
  */
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public final class PairWalk<K, V> {
 
     private final @NotNull Descriptor descriptor;
-
-    PairWalk(@NotNull Descriptor descriptor) {
-        this.descriptor = descriptor;
-    }
 
     private @NotNull Exit collect(@NotNull BiConsumer<? super K, ? super V> action) {
         return Drive.run(this.descriptor, null, new Drive.Sink() {

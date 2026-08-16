@@ -5,6 +5,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
+import dev.simplified.annotations.UtilityClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,9 +25,8 @@ import java.nio.file.Path;
  * alpha channel is carried through rather than composited, so a transparent background stays
  * transparent.
  */
+@UtilityClass
 public final class TextureReadback {
-
-    private TextureReadback() {}
 
     /**
      * Copies a colour texture back off the GPU and writes it as a PNG.

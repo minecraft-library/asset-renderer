@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.asset.pack.cats;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.util.compression.Compression;
 import dev.simplified.util.compression.exception.CompressionException;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.exception.PipelineException;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;

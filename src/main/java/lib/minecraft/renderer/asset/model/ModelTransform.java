@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.asset.model;
 
 import com.google.gson.annotations.JsonAdapter;
+import dev.simplified.annotations.AllArgsConstructor;
+import dev.simplified.annotations.EqualsAndHashCode;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NoArgsConstructor;
 import lib.minecraft.renderer.tensor.EulerRotation;
-import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Arrays;
-import java.util.Objects;
 
 /**
  * A single display transform entry parsed from the {@code display} section of an item or block
@@ -18,6 +18,8 @@ import java.util.Objects;
  * components in that order.
  */
 @NoArgsConstructor
+@AllArgsConstructor
+@EqualsAndHashCode
 public class ModelTransform {
 
     /**
@@ -32,6 +34,7 @@ public class ModelTransform {
     /**
      * The Euler-angle rotation in degrees, applied about X, Y, Z in that order.
      */
+    @Getter
     @JsonAdapter(EulerRotation.Adapter.class)
     private @NotNull EulerRotation rotation = EulerRotation.NONE;
 
@@ -44,24 +47,6 @@ public class ModelTransform {
      * The per-axis scale factors as {@code [x, y, z]}, applied after {@link #rotation}.
      */
     private float @NotNull [] scale = { 1f, 1f, 1f };
-
-    /**
-     * Constructs a new {@code ModelTransform} from its rotation, translation, and scale.
-     *
-     * @param rotation the Euler-angle rotation in degrees, applied about X, Y, Z in that order
-     * @param translation the translation offset as {@code [x, y, z]}
-     * @param scale the per-axis scale factors as {@code [x, y, z]}
-     */
-    public ModelTransform(@NotNull EulerRotation rotation, float @NotNull [] translation, float @NotNull [] scale) {
-        this.rotation = rotation;
-        this.translation = translation;
-        this.scale = scale;
-    }
-
-    /**
-     * The Euler-angle rotation in degrees, applied about X, Y, Z in that order.
-     */
-    public @NotNull EulerRotation getRotation() { return this.rotation; }
 
     /**
      * The X component of the translation offset.
@@ -92,19 +77,5 @@ public class ModelTransform {
      * The Z-axis scale factor.
      */
     public float getScaleZ() { return this.scale[2]; }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        ModelTransform that = (ModelTransform) o;
-        return Objects.equals(rotation, that.rotation)
-            && Arrays.equals(translation, that.translation)
-            && Arrays.equals(scale, that.scale);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(rotation, Arrays.hashCode(translation), Arrays.hashCode(scale));
-    }
 
 }

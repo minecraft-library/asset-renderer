@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.pack;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -9,7 +10,6 @@ import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;

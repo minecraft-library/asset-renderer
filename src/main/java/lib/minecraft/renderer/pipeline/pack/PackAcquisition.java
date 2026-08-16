@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.pack;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonSyntaxException;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
@@ -21,7 +22,6 @@ import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleScanner;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;

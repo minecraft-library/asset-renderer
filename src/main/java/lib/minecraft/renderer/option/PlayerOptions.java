@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
@@ -16,9 +19,6 @@ import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Box;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -57,27 +57,23 @@ import java.util.function.UnaryOperator;
  */
 @Parity(as = PlayerRenderer.class)
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public class PlayerOptions implements RenderOptions {
 
     /**
      * Which body parts to include in the render
      */
-    @lombok.Builder.Default
     private final @NotNull Type type = Type.SKULL;
 
     /**
      * Whether to produce a 2D composite or 3D isometric render
      */
-    @lombok.Builder.Default
     private final @NotNull Dimension dimension = Dimension.THREE_D;
 
     /** The skin + cape texture sources and their render toggles. */
-    @lombok.Builder.Default
     private final @NotNull SkinOptions skin = SkinOptions.defaults();
 
     /** The worn armor pieces (helmet, chestplate, leggings, boots). */
-    @lombok.Builder.Default
     private final @NotNull ArmorOptions armor = ArmorOptions.defaults();
 
     /**
@@ -87,14 +83,12 @@ public class PlayerOptions implements RenderOptions {
     public static final @NotNull OutputOptions DEFAULT_OUTPUT = OutputOptions.defaults();
 
     /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
-    @lombok.Builder.Default
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
      * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */
-    @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
@@ -102,7 +96,6 @@ public class PlayerOptions implements RenderOptions {
      * runs, letting callers splice custom layers relative to the {@link PlayerSlot2D} slots.
      * Defaults to {@linkplain UnaryOperator#identity() identity}. Only consulted by the 2D path.
      */
-    @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
 
     /**
@@ -110,7 +103,6 @@ public class PlayerOptions implements RenderOptions {
      * runs, letting callers splice custom layers relative to the {@link PlayerSlot3D} slots.
      * Defaults to {@linkplain UnaryOperator#identity() identity}. Only consulted by the 3D path.
      */
-    @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> geometryLayerDecorator = UnaryOperator.identity();
 
     /**
@@ -141,7 +133,7 @@ public class PlayerOptions implements RenderOptions {
      * statement of the same numbers - {@link #SKULL} is one 8x8 head, {@link #BUST} is 20 by 16 from
      * the torso's floor to the head's ceiling, {@link #FULL} the 32 by 16 of the whole vanilla body.
      * <p>
-     * <p>Both layouts fall out of the same two inputs and neither is tabulated: {@link #boxes()} seats
+     * <p>Both layouts fall out of the same two inputs and neither is tabulated: {@link #boxes} seats
      * each part in this scope's own model frame for the 3D render, and {@link #layout2D} places each
      * part's canvas rectangle for the 2D one. A scope's four union integers and each part's own pixel
      * box are all either of them reads, which is why they are answered here rather than at a renderer.
@@ -184,6 +176,7 @@ public class PlayerOptions implements RenderOptions {
         /**
          * The parts this scope draws, in draw order.
          */
+        @Getter(style = NamingStyle.FLUENT)
         private final @NotNull List<HumanoidPart> parts;
 
         private final int minPixelX;
@@ -192,10 +185,13 @@ public class PlayerOptions implements RenderOptions {
         private final int maxPixelY;
 
         /**
-         * Each part this scope draws, in the box this scope seats it in - the same answer
-         * {@link #boxOf} gives, tabulated once per constant because it depends on nothing but the
-         * scope.
+         * Each part this scope draws, in the box this scope seats it in - the same answers
+         * {@link #boxOf} gives, in an {@link EnumMap} so the iteration order is ordinal order.
+         *
+         * <p>Tabulated once per constant rather than assembled per render, because a scope's boxes
+         * are a function of the scope alone.
          */
+        @Getter(style = NamingStyle.FLUENT)
         private final @NotNull Map<HumanoidPart, Box> boxes;
 
         Type(float unitsPerPixel, boolean centred, @NotNull HumanoidPart @NotNull ... parts) {
@@ -224,15 +220,6 @@ public class PlayerOptions implements RenderOptions {
         }
 
         /**
-         * The parts this scope draws, in draw order.
-         *
-         * @return this scope's parts
-         */
-        public @NotNull List<HumanoidPart> parts() {
-            return this.parts;
-        }
-
-        /**
          * This scope's box for one of its parts - centred on the origin for a scope that draws a part
          * alone, seated in the body lattice otherwise.
          *
@@ -241,19 +228,6 @@ public class PlayerOptions implements RenderOptions {
          */
         public @NotNull Box boxOf(@NotNull HumanoidPart part) {
             return this.centred ? part.centred(this.unitsPerPixel) : part.box(this.unitsPerPixel);
-        }
-
-        /**
-         * Every part this scope draws, keyed to the box this scope seats it in.
-         *
-         * <p>The same answers {@link #boxOf} gives, in an {@link EnumMap} so the iteration order is
-         * ordinal order. Tabulated per constant rather than assembled per render, because a scope's
-         * boxes are a function of the scope alone.
-         *
-         * @return this scope's parts and their boxes
-         */
-        public @NotNull Map<HumanoidPart, Box> boxes() {
-            return this.boxes;
         }
 
         /**

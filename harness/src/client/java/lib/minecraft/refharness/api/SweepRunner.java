@@ -1,5 +1,8 @@
 package lib.minecraft.refharness.api;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,6 +20,7 @@ import java.util.List;
  *
  * @param <S> the subject descriptor the sweep enumerates
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class SweepRunner<S> implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
@@ -27,11 +31,10 @@ public final class SweepRunner<S> implements AutoCloseable {
     private int rendered;
     private int skipped;
     private int failed;
-    private boolean done;
 
-    private SweepRunner(Sweep<S> sweep) {
-        this.sweep = sweep;
-    }
+    /** Whether every subject has been consumed and the completion latch has closed. */
+    @Getter
+    private boolean done;
 
     /**
      * Returns a runner for one sweep.
@@ -42,11 +45,6 @@ public final class SweepRunner<S> implements AutoCloseable {
      */
     public static <S> SweepRunner<S> of(Sweep<S> sweep) {
         return new SweepRunner<>(sweep);
-    }
-
-    /** Whether every subject has been consumed and the completion latch has closed. */
-    public boolean isDone() {
-        return done;
     }
 
     /**

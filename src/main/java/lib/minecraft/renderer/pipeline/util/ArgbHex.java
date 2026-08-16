@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.pipeline.util;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.adapter.ColorTypeAdapter;
 import dev.simplified.gson.exception.JsonException;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**

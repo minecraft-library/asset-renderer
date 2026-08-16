@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -13,6 +15,7 @@ import java.util.Map;
  * Declared facts consulted by the axis resolvers only where generic detection cannot
  * decide; never fetches ({@code PolicyPurityTest}).
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 enum EntityAxisPolicies implements NavigationPolicy {
 
     /**
@@ -83,11 +86,6 @@ enum EntityAxisPolicies implements NavigationPolicy {
 
     private final @NotNull Object value;
     private final @NotNull String provenance;
-
-    EntityAxisPolicies(@NotNull Object value, @NotNull String provenance) {
-        this.value = value;
-        this.provenance = provenance;
-    }
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {

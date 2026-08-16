@@ -1,5 +1,9 @@
 package lib.minecraft.renderer.asset;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -13,8 +17,6 @@ import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.exception.PipelineException;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
@@ -41,11 +43,33 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class PackStack {
 
+    /**
+     * Every pack in ascending-priority order (vanilla first, higher priority later).
+     */
+    @Getter(style = NamingStyle.FLUENT)
     private final @NotNull ConcurrentList<ResourcePack> ascending;
+
     private final @NotNull Map<PackId, ResourcePack> byId;
+
+    /**
+     * The union of every pack's namespaces.
+     */
+    @Getter(style = NamingStyle.FLUENT)
     private final @NotNull Set<String> namespaces;
+
+    /**
+     * The scanned texture index, keyed by resolved namespaced id.
+     */
+    @Getter(style = NamingStyle.FLUENT)
     private final @NotNull ConcurrentMap<ResourceId, ResolvedTexture> textureIndex;
+
+    /**
+     * The merged pack rule payload the renderer consults - CIT rules, CTM rules, per-key colour
+     * overrides, and the global glint policy, folded across the stack at acquisition time.
+     */
+    @Getter(style = NamingStyle.FLUENT)
     private final @NotNull RuleSet rules;
+
     private final @NotNull Set<String> loggedAmbiguities = ConcurrentHashMap.newKeySet();
 
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
@@ -102,16 +126,6 @@ public final class PackStack {
     }
 
     /**
-     * The merged pack rule payload the renderer consults - CIT rules, CTM rules, per-key colour
-     * overrides, and the global glint policy, folded across the stack at acquisition time.
-     *
-     * @return the merged rules
-     */
-    public @NotNull RuleSet rules() {
-        return this.rules;
-    }
-
-    /**
      * The vanilla base pack's on-disk root - the {@code <cacheRoot>/vanilla/<version>} directory the
      * client jar was extracted into.
      *
@@ -133,15 +147,6 @@ public final class PackStack {
     }
 
     /**
-     * Every pack in ascending-priority order (vanilla first, higher priority later).
-     *
-     * @return the ascending pack list
-     */
-    public @NotNull ConcurrentList<ResourcePack> ascending() {
-        return this.ascending;
-    }
-
-    /**
      * Looks up a pack by its id.
      *
      * @param id the pack id
@@ -158,24 +163,6 @@ public final class PackStack {
      */
     public @NotNull Set<PackId> packIds() {
         return this.byId.keySet();
-    }
-
-    /**
-     * The union of every pack's namespaces.
-     *
-     * @return the namespace union across the stack
-     */
-    public @NotNull Set<String> namespaces() {
-        return this.namespaces;
-    }
-
-    /**
-     * The scanned texture index, keyed by resolved namespaced id.
-     *
-     * @return the texture index
-     */
-    public @NotNull ConcurrentMap<ResourceId, ResolvedTexture> textureIndex() {
-        return this.textureIndex;
     }
 
     /**

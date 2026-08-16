@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -26,13 +28,10 @@ import java.util.function.Predicate;
  *
  * @param <T> the element type flowing to the terminals
  */
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public sealed class Walk<T> permits AsmWalker {
 
     final @NotNull Descriptor descriptor;
-
-    Walk(@NotNull Descriptor descriptor) {
-        this.descriptor = descriptor;
-    }
 
     private <R> @NotNull Walk<R> narrowed(@NotNull Function<Object, @Nullable Object> step) {
         return new Walk<>(this.descriptor.with(new Descriptor.Narrow(step)));

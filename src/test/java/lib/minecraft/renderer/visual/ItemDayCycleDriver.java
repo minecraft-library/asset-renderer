@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
@@ -51,9 +52,8 @@ import java.util.List;
  *
  * <p>Usage: {@code ./gradlew itemDayCycle [-PrenderSize=256] [-PdayFrames=64]}.
  */
+@UtilityClass
 public final class ItemDayCycleDriver {
-
-    private ItemDayCycleDriver() {}
 
     /** The time-driven icon, plus the bearing-driven and plain controls that must not move with it. */
     private static final String[] SUBJECTS = {

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.support;
 
+import dev.simplified.annotations.Getter;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
@@ -12,7 +13,6 @@ import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

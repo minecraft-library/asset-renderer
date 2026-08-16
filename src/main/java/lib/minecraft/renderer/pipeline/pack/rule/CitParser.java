@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -16,7 +17,6 @@ import lib.minecraft.renderer.asset.pack.rule.NbtPath;
 import lib.minecraft.renderer.asset.pack.rule.NbtPredicate;
 import lib.minecraft.renderer.asset.pack.rule.NbtRule;
 import lib.minecraft.renderer.parity.Parity;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

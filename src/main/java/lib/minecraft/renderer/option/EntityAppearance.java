@@ -1,8 +1,9 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import lib.minecraft.renderer.option.spec.DyeColor;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -22,7 +23,7 @@ import java.util.Set;
  * {@code state} falls back to the default texture).
  */
 @Getter
-@Builder(toBuilder = true)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public class EntityAppearance {
 
     /** The {@link #getState() state} token a tamed subject selects - the wolf's tame coat. */
@@ -39,7 +40,6 @@ public class EntityAppearance {
      * {@link Age#ADULT} (default) renders the adult mesh. Only affects entities with a dedicated
      * baby model.
      */
-    @lombok.Builder.Default
     private final @NotNull Age age = Age.ADULT;
 
     /**
@@ -48,7 +48,6 @@ public class EntityAppearance {
      * the matching state entry when the resolved entity carries one, else the default texture is
      * used.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<String> state = Optional.empty();
 
     /**
@@ -57,7 +56,6 @@ public class EntityAppearance {
      * texture in place of the model's default coat; empty (default) renders the default coat. Ignored
      * by entities with no variant axis, or while the axis is id-encoded (each coat a first-class render id).
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<String> variant = Optional.empty();
 
     /**
@@ -73,7 +71,6 @@ public class EntityAppearance {
      *       default. See {@link #selectedCarriedBlock()}.</li>
      * </ul>
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<String> carried = Optional.empty();
 
     /**
@@ -82,7 +79,6 @@ public class EntityAppearance {
      * keeps the entity's canonical mesh (pufferfish {@link Size#LARGE}, the fully-puffed silhouette
      * vanilla's renderer shows for the settled reference). Ignored by entities without a size axis.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<Size> size = Optional.empty();
 
     /**
@@ -94,7 +90,6 @@ public class EntityAppearance {
      * present axis multiplies its target by the dye's {@link DyeColor#argb() ARGB}. One map rather
      * than a loose {@link Optional} field per dye axis - see {@link TintAxis}.
      */
-    @lombok.Builder.Default
     private final @NotNull Map<TintAxis, DyeColor> tints = Map.of();
 
     /**
@@ -103,7 +98,6 @@ public class EntityAppearance {
      * selected pattern's texture instead of its baked default; empty (default) renders the baked
      * pattern ({@code KOB}).
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<TropicalFishPattern> pattern = Optional.empty();
 
     /**
@@ -112,7 +106,6 @@ public class EntityAppearance {
      * a same-geometry translucent overlay draws that marking's texture over the coat;
      * {@link HorseMarking#NONE} (default) draws no marking. Ignored by entities without a marking layer.
      */
-    @lombok.Builder.Default
     private final @NotNull HorseMarking markings = HorseMarking.NONE;
 
     /**
@@ -121,7 +114,6 @@ public class EntityAppearance {
      * golem), that overlay draws the level's crack texture over the body; {@link
      * IronGolemCrackiness#NONE} (default) draws no cracks. Ignored by entities without a crackiness overlay.
      */
-    @lombok.Builder.Default
     private final @NotNull IronGolemCrackiness crackiness = IronGolemCrackiness.NONE;
 
     /**
@@ -130,7 +122,6 @@ public class EntityAppearance {
      * oxidation state's textures; {@link CopperWeathering#UNAFFECTED} (default) renders the
      * freshly-placed copper textures. Ignored by entities without weathering.
      */
-    @lombok.Builder.Default
     private final @NotNull CopperWeathering weathering = CopperWeathering.UNAFFECTED;
 
     /**
@@ -141,7 +132,6 @@ public class EntityAppearance {
      * {@link VillagerType#PLAINS} (default) resolves to the baked {@code type/plains} robe. Ignored by
      * entities without a villager profession layer.
      */
-    @lombok.Builder.Default
     private final @NotNull VillagerType villagerType = VillagerType.PLAINS;
 
     /**
@@ -151,7 +141,6 @@ public class EntityAppearance {
      * {@code <prefix>/profession/<name>} texture; {@link VillagerProfession#NONE} (default) draws no
      * profession pass. Ignored by entities without a villager profession layer.
      */
-    @lombok.Builder.Default
     private final @NotNull VillagerProfession villagerProfession = VillagerProfession.NONE;
 
     /**
@@ -165,7 +154,6 @@ public class EntityAppearance {
      * is named here, and neither does a baby. Ignored by entities without a villager profession
      * layer.
      */
-    @lombok.Builder.Default
     private final @NotNull Optional<VillagerLevel> villagerLevel = Optional.empty();
 
     /**
@@ -173,7 +161,6 @@ public class EntityAppearance {
      * shearable overlays (the sheep wool) - both the rendered geometry and its canvas-bounds
      * contribution; {@code false} (default) renders the entity's wool.
      */
-    @lombok.Builder.Default
     private final boolean sheared = false;
 
     /**
@@ -181,7 +168,6 @@ public class EntityAppearance {
      * keeps its charged-only overlay (the creeper energy swirl); {@code false} (default) drops it. Only
      * affects entities with a charged overlay (the creeper).
      */
-    @lombok.Builder.Default
     private final boolean charged = false;
 
     /**
@@ -189,7 +175,6 @@ public class EntityAppearance {
      * llama {@code chest}). Each name matches a model-form {@code bone_toggles} key; a toggle a
      * given entity does not declare is ignored. Empty (default) leaves every toggleable bone hidden.
      */
-    @lombok.Builder.Default
     private final @NotNull Set<String> toggles = Set.of();
 
     /**
@@ -200,7 +185,6 @@ public class EntityAppearance {
      * the saddle). A slot a given entity does not offer is ignored; empty (default) renders no
      * equipment. See {@link #equipmentMaterial(String)}.
      */
-    @lombok.Builder.Default
     private final @NotNull java.util.Map<String, String> equipment = java.util.Map.of();
 
     /**
@@ -209,7 +193,6 @@ public class EntityAppearance {
      * that can equip a chest item; a headless render draws the static {@code minecraft:elytra} wing
      * texture (there is no wearer cape / elytra skin source).
      */
-    @lombok.Builder.Default
     private final boolean elytra = false;
 
     /**

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
@@ -17,6 +19,7 @@ import java.util.List;
  * <p>A row whose fact sits at a walkable member declares that {@link Navigation} coordinate in
  * place of a value; the consuming resolver re-enters the engine there and reads it.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 enum EntityNamingPolicies implements NavigationPolicy {
 
     /**
@@ -69,11 +72,6 @@ enum EntityNamingPolicies implements NavigationPolicy {
 
     private final @NotNull Object value;
     private final @NotNull String provenance;
-
-    EntityNamingPolicies(@NotNull Object value, @NotNull String provenance) {
-        this.value = value;
-        this.provenance = provenance;
-    }
 
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {

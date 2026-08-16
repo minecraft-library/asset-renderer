@@ -25,9 +25,9 @@ store holds is blind to one.
 - JDK 21 with the **Vector API incubator** (`--add-modules=jdk.incubator.vector`), wired into
   JavaCompile, Test, JavaExec, JMH and Javadoc in `build.gradle.kts`. Missing it on a JVM launch is a
   class-not-found at load, never a silent fallback; missing it on `javadoc` is `SimdOps` reporting
-  the package as not visible. `javadoc` stays red either way - every error it has left is a
-  Lombok-generated builder an annotation processor produces and the doclet cannot see - so it is
-  wired because the flag belongs everywhere it is read, not because the task becomes usable.
+  the package as not visible. `javadoc` stays red either way - every error it has left is a builder
+  an annotation processor produces and the doclet cannot see - so it is wired because the flag
+  belongs everywhere it is read, not because the task becomes usable.
 - ASM 9.8 reads Java 25 class files; the tooling flows walk client-jar bytecode with it. It is
   declared in the tooling build alone, so it is on no renderer classpath and in no published JAR.
 - Four builds sit beside this one: `client`, `tooling` and `parity`, which it includes, and the

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
@@ -46,6 +47,7 @@ import java.util.Map;
  * tint rows key a {@link LinkedHashMap} by block id (last write wins, first position kept -
  * exactly the legacy {@code tints} map semantics), so the emitted array is byte-order-stable.
  */
+@UtilityClass
 public final class TintWalk {
 
     /** {@code java.util.List} - the composed-source factory owner (JDK, never a vanilla name). */
@@ -59,9 +61,6 @@ public final class TintWalk {
 
     /** The caller label the in-hand re-entries tag their drift message with. */
     private static final @NotNull String IN_HAND_CONTEXT = "the constant tint's in-hand argument";
-
-    private TintWalk() {
-    }
 
     /**
      * Walks the tint table and populates {@code root}'s {@code tints} (+ {@code dropped}) nodes.

@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.asset.Block;
@@ -11,9 +14,6 @@ import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.slot.BlockSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.UnaryOperator;
@@ -44,26 +44,23 @@ import java.util.function.UnaryOperator;
  * @see lib.minecraft.renderer.BlockRenderer
  */
 @Getter
-@Builder(toBuilder = true, access = AccessLevel.PUBLIC)
+@ClassBuilder(style = NamingStyle.LOMBOK)
 public class BlockOptions implements RenderOptions {
 
     /**
      * Namespaced block id to render, e.g. {@code "minecraft:stone"}. Empty string by default,
      * which resolves to no block
      */
-    @lombok.Builder.Default
     private final @NotNull String blockId = "";
 
     /**
      * Render type - isometric 3D icon or a single flat 2D face
      */
-    @lombok.Builder.Default
     private final @NotNull Type type = Type.ISOMETRIC_3D;
 
     /**
      * Block face to blit in {@link Type#BLOCK_FACE_2D} mode; ignored in {@link Type#ISOMETRIC_3D}
      */
-    @lombok.Builder.Default
     private final @NotNull Face face = Face.NORTH;
 
     /**
@@ -71,14 +68,12 @@ public class BlockOptions implements RenderOptions {
      * the renderer applies the variant's whole-model X/Y rotation before the camera transform.
      * An empty string selects the default variant.
      */
-    @lombok.Builder.Default
     private final @NotNull String variant = "";
 
     /**
      * Biome used for tinting grass, foliage and water textures, defaulting to
      * {@link Biome.Vanilla#PLAINS}
      */
-    @lombok.Builder.Default
     private final @NotNull Biome biome = Biome.Vanilla.PLAINS;
 
     /**
@@ -88,7 +83,6 @@ public class BlockOptions implements RenderOptions {
     public static final @NotNull OutputOptions DEFAULT_OUTPUT = OutputOptions.defaults();
 
     /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
-    @lombok.Builder.Default
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
@@ -98,7 +92,6 @@ public class BlockOptions implements RenderOptions {
      * {@code frameCount > 1} plays the flipbook, rebuilding geometry per frame. Only consulted by the
      * 3D isometric path.
      */
-    @lombok.Builder.Default
     private final @NotNull AnimationOptions animation = AnimationOptions.defaults();
 
     /**
@@ -112,14 +105,12 @@ public class BlockOptions implements RenderOptions {
      * the head geometry, and {@code red_bed[part=foot]} at the neighbouring position gets
      * just the foot. No-op on blocks that carry no entity or whose entity has no parts.
      */
-    @lombok.Builder.Default
     private final boolean mergeParts = true;
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
      * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */
-    @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
@@ -128,7 +119,6 @@ public class BlockOptions implements RenderOptions {
      * {@link BlockSlot} slots. Defaults to {@linkplain UnaryOperator#identity() identity}. Only
      * consulted by the 3D isometric path.
      */
-    @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
 
     /**

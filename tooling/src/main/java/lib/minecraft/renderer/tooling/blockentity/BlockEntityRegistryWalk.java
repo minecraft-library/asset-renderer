@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -18,10 +19,8 @@ import java.util.List;
  *
  * <p>The block side has no {@code group_of} analogue - no post-pass.
  */
+@UtilityClass
 public final class BlockEntityRegistryWalk {
-
-    private BlockEntityRegistryWalk() {
-    }
 
     /**
      * Runs the per-split resolver chain over every subject, appending to {@code root.models}.

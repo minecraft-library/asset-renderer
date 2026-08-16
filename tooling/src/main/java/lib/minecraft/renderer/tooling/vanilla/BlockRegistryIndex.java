@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.AllArgsConstructor;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -34,6 +36,7 @@ import java.util.Map;
  * constructor-reference adjacency guard ({@code isPendingIdSource}) and the
  * registration-helper lambda resolution ({@code registerBed}-class helpers) handle both forms.
  */
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public final class BlockRegistryIndex {
 
     /** {@code Blocks.register*} overload prefix (vanilla member-name pattern, method-local grammar). */
@@ -59,10 +62,6 @@ public final class BlockRegistryIndex {
     public record Entry(@NotNull String field, @NotNull String id, @Nullable String blockClass) {}
 
     private final @NotNull Map<String, Entry> byField;
-
-    private BlockRegistryIndex(@NotNull Map<String, Entry> byField) {
-        this.byField = byField;
-    }
 
     /**
      * Walks {@code BlockIds.<clinit>} + {@code Blocks.<clinit>} once and builds the index.

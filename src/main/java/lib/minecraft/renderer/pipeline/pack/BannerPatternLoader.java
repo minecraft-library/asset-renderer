@@ -2,13 +2,13 @@ package lib.minecraft.renderer.pipeline.pack;
 
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.parity;
 
+import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -29,6 +30,7 @@ import java.util.function.ToDoubleFunction;
  * deliberate: the reports rank by delta ascending, so it is what sorts a failure last. What that
  * rule is about is the file, which is the interface.
  */
+@UtilityClass
 public final class SweepReport {
 
     /** The key column, spelled the same in all six so one reader joins them without a table. */
@@ -42,8 +44,6 @@ public final class SweepReport {
 
     /** Cumulative, not histogram bins: each count includes every lower one. */
     private static final double[] BUCKET_EDGES = {0.25, 0.50, 0.75, 1.00};
-
-    private SweepReport() {}
 
     /**
      * Returns the one ranking every table is written in: by delta, ascending.

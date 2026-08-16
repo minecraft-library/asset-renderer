@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.parity;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.option.Age;
@@ -66,6 +68,7 @@ import java.util.function.Function;
  * collide on a case-insensitive filesystem while passing on a case-sensitive one - a silent
  * overwrite that depends on which machine ran the sweep.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class AppearanceCodec {
 
     /** The default namespace, and the only one any subject uses today. */
@@ -85,10 +88,6 @@ public final class AppearanceCodec {
 
     /** The entity index this codec resolves heads against - its only oracle. */
     private final @NotNull Map<String, Entity> entities;
-
-    private AppearanceCodec(@NotNull Map<String, Entity> entities) {
-        this.entities = entities;
-    }
 
     /**
      * Returns a codec that resolves heads against the loaded entity index.

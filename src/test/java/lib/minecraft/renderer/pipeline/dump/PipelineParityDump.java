@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.dump;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.AnimationData;
@@ -109,6 +110,7 @@ import java.util.TreeMap;
  * <p>
  * Usage: {@code PipelineParityDump <label>} - writes {@code cache/parity-dump/<label>/{vanilla,packs}/}.
  */
+@UtilityClass
 public final class PipelineParityDump {
 
     /** Fixture packs for the second configuration - the only ones that light up CIT/CTM, the {@code .cats} container, and the non-filename pack-id rungs. */
@@ -121,8 +123,6 @@ public final class PipelineParityDump {
 
     /** The parity harness's own sub-namespace, which the run header records nothing from. */
     private static final @NotNull String PARITY_PREFIX = "asset.parity.";
-
-    private PipelineParityDump() {}
 
     /**
      * Loads each configuration and writes its dump.
@@ -400,7 +400,7 @@ public final class PipelineParityDump {
     }
 
     /**
-     * Returns the texture-index section, sourced STRICTLY from {@link PackStack#textureIndex}.
+     * Returns the texture-index section, sourced STRICTLY from {@link PackStack}'s {@code textureIndex}.
      * <p>
      * It is never built by iterating ids through {@code resolve} / {@code resolveIn}: those mutate the
      * stack's ambiguity-logging set as a side effect, so a dump that walked them would be serializing an
