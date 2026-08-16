@@ -87,7 +87,8 @@ loom {
 }
 
 repositories {
-    // Loom adds Mojang/Fabric maven automatically; nothing extra needed.
+    // Loom adds Mojang/Fabric maven automatically; Central carries the annotation processor.
+    mavenCentral()
 }
 
 dependencies {
@@ -100,6 +101,10 @@ dependencies {
     // because retention is SOURCE: javac needs the types to resolve a declaration and drops the
     // descriptor before it writes the class file, so nothing reaches the mod jar or a running client.
     "clientCompileOnly"("lib.minecraft:asset-renderer-parity:0.1.0")
+
+    // Simplified Annotations
+    "clientCompileOnly"("io.github.simplified-dev:annotations:2.6.0")
+    "clientAnnotationProcessor"("io.github.simplified-dev:annotations:2.6.0")
 }
 
 tasks.processResources {

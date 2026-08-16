@@ -20,10 +20,10 @@ repositories {
 dependencies {
     // The typed Feign contract for Mojang's launcher / Piston / textures endpoints, and the HTTP
     // client behind it. This module is the one place in the repo that reaches the network.
-    api("com.github.simplified-api:mojang") { version { strictly("5c2bda6") } }
-    api("com.github.simplified-dev:client") { version { strictly("3d87a03") } }
-    api("com.github.simplified-dev:utils") { version { strictly("7c2feb7") } }
-    api("com.github.simplified-dev:gson-extras") { version { strictly("2ba8143") } }
+    api("com.github.simplified-api:mojang") { version { strictly("d678198") } }
+    api("com.github.simplified-dev:client") { version { strictly("1ca9934") } }
+    api("com.github.simplified-dev:utils") { version { strictly("821499b") } }
+    api("com.github.simplified-dev:gson-extras") { version { strictly("f143dc1") } }
     api(libs.gson)
 
     // The @Parity vocabulary, resolved through the included build. `compileOnly` because retention
@@ -31,8 +31,8 @@ dependencies {
     // writes the class file, so neither dependent build inherits a type from it.
     compileOnly("lib.minecraft:asset-renderer-parity:0.1.0")
 
-    compileOnly(libs.lombok)
-    annotationProcessor(libs.lombok)
+    // Simplified Annotations
+    implementation(libs.simplified.annotations)
     annotationProcessor(libs.simplified.annotations)
 }
 
