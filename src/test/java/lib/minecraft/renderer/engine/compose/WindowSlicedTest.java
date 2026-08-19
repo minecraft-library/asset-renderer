@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -28,15 +28,15 @@ import static org.hamcrest.Matchers.is;
 @DisplayName("Window.Sliced paints a panel from art")
 class WindowSlicedTest {
 
-    private static Textures textures;
+    private static RendererContext textures;
 
     @BeforeAll
     static void resolveTextures() {
-        textures = new Textures(ClientAssetsExtension.context());
+        textures = ClientAssetsExtension.context();
     }
 
     private static PixelBuffer resolve(String id) {
-        Optional<PixelBuffer> found = textures.tryResolveTextureAtTick(id, 0);
+        Optional<PixelBuffer> found = textures.resolveTextureAtTick(id, 0);
         assertThat("texture '" + id + "' resolves", found.isPresent(), is(true));
         return found.get();
     }

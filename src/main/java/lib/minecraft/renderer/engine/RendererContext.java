@@ -22,8 +22,10 @@ import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.client.ClientAcquisition;
+import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.engine.texture.RedstoneTint;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
@@ -371,6 +373,54 @@ public interface RendererContext {
      * @return the decoded texture, or empty if unknown
      */
     @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId);
+
+    /**
+     * Resolves a texture id to the frame that should be displayed at the given tick. A texture with
+     * no {@code .mcmeta} sidecar answers its source buffer unchanged, so tick {@code 0} is
+     * byte-identical to {@link #resolveTexture}; an animated one has {@link AnimationKit#sampleFrame}
+     * extract the strip frame for {@code tick}, blending adjacent frames when
+     * {@link AnimationData#interpolate()} is set.
+     *
+     * @param textureId the namespaced texture identifier
+     * @param tick the current animation tick (free-running, signed)
+     * @return the frame to render at this tick, or empty if the texture is unknown
+     */
+    default @NotNull Optional<PixelBuffer> resolveTextureAtTick(@NotNull String textureId, int tick) {
+        Optional<PixelBuffer> strip = resolveTexture(textureId);
+        if (strip.isEmpty()) return strip;
+        return findAnimation(textureId)
+            .map(animation -> AnimationKit.sampleFrame(strip.get(), animation, tick))
+            .or(() -> strip);
+    }
+
+    /**
+     * Resolves a texture id the way {@link #resolveTexture} does, refusing an absent texture rather
+     * than answering empty for one. The {@code require} prefix marks that arm throughout: a caller
+     * that can carry on without the texture reaches for the {@code resolve} form and reads the
+     * {@link Optional}, and a caller for which a missing texture is a broken render reaches for this.
+     *
+     * @param textureId the namespaced texture identifier
+     * @return the decoded texture
+     * @throws RenderException if no pack provides the texture
+     */
+    default @NotNull PixelBuffer requireTexture(@NotNull String textureId) {
+        return resolveTexture(textureId)
+            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
+    }
+
+    /**
+     * Resolves the frame at a tick the way {@link #resolveTextureAtTick} does, refusing an absent
+     * texture rather than answering empty for one.
+     *
+     * @param textureId the namespaced texture identifier
+     * @param tick the current animation tick (free-running, signed)
+     * @return the frame to render at this tick
+     * @throws RenderException if no pack provides the texture
+     */
+    default @NotNull PixelBuffer requireTextureAtTick(@NotNull String textureId, int tick) {
+        return resolveTextureAtTick(textureId, tick)
+            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
+    }
 
     /**
      * A forwarding mixin for context wrappers: every {@link RendererContext} lookup forwards to

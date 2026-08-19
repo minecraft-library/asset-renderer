@@ -18,7 +18,6 @@ import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.RasterMath;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -139,11 +138,11 @@ public class ModelEngine {
     private final @NotNull Lens lens;
 
     /**
-     * The pack-aware texture-resolution service bound to this engine's context, shared with kits and
-     * layers that resolve textures against the same render.
+     * The resource-provider port, shared with the kits and layers that resolve textures against the
+     * same render.
      */
     @Getter(style = NamingStyle.FLUENT)
-    private final @NotNull Textures textures;
+    private final @NotNull RendererContext context;
 
     /**
      * Constructs a model engine with a preset {@link Camera} and the identity {@link Placement} - its
@@ -170,7 +169,7 @@ public class ModelEngine {
      * @param placement the subject's model-to-world placement
      */
     public ModelEngine(@NotNull RendererContext context, @NotNull Camera camera, @NotNull Placement placement) {
-        this.textures = new Textures(context);
+        this.context = context;
         this.pose = camera.pose();
         this.placement = placement.isIdentity() ? null : placement.modelToWorld();
         this.lens = camera.lens();

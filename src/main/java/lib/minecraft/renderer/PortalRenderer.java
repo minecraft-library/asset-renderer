@@ -593,8 +593,8 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
                 return new Scene(
                     engine,
-                    engine.textures().resolveTexture(END_SKY_TEXTURE_ID),
-                    engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID),
+                    engine.context().requireTexture(END_SKY_TEXTURE_ID),
+                    engine.context().requireTexture(END_PORTAL_NOISE_TEXTURE_ID),
                     buildGeometry(options.getPortal(), FaceTextures.uniform(white)));
             }
 
@@ -722,8 +722,8 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             static @NotNull Scene of(@NotNull RendererContext context) {
                 RasterEngine engine = new RasterEngine(context);
                 return new Scene(
-                    engine.textures().resolveTexture(END_SKY_TEXTURE_ID),
-                    engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID));
+                    engine.context().requireTexture(END_SKY_TEXTURE_ID),
+                    engine.context().requireTexture(END_PORTAL_NOISE_TEXTURE_ID));
             }
 
         }

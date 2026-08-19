@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -44,11 +44,11 @@ class WindowVanillaOracleTest {
     /** the vanilla slot cell's side, in Minecraft pixels */
     private static final int SLOT = 18;
 
-    private static Textures textures;
+    private static RendererContext textures;
 
     @BeforeAll
     static void resolveTextures() {
-        textures = new Textures(ClientAssetsExtension.context());
+        textures = ClientAssetsExtension.context();
     }
 
     /**
@@ -118,7 +118,7 @@ class WindowVanillaOracleTest {
     }
 
     private static PixelBuffer shipped(Container container) {
-        Optional<PixelBuffer> resolved = textures.tryResolveTextureAtTick(container.id(), 0);
+        Optional<PixelBuffer> resolved = textures.resolveTextureAtTick(container.id(), 0);
         assertThat("shipped texture '" + container.id() + "' resolves", resolved.isPresent(), is(true));
         return resolved.get();
     }
@@ -242,7 +242,7 @@ class WindowVanillaOracleTest {
         for (MenuLayout.Mark mark : layout.marks())
             window.paintDecoration(painted, mark.box(1), mark.kind());
 
-        Optional<PixelBuffer> resolved = textures.tryResolveTextureAtTick("minecraft:gui/container/anvil", 0);
+        Optional<PixelBuffer> resolved = textures.resolveTextureAtTick("minecraft:gui/container/anvil", 0);
         assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
         PixelBuffer art = resolved.get();
 
@@ -271,7 +271,7 @@ class WindowVanillaOracleTest {
     @Test
     @DisplayName("the dead field really is flat red, so slicing that art would draw it")
     void theDeadFieldIsFlatRed() {
-        Optional<PixelBuffer> resolved = textures.tryResolveTextureAtTick("minecraft:gui/container/anvil", 0);
+        Optional<PixelBuffer> resolved = textures.resolveTextureAtTick("minecraft:gui/container/anvil", 0);
         assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
         PixelBuffer art = resolved.get();
 
@@ -290,7 +290,7 @@ class WindowVanillaOracleTest {
     @DisplayName("the field decoration is the shipped text-field sprite")
     void theFieldDecorationIsTheShippedSprite() {
         Optional<PixelBuffer> resolved =
-            textures.tryResolveTextureAtTick("minecraft:gui/sprites/container/anvil/text_field_disabled", 0);
+            textures.resolveTextureAtTick("minecraft:gui/sprites/container/anvil/text_field_disabled", 0);
         assertThat("the field sprite resolves", resolved.isPresent(), is(true));
         PixelBuffer sprite = resolved.get();
 
@@ -318,8 +318,8 @@ class WindowVanillaOracleTest {
     @Test
     @DisplayName("the anvil's arrow is the crafting table's, so one mark serves both")
     void theAnvilsArrowIsTheCraftingTables() {
-        Optional<PixelBuffer> anvil = textures.tryResolveTextureAtTick("minecraft:gui/container/anvil", 0);
-        Optional<PixelBuffer> crafting = textures.tryResolveTextureAtTick("minecraft:gui/container/crafting_table", 0);
+        Optional<PixelBuffer> anvil = textures.resolveTextureAtTick("minecraft:gui/container/anvil", 0);
+        Optional<PixelBuffer> crafting = textures.resolveTextureAtTick("minecraft:gui/container/crafting_table", 0);
         assertThat("both textures resolve", anvil.isPresent() && crafting.isPresent(), is(true));
 
         // The two screens place one kind at two positions, which is the whole reason a kind carries
@@ -335,7 +335,7 @@ class WindowVanillaOracleTest {
     @Test
     @DisplayName("a cell at eighteen is the shipped slot sprite")
     void cellAtEighteenIsTheShippedSlotSprite() {
-        Optional<PixelBuffer> resolved = textures.tryResolveTextureAtTick("minecraft:gui/sprites/container/slot", 0);
+        Optional<PixelBuffer> resolved = textures.resolveTextureAtTick("minecraft:gui/sprites/container/slot", 0);
         assertThat("slot sprite resolves", resolved.isPresent(), is(true));
 
         PixelBuffer sprite = resolved.get();

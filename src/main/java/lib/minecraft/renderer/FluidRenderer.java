@@ -18,7 +18,6 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.option.FluidOptions;
 import lib.minecraft.renderer.option.slot.FluidSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
@@ -142,19 +141,12 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         private final @NotNull RendererContext context;
 
         /**
-         * The pack-aware texture-resolution service bound once to {@link #context}, shared by the
-         * per-frame still / flow texture sampling.
-         */
-        private final @NotNull Textures textures;
-
-        /**
          * Constructs the isometric fluid sub-renderer bound to the given context.
          *
          * @param context the renderer context supplying pack / texture lookups
          */
         public Isometric3D(@NotNull RendererContext context) {
             this.context = context;
-            this.textures = new Textures(context);
         }
 
         /** {@inheritDoc} */
@@ -182,8 +174,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // renders pass EulerRotation.NONE, leaving the base block-icon pose.
             var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
             ModelEngine engine = new ModelEngine(this.context, resolved.camera());
-            PixelBuffer still = this.textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
-            PixelBuffer flow = this.textures.resolveTextureAtTick(flowTextureId(options.getFluid()), tick);
+            PixelBuffer still = this.context.requireTextureAtTick(stillTextureId(options.getFluid()), tick);
+            PixelBuffer flow = this.context.requireTextureAtTick(flowTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
 
             // Single built-in contributor (the cube), expressed as a GeometryLayer so fluid uses the
@@ -225,7 +217,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
          */
         private void rasterizeFrame(@NotNull FluidOptions options, int tick, @NotNull PixelBuffer target) {
             RasterEngine engine = new RasterEngine(this.context);
-            PixelBuffer still = engine.textures().resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
+            PixelBuffer still = engine.context().requireTextureAtTick(stillTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
             PixelBuffer tinted = ColorMath.tint(still, tint);
             target.blitScaled(tinted, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());

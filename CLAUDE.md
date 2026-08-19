@@ -225,7 +225,7 @@ axis; the tick handed to a draw is that instant floored.
 - `SubTickLoop` is deliberately not a `TickTimeline` - an off-lattice instant has no honest `tickAt`,
   and claiming one breaks the `millisAt(f) == tickAt(f) * 50.0` identity.
 - A draw needing the fraction implements `RasterPass.ContinuousRasterizer`; everything else keeps
-  `FrameRasterizer`, which keeps `Textures.*AtTick` on `int` - a fraction there is anti-parity.
+  `FrameRasterizer`, which keeps `RendererContext.*AtTick` on `int` - a fraction there is anti-parity.
 - Use it only where appearance is a continuous function of time; a flipbook bakes duplicates, and the
   portal is the only user.
 

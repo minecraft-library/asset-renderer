@@ -476,7 +476,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
                 // Build triangles for this part's model
                 ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
-                    id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
+                    id -> Optional.of(raster.context().requireTextureAtTick(id, tick)));
                 var forceRefs = partModel.resolveForceTranslucentRefs();
 
                 boolean uvlock = apply.uvlock();
@@ -536,7 +536,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             @NotNull String blockId, @NotNull ConcurrentMap<String, String> state) {
             RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
-                id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
+                id -> Optional.of(raster.context().requireTextureAtTick(id, tick)));
             var forceRefs = model.resolveForceTranslucentRefs();
 
             // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
@@ -570,7 +570,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 String baseId = model.resolveTextureReference(rawRef);
                 if (baseId.startsWith("#")) return Optional.empty();
                 return this.context.resolveConnectedTexture(blockId, state, baseId, face)
-                    .map(id -> raster.textures().resolveTextureAtTick(id.id(), tick));
+                    .map(id -> raster.context().requireTextureAtTick(id.id(), tick));
             };
         }
 
@@ -588,7 +588,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBoneModel(@NotNull Block.Entity.BoneModel boneModel, @NotNull String textureId, int tint, int tick) {
             RasterEngine raster = new RasterEngine(this.context);
-            PixelBuffer texture = raster.textures().resolveTextureAtTick(textureId, tick);
+            PixelBuffer texture = raster.context().requireTextureAtTick(textureId, tick);
             // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
             // an untinted model (the banner post's wood) samples its texture raw.
             int faceTint = boneModel.tinted() ? tint : ColorMath.WHITE;
@@ -620,7 +620,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // texture (which may differ from the primary - decorated_pot sides use
                 // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
                 Block.Entity.BoneModel boneModel = part.boneModel();
-                PixelBuffer texture = raster.textures().resolveTextureAtTick(part.texture(), tick);
+                PixelBuffer texture = raster.context().requireTextureAtTick(part.texture(), tick);
                 int partTint = boneModel.tinted() ? tint : ColorMath.WHITE;
                 ConcurrentList<VisibleTriangle> partTriangles =
                     BlockGeometryKit.buildFromBones(boneModel.model(), texture, partTint, boneModel.presentation());
@@ -682,7 +682,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
             RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
-                id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
+                id -> Optional.of(raster.context().requireTextureAtTick(id, tick)));
             var forceRefs = partModel.resolveForceTranslucentRefs();
 
             boolean uvlock = first.uvlock();
@@ -839,7 +839,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             PixelBuffer buffer = engine.createBuffer(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
             String textureId = block.textureRef(options.getFace().direction(), "all", "side", "particle");
-            PixelBuffer face = engine.textures().resolveTexture(textureId);
+            PixelBuffer face = engine.context().requireTexture(textureId);
             int tint = resolveBlockTint(this.context, block, options);
             PixelBuffer tinted = ColorMath.tint(face, tint);
             int size = options.getOutput().getCanvasSize();

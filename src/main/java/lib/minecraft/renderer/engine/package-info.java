@@ -31,11 +31,11 @@
  *   <li>{@link lib.minecraft.renderer.engine.light.Lighting light} - the vanilla-parity inventory
  *       lighting ({@code Lighting}) and shade application / block-icon relighting
  *       ({@code Shading}).</li>
- *   <li>{@link lib.minecraft.renderer.engine.texture.Textures texture} - the pack-aware texture
- *       resolution service each engine holds (and vends via {@code textures()}), plus the
- *       caller-supplied {@link lib.minecraft.renderer.engine.texture.Biome Biome} and the vanilla
- *       {@link lib.minecraft.renderer.engine.texture.RedstoneTint RedstoneTint} table the port's
- *       tint sampling resolves against.</li>
+ *   <li>{@link lib.minecraft.renderer.engine.texture.Biome texture} - the vanilla tables the port's
+ *       texture and tint answers are resolved against: the caller-supplied
+ *       {@link lib.minecraft.renderer.engine.texture.Biome Biome}, the
+ *       {@link lib.minecraft.renderer.engine.texture.RedstoneTint RedstoneTint} gradient, and the
+ *       palette / synthesis sources.</li>
  *   <li>{@link lib.minecraft.renderer.engine.raster raster} - the rasterizer's draw-list IR
  *       ({@code VisibleTriangle} / {@code SurfaceTraits}), the 2D coverage math
  *       ({@code RasterMath}), and the glint coverage mask.</li>
@@ -60,10 +60,17 @@
  *       decodes files off disk, combines multiple arguments). Returns
  *       {@code Optional.empty()} when no rule matches.</li>
  * </ul>
+ * A third prefix answers the value itself rather than an {@code Optional} of it:
+ * <ul>
+ *   <li><b>{@code requireX(...)}</b> - the refusing arm of a {@code resolveX} beside it, throwing
+ *       {@link lib.minecraft.renderer.exception.RenderException RenderException} where that one
+ *       answers empty. A caller that can carry on without the value reads the {@code Optional}; a
+ *       caller for which its absence is a broken render reaches for this.</li>
+ * </ul>
  * Bulk-iteration accessors that return {@code ConcurrentList} use bare names
  * ({@code knownBlockIds}, {@code knownItemIds}, etc.) and provide empty defaults so test stubs
  * only override what they care about. {@code sampleBiomeTint} and {@code sampleRedstoneTint} take
- * neither prefix and return a bare {@code int}: they answer a colour rather than look one up,
+ * none of the three and return a bare {@code int}: they answer a colour rather than look one up,
  * resolving a pack override, the subject's own data and a vanilla fallback against each other.
  *
  * <p><b>Vanilla parity.</b> The triangle rasterizer reproduces vanilla's CPU-side vertex chain

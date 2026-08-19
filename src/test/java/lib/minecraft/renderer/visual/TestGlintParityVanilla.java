@@ -297,7 +297,7 @@ public final class TestGlintParityVanilla {
         builder.armor(armor.build());
         PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).toBufferedImage());
 
-        PixelBuffer glintTexture = new RasterEngine(context).textures().resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID);
+        PixelBuffer glintTexture = new RasterEngine(context).context().requireTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, GlintKit.GlintOptions.armorDefault(30), null);
 
@@ -336,7 +336,7 @@ public final class TestGlintParityVanilla {
             .build();
         PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).toBufferedImage());
 
-        PixelBuffer glintTexture = new RasterEngine(context).textures().resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID);
+        PixelBuffer glintTexture = new RasterEngine(context).context().requireTexture(GlintKit.ITEM_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, itemGlintOptions(spriteUv.isPresent()), spriteUv.orElse(null));
 

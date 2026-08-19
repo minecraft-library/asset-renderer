@@ -4,7 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.BannerPattern;
-import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.option.spec.BannerLayer;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.support.StubRendererContext;
@@ -32,9 +32,9 @@ class BannerKitTest {
     @DisplayName("composite with zero layers returns a canvas filled with the base dye")
     void baseDyeOnly() {
         PixelBuffer bannerBase = solid(4, 4, 0xFFFFFFFF);
-        Textures engine = new Textures(fixtures(Map.of(
+        RendererContext engine = fixtures(Map.of(
             "minecraft:entity/banner_base", bannerBase
-        )));
+        ));
 
         PixelBuffer canvas = BannerKit.composite2D(engine, DyeColor.Vanilla.RED.argb(), Concurrent.newList(),
             BannerKit.Variant.BANNER_ITEM);
@@ -57,10 +57,10 @@ class BannerKitTest {
             0xFFFFFFFF, 0x00000000,
             0x00000000, 0x00000000
         }, 2, 2);
-        Textures engine = new Textures(fixtures(Map.of(
+        RendererContext engine = fixtures(Map.of(
             "minecraft:entity/banner_base", base,
             "minecraft:entity/banner/creeper", mask
-        )));
+        ));
 
         BannerPattern pattern = new BannerPattern(
             "minecraft:creeper", "minecraft:creeper", "block.minecraft.banner.creeper"
@@ -85,11 +85,11 @@ class BannerKitTest {
     void shieldVariantUsesShieldAtlas() {
         PixelBuffer base = solid(2, 2, 0xFFFFFFFF);
         PixelBuffer shieldMask = solid(2, 2, 0xFFFFFFFF);
-        Textures engine = new Textures(fixtures(Map.of(
+        RendererContext engine = fixtures(Map.of(
             "minecraft:entity/banner_base", base,
             // Only the shield variant is registered - the banner variant would miss.
             "minecraft:entity/shield/creeper", shieldMask
-        )));
+        ));
 
         BannerPattern pattern = new BannerPattern(
             "minecraft:creeper", "minecraft:creeper", ""

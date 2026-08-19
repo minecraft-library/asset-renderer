@@ -39,7 +39,6 @@ import lib.minecraft.renderer.engine.kit.ShieldKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.option.BlockOptions;
@@ -280,16 +279,16 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link GlintPolicy.Default} decision is vanilla behaviour.
      */
     static @NotNull GlintKit.Foil itemGlint(
-        @NotNull Textures textures, @NotNull Item item, @NotNull ItemOptions options, @NotNull GlintPolicy glint
+        @NotNull RendererContext context, @NotNull Item item, @NotNull ItemOptions options, @NotNull GlintPolicy glint
     ) {
         boolean glinted = options.getGlintOverride().orElse(item.alwaysGlinted() || options.isEnchanted());
         return switch (glint) {
             case GlintPolicy.Suppressed ignored ->
-                GlintKit.Foil.item(textures::tryResolveTexture, false, options.isAnimateGlint(), options.getFramesPerSecond());
+                GlintKit.Foil.item(context::resolveTexture, false, options.isAnimateGlint(), options.getFramesPerSecond());
             case GlintPolicy.Replaced replaced ->
-                GlintKit.Foil.itemReplaced(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond(), replaced.texture().id());
+                GlintKit.Foil.itemReplaced(context::resolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond(), replaced.texture().id());
             case GlintPolicy.Default ignored ->
-                GlintKit.Foil.item(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond());
+                GlintKit.Foil.item(context::resolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond());
         };
     }
 
@@ -396,7 +395,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * @return the composited buffer
      */
     static @NotNull PixelBuffer renderBannerOrShield(
-        @NotNull Textures engine,
+        @NotNull RendererContext context,
         @NotNull PixelBuffer buffer,
         @NotNull String itemId,
         @NotNull ItemOptions options
@@ -406,7 +405,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ? BannerKit.Variant.SHIELD_ITEM
             : BannerKit.Variant.BANNER_ITEM;
 
-        PixelBuffer composite = BannerKit.composite2D(engine, baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
+        PixelBuffer composite = BannerKit.composite2D(context, baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
         buffer.blitScaled(composite, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
         return buffer;
     }
@@ -418,8 +417,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * texture for all six slab faces mirrors the flat-sprite fallback already used for other item
      * kinds.
      *
-     * @param engine the model engine that also serves as the {@link Textures} for pattern
-     *     resolution
+     * @param engine the model engine whose context resolves the pattern textures
      * @param itemId the item id (used to pick the banner vs. shield atlas variant)
      * @param options the render options carrying {@code baseDye} + {@code bannerLayers}
      * @return the list of triangles ready for rasterisation
@@ -435,7 +433,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ? BannerKit.Variant.SHIELD_BLOCK_3D
             : BannerKit.Variant.BANNER_BLOCK_3D;
 
-        PixelBuffer composite = BannerKit.composite2D(engine.textures(), baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
+        PixelBuffer composite = BannerKit.composite2D(engine.context(), baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
 
         return BlockGeometryKit.buildBox(
             FLAT_ITEM_SLAB,
@@ -466,7 +464,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         int tick
     ) {
         ModelEngine engine = new ModelEngine(context, SHIELD_CAMERA);
-        PixelBuffer texture = engine.textures().resolveTextureAtTick(SHIELD_NOPATTERN_TEXTURE_ID, tick);
+        PixelBuffer texture = engine.context().requireTextureAtTick(SHIELD_NOPATTERN_TEXTURE_ID, tick);
         ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture);
         triangles = ShieldKit.relightShield(triangles, SHIELD_LIGHTING);
 
@@ -531,7 +529,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         String layer0Ref = cit.textureFor("layer0").map(ResourceId::id).orElse(item.textures().get("layer0"));
         if (layer0Ref == null || layer0Ref.isBlank())
             throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.id().id());
-        PixelBuffer base = engine.textures().resolveTextureAtTick(layer0Ref, tick);
+        PixelBuffer base = engine.context().requireTextureAtTick(layer0Ref, tick);
         PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
 
         int layerIndex = 0;
@@ -539,7 +537,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
             String textureRef = cit.textureFor(layerKey).map(ResourceId::id).orElse(item.textures().get(layerKey));
             if (textureRef == null || textureRef.isBlank()) break;
-            PixelBuffer layer = engine.textures().resolveTextureAtTick(textureRef, tick);
+            PixelBuffer layer = engine.context().requireTextureAtTick(textureRef, tick);
             int color = resolveLayerTint(context, item, layerIndex, options);
             // ColorMath.tint returns a multiplied copy (alpha preserved); blit composites it
             // source-over so layer0 lands cleanly even when the composite is still empty.
@@ -598,7 +596,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      */
     static void renderStandardLayers(
         @NotNull RendererContext context,
-        @NotNull Textures engine,
         @NotNull PixelBuffer buffer,
         @NotNull Item item,
         @NotNull ItemOptions options,
@@ -616,10 +613,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (textureRef == null || textureRef.isBlank()) break;
 
             if (TrimKit.isTrimTexture(textureRef)) {
-                TrimKit.resolveFromTextureRef(engine, textureRef)
+                TrimKit.resolveFromTextureRef(context, textureRef)
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
             } else {
-                PixelBuffer layer = engine.resolveTextureAtTick(textureRef, tick);
+                PixelBuffer layer = context.requireTextureAtTick(textureRef, tick);
                 int color = resolveLayerTint(context, item, layerIndex, options);
                 // ColorMath.tint multiplies each texel by the colour (preserving alpha) and returns
                 // a fresh buffer, then blitScaled composites it over the prior layers - unlike
@@ -677,9 +674,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             return Timeline.schedule(anim).bake(
                 RasterPass.of(size, size, 1, options.getOutput().isAntiAlias(),
                         (target, tick) -> Layers.foldInto(
-                            buildGuiLayers(new LayerContext(this.context, engine.textures(), itemAt.apply(tick), options, cit), tick),
+                            buildGuiLayers(new LayerContext(this.context, itemAt.apply(tick), options, cit), tick),
                             options.getLayerDecorator(), target))
-                    .finishing(itemGlint(engine.textures(), itemAt.apply(0), options, cit.glint())));
+                    .finishing(itemGlint(this.context, itemAt.apply(0), options, cit.glint())));
         }
 
         /**
@@ -696,14 +693,14 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 stack.append(ItemSlot.BASE, frame -> renderShield3D(ctx.context(), frame, options, tick));
             else if (isBannerOrShield(options.getItemId()))
                 stack.append(ItemSlot.BASE, frame ->
-                    renderBannerOrShield(ctx.textures(), frame, options.getItemId(), options));
+                    renderBannerOrShield(ctx.context(), frame, options.getItemId(), options));
             else
                 stack.append(ItemSlot.BASE, frame ->
-                    renderStandardLayers(ctx.context(), ctx.textures(), frame, ctx.item(), options, ctx.cit(), tick));
+                    renderStandardLayers(ctx.context(), frame, ctx.item(), options, ctx.cit(), tick));
 
             if (options.getDecoration().getTrimSlot().isPresent() && options.getDecoration().getTrimColor().isPresent())
                 stack.append(ItemSlot.TRIM, frame ->
-                    TrimKit.resolve(ctx.textures(), options.getDecoration().getTrimSlot().get().getKey(), options.getDecoration().getTrimColor().get().getKey())
+                    TrimKit.resolve(ctx.context(), options.getDecoration().getTrimSlot().get().getKey(), options.getDecoration().getTrimColor().get().getKey())
                         .ifPresent(trim -> frame.blitScaled(trim, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize())));
 
             if (options.isShowDamageBar())
@@ -723,14 +720,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * own and identical across frames - and read by {@link #buildGuiLayers}.
          *
          * @param context renderer context for texture and override resolution
-         * @param textures texture-resolution service for layer texture lookups
          * @param item resolved item definition being rendered
          * @param options caller-supplied item render options
          * @param cit the render's single CIT walk result, shared by every base-layer pass
          */
         private record LayerContext(
             @NotNull RendererContext context,
-            @NotNull Textures textures,
             @NotNull Item item,
             @NotNull ItemOptions options,
             @NotNull CitResult cit
@@ -765,7 +760,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * The pack-aware texture-resolution service bound once to {@link #context}, shared by the
          * flat-slab layer composite and the glint tail.
          */
-        private final @NotNull Textures textures;
 
         /**
          * Constructs the held-3D sub-renderer bound to the given context.
@@ -774,7 +768,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          */
         public Held3D(@NotNull RendererContext context) {
             this.context = context;
-            this.textures = new Textures(context);
         }
 
         /** {@inheritDoc} */
@@ -808,7 +801,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     ModelEngine engine = new ModelEngine(this.context, camera);
                     engine.rasterize(buildTrianglesAtTick(engine, item, options, cit, tint, tick), target,
                         resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D));
-                }).finishing(itemGlint(this.textures, itemAt.apply(0), options, cit.glint())));
+                }).finishing(itemGlint(this.context, itemAt.apply(0), options, cit.glint())));
         }
 
         /**
@@ -853,7 +846,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             int tick
         ) {
             return item.model().loadElementFaceTextures(
-                id -> Optional.of(engine.textures().resolveTextureAtTick(id, tick)));
+                id -> Optional.of(engine.context().requireTextureAtTick(id, tick)));
         }
 
         /**

@@ -40,7 +40,6 @@ import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Biome;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.CopperWeathering;
@@ -103,7 +102,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * The pack-aware texture-resolution service, bound once to {@link #context}, that every
      * base / variant / group-member texture lookup on this renderer flows through.
      */
-    private final @NotNull Textures textures;
 
     /** The bone the elytra wings hang from - vanilla's torso part on every winged entity. */
     private static final @NotNull String BODY_BONE = "body";
@@ -127,14 +125,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private static final @NotNull String BABY_ROBE_SEGMENT = "/baby/";
 
     /**
-     * The prefix qualifying an entity texture ref into the id its sidecar is read under - the metadata
-     * counterpart of the prefix {@link Textures#resolveEntityTextureAtTick} applies to a pixel read.
+     * The prefix qualifying an entity texture ref into the id its sidecar is read under, and the one
+     * {@link #resolveEntityTextureAtTick} applies to a pixel read.
      */
     private static final @NotNull String ENTITY_TEXTURE_PREFIX = "minecraft:entity/";
 
     /**
-     * Constructs an entity renderer bound to the given context and entity definitions, deriving the
-     * single {@link Textures} service every texture lookup shares.
+     * Constructs an entity renderer bound to the given context and entity definitions.
      *
      * @param context the renderer context for texture resolution + isometric engine setup
      * @param javaEntities the entity definitions keyed by namespaced id
@@ -142,7 +139,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     public EntityRenderer(@NotNull RendererContext context, @NotNull Map<String, Entity> javaEntities) {
         this.context = context;
         this.javaEntities = javaEntities;
-        this.textures = new Textures(context);
     }
 
     /**
@@ -199,7 +195,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // the wings bound the canvas at all, and the silhouette they contribute below. Wings the pack
         // ships no texture for render nothing, so they are empty here rather than bounding the canvas.
         Optional<PixelBuffer> wingTexture = options.getAppearance().isElytra()
-            ? ElytraKit.wingsTexture(this.textures, Optional.empty(), startTick)
+            ? ElytraKit.wingsTexture(this.context, Optional.empty(), startTick)
             : Optional.empty();
         // The body bone the wings hang from, in model space - the same seat the render applies, resolved
         // here because the canvas is sized before any geometry is built.
@@ -286,7 +282,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // but fourteen rows of the entity sweep - measures exactly what it measured before.
             Optional<Box> armorBounds = resolved.humanoidArmor().flatMap(shell -> ArmorKit.screenBounds(shell,
                 options.getArmor().equipped(), options.getArmor().getItems(),
-                renderOrient, modelScale, this.textures));
+                renderOrient, modelScale, this.context));
             if (armorBounds.isPresent()) screenBounds = screenBounds.union(armorBounds.get());
             RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
@@ -353,7 +349,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     kitFrame, PassDeclaration.DEFAULT, resolved.baseTintArgb())).triangles();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
             FeatureContext featureCtx = new FeatureContext(resolved, options, model, frameTexture,
-                kitFrame, this.textures, this.context, tick);
+                kitFrame, this.context, tick);
             for (EntityFeature feature : EntityFeature.values())
                 feature.contribute(featureCtx, stack);
             Layers.foldInto(stack, options.getLayerDecorator(), triangles);
@@ -401,7 +397,25 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT).rasterizeFitted(
                         tick == startTick ? startTriangles : buildAtTick.apply(tick), target, effective, fitRequest))
                 .withMask(enchanted)
-                .finishing(GlintKit.Foil.armor(engine.textures()::tryResolveTexture, enchanted)));
+                .finishing(GlintKit.Foil.armor(engine.context()::resolveTexture, enchanted)));
+    }
+
+    /**
+     * Resolves an entity texture ref against the vanilla pack at {@code minecraft:entity/<ref>} at a
+     * specific animation tick. Centralises the {@code minecraft:entity/} prefix idiom the base /
+     * overlay / collar / equipment / family-member paths all share. A sidecar-less entity texture
+     * (every vanilla entity) answers its buffer unchanged, so {@code tick 0} is byte-identical to the
+     * raw lookup; a sidecar-carrying texture samples the frame for {@code tick}.
+     *
+     * @param context the renderer context resolving the texture
+     * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
+     *     {@code .png} suffix)
+     * @param tick the current animation tick (free-running, signed)
+     * @return the resolved frame, or empty when the pack has no match
+     */
+    private static @NotNull Optional<PixelBuffer> resolveEntityTextureAtTick(
+        @NotNull RendererContext context, @NotNull String ref, int tick) {
+        return context.resolveTextureAtTick(ENTITY_TEXTURE_PREFIX + ref, tick);
     }
 
     /**
@@ -413,7 +427,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@link Entity.Axes#stateTextures() state textures} (wolf
      * {@code tame}/{@code angry}) &gt; the entity's own
      * {@link Entity#textureRef() texture_ref}. Each model-form ref is resolved against the vanilla
-     * pack at {@code minecraft:entity/<ref>} via {@link Textures#resolveEntityTextureAtTick}.
+     * pack at {@code minecraft:entity/<ref>} via {@link #resolveEntityTextureAtTick}.
      */
     private @NotNull Optional<PixelBuffer> resolveEntityTexture(
         @NotNull Entity definition,
@@ -421,13 +435,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int tick
     ) {
         if (options.getTextureId().isPresent())
-            return options.getTextureId().flatMap(id -> this.textures.tryResolveTextureAtTick(id, tick));
+            return options.getTextureId().flatMap(id -> this.context.resolveTextureAtTick(id, tick));
 
         EntityAppearance appearance = options.getAppearance();
         return babyTexture(definition, appearance, tick)
-            .or(() -> selectWeatheringTexture(definition, appearance).flatMap(ref -> this.textures.resolveEntityTextureAtTick(ref, tick)))
-            .or(() -> selectStateTexture(definition, appearance).flatMap(ref -> this.textures.resolveEntityTextureAtTick(ref, tick)))
-            .or(() -> definition.textureRef().flatMap(ref -> this.textures.resolveEntityTextureAtTick(ref, tick)));
+            .or(() -> selectWeatheringTexture(definition, appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
+            .or(() -> selectStateTexture(definition, appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
+            .or(() -> definition.textureRef().flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)));
     }
 
     /**
@@ -461,7 +475,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         if (!appearance.isBaby() || definition.axes().babyModel().isEmpty())
             return Optional.empty();
-        return Optional.ofNullable(definition.axes().stateTextures().get("baby")).flatMap(ref -> this.textures.resolveEntityTextureAtTick(ref, tick));
+        return Optional.ofNullable(definition.axes().stateTextures().get("baby")).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick));
     }
 
     /**
@@ -527,7 +541,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     EntityModelData overlayMesh = selectOverlayMesh(ctx, overlay, overlayRef, texturePrefix);
                     stack.append(this.slot, sink -> {
                         if (overlayMesh.getBones().isEmpty()) return;
-                        Optional<PixelBuffer> overlayTex = overlayRef.map(s -> ctx.textures().resolveEntityTextureAtTick(s, ctx.tick()))
+                        Optional<PixelBuffer> overlayTex = overlayRef.map(s -> resolveEntityTextureAtTick(ctx.context(), s, ctx.tick()))
                             .orElseGet(() -> Optional.of(ctx.baseTexture()));
                         if (overlayTex.isEmpty()) return;
                         // The overlay's declared pipeline state rides onto every emitted triangle via
@@ -562,7 +576,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 int collarTint = TintAxis.COLLAR.resolve(collar.get());
                 String ref = collarRef.get();
                 stack.append(this.slot, sink -> {
-                    Optional<PixelBuffer> collarTex = ctx.textures().resolveEntityTextureAtTick(ref, ctx.tick());
+                    Optional<PixelBuffer> collarTex = resolveEntityTextureAtTick(ctx.context(), ref, ctx.tick());
                     if (collarTex.isEmpty()) return;
                     sink.addAll(EntityGeometryKit.buildTriangles(model, collarTex.get(),
                         new EntityGeometryKit.EntityBuildParams(ctx.frame(), PassDeclaration.DEFAULT, collarTint)).triangles());
@@ -591,7 +605,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 String ref = appearance.isBaby() ? markingRef.get() + "_baby" : markingRef.get();
                 EntityModelData model = ctx.model();
                 stack.append(this.slot, sink -> {
-                    Optional<PixelBuffer> markingTex = ctx.textures().resolveEntityTextureAtTick(ref, ctx.tick());
+                    Optional<PixelBuffer> markingTex = resolveEntityTextureAtTick(ctx.context(), ref, ctx.tick());
                     if (markingTex.isEmpty()) return;
                     sink.addAll(EntityGeometryKit.buildTriangles(model, markingTex.get(),
                         new EntityGeometryKit.EntityBuildParams(
@@ -624,7 +638,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     stack.append(this.slot, sink -> {
                         if (equipment.model().getBones().isEmpty()) return;
                         Optional<PixelBuffer> equipmentTex = EquipmentKit.composite(
-                            ctx.textures(), assetId.get(), equipment.layerType(),
+                            ctx.context(), assetId.get(), equipment.layerType(),
                             dye, CitResult.NONE, OptionalInt.of(ctx.tick()));
                         if (equipmentTex.isEmpty()) return;
                         sink.addAll(EntityGeometryKit.buildTriangles(equipment.model(), equipmentTex.get(),
@@ -647,7 +661,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 if (!appearance.isElytra()) return;
                 Optional<Box> bodyBounds = EntityGeometryKit.computeBoneBounds(ctx.model(), BODY_BONE);
                 stack.append(this.slot, sink ->
-                    sink.addAll(ElytraKit.buildWings3D(ctx.textures(), appearance.isBaby(), bodyBounds,
+                    sink.addAll(ElytraKit.buildWings3D(ctx.context(), appearance.isBaby(), bodyBounds,
                         ctx.frame(), Optional.empty(), ctx.tick())));
             }
         },
@@ -685,7 +699,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 EntityOptions options = ctx.options();
                 stack.append(this.slot, sink ->
                     sink.addAll(ArmorKit.buildEntityArmor3D(armor.get(), ctx.frame(),
-                        options.getArmor().equipped(), options.getArmor().getItems(), ctx.textures())));
+                        options.getArmor().equipped(), options.getArmor().getItems(), ctx.context())));
             }
         };
 
@@ -708,8 +722,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * shared geometry-build frame the layers rasterize in: the age / carried-resolved
      * {@link Entity definition}, the {@link EntityOptions} (appearance +
      * armor pieces), and the primary {@link EntityModelData model} (adult or baby), plus the resolved
-     * base texture, the {@link RenderFrame} the body was built through, the {@link Textures} service,
-     * and the {@link RendererContext}. The scene-frame fields travel here because the static
+     * base texture, the {@link RenderFrame} the body was built through, and the
+     * {@link RendererContext}. The scene-frame fields travel here because the static
      * {@link EntityFeature} constants cannot capture them from the renderer instance.
      *
      * @param definition the age / carried-resolved definition the features read
@@ -718,7 +732,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param baseTexture the resolved base entity texture the layers sample from
      * @param frame the render frame the base body was built through, which every feature building in the
      *     body's own frame passes straight on
-     * @param textures the texture-resolution service the layers sample overlay / armor textures through
      * @param context the renderer context for overlay-texture and block lookups
      * @param tick the animation tick every overlay / carried-block texture is sampled at
      */
@@ -728,7 +741,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull EntityModelData model,
         @NotNull PixelBuffer baseTexture,
         @NotNull RenderFrame frame,
-        @NotNull Textures textures,
         @NotNull RendererContext context,
         int tick
     ) { }
@@ -993,9 +1005,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Faces whose ref still resolves to a {@code #} after dereference (broken bindings) skip
         // texture loading; the kit treats them as no-texture faces. Sampled at the frame's tick so a
         // carried animated block matches the block-icon path (which also flattens to frame 0 by default).
-        Textures textures = new Textures(context);
         ConcurrentMap<String, PixelBuffer> faceTextures = blockModel.loadElementFaceTextures(
-            id -> textures.tryResolveTextureAtTick(id, tick));
+            id -> context.resolveTextureAtTick(id, tick));
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
         // Apply the block's tint to its tint-indexed faces, exactly as the block icon does - a
@@ -1434,7 +1445,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull Optional<PixelBuffer> resolveGroupMemberTexture(@NotNull Entity definition) {
         if (definition.textureRef().isEmpty()) return Optional.empty();
-        return this.textures.resolveEntityTextureAtTick(definition.textureRef().get(), 0);
+        return resolveEntityTextureAtTick(this.context, definition.textureRef().get(), 0);
     }
 
     /**
@@ -1461,7 +1472,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Optional<ResourceId> assetId = appearance.equipmentMaterial(equipment.slot())
                 .flatMap(equipment::assetFor);
             if (assetId.isEmpty()) continue;
-            EquipmentKit.composite(this.textures, assetId.get(), equipment.layerType(),
+            EquipmentKit.composite(this.context, assetId.get(), equipment.layerType(),
                     appearance.tint(TintAxis.EQUIPMENT).map(DyeColor::argb), CitResult.NONE, OptionalInt.of(tick))
                 .ifPresent(texture -> out.add(new EquippedOverlay(equipment, texture)));
         }

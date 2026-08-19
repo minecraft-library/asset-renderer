@@ -11,9 +11,9 @@ import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.EntityAppearance;
@@ -92,7 +92,7 @@ class ArmorKitTest {
         StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
         ArmorKit.buildHumanoidArmor3D(headBounds(),
-            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), new Textures(ctx));
+            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), ctx);
 
         assertThat(ctx.getResolved(), equalTo(List.of("minecraft:entity/equipment/humanoid/iron")));
     }
@@ -137,7 +137,7 @@ class ArmorKitTest {
         StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
         ArmorKit.buildEntityArmor3D(babyShell(), RenderFrame.IDENTITY,
-            Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), new Textures(ctx));
+            Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), ctx);
 
         assertThat(ctx.getResolved(), equalTo(List.of("minecraft:entity/equipment/humanoid_baby/iron")));
     }
@@ -148,7 +148,7 @@ class ArmorKitTest {
         StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
         ArmorKit.buildEntityArmor3D(genericShell(), RenderFrame.IDENTITY,
-            Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), new Textures(ctx));
+            Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), ctx);
 
         assertThat(ctx.getResolved().contains("minecraft:trims/entity/humanoid/coast"), equalTo(true));
     }
@@ -160,15 +160,15 @@ class ArmorKitTest {
         // ids is the caller's. The entity half is reachable from a render; the item half is reachable
         // from no sweep and no other test, which is why it is asserted here rather than measured.
         StubRendererContext entity = recording(List.of(), CitResult.NONE);
-        ArmorKit.resolveTrimTexture(new Textures(entity), LayerType.HUMANOID.getId(),
+        ArmorKit.resolveTrimTexture(entity, LayerType.HUMANOID.getId(),
             ArmorTrim.Pattern.COAST, ArmorTrim.Color.COPPER);
 
         StubRendererContext item = recording(List.of(), CitResult.NONE);
-        TrimKit.resolve(new Textures(item),
+        TrimKit.resolve(item,
             ArmorSlot.CHESTPLATE.getKey(), ArmorTrim.Color.COPPER.getKey());
 
         StubRendererContext parsed = recording(List.of(), CitResult.NONE);
-        TrimKit.resolveFromTextureRef(new Textures(parsed), "minecraft:trims/items/chestplate_trim_copper");
+        TrimKit.resolveFromTextureRef(parsed, "minecraft:trims/items/chestplate_trim_copper");
 
         assertThat(entity.getResolved(), equalTo(List.of(
             "minecraft:trims/entity/humanoid/coast",
@@ -228,7 +228,7 @@ class ArmorKitTest {
 
         ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(shell,
             new RenderFrame(Vector3f.ZERO, 1f, modelScale),
-            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), new Textures(ctx));
+            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), ctx);
 
         assertThat(armor.isEmpty(), equalTo(false));
         float minY = Float.MAX_VALUE;
@@ -243,7 +243,7 @@ class ArmorKitTest {
 
     private static void buildHelmet(@NotNull StubRendererContext ctx, @NotNull Map<ArmorSlot, ItemContext> items) {
         ArmorKit.buildHumanoidArmor3D(headBounds(),
-            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.LEATHER)), items, new Textures(ctx));
+            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.LEATHER)), items, ctx);
     }
 
     private static @NotNull List<EquipmentModel.Layer> leatherLayers() {

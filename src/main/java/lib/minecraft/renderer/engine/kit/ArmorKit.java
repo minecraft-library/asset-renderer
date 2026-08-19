@@ -19,7 +19,6 @@ import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.face.Turn;
@@ -102,19 +101,19 @@ public class ArmorKit {
      * @param equipped the worn pieces keyed by slot; an unworn slot is absent
      * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override; empty
      *     leaves each slot on its equipment-model texture
-     * @param engine the texture engine for pack-aware texture resolution
+     * @param context the texture context for pack-aware texture resolution
      * @return the armor + trim triangles, empty when no armor is equipped
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildHumanoidArmor3D(
         @NotNull Map<HumanoidPart, Box> bodyPositions,
         @NotNull Map<ArmorSlot, ArmorPiece> equipped,
         @NotNull Map<ArmorSlot, ItemContext> items,
-        @NotNull Textures engine
+        @NotNull RendererContext context
     ) {
         // The player's rows are its own body boxes in the render scope's frame, which is the frame they
         // are drawn in, so nothing crosses a frame on the way - and the player is always dressed adult.
         return buildArmor3D(bodyRows(bodyPositions), UnaryOperator.identity(), ArmorForm.ADULT,
-            equipped, items, engine);
+            equipped, items, context);
     }
 
     /**
@@ -166,7 +165,7 @@ public class ArmorKit {
      * @param piece the armor piece to render
      * @param item the equipped item identity, for the pack-rule (CIT) texture override; empty leaves the
      *     slot on its equipment-model texture
-     * @param engine the texture engine for pack-aware texture resolution
+     * @param context the texture context for pack-aware texture resolution
      */
     public static void compositeSlot2D(
         @NotNull PixelBuffer target,
@@ -174,18 +173,18 @@ public class ArmorKit {
         @NotNull ArmorSlot slot,
         @NotNull ArmorPiece piece,
         @NotNull Optional<ItemContext> item,
-        @NotNull Textures engine
+        @NotNull RendererContext context
     ) {
         // The target buffer owns the coverage mask (enabled by the caller when the armor is enchanted);
         // stamp the armor / trim sprite coverage into it so the enchantment foil lands on the armor,
         // not the bare skin. Absent when the caller records no mask - then stampMaskScaled is a no-op.
         PixelMask mask = target.mask().orElse(null);
         Optional<PixelBuffer> armorTexture =
-            resolveArmorTexture(engine, piece, ArmorForm.ADULT.layerType(slot), item);
+            resolveArmorTexture(context, piece, ArmorForm.ADULT.layerType(slot), item);
         armorTexture.ifPresent(tex -> blit2D(target, mask, row, tex));
 
         piece.trim().ifPresent(trim -> ArmorForm.ADULT.trimLayer(slot)
-            .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
+            .flatMap(layer -> resolveTrimTexture(context, layer, trim.pattern(), trim.color()))
             .ifPresent(trimTex -> blit2D(target, mask, row, trimTex)));
     }
 
@@ -244,7 +243,7 @@ public class ArmorKit {
      * @param equipped the worn pieces keyed by slot; an unworn slot is absent
      * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override; empty
      *     leaves each slot on its equipment-model texture
-     * @param engine the texture engine for pack-aware texture resolution
+     * @param context the texture context for pack-aware texture resolution
      * @return the armor + trim triangles
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildEntityArmor3D(
@@ -252,7 +251,7 @@ public class ArmorKit {
         @NotNull RenderFrame frame,
         @NotNull Map<ArmorSlot, ArmorPiece> equipped,
         @NotNull Map<ArmorSlot, ItemContext> items,
-        @NotNull Textures engine
+        @NotNull RendererContext context
     ) {
         // The armor sheets are authored for the upright player frame (the player applies a plain
         // R_Y(180) facing). An entity's bone geometry lives in the Y-down model frame and is turned
@@ -262,7 +261,7 @@ public class ArmorKit {
         // it correctly once ENTITY_FACING is applied, with the geometry and normals in the frame the
         // wearer's own faces are in - which is the frame the pass that lights the folded stack reads.
         ConcurrentList<VisibleTriangle> upright = buildArmor3D(shell.walk().parts(),
-            box -> intoRenderFrame(shell, frame, box), shell.form(), equipped, items, engine);
+            box -> intoRenderFrame(shell, frame, box), shell.form(), equipped, items, context);
 
         ConcurrentList<VisibleTriangle> entityArmor = Concurrent.newList();
         for (VisibleTriangle triangle : upright)
@@ -288,7 +287,7 @@ public class ArmorKit {
      * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override
      * @param screenTransform the model-to-screen transform the bounds are accumulated through
      * @param modelScale the per-render vertex pre-scale
-     * @param engine the texture engine for pack-aware texture resolution
+     * @param context the texture context for pack-aware texture resolution
      * @return the union of the equipped slots' screen bounds, or empty when none contributes
      */
     public static @NotNull Optional<Box> screenBounds(
@@ -297,12 +296,12 @@ public class ArmorKit {
         @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull Matrix4f screenTransform,
         float modelScale,
-        @NotNull Textures engine
+        @NotNull RendererContext context
     ) {
         Box union = null;
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
             ArmorSlot slot = entry.getKey();
-            Optional<PixelBuffer> sheet = resolveArmorTexture(engine, entry.getValue(),
+            Optional<PixelBuffer> sheet = resolveArmorTexture(context, entry.getValue(),
                 shell.form().layerType(slot), Optional.ofNullable(items.get(slot)));
             if (sheet.isEmpty()) continue;
             Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(shell, slot), screenTransform,
@@ -460,14 +459,14 @@ public class ArmorKit {
         @NotNull ArmorForm form,
         @NotNull Map<ArmorSlot, ArmorPiece> equipped,
         @NotNull Map<ArmorSlot, ItemContext> items,
-        @NotNull Textures engine
+        @NotNull RendererContext context
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
             ArmorSlot slot = entry.getKey();
             addSlot3D(triangles, resolveBoxes(rows, slot, intoFrame), form, slot, entry.getValue(),
-                Optional.ofNullable(items.get(slot)), engine);
+                Optional.ofNullable(items.get(slot)), context);
         }
 
         return triangles;
@@ -524,10 +523,10 @@ public class ArmorKit {
         @NotNull ArmorSlot slot,
         @NotNull ArmorPiece piece,
         @NotNull Optional<ItemContext> item,
-        @NotNull Textures engine
+        @NotNull RendererContext context
     ) {
         Optional<PixelBuffer> armorTexture =
-            resolveArmorTexture(engine, piece, form.layerType(slot), item);
+            resolveArmorTexture(context, piece, form.layerType(slot), item);
         if (armorTexture.isEmpty()) return;
 
         for (SlotBox box : boxes)
@@ -536,7 +535,7 @@ public class ArmorKit {
         if (piece.trim().isEmpty()) return;
         ArmorTrim trim = piece.trim().get();
         form.trimLayer(slot)
-            .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
+            .flatMap(layer -> resolveTrimTexture(context, layer, trim.pattern(), trim.color()))
             .ifPresent(trimTexture -> {
                 for (SlotBox box : boxes)
                     triangles.addAll(buildBox3D(box, trimTexture));
@@ -570,7 +569,7 @@ public class ArmorKit {
      * the equipment-model path. On a vanilla stack with no item the override is {@link CitResult#NONE}
      * and every layer resolves through the model.
      *
-     * @param engine the texture engine for pack-aware texture resolution
+     * @param context the texture context for pack-aware texture resolution
      * @param piece the armor piece
      * @param layerType the equipment layer the slot maps to ({@link LayerType#HUMANOID} or
      *     {@link LayerType#HUMANOID_LEGGINGS})
@@ -579,15 +578,15 @@ public class ArmorKit {
      * @return the composited texture, or empty when the asset ships no layers or none resolve
      */
     private static @NotNull Optional<PixelBuffer> resolveArmorTexture(
-        @NotNull Textures engine,
+        @NotNull RendererContext context,
         @NotNull ArmorPiece piece,
         @NotNull LayerType layerType,
         @NotNull Optional<ItemContext> item
     ) {
         CitResult cit = item
-            .map(context -> engine.getContext().resolveArmorTextureOverride(piece.material(), layerType, context))
+            .map(itemContext -> context.resolveArmorTextureOverride(piece.material(), layerType, itemContext))
             .orElse(CitResult.NONE);
-        return EquipmentKit.composite(engine, piece.material().assetId(), layerType,
+        return EquipmentKit.composite(context, piece.material().assetId(), layerType,
             piece.dyeColor(), cit, OptionalInt.empty());
     }
 
@@ -597,19 +596,19 @@ public class ArmorKit {
      * rather than {@link TrimKit}'s item-slot {@code trims/items/} stem - so it builds that and hands
      * the rest to the resolve both trim paths share.
      *
-     * @param engine the texture engine for pack-aware texture resolution
+     * @param context the texture context for pack-aware texture resolution
      * @param layer the entity trim layer ({@code humanoid} or {@code humanoid_leggings})
      * @param pattern the trim pattern supplying the grayscale base texture key
      * @param color the trim material supplying the colour palette key
      * @return the permuted trim overlay, or empty when any of the three source textures is missing
      */
     static @NotNull Optional<PixelBuffer> resolveTrimTexture(
-        @NotNull Textures engine,
+        @NotNull RendererContext context,
         @NotNull String layer,
         @NotNull ArmorTrim.Pattern pattern,
         @NotNull ArmorTrim.Color color
     ) {
-        return TrimKit.permuteFrom(engine,
+        return TrimKit.permuteFrom(context,
             "minecraft:trims/entity/" + layer + "/" + pattern.getKey(), color.getKey());
     }
 
