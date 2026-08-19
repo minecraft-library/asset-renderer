@@ -120,9 +120,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
     /**
      * Resolves the ARGB tint applied to a block's faces based on its
-     * {@link Block.TintTarget}. Returns opaque white for {@code NONE}, the block's hardcoded
-     * constant for {@code CONSTANT}, or a colormap sample for {@code GRASS} / {@code FOLIAGE} /
-     * {@code DRY_FOLIAGE} against the {@link BlockOptions#getBiome() options biome}.
+     * {@link Block.TintTarget}, sampling against the {@link BlockOptions#getBiome() options biome}.
      */
     static int resolveBlockTint(@NotNull RendererContext context, @NotNull Block block, @NotNull BlockOptions options) {
         return resolveBlockTint(context, block, options.getBiome());
@@ -130,9 +128,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
     /**
      * Resolves the ARGB tint applied to a block's faces based on its {@link Block.TintTarget},
-     * sampling colormap targets against an explicit {@code biome}. Shared by the block icon path
-     * (via {@link BlockOptions}) and the entity carried-block overlay (which has no
+     * sampling against an explicit {@code biome}. Shared by the block icon path (via
+     * {@link BlockOptions}) and the entity carried-block overlay (which has no
      * {@code BlockOptions} and passes the default biome directly).
+     * <p>
+     * {@link Block.TintTarget#CONSTANT CONSTANT} is the one target answered here, because its
+     * colour is baked on the block's own {@link Block.Tint} and no biome can supply it. Every other
+     * target - including {@link Block.TintTarget#NONE NONE}, which carries no biome channel and so
+     * answers opaque white - is the port's to resolve.
      *
      * @param context the renderer context supplying the colormaps
      * @param block the block whose tint target is resolved
@@ -141,9 +144,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
      */
     static int resolveBlockTint(@NotNull RendererContext context, @NotNull Block block, @NotNull Biome biome) {
         Block.TintTarget target = block.tint().target();
-
-        if (target == Block.TintTarget.NONE)
-            return ColorMath.WHITE;
 
         if (target == Block.TintTarget.CONSTANT)
             return block.tint().constant().map(Color::getRGB).orElse(ColorMath.WHITE);
