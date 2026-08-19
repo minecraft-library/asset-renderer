@@ -46,7 +46,8 @@ import java.util.Set;
  * bone tree is stored exactly once.
  *
  * @param id the entity's namespaced identifier (e.g. {@code minecraft:zombie})
- * @param model the parsed bone/cube tree (shared across all entities with the same geometry_ref)
+ * @param model the parsed bone/cube tree (shared across all entities naming the same {@code geometry}
+ *     coordinate)
  * @param textureRef the vanilla {@code textures/entity/} sub-path (without the {@code .png} suffix),
  *     resolved at render time via {@link RendererContext#resolveTexture(String) resolveTexture} as
  *     {@code minecraft:entity/<ref>}, or empty when no default texture
@@ -554,7 +555,7 @@ public record Entity(
      * model form's {@code when.equipment}-gated {@code layers}.
      *
      * @param slot the equipment slot this overlay is gated on ({@code saddle} / {@code body})
-     * @param model the equipment mesh, resolved from the layer's baked {@code geometry_ref}
+     * @param model the equipment mesh, resolved from the layer's baked {@code geometry} coordinate
      * @param layerType the render layer whose texture subdir this overlay's layers sit under
      * @param materialAssets the equipment asset id per selectable material - mostly the material's own
      *     name, but the llama's {@code white} carpet lives in {@code minecraft:white_carpet} and every

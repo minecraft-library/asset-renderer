@@ -15,8 +15,8 @@ import java.util.Map;
 /**
  * The pure reader for {@code block_geometry.json}: the geometry-coordinate to bone-tree map decoded
  * straight into {@link EntityModelData} values, then overlaid with the pack override channel per
- * coordinate (later-wins). The {@code geometry_ref} join against {@code block_models.json} is the
- * assembler's concern, not this reader's.
+ * coordinate (later-wins). The {@code geometry} coordinate join against {@code block_models.json} is
+ * the assembler's concern, not this reader's.
  */
 @UtilityClass
 public final class BlockGeometryReader {

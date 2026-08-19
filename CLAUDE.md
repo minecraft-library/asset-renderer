@@ -524,8 +524,14 @@ hands each renderer the one its subject wears. There is no armour file; the shel
 ## Entity model form
 
 `entity_models.json` is the normalized model form: one entry per base entity under a top-level
-`models` map, carrying `geometry_ref` and its overlays once.
+`models` map, carrying its `renderer`, its `axes` and its overlay rows once.
 
+- **Geometry is named per option, never on the entry.** The member is `geometry`, and it sits at
+  `axes.<axis>.options.<option>.geometry` and on each overlay row - there is no `geometry_ref`
+  anywhere in the shipped bytes. Its value is a **factory coordinate**,
+  `AllayModel#createBodyLayer`, resolved against `entity_geometry.json`, and the `@grow=`,
+  `@scaled=`, `@fparam=` and `@baby=` suffixes name a derivation of that factory's mesh rather than
+  a second factory.
 - Axes are orthogonal dimensions, all option-encoded, resolved at render from `AppearanceOptions`. A
   `size` axis's default is the option-less domain member taken last-first, so a one-option axis
   answers the larger form.
