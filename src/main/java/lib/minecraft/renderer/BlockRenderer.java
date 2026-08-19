@@ -16,7 +16,6 @@ import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
@@ -63,7 +62,7 @@ import java.util.Optional;
  * that iso pose bit-for-bit, so only mirrored-Y blocks (stairs/slabs/fence gates ship
  * {@code [30, 135, 0]} or {@code [30, 45, 0]}) present a different side; per-state orientation comes
  * from the baked blockstate variant rotation on top of the gui pose.</li>
- * <li>{@link BlockFace2D} delegates to {@link RasterEngine} for single-face output.</li>
+ * <li>{@link BlockFace2D} blits a single tinted face straight into its output buffer.</li>
  * </ul>
  * Shared block lookup and biome tint resolution live as package-private static helpers on this
  * class so both sub-renderers can reach them without duplicating logic. Connected Textures are
@@ -464,7 +463,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull Block.Multipart multipart, @NotNull ConcurrentMap<String, String> callerProps, int tint, int untintedTint, int tick, @NotNull String blockId) {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-            RasterEngine raster = new RasterEngine(this.context);
 
             for (Block.Multipart.Part part : multipart.parts()) {
                 if (!part.when().matches(callerProps)) continue;
@@ -476,13 +474,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
                 // Build triangles for this part's model
                 ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
-                    id -> Optional.of(raster.context().requireTextureAtTick(id, tick)));
+                    id -> Optional.of(this.context.requireTextureAtTick(id, tick)));
                 var forceRefs = partModel.resolveForceTranslucentRefs();
 
                 boolean uvlock = apply.uvlock();
                 ConcurrentList<VisibleTriangle> partTriangles = BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures,
                     new BlockGeometryKit.ElementBuildParams(tint, untintedTint, uvlock ? apply.x() : 0, uvlock ? apply.y() : 0, uvlock, forceRefs,
-                        ctmResolver(blockId, callerProps, partModel, raster, tick)));
+                        ctmResolver(blockId, callerProps, partModel, tick)));
 
                 // Apply per-part rotation if specified
                 if (apply.hasRotation())
@@ -534,9 +532,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull ModelData model, @Nullable Block.Variant variant, int tint, int untintedTint, int tick,
             @NotNull String blockId, @NotNull ConcurrentMap<String, String> state) {
-            RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
-                id -> Optional.of(raster.context().requireTextureAtTick(id, tick)));
+                id -> Optional.of(this.context.requireTextureAtTick(id, tick)));
             var forceRefs = model.resolveForceTranslucentRefs();
 
             // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
@@ -545,7 +542,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             boolean uvlock = variant != null && variant.uvlock();
             BlockGeometryKit.ElementBuildParams params = new BlockGeometryKit.ElementBuildParams(
                 tint, untintedTint, uvlock ? variant.x() : 0, uvlock ? variant.y() : 0, uvlock, forceRefs,
-                ctmResolver(blockId, state, model, raster, tick));
+                ctmResolver(blockId, state, model, tick));
             return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, params);
         }
 
@@ -559,18 +556,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * @param blockId the rendered block's namespaced id
          * @param state the rendered block state
          * @param model the model whose {@code #var} bindings deref each face ref
-         * @param raster the frame's raster engine, for tick-aware texture loading of a substitute tile
          * @param tick the animation tick a substitute tile is sampled at
          * @return the per-face resolver
          */
         private @NotNull BlockGeometryKit.FaceTextureResolver ctmResolver(
             @NotNull String blockId, @NotNull ConcurrentMap<String, String> state,
-            @NotNull ModelData model, @NotNull RasterEngine raster, int tick) {
+            @NotNull ModelData model, int tick) {
             return (face, rawRef) -> {
                 String baseId = model.resolveTextureReference(rawRef);
                 if (baseId.startsWith("#")) return Optional.empty();
                 return this.context.resolveConnectedTexture(blockId, state, baseId, face)
-                    .map(id -> raster.context().requireTextureAtTick(id.id(), tick));
+                    .map(id -> this.context.requireTextureAtTick(id.id(), tick));
             };
         }
 
@@ -587,8 +583,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * @return the composed block-frame triangle list
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBoneModel(@NotNull Block.Entity.BoneModel boneModel, @NotNull String textureId, int tint, int tick) {
-            RasterEngine raster = new RasterEngine(this.context);
-            PixelBuffer texture = raster.context().requireTextureAtTick(textureId, tick);
+            PixelBuffer texture = this.context.requireTextureAtTick(textureId, tick);
             // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
             // an untinted model (the banner post's wood) samples its texture raw.
             int faceTint = boneModel.tinted() ? tint : ColorMath.WHITE;
@@ -613,14 +608,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromEntityParts(@NotNull Block.Entity entity, int tint, int tick) {
             ConcurrentList<VisibleTriangle> combined = Concurrent.newList();
-            RasterEngine raster = new RasterEngine(this.context);
 
             for (Block.Entity.Part part : entity.parts()) {
                 // Build the part hierarchically with its own presentation, sampling the part's entity
                 // texture (which may differ from the primary - decorated_pot sides use
                 // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
                 Block.Entity.BoneModel boneModel = part.boneModel();
-                PixelBuffer texture = raster.context().requireTextureAtTick(part.texture(), tick);
+                PixelBuffer texture = this.context.requireTextureAtTick(part.texture(), tick);
                 int partTint = boneModel.tinted() ? tint : ColorMath.WHITE;
                 ConcurrentList<VisibleTriangle> partTriangles =
                     BlockGeometryKit.buildFromBones(boneModel.model(), texture, partTint, boneModel.presentation());
@@ -680,15 +674,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (!(first.geometry() instanceof Block.ElementGeometry(ModelData partModel)) || partModel.getElements().isEmpty())
                 return Concurrent.newList();
 
-            RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
-                id -> Optional.of(raster.context().requireTextureAtTick(id, tick)));
+                id -> Optional.of(this.context.requireTextureAtTick(id, tick)));
             var forceRefs = partModel.resolveForceTranslucentRefs();
 
             boolean uvlock = first.uvlock();
             ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures,
                 new BlockGeometryKit.ElementBuildParams(tint, untintedTint, uvlock ? first.x() : 0, uvlock ? first.y() : 0, uvlock, forceRefs,
-                    ctmResolver(block.id().id(), state, partModel, raster, tick)));
+                    ctmResolver(block.id().id(), state, partModel, tick)));
 
             if (first.hasRotation())
                 triangles = applyRotation(triangles, buildVariantRotation(first));
@@ -835,11 +828,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             Block block = requireBlock(this.context, options.getBlockId());
-            RasterEngine engine = new RasterEngine(this.context);
-            PixelBuffer buffer = engine.createBuffer(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
+            PixelBuffer buffer = PixelBuffer.create(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
             String textureId = block.textureRef(options.getFace().direction(), "all", "side", "particle");
-            PixelBuffer face = engine.context().requireTexture(textureId);
+            PixelBuffer face = this.context.requireTexture(textureId);
             int tint = resolveBlockTint(this.context, block, options);
             PixelBuffer tinted = ColorMath.tint(face, tint);
             int size = options.getOutput().getCanvasSize();

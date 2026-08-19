@@ -16,7 +16,6 @@ import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
-import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.ItemOptions;
@@ -297,7 +296,7 @@ public final class TestGlintParityVanilla {
         builder.armor(armor.build());
         PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).toBufferedImage());
 
-        PixelBuffer glintTexture = new RasterEngine(context).context().requireTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID);
+        PixelBuffer glintTexture = context.requireTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, GlintKit.GlintOptions.armorDefault(30), null);
 
@@ -336,7 +335,7 @@ public final class TestGlintParityVanilla {
             .build();
         PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).toBufferedImage());
 
-        PixelBuffer glintTexture = new RasterEngine(context).context().requireTexture(GlintKit.ITEM_GLINT_TEXTURE_ID);
+        PixelBuffer glintTexture = context.requireTexture(GlintKit.ITEM_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, itemGlintOptions(spriteUv.isPresent()), spriteUv.orElse(null));
 

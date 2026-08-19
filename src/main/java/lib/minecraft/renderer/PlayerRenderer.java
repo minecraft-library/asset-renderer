@@ -14,7 +14,6 @@ import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.camera.Placement;
@@ -195,8 +194,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         if (options.getSkin().getSkin().getId().isPresent()) {
-            RasterEngine engine = new RasterEngine(parent.context);
-            return engine.context().requireTexture(options.getSkin().getSkin().getId().get());
+            return parent.context.requireTexture(options.getSkin().getSkin().getId().get());
         }
 
         return parent.context.resolveTexture("minecraft:entity/steve")
@@ -254,8 +252,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         if (options.getSkin().getCape().getId().isPresent()) {
-            RasterEngine engine = new RasterEngine(parent.context);
-            return engine.context().resolveTexture(options.getSkin().getCape().getId().get());
+            return parent.context.resolveTexture(options.getSkin().getCape().getId().get());
         }
 
         return Optional.empty();
@@ -279,8 +276,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         if (options.getSkin().getElytra().getId().isPresent()) {
-            RasterEngine engine = new RasterEngine(parent.context);
-            return engine.context().resolveTexture(options.getSkin().getElytra().getId().get());
+            return parent.context.resolveTexture(options.getSkin().getElytra().getId().get());
         }
 
         return Optional.empty();
@@ -397,7 +393,6 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull PlayerOptions options
     ) {
         PixelBuffer skin = resolveSkin(parent, options);
-        RasterEngine engine = new RasterEngine(parent.context);
         int size = options.getOutput().getCanvasSize();
 
         List<BodyPart2D> parts = options.getType().layout2D(size);
@@ -428,11 +423,11 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                                 || (row.part() == HumanoidPart.HEAD && hasHatOverlay(skin)))
                                 blitPart(frame, row, row.part().crop(skin, Face.SOUTH, true));
                     });
-                stack.append(PlayerSlot2D.ARMOR, frame -> compositeArmor2D(frame, parts, options, engine));
+                stack.append(PlayerSlot2D.ARMOR, frame -> compositeArmor2D(frame, parts, options, parent.context));
                 Layers.foldInto(stack, options.getLayerDecorator(), target);
             })
                 .withMask(enchanted)
-                .finishing(GlintKit.Foil.armor(engine.context()::resolveTexture, enchanted)));
+                .finishing(GlintKit.Foil.armor(parent.context::resolveTexture, enchanted)));
     }
 
     /**
@@ -454,7 +449,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull PixelBuffer target,
         @NotNull List<BodyPart2D> parts,
         @NotNull PlayerOptions options,
-        @NotNull RasterEngine engine
+        @NotNull RendererContext context
     ) {
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : options.getArmor().equipped().entrySet()) {
             ArmorSlot slot = entry.getKey();
@@ -462,7 +457,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
             for (BodyPart2D row : parts)
                 if (ArmorForm.playerSlots(row.part()).contains(slot))
-                    ArmorKit.compositeSlot2D(target, row, slot, entry.getValue(), item, engine.context());
+                    ArmorKit.compositeSlot2D(target, row, slot, entry.getValue(), item, context);
         }
     }
 

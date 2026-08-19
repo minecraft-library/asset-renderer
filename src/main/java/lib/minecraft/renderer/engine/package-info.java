@@ -12,11 +12,11 @@
  *       translucent triangles. Two-sided geometry via {@code cullBackFaces=false}, an emissive
  *       depth-skip for nested translucent overlays, and SIMD-dispatched vertex transforms when the
  *       JDK Vector API module is loaded.</li>
- *   <li>{@link lib.minecraft.renderer.engine.RasterEngine RasterEngine} - the 2D blitter (buffer
- *       allocation, blits, blends) for every flat renderer
- *       ({@link lib.minecraft.renderer.MenuRenderer MenuRenderer},
+ *   <li>The flat renderers ({@link lib.minecraft.renderer.MenuRenderer MenuRenderer},
  *       {@link lib.minecraft.renderer.TextRenderer TextRenderer}, {@code FluidFace2D},
- *       {@code PortalFace2D}).</li>
+ *       {@code PortalFace2D}, {@code BlockFace2D}) need no engine of their own: they allocate a
+ *       {@link dev.simplified.image.pixel.PixelBuffer PixelBuffer}, resolve what they draw through
+ *       the port, and blit into it.</li>
  * </ul>
  *
  * <p><b>Composed subsystems.</b> Rather than an inheritance tower, each engine <em>composes</em>

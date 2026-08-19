@@ -8,7 +8,6 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.RasterPass;
@@ -204,7 +203,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
-            // Each tick constructs its own RasterEngine, so the timeline bakes frames in parallel. Flat 2D
+            // Each tick resolves its own texture off the shared read-only context, so the timeline bakes
+            // frames in parallel. Flat 2D
             // blit: no supersample / FXAA (ssaa = 1, antiAlias = false).
             return Timeline.schedule(options.getAnimation()).bake(
                 RasterPass.of(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,
@@ -216,8 +216,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
          * multiplies it by the fluid tint, and blits it scaled to fill the buffer.
          */
         private void rasterizeFrame(@NotNull FluidOptions options, int tick, @NotNull PixelBuffer target) {
-            RasterEngine engine = new RasterEngine(this.context);
-            PixelBuffer still = engine.context().requireTextureAtTick(stillTextureId(options.getFluid()), tick);
+            PixelBuffer still = this.context.requireTextureAtTick(stillTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
             PixelBuffer tinted = ColorMath.tint(still, tint);
             target.blitScaled(tinted, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());

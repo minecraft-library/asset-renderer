@@ -7,7 +7,6 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.RasterPass;
@@ -720,10 +719,9 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
              * @return the scene the render's frames share
              */
             static @NotNull Scene of(@NotNull RendererContext context) {
-                RasterEngine engine = new RasterEngine(context);
                 return new Scene(
-                    engine.context().requireTexture(END_SKY_TEXTURE_ID),
-                    engine.context().requireTexture(END_PORTAL_NOISE_TEXTURE_ID));
+                    context.requireTexture(END_SKY_TEXTURE_ID),
+                    context.requireTexture(END_PORTAL_NOISE_TEXTURE_ID));
             }
 
         }

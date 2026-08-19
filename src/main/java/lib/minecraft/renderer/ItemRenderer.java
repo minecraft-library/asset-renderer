@@ -21,7 +21,6 @@ import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
@@ -645,7 +644,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
-            RasterEngine engine = new RasterEngine(this.context);
 
             // One CIT walk per render, shared by the layer stack (texture overrides) and the glint tail
             // (its GlintPolicy). The empty-context vanilla path yields CitResult.NONE, so both stay
