@@ -84,13 +84,25 @@ class TooltipChromeTest {
     private static final Path TOOLTIP_DIR = Path.of(
         "cache/asset-renderer/vanilla/26.1/assets/minecraft/textures/gui/sprites/tooltip");
 
-    /** The background sprite's nine-slice scaling, as its shipped sidecar declares it */
-    private static final MCMeta.GuiScaling BG_SCALING = new MCMeta.GuiScaling(
-        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(9, 9, 9, 9), false);
+    /** The background sprite's sidecar, carrying the nine-slice scaling its shipped one declares */
+    private static final MCMeta BG_META = guiMeta(new MCMeta.GuiScaling(
+        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(9, 9, 9, 9), false));
 
-    /** The frame sprite's nine-slice scaling, which stretches its inner slices */
-    private static final MCMeta.GuiScaling FRAME_SCALING = new MCMeta.GuiScaling(
-        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(10, 10, 10, 10), true);
+    /** The frame sprite's sidecar, whose nine-slice scaling stretches its inner slices */
+    private static final MCMeta FRAME_META = guiMeta(new MCMeta.GuiScaling(
+        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(10, 10, 10, 10), true));
+
+    /**
+     * Wraps a GUI scaling in the sidecar document the context answers with, every other section absent -
+     * a sprite sidecar declaring {@code gui.scaling} alone, which is what vanilla ships.
+     *
+     * @param scaling the scaling section the sidecar declares
+     * @return the sidecar carrying it
+     */
+    private static MCMeta guiMeta(MCMeta.GuiScaling scaling) {
+        return new MCMeta(new ResourceId("minecraft", "tooltip"), Optional.empty(), Optional.empty(),
+            Optional.empty(), Optional.of(scaling), Optional.empty());
+    }
 
     /** Skips the calling test when the extraction holding the real tooltip sprites is absent. */
     private static void assumeSprites() {
@@ -325,24 +337,24 @@ class TooltipChromeTest {
     }
 
     /**
-     * A minimal renderer context that resolves only the textures + scalings + animations it was seeded
+     * A minimal renderer context that resolves only the textures + sidecars + animations it was seeded
      * with.
      *
      * @param textures the texture id to pixels bindings this context can resolve
-     * @param scalings the texture id to GUI scaling bindings this context can resolve
+     * @param metas the texture id to sidecar bindings this context can resolve
      * @param animations the texture id to animation sidecar bindings this context can resolve
      */
-    private record StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta.GuiScaling> scalings,
+    private record StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta> metas,
                                Map<String, AnimationData> animations) implements RendererContext {
-        private StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta.GuiScaling> scalings) {
-            this(textures, scalings, Map.of());
+        private StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta> metas) {
+            this(textures, metas, Map.of());
         }
         @Override public @NotNull Optional<Block> findBlock(@NotNull String id) { return Optional.empty(); }
         @Override public @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type) { return Optional.empty(); }
         @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) { return Optional.empty(); }
         @Override public @NotNull Optional<Item> findItem(@NotNull String id) { return Optional.empty(); }
         @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NonNull String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }
-        @Override public @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) { return Optional.ofNullable(this.scalings.get(textureId)); }
+        @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) { return Optional.ofNullable(this.metas.get(textureId)); }
         @Override public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
     }
 
@@ -392,12 +404,12 @@ class TooltipChromeTest {
         Map<String, PixelBuffer> tex = new HashMap<>();
         tex.put("hypixel_skyblock:gui/sprites/tooltip/rare_background", solid(0xFF112233));
         tex.put("hypixel_skyblock:gui/sprites/tooltip/rare_frame", solid(0xFF445566));
-        Map<String, MCMeta.GuiScaling> scal = new HashMap<>();
-        scal.put("hypixel_skyblock:gui/sprites/tooltip/rare_background", BG_SCALING);
-        scal.put("hypixel_skyblock:gui/sprites/tooltip/rare_frame", FRAME_SCALING);
+        Map<String, MCMeta> metas = new HashMap<>();
+        metas.put("hypixel_skyblock:gui/sprites/tooltip/rare_background", BG_META);
+        metas.put("hypixel_skyblock:gui/sprites/tooltip/rare_frame", FRAME_META);
 
         Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolveForItem(
-            new StubContext(tex, scal), itemWithStyle("hypixel_skyblock:rare"));
+            new StubContext(tex, metas), itemWithStyle("hypixel_skyblock:rare"));
 
         assertTrue(resolved.isPresent(), "styled pair resolves");
         assertThat(resolved.get().backgroundId(), is(new ResourceId("hypixel_skyblock", "gui/sprites/tooltip/rare_background")));
@@ -462,12 +474,12 @@ class TooltipChromeTest {
         Map<String, PixelBuffer> tex = new HashMap<>();
         tex.put("fixture:gui/sprites/tooltip/gold_background", vanillaBg);
         tex.put("fixture:gui/sprites/tooltip/gold_frame", goldFrame);
-        Map<String, MCMeta.GuiScaling> scal = new HashMap<>();
-        scal.put("fixture:gui/sprites/tooltip/gold_background", BG_SCALING);
-        scal.put("fixture:gui/sprites/tooltip/gold_frame", FRAME_SCALING);
+        Map<String, MCMeta> metas = new HashMap<>();
+        metas.put("fixture:gui/sprites/tooltip/gold_background", BG_META);
+        metas.put("fixture:gui/sprites/tooltip/gold_frame", FRAME_META);
 
         Optional<TooltipChrome.ChromeSprites> sprites = TooltipChrome.ChromeSprites.resolveForItem(
-            new StubContext(tex, scal), itemWithStyle("fixture:gold"));
+            new StubContext(tex, metas), itemWithStyle("fixture:gold"));
         assertTrue(sprites.isPresent(), "styled fixture sprites resolve");
 
         ConcurrentList<LineSegment> lines = Concurrent.newList();

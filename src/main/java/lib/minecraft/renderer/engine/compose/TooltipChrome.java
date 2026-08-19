@@ -267,8 +267,8 @@ public interface TooltipChrome {
                 return Optional.empty();
             }
             return Optional.of(new ChromeSprites(
-                backgroundId, flattenAnimated(context, backgroundId, background.get()), context.findGuiScaling(backgroundId.id()).orElse(STRETCH_DEFAULT),
-                frameId, flattenAnimated(context, frameId, frame.get()), context.findGuiScaling(frameId.id()).orElse(STRETCH_DEFAULT)));
+                backgroundId, flattenAnimated(context, backgroundId, background.get()), context.findMeta(backgroundId.id()).flatMap(MCMeta::gui).orElse(STRETCH_DEFAULT),
+                frameId, flattenAnimated(context, frameId, frame.get()), context.findMeta(frameId.id()).flatMap(MCMeta::gui).orElse(STRETCH_DEFAULT)));
         }
 
         /**

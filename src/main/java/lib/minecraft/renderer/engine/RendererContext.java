@@ -21,7 +21,6 @@ import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.client.ClientAcquisition;
-import lib.minecraft.renderer.engine.kit.NineSliceKit;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
@@ -55,7 +54,7 @@ public interface RendererContext {
     /**
      * Looks up the parsed {@code .mcmeta} animation sidecar for the given texture, if any. The
      * default implementation returns empty so non-animated contexts do not need to override it;
-     * animation-aware contexts should look up the texture's index row and forward its captured
+     * animation-aware contexts should look up the texture's index row and adapt its captured
      * sidecar's animation section.
      *
      * @param textureId the namespaced texture identifier
@@ -66,29 +65,14 @@ public interface RendererContext {
     }
 
     /**
-     * Looks up the parsed {@code gui.scaling} sidecar for a GUI-sprite texture, if any - the
-     * nine-slice / tile / stretch metadata {@link NineSliceKit}
-     * consumes for tooltip and menu chrome. The default returns empty so non-pack contexts do not need
-     * to override it; the production context forwards the texture's index-row sidecar's
-     * {@code gui.scaling} section.
-     *
-     * @param textureId the namespaced GUI-sprite texture id
-     * @return the scaling metadata, or empty when the texture has no {@code gui.scaling} sidecar
-     */
-    default @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
-        return Optional.empty();
-    }
-
-    /**
-     * Looks up the parsed {@code villager} sidecar section for a villager type / profession texture, if
-     * any - the hat flag the profession layer's mesh select consumes. The default returns empty so
-     * non-pack contexts do not need to override it; the production context forwards the texture's
-     * index-row sidecar's {@code villager} section.
+     * Looks up the parsed {@code .mcmeta} sidecar for a texture, if any - the whole document, whose
+     * sections the caller reads off the record. The default returns empty so non-pack contexts do not
+     * need to override it; the production context forwards the texture's index row's captured sidecar.
      *
      * @param textureId the namespaced texture id
-     * @return the villager metadata, or empty when the texture has no {@code villager} sidecar
+     * @return the parsed sidecar, or empty when the texture ships none
      */
-    default @NotNull Optional<MCMeta.Villager> findVillager(@NotNull String textureId) {
+    default @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
         return Optional.empty();
     }
 
@@ -350,13 +334,8 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
-            return delegate().findGuiScaling(textureId);
-        }
-
-        /** {@inheritDoc} */
-        @Override default @NotNull Optional<MCMeta.Villager> findVillager(@NotNull String textureId) {
-            return delegate().findVillager(textureId);
+        @Override default @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
+            return delegate().findMeta(textureId);
         }
 
         /** {@inheritDoc} */

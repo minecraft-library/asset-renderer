@@ -431,6 +431,19 @@ class PipelineRendererContextTest {
     }
 
     @Test
+    @DisplayName("findMeta hands back the whole sidecar, leaving each section to its caller")
+    void findMetaReturnsTheWholeSidecar() {
+        Optional<MCMeta> meta = context.findMeta("minecraft:block/fixture");
+        assertThat(meta.isPresent(), is(true));
+        assertThat("the section findAnimation adapts is present on the document itself",
+            meta.get().animation().isPresent(), is(true));
+        assertThat("a section the fixture declares nothing for reads empty",
+            meta.get().villager().isPresent(), is(false));
+        assertThat("a texture shipping no sidecar reads empty",
+            context.findMeta("minecraft:block/missing").isPresent(), is(false));
+    }
+
+    @Test
     @DisplayName("ResolvedTexture carries the whole mcmeta sidecar for sidecar-equipped PNGs")
     void textureAnimationFieldIsPopulated() {
         ResolvedTexture fixture = stack.textureIndex().get(ResourceId.parse("minecraft:block/fixture"));

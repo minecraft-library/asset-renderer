@@ -127,6 +127,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private static final @NotNull String BABY_ROBE_SEGMENT = "/baby/";
 
     /**
+     * The prefix qualifying an entity texture ref into the id its sidecar is read under - the metadata
+     * counterpart of the prefix {@link Textures#resolveEntityTextureAtTick} applies to a pixel read.
+     */
+    private static final @NotNull String ENTITY_TEXTURE_PREFIX = "minecraft:entity/";
+
+    /**
      * Constructs an entity renderer bound to the given context and entity definitions, deriving the
      * single {@link Textures} service every texture lookup shares.
      *
@@ -794,7 +800,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * decision. An overlay with no alternate, and every context whose texture lookup yields no sidecar,
      * keep the overlay's own mesh.
      *
-     * @param ctx the feature context supplying the appearance and the texture facade
+     * @param ctx the feature context supplying the appearance and the sidecar lookup
      * @param overlay the overlay layer to pick a mesh for
      * @param overlayRef the overlay's already-resolved texture ref
      * @param texturePrefix the entity texture prefix the profession sub-path is qualified with
@@ -808,12 +814,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         if (overlay.noHatModel().isEmpty()) return overlay.model();
         EntityAppearance appearance = ctx.options().getAppearance();
-        MCMeta.Villager.Hat typeHat = typeHatTextureRef(overlay, appearance, texturePrefix, overlayRef)
-            .map(ctx.textures()::findVillagerHat)
-            .orElse(MCMeta.Villager.Hat.NONE);
-        MCMeta.Villager.Hat professionHat = professionTextureRef(appearance, texturePrefix)
-            .map(ctx.textures()::findVillagerHat)
-            .orElse(MCMeta.Villager.Hat.NONE);
+        MCMeta.Villager.Hat typeHat = villagerHat(ctx.context(),
+            typeHatTextureRef(overlay, appearance, texturePrefix, overlayRef));
+        MCMeta.Villager.Hat professionHat = villagerHat(ctx.context(),
+            professionTextureRef(appearance, texturePrefix));
         return useFullModel(professionHat, typeHat) ? overlay.model() : overlay.noHatModel().get();
     }
 
@@ -854,6 +858,25 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     static boolean useFullModel(@NotNull MCMeta.Villager.Hat professionHat, @NotNull MCMeta.Villager.Hat typeHat) {
         return professionHat == MCMeta.Villager.Hat.NONE || (professionHat == MCMeta.Villager.Hat.PARTIAL && typeHat != MCMeta.Villager.Hat.FULL);
+    }
+
+    /**
+     * The villager hat flag an entity texture ref declares: the {@code villager} section of the sidecar
+     * shipped beside {@code minecraft:entity/<ref>}, so a resource pack editing that sidecar moves the
+     * mesh select. An axis that selected no ref, a texture shipping no sidecar, and a sidecar carrying
+     * no {@code villager} section all read as {@link MCMeta.Villager.Hat#NONE} - vanilla's own default
+     * for an absent sidecar. Package-private so the qualification and that default can be pinned.
+     *
+     * @param context the renderer context the sidecar is read through
+     * @param ref the entity texture sub-path (no {@code minecraft:entity/} prefix, no {@code .png}
+     *     suffix), or empty when the axis selected no texture
+     * @return the declared hat flag, or {@link MCMeta.Villager.Hat#NONE}
+     */
+    static @NotNull MCMeta.Villager.Hat villagerHat(@NotNull RendererContext context, @NotNull Optional<String> ref) {
+        return ref.flatMap(sub -> context.findMeta(ENTITY_TEXTURE_PREFIX + sub))
+            .flatMap(MCMeta::villager)
+            .map(MCMeta.Villager::hat)
+            .orElse(MCMeta.Villager.Hat.NONE);
     }
 
     /**

@@ -14,7 +14,6 @@ import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTexture;
-import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.exception.RenderException;
@@ -141,24 +140,6 @@ public class Textures {
      */
     public @NotNull Optional<PixelBuffer> resolveEntityTextureAtTick(@NotNull String ref, int tick) {
         return tryResolveTextureAtTick("minecraft:entity/" + ref, tick);
-    }
-
-    /**
-     * The villager hat flag of an entity texture ref, resolved against the vanilla pack at
-     * {@code minecraft:entity/<ref>} - the {@code villager} sidecar section of the selected type or
-     * profession texture. Centralises the {@code minecraft:entity/} prefix idiom exactly as
-     * {@link #resolveEntityTextureAtTick} does. A texture with no sidecar, or a sidecar with no
-     * {@code villager} section, reads as {@link MCMeta.Villager.Hat#NONE} - vanilla's own default for an
-     * absent sidecar.
-     *
-     * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
-     *     {@code .png} suffix)
-     * @return the declared hat flag, or {@link MCMeta.Villager.Hat#NONE}
-     */
-    public @NotNull MCMeta.Villager.Hat findVillagerHat(@NotNull String ref) {
-        return this.context.findVillager("minecraft:entity/" + ref)
-            .map(MCMeta.Villager::hat)
-            .orElse(MCMeta.Villager.Hat.NONE);
     }
 
     /**

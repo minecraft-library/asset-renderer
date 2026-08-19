@@ -233,40 +233,25 @@ public final class PipelineRendererContext implements RendererContext {
      * {@inheritDoc}
      * <p>
      * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
-     * captured {@code .mcmeta} animation section is forwarded as an {@link AnimationData}.
+     * captured sidecar is forwarded.
+     */
+    @Override
+    public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
+        return this.stack.indexed(ResourceId.parse(textureId))
+            .flatMap(ResolvedTexture::meta);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * The sidecar's {@code animation} section, adapted into the {@link AnimationData} the renderer
+     * consumes.
      */
     @Override
     public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
-        return this.stack.indexed(ResourceId.parse(textureId))
-            .flatMap(ResolvedTexture::meta)
+        return this.findMeta(textureId)
             .flatMap(MCMeta::animation)
             .map(PipelineRendererContext::toAnimationData);
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
-     * captured {@code .mcmeta} {@code gui.scaling} section is forwarded.
-     */
-    @Override
-    public @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
-        return this.stack.indexed(ResourceId.parse(textureId))
-            .flatMap(ResolvedTexture::meta)
-            .flatMap(MCMeta::gui);
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
-     * captured {@code .mcmeta} {@code villager} section is forwarded.
-     */
-    @Override
-    public @NotNull Optional<MCMeta.Villager> findVillager(@NotNull String textureId) {
-        return this.stack.indexed(ResourceId.parse(textureId))
-            .flatMap(ResolvedTexture::meta)
-            .flatMap(MCMeta::villager);
     }
 
     /**
