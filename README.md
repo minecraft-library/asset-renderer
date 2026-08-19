@@ -26,7 +26,7 @@ Headless rendering library for Minecraft blocks, items, entities, fluids, and po
 
 - **Pluggable renderers** - `BlockRenderer`, `ItemRenderer`, `EntityRenderer`, `PlayerRenderer`, `FluidRenderer`, `PortalRenderer`, `TextRenderer`, plus composite `AtlasRenderer`, `GridRenderer`, `LayoutRenderer`, and `MenuRenderer`
 - **Minecraft 26.1 and later** - Pulls client JARs via the Piston API and loads overlay resource packs (CIT, CTM, banner patterns, custom item definitions) on top of vanilla (the asset / pack-format parsing targets the 26.1+ client-jar layout)
-- **Isometric or 2D output** - `ModelEngine` with a `Camera` pose for 30/45° block previews, `RasterEngine` for flat tile icons, both composing the same texture/light subsystems
+- **Isometric or 2D output** - one `ModelEngine`, driven by a `Projection` pairing a camera pose with a `Lens` (orthographic, perspective or oblique); `VANILLA_ISO` reproduces vanilla's 30/45° `display.gui` pose, and the block and item renderers each offer a flat single-face 2D type beside it
 - **Static PNG or animated frames** - Returns `StaticImageData` or `AnimatedImageData` from [simplified-dev/image](https://github.com/simplified-dev/image) - animated textures, portals, and fluids drive multi-frame output transparently
 - **Vector API SIMD** - JDK 21 incubator `FloatVector` backs `ModelEngine` matrix math and `PortalRenderer` layer transforms
 - **Stateless renderers** - All input flows through an immutable options record; renderers share an ambient `RendererContext` and can be cached for the lifetime of a pack stack
@@ -78,23 +78,23 @@ cd asset-renderer
 
 ### Usage
 
-Run the pipeline once to produce a `Pipeline.Result`, wrap it in a `PipelineRendererContext`, then instantiate any `Renderer<O>` against that context:
+Acquire the client assets once, wrap them in a `PipelineRendererContext`, then instantiate any `Renderer<O>` against that context:
 
 ```java
-// 1. Configure and run the pipeline. Pipeline.run is static; it downloads the client JAR on
-//    first call and caches it under PipelineOptions.cacheRoot for subsequent runs. All Mojang
-//    network access flows through a shared MojangContract proxy on Pipeline (see
-//    api.simplified.mojang for the upstream contract).
-PipelineOptions pipelineOptions = PipelineOptions.builder()
+// 1. Configure and acquire the client assets. ClientAcquisition.acquire is static; it downloads
+//    the client JAR on first call and caches it under ClientOptions.cacheRoot for subsequent
+//    runs. All Mojang network access flows through a shared MojangContract proxy on
+//    ClientAcquisition.mojang() (see api.simplified.mojang for the upstream contract).
+ClientOptions clientOptions = ClientOptions.builder()
     .version("26.1")
     .texturePacks(Concurrent.newList(myResourcePackZip))
     .build();
 
-Pipeline.Result result = Pipeline.run(pipelineOptions);
+ClientAssets assets = ClientAcquisition.acquire(clientOptions);
 
-// 2. Wrap the result in a context. Eagerly materialises every block/item entity;
+// 2. Wrap the assets in a context. Eagerly materialises every block/item entity;
 //    textures stream from disk on first lookup and are then cached.
-PipelineRendererContext context = PipelineRendererContext.of(result);
+PipelineRendererContext context = PipelineRendererContext.of(assets);
 
 // 3. Render. Renderers are stateless - cache them for the lifetime of the context. Output size,
 //    projection, and SSAA / FXAA live on the shared OutputOptions.
@@ -122,7 +122,7 @@ ImageIO.write(entity.toBufferedImage(), "PNG", new File("zombie.png"));
 > `ImageData` is either `StaticImageData` (single frame) or `AnimatedImageData` (multiple frames with per-frame delay). Items (enchant glint / animated sprites), fluids, and portals return the animated variant; see the [Renderers](#renderers) table for which produce animation. Branch on the concrete type or call `image.frames()` to iterate.
 
 > [!IMPORTANT]
-> `PipelineOptions` supports Minecraft **`26.1` (the default) and later only** - the asset extraction and pack-format parsing target the 26.1+ client-jar layout, so earlier versions are not supported. The JAR is cached under `cacheRoot` (default `./cache/asset-renderer`); pass `forceDownload(true)` on the builder to re-fetch after a version bump.
+> `ClientOptions` supports Minecraft **`26.1` (the default) and later only** - the asset extraction and pack-format parsing target the 26.1+ client-jar layout, so earlier versions are not supported. The JAR is cached under `cacheRoot` (default `./cache/asset-renderer`); pass `forceDownload(true)` on the builder to re-fetch after a version bump.
 
 ## Renderers
 
@@ -147,8 +147,12 @@ ImageIO.write(entity.toBufferedImage(), "PNG", new File("zombie.png"));
 ```bash
 ./gradlew build       # compile, test, assemble jar
 ./gradlew test        # fast unit tests
+./gradlew check       # test plus paritySelfTest, harnessClasses and toolingTest
 ./gradlew slowTest    # integration + parallelism tests (hit network and cache)
 ```
+
+> [!TIP]
+> `check` is what catches a break in the three builds `test` cannot see: the parity toolkit's own Python suite, the harness compiling through its own wrapper, and the tooling build's suite through its. All three are seconds; `test` passes straight over a sibling build that does not compile.
 
 > [!TIP]
 > `slowTest` is tagged `@Tag("slow")` and is excluded from the default `test` task. It downloads Minecraft client JARs, decompresses asset archives, and runs parity tests against extracted classes - expect it to take several minutes the first time.
@@ -168,6 +172,9 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ./gradlew entityProjections -PentityId=minecraft:zombie -PrenderSize=256   # one entity under every projection
 ./gradlew loreTooltip
 ./gradlew stackCountBadge   -Plabel=experiment1                            # or -Pdiff=A,B to pixel-diff two labels
+./gradlew menuRender                                                       # every menu subject, shipped and composed
+./gradlew blockFlipbook     -PrenderSize=256                               # animated-texture blocks as GIFs
+./gradlew itemDayCycle      -PrenderSize=256                               # a whole in-game day for the clock / compass
 ./gradlew fluidRenderer
 ./gradlew portalRenderer
 ./gradlew redstoneTints     -PrenderSize=64
@@ -176,20 +183,29 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 > [!TIP]
 > `entityRender3D` selects per-entity `AppearanceOptions` axes through `-Dasset.entity.*` system properties, e.g. `-Dasset.entity.state=tame`, `-Dasset.entity.age=baby`, `-Dasset.entity.collar=magenta`, `-Dasset.entity.wool=lime`, `-Dasset.entity.base_color=orange`, `-Dasset.entity.pattern=clayfish`, `-Dasset.entity.pattern_color=white`, `-Dasset.entity.sheared=true`, `-Dasset.entity.toggles=horn`, `-Dasset.entity.equipment=body:diamond`. All `-Dasset.*` flags auto-forward to the fork.
 
-**Parity** - diff the pipeline against pixel-perfect ground truth from the [vanilla-reference-harness] in `harness/` (a headless Fabric mod that drives the actual MC client to render every block, item, and living entity at a locked iso pose). Reference PNGs live under `cache/asset-renderer/vanilla/<mc-version>/references/{blocks,items,entities,glint}/`; each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
+**Parity** - diff the pipeline against pixel-perfect ground truth from the [vanilla-reference-harness] in `harness/` (a headless Fabric mod that drives the actual MC client to render every block, item, and living entity at a locked iso pose). Reference PNGs live under `cache/asset-renderer/vanilla/<mc-version>/references/`, one sub-tree per sweep (`blocks`, `items`, `entities`, `glint`, `players`, `armor`, `menus`); each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
 
 ```bash
 ./gradlew entityParityVanilla -PentityId=minecraft:zombie          # omit -P for the full sweep
 ./gradlew blockParityVanilla  -PblockId=minecraft:tnt
 ./gradlew itemParityVanilla   -PitemId=minecraft:diamond_sword
 ./gradlew glintParityVanilla  -PitemId=minecraft:nether_star       # animated enchant-glint parity
+./gradlew playerParityVanilla                                      # FULL + SKULL scopes
+./gradlew armorParityVanilla                                       # worn-armor shells
+./gradlew menuParityVanilla   -PmenuId=chest_3row                  # shipped container screens
 ```
+
+> [!NOTE]
+> The player and armour sweeps rescale both sides before diffing, so their delta is a LOOK gauge rather than a byte gate - `vanilla.png` / `java.png` are what the two renderers produced, and `aligned_*.png` is the resample the delta comes from.
 
 Re-render the ground truth (only on MC version bumps or harness fixes; `tooling`-group tasks):
 
 ```bash
-./gradlew renderVanillaReferences        # blocks + items + entities
+./gradlew renderVanillaAllReferences     # every sweep in one client boot - the only task that leaves no sub-tree stale
+./gradlew renderVanillaReferences        # blocks + items + entities + player
 ./gradlew renderVanillaGlintReferences   # animated glint strips (then run glintParityVanilla)
+./gradlew renderVanillaArmorReferences   # worn-armor shells (then run armorParityVanilla)
+./gradlew renderVanillaMenuReferences    # container screens (then run menuParityVanilla)
 ```
 
 See `CLAUDE.md` for the parity / harness session-refresh checklist and per-renderer override gotchas.
@@ -225,34 +241,40 @@ asset-renderer/
 │   │   ├── asset/           # Immutable domain: Block, Item, Entity, ResourceId, DyeColor, ...
 │   │   │   ├── appearance/  # Entity axes: Age, Size, TintAxis, Villager, AppearanceGate, ...
 │   │   │   ├── equipment/   # EquipmentModel, ArmorSlot, ArmorMaterial, ArmorTrim, Shell, ...
-│   │   │   └── model/       # ModelData, EntityModelData, ModelElement, ModelFace, ...
-│   │   ├── engine/          # ModelEngine + RasterEngine
-│   │   │   ├── camera/      # Camera, Projection, Placement, FitRequest, ...
-│   │   │   ├── compose/     # Finalize, FrameCompositor, Layer/LayerStack, GlintStage
-│   │   │   ├── kit/         # EntityGeometryKit, BannerKit, GlintKit, ItemStackKit, ...
-│   │   │   ├── light/       # Shading
-│   │   │   ├── raster/      # rasterizer (top-left fill rule, snap, depth)
-│   │   │   └── texture/     # texture / atlas resolution
-│   │   ├── exception/       # PipelineException, RendererException, ...
-│   │   ├── face/            # BlockFace, EntityFace, SixFaces, SkinFace
+│   │   │   ├── model/       # ModelData, EntityModelData, ModelElement, ModelFace, ...
+│   │   │   └── pack/        # PackStack's components: ResourcePack, MCMeta, PackContainer, ...
+│   │   │       ├── cats/    # Catharsis pack.cats container decoder
+│   │   │       ├── item/    # items/*.json dispatch trees + ItemModelContext
+│   │   │       └── rule/    # OptiFine rule DTOs: CIT/CTM/RuleSet, NBT conditionals, color.properties
+│   │   ├── engine/          # ModelEngine + RendererContext
+│   │   │   ├── camera/      # Camera, Projection, Placement, Lens, FitRequest, ...
+│   │   │   ├── compose/     # FrameCompositor, RasterPass, Timeline, MenuLayout, TooltipChrome, ...
+│   │   │   │   └── layer/   # Layer/LayerStack/LayerSlot and the three layer kinds
+│   │   │   ├── kit/         # EntityGeometryKit, BannerKit, GlintKit, ArmorKit, ...
+│   │   │   ├── light/       # Lighting, Shading
+│   │   │   ├── raster/      # raster contract: VisibleTriangle, SurfaceTraits, DepthMath, ...
+│   │   │   └── texture/     # Biome tint, paletted permutation, texture synthesis
+│   │   ├── exception/       # PipelineException, RenderException, RendererException
+│   │   ├── face/            # Face, CornerPhase, Turn, Unwrap, HumanoidPart, FaceTextures
 │   │   ├── option/          # BlockOptions, EntityOptions, ..., OutputOptions, AppearanceOptions
 │   │   │   └── slot/        # per-renderer LayerSlot enums
-│   │   ├── pipeline/        # Pipeline (client-jar download/extract via simplified-api/mojang), pack loaders
-│   │   │   ├── loader/      # BlockStateLoader, EntityModelLoader, EntityFamilyFlattener, ...
-│   │   │   ├── pack/        # PackStack, ResourcePack, PackContainer, IndexedTexture, PackCapability, ...
-│   │   │   │   └── rule/    # OptiFine rule layer: CIT/CTM/RuleSet, NBT conditionals, color.properties
-│   │   │   ├── resolver/    # model / texture resolvers
+│   │   ├── pipeline/        # PipelineRendererContext - builds the asset layer from ClientAssets
+│   │   │   ├── index/       # Block/Entity/Item index builders
+│   │   │   ├── loader/      # BlockModelLoader, EntityModelLoader, BlockEntityAssembler, ...
+│   │   │   ├── pack/        # the pack-reading loaders: BlockStateLoader, PackAcquisition, ...
+│   │   │   │   ├── item/    # item-tree loader + Gson deserializers
+│   │   │   │   └── rule/    # OptiFine rule parsers: CitParser, CtmParser, RuleScanner
 │   │   │   └── util/        # SPI + shared pipeline utils
-│   │   ├── tensor/          # FloatVector-backed Matrix4fOps, Vector3fOps
-│   │   └── tooling/         # Tooling* Gradle entry points + ASM scanners
-│   │       ├── blockentity/ # block-entity / block-model ASM emitters
-│   │       ├── entity/      # entity model / geometry / family ASM emitters
-│   │       ├── parser/      # GeometryParser
-│   │       └── util/        # ClassKit, ClassNodeCache, VanillaSourceClasses, ...
+│   │   └── tensor/          # FloatVector-backed Matrix4f, Vector3f, Box, EulerRotation, ...
 │   ├── main/resources/lib/minecraft/renderer/    # Bundled JSON snapshots
 │   ├── test/java/           # JUnit 5 tests (fast + @Tag("slow")) + visual/ and example/ main() entry points
 │   └── jmh/java/lib/minecraft/renderer/bench/    # JMH benchmarks
-├── build.gradle.kts  settings.gradle.kts  gradle/libs.versions.toml
+├── client/          # included build: client-jar acquisition (ClientAcquisition, ClientOptions, ClientAssets)
+├── tooling/         # included build: the eight generator flows + ASM scanners
+├── parity/          # included build: the @Parity annotations + the parity toolkit (Python)
+├── harness/         # separate build: the vanilla-reference-harness Fabric mod
+├── build.gradle.kts  settings.gradle.kts
+├── gradle/          # libs.versions.toml + tooling/visual/parity build scripts
 └── LICENSE.md  COPYRIGHT.md  CONTRIBUTING.md  CLAUDE.md
 ```
 
@@ -272,7 +294,7 @@ The library ships pre-generated JSON snapshots under `src/main/resources/lib/min
 | `potion_colors.json` | Vanilla `MobEffects` colour values | `potionColors` | ASM scan of `MobEffects` |
 
 > [!NOTE]
-> These tasks fetch the client JAR automatically on first run through `Pipeline`, then reuse `<cacheRoot>/vanilla/<version>/client.jar`. Every table above is guarded by `manifest.tooling-tables` in the parity store, which takes that whole directory as its source and holds a digest per shipped table beside a digest per flow log. Re-run the flow, then `./gradlew parityCapture -Partifacts=manifest.tooling-tables` and `./gradlew parityCompare` to see what moved; `./gradlew parityPromote` is what makes a moved value the new baseline, and it takes a reason.
+> These tasks fetch the client JAR automatically on first run through `ClientAcquisition`, then reuse `<cacheRoot>/vanilla/<version>/client.jar`. Every table above is guarded by `manifest.tooling-tables` in the parity store, which takes that whole directory as its source and holds a digest per shipped table beside a digest per flow log. Re-run the flow, then `./gradlew parityCapture -Partifacts=manifest.tooling-tables` and `./gradlew parityCompare` to see what moved; `./gradlew parityPromote` is what makes a moved value the new baseline, and it takes a reason.
 
 The single `generateAtlas` task dumps every block + item into `build/atlas/atlas.png` (+ `atlas.json`). It sits in the `build` group rather than `tooling` and runs from the test sourceset as a worked example of driving `AtlasRenderer`: `-Pdiagnose` also scans the atlas for blank and sparse tiles into `missing.json`, `-PsourceFilter=<source>` also writes a mini-atlas of that one source, and `-PskipRender` reads the atlas already on disk instead of re-rendering it. A build diagnostic, not a bundled resource.
 
@@ -283,7 +305,7 @@ Created during execution and excluded from version control:
 | Directory | Contents |
 |-----------|----------|
 | `cache/` | Client JARs, extracted assets, test-render output |
-| `texturepacks/` | User-supplied overlay packs discovered by `TexturePackLoader` |
+| `texturepacks/` | Where overlay packs are parked; nothing scans it - a pack reaches a render by being named in `ClientOptions.texturePacks` |
 | `build/` | Gradle outputs and `generateAtlas` task products |
 
 [vanilla-reference-harness]: harness
