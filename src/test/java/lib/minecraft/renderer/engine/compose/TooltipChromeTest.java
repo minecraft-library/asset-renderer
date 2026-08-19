@@ -350,7 +350,7 @@ class TooltipChromeTest {
             this(textures, metas, Map.of());
         }
         @Override public @NotNull Optional<Block> findBlock(@NotNull String id) { return Optional.empty(); }
-        @Override public @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type) { return Optional.empty(); }
+        @Override public @NotNull Optional<ColorMap> findColorMap(Block.@NotNull TintTarget target) { return Optional.empty(); }
         @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) { return Optional.empty(); }
         @Override public @NotNull Optional<Item> findItem(@NotNull String id) { return Optional.empty(); }
         @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NonNull String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }

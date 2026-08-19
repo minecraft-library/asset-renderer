@@ -23,8 +23,8 @@ import java.util.Locale;
  * node. Not an ASM walk - it iterates {@link ColorMapPolicies}, takes the
  * {@link Navigation.AtResource} coordinate each one answers with, and reads the PNG there via
  * {@link ClassNodeCache#readBytes} rather than extracting the whole pack to disk. A row's
- * {@code type} is the entry path's file stem uppercased, the spelling {@code ColorMapLoader}
- * resolves a colormap's own resource id under.
+ * {@code type} is the entry path's file stem uppercased, the spelling the renderer names the tint
+ * target this map serves by.
  *
  * <p><b>Every declared colormap is required</b>: a missing PNG is recorded at
  * {@link Diagnostics.Severity#ERROR} and the walk then aborts, so one run names every colormap
@@ -72,7 +72,7 @@ public final class ColorMapWalk {
         diagnostics.info("%d of %d colormaps read", read, declared);
     }
 
-    /** Derives the type name the renderer indexes a map under - the entry path's file stem, uppercased. */
+    /** Derives the tint-target name the renderer indexes a map under - the entry path's file stem, uppercased. */
     static @NotNull String typeOf(@NotNull String entryPath) {
         String fileName = entryPath.substring(entryPath.lastIndexOf('/') + 1);
         return fileName.substring(0, fileName.lastIndexOf('.')).toUpperCase(Locale.ROOT);

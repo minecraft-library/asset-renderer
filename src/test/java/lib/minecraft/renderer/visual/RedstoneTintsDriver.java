@@ -6,7 +6,6 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.jetbrains.annotations.NotNull;
@@ -31,7 +30,7 @@ import java.nio.file.Path;
  * override on bottom) into {@code cache/visual/redstone-tints/swatch.png}.
  * <p>
  * If the wiring is broken, the override row equals the vanilla row and the visual mismatch is
- * immediate. The companion {@code TexturesTest} pins the same path with strict pixel assertions in
+ * immediate. The companion {@code RedstoneTintTest} pins the same path with strict pixel assertions in
  * the regular test suite.
  * <p>
  * Usage: {@code ./gradlew redstoneTints [-PrenderSize=64]}
@@ -177,11 +176,11 @@ public final class RedstoneTintsDriver {
                 g.setColor(Color.LIGHT_GRAY);
                 g.drawString(label, labelX, powerY + (labelStrip + lm.getAscent()) / 2 - 2);
 
-                int vanillaArgb = new Textures(vanilla).sampleRedstoneTint(power);
+                int vanillaArgb = vanilla.sampleRedstoneTint(power);
                 g.setColor(new Color(vanillaArgb, true));
                 g.fillRect(power * size, vanillaCellsY, size, size);
 
-                int overrideArgb = new Textures(withOverrides).sampleRedstoneTint(power);
+                int overrideArgb = withOverrides.sampleRedstoneTint(power);
                 g.setColor(new Color(overrideArgb, true));
                 g.fillRect(power * size, overrideY, size, size);
             }
@@ -197,7 +196,7 @@ public final class RedstoneTintsDriver {
     }
 
     /**
-     * The same HSV gradient {@code TexturesTest} builds its own synthetic override from, so the
+     * The same HSV gradient {@code RedstoneTintTest} builds its own synthetic override from, so the
      * visual and the unit test agree on the expected override values.
      *
      * @param power the redstone power level, 0 through 15

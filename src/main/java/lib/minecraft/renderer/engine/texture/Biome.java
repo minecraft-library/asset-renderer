@@ -4,6 +4,8 @@ import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.asset.Block;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -138,6 +140,53 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
     @NotNull GrassColorModifier grassColorModifier();
 
     /**
+     * This biome's hardcoded ARGB override for the given tint target, empty when it declares none or
+     * when the target carries no biome channel.
+     *
+     * @param target the tint target being resolved
+     * @return the colour override if any
+     */
+    default @NotNull Optional<Integer> colorOverride(Block.@NotNull TintTarget target) {
+        return switch (target) {
+            case GRASS -> grassColorOverride();
+            case FOLIAGE -> foliageColorOverride();
+            case DRY_FOLIAGE -> dryFoliageColorOverride();
+            case WATER -> waterColorOverride();
+            case NONE, CONSTANT -> Optional.empty();
+        };
+    }
+
+    /**
+     * This biome's identifier with its namespace stripped - the spelling a pack addresses it by in
+     * {@code color.properties}. An id carrying no namespace is used whole, which is what
+     * {@link #INVENTORY_DEFAULT} relies on.
+     *
+     * @return the local name
+     */
+    default @NotNull String localName() {
+        String id = id();
+        int colon = id.indexOf(':');
+        return colon >= 0 ? id.substring(colon + 1) : id;
+    }
+
+    /**
+     * Post-processes a resolved colour with this biome's {@link GrassColorModifier}, or returns it
+     * untouched when the target is not {@link Block.TintTarget#grassModified() grass-modified}.
+     * <p>
+     * Vanilla only runs the modifier on the grass tint - foliage, dry foliage and water pass through.
+     * See {@code Biome.getGrassColor} vs {@code Biome.getFoliageColor} in the MC 26.1 client source:
+     * only the former invokes {@code grassColorModifier.modifyColor}. The gate is on the target and
+     * never on the modifier, so a swamp or dark-forest biome leaves its water colour alone.
+     *
+     * @param target the tint target the colour was resolved for
+     * @param argb the resolved colour
+     * @return the post-processed colour
+     */
+    default int applyModifier(Block.@NotNull TintTarget target, int argb) {
+        return target.grassModified() ? grassColorModifier().modifyColor(argb) : argb;
+    }
+
+    /**
      * Post-sample grass colour modifier applied to the output of a colormap lookup.
      */
     enum GrassColorModifier {
@@ -157,7 +206,63 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
          * Perlin-noise world lookup to sometimes return {@link Biome#SWAMP_GRASS_COLD}; the cold
          * variant is not reachable from pure biome metadata.
          */
-        SWAMP
+        SWAMP;
+
+        /**
+         * Low-bit mask applied per channel to the base ARGB before the dark-forest offset is added.
+         * Matches vanilla {@code BiomeSpecialEffects$GrassColorModifier$2.modifyColor} which clears
+         * the LSB of each channel before blending.
+         */
+        private static final int DARK_FOREST_LOW_BIT_MASK = 0xFE;
+
+        /**
+         * Red-channel add vanilla applies to the base grass colour for dark-forest biomes.
+         */
+        private static final int DARK_FOREST_RED_OFFSET = 0x28;
+
+        /**
+         * Green-channel add for the dark-forest grass modifier.
+         */
+        private static final int DARK_FOREST_GREEN_OFFSET = 0x34;
+
+        /**
+         * Blue-channel add for the dark-forest grass modifier.
+         */
+        private static final int DARK_FOREST_BLUE_OFFSET = 0x0A;
+
+        /**
+         * Applies this modifier to a resolved grass colour.
+         *
+         * @param argb the base grass colour
+         * @return the modified colour
+         */
+        public int modifyColor(int argb) {
+            return switch (this) {
+                case NONE -> argb;
+                case DARK_FOREST -> {
+                    // Verified against MC 26.1 deobfuscated client source:
+                    // net.minecraft.world.level.biome.BiomeSpecialEffects$GrassColorModifier$2.modifyColor
+                    // which computes ARGB.opaque(((baseColor & 0xFEFEFE) + 0x28340A) >> 1).
+                    // Applied channel-by-channel: the low bit is masked off, the dark green offset
+                    // (0x28/0x34/0x0A per channel) is added, and the sum is halved. Vanilla forces the
+                    // result to be opaque, which we mirror with a hardcoded 0xFF alpha.
+                    int r = (((argb >>> 16) & DARK_FOREST_LOW_BIT_MASK) + DARK_FOREST_RED_OFFSET) >> 1;
+                    int g = (((argb >>> 8) & DARK_FOREST_LOW_BIT_MASK) + DARK_FOREST_GREEN_OFFSET) >> 1;
+                    int b = ((argb & DARK_FOREST_LOW_BIT_MASK) + DARK_FOREST_BLUE_OFFSET) >> 1;
+                    yield ColorMath.pack(0xFF, r & 0xFF, g & 0xFF, b & 0xFF);
+                }
+                case SWAMP ->
+                    // Verified against MC 26.1 deobfuscated client source:
+                    // net.minecraft.world.level.biome.BiomeSpecialEffects$GrassColorModifier$3.modifyColor
+                    // samples Biome.BIOME_INFO_NOISE at (temperature * 0.0225, downfall * 0.0225) and
+                    // returns 0xFF4C763C when the noise is below -0.1, else 0xFF6A7039. The Perlin-noise
+                    // cold variant depends on world coordinates that are absent in icon rendering, so we
+                    // always return the warm swamp colour. Callers that want the cold variant can
+                    // override via {@link Biome.Builder#grassColorOverride(int)} with
+                    // {@link Biome#SWAMP_GRASS_COLD}.
+                    SWAMP_GRASS_WARM;
+            };
+        }
 
     }
 

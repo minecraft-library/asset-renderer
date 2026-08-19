@@ -34,7 +34,12 @@
  * <p>The OptiFine CIT / CTM rule types live in
  * {@link lib.minecraft.renderer.asset.pack.rule asset.pack.rule} - a sub-package of {@code asset},
  * because they are pack-parsed data the renderer consumes; the pipeline-side parsers that build them
- * stay in {@link lib.minecraft.renderer.pipeline.pack.rule pipeline.pack.rule}.
+ * stay in {@link lib.minecraft.renderer.pipeline.pack.rule pipeline.pack.rule}. The one piece of
+ * that grammar quartered here is the {@code color.properties} key prefix on
+ * {@link lib.minecraft.renderer.asset.Block.TintTarget Block.TintTarget}, which sits alongside the
+ * colormap and fallback colour that target resolves through: splitting the four prefixes onto
+ * {@code ColorProperties} would put one target's answers in two files, which is the arrangement the
+ * table exists to end.
  *
  * <p><b>Restriction.</b> Caller-supplied render-input value types - a dye palette, a rotation, an
  * appearance selection - are NOT pipeline-built and do not belong here even when they are

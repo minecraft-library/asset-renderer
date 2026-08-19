@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.pack;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -15,7 +16,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
-import java.util.Locale;
 
 /**
  * A loader that resolves the three biome colormaps ({@code textures/colormap/{grass,foliage,dry_foliage}.png})
@@ -34,19 +34,21 @@ import java.util.Locale;
 public class ColorMapLoader {
 
     /**
-     * Resolves every colormap the stack supplies, indexed by its {@link ColorMap.Type}. A type whose
-     * PNG no pack supplies is skipped (graceful).
+     * Resolves every colormap the stack supplies, indexed by the tint target it serves. Only a
+     * target naming a {@link Block.TintTarget#colorMapName() colormap} is probed, and one whose PNG
+     * no pack supplies is skipped (graceful).
      *
      * @param stack the resolved pack stack carrying the texture index
-     * @return the colormap entities keyed by type, wrapped unmodifiable so downstream reads bypass the
-     *     read lock
+     * @return the colormap entities keyed by target, wrapped unmodifiable so downstream reads bypass
+     *     the read lock
      */
-    public static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> load(@NotNull PackStack stack) {
-        HashMap<ColorMap.Type, ColorMap> colorMaps = new HashMap<>();
-        for (ColorMap.Type type : ColorMap.Type.values()) {
-            ResourceId id = new ResourceId("minecraft", "colormap/" + type.name().toLowerCase(Locale.ROOT));
+    public static @NotNull ConcurrentMap<Block.TintTarget, ColorMap> load(@NotNull PackStack stack) {
+        HashMap<Block.TintTarget, ColorMap> colorMaps = new HashMap<>();
+        for (Block.TintTarget target : Block.TintTarget.values()) {
+            if (target.colorMapName().isEmpty()) continue;
+            ResourceId id = new ResourceId("minecraft", "colormap/" + target.colorMapName().get());
             stack.resolve(id).ifPresent(resolved ->
-                colorMaps.put(type, new ColorMap(resolved.id().id(), resolved.pack().value(), type, decode(resolved.bytes()))));
+                colorMaps.put(target, new ColorMap(resolved.id().id(), resolved.pack().value(), target, decode(resolved.bytes()))));
         }
         return Concurrent.adoptMap(colorMaps).toUnmodifiable();
     }

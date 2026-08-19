@@ -137,7 +137,7 @@ class PipelineRendererContextTest {
             Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
         stack = PackStack.of(Concurrent.newList(vanillaPack))
             .withTextureIndex(TextureIndexer.index(PackStack.of(Concurrent.newList(vanillaPack))));
-        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
+        ConcurrentMap<Block.TintTarget, ColorMap> colorMaps = ColorMapLoader.load(stack);
         blockTints = Concurrent.newMap();
         blockTints.put("minecraft:grass_block", new Block.Tint(Block.TintTarget.GRASS, Optional.empty()));
         blockTints.put("minecraft:oak_leaves", new Block.Tint(Block.TintTarget.FOLIAGE, Optional.empty()));
@@ -338,9 +338,9 @@ class PipelineRendererContextTest {
     @Test
     @DisplayName("findColorMap returns the GRASS map loaded from the bundled resource")
     void findColorMapReturnsLoadedGrass() {
-        Optional<ColorMap> grass = context.findColorMap(ColorMap.Type.GRASS);
+        Optional<ColorMap> grass = context.findColorMap(Block.TintTarget.GRASS);
         assertThat(grass.isPresent(), is(true));
-        assertThat(grass.get().type(), equalTo(ColorMap.Type.GRASS));
+        assertThat(grass.get().type(), equalTo(Block.TintTarget.GRASS));
         assertThat(grass.get().packId(), equalTo("vanilla"));
         // 256x256 ARGB pixels = 262144 bytes from the bundled colormap resource.
         assertThat(grass.get().pixels().length, equalTo(256 * 256 * 4));
@@ -349,8 +349,8 @@ class PipelineRendererContextTest {
     @Test
     @DisplayName("findColorMap returns all three types from the bundled resource")
     void findColorMapReturnsAllTypes() {
-        assertThat(context.findColorMap(ColorMap.Type.FOLIAGE).isPresent(), is(true));
-        assertThat(context.findColorMap(ColorMap.Type.DRY_FOLIAGE).isPresent(), is(true));
+        assertThat(context.findColorMap(Block.TintTarget.FOLIAGE).isPresent(), is(true));
+        assertThat(context.findColorMap(Block.TintTarget.DRY_FOLIAGE).isPresent(), is(true));
     }
 
     @Test

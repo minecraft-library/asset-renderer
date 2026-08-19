@@ -32,7 +32,10 @@
  *       lighting ({@code Lighting}) and shade application / block-icon relighting
  *       ({@code Shading}).</li>
  *   <li>{@link lib.minecraft.renderer.engine.texture.Textures texture} - the pack-aware texture
- *       resolution service each engine holds (and vends via {@code textures()}).</li>
+ *       resolution service each engine holds (and vends via {@code textures()}), plus the
+ *       caller-supplied {@link lib.minecraft.renderer.engine.texture.Biome Biome} and the vanilla
+ *       {@link lib.minecraft.renderer.engine.texture.RedstoneTint RedstoneTint} table the port's
+ *       tint sampling resolves against.</li>
  *   <li>{@link lib.minecraft.renderer.engine.raster raster} - the rasterizer's draw-list IR
  *       ({@code VisibleTriangle} / {@code SurfaceTraits}), the 2D coverage math
  *       ({@code RasterMath}), and the glint coverage mask.</li>
@@ -59,7 +62,9 @@
  * </ul>
  * Bulk-iteration accessors that return {@code ConcurrentList} use bare names
  * ({@code knownBlockIds}, {@code knownItemIds}, etc.) and provide empty defaults so test stubs
- * only override what they care about.
+ * only override what they care about. {@code sampleBiomeTint} and {@code sampleRedstoneTint} take
+ * neither prefix and return a bare {@code int}: they answer a colour rather than look one up,
+ * resolving a pack override, the subject's own data and a vanilla fallback against each other.
  *
  * <p><b>Vanilla parity.</b> The triangle rasterizer reproduces vanilla's CPU-side vertex chain
  * bit-for-bit at the per-vertex level (verified by {@code [PX] TRI} per-vertex dumps against

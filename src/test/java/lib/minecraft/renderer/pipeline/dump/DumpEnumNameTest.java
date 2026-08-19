@@ -37,10 +37,13 @@ import static org.hamcrest.Matchers.not;
  * spelled {@code ADDITIVE} became {@code ADD}, and the only thing that changed was the word.
  *
  * <p>What earns a row is being written as a <b>value</b>, because a key site's rename breaks a
- * loader loudly rather than quietly: the colour-map loader derives a texture path from {@code
- * type.name()}, which is why {@code ColorMap.Type} has no row, and the entity index builder calls
- * {@code Size.valueOf} on keys out of shipped JSON. {@code Size} is here all the same - it keys two
- * sections and is written as a value in a third, and the third is what earns it the row.
+ * loader loudly rather than quietly: the entity index builder calls {@code Size.valueOf} on keys out
+ * of shipped JSON. {@code Size} is here all the same - it keys two sections and is written as a value
+ * in a third, and the third is what earns it the row. {@code Block.TintTarget} earns two rows for the
+ * opposite reason: it is written as a value at the block tint and spells the keys of the colour-map
+ * section, and nothing outside the digest guards the second - the colour-map loader composes its
+ * texture path from the target's own {@code colorMapName} rather than from the constant, so a rename
+ * still resolves the same PNG and moves only the hash.
  *
  * <p>Failing here is not a veto. A constant genuinely worth renaming is renamed, this roster moves
  * with it, and the same commit registers the movers through {@code parityExpect} - which is what
@@ -82,6 +85,9 @@ final class DumpEnumNameTest {
             List.of("PRIMARY", "BLOCKSTATE_ONLY", "TILE_ENTITY")),
         new ValueSite("root.addProperty(\"target\", tint.target().name());", Block.TintTarget.class,
             List.of("NONE", "GRASS", "FOLIAGE", "DRY_FOLIAGE", "WATER", "CONSTANT")),
+        new ValueSite("root.add(\"color_maps\", CanonicalJson.map(ColorMapLoader.load(stack), "
+            + "Enum::name, colorMap -> {", Block.TintTarget.class,
+            List.of("NONE", "GRASS", "FOLIAGE", "DRY_FOLIAGE", "WATER", "CONSTANT")),
         new ValueSite("root.addProperty(\"type\", rule.type().name());", CitType.class,
             List.of("ITEM", "ENCHANTMENT", "ARMOR", "ELYTRA")),
         new ValueSite("root.addProperty(\"hand\", rule.hand().name());", Hand.class,
@@ -116,13 +122,11 @@ final class DumpEnumNameTest {
     /**
      * The lines that spell a map's keys off an enum a rename would stop a loader on.
      *
-     * <p>Here rather than in the roster above because the digest is not what protects them: the
-     * colour-map loader builds a texture path out of the constant, and the entity index builder
-     * reads the other one back through {@code valueOf} on shipped JSON, so the rename fails before
-     * anything is hashed.
+     * <p>Here rather than in the roster above because the digest is not what protects them: the entity
+     * index builder reads the constant back through {@code valueOf} on shipped JSON, so the rename
+     * fails before anything is hashed.
      */
     private static final List<String> KEY_SITES = List.of(
-        "root.add(\"color_maps\", CanonicalJson.map(ColorMapLoader.load(stack), Enum::name, colorMap -> {",
         "root.add(\"size_models\", CanonicalJson.map(axes.sizeModels(), Enum::name, PipelineParityDump::entityModel));",
         "root.add(\"size_scales\", CanonicalJson.map(axes.sizeScales(), Enum::name, scale -> CanonicalJson.number(scale)));");
 

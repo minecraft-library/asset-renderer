@@ -89,7 +89,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, ItemModelTree> itemTrees;
     private final @NotNull ConcurrentMap<String, ModelData> itemModels;
     private final @NotNull ConcurrentMap<String, Entity> entityIndex;
-    private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
+    private final @NotNull ConcurrentMap<Block.TintTarget, ColorMap> colorMaps;
     private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
     private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
@@ -126,7 +126,7 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates = BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack));
         ConcurrentMap<String, String> blockItemAliases = BlockItemsLoader.load();
 
-        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
+        ConcurrentMap<Block.TintTarget, ColorMap> colorMaps = ColorMapLoader.load(stack);
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
@@ -195,8 +195,8 @@ public final class PipelineRendererContext implements RendererContext {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type) {
-        return this.colorMaps.getOptional(type);
+    public @NotNull Optional<ColorMap> findColorMap(Block.@NotNull TintTarget target) {
+        return this.colorMaps.getOptional(target);
     }
 
     /** {@inheritDoc} */

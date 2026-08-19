@@ -10,10 +10,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Pins the colormap row's {@code type}, which the walk derives from its coordinate's file stem
- * rather than reading off a declared constant. The three names it must answer are the members of
- * the renderer's own colormap type domain, and {@code ColorMapLoader} resolves a map's resource id
- * by lowercasing that name back - so a stem that uppercased to anything else would emit a table the
- * renderer cannot index.
+ * rather than reading off a declared constant. The three names it must answer are the colormap-backed
+ * members of the renderer's tint-target domain, which is what the renderer indexes a loaded map under
+ * - so a stem that uppercased to anything else would emit a table naming a target that does not
+ * exist.
  */
 @DisplayName("ColorMapWalk derives a row's type from its coordinate's file stem")
 class ColorMapWalkTest {

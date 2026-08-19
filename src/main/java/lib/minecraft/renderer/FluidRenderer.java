@@ -114,7 +114,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
      * <p>
      * Lava is never tinted - it returns {@link ColorMath#WHITE}. Water consults, in priority
      * order: the caller-supplied {@link FluidOptions#getWaterTintArgbOverride()}, then the
-     * biome's water tint via {@link Textures#sampleBiomeTint} using
+     * biome's water tint via {@link RendererContext#sampleBiomeTint} using
      * {@link Block.TintTarget#WATER} (which falls back to the engine-level default when the
      * biome carries no {@code water_color} override).
      *
@@ -127,7 +127,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             return ColorMath.WHITE;
         if (options.getWaterTintArgbOverride() != null)
             return options.getWaterTintArgbOverride();
-        return new Textures(context).sampleBiomeTint(Block.TintTarget.WATER, options.getBiome());
+        return context.sampleBiomeTint(Block.TintTarget.WATER, options.getBiome());
     }
 
     /**

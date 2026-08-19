@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.BlockRenderer;
@@ -21,6 +22,8 @@ import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.client.ClientAcquisition;
+import lib.minecraft.renderer.engine.texture.Biome;
+import lib.minecraft.renderer.engine.texture.RedstoneTint;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
@@ -117,12 +120,14 @@ public interface RendererContext {
     }
 
     /**
-     * Looks up a biome colormap of the given kind from the highest-priority pack that supplies one.
+     * Looks up the biome colormap serving the given tint target from the highest-priority pack that
+     * supplies one. Only a target naming a {@link Block.TintTarget#colorMapName() colormap} can have
+     * one registered; any other answers empty.
      *
-     * @param type the colormap kind
+     * @param target the tint target the colormap serves
      * @return the matching colormap, or empty if none is registered
      */
-    @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type);
+    @NotNull Optional<ColorMap> findColorMap(Block.@NotNull TintTarget target);
 
     /**
      * Looks up a pack-supplied colour override by its raw {@code color.properties} key
@@ -136,6 +141,65 @@ public interface RendererContext {
      */
     default @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
         return Optional.empty();
+    }
+
+    /**
+     * Samples the biome tint for the given target, reading each answer off the target's own table
+     * and the biome's own data.
+     * <p>
+     * Priority order:
+     * <ol>
+     * <li>A target carrying no {@link Block.TintTarget#packKeyPrefix() key prefix} -
+     * {@link Block.TintTarget#NONE NONE} and {@link Block.TintTarget#CONSTANT CONSTANT} - has no
+     * biome channel and answers opaque white; {@code CONSTANT} defers to the block DTO's own
+     * constant and should not be routed here.</li>
+     * <li>The pack's {@code color.properties} override for this target and biome.</li>
+     * <li>The biome's own {@link Biome#colorOverride(Block.TintTarget) hardcoded override}
+     * (badlands, cherry grove, water).</li>
+     * <li>A sample from the target's {@link ColorMap} at {@code (temperature, downfall)}.</li>
+     * <li>The target's {@link Block.TintTarget#defaultArgb() default} when no colormap is
+     * registered - white, or vanilla's water colour for {@code WATER}, which samples none.</li>
+     * </ol>
+     * Every answer but the last is post-processed by
+     * {@link Biome#applyModifier(Block.TintTarget, int)}; the default is not, because nothing
+     * answered for the modifier to act on.
+     *
+     * @param target the tint target
+     * @param biome the biome context
+     * @return the sampled ARGB colour
+     */
+    default int sampleBiomeTint(Block.@NotNull TintTarget target, @NotNull Biome biome) {
+        Optional<String> prefix = target.packKeyPrefix();
+        if (prefix.isEmpty()) return ColorMath.WHITE;
+
+        Optional<Integer> packOverride = findColorOverride(prefix.get() + biome.localName());
+        if (packOverride.isPresent()) return biome.applyModifier(target, packOverride.get());
+
+        Optional<Integer> override = biome.colorOverride(target);
+        if (override.isPresent()) return biome.applyModifier(target, override.get());
+
+        Optional<ColorMap> map = target.colorMapName().isPresent() ? findColorMap(target) : Optional.empty();
+        if (map.isEmpty()) return target.defaultArgb();
+
+        return biome.applyModifier(target, map.get().sample(biome.temperature(), biome.downfall()));
+    }
+
+    /**
+     * Resolves the redstone-wire ARGB tint for a power level, consulting the active pack's
+     * {@code redstone.<power>} {@code color.properties} override before falling back to the bundled
+     * vanilla {@link RedstoneTint} table - the same pack-override-then-vanilla shape as
+     * {@link #sampleBiomeTint}.
+     * <p>
+     * The vanilla lookup is resolved into a local before the override is consulted, so an
+     * out-of-range power is rejected without a pack ever being asked about it.
+     *
+     * @param power the redstone wire power level, {@code 0..15}
+     * @return the resolved ARGB tint
+     * @throws IllegalArgumentException if {@code power} is outside {@code [0, 15]}
+     */
+    default int sampleRedstoneTint(int power) {
+        int vanilla = RedstoneTint.vanilla(power);
+        return findColorOverride("redstone." + power).orElse(vanilla);
     }
 
     /**
@@ -309,15 +373,20 @@ public interface RendererContext {
     @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId);
 
     /**
-     * A forwarding mixin for context wrappers: every {@link RendererContext} method forwards to
+     * A forwarding mixin for context wrappers: every {@link RendererContext} lookup forwards to
      * {@link #delegate()}, so an implementor overrides only the methods it changes and supplies the
      * wrapped context through {@code delegate()} (a record component named {@code delegate} satisfies it
      * directly).
      *
-     * <p>Because every method is forwarded rather than defaulted, a wrapper that wants a lookup to
-     * behave differently from its delegate must say so explicitly - pinning an override rather than
-     * relying on a silent empty default. A method a wrapper leaves alone reaches the real context, which
-     * is the safe default for a pass-through view; the deliberate exceptions are stated at the override.
+     * <p>Because every lookup is forwarded rather than defaulted, a wrapper that wants one to behave
+     * differently from its delegate must say so explicitly - pinning an override rather than relying on
+     * a silent empty default. A lookup a wrapper leaves alone reaches the real context, which is the
+     * safe default for a pass-through view; the deliberate exceptions are stated at the override.
+     *
+     * <p>{@link #sampleBiomeTint} and {@link #sampleRedstoneTint} are deliberately absent: they resolve
+     * against {@link #findColorMap} and {@link #findColorOverride}, which this mixin already forwards,
+     * so forwarding them too would put a second copy of the resolution behind a wrapper that could
+     * drift from the port's.
      */
     interface Forwarding extends RendererContext {
 
@@ -354,8 +423,8 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<ColorMap> findColorMap(ColorMap.@NotNull Type type) {
-            return delegate().findColorMap(type);
+        @Override default @NotNull Optional<ColorMap> findColorMap(Block.@NotNull TintTarget target) {
+            return delegate().findColorMap(target);
         }
 
         /** {@inheritDoc} */

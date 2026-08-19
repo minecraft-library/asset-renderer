@@ -149,7 +149,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         if (target == Block.TintTarget.CONSTANT)
             return block.tint().constant().map(Color::getRGB).orElse(ColorMath.WHITE);
 
-        return new Textures(context).sampleBiomeTint(target, biome);
+        return context.sampleBiomeTint(target, biome);
     }
 
     /**

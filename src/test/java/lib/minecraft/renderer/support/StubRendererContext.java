@@ -48,8 +48,8 @@ public final class StubRendererContext implements RendererContext {
     /** the effect every armour override lookup answers with */
     private final @NotNull CitResult armorOverride;
 
-    /** the colormaps this context supplies, keyed by kind */
-    private final @NotNull Map<ColorMap.Type, ColorMap> colorMaps;
+    /** the colormaps this context supplies, keyed by the tint target each serves */
+    private final @NotNull Map<Block.TintTarget, ColorMap> colorMaps;
 
     /** the pack colour overrides this context supplies, keyed by their {@code color.properties} key */
     private final @NotNull Map<String, Integer> colorOverrides;
@@ -79,8 +79,8 @@ public final class StubRendererContext implements RendererContext {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<ColorMap> findColorMap(ColorMap.@NotNull Type type) {
-        return Optional.ofNullable(this.colorMaps.get(type));
+    public @NotNull Optional<ColorMap> findColorMap(Block.@NotNull TintTarget target) {
+        return Optional.ofNullable(this.colorMaps.get(target));
     }
 
     /** {@inheritDoc} */
@@ -132,7 +132,7 @@ public final class StubRendererContext implements RendererContext {
         private @NotNull Function<String, Optional<PixelBuffer>> textures = textureId -> Optional.empty();
         private @NotNull List<EquipmentModel.Layer> equipmentLayers = List.of();
         private @NotNull CitResult armorOverride = CitResult.NONE;
-        private @NotNull Map<ColorMap.Type, ColorMap> colorMaps = Map.of();
+        private @NotNull Map<Block.TintTarget, ColorMap> colorMaps = Map.of();
         private @NotNull Map<String, Integer> colorOverrides = Map.of();
 
         private Builder() {}
@@ -185,12 +185,13 @@ public final class StubRendererContext implements RendererContext {
         }
 
         /**
-         * Supplies the biome colormaps, keyed by kind; a kind absent from the map answers empty.
+         * Supplies the biome colormaps, keyed by the tint target each serves; a target absent from
+         * the map answers empty.
          *
          * @param colorMaps the colormaps this context serves
          * @return this builder
          */
-        public @NotNull Builder colorMaps(@NotNull Map<ColorMap.Type, ColorMap> colorMaps) {
+        public @NotNull Builder colorMaps(@NotNull Map<Block.TintTarget, ColorMap> colorMaps) {
             this.colorMaps = colorMaps;
             return this;
         }
