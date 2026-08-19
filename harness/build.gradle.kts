@@ -103,8 +103,8 @@ dependencies {
     "clientCompileOnly"("lib.minecraft:asset-renderer-parity:0.1.0")
 
     // Simplified Annotations
-    "clientCompileOnly"("io.github.simplified-dev:annotations:2.6.0")
-    "clientAnnotationProcessor"("io.github.simplified-dev:annotations:2.6.0")
+    "clientCompileOnly"("io.github.simplified-dev:annotations:2.6.1")
+    "clientAnnotationProcessor"("io.github.simplified-dev:annotations:2.6.1")
 }
 
 tasks.processResources {
