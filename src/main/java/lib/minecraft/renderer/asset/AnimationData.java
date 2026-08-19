@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.asset;
 
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -34,6 +35,18 @@ public record AnimationData(
      * @param time the per-frame duration override in ticks, or {@code -1} to defer to the
      *     animation-level {@link AnimationData#frametime}
      */
-    public record FrameEntry(int index, int time) {}
+    public record FrameEntry(int index, int time) {
+
+        /**
+         * Constructs a new {@code FrameEntry} from the parsed sidecar frame it is adapted from, carrying
+         * that frame's index and duration override across unchanged.
+         *
+         * @param frame the sidecar frame to adapt
+         */
+        public FrameEntry(@NotNull MCMeta.Frame frame) {
+            this(frame.index(), frame.time());
+        }
+
+    }
 
 }

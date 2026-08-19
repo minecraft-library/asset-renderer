@@ -6,7 +6,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
-import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.support.StubRendererContext;
 import org.jetbrains.annotations.NotNull;
@@ -39,7 +39,7 @@ class EquipmentKitTest {
     void undyedSkipsTheFallbackLessLayer() {
         StubRendererContext context = greyContext(scuteLayers());
         Optional<PixelBuffer> composited = EquipmentKit.composite(
-            new Textures(context), ASSET, LayerType.WOLF_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty());
+            context, ASSET, LayerType.WOLF_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty());
 
         assertThat("the base still draws", composited.isPresent(), is(true));
         assertThat("the composite carries the untinted base alone - the overlay contributed nothing",
@@ -51,7 +51,7 @@ class EquipmentKitTest {
     void dyedTintsTheFallbackLessLayer() {
         StubRendererContext context = greyContext(scuteLayers());
         Optional<PixelBuffer> composited = EquipmentKit.composite(
-            new Textures(context), ASSET, LayerType.WOLF_BODY,
+            context, ASSET, LayerType.WOLF_BODY,
             Optional.of(DyeColor.Vanilla.RED.argb()), CitResult.NONE, OptionalInt.empty());
 
         assertThat("both layer textures were resolved", context.getResolved(), equalTo(List.of(
@@ -67,7 +67,7 @@ class EquipmentKitTest {
         int fallback = 0xFFA06540;
         StubRendererContext context = greyContext(List.of(dyeable(Optional.of(fallback))));
         Optional<PixelBuffer> composited = EquipmentKit.composite(
-            new Textures(context), ASSET, LayerType.HORSE_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty());
+            context, ASSET, LayerType.HORSE_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty());
 
         assertThat(composited.orElseThrow().getPixel(0, 0), is(ColorMath.tint(grey(), fallback).getPixel(0, 0)));
     }
@@ -77,7 +77,7 @@ class EquipmentKitTest {
     void dyeOverridesTheLayerFallbackColour() {
         StubRendererContext context = greyContext(List.of(dyeable(Optional.of(0xFFA06540))));
         Optional<PixelBuffer> composited = EquipmentKit.composite(
-            new Textures(context), ASSET, LayerType.HORSE_BODY,
+            context, ASSET, LayerType.HORSE_BODY,
             Optional.of(DyeColor.Vanilla.CYAN.argb()), CitResult.NONE, OptionalInt.empty());
 
         assertThat(composited.orElseThrow().getPixel(0, 0),
@@ -88,7 +88,7 @@ class EquipmentKitTest {
     @DisplayName("an asset declaring no layers for the render layer composites nothing")
     void noLayersCompositesNothing() {
         StubRendererContext context = greyContext(List.of());
-        assertThat(EquipmentKit.composite(new Textures(context), ASSET, LayerType.WOLF_BODY,
+        assertThat(EquipmentKit.composite(context, ASSET, LayerType.WOLF_BODY,
             Optional.empty(), CitResult.NONE, OptionalInt.empty()).isPresent(), is(false));
     }
 

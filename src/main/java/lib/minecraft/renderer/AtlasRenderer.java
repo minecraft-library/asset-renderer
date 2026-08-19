@@ -7,7 +7,6 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.AtlasOptions;
@@ -477,8 +476,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
         /**
          * Resolves a texture, flattening animation strips to frame 0 via
-         * {@link Textures#tryResolveTextureAtTick} - animated ids sample frame 0, static ids return
-         * the raw strip unchanged.
+         * {@link RendererContext#resolveTextureAtTick} on the DELEGATE - animated ids sample frame 0,
+         * static ids return the raw strip unchanged. Reading it off the delegate rather than off
+         * {@code this} is what keeps the override from recursing into itself.
          *
          * @param textureId the namespaced texture id to resolve
          * @return the frame-0 buffer for animated textures, or the raw buffer for static ones,
@@ -486,7 +486,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
          */
         @Override
         public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-            return new Textures(this.delegate).tryResolveTextureAtTick(textureId, 0);
+            return this.delegate.resolveTextureAtTick(textureId, 0);
         }
 
         // Pinned empty (load-bearing): forwarding re-animates the atlas; every texture must read static.

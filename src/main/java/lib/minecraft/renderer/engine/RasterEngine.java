@@ -4,15 +4,14 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.texture.Textures;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * A 2D raster drawing engine for renderers that compose pixels into a flat output buffer
  * without going through the {@link ModelEngine} triangle rasterizer.
  *
- * <p>Holds a {@link Textures} so every 2D renderer gets pack-aware texture resolution
- * (via {@code textures()}) alongside its allocation and blit helpers. Used by the 2D
+ * <p>Holds its {@link RendererContext} so every 2D renderer gets pack-aware texture resolution
+ * (via {@code context()}) alongside its allocation and blit helpers. Used by the 2D
  * sub-renderer paths - the block and item icon layers, the player overlay compositor, and
  * {@code FluidRenderer.FluidFace2D} / {@code PortalRenderer.PortalFace2D}. Tooltip and menu
  * chrome do not go through it: they draw straight into their own pixel buffers.
@@ -24,16 +23,16 @@ import org.jetbrains.annotations.NotNull;
  *       at a destination rectangle, optionally tinted through a {@link BlendMode}.</li>
  * </ul>
  *
- * @see Textures
+ * @see RendererContext
  * @see ModelEngine
  */
 public class RasterEngine {
 
     /**
-     * The pack-aware texture-resolution service bound to this engine's context.
+     * The resource-provider port every texture this engine blits is resolved through.
      */
     @Getter(style = NamingStyle.FLUENT)
-    private final @NotNull Textures textures;
+    private final @NotNull RendererContext context;
 
     /**
      * Constructs a raster engine bound to the given context.
@@ -41,7 +40,7 @@ public class RasterEngine {
      * @param context the renderer context
      */
     public RasterEngine(@NotNull RendererContext context) {
-        this.textures = new Textures(context);
+        this.context = context;
     }
 
     /**
@@ -81,7 +80,7 @@ public class RasterEngine {
      * @param dh the destination height
      */
     public void drawTexture(@NotNull String textureId, @NotNull PixelBuffer target, int dx, int dy, int dw, int dh) {
-        target.blitScaled(this.textures.resolveTexture(textureId), dx, dy, dw, dh);
+        target.blitScaled(this.context.requireTexture(textureId), dx, dy, dw, dh);
     }
 
     /**
@@ -103,7 +102,7 @@ public class RasterEngine {
         int argbTint,
         @NotNull BlendMode mode
     ) {
-        target.blitTinted(this.textures.resolveTexture(textureId), dx, dy, argbTint, mode);
+        target.blitTinted(this.context.requireTexture(textureId), dx, dy, argbTint, mode);
     }
 
 }

@@ -6,7 +6,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.BannerPattern;
-import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.option.spec.BannerLayer;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,14 +38,14 @@ public class BannerKit {
      * Composites a banner or shield in its GUI-item orientation: base dye background, then each
      * pattern layer blitted as a dye-tinted grayscale mask.
      *
-     * @param engine the texture engine for resolving pattern + base textures
+     * @param context the texture context for resolving pattern + base textures
      * @param baseDyeArgb the base dye colour (the field of the banner / shield) as packed ARGB
      * @param layers the ordered list of pattern layers to composite on top
      * @param variant the texture atlas variant to pull pattern textures from
      * @return a newly-created buffer containing the composite; dimensions match the base texture
      */
     public static @NotNull PixelBuffer composite2D(
-        @NotNull Textures engine,
+        @NotNull RendererContext context,
         int baseDyeArgb,
         @NotNull ConcurrentList<BannerLayer> layers,
         @NotNull Variant variant
@@ -53,7 +53,7 @@ public class BannerKit {
         // The banner_base texture in the vanilla atlas is 64x64; the item-icon region we
         // actually want occupies the top-left portion. We composite at full texture size and
         // let downstream scaling handle the final icon crop / scale.
-        Optional<PixelBuffer> baseTexture = engine.tryResolveTexture(BANNER_BASE_TEXTURE_ID);
+        Optional<PixelBuffer> baseTexture = context.resolveTexture(BANNER_BASE_TEXTURE_ID);
         int width = baseTexture.map(PixelBuffer::width).orElse(64);
         int height = baseTexture.map(PixelBuffer::height).orElse(64);
 
@@ -62,7 +62,7 @@ public class BannerKit {
 
         for (BannerLayer layer : layers) {
             String textureId = variant.textureFor(layer.pattern().assetId());
-            Optional<PixelBuffer> mask = engine.tryResolveTexture(textureId);
+            Optional<PixelBuffer> mask = context.resolveTexture(textureId);
             if (mask.isEmpty()) continue;
             canvas.blitTinted(mask.get(), 0, 0, layer.color().argb(), BlendMode.NORMAL);
         }

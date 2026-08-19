@@ -196,7 +196,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkin().getSkin().getId().isPresent()) {
             RasterEngine engine = new RasterEngine(parent.context);
-            return engine.textures().resolveTexture(options.getSkin().getSkin().getId().get());
+            return engine.context().requireTexture(options.getSkin().getSkin().getId().get());
         }
 
         return parent.context.resolveTexture("minecraft:entity/steve")
@@ -255,7 +255,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkin().getCape().getId().isPresent()) {
             RasterEngine engine = new RasterEngine(parent.context);
-            return engine.textures().tryResolveTexture(options.getSkin().getCape().getId().get());
+            return engine.context().resolveTexture(options.getSkin().getCape().getId().get());
         }
 
         return Optional.empty();
@@ -280,7 +280,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkin().getElytra().getId().isPresent()) {
             RasterEngine engine = new RasterEngine(parent.context);
-            return engine.textures().tryResolveTexture(options.getSkin().getElytra().getId().get());
+            return engine.context().resolveTexture(options.getSkin().getElytra().getId().get());
         }
 
         return Optional.empty();
@@ -301,7 +301,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (options.getSkin().isRenderElytra()) {
             Optional<PixelBuffer> playerTexture = resolveCape(parent, options).or(() -> resolveElytraSource(parent, options));
             stack.append(PlayerSlot3D.CAPE, sink ->
-                sink.addAll(ElytraKit.buildPlayerWings3D(engine.textures(), torsoMin, torsoMax, playerTexture, Optional.empty(), 0)));
+                sink.addAll(ElytraKit.buildPlayerWings3D(engine.context(), torsoMin, torsoMax, playerTexture, Optional.empty(), 0)));
             return;
         }
         resolveCape(parent, options).ifPresent(cape ->
@@ -432,7 +432,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 Layers.foldInto(stack, options.getLayerDecorator(), target);
             })
                 .withMask(enchanted)
-                .finishing(GlintKit.Foil.armor(engine.textures()::tryResolveTexture, enchanted)));
+                .finishing(GlintKit.Foil.armor(engine.context()::resolveTexture, enchanted)));
     }
 
     /**
@@ -462,7 +462,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
             for (BodyPart2D row : parts)
                 if (ArmorForm.playerSlots(row.part()).contains(slot))
-                    ArmorKit.compositeSlot2D(target, row, slot, entry.getValue(), item, engine.textures());
+                    ArmorKit.compositeSlot2D(target, row, slot, entry.getValue(), item, engine.context());
         }
     }
 
@@ -654,7 +654,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(),
                     (target, tick) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL))
                 .withMask(enchanted)
-                .finishing(GlintKit.Foil.armor(engine.textures()::tryResolveTexture, enchanted)));
+                .finishing(GlintKit.Foil.armor(engine.context()::resolveTexture, enchanted)));
     }
 
     /**
@@ -705,7 +705,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                                     @NotNull PlayerOptions options, @NotNull ModelEngine engine) {
         stack.append(PlayerSlot3D.ARMOR, sink -> sink.addAll(ArmorKit.buildHumanoidArmor3D(
             type.boxes(), options.getArmor().equipped(),
-            options.getArmor().getItems(), engine.textures())));
+            options.getArmor().getItems(), engine.context())));
     }
 
 }

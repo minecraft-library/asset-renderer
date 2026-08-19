@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.BlockRenderer;
@@ -21,7 +22,10 @@ import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.client.ClientAcquisition;
-import lib.minecraft.renderer.engine.kit.NineSliceKit;
+import lib.minecraft.renderer.engine.kit.AnimationKit;
+import lib.minecraft.renderer.engine.texture.Biome;
+import lib.minecraft.renderer.engine.texture.RedstoneTint;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
@@ -55,7 +59,7 @@ public interface RendererContext {
     /**
      * Looks up the parsed {@code .mcmeta} animation sidecar for the given texture, if any. The
      * default implementation returns empty so non-animated contexts do not need to override it;
-     * animation-aware contexts should look up the texture's index row and forward its captured
+     * animation-aware contexts should look up the texture's index row and adapt its captured
      * sidecar's animation section.
      *
      * @param textureId the namespaced texture identifier
@@ -66,29 +70,14 @@ public interface RendererContext {
     }
 
     /**
-     * Looks up the parsed {@code gui.scaling} sidecar for a GUI-sprite texture, if any - the
-     * nine-slice / tile / stretch metadata {@link NineSliceKit}
-     * consumes for tooltip and menu chrome. The default returns empty so non-pack contexts do not need
-     * to override it; the production context forwards the texture's index-row sidecar's
-     * {@code gui.scaling} section.
-     *
-     * @param textureId the namespaced GUI-sprite texture id
-     * @return the scaling metadata, or empty when the texture has no {@code gui.scaling} sidecar
-     */
-    default @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
-        return Optional.empty();
-    }
-
-    /**
-     * Looks up the parsed {@code villager} sidecar section for a villager type / profession texture, if
-     * any - the hat flag the profession layer's mesh select consumes. The default returns empty so
-     * non-pack contexts do not need to override it; the production context forwards the texture's
-     * index-row sidecar's {@code villager} section.
+     * Looks up the parsed {@code .mcmeta} sidecar for a texture, if any - the whole document, whose
+     * sections the caller reads off the record. The default returns empty so non-pack contexts do not
+     * need to override it; the production context forwards the texture's index row's captured sidecar.
      *
      * @param textureId the namespaced texture id
-     * @return the villager metadata, or empty when the texture has no {@code villager} sidecar
+     * @return the parsed sidecar, or empty when the texture ships none
      */
-    default @NotNull Optional<MCMeta.Villager> findVillager(@NotNull String textureId) {
+    default @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
         return Optional.empty();
     }
 
@@ -133,12 +122,14 @@ public interface RendererContext {
     }
 
     /**
-     * Looks up a biome colormap of the given kind from the highest-priority pack that supplies one.
+     * Looks up the biome colormap serving the given tint target from the highest-priority pack that
+     * supplies one. Only a target naming a {@link Block.TintTarget#colorMapName() colormap} can have
+     * one registered; any other answers empty.
      *
-     * @param type the colormap kind
+     * @param target the tint target the colormap serves
      * @return the matching colormap, or empty if none is registered
      */
-    @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type);
+    @NotNull Optional<ColorMap> findColorMap(Block.@NotNull TintTarget target);
 
     /**
      * Looks up a pack-supplied colour override by its raw {@code color.properties} key
@@ -152,6 +143,65 @@ public interface RendererContext {
      */
     default @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
         return Optional.empty();
+    }
+
+    /**
+     * Samples the biome tint for the given target, reading each answer off the target's own table
+     * and the biome's own data.
+     * <p>
+     * Priority order:
+     * <ol>
+     * <li>A target carrying no {@link Block.TintTarget#packKeyPrefix() key prefix} -
+     * {@link Block.TintTarget#NONE NONE} and {@link Block.TintTarget#CONSTANT CONSTANT} - has no
+     * biome channel and answers opaque white; {@code CONSTANT} defers to the block DTO's own
+     * constant and should not be routed here.</li>
+     * <li>The pack's {@code color.properties} override for this target and biome.</li>
+     * <li>The biome's own {@link Biome#colorOverride(Block.TintTarget) hardcoded override}
+     * (badlands, cherry grove, water).</li>
+     * <li>A sample from the target's {@link ColorMap} at {@code (temperature, downfall)}.</li>
+     * <li>The target's {@link Block.TintTarget#defaultArgb() default} when no colormap is
+     * registered - white, or vanilla's water colour for {@code WATER}, which samples none.</li>
+     * </ol>
+     * Every answer but the last is post-processed by
+     * {@link Biome#applyModifier(Block.TintTarget, int)}; the default is not, because nothing
+     * answered for the modifier to act on.
+     *
+     * @param target the tint target
+     * @param biome the biome context
+     * @return the sampled ARGB colour
+     */
+    default int sampleBiomeTint(Block.@NotNull TintTarget target, @NotNull Biome biome) {
+        Optional<String> prefix = target.packKeyPrefix();
+        if (prefix.isEmpty()) return ColorMath.WHITE;
+
+        Optional<Integer> packOverride = findColorOverride(prefix.get() + biome.localName());
+        if (packOverride.isPresent()) return biome.applyModifier(target, packOverride.get());
+
+        Optional<Integer> override = biome.colorOverride(target);
+        if (override.isPresent()) return biome.applyModifier(target, override.get());
+
+        Optional<ColorMap> map = target.colorMapName().isPresent() ? findColorMap(target) : Optional.empty();
+        if (map.isEmpty()) return target.defaultArgb();
+
+        return biome.applyModifier(target, map.get().sample(biome.temperature(), biome.downfall()));
+    }
+
+    /**
+     * Resolves the redstone-wire ARGB tint for a power level, consulting the active pack's
+     * {@code redstone.<power>} {@code color.properties} override before falling back to the bundled
+     * vanilla {@link RedstoneTint} table - the same pack-override-then-vanilla shape as
+     * {@link #sampleBiomeTint}.
+     * <p>
+     * The vanilla lookup is resolved into a local before the override is consulted, so an
+     * out-of-range power is rejected without a pack ever being asked about it.
+     *
+     * @param power the redstone wire power level, {@code 0..15}
+     * @return the resolved ARGB tint
+     * @throws IllegalArgumentException if {@code power} is outside {@code [0, 15]}
+     */
+    default int sampleRedstoneTint(int power) {
+        int vanilla = RedstoneTint.vanilla(power);
+        return findColorOverride("redstone." + power).orElse(vanilla);
     }
 
     /**
@@ -325,15 +375,68 @@ public interface RendererContext {
     @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId);
 
     /**
-     * A forwarding mixin for context wrappers: every {@link RendererContext} method forwards to
+     * Resolves a texture id to the frame that should be displayed at the given tick. A texture with
+     * no {@code .mcmeta} sidecar answers its source buffer unchanged, so tick {@code 0} is
+     * byte-identical to {@link #resolveTexture}; an animated one has {@link AnimationKit#sampleFrame}
+     * extract the strip frame for {@code tick}, blending adjacent frames when
+     * {@link AnimationData#interpolate()} is set.
+     *
+     * @param textureId the namespaced texture identifier
+     * @param tick the current animation tick (free-running, signed)
+     * @return the frame to render at this tick, or empty if the texture is unknown
+     */
+    default @NotNull Optional<PixelBuffer> resolveTextureAtTick(@NotNull String textureId, int tick) {
+        Optional<PixelBuffer> strip = resolveTexture(textureId);
+        if (strip.isEmpty()) return strip;
+        return findAnimation(textureId)
+            .map(animation -> AnimationKit.sampleFrame(strip.get(), animation, tick))
+            .or(() -> strip);
+    }
+
+    /**
+     * Resolves a texture id the way {@link #resolveTexture} does, refusing an absent texture rather
+     * than answering empty for one. The {@code require} prefix marks that arm throughout: a caller
+     * that can carry on without the texture reaches for the {@code resolve} form and reads the
+     * {@link Optional}, and a caller for which a missing texture is a broken render reaches for this.
+     *
+     * @param textureId the namespaced texture identifier
+     * @return the decoded texture
+     * @throws RenderException if no pack provides the texture
+     */
+    default @NotNull PixelBuffer requireTexture(@NotNull String textureId) {
+        return resolveTexture(textureId)
+            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
+    }
+
+    /**
+     * Resolves the frame at a tick the way {@link #resolveTextureAtTick} does, refusing an absent
+     * texture rather than answering empty for one.
+     *
+     * @param textureId the namespaced texture identifier
+     * @param tick the current animation tick (free-running, signed)
+     * @return the frame to render at this tick
+     * @throws RenderException if no pack provides the texture
+     */
+    default @NotNull PixelBuffer requireTextureAtTick(@NotNull String textureId, int tick) {
+        return resolveTextureAtTick(textureId, tick)
+            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
+    }
+
+    /**
+     * A forwarding mixin for context wrappers: every {@link RendererContext} lookup forwards to
      * {@link #delegate()}, so an implementor overrides only the methods it changes and supplies the
      * wrapped context through {@code delegate()} (a record component named {@code delegate} satisfies it
      * directly).
      *
-     * <p>Because every method is forwarded rather than defaulted, a wrapper that wants a lookup to
-     * behave differently from its delegate must say so explicitly - pinning an override rather than
-     * relying on a silent empty default. A method a wrapper leaves alone reaches the real context, which
-     * is the safe default for a pass-through view; the deliberate exceptions are stated at the override.
+     * <p>Because every lookup is forwarded rather than defaulted, a wrapper that wants one to behave
+     * differently from its delegate must say so explicitly - pinning an override rather than relying on
+     * a silent empty default. A lookup a wrapper leaves alone reaches the real context, which is the
+     * safe default for a pass-through view; the deliberate exceptions are stated at the override.
+     *
+     * <p>{@link #sampleBiomeTint} and {@link #sampleRedstoneTint} are deliberately absent: they resolve
+     * against {@link #findColorMap} and {@link #findColorOverride}, which this mixin already forwards,
+     * so forwarding them too would put a second copy of the resolution behind a wrapper that could
+     * drift from the port's.
      */
     interface Forwarding extends RendererContext {
 
@@ -350,13 +453,8 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
-            return delegate().findGuiScaling(textureId);
-        }
-
-        /** {@inheritDoc} */
-        @Override default @NotNull Optional<MCMeta.Villager> findVillager(@NotNull String textureId) {
-            return delegate().findVillager(textureId);
+        @Override default @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
+            return delegate().findMeta(textureId);
         }
 
         /** {@inheritDoc} */
@@ -375,8 +473,8 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<ColorMap> findColorMap(ColorMap.@NotNull Type type) {
-            return delegate().findColorMap(type);
+        @Override default @NotNull Optional<ColorMap> findColorMap(Block.@NotNull TintTarget target) {
+            return delegate().findColorMap(target);
         }
 
         /** {@inheritDoc} */

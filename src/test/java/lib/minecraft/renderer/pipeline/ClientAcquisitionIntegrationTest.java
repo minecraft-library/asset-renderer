@@ -90,7 +90,7 @@ class ClientAcquisitionIntegrationTest {
     private static Map<String, Block.Tint> blockTints;
 
     /** The stack-resolved biome colormaps, probed by the colormap byte-parity assertion. */
-    private static ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
+    private static ConcurrentMap<Block.TintTarget, ColorMap> colorMaps;
 
     /** Extracted pack root ({@code cache/it/.../vanilla}) that the on-disk assertions probe. */
     private static Path packRoot;
@@ -213,8 +213,8 @@ class ClientAcquisitionIntegrationTest {
         // it.
         Map<String, JsonObject> entries = new TreeMap<>();
         Map<String, String> observed = new TreeMap<>();
-        for (ColorMap.Type type : List.of(ColorMap.Type.GRASS, ColorMap.Type.FOLIAGE,
-            ColorMap.Type.DRY_FOLIAGE)) {
+        for (Block.TintTarget type : List.of(Block.TintTarget.GRASS, Block.TintTarget.FOLIAGE,
+            Block.TintTarget.DRY_FOLIAGE)) {
             String digest = ParityJson.sha256(colorMaps.get(type).pixels());
             observed.put(type.name(), digest);
             JsonObject entry = new JsonObject();

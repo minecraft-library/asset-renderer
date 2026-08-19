@@ -14,7 +14,6 @@ import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.parity.Parity;
@@ -737,7 +736,7 @@ public class BlockIndexBuilder {
             if (face == null) continue;
             String textureRef = face.getTexture();
             if (textureRef.isBlank()) continue;
-            String resolved = Textures.resolveTextureReference(textureRef, model.getTextures());
+            String resolved = model.resolveTextureReference(textureRef);
             if (resolved.startsWith("#")) continue;
             textures.put(blockFace.direction(), resolved);
         }

@@ -89,7 +89,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, ItemModelTree> itemTrees;
     private final @NotNull ConcurrentMap<String, ModelData> itemModels;
     private final @NotNull ConcurrentMap<String, Entity> entityIndex;
-    private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
+    private final @NotNull ConcurrentMap<Block.TintTarget, ColorMap> colorMaps;
     private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
     private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
@@ -126,7 +126,7 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates = BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack));
         ConcurrentMap<String, String> blockItemAliases = BlockItemsLoader.load();
 
-        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
+        ConcurrentMap<Block.TintTarget, ColorMap> colorMaps = ColorMapLoader.load(stack);
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
@@ -195,8 +195,8 @@ public final class PipelineRendererContext implements RendererContext {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type) {
-        return this.colorMaps.getOptional(type);
+    public @NotNull Optional<ColorMap> findColorMap(Block.@NotNull TintTarget target) {
+        return this.colorMaps.getOptional(target);
     }
 
     /** {@inheritDoc} */
@@ -233,50 +233,43 @@ public final class PipelineRendererContext implements RendererContext {
      * {@inheritDoc}
      * <p>
      * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
-     * captured {@code .mcmeta} animation section is forwarded as an {@link AnimationData}.
+     * captured sidecar is forwarded.
+     */
+    @Override
+    public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
+        return this.stack.indexed(ResourceId.parse(textureId))
+            .flatMap(ResolvedTexture::meta);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * The sidecar's {@code animation} section, adapted into the {@link AnimationData} the renderer
+     * consumes.
      */
     @Override
     public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
-        return this.stack.indexed(ResourceId.parse(textureId))
-            .flatMap(ResolvedTexture::meta)
+        return this.findMeta(textureId)
             .flatMap(MCMeta::animation)
             .map(PipelineRendererContext::toAnimationData);
     }
 
     /**
-     * {@inheritDoc}
-     * <p>
-     * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
-     * captured {@code .mcmeta} {@code gui.scaling} section is forwarded.
-     */
-    @Override
-    public @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
-        return this.stack.indexed(ResourceId.parse(textureId))
-            .flatMap(ResolvedTexture::meta)
-            .flatMap(MCMeta::gui);
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
-     * captured {@code .mcmeta} {@code villager} section is forwarded.
-     */
-    @Override
-    public @NotNull Optional<MCMeta.Villager> findVillager(@NotNull String textureId) {
-        return this.stack.indexed(ResourceId.parse(textureId))
-            .flatMap(ResolvedTexture::meta)
-            .flatMap(MCMeta::villager);
-    }
-
-    /**
-     * Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationData} the renderer consumes.
+     * Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationData} the renderer
+     * consumes. The frames collect unmodifiable, as the section's own are, so the renderer's copy reads
+     * through the no-op lock an unmodifiable list carries rather than through a read lock.
      */
     private static @NotNull AnimationData toAnimationData(@NotNull MCMeta.Animation animation) {
-        ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
-        for (MCMeta.Frame frame : animation.frames())
-            frames.add(new AnimationData.FrameEntry(frame.index(), frame.time()));
-        return new AnimationData(animation.frametime(), animation.interpolate(), frames, animation.width(), animation.height());
+        return new AnimationData(
+            animation.frametime(),
+            animation.interpolate(),
+            animation.frames()
+                .stream()
+                .map(AnimationData.FrameEntry::new)
+                .collect(Concurrent.toUnmodifiableList()),
+            animation.width(),
+            animation.height()
+        );
     }
 
     /**

@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.asset;
 
 import dev.simplified.annotations.EqualsAndHashCode;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
@@ -148,41 +150,91 @@ public record Block(
     /**
      * Identifies which biome colormap drives a block face's tint, or flags that the tint comes
      * from a hardcoded constant on the block DTO.
+     *
+     * <p>Each constant carries every answer the tint resolution asks of a target - the pack
+     * {@code color.properties} key prefix, the colormap it samples, the colour it falls back to and
+     * whether the biome's grass modifier reaches it - so resolving a tint reads this table rather
+     * than switching on the constant. A target carrying no {@link #packKeyPrefix() key prefix}
+     * carries no biome channel at all, which is what separates {@link #NONE} and {@link #CONSTANT}
+     * from the four that resolve against a biome.
      */
     public enum TintTarget {
 
         /**
          * The face is not biome-tinted.
          */
-        NONE,
+        NONE(Optional.empty(), Optional.empty(), ColorMath.WHITE, false),
 
         /**
-         * Sample the grass colormap. Applies to grass blocks, tall grass, ferns, etc.
+         * Sample the grass colormap. Applies to grass blocks, tall grass, ferns, etc. The one
+         * target the biome's grass colour modifier reaches.
          */
-        GRASS,
+        GRASS(Optional.of("grass."), Optional.of("grass"), ColorMath.WHITE, true),
 
         /**
          * Sample the foliage colormap. Applies to most leaves.
          */
-        FOLIAGE,
+        FOLIAGE(Optional.of("foliage."), Optional.of("foliage"), ColorMath.WHITE, false),
 
         /**
          * Sample the dry-foliage colormap. Applies to pale oak and a handful of other biomes.
          */
-        DRY_FOLIAGE,
+        DRY_FOLIAGE(Optional.of("dryfoliage."), Optional.of("dry_foliage"), ColorMath.WHITE, false),
 
         /**
          * Use the biome's water colour override when present, or the engine-level default
          * {@code 0xFF3F76E4} otherwise. Vanilla water has no colormap; biomes either carry an
-         * explicit {@code water_color} value or inherit the default.
+         * explicit {@code water_color} value or inherit the default, which is why this is the one
+         * target whose {@link #defaultArgb() default} is a colour rather than white.
          */
-        WATER,
+        WATER(Optional.of("water."), Optional.empty(), 0xFF3F76E4, false),
 
         /**
          * Use the {@link Tint#constant() constant} ARGB carried on the block's {@link Tint}
          * directly. Applies to redstone wire, stems, etc.
          */
-        CONSTANT
+        CONSTANT(Optional.empty(), Optional.empty(), ColorMath.WHITE, false);
+
+        /**
+         * The {@code color.properties} key prefix a pack addresses this target's per-biome override
+         * under ({@code grass.}, {@code water.}), empty for a target with no biome channel. Note
+         * {@code dryfoliage.} carries no separator inside the word where the colormap name does.
+         */
+        @Getter(style = NamingStyle.FLUENT)
+        private final @NotNull Optional<String> packKeyPrefix;
+
+        /**
+         * The colormap this target samples, named as it appears under
+         * {@code textures/colormap/<name>.png}, empty for a target that samples none.
+         */
+        @Getter(style = NamingStyle.FLUENT)
+        private final @NotNull Optional<String> colorMapName;
+
+        /**
+         * The ARGB this target resolves to when neither a pack nor the biome answered and no
+         * colormap is registered.
+         */
+        @Getter(style = NamingStyle.FLUENT)
+        private final int defaultArgb;
+
+        /**
+         * Whether the biome's {@code GrassColorModifier} post-processes this target's colour.
+         * Vanilla runs it on the grass tint alone.
+         */
+        @Getter(style = NamingStyle.FLUENT)
+        private final boolean grassModified;
+
+        TintTarget(
+            @NotNull Optional<String> packKeyPrefix,
+            @NotNull Optional<String> colorMapName,
+            int defaultArgb,
+            boolean grassModified
+        ) {
+            this.packKeyPrefix = packKeyPrefix;
+            this.colorMapName = colorMapName;
+            this.defaultArgb = defaultArgb;
+            this.grassModified = grassModified;
+        }
 
     }
 

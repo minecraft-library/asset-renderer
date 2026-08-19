@@ -33,7 +33,6 @@ import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Biome;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.slot.BlockSlot;
@@ -121,9 +120,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
     /**
      * Resolves the ARGB tint applied to a block's faces based on its
-     * {@link Block.TintTarget}. Returns opaque white for {@code NONE}, the block's hardcoded
-     * constant for {@code CONSTANT}, or a colormap sample for {@code GRASS} / {@code FOLIAGE} /
-     * {@code DRY_FOLIAGE} against the {@link BlockOptions#getBiome() options biome}.
+     * {@link Block.TintTarget}, sampling against the {@link BlockOptions#getBiome() options biome}.
      */
     static int resolveBlockTint(@NotNull RendererContext context, @NotNull Block block, @NotNull BlockOptions options) {
         return resolveBlockTint(context, block, options.getBiome());
@@ -131,9 +128,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
     /**
      * Resolves the ARGB tint applied to a block's faces based on its {@link Block.TintTarget},
-     * sampling colormap targets against an explicit {@code biome}. Shared by the block icon path
-     * (via {@link BlockOptions}) and the entity carried-block overlay (which has no
+     * sampling against an explicit {@code biome}. Shared by the block icon path (via
+     * {@link BlockOptions}) and the entity carried-block overlay (which has no
      * {@code BlockOptions} and passes the default biome directly).
+     * <p>
+     * {@link Block.TintTarget#CONSTANT CONSTANT} is the one target answered here, because its
+     * colour is baked on the block's own {@link Block.Tint} and no biome can supply it. Every other
+     * target - including {@link Block.TintTarget#NONE NONE}, which carries no biome channel and so
+     * answers opaque white - is the port's to resolve.
      *
      * @param context the renderer context supplying the colormaps
      * @param block the block whose tint target is resolved
@@ -143,13 +145,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
     static int resolveBlockTint(@NotNull RendererContext context, @NotNull Block block, @NotNull Biome biome) {
         Block.TintTarget target = block.tint().target();
 
-        if (target == Block.TintTarget.NONE)
-            return ColorMath.WHITE;
-
         if (target == Block.TintTarget.CONSTANT)
             return block.tint().constant().map(Color::getRGB).orElse(ColorMath.WHITE);
 
-        return new Textures(context).sampleBiomeTint(target, biome);
+        return context.sampleBiomeTint(target, biome);
     }
 
     /**
@@ -292,7 +291,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 for (ModelFace face : element.getFaces().values()) {
                     String ref = face.getTexture();
                     if (ref.isBlank()) continue;
-                    String id = Textures.resolveTextureReference(ref, model.getTextures());
+                    String id = model.resolveTextureReference(ref);
                     if (id.startsWith("#")) continue;
                     addAnimatedSource(id, seen, sources);
                 }
@@ -476,11 +475,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (!(apply.geometry() instanceof Block.ElementGeometry(ModelData partModel)) || partModel.getElements().isEmpty()) continue;
 
                 // Build triangles for this part's model
-                ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-                    partModel.getElements(), partModel.getTextures(),
-                    id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
-                var forceRefs = Textures.resolveForceTranslucentRefs(
-                    partModel.getElements(), partModel.getTextures());
+                ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
+                    id -> Optional.of(raster.context().requireTextureAtTick(id, tick)));
+                var forceRefs = partModel.resolveForceTranslucentRefs();
 
                 boolean uvlock = apply.uvlock();
                 ConcurrentList<VisibleTriangle> partTriangles = BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures,
@@ -538,11 +535,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull ModelData model, @Nullable Block.Variant variant, int tint, int untintedTint, int tick,
             @NotNull String blockId, @NotNull ConcurrentMap<String, String> state) {
             RasterEngine raster = new RasterEngine(this.context);
-            ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-                model.getElements(), model.getTextures(),
-                id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
-            var forceRefs = Textures.resolveForceTranslucentRefs(
-                model.getElements(), model.getTextures());
+            ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
+                id -> Optional.of(raster.context().requireTextureAtTick(id, tick)));
+            var forceRefs = model.resolveForceTranslucentRefs();
 
             // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
             // texture stays world-aligned (the position rotation is applied separately by the
@@ -572,10 +567,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             @NotNull String blockId, @NotNull ConcurrentMap<String, String> state,
             @NotNull ModelData model, @NotNull RasterEngine raster, int tick) {
             return (face, rawRef) -> {
-                String baseId = Textures.resolveTextureReference(rawRef, model.getTextures());
+                String baseId = model.resolveTextureReference(rawRef);
                 if (baseId.startsWith("#")) return Optional.empty();
                 return this.context.resolveConnectedTexture(blockId, state, baseId, face)
-                    .map(id -> raster.textures().resolveTextureAtTick(id.id(), tick));
+                    .map(id -> raster.context().requireTextureAtTick(id.id(), tick));
             };
         }
 
@@ -593,7 +588,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBoneModel(@NotNull Block.Entity.BoneModel boneModel, @NotNull String textureId, int tint, int tick) {
             RasterEngine raster = new RasterEngine(this.context);
-            PixelBuffer texture = raster.textures().resolveTextureAtTick(textureId, tick);
+            PixelBuffer texture = raster.context().requireTextureAtTick(textureId, tick);
             // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
             // an untinted model (the banner post's wood) samples its texture raw.
             int faceTint = boneModel.tinted() ? tint : ColorMath.WHITE;
@@ -625,7 +620,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // texture (which may differ from the primary - decorated_pot sides use
                 // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
                 Block.Entity.BoneModel boneModel = part.boneModel();
-                PixelBuffer texture = raster.textures().resolveTextureAtTick(part.texture(), tick);
+                PixelBuffer texture = raster.context().requireTextureAtTick(part.texture(), tick);
                 int partTint = boneModel.tinted() ? tint : ColorMath.WHITE;
                 ConcurrentList<VisibleTriangle> partTriangles =
                     BlockGeometryKit.buildFromBones(boneModel.model(), texture, partTint, boneModel.presentation());
@@ -686,11 +681,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 return Concurrent.newList();
 
             RasterEngine raster = new RasterEngine(this.context);
-            ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-                partModel.getElements(), partModel.getTextures(),
-                id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
-            var forceRefs = Textures.resolveForceTranslucentRefs(
-                partModel.getElements(), partModel.getTextures());
+            ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
+                id -> Optional.of(raster.context().requireTextureAtTick(id, tick)));
+            var forceRefs = partModel.resolveForceTranslucentRefs();
 
             boolean uvlock = first.uvlock();
             ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures,
@@ -846,7 +839,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             PixelBuffer buffer = engine.createBuffer(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
             String textureId = block.textureRef(options.getFace().direction(), "all", "side", "particle");
-            PixelBuffer face = engine.textures().resolveTexture(textureId);
+            PixelBuffer face = engine.context().requireTexture(textureId);
             int tint = resolveBlockTint(this.context, block, options);
             PixelBuffer tinted = ColorMath.tint(face, tint);
             int size = options.getOutput().getCanvasSize();

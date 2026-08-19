@@ -1,15 +1,21 @@
 package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta.Villager.Hat;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.VillagerType;
+import lib.minecraft.renderer.support.StubRendererContext;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -107,6 +113,61 @@ class EntityRendererVillagerHatTest {
         Optional<String> own = Optional.of("villager/profession/farmer");
         assertThat(EntityRenderer.typeHatTextureRef(pass("profession", "villager/profession/none"),
             EntityAppearance.builder().age(Age.BABY).build(), "villager", own), is(own));
+    }
+
+    @Test
+    @DisplayName("the hat flag is read off the entity-qualified sidecar, and every absence reads NONE")
+    void villagerHatReadsTheEntityQualifiedSidecar() {
+        RendererContext context = new MetaContext(StubRendererContext.builder().build(), Map.of(
+            "minecraft:entity/villager/type/desert", villagerMeta(Hat.FULL),
+            "minecraft:entity/villager/profession/butcher", villagerMeta(Hat.PARTIAL),
+            "minecraft:entity/villager/type/plains", MCMeta.EMPTY,
+            "villager/type/savanna", villagerMeta(Hat.FULL)));
+
+        assertThat("a declared full hat reads through",
+            EntityRenderer.villagerHat(context, Optional.of("villager/type/desert")), is(Hat.FULL));
+        assertThat("a declared partial hat reads through",
+            EntityRenderer.villagerHat(context, Optional.of("villager/profession/butcher")), is(Hat.PARTIAL));
+        assertThat("a sidecar carrying no villager section reads NONE",
+            EntityRenderer.villagerHat(context, Optional.of("villager/type/plains")), is(Hat.NONE));
+        assertThat("a texture shipping no sidecar at all reads NONE",
+            EntityRenderer.villagerHat(context, Optional.of("villager/type/taiga")), is(Hat.NONE));
+        assertThat("an axis that selected no ref reads NONE",
+            EntityRenderer.villagerHat(context, Optional.empty()), is(Hat.NONE));
+        // The ref is qualified before the lookup, so a sidecar keyed by the bare ref is never the one
+        // found - which is what stops an unqualified id resolving a texture from another directory.
+        assertThat("the ref is qualified with minecraft:entity/ before the lookup",
+            EntityRenderer.villagerHat(context, Optional.of("villager/type/savanna")), is(Hat.NONE));
+    }
+
+    /**
+     * A sidecar declaring a {@code villager} hat flag and nothing else, which is the shape the robe and
+     * profession textures ship.
+     *
+     * @param hat the hat flag the sidecar declares
+     * @return the sidecar carrying it
+     */
+    private static MCMeta villagerMeta(Hat hat) {
+        return new MCMeta(new ResourceId("minecraft", "entity"), Optional.empty(), Optional.empty(),
+            Optional.empty(), Optional.empty(), Optional.of(new MCMeta.Villager(hat)));
+    }
+
+    /**
+     * A context answering sidecar lookups from a seeded map and forwarding everything else, so the test
+     * states the one seam the hat read crosses.
+     *
+     * @param delegate the context every other lookup forwards to
+     * @param metas the texture id to sidecar bindings this context can answer
+     */
+    private record MetaContext(@NotNull RendererContext delegate, @NotNull Map<String, MCMeta> metas)
+        implements RendererContext.Forwarding {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
+            return Optional.ofNullable(this.metas.get(textureId));
+        }
+
     }
 
     /**

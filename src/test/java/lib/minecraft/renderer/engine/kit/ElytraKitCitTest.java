@@ -7,8 +7,8 @@ import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.RenderFrame;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.support.StubRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -62,7 +62,7 @@ class ElytraKitCitTest {
     }
 
     private static void buildEntityWings(@NotNull StubRendererContext ctx, @NotNull Optional<ItemContext> item) {
-        ElytraKit.buildWings3D(new Textures(ctx), false, Optional.empty(), RenderFrame.IDENTITY, item, 0);
+        ElytraKit.buildWings3D(ctx, false, Optional.empty(), RenderFrame.IDENTITY, item, 0);
     }
 
     /**

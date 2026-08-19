@@ -7,7 +7,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
-import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.engine.RendererContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -35,7 +35,7 @@ public class EquipmentKit {
      * <p>A single flat layer with no pack-rule override returns its resolved buffer directly rather
      * than blitting onto a fresh one, so the common case does not depend on the composite path.
      *
-     * @param engine the texture engine for pack-aware texture resolution
+     * @param context the texture context for pack-aware texture resolution
      * @param assetId the equipment asset id ({@code minecraft:iron}, {@code minecraft:saddle})
      * @param layerType the render layer whose subdir the layer textures sit under
      * @param dyeColor the wearer's dye, or empty to take each dyeable layer's own fallback colour
@@ -47,20 +47,20 @@ public class EquipmentKit {
      *     or none of them resolve
      */
     public static @NotNull Optional<PixelBuffer> composite(
-        @NotNull Textures engine,
+        @NotNull RendererContext context,
         @NotNull ResourceId assetId,
         @NotNull LayerType layerType,
         @NotNull Optional<Integer> dyeColor,
         @NotNull CitResult cit,
         @NotNull OptionalInt tick
     ) {
-        List<EquipmentModel.Layer> layers = engine.getContext().resolveEquipmentLayers(assetId, layerType);
+        List<EquipmentModel.Layer> layers = context.resolveEquipmentLayers(assetId, layerType);
         if (layers.isEmpty() && cit == CitResult.NONE) return Optional.empty();
 
         // A single flat (non-dyeable) layer with no pack-rule override returns its resolved buffer
         // directly - the exact single-texture path, so byte-identity does not rest on a blit onto a fresh buffer.
         if (cit == CitResult.NONE && layers.size() == 1 && layers.getFirst().dyeable().isEmpty())
-            return resolve(engine, layers.getFirst().textureLocation(layerType).id(), tick);
+            return resolve(context, layers.getFirst().textureLocation(layerType).id(), tick);
 
         PixelBuffer combined = null;
         for (int i = 0; i < layers.size(); i++) {
@@ -71,7 +71,7 @@ public class EquipmentKit {
             String textureId = cit.textureFor("layer" + i)
                 .map(ResourceId::id)
                 .orElseGet(() -> layer.textureLocation(layerType).id());
-            Optional<PixelBuffer> texture = resolve(engine, textureId, tick);
+            Optional<PixelBuffer> texture = resolve(context, textureId, tick);
             if (texture.isEmpty()) continue;
 
             PixelBuffer painted;
@@ -91,12 +91,12 @@ public class EquipmentKit {
 
     /** Resolves one layer texture, sampling its animation frame when the caller supplies a tick. */
     private static @NotNull Optional<PixelBuffer> resolve(
-        @NotNull Textures engine,
+        @NotNull RendererContext context,
         @NotNull String textureId,
         @NotNull OptionalInt tick
     ) {
-        if (tick.isEmpty()) return engine.tryResolveTexture(textureId);
-        return engine.tryResolveTextureAtTick(textureId, tick.getAsInt());
+        if (tick.isEmpty()) return context.resolveTexture(textureId);
+        return context.resolveTextureAtTick(textureId, tick.getAsInt());
     }
 
 }

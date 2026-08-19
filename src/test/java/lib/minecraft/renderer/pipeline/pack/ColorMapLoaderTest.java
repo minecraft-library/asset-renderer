@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -61,15 +62,15 @@ class ColorMapLoaderTest {
         PackStack bare = PackStack.of(Concurrent.newList(vanilla));
         PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
 
-        ConcurrentMap<ColorMap.Type, ColorMap> maps = ColorMapLoader.load(stack);
+        ConcurrentMap<Block.TintTarget, ColorMap> maps = ColorMapLoader.load(stack);
 
         assertThat(maps.size(), is(3));
-        assertThat(maps.containsKey(ColorMap.Type.GRASS), is(true));
-        assertThat(maps.containsKey(ColorMap.Type.FOLIAGE), is(true));
-        assertThat(maps.containsKey(ColorMap.Type.DRY_FOLIAGE), is(true));
-        assertThat(maps.get(ColorMap.Type.GRASS).packId(), is("vanilla"));
+        assertThat(maps.containsKey(Block.TintTarget.GRASS), is(true));
+        assertThat(maps.containsKey(Block.TintTarget.FOLIAGE), is(true));
+        assertThat(maps.containsKey(Block.TintTarget.DRY_FOLIAGE), is(true));
+        assertThat(maps.get(Block.TintTarget.GRASS).packId(), is("vanilla"));
         assertThat("decoded pixels must be non-empty",
-            maps.get(ColorMap.Type.GRASS).pixels().length, is(greaterThan(0)));
+            maps.get(Block.TintTarget.GRASS).pixels().length, is(greaterThan(0)));
     }
 
     @Test
@@ -83,9 +84,9 @@ class ColorMapLoaderTest {
         PackStack bare = PackStack.of(Concurrent.newList(vanilla));
         PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
 
-        ConcurrentMap<ColorMap.Type, ColorMap> maps = ColorMapLoader.load(stack);
+        ConcurrentMap<Block.TintTarget, ColorMap> maps = ColorMapLoader.load(stack);
         assertThat(maps.size(), is(1));
-        assertThat(maps.containsKey(ColorMap.Type.GRASS), is(true));
+        assertThat(maps.containsKey(Block.TintTarget.GRASS), is(true));
     }
 
     private static void png(Path path) throws IOException {

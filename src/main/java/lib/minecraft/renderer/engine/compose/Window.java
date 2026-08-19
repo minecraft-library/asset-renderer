@@ -270,7 +270,8 @@ public interface Window {
         private static @NotNull Optional<ChromeDecomposition.Border> border(
             @NotNull RendererContext context, @NotNull ResourceId id
         ) {
-            return context.findGuiScaling(id.id())
+            return context.findMeta(id.id())
+                .flatMap(MCMeta::gui)
                 .filter(scaling -> scaling.type() == MCMeta.GuiScaling.Type.NINE_SLICE)
                 .map(MCMeta.GuiScaling::border)
                 .map(declared -> new ChromeDecomposition.Border(

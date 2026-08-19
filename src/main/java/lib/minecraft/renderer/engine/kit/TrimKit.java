@@ -2,7 +2,7 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
@@ -53,14 +53,14 @@ public class TrimKit {
      * permutation. The reference must match the pattern
      * {@code minecraft:trims/items/{slot}_trim_{material}}.
      *
-     * @param engine the texture engine for pack-aware texture resolution
+     * @param context the texture context for pack-aware texture resolution
      * @param textureRef the full texture reference (e.g
      *     {@code "minecraft:trims/items/chestplate_trim_amethyst"})
      * @return the permuted trim overlay, or empty when the reference doesn't match or required
      *     textures are missing
      */
     public static @NotNull Optional<PixelBuffer> resolveFromTextureRef(
-        @NotNull Textures engine,
+        @NotNull RendererContext context,
         @NotNull String textureRef
     ) {
         if (!textureRef.startsWith(TRIM_TEXTURE_PREFIX)) return Optional.empty();
@@ -72,7 +72,7 @@ public class TrimKit {
         String armorSlot = suffix.substring(0, trimIdx);
         String material = suffix.substring(trimIdx + TRIM_INFIX.length());
 
-        return resolve(engine, armorSlot, material);
+        return resolve(context, armorSlot, material);
     }
 
     /**
@@ -80,7 +80,7 @@ public class TrimKit {
      * when any of the three required textures (base trim pattern, palette key, material palette)
      * cannot be found in the active pack stack.
      *
-     * @param engine the texture engine for pack-aware texture resolution
+     * @param context the texture context for pack-aware texture resolution
      * @param armorSlot the armor slot key ({@code helmet}, {@code chestplate}, {@code leggings},
      *     {@code boots})
      * @param material the trim material key ({@code amethyst}, {@code copper}, {@code diamond},
@@ -88,11 +88,11 @@ public class TrimKit {
      * @return the permuted trim overlay, or empty when a required texture is missing
      */
     public static @NotNull Optional<PixelBuffer> resolve(
-        @NotNull Textures engine,
+        @NotNull RendererContext context,
         @NotNull String armorSlot,
         @NotNull String material
     ) {
-        return permuteFrom(engine, TRIM_TEXTURE_PREFIX + armorSlot + "_trim", material);
+        return permuteFrom(context, TRIM_TEXTURE_PREFIX + armorSlot + "_trim", material);
     }
 
     /**
@@ -105,21 +105,21 @@ public class TrimKit {
      * {@code trims/entity/{layer}/{pattern}}. So the palette key both share, and the prefix the
      * material's colour strip sits under, are each declared once - here - rather than once per path.
      *
-     * @param engine the texture engine for pack-aware texture resolution
+     * @param context the texture context for pack-aware texture resolution
      * @param baseId the grayscale base pattern's texture id
      * @param material the trim material key supplying the colour palette
      * @return the permuted trim overlay, or empty when any of the three source textures is missing
      */
     static @NotNull Optional<PixelBuffer> permuteFrom(
-        @NotNull Textures engine,
+        @NotNull RendererContext context,
         @NotNull String baseId,
         @NotNull String material
     ) {
         String materialPaletteId = PALETTE_MATERIAL_PREFIX + material;
 
-        Optional<PixelBuffer> base = engine.tryResolveTexture(baseId);
-        Optional<PixelBuffer> paletteKey = engine.tryResolveTexture(PALETTE_KEY_ID);
-        Optional<PixelBuffer> materialPalette = engine.tryResolveTexture(materialPaletteId);
+        Optional<PixelBuffer> base = context.resolveTexture(baseId);
+        Optional<PixelBuffer> paletteKey = context.resolveTexture(PALETTE_KEY_ID);
+        Optional<PixelBuffer> materialPalette = context.resolveTexture(materialPaletteId);
 
         if (base.isEmpty() || paletteKey.isEmpty() || materialPalette.isEmpty())
             return Optional.empty();
