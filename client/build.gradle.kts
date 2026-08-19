@@ -20,10 +20,10 @@ repositories {
 dependencies {
     // The typed Feign contract for Mojang's launcher / Piston / textures endpoints, and the HTTP
     // client behind it. This module is the one place in the repo that reaches the network.
-    api("com.github.simplified-api:mojang") { version { strictly("d678198") } }
-    api("com.github.simplified-dev:client") { version { strictly("1ca9934") } }
-    api("com.github.simplified-dev:utils") { version { strictly("821499b") } }
-    api("com.github.simplified-dev:gson-extras") { version { strictly("f143dc1") } }
+    api("com.github.simplified-api:mojang") { version { strictly("911319a") } }
+    api("com.github.simplified-dev:client") { version { strictly("2ced9a4") } }
+    api("com.github.simplified-dev:utils") { version { strictly("3d8af56") } }
+    api("com.github.simplified-dev:gson-extras") { version { strictly("ed1d77e") } }
     api(libs.gson)
 
     // The @Parity vocabulary, resolved through the included build. `compileOnly` because retention
