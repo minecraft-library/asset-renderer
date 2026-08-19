@@ -33,7 +33,6 @@ import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Biome;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.slot.BlockSlot;
@@ -292,7 +291,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 for (ModelFace face : element.getFaces().values()) {
                     String ref = face.getTexture();
                     if (ref.isBlank()) continue;
-                    String id = Textures.resolveTextureReference(ref, model.getTextures());
+                    String id = model.resolveTextureReference(ref);
                     if (id.startsWith("#")) continue;
                     addAnimatedSource(id, seen, sources);
                 }
@@ -476,11 +475,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (!(apply.geometry() instanceof Block.ElementGeometry(ModelData partModel)) || partModel.getElements().isEmpty()) continue;
 
                 // Build triangles for this part's model
-                ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-                    partModel.getElements(), partModel.getTextures(),
+                ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
                     id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
-                var forceRefs = Textures.resolveForceTranslucentRefs(
-                    partModel.getElements(), partModel.getTextures());
+                var forceRefs = partModel.resolveForceTranslucentRefs();
 
                 boolean uvlock = apply.uvlock();
                 ConcurrentList<VisibleTriangle> partTriangles = BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures,
@@ -538,11 +535,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull ModelData model, @Nullable Block.Variant variant, int tint, int untintedTint, int tick,
             @NotNull String blockId, @NotNull ConcurrentMap<String, String> state) {
             RasterEngine raster = new RasterEngine(this.context);
-            ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-                model.getElements(), model.getTextures(),
+            ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
                 id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
-            var forceRefs = Textures.resolveForceTranslucentRefs(
-                model.getElements(), model.getTextures());
+            var forceRefs = model.resolveForceTranslucentRefs();
 
             // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
             // texture stays world-aligned (the position rotation is applied separately by the
@@ -572,7 +567,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             @NotNull String blockId, @NotNull ConcurrentMap<String, String> state,
             @NotNull ModelData model, @NotNull RasterEngine raster, int tick) {
             return (face, rawRef) -> {
-                String baseId = Textures.resolveTextureReference(rawRef, model.getTextures());
+                String baseId = model.resolveTextureReference(rawRef);
                 if (baseId.startsWith("#")) return Optional.empty();
                 return this.context.resolveConnectedTexture(blockId, state, baseId, face)
                     .map(id -> raster.textures().resolveTextureAtTick(id.id(), tick));
@@ -686,11 +681,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 return Concurrent.newList();
 
             RasterEngine raster = new RasterEngine(this.context);
-            ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-                partModel.getElements(), partModel.getTextures(),
+            ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
                 id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
-            var forceRefs = Textures.resolveForceTranslucentRefs(
-                partModel.getElements(), partModel.getTextures());
+            var forceRefs = partModel.resolveForceTranslucentRefs();
 
             boolean uvlock = first.uvlock();
             ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures,

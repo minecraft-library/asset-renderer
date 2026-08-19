@@ -994,8 +994,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // texture loading; the kit treats them as no-texture faces. Sampled at the frame's tick so a
         // carried animated block matches the block-icon path (which also flattens to frame 0 by default).
         Textures textures = new Textures(context);
-        ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-            blockModel.getElements(), blockModel.getTextures(),
+        ConcurrentMap<String, PixelBuffer> faceTextures = blockModel.loadElementFaceTextures(
             id -> textures.tryResolveTextureAtTick(id, tick));
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
@@ -1006,8 +1005,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // position - so the biome the entity stands in never reaches it and the no-world-context
         // point applies; untinted (tintindex -1) faces keep white.
         int blockTint = BlockRenderer.resolveBlockTint(context, block.get(), Biome.INVENTORY_DEFAULT);
-        var forceRefs = Textures.resolveForceTranslucentRefs(
-            blockModel.getElements(), blockModel.getTextures());
+        var forceRefs = blockModel.resolveForceTranslucentRefs();
         ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(
             blockModel.getElements(), faceTextures, blockTint, ColorMath.WHITE, forceRefs);
         if (blockTris.isEmpty()) return Concurrent.newList();

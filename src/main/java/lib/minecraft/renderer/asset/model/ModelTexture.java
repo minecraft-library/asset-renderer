@@ -5,7 +5,6 @@ import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import lib.minecraft.renderer.engine.texture.Textures;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -19,7 +18,7 @@ import java.io.IOException;
  * model's {@code textures} map is therefore a single {@code Map<String, ModelTexture>} whichever
  * shape each slot was written in, with no side channel.
  * <p>
- * {@link #forceTranslucent} is consumed by {@link Textures#resolveForceTranslucentRefs}, which forces
+ * {@link #forceTranslucent} is consumed by {@link ModelData#resolveForceTranslucentRefs}, which forces
  * the flagged face refs into the translucent pass.
  *
  * @param sprite the resolved sprite id (the object form's {@code sprite} value, or the bare string)

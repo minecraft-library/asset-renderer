@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
  * / (N - 1)} and, under the {@code gc} profiler, {@code (alloc@N - alloc@1) / (N - 1)} - is the
  * per-frame rebuild-plus-raster the hoist would target; the {@code stack} profiler attributes that
  * marginal between the rebuild ({@code buildRelitTriangles} / {@code BlockGeometryKit.buildFromElements}
- * / {@code Textures.loadElementFaceTextures}) and the raster ({@code ModelEngine.rasterizeInternal}).
+ * / {@code ModelData.loadElementFaceTextures}) and the raster ({@code ModelEngine.rasterizeInternal}).
  * <p>
  * Rendered at {@code 128} px with SSAA and FXAA <b>off</b> so the raster is as cheap as possible and
  * the rebuild's share of each marginal frame is at its most visible - the conservative setting where

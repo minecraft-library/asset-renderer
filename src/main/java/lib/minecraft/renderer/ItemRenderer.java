@@ -578,7 +578,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 if (faceRef.equals("#" + layerKey) || faceRef.equals(layerRef))
                     return face.getTintIndex();
 
-                String resolved = Textures.resolveTextureReference(faceRef, variables);
+                String resolved = item.model().resolveTextureReference(faceRef);
                 if (resolved.equals(layerRef))
                     return face.getTintIndex();
             }
@@ -829,8 +829,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 return buildBannerOrShield3D(engine, options.getItemId(), options);
             if (!item.model().getElements().isEmpty()) {
                 Map<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item, tick);
-                var forceRefs = Textures.resolveForceTranslucentRefs(
-                    item.model().getElements(), item.model().getTextures());
+                var forceRefs = item.model().resolveForceTranslucentRefs();
                 return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint, tint, forceRefs);
             }
             PixelBuffer texture = composeTintedLayers(this.context, engine, item, options, cit, tick);
@@ -853,8 +852,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull Item item,
             int tick
         ) {
-            return Textures.loadElementFaceTextures(
-                item.model().getElements(), item.model().getTextures(),
+            return item.model().loadElementFaceTextures(
                 id -> Optional.of(engine.textures().resolveTextureAtTick(id, tick)));
         }
 
