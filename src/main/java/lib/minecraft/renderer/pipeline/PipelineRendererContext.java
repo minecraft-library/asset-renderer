@@ -255,13 +255,21 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
-     * Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationData} the renderer consumes.
+     * Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationData} the renderer
+     * consumes. The frames collect unmodifiable, as the section's own are, so the renderer's copy reads
+     * through the no-op lock an unmodifiable list carries rather than through a read lock.
      */
     private static @NotNull AnimationData toAnimationData(@NotNull MCMeta.Animation animation) {
-        ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
-        for (MCMeta.Frame frame : animation.frames())
-            frames.add(new AnimationData.FrameEntry(frame.index(), frame.time()));
-        return new AnimationData(animation.frametime(), animation.interpolate(), frames, animation.width(), animation.height());
+        return new AnimationData(
+            animation.frametime(),
+            animation.interpolate(),
+            animation.frames()
+                .stream()
+                .map(AnimationData.FrameEntry::new)
+                .collect(Concurrent.toUnmodifiableList()),
+            animation.width(),
+            animation.height()
+        );
     }
 
     /**
