@@ -153,28 +153,28 @@ dependencies {
     // picks the stale SNAPSHOT JAR over our pin and produces NoSuchMethodError at runtime.
     // Each upstream lib also strict-pins its own internal deps to these same hashes so
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
-    api("com.github.simplified-dev:collections") { version { strictly("8ca6cb8") } }
-    api("com.github.simplified-dev:utils") { version { strictly("821499b") } }
-    api("com.github.simplified-dev:image") { version { strictly("a4d0ad8") } }
-    api("com.github.simplified-dev:gson-extras") { version { strictly("f143dc1") } }
-    api("com.github.simplified-dev:reflection") { version { strictly("6c3b7c5") } }
-    api("com.github.simplified-dev:client") { version { strictly("1ca9934") } }
+    api("com.github.simplified-dev:collections") { version { strictly("9696ca5") } }
+    api("com.github.simplified-dev:utils") { version { strictly("3d8af56") } }
+    api("com.github.simplified-dev:image") { version { strictly("332a0df") } }
+    api("com.github.simplified-dev:gson-extras") { version { strictly("ed1d77e") } }
+    api("com.github.simplified-dev:reflection") { version { strictly("158edbc") } }
+    api("com.github.simplified-dev:client") { version { strictly("2ced9a4") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via Pipeline.
-    api("com.github.simplified-api:mojang") { version { strictly("d678198") } }
+    api("com.github.simplified-api:mojang") { version { strictly("911319a") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend.
-    api("com.github.minecraft-library:text") { version { strictly("929dab6") } }
+    api("com.github.minecraft-library:text") { version { strictly("84f8f1a") } }
 
     // nbt-factory (github.com/minecraft-library/nbt-factory, group dev.sbs rewritten by jitpack).
     // Supplies the NBT tag model (CompoundTag/ListTag/NumericalTag) + parse surface
     // (fromBase64/fromByteArray/fromSnbt) the pipeline.pack.rule CIT nbt-conditional layer walks;
     // the built-in getPath is compound-only, so the rule layer supplies its own list/wildcard walker.
-    api("com.github.minecraft-library:nbt-factory") { version { strictly("1fee2e2") } }
+    api("com.github.minecraft-library:nbt-factory") { version { strictly("c2f5f8c") } }
 
     // Gson
     api(libs.gson)
