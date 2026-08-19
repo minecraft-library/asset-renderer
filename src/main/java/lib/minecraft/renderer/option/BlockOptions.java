@@ -11,8 +11,6 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.slot.BlockSlot;
-import lib.minecraft.renderer.option.spec.AnimationOptions;
-import lib.minecraft.renderer.option.spec.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.UnaryOperator;

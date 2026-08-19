@@ -5,6 +5,11 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
+import lib.minecraft.renderer.asset.equipment.ArmorPiece;
+import lib.minecraft.renderer.asset.equipment.ArmorSlot;
+import lib.minecraft.renderer.asset.equipment.ArmorTrim;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
@@ -15,12 +20,7 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.HumanoidPart;
-import lib.minecraft.renderer.option.Age;
-import lib.minecraft.renderer.option.EntityAppearance;
-import lib.minecraft.renderer.option.spec.ArmorMaterial;
-import lib.minecraft.renderer.option.spec.ArmorPiece;
-import lib.minecraft.renderer.option.spec.ArmorSlot;
-import lib.minecraft.renderer.option.spec.ArmorTrim;
+import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.support.StubRendererContext;
 import lib.minecraft.renderer.tensor.Box;
@@ -216,7 +216,7 @@ class ArmorKitTest {
 
     /** The shell that same wearer's baby is dressed in. */
     private static @NotNull Shell babyShell() {
-        return genericShell().forAppearance(EntityAppearance.builder().age(Age.BABY).build());
+        return genericShell().forAppearance(AppearanceOptions.builder().age(Age.BABY).build());
     }
 
     /**

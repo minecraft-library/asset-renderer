@@ -64,7 +64,7 @@
  *       regenerators rerun on every Minecraft version bump).</li>
  * </ul>
  *
- * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.option.spec.OutputOptions OutputOptions}
+ * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.option.OutputOptions OutputOptions}
  * carries the shared square-pixel default for single-subject renders. Every subject-scoped options
  * record ({@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions},
  * {@code FluidOptions}, {@code PortalOptions}) composes that one frame, so a caller building with

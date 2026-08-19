@@ -106,7 +106,7 @@ BlockOptions blockOptions = BlockOptions.builder()
 ImageData block = blockRenderer.render(blockOptions);
 ImageIO.write(block.toBufferedImage(), "PNG", new File("diamond_ore.png"));
 
-// Entities render from vanilla-client-jar-derived models. EntityAppearance selects the per-entity
+// Entities render from vanilla-client-jar-derived models. AppearanceOptions selects the per-entity
 // axes (age, behavioural state, dye tints, tropical-fish pattern / shape, equipment, ...); the
 // default appearance renders the plain mob.
 EntityRenderer entityRenderer = new EntityRenderer(context);
@@ -130,7 +130,7 @@ ImageIO.write(entity.toBufferedImage(), "PNG", new File("zombie.png"));
 |----------|---------|:------:|:--------:|-------|
 | `BlockRenderer` | `BlockOptions` | ✅ | ❌ | Isometric cube or 2D face; animated textures pinned to frame 0 |
 | `ItemRenderer` | `ItemOptions` | ✅ | ✅ | GUI + held transforms, durability bars, animated enchant glint |
-| `EntityRenderer` | `EntityOptions` | ✅ | ❌ | Vanilla-client-jar-derived models; per-entity `EntityAppearance` axes |
+| `EntityRenderer` | `EntityOptions` | ✅ | ❌ | Vanilla-client-jar-derived models; per-entity `AppearanceOptions` axes |
 | `PlayerRenderer` | `PlayerOptions` | ✅ | ❌ | Skins with armor, trims, and held items |
 | `FluidRenderer` | `FluidOptions` | ✅ | ✅ | Water / lava, biome variants, still + flowing |
 | `PortalRenderer` | `PortalOptions` | ✅ | ✅ | End portal / gateway, layered shader effect |
@@ -174,7 +174,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ```
 
 > [!TIP]
-> `entityRender3D` selects per-entity `EntityAppearance` axes through `-Dasset.entity.*` system properties, e.g. `-Dasset.entity.state=tame`, `-Dasset.entity.age=baby`, `-Dasset.entity.collar=magenta`, `-Dasset.entity.wool=lime`, `-Dasset.entity.base_color=orange`, `-Dasset.entity.pattern=clayfish`, `-Dasset.entity.pattern_color=white`, `-Dasset.entity.sheared=true`, `-Dasset.entity.toggles=horn`, `-Dasset.entity.equipment=body:diamond`. All `-Dasset.*` flags auto-forward to the fork.
+> `entityRender3D` selects per-entity `AppearanceOptions` axes through `-Dasset.entity.*` system properties, e.g. `-Dasset.entity.state=tame`, `-Dasset.entity.age=baby`, `-Dasset.entity.collar=magenta`, `-Dasset.entity.wool=lime`, `-Dasset.entity.base_color=orange`, `-Dasset.entity.pattern=clayfish`, `-Dasset.entity.pattern_color=white`, `-Dasset.entity.sheared=true`, `-Dasset.entity.toggles=horn`, `-Dasset.entity.equipment=body:diamond`. All `-Dasset.*` flags auto-forward to the fork.
 
 **Parity** - diff the pipeline against pixel-perfect ground truth from the [vanilla-reference-harness] in `harness/` (a headless Fabric mod that drives the actual MC client to render every block, item, and living entity at a locked iso pose). Reference PNGs live under `cache/asset-renderer/vanilla/<mc-version>/references/{blocks,items,entities,glint}/`; each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
 
@@ -222,7 +222,9 @@ asset-renderer/
 │   │   ├── BlockRenderer.java  ItemRenderer.java  EntityRenderer.java  PlayerRenderer.java
 │   │   ├── FluidRenderer.java  PortalRenderer.java  TextRenderer.java
 │   │   ├── AtlasRenderer.java  GridRenderer.java  LayoutRenderer.java  MenuRenderer.java
-│   │   ├── asset/           # Immutable domain: Block, Item, Entity, ResourceId, ...
+│   │   ├── asset/           # Immutable domain: Block, Item, Entity, ResourceId, DyeColor, ...
+│   │   │   ├── appearance/  # Entity axes: Age, Size, TintAxis, Villager, AppearanceGate, ...
+│   │   │   ├── equipment/   # EquipmentModel, ArmorSlot, ArmorMaterial, ArmorTrim, Shell, ...
 │   │   │   └── model/       # ModelData, EntityModelData, ModelElement, ModelFace, ...
 │   │   ├── engine/          # ModelEngine + RasterEngine
 │   │   │   ├── camera/      # Camera, Projection, Placement, FitRequest, ...
@@ -233,16 +235,14 @@ asset-renderer/
 │   │   │   └── texture/     # texture / atlas resolution
 │   │   ├── exception/       # PipelineException, RendererException, ...
 │   │   ├── face/            # BlockFace, EntityFace, SixFaces, SkinFace
-│   │   ├── option/          # BlockOptions, EntityOptions, ..., EntityAppearance, Age
-│   │   │   ├── slot/        # equipment / armor slot enums
-│   │   │   └── spec/        # OutputOptions, ArmorOptions, SkinOptions, ...
+│   │   ├── option/          # BlockOptions, EntityOptions, ..., OutputOptions, AppearanceOptions
+│   │   │   └── slot/        # per-renderer LayerSlot enums
 │   │   ├── pipeline/        # Pipeline (client-jar download/extract via simplified-api/mojang), pack loaders
 │   │   │   ├── loader/      # BlockStateLoader, EntityModelLoader, EntityFamilyFlattener, ...
 │   │   │   ├── pack/        # PackStack, ResourcePack, PackContainer, IndexedTexture, PackCapability, ...
 │   │   │   │   └── rule/    # OptiFine rule layer: CIT/CTM/RuleSet, NBT conditionals, color.properties
 │   │   │   ├── resolver/    # model / texture resolvers
 │   │   │   └── util/        # SPI + shared pipeline utils
-│   │   ├── request/         # Biome, DyeColor, TintAxis, TropicalFishPattern, EulerRotation, ArmorMaterial, ...
 │   │   ├── tensor/          # FloatVector-backed Matrix4fOps, Vector3fOps
 │   │   └── tooling/         # Tooling* Gradle entry points + ASM scanners
 │   │       ├── blockentity/ # block-entity / block-model ASM emitters

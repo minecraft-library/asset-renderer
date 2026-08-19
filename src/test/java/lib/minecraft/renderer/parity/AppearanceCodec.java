@@ -3,22 +3,20 @@ package lib.minecraft.renderer.parity;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.DyeColor;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.option.Age;
-import lib.minecraft.renderer.option.CopperWeathering;
-import lib.minecraft.renderer.option.EntityAppearance;
-import lib.minecraft.renderer.option.HorseMarking;
-import lib.minecraft.renderer.option.IronGolemCrackiness;
-import lib.minecraft.renderer.option.Size;
-import lib.minecraft.renderer.option.TintAxis;
-import lib.minecraft.renderer.option.TropicalFishPattern;
-import lib.minecraft.renderer.option.VillagerLevel;
-import lib.minecraft.renderer.option.VillagerProfession;
-import lib.minecraft.renderer.option.VillagerType;
-import lib.minecraft.renderer.option.spec.ArmorMaterial;
-import lib.minecraft.renderer.option.spec.ArmorOptions;
-import lib.minecraft.renderer.option.spec.ArmorPiece;
-import lib.minecraft.renderer.option.spec.DyeColor;
+import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.asset.appearance.CopperWeathering;
+import lib.minecraft.renderer.asset.appearance.HorseMarking;
+import lib.minecraft.renderer.asset.appearance.IronGolemCrackiness;
+import lib.minecraft.renderer.asset.appearance.Size;
+import lib.minecraft.renderer.asset.appearance.TintAxis;
+import lib.minecraft.renderer.asset.appearance.TropicalFishPattern;
+import lib.minecraft.renderer.asset.appearance.Villager;
+import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
+import lib.minecraft.renderer.asset.equipment.ArmorPiece;
+import lib.minecraft.renderer.option.AppearanceOptions;
+import lib.minecraft.renderer.option.ArmorOptions;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.ByteArrayOutputStream;
@@ -136,7 +134,7 @@ public final class AppearanceCodec {
         if (resolved.isEmpty()) return malformed(fileName, "head '" + parts.getFirst() + "' resolves to no model");
         Head head = resolved.get();
 
-        EntityAppearance.Builder appearance = EntityAppearance.builder();
+        AppearanceOptions.Builder appearance = AppearanceOptions.builder();
         head.variant().ifPresent(v -> appearance.variant(Optional.of(v)));
         Set<String> toggles = new TreeSet<>();
         Map<String, String> equipment = new TreeMap<>();
@@ -208,17 +206,17 @@ public final class AppearanceCodec {
                     appearance.weathering(weathering.get());
                 }
                 case VILLAGER_TYPE -> {
-                    Optional<VillagerType> type = enumOf(VillagerType.class, value);
+                    Optional<Villager.Type> type = enumOf(Villager.Type.class, value);
                     if (type.isEmpty()) return malformed(fileName, "unknown villager_type '" + value + "'");
                     appearance.villagerType(type.get());
                 }
                 case VILLAGER_PROFESSION -> {
-                    Optional<VillagerProfession> profession = enumOf(VillagerProfession.class, value);
+                    Optional<Villager.Profession> profession = enumOf(Villager.Profession.class, value);
                     if (profession.isEmpty()) return malformed(fileName, "unknown villager_profession '" + value + "'");
                     appearance.villagerProfession(profession.get());
                 }
                 case VILLAGER_LEVEL -> {
-                    Optional<VillagerLevel> level = enumOf(VillagerLevel.class, value);
+                    Optional<Villager.Level> level = enumOf(Villager.Level.class, value);
                     if (level.isEmpty()) return malformed(fileName, "unknown villager_level '" + value + "'");
                     appearance.villagerLevel(level);
                 }
@@ -291,7 +289,7 @@ public final class AppearanceCodec {
         key.variant().ifPresent(v -> head.append('_').append(v));
 
         Entity model = this.entities.get(key.entityId());
-        EntityAppearance appearance = key.appearance();
+        AppearanceOptions appearance = key.appearance();
         List<String> tokens = new ArrayList<>();
 
         if (appearance.isBaby()) tokens.add(token(AppearanceKey.Axis.AGE, BABY));
@@ -313,9 +311,9 @@ public final class AppearanceCodec {
             tokens.add(token(AppearanceKey.Axis.CRACKINESS, appearance.getCrackiness().name()));
         if (appearance.getWeathering() != CopperWeathering.UNAFFECTED)
             tokens.add(token(AppearanceKey.Axis.WEATHERING, appearance.getWeathering().name()));
-        if (appearance.getVillagerType() != VillagerType.PLAINS)
+        if (appearance.getVillagerType() != Villager.Type.PLAINS)
             tokens.add(token(AppearanceKey.Axis.VILLAGER_TYPE, appearance.getVillagerType().name()));
-        if (appearance.getVillagerProfession() != VillagerProfession.NONE)
+        if (appearance.getVillagerProfession() != Villager.Profession.NONE)
             tokens.add(token(AppearanceKey.Axis.VILLAGER_PROFESSION, appearance.getVillagerProfession().name()));
         appearance.getVillagerLevel().ifPresent(level ->
             tokens.add(token(AppearanceKey.Axis.VILLAGER_LEVEL, level.name())));

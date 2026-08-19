@@ -7,7 +7,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.option.EntityAppearance;
+import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -91,7 +91,7 @@ class EntityModelLoaderTest {
         // The base IS the default (temperate) coat; the resolver fold swaps it to the selected coat.
         // cow_cold uses the horned coldcow mesh + cold texture, so selecting it changes both.
         assertThat("the base row is the default coat", cow.textureRef(), is(cow.axes().variants().get("temperate").textureRef()));
-        Entity resolvedCold = cow.resolve(EntityAppearance.builder().variant(Optional.of("cold")).build());
+        Entity resolvedCold = cow.resolve(AppearanceOptions.builder().variant(Optional.of("cold")).build());
         assertThat("selecting cold swaps to the cold coat texture", resolvedCold.textureRef(), is(cow.axes().variants().get("cold").textureRef()));
         assertThat("the cold coat differs from the default", resolvedCold.textureRef(), not(cow.textureRef()));
         assertThat("selecting cold swaps to the cold coat mesh", resolvedCold.model(), sameInstance(cow.axes().variants().get("cold").model()));

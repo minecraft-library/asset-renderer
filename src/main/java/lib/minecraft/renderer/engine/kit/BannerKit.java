@@ -5,9 +5,9 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.BannerLayer;
 import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.option.spec.BannerLayer;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

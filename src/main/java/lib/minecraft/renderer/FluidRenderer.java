@@ -17,9 +17,9 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.option.AnimationOptions;
 import lib.minecraft.renderer.option.FluidOptions;
 import lib.minecraft.renderer.option.slot.FluidSlot;
-import lib.minecraft.renderer.option.spec.AnimationOptions;
 import org.jetbrains.annotations.NotNull;
 
 /**

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.parity;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import lib.minecraft.renderer.support.BuildScripts;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +32,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import lib.minecraft.renderer.support.BuildScripts;
 
 /**
  * Checks that the blindness map still refers to real things.
@@ -111,6 +111,13 @@ final class BlindnessMapTest {
      * each speaks about a code region inside a wider tree, and demoting one would remove a gate the
      * rest of that tree genuinely reaches.
      *
+     * <p>B24 is the one that reads the other way round: it is the wide claim and the exception is a
+     * subset of its own triggers. The dump really is blind to an options bag, which is what the claim
+     * was measured on; it is not blind to the vanilla vocabulary those bags name, because that lives
+     * under {@code asset} and the dump serialises it. Narrowing B24 off those paths would drop the
+     * four CRC pins and three manifests only it reaches, so the claim stays wide and the pair is
+     * recorded.
+     *
      * <p>Four pairs left this set by being <b>measured false</b> rather than by being reclassified.
      * Perturbing a file each claimant triggers on moved the artifact it called blind, so the claim was
      * not a statement about a narrower region at all - it was wrong, and the artifact is now in that
@@ -136,7 +143,8 @@ final class BlindnessMapTest {
         "B21 -> sweep.item",
         "B22 -> manifest.dump.packs", "B22 -> manifest.dump.vanilla",
         "B23 -> manifest.player-raw", "B23 -> sweep.armor", "B23 -> sweep.block",
-        "B23 -> sweep.entity", "B23 -> sweep.glint", "B23 -> sweep.item");
+        "B23 -> sweep.entity", "B23 -> sweep.glint", "B23 -> sweep.item",
+        "B24 -> manifest.dump.packs", "B24 -> manifest.dump.vanilla");
 
     /**
      * Tracked files a rule claims that a {@code no_reach} glob would also excuse.

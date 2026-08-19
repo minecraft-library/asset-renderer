@@ -10,7 +10,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.spec.AnimationOptions;
+import lib.minecraft.renderer.option.AnimationOptions;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

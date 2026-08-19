@@ -1,15 +1,15 @@
 package lib.minecraft.renderer;
 
+import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
+import lib.minecraft.renderer.asset.equipment.ArmorPiece;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.option.ArmorOptions;
+import lib.minecraft.renderer.option.OutputOptions;
 import lib.minecraft.renderer.option.PlayerOptions;
-import lib.minecraft.renderer.option.spec.ArmorMaterial;
-import lib.minecraft.renderer.option.spec.ArmorOptions;
-import lib.minecraft.renderer.option.spec.ArmorPiece;
-import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.option.spec.SkinOptions;
-import lib.minecraft.renderer.option.spec.TextureOptions;
+import lib.minecraft.renderer.option.SkinOptions;
+import lib.minecraft.renderer.option.TextureOptions;
 import lib.minecraft.renderer.parity.PinSet;
 import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.parity.RenderDigest;

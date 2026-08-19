@@ -2,8 +2,8 @@ package lib.minecraft.renderer.parity;
 
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
-import lib.minecraft.renderer.option.EntityAppearance;
-import lib.minecraft.renderer.option.spec.ArmorOptions;
+import lib.minecraft.renderer.option.AppearanceOptions;
+import lib.minecraft.renderer.option.ArmorOptions;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -20,7 +20,7 @@ import java.util.Optional;
  */
 public record AppearanceKey(@NotNull String entityId,
                             @NotNull Optional<String> variant,
-                            @NotNull EntityAppearance appearance,
+                            @NotNull AppearanceOptions appearance,
                             @NotNull Optional<ArmorOptions> armor) {
 
     /**

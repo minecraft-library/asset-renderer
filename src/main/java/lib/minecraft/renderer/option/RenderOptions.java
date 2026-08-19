@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.option.spec.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 
 /**

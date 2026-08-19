@@ -185,6 +185,34 @@ belong in the commit that landed them, and in the reason recorded with the basel
 open item nobody owns had a file of its own for a while; it is gone because the last entry closed, and
 a new one belongs there again rather than here - a rule that is really a question reads as settled.
 
+## Options and the vocabulary they name
+
+**Everything in `option/` is an `*Options` bag**, whether a renderer takes it whole or another bag
+nests it: `OutputOptions`, `AnimationOptions`, `ArmorOptions`, `SkinOptions`, `TextureOptions`,
+`DecorationOptions`, `AppearanceOptions`. `option/slot/` is the one sub-package, holding the
+per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. `AtlasSidecar` and
+`AtlasTile` are the exception and sit beside `AtlasOptions`, being what an atlas run hands back.
+
+**What a bag names is not a bag.** The vanilla vocabulary a selection is drawn from is domain data
+whichever side supplies it, and the pipeline reads it too, so it lives under `asset` and `option`
+points down at it - never the reverse. `asset/appearance/` holds the entity axes (`Age`, `Size`,
+`TintAxis`, `HorseMarking`, `IronGolemCrackiness`, `CopperWeathering`, `TropicalFishPattern`,
+`Villager`) and `AppearanceGate`, the parsed `when` that tests a selection. `asset/equipment/` holds
+the worn-armour vocabulary beside the shell walk that reads it. `asset/DyeColor` is the palette,
+`asset/pack/item/ItemModelContext` the item-tree evaluation context. `asset/pack/rule/ItemContext`
+is the older instance of the same shape and the precedent for all of them.
+
+- A value type exactly one bag names **nests inside that bag** rather than sitting beside it -
+  `MenuOptions.MenuSlotContent`, `GridOptions.GridTile`, `FluidOptions.CornerHeights`,
+  `LayoutOptions.Layout`, `AnimationOptions.Schedule`.
+- `AppearanceOptions` is the one caller bag whose readers are all asset-side: `Entity.resolve` and
+  every `AppearanceGate` arm take one, so `asset -> option` survives there by design. That edge is
+  known and open; do not "fix" it by moving the bag out of `option`.
+- **Moving a type between `option/**` and `asset/**` moves what the parity store says it reaches.**
+  B24 (`option-surface`) sees four CRC pins and three manifests that B25 (`asset-layer`) does not, so
+  a relocated type carries `@Parity(claim = "option-surface")` to keep them - a declaration, never a
+  hand-edited `trigger_paths` array. `python parity/scripts/parity triggers` regenerates.
+
 ## The pack filter
 
 `pack.mcmeta`'s `filter.block` is the only place a resource pack can **remove** something a lower
@@ -233,7 +261,7 @@ axis; the tick handed to a draw is that instant floored.
 
 `minecraft:time` is a normalized **sun angle**, not a linear day fraction:
 `data/minecraft/timeline/day.json` eases one `360 -> 0` pair anchored at noon over 24000 ticks with a
-cubic Bezier `[0.362, 0.241, 0.638, 0.759]`, reproduced float-for-float by `option/SunAngle`. A
+cubic Bezier `[0.362, 0.241, 0.638, 0.759]`, reproduced float-for-float by `asset/pack/item/SunAngle`. A
 linear ramp is off by more than two clock faces at sunrise.
 
 - Tick 0 is noon and yields exactly `+0.0f`; a `-0.0f` breaks `gui().atTick(0) == gui()` and costs
@@ -469,8 +497,9 @@ hands each renderer the one its subject wears. There is no armour file; the shel
   alone. Do not forward one onto another.
 - `ArmorSlot` declares LEGGINGS first, vanilla's innermost layer, and all three armour walks iterate
   slot-outermost so a later slot paints over an earlier one whatever the rectangles do.
-- `onLayer` is generic because one of its three pairs is a `LayerType`, and naming it puts
-  `asset.equipment` back on `option.spec`'s import list.
+- `onLayer` is generic because its three call sites hand it two different types - a `LayerType` pair
+  at `ArmorForm.layerType`, a `Vector3f` deformation pair at `ShellPart.box` and at
+  `ArmorKit.buildArmor3D` - so no concrete signature serves all three.
 - `ArmorForm.playerSlots(part)` is `static` and ADULT-only, because half the corpus's bone names have
   no player body part and a parameterised accessor would drop a box silently.
 - The helmet's second box is a peer row on both paths - the shell's `hat` cube, or a second
@@ -497,7 +526,7 @@ hands each renderer the one its subject wears. There is no armour file; the shel
 `entity_models.json` is the normalized model form: one entry per base entity under a top-level
 `models` map, carrying `geometry_ref` and its overlays once.
 
-- Axes are orthogonal dimensions, all option-encoded, resolved at render from `EntityAppearance`. A
+- Axes are orthogonal dimensions, all option-encoded, resolved at render from `AppearanceOptions`. A
   `size` axis's default is the option-less domain member taken last-first, so a one-option axis
   answers the larger form.
 - The index is keyed by plain entity id and nothing synthesises a `minecraft:<id>_<option>` key. Do
@@ -715,7 +744,7 @@ Entity:
 - Do not size an entity canvas from the selected coat - vanilla's family-fit pre-pass builds a fresh
   render state whose variant is the enum's default.
 - Do not model an unset villager level as "no badge" - `VillagerData` raises any level to one, so
-  `VillagerProfession.drawsBadge()` and `isBaby` are what suppress one.
+  `Villager.Profession.drawsBadge()` and `isBaby` are what suppress one.
 - Do not recover the armour frame from the wearer's `body` bone - it carries no rotation member, and
   a baby's body pivot is not a mesh transform.
 

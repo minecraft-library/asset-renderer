@@ -8,8 +8,15 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.DyeColor;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.CopperWeathering;
+import lib.minecraft.renderer.asset.appearance.HorseMarking;
+import lib.minecraft.renderer.asset.appearance.TintAxis;
+import lib.minecraft.renderer.asset.appearance.TropicalFishPattern;
+import lib.minecraft.renderer.asset.appearance.Villager;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -41,19 +48,11 @@ import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.face.Turn;
-import lib.minecraft.renderer.option.AppearanceGate;
-import lib.minecraft.renderer.option.CopperWeathering;
-import lib.minecraft.renderer.option.EntityAppearance;
+import lib.minecraft.renderer.option.AnimationOptions;
+import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.option.HorseMarking;
-import lib.minecraft.renderer.option.TintAxis;
-import lib.minecraft.renderer.option.TropicalFishPattern;
-import lib.minecraft.renderer.option.VillagerLevel;
-import lib.minecraft.renderer.option.VillagerType;
+import lib.minecraft.renderer.option.OutputOptions;
 import lib.minecraft.renderer.option.slot.EntitySlot;
-import lib.minecraft.renderer.option.spec.AnimationOptions;
-import lib.minecraft.renderer.option.spec.DyeColor;
-import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -423,7 +422,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@link EntityOptions#getTextureId() texture id on options} (user override, authoritative when
      * present - looked up against the Java atlas via the pack stack) &gt; the {@code <variant>_baby}
      * texture when the resolved definition renders the baby mesh &gt; an
-     * {@link EntityAppearance#getState() state} selection matching one of the definition's
+     * {@link AppearanceOptions#getState() state} selection matching one of the definition's
      * {@link Entity.Axes#stateTextures() state textures} (wolf
      * {@code tame}/{@code angry}) &gt; the entity's own
      * {@link Entity#textureRef() texture_ref}. Each model-form ref is resolved against the vanilla
@@ -437,7 +436,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (options.getTextureId().isPresent())
             return options.getTextureId().flatMap(id -> this.context.resolveTextureAtTick(id, tick));
 
-        EntityAppearance appearance = options.getAppearance();
+        AppearanceOptions appearance = options.getAppearance();
         return babyTexture(definition, appearance, tick)
             .or(() -> selectWeatheringTexture(definition, appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
             .or(() -> selectStateTexture(definition, appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
@@ -453,7 +452,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull Optional<String> selectWeatheringTexture(
         @NotNull Entity definition,
-        @NotNull EntityAppearance appearance
+        @NotNull AppearanceOptions appearance
     ) {
         if (appearance.getWeathering() == CopperWeathering.UNAFFECTED) return Optional.empty();
         boolean supportsWeathering = definition.overlays().stream()
@@ -470,7 +469,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull Optional<PixelBuffer> babyTexture(
         @NotNull Entity definition,
-        @NotNull EntityAppearance appearance,
+        @NotNull AppearanceOptions appearance,
         int tick
     ) {
         if (!appearance.isBaby() || definition.axes().babyModel().isEmpty())
@@ -479,14 +478,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Selects the definition's state-specific texture when {@link EntityAppearance#getState() state}
+     * Selects the definition's state-specific texture when {@link AppearanceOptions#getState() state}
      * names one it carries; empty otherwise (so the caller falls back to the default
      * {@code texture_ref}). The default {@code wild} state resolves to the same path as
      * {@code texture_ref}, so an unset or {@code wild} state leaves the render unchanged.
      */
     private @NotNull Optional<String> selectStateTexture(
         @NotNull Entity definition,
-        @NotNull EntityAppearance appearance
+        @NotNull AppearanceOptions appearance
     ) {
         return appearance.getState().map(definition.axes().stateTextures()::get);
     }
@@ -499,7 +498,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * tie-break lets the collar band win the coplanar depth tie over the overlays), then block overlays,
      * then worn armor. The base body is built imperatively in {@link #renderEntity} and is always emitted
      * first. Each constant self-gates on the resolved {@link FeatureContext#definition() definition} +
-     * the {@link EntityAppearance}, so growing the appearance is one new constant here - never a new gate
+     * the {@link AppearanceOptions}, so growing the appearance is one new constant here - never a new gate
      * in {@link #renderEntity}.
      */
     @RequiredArgsConstructor
@@ -515,11 +514,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         MODEL_OVERLAYS(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                EntityAppearance appearance = ctx.options().getAppearance();
+                AppearanceOptions appearance = ctx.options().getAppearance();
                 // The entity texture prefix (villager -> "villager", zombie_villager ->
                 // "zombie_villager") derived from the definition's own texture ref, prepended to the
                 // villager profession-layer overlays' prefix-relative sub-paths (type / profession /
-                // profession_level) so one shared VillagerType / VillagerProfession / VillagerLevel enum
+                // profession_level) so one shared Villager.Type / Villager.Profession / Villager.Level enum
                 // serves both entities.
                 String texturePrefix = texturePrefix(ctx.definition());
                 for (Entity.OverlayLayer overlay : ctx.definition().overlays()) {
@@ -559,7 +558,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         /**
          * The collar (wolf, cat): a body-geometry cutout tinted by the collar colour, drawn on top of
-         * the base body when the appearance {@link EntityAppearance#collarTint() wears one} and the
+         * the base body when the appearance {@link AppearanceOptions#collarTint() wears one} and the
          * resolved definition carries a collar texture (empty for a baby). A tamed subject wears one
          * whether or not a dye is named, which is what vanilla's renderers express by filling the
          * collar colour for a tamed subject alone. The collar texture is transparent except the neck
@@ -596,7 +595,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 if (!ctx.definition().layers().markings()) return;
-                EntityAppearance appearance = ctx.options().getAppearance();
+                AppearanceOptions appearance = ctx.options().getAppearance();
                 HorseMarking marking = appearance.getMarkings();
                 // The marking texture comes from the HorseMarking enum - horse markings are a fixed
                 // vanilla set. NONE has no ref, so it draws nothing.
@@ -629,7 +628,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         EQUIPMENT(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                EntityAppearance appearance = ctx.options().getAppearance();
+                AppearanceOptions appearance = ctx.options().getAppearance();
                 Optional<Integer> dye = appearance.tint(TintAxis.EQUIPMENT).map(DyeColor::argb);
                 for (Entity.EquipmentOverlay equipment : ctx.definition().layers().equipment()) {
                     Optional<ResourceId> assetId = appearance.equipmentMaterial(equipment.slot())
@@ -657,7 +656,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         WINGS(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                EntityAppearance appearance = ctx.options().getAppearance();
+                AppearanceOptions appearance = ctx.options().getAppearance();
                 if (!appearance.isElytra()) return;
                 Optional<Box> bodyBounds = EntityGeometryKit.computeBoneBounds(ctx.model(), BODY_BONE);
                 stack.append(this.slot, sink ->
@@ -767,7 +766,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *     prepended to the villager profession-layer axes' prefix-relative sub-paths
      * @return the effective texture ref, or empty when the overlay's axis resolves to nothing
      */
-    static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance, @NotNull String texturePrefix) {
+    static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull Entity.OverlayLayer overlay, @NotNull AppearanceOptions appearance, @NotNull String texturePrefix) {
         if (overlay.textureBy().filter("pattern"::equals).isPresent())
             return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(overlay::textureRef);
         if (overlay.textureBy().filter("crackiness"::equals).isPresent())
@@ -775,7 +774,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (overlay.textureBy().filter("weathering"::equals).isPresent())
             return Optional.of(appearance.getWeathering().eyeTexture());
         if (overlay.textureBy().filter("type"::equals).isPresent()) {
-            VillagerType type = appearance.getVillagerType();
+            Villager.Type type = appearance.getVillagerType();
             return Optional.of(texturePrefix + "/" + (drawsBabyRobe(overlay) ? type.babyOverlaySubPath() : type.overlaySubPath()));
         }
         if (overlay.textureBy().filter("profession"::equals).isPresent())
@@ -783,7 +782,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (overlay.textureBy().filter("profession_level"::equals).isPresent())
             return appearance.getVillagerProfession().drawsBadge()
                 ? Optional.of(texturePrefix + "/"
-                    + appearance.getVillagerLevel().orElseGet(VillagerLevel::minimum).overlaySubPath())
+                    + appearance.getVillagerLevel().orElseGet(Villager.Level::minimum).overlaySubPath())
                 : Optional.empty();
         return overlay.textureRef();
     }
@@ -825,7 +824,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull String texturePrefix
     ) {
         if (overlay.noHatModel().isEmpty()) return overlay.model();
-        EntityAppearance appearance = ctx.options().getAppearance();
+        AppearanceOptions appearance = ctx.options().getAppearance();
         MCMeta.Villager.Hat typeHat = villagerHat(ctx.context(),
             typeHatTextureRef(overlay, appearance, texturePrefix, overlayRef));
         MCMeta.Villager.Hat professionHat = villagerHat(ctx.context(),
@@ -850,7 +849,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     static @NotNull Optional<String> typeHatTextureRef(
         @NotNull Entity.OverlayLayer overlay,
-        @NotNull EntityAppearance appearance,
+        @NotNull AppearanceOptions appearance,
         @NotNull String texturePrefix,
         @NotNull Optional<String> overlayRef
     ) {
@@ -898,7 +897,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param texturePrefix the entity texture prefix the profession sub-path is qualified with
      * @return the profession texture ref, or empty when no profession is selected
      */
-    private static @NotNull Optional<String> professionTextureRef(@NotNull EntityAppearance appearance, @NotNull String texturePrefix) {
+    private static @NotNull Optional<String> professionTextureRef(@NotNull AppearanceOptions appearance, @NotNull String texturePrefix) {
         return appearance.getVillagerProfession().overlaySubPath().map(sub -> texturePrefix + "/" + sub);
     }
 
@@ -925,7 +924,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * unchanged; a selected dye multiplies the overlay by whatever colour that axis draws the dye as
      * ({@link TintAxis#resolve}), mirroring vanilla's {@code coloredCutoutModelRender} colour arg.
      */
-    private static int resolveOverlayTint(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
+    private static int resolveOverlayTint(@NotNull Entity.OverlayLayer overlay, @NotNull AppearanceOptions appearance) {
         return overlay.tintBy()
             .flatMap(TintAxis::ofToken)
             .flatMap(axis -> appearance.tint(axis).map(axis::resolve))
@@ -1463,7 +1462,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull List<EquippedOverlay> resolveEquippedOverlays(
         @NotNull Entity resolved,
-        @NotNull EntityAppearance appearance,
+        @NotNull AppearanceOptions appearance,
         int tick
     ) {
         List<EquippedOverlay> out = new ArrayList<>(resolved.layers().equipment().size());

@@ -9,7 +9,7 @@ import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.spec.AnimationOptions;
+import lib.minecraft.renderer.option.AnimationOptions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

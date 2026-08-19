@@ -9,7 +9,10 @@
  * {@link lib.minecraft.renderer.asset.AnimationData AnimationData},
  * {@link lib.minecraft.renderer.asset.BlockTag BlockTag},
  * {@link lib.minecraft.renderer.asset.ResourceId ResourceId}), plus the pack-model spine the context
- * holds and resolves through ({@link lib.minecraft.renderer.asset.PackStack PackStack}).
+ * holds and resolves through ({@link lib.minecraft.renderer.asset.PackStack PackStack}) and the
+ * fixed vanilla tables a render selection is drawn from
+ * ({@link lib.minecraft.renderer.asset.DyeColor DyeColor},
+ * {@link lib.minecraft.renderer.asset.BannerLayer BannerLayer}).
  *
  * <p><b>Charter.</b> Pipeline-built, render-consumed data lives here - both the decoded domain
  * definitions and the pack-model layer the renderer resolves through. The package splits:
@@ -17,6 +20,13 @@
  *   <li><b>{@code asset}</b> (this level) - the top-level classes / records a renderer or the
  *       {@code RendererContext} holds directly ({@code Block}, {@code Item}, {@code Entity}, ...,
  *       {@code PackStack}).</li>
+ *   <li>{@link lib.minecraft.renderer.asset.appearance appearance} - the entity appearance axes an
+ *       {@code AppearanceOptions} selection is drawn from and an {@code entity_models.json} row is
+ *       gated on ({@code Age}, {@code Size}, {@code TintAxis}, {@code Villager}, {@code AppearanceGate},
+ *       ...).</li>
+ *   <li>{@link lib.minecraft.renderer.asset.equipment equipment} - the {@code equipment/*.json} model
+ *       and the worn-armor vocabulary it composites ({@code ArmorSlot}, {@code ArmorMaterial},
+ *       {@code ArmorTrim}, {@code ArmorPiece}, {@code Shell}).</li>
  *   <li>{@link lib.minecraft.renderer.asset.model model} - the shapes shared by two or more
  *       {@code asset} classes (the model / element / face / transform types {@code Block} and
  *       {@code Item} both compose).</li>
@@ -41,16 +51,18 @@
  * {@code ColorProperties} would put one target's answers in two files, which is the arrangement the
  * table exists to end.
  *
- * <p><b>Restriction.</b> Caller-supplied render-input value types - a dye palette, a rotation, an
- * appearance selection - are NOT pipeline-built and do not belong here even when they are
- * domain-shaped. Those live with the option layer
- * ({@link lib.minecraft.renderer.option option} / {@code option.spec}, e.g.
- * {@link lib.minecraft.renderer.option.spec.DyeColor DyeColor}) or, when a value type is a pure math
- * primitive, in {@link lib.minecraft.renderer.tensor tensor}.
+ * <p><b>Restriction.</b> A caller's request is not asset data. The {@code *Options} bags a renderer
+ * takes live in {@link lib.minecraft.renderer.option option}, and a pure math primitive lives in
+ * {@link lib.minecraft.renderer.tensor tensor}. What a bag <i>names</i> is the other side of that
+ * line: a dye palette, an armor slot, an appearance axis is vanilla vocabulary whichever side
+ * supplies it, and the pipeline reads it too, so it is held here and the option layer points at it
+ * rather than the reverse.
  *
  * <p><b>Parity.</b> These are the records the pipeline builds and the renderers consume, and the
  * dump's sections are a projection of exactly those records - so a change here is visible on both
- * sides at once. That makes this the one package family with no blindness to claim.
+ * sides at once. That makes this the one package family with no blindness to claim. The vocabulary
+ * an options bag names declares the option surface's claim as well, because it reaches what that
+ * bag reaches and the union of two select claims is what answers for it.
  */
 @Parity(claim = "asset-layer")
 package lib.minecraft.renderer.asset;
