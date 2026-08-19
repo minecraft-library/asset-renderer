@@ -2,7 +2,7 @@ package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.option.OutputOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;

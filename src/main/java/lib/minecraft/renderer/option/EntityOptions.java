@@ -6,9 +6,6 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.EntitySlot;
-import lib.minecraft.renderer.option.spec.AnimationOptions;
-import lib.minecraft.renderer.option.spec.ArmorOptions;
-import lib.minecraft.renderer.option.spec.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -53,11 +50,11 @@ public class EntityOptions implements RenderOptions {
 
     /**
      * The entity-specific axis selections (age, state, carried, dyed collar) as one cohesive value,
-     * so this class does not accrete a loose field per axis. Empty / default {@link EntityAppearance}
+     * so this class does not accrete a loose field per axis. Empty / default {@link AppearanceOptions}
      * (the default) has no effect on the render. Only consulted under the model form. Lower
      * precedence than {@link #getTextureId() textureId} for texture resolution.
      */
-    private final @NotNull EntityAppearance appearance = EntityAppearance.defaults();
+    private final @NotNull AppearanceOptions appearance = AppearanceOptions.defaults();
 
     /** The worn armor pieces (helmet, chestplate, leggings, boots). */
     private final @NotNull ArmorOptions armor = ArmorOptions.defaults();

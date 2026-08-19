@@ -10,7 +10,7 @@ import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.option.OutputOptions;
 import lib.minecraft.renderer.parity.ParityMetrics;
 import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.parity.SweepReport;

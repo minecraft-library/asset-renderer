@@ -3,10 +3,10 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.option.Age;
-import lib.minecraft.renderer.option.EntityAppearance;
+import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.option.OutputOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
@@ -114,7 +114,7 @@ class EntityOverlayFitTest {
     @DisplayName("a baby wearing an elytra fits its canvas - the wings are measured where they are seated")
     void babyElytraFitsItsCanvas() {
         for (String entityId : new String[]{"minecraft:villager", "minecraft:zombie", "minecraft:piglin"}) {
-            PixelBuffer buf = render(entityId, EntityAppearance.builder().age(Age.BABY).elytra(true).build());
+            PixelBuffer buf = render(entityId, AppearanceOptions.builder().age(Age.BABY).elytra(true).build());
             assertThat(entityId + " baby elytra should render a non-empty silhouette", coverage(buf), greaterThan(0));
             assertThat(entityId + " baby elytra: the fit must reserve no room above the seated wings",
                 unusedSlack(buf), lessThanOrEqualTo(SLACK_TOLERANCE));
@@ -125,7 +125,7 @@ class EntityOverlayFitTest {
     @DisplayName("an adult wearing an elytra fits its canvas - the control the baby seat must not disturb")
     void adultElytraFitsItsCanvas() {
         for (String entityId : new String[]{"minecraft:villager", "minecraft:zombie", "minecraft:skeleton"}) {
-            PixelBuffer buf = render(entityId, EntityAppearance.builder().elytra(true).build());
+            PixelBuffer buf = render(entityId, AppearanceOptions.builder().elytra(true).build());
             assertThat(entityId + " adult elytra should render a non-empty silhouette", coverage(buf), greaterThan(0));
             assertThat(entityId + " adult elytra: the fit must reserve no room for unauthored wing space",
                 unusedSlack(buf), lessThanOrEqualTo(SLACK_TOLERANCE));
@@ -139,7 +139,7 @@ class EntityOverlayFitTest {
         // alpha-tight body silhouette is far smaller than its geometry, and a saddle mesh spans the whole
         // equine body including head and ears while drawing only a few straps.
         for (Equipped equipped : EQUIPPED) {
-            PixelBuffer buf = render(equipped.entityId(), EntityAppearance.builder()
+            PixelBuffer buf = render(equipped.entityId(), AppearanceOptions.builder()
                 .equipment(Map.of(equipped.slot(), ""))
                 .build());
             assertThat(equipped + " should render a non-empty silhouette", coverage(buf), greaterThan(0));
@@ -148,7 +148,7 @@ class EntityOverlayFitTest {
         }
     }
 
-    private static @NotNull PixelBuffer render(@NotNull String entityId, @NotNull EntityAppearance appearance) {
+    private static @NotNull PixelBuffer render(@NotNull String entityId, @NotNull AppearanceOptions appearance) {
         return entityRenderer.render(EntityOptions.builder()
             .entityId(Optional.of(entityId))
             .appearance(appearance)

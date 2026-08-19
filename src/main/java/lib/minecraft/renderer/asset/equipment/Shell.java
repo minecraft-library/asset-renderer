@@ -1,9 +1,8 @@
 package lib.minecraft.renderer.asset.equipment;
 
+import lib.minecraft.renderer.asset.appearance.AppearanceGate;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.option.AppearanceGate;
-import lib.minecraft.renderer.option.EntityAppearance;
-import lib.minecraft.renderer.option.spec.ArmorSlot;
+import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
@@ -120,7 +119,7 @@ public record Shell(
      * @param appearance the render-axis selections
      * @return the shell to dress the wearer in
      */
-    public @NotNull Shell forAppearance(@NotNull EntityAppearance appearance) {
+    public @NotNull Shell forAppearance(@NotNull AppearanceOptions appearance) {
         return this.alternate
             .filter(shell -> shell.when().test(appearance))
             .map(Alternate::shell)

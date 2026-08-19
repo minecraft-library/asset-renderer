@@ -2,7 +2,6 @@ package lib.minecraft.renderer.asset.equipment;
 
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.face.Unwrap;
-import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 

@@ -8,7 +8,6 @@ import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.FloatTag;
 import lib.minecraft.nbt.tag.ListTag;
 import lib.minecraft.renderer.asset.Item.LayerTint;
-import lib.minecraft.renderer.option.ItemModelContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

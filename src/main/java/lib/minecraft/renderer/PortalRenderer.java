@@ -14,8 +14,8 @@ import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.FaceTextures;
+import lib.minecraft.renderer.option.AnimationOptions;
 import lib.minecraft.renderer.option.PortalOptions;
-import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.tensor.Box;
 import org.jetbrains.annotations.NotNull;
 

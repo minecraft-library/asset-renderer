@@ -8,13 +8,13 @@ import dev.simplified.image.codec.gif.GifWriteOptions;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import lib.minecraft.renderer.ItemRenderer;
+import lib.minecraft.renderer.asset.pack.item.SunAngle;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.option.AnimationOptions;
 import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.SunAngle;
-import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.jetbrains.annotations.NotNull;
 

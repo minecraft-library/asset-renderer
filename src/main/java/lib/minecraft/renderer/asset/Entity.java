@@ -3,17 +3,17 @@ package lib.minecraft.renderer.asset;
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.HorseMarking;
+import lib.minecraft.renderer.asset.appearance.Size;
+import lib.minecraft.renderer.asset.appearance.TintAxis;
+import lib.minecraft.renderer.asset.appearance.TropicalFishPattern;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
-import lib.minecraft.renderer.option.AppearanceGate;
-import lib.minecraft.renderer.option.EntityAppearance;
-import lib.minecraft.renderer.option.HorseMarking;
-import lib.minecraft.renderer.option.Size;
-import lib.minecraft.renderer.option.TintAxis;
-import lib.minecraft.renderer.option.TropicalFishPattern;
+import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import org.jetbrains.annotations.NotNull;
@@ -70,7 +70,7 @@ import java.util.Set;
  * @param rendererScale per-entity render-time scale extracted by {@code EntityRendererScaleResolver};
  *     defaults to {@code 1f} (identity)
  * @param boneToggles named bone-visibility toggles (toggle name -&gt; {@link BoneToggle}), flipped at
- *     render when {@code EntityAppearance.toggles} selects the toggle: a default-hidden toggle
+ *     render when {@code AppearanceOptions.toggles} selects the toggle: a default-hidden toggle
  *     (donkey/mule/llama {@code chest}) re-adds its bones, a default-visible toggle (goat {@code horn})
  *     removes them. The default render is unchanged (chest stripped, horns present); empty for entities
  *     with no toggleable bones
@@ -153,7 +153,7 @@ public record Entity(
      * @param appearance the axis selections to resolve against
      * @return the age / carried / sheared / shape / size / tint-resolved definition
      */
-    public @NotNull Entity resolve(@NotNull EntityAppearance appearance) {
+    public @NotNull Entity resolve(@NotNull AppearanceOptions appearance) {
         // Variant fold (option-encoded coat / colour): a selected variant resolves against that option's
         // fully-built sub-definition, so every later axis (baby / size / tint) folds on top of the coat.
         // An absent or unknown option, and a non-variant model (empty variants map), keep the model
@@ -228,7 +228,7 @@ public record Entity(
      * @param appearance the axis selections to gate against
      * @return the surviving overlays, or the given list itself when nothing drops
      */
-    private static @NotNull List<OverlayLayer> gatedOverlays(@NotNull List<OverlayLayer> overlays, @NotNull EntityAppearance appearance) {
+    private static @NotNull List<OverlayLayer> gatedOverlays(@NotNull List<OverlayLayer> overlays, @NotNull AppearanceOptions appearance) {
         boolean hasCharged = overlays.stream()
             .anyMatch(overlay -> overlay.gate().filter(AppearanceGate.ChargedGate.class::isInstance).isPresent());
         if (!appearance.isSheared() && !hasCharged) return overlays;
@@ -241,7 +241,7 @@ public record Entity(
      * charged gate that fails for this appearance drops the overlay (the sheared wool, the uncharged
      * creeper swirl).
      */
-    private static boolean rendersAtResolve(@NotNull OverlayLayer overlay, @NotNull EntityAppearance appearance) {
+    private static boolean rendersAtResolve(@NotNull OverlayLayer overlay, @NotNull AppearanceOptions appearance) {
         return overlay.gate()
             .filter(gate -> !(gate instanceof AppearanceGate.TintedGate))
             .map(gate -> gate.test(appearance))
@@ -255,7 +255,7 @@ public record Entity(
      * only when a block is selected, with its block id replaced by that selection. The default (empty)
      * appearance therefore renders the fixed decorations and no selectable held block.
      */
-    private static @NotNull List<BlockOverlayLayer> resolveBlockOverlays(@NotNull Entity definition, @NotNull EntityAppearance appearance) {
+    private static @NotNull List<BlockOverlayLayer> resolveBlockOverlays(@NotNull Entity definition, @NotNull AppearanceOptions appearance) {
         if (definition.blockOverlays().isEmpty()) return definition.blockOverlays();
         Optional<String> selected = appearance.selectedCarriedBlock();
         boolean dropsFixed = appearance.dropsCarried();
@@ -387,7 +387,7 @@ public record Entity(
      *     {@code scale} ops applied to the block model after the optional bone pose
      * @param selectable when {@code true} this overlay is a caller-selected held block (enderman carried
      *     block, iron golem flower) rather than an always-present body decoration (mooshroom mushrooms,
-     *     snow golem pumpkin): it renders only when {@link EntityAppearance#selectedCarriedBlock()}
+     *     snow golem pumpkin): it renders only when {@link AppearanceOptions#selectedCarriedBlock()}
      *     supplies a block id, which replaces {@link #blockId}. The default (unselected) render draws no
      *     selectable overlay
      */
@@ -520,11 +520,11 @@ public record Entity(
      *     harness also skips (llama carpet), and for same-geometry overlays with no deformation of their
      *     own, whose silhouette the base mesh already covers
      * @param tintBy the render-axis token whose selected colour overrides {@link #tintArgb} at render
-     *     (e.g. {@code "wool_color"} for the sheep wool, tinted by {@code EntityAppearance.woolColor}), or
+     *     (e.g. {@code "wool_color"} for the sheep wool, tinted by {@code AppearanceOptions.woolColor}), or
      *     empty when the tint is fixed at {@link #tintArgb}
      * @param textureBy the render-axis token whose selection overrides {@link #textureRef} at render
      *     (e.g. {@code "pattern"} for the tropical-fish pattern, sourced from
-     *     {@code EntityAppearance.pattern}), or empty when the overlay texture is fixed at
+     *     {@code AppearanceOptions.pattern}), or empty when the overlay texture is fixed at
      *     {@link #textureRef}
      * @param gate the render condition parsed from the overlay's {@code when} object (the sheep wool
      *     {@code sheared} flag, the wool undercoat {@code tinted} axis, the creeper {@code charged} axis),

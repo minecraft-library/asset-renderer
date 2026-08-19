@@ -7,7 +7,7 @@ import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.option.OutputOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import org.jetbrains.annotations.NotNull;

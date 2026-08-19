@@ -4,22 +4,28 @@
  * {@link lib.minecraft.renderer.option.RenderOptions RenderOptions} marker that bounds
  * {@link lib.minecraft.renderer.Renderer Renderer}'s type parameter.
  *
- * <p><b>Charter.</b> This package level holds {@code RenderOptions} implementations only; two
- * sub-packages carry the rest of the option vocabulary:
- * <ul>
- *   <li>{@link lib.minecraft.renderer.option.spec spec} - the sub-builders and value types the
- *       {@code *Options} bags nest or reference (output frame, worn armor, player skin / cape
- *       sources, the dye palette, banner layers, ...).</li>
- *   <li>{@link lib.minecraft.renderer.option.slot slot} - the per-renderer {@code LayerSlot}
- *       implementations that key layer composition.</li>
- * </ul>
+ * <p><b>Charter.</b> Every type here is a {@code *Options} bag - either one a renderer takes whole,
+ * or one nested into those that share a concern:
+ * {@link lib.minecraft.renderer.option.OutputOptions OutputOptions} (the render frame),
+ * {@link lib.minecraft.renderer.option.AnimationOptions AnimationOptions},
+ * {@link lib.minecraft.renderer.option.ArmorOptions ArmorOptions} (the worn slots),
+ * {@link lib.minecraft.renderer.option.SkinOptions SkinOptions} /
+ * {@link lib.minecraft.renderer.option.TextureOptions TextureOptions} (the player's texture sources),
+ * {@link lib.minecraft.renderer.option.DecorationOptions DecorationOptions} (an item icon's
+ * composed marks) and
+ * {@link lib.minecraft.renderer.option.AppearanceOptions AppearanceOptions} (the entity axis
+ * selections). A value type only one bag names nests inside it, as
+ * {@code MenuOptions.MenuSlotContent} and {@code FluidOptions.CornerHeights} do.
  *
- * <p>Anything at this level that is not a {@code RenderOptions} implementation
- * ({@link lib.minecraft.renderer.option.EntityAppearance EntityAppearance},
- * {@link lib.minecraft.renderer.option.TintAxis TintAxis},
- * {@link lib.minecraft.renderer.option.TropicalFishPattern TropicalFishPattern},
- * {@link lib.minecraft.renderer.option.Age Age}) is entity-appearance vocabulary that also lives
- * at this level.
+ * <p><b>What a bag names lives with what reads it.</b> The vanilla vocabulary a selection is drawn
+ * from is domain data whichever side supplies it, so it sits in
+ * {@link lib.minecraft.renderer.asset asset} and this package points at it: the appearance axes in
+ * {@link lib.minecraft.renderer.asset.appearance asset.appearance}, the armor vocabulary in
+ * {@link lib.minecraft.renderer.asset.equipment asset.equipment}, the dye palette at
+ * {@link lib.minecraft.renderer.asset.DyeColor DyeColor}, and the item-tree evaluation context at
+ * {@link lib.minecraft.renderer.asset.pack.item.ItemModelContext ItemModelContext}. One sub-package
+ * stays: {@link lib.minecraft.renderer.option.slot slot}, the per-renderer {@code LayerSlot}
+ * implementations naming the splice points a caller's {@code layerDecorator} targets.
  *
  * <p>The one further category is a renderer's own output vocabulary, where a bag's counterpart is a
  * value the caller receives rather than supplies:
@@ -32,7 +38,8 @@
  * <p><b>Parity.</b> Every renderer entry point takes an options record, so a default or a resolution
  * rule here reaches whatever that renderer draws - the same population the engine reaches, for the
  * same reason. The dump is blind to all of it: it serialises loaded pipeline data and never
- * constructs an options record.
+ * constructs an options record. The vocabulary held under {@code asset} declares this same claim
+ * beside its own, so what a bag names keeps the reach the bag has.
  */
 @Parity(claim = "option-surface")
 package lib.minecraft.renderer.option;

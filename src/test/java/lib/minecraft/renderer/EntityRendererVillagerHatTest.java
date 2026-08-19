@@ -2,14 +2,14 @@ package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.asset.appearance.Villager;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta.Villager.Hat;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
-import lib.minecraft.renderer.option.Age;
-import lib.minecraft.renderer.option.EntityAppearance;
-import lib.minecraft.renderer.option.VillagerType;
+import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.support.StubRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -76,14 +76,14 @@ class EntityRendererVillagerHatTest {
         // drawn texture swaps to baby/. The baby/ directory ships no sidecars, so reading the flag off the
         // drawn ref would silently yield NONE and stop desert / snow suppressing a baby's robe head.
         OverlayLayer babyPass = pass("type", "villager/baby/plains");
-        EntityAppearance baby = EntityAppearance.builder().age(Age.BABY).villagerType(VillagerType.DESERT).build();
+        AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(Villager.Type.DESERT).build();
         Optional<String> drawn = EntityRenderer.resolveOverlayTextureRef(babyPass, baby, "villager");
         assertThat("the baby pass draws the baby directory", drawn, is(Optional.of("villager/baby/desert")));
         assertThat("its hat flag still comes from the adult type sidecar",
             EntityRenderer.typeHatTextureRef(babyPass, baby, "villager", drawn), is(Optional.of("villager/type/desert")));
 
         OverlayLayer adultPass = pass("type", "villager/type/plains");
-        EntityAppearance adult = EntityAppearance.builder().villagerType(VillagerType.DESERT).build();
+        AppearanceOptions adult = AppearanceOptions.builder().villagerType(Villager.Type.DESERT).build();
         Optional<String> adultDrawn = EntityRenderer.resolveOverlayTextureRef(adultPass, adult, "villager");
         assertThat("the adult pass draws the type directory", adultDrawn, is(Optional.of("villager/type/desert")));
         assertThat("and its hat ref recomputes the very ref it drew",
@@ -97,13 +97,13 @@ class EntityRendererVillagerHatTest {
         // from the mesh swap. An adult pass rendered under a baby appearance - what a type-overlay entity
         // with no age.baby geometry would hit - keeps the adult robe rather than binding baby texels onto
         // adult cubes.
-        EntityAppearance baby = EntityAppearance.builder().age(Age.BABY).villagerType(VillagerType.SNOW).build();
+        AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(Villager.Type.SNOW).build();
         assertThat("an adult pass keeps the type directory for a baby appearance",
             EntityRenderer.resolveOverlayTextureRef(pass("type", "villager/type/plains"), baby, "villager"),
             is(Optional.of("villager/type/snow")));
         assertThat("a baby pass keeps the baby directory for an adult appearance",
             EntityRenderer.resolveOverlayTextureRef(pass("type", "villager/baby/plains"),
-                EntityAppearance.builder().villagerType(VillagerType.SNOW).build(), "villager"),
+                AppearanceOptions.builder().villagerType(Villager.Type.SNOW).build(), "villager"),
             is(Optional.of("villager/baby/snow")));
     }
 
@@ -112,7 +112,7 @@ class EntityRendererVillagerHatTest {
     void aNonTypePassKeepsItsOwnRef() {
         Optional<String> own = Optional.of("villager/profession/farmer");
         assertThat(EntityRenderer.typeHatTextureRef(pass("profession", "villager/profession/none"),
-            EntityAppearance.builder().age(Age.BABY).build(), "villager", own), is(own));
+            AppearanceOptions.builder().age(Age.BABY).build(), "villager", own), is(own));
     }
 
     @Test

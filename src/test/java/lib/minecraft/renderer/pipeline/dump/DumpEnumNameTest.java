@@ -2,14 +2,14 @@ package lib.minecraft.renderer.pipeline.dump;
 
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.rule.CitType;
 import lib.minecraft.renderer.asset.pack.rule.CtmMethod;
 import lib.minecraft.renderer.asset.pack.rule.Hand;
 import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.option.Age;
-import lib.minecraft.renderer.option.Size;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

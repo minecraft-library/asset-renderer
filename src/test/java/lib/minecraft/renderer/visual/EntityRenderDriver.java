@@ -4,29 +4,27 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.asset.DyeColor;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.asset.appearance.CopperWeathering;
+import lib.minecraft.renderer.asset.appearance.HorseMarking;
+import lib.minecraft.renderer.asset.appearance.IronGolemCrackiness;
+import lib.minecraft.renderer.asset.appearance.Size;
+import lib.minecraft.renderer.asset.appearance.TintAxis;
+import lib.minecraft.renderer.asset.appearance.TropicalFishPattern;
+import lib.minecraft.renderer.asset.appearance.Villager;
+import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
+import lib.minecraft.renderer.asset.equipment.ArmorPiece;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.option.Age;
-import lib.minecraft.renderer.option.CopperWeathering;
-import lib.minecraft.renderer.option.EntityAppearance;
+import lib.minecraft.renderer.option.AppearanceOptions;
+import lib.minecraft.renderer.option.ArmorOptions;
 import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.option.HorseMarking;
-import lib.minecraft.renderer.option.IronGolemCrackiness;
-import lib.minecraft.renderer.option.Size;
-import lib.minecraft.renderer.option.TintAxis;
-import lib.minecraft.renderer.option.TropicalFishPattern;
-import lib.minecraft.renderer.option.VillagerLevel;
-import lib.minecraft.renderer.option.VillagerProfession;
-import lib.minecraft.renderer.option.VillagerType;
-import lib.minecraft.renderer.option.spec.ArmorMaterial;
-import lib.minecraft.renderer.option.spec.ArmorOptions;
-import lib.minecraft.renderer.option.spec.ArmorPiece;
-import lib.minecraft.renderer.option.spec.DyeColor;
-import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.option.OutputOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import org.jetbrains.annotations.NotNull;
@@ -72,8 +70,8 @@ import java.util.stream.Collectors;
  *   <li><b>{@code .pattern}</b> a {@link TropicalFishPattern} name, <b>{@code .markings}</b> a
  *       {@link HorseMarking}, <b>{@code .crackiness}</b> an {@link IronGolemCrackiness},
  *       <b>{@code .weathering}</b> a {@link CopperWeathering}, <b>{@code .size}</b> a {@link Size}.</li>
- *   <li><b>{@code .type}</b> a {@link VillagerType}, <b>{@code .profession}</b> a
- *       {@link VillagerProfession}, <b>{@code .level}</b> a {@link VillagerLevel} - an unnamed level
+ *   <li><b>{@code .type}</b> a {@link Villager.Type}, <b>{@code .profession}</b> a
+ *       {@link Villager.Profession}, <b>{@code .level}</b> a {@link Villager.Level} - an unnamed level
  *       leaves a job villager on vanilla's first tier.</li>
  *   <li><b>{@code .age}</b> {@code baby} for the baby form, <b>{@code .sheared}</b>,
  *       <b>{@code .charged}</b> and <b>{@code .elytra}</b> boolean flags.</li>
@@ -172,16 +170,16 @@ public final class EntityRenderDriver {
         // -Dasset.entity.weathering=exposed|weathered|oxidized names a copper-golem oxidation state; default UNAFFECTED.
         Optional<String> weatheringName = Optional.ofNullable(System.getProperty("asset.entity.weathering")).filter(s -> !s.isBlank());
         CopperWeathering weathering = weatheringName.map(CopperWeathering::ofName).orElse(CopperWeathering.UNAFFECTED);
-        // -Dasset.entity.type=desert names a villager/zombie_villager biome type (VillagerType); default PLAINS.
+        // -Dasset.entity.type=desert names a villager/zombie_villager biome type (Villager.Type); default PLAINS.
         Optional<String> villagerTypeName = Optional.ofNullable(System.getProperty("asset.entity.type")).filter(s -> !s.isBlank());
-        VillagerType villagerType = villagerTypeName.map(VillagerType::ofName).orElse(VillagerType.PLAINS);
-        // -Dasset.entity.profession=farmer names a villager profession (VillagerProfession); default NONE.
+        Villager.Type villagerType = villagerTypeName.map(Villager.Type::ofName).orElse(Villager.Type.PLAINS);
+        // -Dasset.entity.profession=farmer names a villager profession (Villager.Profession); default NONE.
         Optional<String> professionName = Optional.ofNullable(System.getProperty("asset.entity.profession")).filter(s -> !s.isBlank());
-        VillagerProfession villagerProfession = professionName.map(VillagerProfession::ofName).orElse(VillagerProfession.NONE);
-        // -Dasset.entity.level=gold names a villager trade badge tier (VillagerLevel); unnamed leaves a
+        Villager.Profession villagerProfession = professionName.map(Villager.Profession::ofName).orElse(Villager.Profession.NONE);
+        // -Dasset.entity.level=gold names a villager trade badge tier (Villager.Level); unnamed leaves a
         // job villager on vanilla's first tier, which is what an unspecified level clamps up to.
         Optional<String> villagerLevelName = Optional.ofNullable(System.getProperty("asset.entity.level")).filter(s -> !s.isBlank());
-        Optional<VillagerLevel> villagerLevel = villagerLevelName.map(VillagerLevel::ofName);
+        Optional<Villager.Level> villagerLevel = villagerLevelName.map(Villager.Level::ofName);
         boolean sheared = Boolean.getBoolean("asset.entity.sheared");
         boolean charged = Boolean.getBoolean("asset.entity.charged");
         // -Dasset.entity.elytra=true wears an elytra (the WINGS model overlay); default false.
@@ -244,8 +242,8 @@ public final class EntityRenderDriver {
                 + (markings == HorseMarking.NONE ? "" : "_markings-" + markings.name().toLowerCase(Locale.ROOT))
                 + (crackiness == IronGolemCrackiness.NONE ? "" : "_crackiness-" + crackiness.name().toLowerCase(Locale.ROOT))
                 + (weathering == CopperWeathering.UNAFFECTED ? "" : "_weathering-" + weathering.name().toLowerCase(Locale.ROOT))
-                + (villagerType == VillagerType.PLAINS ? "" : "_type-" + villagerType.name().toLowerCase(Locale.ROOT))
-                + (villagerProfession == VillagerProfession.NONE ? "" : "_prof-" + villagerProfession.name().toLowerCase(Locale.ROOT))
+                + (villagerType == Villager.Type.PLAINS ? "" : "_type-" + villagerType.name().toLowerCase(Locale.ROOT))
+                + (villagerProfession == Villager.Profession.NONE ? "" : "_prof-" + villagerProfession.name().toLowerCase(Locale.ROOT))
                 + villagerLevel.map(l -> "_level-" + l.name().toLowerCase(Locale.ROOT)).orElse("")
                 + (toggles.isEmpty() ? "" : "_toggle-" + String.join("-", toggles))
                 + (equipment.isEmpty() ? "" : "_equip-" + equipment.entrySet().stream()
@@ -253,7 +251,7 @@ public final class EntityRenderDriver {
                     .collect(Collectors.joining("-")))
                 + equipmentColorName.map(n -> "_equipdye-" + n.toLowerCase(Locale.ROOT)).orElse("")
                 + age.map(a -> "_" + a).orElse("");
-            EntityAppearance appearance = EntityAppearance.builder()
+            AppearanceOptions appearance = AppearanceOptions.builder()
                 .age(age.map(a -> a.equalsIgnoreCase("baby") ? Age.BABY : Age.ADULT).orElse(Age.ADULT))
                 .state(state)
                 .carried(carried)

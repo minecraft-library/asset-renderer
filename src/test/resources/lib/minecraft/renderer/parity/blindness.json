@@ -540,6 +540,15 @@
       ],
       "source": "measured by perturbing OutputOptions.java: 11 of 14 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/asset/BannerLayer.java",
+        "src/main/java/lib/minecraft/renderer/asset/DyeColor.java",
+        "src/main/java/lib/minecraft/renderer/asset/appearance/**",
+        "src/main/java/lib/minecraft/renderer/asset/equipment/ArmorMaterial.java",
+        "src/main/java/lib/minecraft/renderer/asset/equipment/ArmorPiece.java",
+        "src/main/java/lib/minecraft/renderer/asset/equipment/ArmorSlot.java",
+        "src/main/java/lib/minecraft/renderer/asset/equipment/ArmorTrim.java",
+        "src/main/java/lib/minecraft/renderer/asset/pack/item/ItemModelContext.java",
+        "src/main/java/lib/minecraft/renderer/asset/pack/item/SunAngle.java",
         "src/main/java/lib/minecraft/renderer/option/**"
       ]
     },

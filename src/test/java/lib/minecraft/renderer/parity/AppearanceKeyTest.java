@@ -1,13 +1,13 @@
 package lib.minecraft.renderer.parity;
 
+import lib.minecraft.renderer.asset.DyeColor;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.appearance.HorseMarking;
+import lib.minecraft.renderer.asset.appearance.Size;
+import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.option.EntityAppearance;
-import lib.minecraft.renderer.option.HorseMarking;
-import lib.minecraft.renderer.option.Size;
-import lib.minecraft.renderer.option.TintAxis;
-import lib.minecraft.renderer.option.spec.DyeColor;
+import lib.minecraft.renderer.option.AppearanceOptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -215,7 +215,7 @@ final class AppearanceKeyTest {
         @Test
         @DisplayName("tokens are emitted in ascending order of the whole token text")
         void tokensSortByWholeText() {
-            EntityAppearance appearance = EntityAppearance.builder()
+            AppearanceOptions appearance = AppearanceOptions.builder()
                 .markings(HorseMarking.WHITE)
                 .sheared(true)
                 .toggles(Set.of("show_arms", "chest"))
@@ -228,9 +228,9 @@ final class AppearanceKeyTest {
         @DisplayName("an unordered set of toggles has exactly one spelling")
         void repeatableAxesSelfOrder() {
             String a = CODEC.format(new AppearanceKey("minecraft:zombie", Optional.empty(),
-                EntityAppearance.builder().toggles(Set.of("chest", "show_arms")).build(), Optional.empty()));
+                AppearanceOptions.builder().toggles(Set.of("chest", "show_arms")).build(), Optional.empty()));
             String b = CODEC.format(new AppearanceKey("minecraft:zombie", Optional.empty(),
-                EntityAppearance.builder().toggles(Set.of("show_arms", "chest")).build(), Optional.empty()));
+                AppearanceOptions.builder().toggles(Set.of("show_arms", "chest")).build(), Optional.empty()));
             assertThat(a, is(equalTo(b)));
         }
 
@@ -238,11 +238,11 @@ final class AppearanceKeyTest {
         @DisplayName("a size equal to the model's declared default is never written")
         void declaredDefaultSizeIsNotWritten() {
             AppearanceKey atDefault = new AppearanceKey("minecraft:pufferfish", Optional.empty(),
-                EntityAppearance.builder().size(Optional.of(Size.LARGE)).build(), Optional.empty());
+                AppearanceOptions.builder().size(Optional.of(Size.LARGE)).build(), Optional.empty());
             assertThat(CODEC.format(atDefault), is(equalTo("minecraft__pufferfish")));
 
             AppearanceKey offDefault = new AppearanceKey("minecraft:pufferfish", Optional.empty(),
-                EntityAppearance.builder().size(Optional.of(Size.SMALL)).build(), Optional.empty());
+                AppearanceOptions.builder().size(Optional.of(Size.SMALL)).build(), Optional.empty());
             assertThat(CODEC.format(offDefault), is(equalTo("minecraft__pufferfish~size=small")));
         }
 
@@ -250,7 +250,7 @@ final class AppearanceKeyTest {
         @DisplayName("a dye round-trips through its name")
         void dyeRoundTrips() {
             AppearanceKey key = new AppearanceKey("minecraft:zombie", Optional.empty(),
-                EntityAppearance.builder().tints(Map.of(TintAxis.COLLAR, DyeColor.Vanilla.LIGHT_BLUE)).build(),
+                AppearanceOptions.builder().tints(Map.of(TintAxis.COLLAR, DyeColor.Vanilla.LIGHT_BLUE)).build(),
                 Optional.empty());
             String name = CODEC.format(key);
             assertThat(name, is(equalTo("minecraft__zombie~collar_color=light_blue")));

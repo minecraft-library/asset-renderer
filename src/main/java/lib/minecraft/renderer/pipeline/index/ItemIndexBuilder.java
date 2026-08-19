@@ -8,8 +8,8 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.pack.item.ItemModelContext;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
-import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 

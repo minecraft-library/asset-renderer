@@ -4,6 +4,7 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
+import lib.minecraft.renderer.asset.pack.item.ItemModelContext;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
@@ -12,9 +13,6 @@ import lib.minecraft.renderer.engine.kit.BannerKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.option.slot.ItemSlot;
-import lib.minecraft.renderer.option.spec.AnimationOptions;
-import lib.minecraft.renderer.option.spec.ItemDecoration;
-import lib.minecraft.renderer.option.spec.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -75,7 +73,7 @@ public class ItemOptions implements RenderOptions {
     private final @NotNull Optional<Boolean> glintOverride = Optional.empty();
 
     /** The item-icon decoration inputs (tint, trim, leather/potion/firework colour, banner). */
-    private final @NotNull ItemDecoration decoration = ItemDecoration.defaults();
+    private final @NotNull DecorationOptions decoration = DecorationOptions.defaults();
 
     /**
      * Target frame rate for animated output in frames per second; drives glint scroll speed and

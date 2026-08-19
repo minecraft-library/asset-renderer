@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -27,7 +28,6 @@ import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.engine.texture.RedstoneTint;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;

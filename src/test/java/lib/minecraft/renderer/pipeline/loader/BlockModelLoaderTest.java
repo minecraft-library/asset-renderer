@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.option.spec.DyeColor;
+import lib.minecraft.renderer.asset.DyeColor;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

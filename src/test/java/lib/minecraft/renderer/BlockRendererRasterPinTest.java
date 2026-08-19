@@ -2,7 +2,7 @@ package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.option.OutputOptions;
 import lib.minecraft.renderer.parity.PinSet;
 import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.parity.RenderDigest;

@@ -7,12 +7,12 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

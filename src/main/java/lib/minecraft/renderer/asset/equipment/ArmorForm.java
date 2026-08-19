@@ -3,7 +3,6 @@ package lib.minecraft.renderer.asset.equipment;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.face.HumanoidPart;
-import lib.minecraft.renderer.option.spec.ArmorSlot;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumMap;

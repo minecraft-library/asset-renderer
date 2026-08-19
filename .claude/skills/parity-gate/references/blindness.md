@@ -314,7 +314,7 @@ A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the ite
 ## B24 - The option surface reaches every renderer that takes options, and nothing else
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/option/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/BannerLayer.java`, `src/main/java/lib/minecraft/renderer/asset/DyeColor.java`, `src/main/java/lib/minecraft/renderer/asset/appearance/**`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorMaterial.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorPiece.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorSlot.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorTrim.java`, `src/main/java/lib/minecraft/renderer/asset/pack/item/ItemModelContext.java`, `src/main/java/lib/minecraft/renderer/asset/pack/item/SunAngle.java`, `src/main/java/lib/minecraft/renderer/option/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `manifest.player-sheets`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`, `manifest.visual`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing OutputOptions.java: 11 of 14 declared sees moved, and 2 declared blind held

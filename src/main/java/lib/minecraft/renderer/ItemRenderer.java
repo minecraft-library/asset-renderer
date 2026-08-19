@@ -8,6 +8,7 @@ import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.DyeColor;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -16,7 +17,9 @@ import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.asset.pack.item.ItemModelContext;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
+import lib.minecraft.renderer.asset.pack.item.SunAngle;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
@@ -40,15 +43,12 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.FaceTextures;
+import lib.minecraft.renderer.option.AnimationOptions;
 import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.ItemModelContext;
+import lib.minecraft.renderer.option.DecorationOptions;
 import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.SunAngle;
+import lib.minecraft.renderer.option.OutputOptions;
 import lib.minecraft.renderer.option.slot.ItemSlot;
-import lib.minecraft.renderer.option.spec.AnimationOptions;
-import lib.minecraft.renderer.option.spec.DyeColor;
-import lib.minecraft.renderer.option.spec.ItemDecoration;
-import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -383,8 +383,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Composites a banner or shield item onto {@code buffer}: dye-coloured field, then each
-     * {@link ItemDecoration#getBannerLayers()} layer blitted as a tinted grayscale mask.
-     * {@link ItemDecoration#getBaseDye()} drives the field colour - white when absent. Shields
+     * {@link DecorationOptions#getBannerLayers()} layer blitted as a tinted grayscale mask.
+     * {@link DecorationOptions#getBaseDye()} drives the field colour - white when absent. Shields
      * route through the {@code entity/shield/} atlas; banners through {@code entity/banner/}.
      *
      * @param engine the texture engine for pattern resolution
@@ -475,15 +475,15 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link LayerTint} for that layer (from its definition's {@code model.tints[]}), the colour
      * resolves from the matching render-option override, else the JSON default:
      * <ul>
-     * <li>{@link LayerTint.Dye} - {@link ItemDecoration#getLeatherColor()} → {@link ItemDecoration#getTintColor()} → default.</li>
-     * <li>{@link LayerTint.Potion} - {@link ItemDecoration#getPotionColor()} → the first
+     * <li>{@link LayerTint.Dye} - {@link DecorationOptions#getLeatherColor()} → {@link DecorationOptions#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Potion} - {@link DecorationOptions#getPotionColor()} → the first
      * {@link ItemContext#potionEffects() potion effect}'s colour via
-     * {@link RendererContext#findPotionEffectColor(String)} → {@link ItemDecoration#getTintColor()} → default.</li>
-     * <li>{@link LayerTint.Firework} - {@link ItemDecoration#getFireworkColor()} → {@link ItemDecoration#getTintColor()} → default.</li>
+     * {@link RendererContext#findPotionEffectColor(String)} → {@link DecorationOptions#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Firework} - {@link DecorationOptions#getFireworkColor()} → {@link DecorationOptions#getTintColor()} → default.</li>
      * <li>{@link LayerTint.Constant} - the fixed value.</li>
      * </ul>
      * When the item has no tint for the layer, falls back to the vanilla {@code item/generated}
-     * convention: the caller's {@link ItemDecoration#getTintColor()} applies to the tintindex-0 slot
+     * convention: the caller's {@link DecorationOptions#getTintColor()} applies to the tintindex-0 slot
      * ({@link #tintIndexForLayer(Item, int)}), every other layer renders untinted. Returns
      * {@link ColorMath#WHITE} for an untinted layer.
      */
@@ -587,7 +587,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * Renders the standard layered-sprite path for an item. Each {@code layerN} texture is
      * composited in order, multiplying in the layer's {@link #resolveLayerTint resolved tint} -
      * the item-definition {@link LayerTint} (leather dye, potion colour, firework colour) when
-     * present, otherwise the caller's {@link ItemDecoration#getTintColor()} on the tintindex-0 slot.
+     * present, otherwise the caller's {@link DecorationOptions#getTintColor()} on the tintindex-0 slot.
      * A tinted layer is multiplied at its native resolution then scaled up, so the tint covers the
      * full icon rather than a corner. Trim overlay textures are resolved via
      * {@link TrimKit#resolveFromTextureRef} so the renderer doesn't depend on material-specific

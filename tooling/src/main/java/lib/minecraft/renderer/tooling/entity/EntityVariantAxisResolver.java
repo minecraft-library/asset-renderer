@@ -31,7 +31,7 @@ import java.util.TreeSet;
 
 /**
  * Node {@code axes.variant} - the option-encoded variant axis: each coat is a render-time
- * {@code EntityAppearance.variant} selection over one base id, never a first-class
+ * {@code AppearanceOptions.variant} selection over one base id, never a first-class
  * {@code <id>_<opt>} id of its own, so nothing is ever synthesized into the keyspace the vanilla
  * entity registry owns. Two source arms, tried in order:
  *

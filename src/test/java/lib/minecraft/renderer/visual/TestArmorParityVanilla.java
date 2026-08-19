@@ -7,18 +7,18 @@ import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
+import lib.minecraft.renderer.asset.equipment.ArmorPiece;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.option.Age;
-import lib.minecraft.renderer.option.EntityAppearance;
+import lib.minecraft.renderer.option.AppearanceOptions;
+import lib.minecraft.renderer.option.ArmorOptions;
 import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.option.spec.ArmorMaterial;
-import lib.minecraft.renderer.option.spec.ArmorOptions;
-import lib.minecraft.renderer.option.spec.ArmorPiece;
-import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.option.OutputOptions;
 import lib.minecraft.renderer.parity.ParityMetrics;
 import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.parity.SweepReport;
@@ -206,7 +206,7 @@ public final class TestArmorParityVanilla {
                 : ArmorPiece.of(subject.material());
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(subject.entityId()))
-                .appearance(EntityAppearance.builder()
+                .appearance(AppearanceOptions.builder()
                     .age(subject.baby() ? Age.BABY : Age.ADULT)
                     .build())
                 .armor(ArmorOptions.builder()
