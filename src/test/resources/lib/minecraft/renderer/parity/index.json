@@ -14,11 +14,11 @@
     "digest.shipped-tables": {
       "baselined": true,
       "determinism_floor": 1,
-      "entries": 10,
+      "entries": 11,
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
-      "promoted_at": "b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e",
-      "sha256": "c000b00ff4ed273c6d363ba953755ba8a5c66b956b0d228b78589feb6a96aba3"
+      "promoted_at": "a88dc57ca15e7057441b0a6b69e0d386a3f75d3f",
+      "sha256": "00c4b6fcfa27117fb4470789a53f96b8917d0ae70c738c651bc506be5771b803"
     },
     "manifest.dump.packs": {
       "baselined": true,
@@ -88,12 +88,12 @@
     "manifest.tooling-tables": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 10,
+      "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 2696,
-      "promoted_at": "0bcb42335c9f472169445099c348bceaf2b92e58",
-      "sha256": "8e93940c34d27516b5deaadc1b76e0c065542f0210485f6ee095e648557aadc9"
+      "last_duration_ms": 52549,
+      "promoted_at": "a88dc57ca15e7057441b0a6b69e0d386a3f75d3f",
+      "sha256": "50988e8b9b39173831b0e1d01a2f2e31f5e9916262cd87c6b78bdc4976fde5db"
     },
     "manifest.visual": {
       "baselined": true,
