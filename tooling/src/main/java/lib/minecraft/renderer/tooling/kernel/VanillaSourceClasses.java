@@ -67,9 +67,14 @@ public final class VanillaSourceClasses {
         /** The package holding one class of {@code AnimationDefinition} constants per animated subject. */
         public static final @NotNull String ANIMATION_DEFINITIONS_ROOT = CLIENT_ANIMATION_ROOT + "definitions/";
 
+        /** {@code AnimationDefinition} - an authored clip, before it is bound to a bone tree. */
+        public static final @NotNull String ANIMATION_DEFINITION = CLIENT_ANIMATION_ROOT + "AnimationDefinition";
+
         /** {@code AnimationDefinition$Builder} - the clip builder every definition table is written as. */
-        public static final @NotNull String ANIMATION_DEFINITION_BUILDER =
-            CLIENT_ANIMATION_ROOT + "AnimationDefinition$Builder";
+        public static final @NotNull String ANIMATION_DEFINITION_BUILDER = ANIMATION_DEFINITION + "$Builder";
+
+        /** {@code KeyframeAnimation} - a clip bound to one model's bones, which is what a model holds. */
+        public static final @NotNull String KEYFRAME_ANIMATION = CLIENT_ANIMATION_ROOT + "KeyframeAnimation";
 
         /** {@code AnimationChannel} - one bone's keyframes under one target. */
         public static final @NotNull String ANIMATION_CHANNEL = CLIENT_ANIMATION_ROOT + "AnimationChannel";
@@ -365,7 +370,11 @@ public final class VanillaSourceClasses {
         /** {@code LayerDefinition.create(MeshDefinition, W, H)} - the mesh-wrapping factory. */
         public static final @NotNull String CREATE = "create";
 
-        /** {@code LayerDefinition.apply(MeshTransformer)} - the out-of-body scale chain. */
+        /**
+         * The method name {@code apply}, shared by two readers: {@code LayerDefinition.apply(MeshTransformer)},
+         * the out-of-body scale chain, and {@code KeyframeAnimation.apply(AnimationState, F)}, which plays a
+         * clip only while its state runs. Each site pairs it with the owner it means.
+         */
         public static final @NotNull String APPLY = "apply";
 
         /** {@code EntityRenderer.getTextureLocation} - the texture-binding override. */
@@ -437,6 +446,15 @@ public final class VanillaSourceClasses {
 
         /** {@code AnimationDefinition$Builder.build()} - the clip terminal. */
         public static final @NotNull String BUILD = "build";
+
+        /** {@code AnimationDefinition.bake(ModelPart)} - binds an authored clip to one model's bones. */
+        public static final @NotNull String BAKE = "bake";
+
+        /** {@code KeyframeAnimation.applyWalk(F, F, F, F)} - plays a clip off the walk inputs. */
+        public static final @NotNull String APPLY_WALK = "applyWalk";
+
+        /** {@code KeyframeAnimation.applyStatic()} - holds a clip at its first frame, unconditionally. */
+        public static final @NotNull String APPLY_STATIC = "applyStatic";
 
         /** {@code KeyframeAnimations.degreeVec(F, F, F)} - a rotation keyframe, authored in degrees. */
         public static final @NotNull String DEGREE_VEC = "degreeVec";
