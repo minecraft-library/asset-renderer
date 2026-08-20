@@ -185,7 +185,7 @@ final class EntityBoneResolver {
                 if (ClassKit.CLINIT.equals(method.name)) continue;
                 if (ClassKit.INIT.equals(method.name)) {
                     collectUnconditionalHidden(cn, method, scan.unconditionalHidden());
-                    collectFieldToBoneNameMap(cn, method, scan.fieldToBone());
+                    EntityBoneNames.collectFieldToBoneNameMap(cn, method, scan.fieldToBone());
                     continue;
                 }
                 collectGates(cn, method, scan);
@@ -283,36 +283,6 @@ final class EntityBoneResolver {
                 && get.getOpcode() == Opcodes.GETFIELD
                 && owner.name.equals(get.owner) ? get.name : null)
             .forEach(out::add);
-    }
-
-    /**
-     * Collects the ctor's {@code LDC "<bone>"; INVOKEVIRTUAL ModelPart.getChild; PUTFIELD
-     * <field>} chains - the camelCase-field to snake_case-bone cache every vanilla model
-     * builds.
-     */
-    private static void collectFieldToBoneNameMap(@NotNull ClassNode owner, @NotNull MethodNode ctor, @NotNull Map<String, String> out) {
-        Cells.Latch<String> pendingBoneName = Cells.latch();
-        Cells.Flag pendingChildCall = Cells.flag();
-        AsmWalker.over(ctor)
-            .feed(pendingBoneName)
-            .feed(pendingChildCall)
-            .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String), ldc -> {
-                pendingBoneName.set((String) ldc.cst);
-                pendingChildCall.clear();
-            })
-            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.GET_CHILD),
-                childCall -> {
-                    if (pendingBoneName.get() != null) pendingChildCall.set();
-                })
-            .on(Insn.of(FieldInsnNode.class, put -> put.getOpcode() == Opcodes.PUTFIELD && owner.name.equals(put.owner)),
-                put -> {
-                    String boneName = pendingBoneName.get();
-                    if (!pendingChildCall.get() || boneName == null) return;
-                    out.putIfAbsent(put.name, boneName);
-                    pendingBoneName.clear();
-                    pendingChildCall.clear();
-                })
-            .run();
     }
 
     // ------------------------------------------------------------------------------------
