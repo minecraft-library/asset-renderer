@@ -61,6 +61,31 @@ public final class VanillaSourceClasses {
         /** {@code Mth} - vanilla's 65536-entry table trig. */
         public static final @NotNull String MTH = "net/minecraft/util/Mth";
 
+        /** The keyframe-animation package root - the clip tables and the machinery that plays them. */
+        public static final @NotNull String CLIENT_ANIMATION_ROOT = MINECRAFT_ROOT + "client/animation/";
+
+        /** The package holding one class of {@code AnimationDefinition} constants per animated subject. */
+        public static final @NotNull String ANIMATION_DEFINITIONS_ROOT = CLIENT_ANIMATION_ROOT + "definitions/";
+
+        /** {@code AnimationDefinition$Builder} - the clip builder every definition table is written as. */
+        public static final @NotNull String ANIMATION_DEFINITION_BUILDER =
+            CLIENT_ANIMATION_ROOT + "AnimationDefinition$Builder";
+
+        /** {@code AnimationChannel} - one bone's keyframes under one target. */
+        public static final @NotNull String ANIMATION_CHANNEL = CLIENT_ANIMATION_ROOT + "AnimationChannel";
+
+        /** {@code AnimationChannel$Targets} - the three accumulators a channel can write through. */
+        public static final @NotNull String ANIMATION_CHANNEL_TARGETS = ANIMATION_CHANNEL + "$Targets";
+
+        /** {@code AnimationChannel$Interpolations} - the two curves a keyframe can be reached by. */
+        public static final @NotNull String ANIMATION_CHANNEL_INTERPOLATIONS = ANIMATION_CHANNEL + "$Interpolations";
+
+        /** {@code Keyframe} - a time, a value and the curve reaching it. */
+        public static final @NotNull String KEYFRAME = CLIENT_ANIMATION_ROOT + "Keyframe";
+
+        /** {@code KeyframeAnimations} - the three vector factories a keyframe's value is authored through. */
+        public static final @NotNull String KEYFRAME_ANIMATIONS = CLIENT_ANIMATION_ROOT + "KeyframeAnimations";
+
         /** {@code RandomSource} - vanilla's seeded random factory. */
         public static final @NotNull String RANDOM_SOURCE = "net/minecraft/util/RandomSource";
 
@@ -397,6 +422,30 @@ public final class VanillaSourceClasses {
 
         /** {@code ModelPart.getChild("<bone>")} - the bone-field cache builder. */
         public static final @NotNull String GET_CHILD = "getChild";
+
+        /** {@code EntityModel.setupAnim(S)} - the per-frame pose hook every animated model overrides. */
+        public static final @NotNull String SETUP_ANIM = "setupAnim";
+
+        /** {@code AnimationDefinition$Builder.withLength(F)} - the static factory opening a clip table. */
+        public static final @NotNull String WITH_LENGTH = "withLength";
+
+        /** {@code AnimationDefinition$Builder.looping()} - the restart flag. */
+        public static final @NotNull String LOOPING = "looping";
+
+        /** {@code AnimationDefinition$Builder.addAnimation(String, AnimationChannel)} - one bone channel. */
+        public static final @NotNull String ADD_ANIMATION = "addAnimation";
+
+        /** {@code AnimationDefinition$Builder.build()} - the clip terminal. */
+        public static final @NotNull String BUILD = "build";
+
+        /** {@code KeyframeAnimations.degreeVec(F, F, F)} - a rotation keyframe, authored in degrees. */
+        public static final @NotNull String DEGREE_VEC = "degreeVec";
+
+        /** {@code KeyframeAnimations.posVec(F, F, F)} - a position keyframe, authored y-up. */
+        public static final @NotNull String POS_VEC = "posVec";
+
+        /** {@code KeyframeAnimations.scaleVec(D, D, D)} - a scale keyframe, authored as a multiplier. */
+        public static final @NotNull String SCALE_VEC = "scaleVec";
 
         /** {@code EntityRendererProvider$Context.bakeLayer(ModelLayerLocation)} - the mesh bake call. */
         public static final @NotNull String BAKE_LAYER = "bakeLayer";
