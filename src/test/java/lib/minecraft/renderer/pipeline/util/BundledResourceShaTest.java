@@ -89,19 +89,20 @@ class BundledResourceShaTest {
      * <p>Pinned beside the digest because the three places that record it today can disagree: each
      * shipped JSON's own {@code "//"} line, this class's javadoc, and a loader test's exception
      * string. Only the first is machine-readable, and it lives inside the file the regen rewrites.
-     * Two flows write two files each.
+     * {@code blockModels} writes two files and {@code entityModels} three.
      */
-    private static final @NotNull Map<String, String> REGEN = Map.of(
-        "block_defaults", "blockDefaults",
-        "block_geometry", "blockModels",
-        "block_items", "blockItems",
-        "block_models", "blockModels",
-        "block_tints", "blockTints",
-        "color_maps", "colorMaps",
-        "entity_geometry", "entityModels",
-        "entity_models", "entityModels",
-        "glint_items", "glintItems",
-        "potion_colors", "potionColors");
+    private static final @NotNull Map<String, String> REGEN = Map.ofEntries(
+        Map.entry("block_defaults", "blockDefaults"),
+        Map.entry("block_geometry", "blockModels"),
+        Map.entry("block_items", "blockItems"),
+        Map.entry("block_models", "blockModels"),
+        Map.entry("block_tints", "blockTints"),
+        Map.entry("color_maps", "colorMaps"),
+        Map.entry("entity_geometry", "entityModels"),
+        Map.entry("entity_models", "entityModels"),
+        Map.entry("entity_poses", "entityModels"),
+        Map.entry("glint_items", "glintItems"),
+        Map.entry("potion_colors", "potionColors"));
 
     @Test
     @DisplayName("table-canonical SHA-256 of each resource equals its pin")

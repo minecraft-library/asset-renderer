@@ -443,7 +443,7 @@ Editing a stored artifact by hand does not change what a producer emits; it chan
 
 *Probe:* hand-edit a promoted artifact and run ./gradlew test: ParityIndexTest names the row whose file no longer hashes to its recorded digest. The compare says nothing, which is why the check lives in the suite
 
-## B35 - The ten shipped tables are pipeline INPUT, so a change to one reaches every render that loads it
+## B35 - The shipped tables are pipeline INPUT, so a change to one reaches every render that loads it
 
 - **mode** select
 - **triggers** `src/main/resources/lib/minecraft/renderer/*.json`
@@ -451,7 +451,7 @@ Editing a stored artifact by hand does not change what a producer emits; it chan
 - **blind** -
 - **source** measured by perturbing block_tints.json: 3 of 11 declared sees moved; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over
 
-src/main/resources/lib/minecraft/renderer/ holds exactly the ten ASM-derived tables the tooling flows emit and the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files and digest.shipped-tables digests the same ten, so both see any edit directly; the sweeps and the dumps see it through the index the loaders build. Two of the ten are counted as well as read - block_defaults.json and glint_items.json - and pin.corpus-count holds exactly those two sizes, so adding or dropping a row moves it directly rather than through an index. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything.
+src/main/resources/lib/minecraft/renderer/ holds exactly the eleven ASM-derived tables the tooling flows emit, ten of which the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files and digest.shipped-tables digests the same eleven, so both see any edit directly; the sweeps and the dumps see it through the index the loaders build. Two of them are counted as well as read - block_defaults.json and glint_items.json - and pin.corpus-count holds exactly those two sizes, so adding or dropping a row moves it directly rather than through an index. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything.
 
 *Probe:* edit one value in block_tints.json and re-run the block sweep and parityDump; both move, and manifest.tooling-tables moves whether or not a generator ran
 

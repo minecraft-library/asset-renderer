@@ -122,10 +122,10 @@ public final class ParityArtifacts {
         Registration.store("manifest.player-sheets", 2, "playerRender"),
         Registration.store("manifest.fluid", 2, "fluidRenderer"),
         Registration.store("manifest.portal", 2, "portalRenderer"),
-        // Every flow that writes one of the ten tables, because the manifest is one digest set over
-        // all ten and no aggregator task drives them: running entityModels alone rewrites two and
-        // captures the rest as they were, and the manifest hashes cleanly over the mixture because
-        // every declared member exists.
+        // Every flow that writes one of the shipped tables, because the manifest is one digest set
+        // over all of them and no aggregator task drives them: running entityModels alone rewrites
+        // three and captures the rest as they were, and the manifest hashes cleanly over the mixture
+        // because every declared member exists.
         Registration.store("manifest.tooling-tables", 2, "entityModels", "blockModels", "blockDefaults",
             "blockItems", "blockTints", "potionColors", "glintItems", "colorMaps"),
 

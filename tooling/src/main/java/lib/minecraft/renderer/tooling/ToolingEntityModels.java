@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.tooling.animation.PoseFlow;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryWalk;
 import lib.minecraft.renderer.tooling.entity.EntitySubject;
@@ -15,8 +16,8 @@ import java.util.List;
 
 /**
  * Entry point of the {@code entityModels} Gradle task - runs the entity-models flow then the shared
- * geometry flow in one session: discovery, registry walk, {@code entity_models.json},
- * {@code entity_geometry.json}.
+ * geometry flow and the pose flow in one session: discovery, registry walk,
+ * {@code entity_models.json}, {@code entity_geometry.json}, {@code entity_poses.json}.
  */
 @UtilityClass
 public final class ToolingEntityModels {
@@ -36,6 +37,7 @@ public final class ToolingEntityModels {
             EntityRegistryWalk.run(session, subjects, manifest, root);
             session.write(root, "entity_models.json");
             GeometryFlow.emit(session, manifest, session.resolve("entity_geometry.json"));
+            PoseFlow.emit(session, manifest, session.resolve("entity_poses.json"));
             session.failOnStrictGate();
         }
     }

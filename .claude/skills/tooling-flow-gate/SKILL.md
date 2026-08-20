@@ -45,8 +45,8 @@ writes nothing, so the diff passes over a change that was never executed.
 
 ## Flow to golden
 
-Eight flows, ten tables. `./gradlew generateTables` runs every flow; `-Pflows=a,b` runs a subset and
-refuses a name that is not one of the eight.
+Eight flows, eleven tables - `entityModels` writes three of them. `./gradlew generateTables` runs
+every flow; `-Pflows=a,b` runs a subset and refuses a name that is not one of the eight.
 
 | flow | golden |
 |---|---|
