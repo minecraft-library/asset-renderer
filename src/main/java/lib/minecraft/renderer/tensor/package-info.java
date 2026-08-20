@@ -67,6 +67,10 @@
  *       storing a min/max corner pair as six floats, with {@code of(...)} factories that fit a
  *       tight AABB around a point list and a {@code maxExtent()} helper. Drives screen-bounds
  *       fitting and canvas sizing.</li>
+ *   <li>{@link lib.minecraft.renderer.tensor.VanillaMth VanillaMth} - the scalar half, and the one
+ *       type here that ports vanilla's {@code Mth} rather than JOML: the sampled sine table its
+ *       trigonometry reads plus the handful of interpolation and folding helpers a skeletal pose is
+ *       evaluated with. Nothing on the path of a projected vertex reads it.</li>
  * </ul>
  *
  * <p><b>SIMD dispatch.</b>
