@@ -7,7 +7,7 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.AnimationMetadata;
 import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.AnimationOptions;
@@ -590,7 +590,7 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      *        only when the animation declares no explicit {@code frames} list
      * @param animation the parsed {@code .mcmeta} metadata
      */
-    record Source(int frameCount, @NotNull AnimationData animation) {
+    record Source(int frameCount, @NotNull AnimationMetadata animation) {
 
         /**
          * Builds a source from a texture strip, deriving the implicit frame count from the strip's
@@ -600,7 +600,7 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
          * @param animation the parsed {@code .mcmeta} metadata
          * @return the derivation source
          */
-        public static @NotNull Source of(@NotNull PixelBuffer strip, @NotNull AnimationData animation) {
+        public static @NotNull Source of(@NotNull PixelBuffer strip, @NotNull AnimationMetadata animation) {
             return new Source(strip.height() / AnimationKit.frameHeight(strip, animation), animation);
         }
     }

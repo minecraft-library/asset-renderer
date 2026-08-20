@@ -6,7 +6,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.AnimationMetadata;
 import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
@@ -244,28 +244,28 @@ public final class PipelineRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * The sidecar's {@code animation} section, adapted into the {@link AnimationData} the renderer
+     * The sidecar's {@code animation} section, adapted into the {@link AnimationMetadata} the renderer
      * consumes.
      */
     @Override
-    public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
+    public @NotNull Optional<AnimationMetadata> findAnimation(@NotNull String textureId) {
         return this.findMeta(textureId)
             .flatMap(MCMeta::animation)
-            .map(PipelineRendererContext::toAnimationData);
+            .map(PipelineRendererContext::toAnimationMetadata);
     }
 
     /**
-     * Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationData} the renderer
+     * Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationMetadata} the renderer
      * consumes. The frames collect unmodifiable, as the section's own are, so the renderer's copy reads
      * through the no-op lock an unmodifiable list carries rather than through a read lock.
      */
-    private static @NotNull AnimationData toAnimationData(@NotNull MCMeta.Animation animation) {
-        return new AnimationData(
+    private static @NotNull AnimationMetadata toAnimationMetadata(@NotNull MCMeta.Animation animation) {
+        return new AnimationMetadata(
             animation.frametime(),
             animation.interpolate(),
             animation.frames()
                 .stream()
-                .map(AnimationData.FrameEntry::new)
+                .map(AnimationMetadata.FrameEntry::new)
                 .collect(Concurrent.toUnmodifiableList()),
             animation.width(),
             animation.height()

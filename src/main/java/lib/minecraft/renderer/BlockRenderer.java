@@ -8,7 +8,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.AnimationMetadata;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -303,7 +303,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private void addAnimatedSource(@NotNull String id, @NotNull ConcurrentMap<String, Boolean> seen, @NotNull List<Timeline.Source> sources) {
             if (seen.putIfAbsent(id, Boolean.TRUE) != null) return;
-            Optional<AnimationData> animation = this.context.findAnimation(id);
+            Optional<AnimationMetadata> animation = this.context.findAnimation(id);
             if (animation.isEmpty()) return;
             Optional<PixelBuffer> strip = this.context.resolveTexture(id);
             if (strip.isEmpty()) return;

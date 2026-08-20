@@ -20,7 +20,7 @@ import org.jetbrains.annotations.NotNull;
  * @param height an explicit frame height override, or {@code -1} when the animation inherits it from
  *     the texture
  */
-public record AnimationData(
+public record AnimationMetadata(
     int frametime,
     boolean interpolate,
     @NotNull ConcurrentList<FrameEntry> frames,
@@ -33,7 +33,7 @@ public record AnimationData(
      *
      * @param index the zero-based frame index into the vertically-stacked animation strip
      * @param time the per-frame duration override in ticks, or {@code -1} to defer to the
-     *     animation-level {@link AnimationData#frametime}
+     *     animation-level {@link AnimationMetadata#frametime}
      */
     public record FrameEntry(int index, int time) {
 

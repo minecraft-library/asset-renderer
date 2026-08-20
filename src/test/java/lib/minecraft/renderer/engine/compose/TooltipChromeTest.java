@@ -8,7 +8,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.renderer.TextRenderer;
-import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.AnimationMetadata;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
@@ -345,7 +345,7 @@ class TooltipChromeTest {
      * @param animations the texture id to animation sidecar bindings this context can resolve
      */
     private record StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta> metas,
-                               Map<String, AnimationData> animations) implements RendererContext {
+                               Map<String, AnimationMetadata> animations) implements RendererContext {
         private StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta> metas) {
             this(textures, metas, Map.of());
         }
@@ -355,7 +355,7 @@ class TooltipChromeTest {
         @Override public @NotNull Optional<Item> findItem(@NotNull String id) { return Optional.empty(); }
         @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NonNull String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }
         @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) { return Optional.ofNullable(this.metas.get(textureId)); }
-        @Override public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
+        @Override public @NotNull Optional<AnimationMetadata> findAnimation(@NotNull String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
     }
 
     /**
@@ -451,8 +451,8 @@ class TooltipChromeTest {
         Map<String, PixelBuffer> tex = new HashMap<>();
         tex.put("minecraft:gui/sprites/tooltip/background", strip);
         tex.put("minecraft:gui/sprites/tooltip/frame", solid(0xFF445566));
-        Map<String, AnimationData> anims = new HashMap<>();
-        anims.put("minecraft:gui/sprites/tooltip/background", new AnimationData(1, false, Concurrent.newList(), -1, -1));
+        Map<String, AnimationMetadata> anims = new HashMap<>();
+        anims.put("minecraft:gui/sprites/tooltip/background", new AnimationMetadata(1, false, Concurrent.newList(), -1, -1));
 
         Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolve(
             new StubContext(tex, new HashMap<>(), anims), null);

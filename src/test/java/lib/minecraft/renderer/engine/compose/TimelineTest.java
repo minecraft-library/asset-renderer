@@ -7,7 +7,7 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.AnimationMetadata;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.AnimationOptions;
 import org.jetbrains.annotations.NotNull;
@@ -535,37 +535,37 @@ class TimelineTest {
     }
 
     /** fire_0.png.mcmeta: 32 bare frame indices [16..31, 0..15], default frametime (1 tick each). */
-    private static @NotNull AnimationData fire() {
-        ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
-        for (int i = 16; i <= 31; i++) frames.add(new AnimationData.FrameEntry(i, -1));
-        for (int i = 0; i <= 15; i++) frames.add(new AnimationData.FrameEntry(i, -1));
-        return new AnimationData(1, false, frames, -1, -1);
+    private static @NotNull AnimationMetadata fire() {
+        ConcurrentList<AnimationMetadata.FrameEntry> frames = Concurrent.newList();
+        for (int i = 16; i <= 31; i++) frames.add(new AnimationMetadata.FrameEntry(i, -1));
+        for (int i = 0; i <= 15; i++) frames.add(new AnimationMetadata.FrameEntry(i, -1));
+        return new AnimationMetadata(1, false, frames, -1, -1);
     }
 
     /** water_still.png.mcmeta: bare {@code frametime: 2}, no frames list. */
-    private static @NotNull AnimationData waterStill() {
-        return new AnimationData(2, false, Concurrent.newList(), -1, -1);
+    private static @NotNull AnimationMetadata waterStill() {
+        return new AnimationMetadata(2, false, Concurrent.newList(), -1, -1);
     }
 
     /** magma.png.mcmeta: {@code frametime: 8}, interpolate, frames [0, 1, 2]. */
-    private static @NotNull AnimationData magma() {
-        ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
-        frames.add(new AnimationData.FrameEntry(0, -1));
-        frames.add(new AnimationData.FrameEntry(1, -1));
-        frames.add(new AnimationData.FrameEntry(2, -1));
-        return new AnimationData(8, true, frames, -1, -1);
+    private static @NotNull AnimationMetadata magma() {
+        ConcurrentList<AnimationMetadata.FrameEntry> frames = Concurrent.newList();
+        frames.add(new AnimationMetadata.FrameEntry(0, -1));
+        frames.add(new AnimationMetadata.FrameEntry(1, -1));
+        frames.add(new AnimationMetadata.FrameEntry(2, -1));
+        return new AnimationMetadata(8, true, frames, -1, -1);
     }
 
     /** prismarine.png.mcmeta: {@code frametime: 300}, interpolate, 22 frames -> loop far over the cap. */
-    private static @NotNull AnimationData prismarine() {
-        ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
+    private static @NotNull AnimationMetadata prismarine() {
+        ConcurrentList<AnimationMetadata.FrameEntry> frames = Concurrent.newList();
         int[] seq = {0, 1, 0, 2, 0, 3, 0, 1, 2, 1, 3, 1, 0, 2, 1, 2, 3, 2, 0, 3, 1, 3};
-        for (int index : seq) frames.add(new AnimationData.FrameEntry(index, -1));
-        return new AnimationData(300, true, frames, -1, -1);
+        for (int index : seq) frames.add(new AnimationMetadata.FrameEntry(index, -1));
+        return new AnimationMetadata(300, true, frames, -1, -1);
     }
 
     /** A frametime-only source with the given tick length and implicit frame count. */
-    private static @NotNull AnimationData implicit(int frametime) {
-        return new AnimationData(frametime, false, Concurrent.newList(), -1, -1);
+    private static @NotNull AnimationMetadata implicit(int frametime) {
+        return new AnimationMetadata(frametime, false, Concurrent.newList(), -1, -1);
     }
 }

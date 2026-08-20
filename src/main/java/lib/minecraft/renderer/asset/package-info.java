@@ -6,7 +6,7 @@
  * {@link lib.minecraft.renderer.asset.Entity Entity},
  * {@link lib.minecraft.renderer.asset.BannerPattern BannerPattern},
  * {@link lib.minecraft.renderer.asset.ColorMap ColorMap},
- * {@link lib.minecraft.renderer.asset.AnimationData AnimationData},
+ * {@link lib.minecraft.renderer.asset.AnimationMetadata AnimationMetadata},
  * {@link lib.minecraft.renderer.asset.BlockTag BlockTag},
  * {@link lib.minecraft.renderer.asset.ResourceId ResourceId}), plus the pack-model spine the context
  * holds and resolves through ({@link lib.minecraft.renderer.asset.PackStack PackStack}) and the

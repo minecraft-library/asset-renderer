@@ -3,7 +3,7 @@ package lib.minecraft.renderer.engine.kit;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.AnimationMetadata;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -14,9 +14,9 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Coverage of {@link AnimationKit#sampleFrame} playback of a vanilla {@code .mcmeta} animation over a
  * vertically-stacked strip: single-frame passthrough, per-tick frame selection, modulo-cycle
- * looping (including negative ticks), {@link AnimationData#frametime() frametime} frame holds,
- * linear {@link AnimationData#interpolate() interpolation}, and explicit
- * {@link AnimationData.FrameEntry} durations, plus {@link AnimationKit#extractFrame} row
+ * looping (including negative ticks), {@link AnimationMetadata#frametime() frametime} frame holds,
+ * linear {@link AnimationMetadata#interpolate() interpolation}, and explicit
+ * {@link AnimationMetadata.FrameEntry} durations, plus {@link AnimationKit#extractFrame} row
  * cropping. Each frame is authored as a distinctive solid colour so the sampled pixel identifies
  * which strip row was selected.
  */
@@ -27,7 +27,7 @@ class AnimationKitTest {
     void singleFrameStrip_returnsSameFrame() {
         // 1x1 strip with a single frame - width=1, height=1, one red pixel
         PixelBuffer strip = PixelBuffer.of(new int[]{ 0xFFFF0000 }, 1, 1);
-        AnimationData animation = animation(1, false, null);
+        AnimationMetadata animation = animation(1, false, null);
 
         PixelBuffer frame0 = AnimationKit.sampleFrame(strip, animation, 0);
         PixelBuffer frame5 = AnimationKit.sampleFrame(strip, animation, 5);
@@ -45,7 +45,7 @@ class AnimationKitTest {
         // override the frame height falls back to the strip width (1), so height 4 / 1 = 4 frames.
         int[] pixels = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004 };
         PixelBuffer strip = PixelBuffer.of(pixels, 1, 4);
-        AnimationData animation = animation(1, false, null);
+        AnimationMetadata animation = animation(1, false, null);
 
         PixelBuffer f0 = AnimationKit.sampleFrame(strip, animation, 0);
         PixelBuffer f1 = AnimationKit.sampleFrame(strip, animation, 1);
@@ -63,7 +63,7 @@ class AnimationKitTest {
     void tick_wrapsModuloCycle() {
         int[] pixels = { 0xFFAA0000, 0xFF00BB00 };
         PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
-        AnimationData animation = animation(1, false, null);
+        AnimationMetadata animation = animation(1, false, null);
 
         PixelBuffer f0 = AnimationKit.sampleFrame(strip, animation, 0);
         PixelBuffer f4 = AnimationKit.sampleFrame(strip, animation, 4);
@@ -79,7 +79,7 @@ class AnimationKitTest {
     void frametime_holdsFrameRange() {
         int[] pixels = { 0xFF111111, 0xFF222222 };
         PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
-        AnimationData animation = animation(3, false, null);
+        AnimationMetadata animation = animation(3, false, null);
 
         PixelBuffer t0 = AnimationKit.sampleFrame(strip, animation, 0);
         PixelBuffer t2 = AnimationKit.sampleFrame(strip, animation, 2);
@@ -98,7 +98,7 @@ class AnimationKitTest {
         // Two single-pixel frames: pure black then pure white, held 4 ticks each with interpolate on.
         int[] pixels = { 0xFF000000, 0xFFFFFFFF };
         PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
-        AnimationData animation = animation(4, true, null);
+        AnimationMetadata animation = animation(4, true, null);
 
         // The blend alpha is the tick's progress into frame 0's 4-tick duration, toward frame 1.
         // Tick 0 sits at the very start of frame 0 -> 0% progress -> near-black.
@@ -118,10 +118,10 @@ class AnimationKitTest {
         int[] pixels = { 0xFFAAAAAA, 0xFFBBBBBB };
         PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
 
-        ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
-        frames.add(new AnimationData.FrameEntry(0, 5));
-        frames.add(new AnimationData.FrameEntry(1, 2));
-        AnimationData animation = animation(1, false, frames);
+        ConcurrentList<AnimationMetadata.FrameEntry> frames = Concurrent.newList();
+        frames.add(new AnimationMetadata.FrameEntry(0, 5));
+        frames.add(new AnimationMetadata.FrameEntry(1, 2));
+        AnimationMetadata animation = animation(1, false, frames);
 
         // Frame 0 holds for 5 ticks, frame 1 holds for 2 ticks
         assertThat(AnimationKit.sampleFrame(strip, animation, 0).getPixel(0, 0), equalTo(0xFFAAAAAA));
@@ -153,12 +153,12 @@ class AnimationKitTest {
     // --- fixtures ---
 
     /**
-     * Builds {@link AnimationData} with the given frametime, interpolation flag, and optional
+     * Builds {@link AnimationMetadata} with the given frametime, interpolation flag, and optional
      * explicit frame list ({@code null} yields an empty list so playback walks the strip in order).
      * Width and height are left at {@code -1} so the frame dimensions are inferred from the strip.
      */
-    private static AnimationData animation(int frametime, boolean interpolate, ConcurrentList<AnimationData.FrameEntry> frames) {
-        return new AnimationData(frametime, interpolate, frames != null ? frames : Concurrent.newList(), -1, -1);
+    private static AnimationMetadata animation(int frametime, boolean interpolate, ConcurrentList<AnimationMetadata.FrameEntry> frames) {
+        return new AnimationMetadata(frametime, interpolate, frames != null ? frames : Concurrent.newList(), -1, -1);
     }
 
 }

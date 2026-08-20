@@ -2,7 +2,7 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.AnimationMetadata;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -11,15 +11,15 @@ import java.util.Arrays;
  * Plays back a vanilla {@code .mcmeta} texture animation against a vertically stacked strip.
  * <p>
  * Strip layout matches vanilla: the source {@link PixelBuffer} is a tall image holding one
- * square (or {@link AnimationData#width() width}-by-{@link AnimationData#height() height}
+ * square (or {@link AnimationMetadata#width() width}-by-{@link AnimationMetadata#height() height}
  * overridden) frame per row, stacked top to bottom. The frame count is derived from the strip's
  * height divided by the frame height.
  * <p>
- * A call to {@link #sampleFrame(PixelBuffer, AnimationData, int) sampleFrame} returns the frame
+ * A call to {@link #sampleFrame(PixelBuffer, AnimationMetadata, int) sampleFrame} returns the frame
  * for a specific tick, honoring the animation's per-entry duration overrides and optional linear
- * interpolation between adjacent frames. Each entry lasts {@link AnimationData.FrameEntry#time()}
- * ticks, falling back to {@link AnimationData#frametime() frametime} whenever the entry declares
- * no positive override. When {@link AnimationData#interpolate()} is {@code true}, the result is a
+ * interpolation between adjacent frames. Each entry lasts {@link AnimationMetadata.FrameEntry#time()}
+ * ticks, falling back to {@link AnimationMetadata#frametime() frametime} whenever the entry declares
+ * no positive override. When {@link AnimationMetadata#interpolate()} is {@code true}, the result is a
  * {@link PixelBuffer#lerp blend} between the current entry's frame and the next entry's frame using
  * a progress factor computed from the current entry's per-frame ticks.
  */
@@ -33,11 +33,11 @@ public class AnimationKit {
      * <p>
      * When the animation has no explicit {@code frames} list, the strip's implicit frames
      * {@code 0..N-1} are used in order with the default {@code frametime}. Otherwise each
-     * {@link AnimationData.FrameEntry} contributes its {@code time} ticks, or {@code frametime}
+     * {@link AnimationMetadata.FrameEntry} contributes its {@code time} ticks, or {@code frametime}
      * when the entry declares no positive override. Out-of-range entry indices are clamped into
      * {@code 0..frameCount-1}.
      * <p>
-     * When {@link AnimationData#interpolate() interpolate} is set, the returned frame is a linear
+     * When {@link AnimationMetadata#interpolate() interpolate} is set, the returned frame is a linear
      * blend of the current and next entry's frames weighted by how far the tick has advanced into
      * the current entry's duration. The blend is skipped when the next entry maps to the same strip
      * index as the current one, since there is nothing to interpolate towards.
@@ -51,7 +51,7 @@ public class AnimationKit {
      */
     public static @NotNull PixelBuffer sampleFrame(
         @NotNull PixelBuffer strip,
-        @NotNull AnimationData animation,
+        @NotNull AnimationMetadata animation,
         int tick
     ) {
         int frameWidth = frameWidth(strip, animation);
@@ -77,7 +77,7 @@ public class AnimationKit {
             indices = new int[size];
             durations = new int[size];
             for (int i = 0; i < size; i++) {
-                AnimationData.FrameEntry entry = animation.frames().get(i);
+                AnimationMetadata.FrameEntry entry = animation.frames().get(i);
                 indices[i] = Math.clamp(entry.index(), 0, frameCount - 1);
                 durations[i] = entry.time() > 0 ? entry.time() : defaultTicks;
             }
@@ -114,8 +114,8 @@ public class AnimationKit {
      * The per-entry tick durations of an animation's playback sequence - the array
      * {@link #sampleFrame} accumulates against internally, exposed for timeline derivation.
      * When the animation declares no explicit {@code frames} list, the strip's
-     * implicit frames {@code 0..frameCount-1} each last {@link AnimationData#frametime() frametime}
-     * (floored at 1); otherwise each {@link AnimationData.FrameEntry} contributes its {@code time}
+     * implicit frames {@code 0..frameCount-1} each last {@link AnimationMetadata#frametime() frametime}
+     * (floored at 1); otherwise each {@link AnimationMetadata.FrameEntry} contributes its {@code time}
      * ticks, or {@code frametime} when the entry declares no positive override. Mirrors the durations
      * computation in {@link #sampleFrame} - keep the two in sync.
      *
@@ -124,7 +124,7 @@ public class AnimationKit {
      * @param animation the parsed {@code .mcmeta} metadata
      * @return the per-entry durations in ticks; empty when the implicit-frame path has zero frames
      */
-    public static int @NotNull [] entryDurations(int frameCount, @NotNull AnimationData animation) {
+    public static int @NotNull [] entryDurations(int frameCount, @NotNull AnimationMetadata animation) {
         int defaultTicks = Math.max(1, animation.frametime());
         if (animation.frames().isEmpty()) {
             int[] durations = new int[Math.max(0, frameCount)];
@@ -134,7 +134,7 @@ public class AnimationKit {
         int size = animation.frames().size();
         int[] durations = new int[size];
         for (int i = 0; i < size; i++) {
-            AnimationData.FrameEntry entry = animation.frames().get(i);
+            AnimationMetadata.FrameEntry entry = animation.frames().get(i);
             durations[i] = entry.time() > 0 ? entry.time() : defaultTicks;
         }
         return durations;
@@ -177,7 +177,7 @@ public class AnimationKit {
      * @param animation the parsed metadata carrying an optional width override
      * @return the frame width in pixels
      */
-    public static int frameWidth(@NotNull PixelBuffer strip, @NotNull AnimationData animation) {
+    public static int frameWidth(@NotNull PixelBuffer strip, @NotNull AnimationMetadata animation) {
         return animation.width() > 0 ? animation.width() : strip.width();
     }
 
@@ -190,7 +190,7 @@ public class AnimationKit {
      * @param animation the parsed metadata carrying an optional height override
      * @return the frame height in pixels
      */
-    public static int frameHeight(@NotNull PixelBuffer strip, @NotNull AnimationData animation) {
+    public static int frameHeight(@NotNull PixelBuffer strip, @NotNull AnimationMetadata animation) {
         return animation.height() > 0 ? animation.height() : strip.width();
     }
 
