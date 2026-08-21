@@ -690,6 +690,15 @@ public final class PoseWalk {
                 PoseValue array = stack.pop();
                 stack.push(element(context.parts(), array, index));
             }
+            // The chassis leaves these to the walk site, and leaving them unread is not neutral: an
+            // opcode that neither pops nor pushes leaves the array where a number should be, and the
+            // arithmetic after it goes on to compute something well formed out of the index.
+            case Opcodes.IALOAD, Opcodes.LALOAD, Opcodes.FALOAD, Opcodes.DALOAD,
+                 Opcodes.BALOAD, Opcodes.CALOAD, Opcodes.SALOAD -> {
+                PoseValue index = stack.pop();
+                PoseValue array = stack.pop();
+                stack.push(num(numberElement(array, index)));
+            }
             case Opcodes.CHECKCAST -> { /* a cast changes the type, never the value */ }
             case Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL, Opcodes.INVOKESPECIAL, Opcodes.INVOKEINTERFACE ->
                 call((MethodInsnNode) in, context, depth);
@@ -716,6 +725,7 @@ public final class PoseWalk {
                 + constant.name() + " against something that is not its enum";
             case PoseValue.Part part -> "the bone '" + part.bone() + "'";
             case PoseValue.PartArray array -> "the array '" + array.field() + "'";
+            case PoseValue.StateArray array -> "the whole of the render state's '" + array.member() + "'";
             case PoseValue.Clip clip -> "the clip '" + clip.coordinate() + "'";
             case PoseValue.Comparison ignored -> "a comparison in a place one cannot be phrased";
             case PoseValue.Num number -> "a number this walk cannot phrase a test of";
@@ -780,9 +790,12 @@ public final class PoseWalk {
             // A render state holds numbers and it holds references, and only the numbers are
             // arithmetic on. Reading a reference as though it were a float would put a thing with no
             // numeric value into an expression and only find out at the sink.
-            stack.push(isPrimitive(field.desc)
-                ? num(new PoseExpr.Input(field.name))
-                : new PoseValue.StateRef(field.name, referenced(field.desc)));
+            if (isPrimitive(field.desc)) stack.push(num(new PoseExpr.Input(field.name)));
+            // An array is neither: it answers no question and matches no constant, and calling one a
+            // reference on the strength of not being primitive is how a float array ends up being
+            // compared against an enum constant.
+            else if (field.desc.startsWith("[")) stack.push(new PoseValue.StateArray(field.name));
+            else stack.push(new PoseValue.StateRef(field.name, referenced(field.desc)));
             return;
         }
         stack.push(OPAQUE);
@@ -820,6 +833,15 @@ public final class PoseWalk {
         if (bone == null)
             throw new IllegalStateException("indexes '" + parked.field() + "' past what its constructor allocated");
         return new PoseValue.Part(bone);
+    }
+
+    /** One element of an array the render state holds, which needs the index to have folded. */
+    private static @NotNull PoseExpr numberElement(@NotNull PoseValue array, @NotNull PoseValue index) {
+        if (!(array instanceof PoseValue.StateArray held))
+            throw new IllegalStateException("indexes something that is not an array the render state holds");
+        if (!(index instanceof PoseValue.Num number) || !(number.expr() instanceof PoseExpr.Const literal))
+            throw new IllegalStateException("indexes '" + held.member() + "' with something that is not a literal");
+        return new PoseExpr.InputElement(held.member(), (int) literal.value());
     }
 
     /** A call: arithmetic by another name, a bone mutated through a method, the reset, or a body to inline. */

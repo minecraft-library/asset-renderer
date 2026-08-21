@@ -67,6 +67,17 @@ public sealed interface PoseValue {
     record StateRef(@NotNull String member, @NotNull String type) implements PoseValue {}
 
     /**
+     * An array of numbers the render state holds, before an index picks an element out of it.
+     *
+     * <p>Apart from {@link StateRef} because it answers no question and matches no constant: the one
+     * thing done with it is index it. Apart from {@link Num} for the same reason a bone array is -
+     * an array is not the thing an expression wants, an element of it is.
+     *
+     * @param member the vanilla render-state member it was read from
+     */
+    record StateArray(@NotNull String member) implements PoseValue {}
+
+    /**
      * A keyframe clip the model's constructor bound to one of its fields.
      *
      * @param coordinate the clip coordinate the clip table is keyed by

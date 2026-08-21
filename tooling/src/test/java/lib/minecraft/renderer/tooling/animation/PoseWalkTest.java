@@ -38,17 +38,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The pose walk against the real client jar.
  *
- * <p>Six models are pinned expression by expression, which is what says the walk builds vanilla's
- * own arithmetic rather than merely finishing without complaint: one for the arithmetic itself, one
- * for a bone posed from another bone's freshly written value, one for a loop that has to unroll into
- * a different expression per index, one for a branch nothing offline decides, one for a branch
- * nested inside another, which meets its own arm at the point the outer one is waiting at, one for a
- * pose divided between a model and the base it inherits, and one for a question asked of the render
- * state, whose answer a bone is made visible by.
+ * <p>A model is pinned expression by expression wherever a mechanism could otherwise finish without
+ * complaint and be wrong: the arithmetic itself, a bone posed from another bone's freshly written
+ * value, a loop that has to unroll into a different expression per index, a branch nothing offline
+ * decides, a branch nested inside another which meets its own arm where the outer one is waiting, a
+ * pose divided between a model and the base it inherits, and a question asked of the render state
+ * whose answer a bone is made visible by.
  *
- * <p>One model is pinned for what its expressions NAME rather than for their shape: a golem asking
- * each of its hands the same word has to be answered twice, and a walk that answered once would
- * build a pose that renders perfectly with both hands agreeing.
+ * <p>Two more are pinned for what their expressions NAME rather than for the shape they take, both
+ * being cases that would render perfectly while being wrong: a golem asking each of its hands the
+ * same word has to be answered twice, and a wither posing two heads out of one array of angles has
+ * to read two indices of it.
  *
  * <p>The clip half is checked differently, against the shipped table rather than against a written
  * expectation. Two mechanisms that never see each other - the binding resolver reading constructors
@@ -312,6 +312,32 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a wither's two heads read two indices of the same array of angles")
+    void anArrayElementIsPinnedAtItsIndex() {
+        // Both heads are posed by one helper handed a different index, so the whole difference
+        // between them is that literal. Losing it would point both heads the same way, and losing
+        // the read entirely is worse than that: an array load that neither pops nor pushes leaves
+        // the array standing where a number should be, and the multiply after it goes on to build a
+        // perfectly well formed angle out of the index.
+        PoseProgram wither = extracted.get("net/minecraft/client/model/monster/wither/WitherBossModel");
+        assertNotNull(wither, "WitherBossModel is expected to extract");
+
+        assertEquals(
+            PoseExpr.Op.of(PoseOperator.MUL,
+                PoseExpr.Op.of(PoseOperator.SUB,
+                    new PoseExpr.InputElement("yHeadRots", 0), new PoseExpr.Input("bodyRot")),
+                PoseExpr.Const.of(0.017453292f)),
+            wither.bones().get("right_head").get(PoseChannel.Y_ROT),
+            "the right head turns off the first tracked yaw, against the body");
+
+        assertEquals(
+            PoseExpr.Op.of(PoseOperator.MUL,
+                new PoseExpr.InputElement("xHeadRots", 1), PoseExpr.Const.of(0.017453292f)),
+            wither.bones().get("left_head").get(PoseChannel.X_ROT),
+            "the left head tilts off the second tracked pitch");
+    }
+
+    @Test
     @DisplayName("a copper golem asks each hand on its own, and is answered twice")
     void aQuestionIsNamedAfterWhatItIsAskedOf() {
         // The golem asks whether the right hand is empty and then whether the left is: one word,
@@ -492,7 +518,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(86, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(87, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------

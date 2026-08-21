@@ -9,8 +9,8 @@ import java.util.OptionalDouble;
  * One value a pose expression computes - the symbolic operand a {@code setupAnim} walk pushes where
  * a running client would push a number.
  *
- * <p>Six arms cover the corpus: a literal, the two ways a render state is read, a read of a channel
- * the pose has already touched, an operation, and the join of a branch. Every operation is
+ * <p>Seven arms cover the corpus: a literal, the three ways a render state is read, a read of a
+ * channel the pose has already touched, an operation, and the join of a branch. Every operation is
  * {@link Op}, ternaries included, so an arity is a property of the operator rather than of the arm
  * carrying it and a three-operand call needs no shape of its own.
  *
@@ -91,6 +91,18 @@ public sealed interface PoseExpr {
      * @param question the vanilla method name that asks it
      */
     record InputFn(@NotNull String receiver, @NotNull String question) implements PoseExpr {}
+
+    /**
+     * One element of an array the render state holds, pinned at the literal index that picked it.
+     *
+     * <p>The index is part of the identity, the same way the receiver of a question is: a model that
+     * poses two heads out of one array of angles is reading two inputs, and a walk that lost the
+     * index would pose both heads the same way.
+     *
+     * @param receiver the vanilla render-state member the array was read from
+     * @param index the literal index the call site picked
+     */
+    record InputElement(@NotNull String receiver, int index) implements PoseExpr {}
 
     /**
      * A read of a bone channel's current value.
