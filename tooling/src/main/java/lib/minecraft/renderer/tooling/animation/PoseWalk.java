@@ -1056,6 +1056,12 @@ public final class PoseWalk {
                 call((MethodInsnNode) in, context, depth);
             case Opcodes.AASTORE, Opcodes.NEW, Opcodes.ANEWARRAY ->
                 throw new IllegalStateException("allocates while posing, which this walk does not model");
+            // Refused rather than passed over. An opcode the chassis does not name has no stack
+            // effect here, and a call site that pushed nothing where a function was expected leaves
+            // every argument after it one place out - which builds a well formed pose out of the
+            // wrong operands rather than failing.
+            case Opcodes.INVOKEDYNAMIC ->
+                throw new IllegalStateException("builds a call site, which this walk does not model");
             default -> stack.step(in);
         }
         return null;
