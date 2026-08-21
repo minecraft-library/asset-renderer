@@ -475,30 +475,20 @@ public final class PoseWalk {
         if (++context.forks()[0] > MAX_FORKS)
             throw new IllegalStateException("forks on more than " + MAX_FORKS + " undecided branches");
 
-        Interp<PoseValue> stack = context.stack();
         AbstractInsnNode taken = AsmWalker.nextReal(jump.label);
         AbstractInsnNode fallen = AsmWalker.nextReal(jump);
         AbstractInsnNode join = findJoin(body, taken, fallen, stop);
 
-        Interp.Snapshot<PoseValue> before = stack.snapshot();
-        Map<String, Map<PoseChannel, PoseExpr>> posed = copy(context.pose());
-        List<PoseClipSite> played = List.copyOf(context.clipSites());
+        Held before = held(context);
 
         boolean takenRejoined = walkFrom(body, taken, join, context, depth);
-        Interp.Snapshot<PoseValue> afterTaken = stack.snapshot();
-        Map<String, Map<PoseChannel, PoseExpr>> poseTaken = copy(context.pose());
-        List<PoseClipSite> playedTaken = List.copyOf(context.clipSites());
+        Held afterTaken = held(context);
 
-        stack.restore(before);
-        replace(context.pose(), posed);
-        replaceSites(context, played);
+        restore(context, before);
         boolean fallenRejoined = walkFrom(body, fallen, join, context, depth);
 
         if (join != null && takenRejoined && fallenRejoined) {
-            Interp.Snapshot<PoseValue> afterFallen = stack.snapshot();
-            replace(context.pose(), merge(condition, poseTaken, copy(context.pose())));
-            replaceSites(context, bothPlayed(playedTaken, context.clipSites()));
-            stack.restore(reconciled(condition, afterTaken, afterFallen, context));
+            restore(context, joined(condition, afterTaken, held(context), context));
             return join;
         }
 
@@ -512,32 +502,45 @@ public final class PoseWalk {
         // the end above, twice would be the same walk twice, and each such branch inside another
         // doubles what that costs - which for a body holding a run of them is the difference between
         // walking its tail a few times and walking it thousands.
-        Interp.Snapshot<PoseValue> endedTaken = afterTaken;
-        Map<String, Map<PoseChannel, PoseExpr>> wholeTaken = poseTaken;
-        List<PoseClipSite> wholePlayedTaken = playedTaken;
+        Held endedTaken = afterTaken;
         if (join != null) {
-            stack.restore(before);
-            replace(context.pose(), posed);
-            replaceSites(context, played);
+            restore(context, before);
             walkFrom(body, taken, null, context, depth);
-            endedTaken = stack.snapshot();
-            wholeTaken = copy(context.pose());
-            wholePlayedTaken = List.copyOf(context.clipSites());
+            endedTaken = held(context);
 
-            stack.restore(before);
-            replace(context.pose(), posed);
-            replaceSites(context, played);
+            restore(context, before);
             walkFrom(body, fallen, null, context, depth);
         }
 
-        replace(context.pose(), merge(condition, wholeTaken, copy(context.pose())));
-        replaceSites(context, bothPlayed(wholePlayedTaken, context.clipSites()));
         // The answer a body computed is left standing at its return, so putting the machine back to
         // before the branch discards it. A helper shaped as a choice between two answers is the
         // commonest thing there is, and one that lost them reported that it had returned nothing.
-        stack.restore(reconciled(condition,
-            withoutLocals(endedTaken, before), withoutLocals(stack.snapshot(), before), context));
+        // What it left in its own slots is gone either way, which is what withoutLocals says.
+        Held endedFallen = held(context);
+        restore(context, joined(condition,
+            new Held(withoutLocals(endedTaken.machine(), before.machine()), endedTaken.pose(),
+                endedTaken.clipSites()),
+            new Held(withoutLocals(endedFallen.machine(), before.machine()), endedFallen.pose(),
+                endedFallen.clipSites()),
+            context));
         return null;
+    }
+
+    /**
+     * Two arms as one - every part of a walk chosen between where the arms disagree.
+     *
+     * <p>One place rather than one per part, because a part this forgot would not fail: the arms
+     * would simply agree about it, having been handed whatever the LAST of them left, and the fork
+     * would report a pose that is one arm's answer wearing both arms' name.
+     */
+    private static @NotNull Held joined(
+        @NotNull PosePredicate condition, @NotNull Held taken, @NotNull Held fallen,
+        @NotNull Context context) {
+
+        return new Held(
+            reconciled(condition, taken.machine(), fallen.machine(), context),
+            merge(condition, taken.pose(), fallen.pose()),
+            bothPlayed(taken.clipSites(), fallen.clipSites()));
     }
 
     /**
