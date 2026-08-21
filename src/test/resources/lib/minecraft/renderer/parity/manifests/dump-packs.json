@@ -16,7 +16,7 @@
     },
     {
       "path": "entities.json",
-      "sha256": "bace1e41cda5df7858e3f61a0eefed30bb8481fbd411072677699a869616dafb"
+      "sha256": "ff642ab69b3f2dcd1fdc9f2d93d8cc78c986cad4c2c9b653b33f2bc9e74cc850"
     },
     {
       "path": "item-models.json",
@@ -65,16 +65,16 @@
   "provenance": {
     "artifact": "manifest.dump.packs",
     "asset_dirty": false,
-    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "asset_sha": "d494e81e0f162e059cbc94e5807699d90759461e",
     "counts": {
       "files": 14
     },
     "determinism_runs": 5,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
+    "parity_class": "shaped",
     "producer": "parityDump",
-    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 5/5, dump pair at FIVE runs: 14 of 14 sections stable across all five in both configs, all four compares against run 1 clean. The retained series-end dump tree reproduces the committed oracle digests exactly, so it is that oracle; six of its fourteen sections differ and it predates HEAD by 314 commits. Field-level, every one is accounted for: block-models.json and item-models.json differ ONLY by gui_light_3d being removed from every model, 2392 and 1284 removals with no other field touched, which is the registered delta; entities.json differs by named landed work - show_base_plate becoming base_plate plus arms, the small armour stand size_models SMALL, and equipment texture_template becoming layer_type, material_assets and default_material; and block-entities.json, blocks.json and items.json have an identical field set with values moved, so no schema change. run.json is byte-identical to the oracle.",
+    "reason": "entities.json gains a pose member on the 69 of 90 rows a model class poses: the pose table is read at runtime now and joins to an entity by the head of its geometry coordinate. Carried as a digest and only where there is a pose, so the rest stay byte-identical. Five captures into five roots agree; no sweep, pin or other manifest moved.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,8 @@
       "players": 2
     },
     "root": "cache/parity-dump/head/packs",
-    "timestamp": "2026-08-01T02:31:04Z",
-    "tool_version": "1.0.0"
+    "timestamp": "2026-08-21T04:44:25Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 23030
   }
 }
