@@ -10,6 +10,7 @@ import lib.minecraft.renderer.tooling.walk.Interp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -124,6 +125,30 @@ public final class PoseWalk {
     };
 
     /**
+     * How deep a chain of inlined helpers may go before the walk calls it a runaway.
+     *
+     * <p>The corpus does not come close: the longest real chain is a leaf reaching its base's
+     * {@code setupAnim}, which reaches a helper of its own. The cap exists so a cycle vanilla does
+     * not have cannot become a stack overflow here.
+     */
+    private static final int MAX_INLINE_DEPTH = 8;
+
+    /**
+     * One extraction in progress - what the whole walk needs and what the inlined bodies share.
+     *
+     * <p>The leaf is carried because a virtual call has to resolve against it rather than against
+     * whichever class declared the body being walked: two models sharing an inherited
+     * {@code setupAnim} reach different overrides through the same instruction.
+     */
+    private record Context(
+        @NotNull ClassNodeCache cache,
+        @NotNull String leaf,
+        @NotNull PosePartIndex parts,
+        @NotNull Interp<PoseValue> stack,
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose
+    ) {}
+
+    /**
      * Extracts one model's pose.
      *
      * @param cache the open client jar
@@ -140,50 +165,51 @@ public final class PoseWalk {
         // stay distinguishable or a walk that failed reads as a subject that simply holds still.
         if (body == null) return Optional.of(new PoseProgram(ClassKit.simpleName(modelClass), Map.of()));
 
-        PosePartIndex parts = PosePartIndex.of(cache, modelClass, diagnostics);
-        Map<String, Map<PoseChannel, PoseExpr>> pose = new LinkedHashMap<>();
-        Interp<PoseValue> stack = Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS);
+        Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
+            Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS), new LinkedHashMap<>());
 
-        String[] refusal = {null};
-        AsmWalker.over(body).real().forEach(in -> {
-            if (refusal[0] != null) return;
-            try {
-                step(in, parts, stack, pose);
-            } catch (RuntimeException error) {
-                refusal[0] = error.getMessage();
-            }
-        });
-
-        if (refusal[0] != null) {
-            diagnostics.info("%s not extracted: %s", ClassKit.simpleName(modelClass), refusal[0]);
+        try {
+            walkBody(body, context, 0);
+        } catch (RuntimeException error) {
+            diagnostics.info("%s not extracted: %s", ClassKit.simpleName(modelClass), error.getMessage());
             return Optional.empty();
         }
-        return Optional.of(new PoseProgram(ClassKit.simpleName(modelClass), freeze(pose)));
+        return Optional.of(new PoseProgram(ClassKit.simpleName(modelClass), freeze(context.pose())));
+    }
+
+    /**
+     * Applies every instruction of one body in order.
+     *
+     * <p>A refusal is a thrown exception rather than a returned flag, because a body reached through
+     * three inlined helpers has to abandon all three at once - and because the message is built
+     * where the shape was met, which is the only place that knows what it was.
+     */
+    private static void walkBody(@NotNull MethodNode body, @NotNull Context context, int depth) {
+        for (AbstractInsnNode in : AsmWalker.over(body).real().toList()) step(in, context, depth);
     }
 
     /**
      * Applies one instruction, handing the chassis everything that is not a field or a call.
      */
-    private static void step(
-        @NotNull AbstractInsnNode in, @NotNull PosePartIndex parts,
-        @NotNull Interp<PoseValue> stack, @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose) {
+    private static void step(@NotNull AbstractInsnNode in, @NotNull Context context, int depth) {
+        Interp<PoseValue> stack = context.stack();
 
         if (in instanceof JumpInsnNode || in.getOpcode() == Opcodes.TABLESWITCH || in.getOpcode() == Opcodes.LOOKUPSWITCH)
             throw new IllegalStateException("body branches, which the linear walk does not model");
 
         switch (in.getOpcode()) {
-            case Opcodes.GETFIELD -> readField((FieldInsnNode) in, parts, stack, pose);
-            case Opcodes.PUTFIELD -> writeField((FieldInsnNode) in, stack, pose);
+            case Opcodes.GETFIELD -> readField((FieldInsnNode) in, context);
+            case Opcodes.PUTFIELD -> writeField((FieldInsnNode) in, context);
             case Opcodes.GETSTATIC -> stack.push(OPAQUE);
             case Opcodes.AALOAD -> {
                 PoseValue index = stack.pop();
                 PoseValue array = stack.pop();
-                stack.push(element(parts, array, index));
+                stack.push(element(context.parts(), array, index));
             }
             case Opcodes.CHECKCAST -> { /* a cast changes the type, never the value */ }
             case Opcodes.RETURN -> { /* the body is done */ }
             case Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL, Opcodes.INVOKESPECIAL, Opcodes.INVOKEINTERFACE ->
-                call((MethodInsnNode) in, stack);
+                call((MethodInsnNode) in, context, depth);
             case Opcodes.IINC, Opcodes.ARRAYLENGTH, Opcodes.AASTORE, Opcodes.NEW, Opcodes.ANEWARRAY ->
                 throw new IllegalStateException("body holds a loop or an allocation, which the linear walk does not model");
             default -> stack.step(in);
@@ -191,10 +217,10 @@ public final class PoseWalk {
     }
 
     /** A field read: a bone, an array of bones, a channel's current value, or an input. */
-    private static void readField(
-        @NotNull FieldInsnNode field, @NotNull PosePartIndex parts,
-        @NotNull Interp<PoseValue> stack, @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose) {
-
+    private static void readField(@NotNull FieldInsnNode field, @NotNull Context context) {
+        Interp<PoseValue> stack = context.stack();
+        PosePartIndex parts = context.parts();
+        Map<String, Map<PoseChannel, PoseExpr>> pose = context.pose();
         PoseValue receiver = stack.pop();
 
         if (VanillaSourceClasses.Types.MODEL_PART.equals(field.owner)) {
@@ -229,10 +255,9 @@ public final class PoseWalk {
     }
 
     /** A field write. Only a channel of a bone is one; anything else the walk refuses. */
-    private static void writeField(
-        @NotNull FieldInsnNode field, @NotNull Interp<PoseValue> stack,
-        @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose) {
-
+    private static void writeField(@NotNull FieldInsnNode field, @NotNull Context context) {
+        Interp<PoseValue> stack = context.stack();
+        Map<String, Map<PoseChannel, PoseExpr>> pose = context.pose();
         PoseValue value = stack.pop();
         PoseValue receiver = stack.pop();
 
@@ -263,8 +288,9 @@ public final class PoseWalk {
         return new PoseValue.Part(bone);
     }
 
-    /** A call: arithmetic under another name, the reset at the top of the chain, or a refusal. */
-    private static void call(@NotNull MethodInsnNode call, @NotNull Interp<PoseValue> stack) {
+    /** A call: arithmetic by another name, a bone mutated through a method, the reset, or a body to inline. */
+    private static void call(@NotNull MethodInsnNode call, @NotNull Context context, int depth) {
+        Interp<PoseValue> stack = context.stack();
 
         PoseOperator operator = CALLS.get(key(call));
         if (operator != null) {
@@ -279,17 +305,131 @@ public final class PoseWalk {
             return;
         }
 
+        if (VanillaSourceClasses.Types.MODEL_PART.equals(call.owner)) {
+            partMethod(call, context);
+            return;
+        }
+
         if (VanillaSourceClasses.Methods.SETUP_ANIM.equals(call.name) && RESET_ROOTS.contains(call.owner)) {
             // The reset every body opens with. It restores each bone's authored pose, which is
-            // exactly what an unwritten channel already reads, so there is nothing to apply. A
-            // super call naming any other owner is a real pose to inline, and is refused below.
+            // exactly what an unwritten channel already reads, so there is nothing to apply.
             stack.popArguments(ClassKit.argTypes(call.desc).length);
             stack.pop();
             return;
         }
 
+        if (isModelLogic(call.owner)) {
+            inline(call, context, depth);
+            return;
+        }
+
         throw new IllegalStateException("calls " + ClassKit.simpleName(call.owner) + "." + call.name
-            + ", which the linear walk does not inline");
+            + ", which is not a body this walk can enter");
+    }
+
+    /**
+     * The three {@code ModelPart} methods a pose body reaches. Every other way vanilla offers to
+     * move a part - {@code setRotation}, {@code offsetPos}, {@code offsetRotation},
+     * {@code translateAndRotate} - is called from nowhere the walk goes, so meeting one is a
+     * finding rather than a case to add on spec.
+     */
+    private static void partMethod(@NotNull MethodInsnNode call, @NotNull Context context) {
+        Interp<PoseValue> stack = context.stack();
+
+        if ("setPos".equals(call.name)) {
+            List<PoseValue> arguments = stack.popArguments(3);
+            PoseValue receiver = stack.pop();
+            if (!(receiver instanceof PoseValue.Part part))
+                throw new IllegalStateException("moves a bone it could not name");
+            PoseChannel[] axes = {PoseChannel.X, PoseChannel.Y, PoseChannel.Z};
+            for (int axis = 0; axis < axes.length; axis++) {
+                if (!(arguments.get(axis) instanceof PoseValue.Num number))
+                    throw new IllegalStateException("moves " + part.bone() + " by a value it could not model");
+                write(context, part.bone(), axes[axis], number.expr());
+            }
+            return;
+        }
+        if ("resetPose".equals(call.name)) {
+            PoseValue receiver = stack.pop();
+            if (!(receiver instanceof PoseValue.Part part))
+                throw new IllegalStateException("resets a bone it could not name");
+            // Back to the authored pose, which is what an untouched channel already reads.
+            context.pose().remove(part.bone());
+            return;
+        }
+        if (VanillaSourceClasses.Methods.GET_CHILD.equals(call.name)) {
+            // Vanilla usually caches its children in the constructor; two sites look one up while
+            // posing instead. The child's own name is the bone's, the table being flat.
+            AbstractInsnNode named = AsmWalker.previousReal(call);
+            stack.pop();
+            stack.pop();
+            if (!(named instanceof LdcInsnNode ldc) || !(ldc.cst instanceof String bone))
+                throw new IllegalStateException("looks a bone up by a name it could not read");
+            stack.push(new PoseValue.Part(bone));
+            return;
+        }
+        throw new IllegalStateException("calls ModelPart." + call.name + ", which is not a way this walk moves a bone");
+    }
+
+    /**
+     * Walks a called body in place, as though its instructions had been written where the call is.
+     *
+     * <p>The callee gets fresh locals over the same operand stack, which is what
+     * {@link Interp#openSlotFrame} is for: its arguments are stored into the slots it will read them
+     * from, and whatever it leaves above the stack depth it started at is its return value.
+     *
+     * <p>A virtual call resolves against the LEAF rather than against whichever class declared the
+     * body being walked, because two models sharing an inherited {@code setupAnim} reach different
+     * overrides through the same instruction. A {@code super} call is the exception and resolves
+     * against the owner it names, which is the whole point of spelling it that way.
+     */
+    private static void inline(@NotNull MethodInsnNode call, @NotNull Context context, int depth) {
+        if (depth >= MAX_INLINE_DEPTH)
+            throw new IllegalStateException("inlines more than " + MAX_INLINE_DEPTH + " helpers deep");
+
+        boolean dispatched = call.getOpcode() == Opcodes.INVOKEVIRTUAL || call.getOpcode() == Opcodes.INVOKEINTERFACE;
+        String owner = dispatched ? context.leaf() : call.owner;
+        MethodNode target = ClassKit.findMethodInHierarchy(context.cache(), owner, call.name, call.desc);
+        if (target == null || target.instructions == null || target.instructions.size() == 0)
+            throw new IllegalStateException("calls " + ClassKit.simpleName(call.owner) + "." + call.name
+                + ", whose body is not in the jar");
+
+        Interp<PoseValue> stack = context.stack();
+        Type[] parameters = ClassKit.argTypes(call.desc);
+        List<PoseValue> arguments = stack.popArguments(parameters.length);
+        boolean instance = call.getOpcode() != Opcodes.INVOKESTATIC;
+        PoseValue receiver = instance ? stack.pop() : null;
+
+        int depthBefore = stack.size();
+        stack.openSlotFrame();
+        int slot = 0;
+        if (receiver != null) stack.store(slot++, receiver);
+        for (int index = 0; index < parameters.length; index++) {
+            stack.store(slot, arguments.get(index));
+            slot += parameters[index].getSize();
+        }
+
+        walkBody(target, context, depth + 1);
+
+        PoseValue answered = stack.size() > depthBefore ? stack.pop() : null;
+        stack.closeSlotFrame();
+        if (Type.getReturnType(call.desc).getSort() != Type.VOID) {
+            if (answered == null) throw new IllegalStateException(call.name + " returned nothing this walk could follow");
+            stack.push(answered);
+        }
+    }
+
+    /** Whether a call names a model's own logic, which is a body to walk rather than a fact to know. */
+    private static boolean isModelLogic(@NotNull String owner) {
+        return owner.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_ROOT)
+            && !owner.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_GEOM_ROOT);
+    }
+
+    /** Records one channel's new value. */
+    private static void write(
+        @NotNull Context context, @NotNull String bone, @NotNull PoseChannel channel, @NotNull PoseExpr value) {
+
+        context.pose().computeIfAbsent(bone, key -> new EnumMap<>(PoseChannel.class)).put(channel, value);
     }
 
     /** A channel's value so far - what a write left, or the authored pose the reset restored. */
