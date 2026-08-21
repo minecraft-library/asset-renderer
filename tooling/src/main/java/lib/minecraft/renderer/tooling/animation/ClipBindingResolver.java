@@ -59,15 +59,7 @@ public final class ClipBindingResolver {
         List<ClassNode> chain = chain(cache, model);
         if (chain.isEmpty()) return List.of();
 
-        Map<String, String> fieldToClip = new LinkedHashMap<>();
-        List<String> passedDown = List.of();
-        for (ClassNode owner : chain) {
-            MethodNode constructor = constructor(owner);
-            if (constructor == null) continue;
-            fieldToClip.putAll(bindings(owner, constructor, passedDown));
-            passedDown = clipArguments(constructor);
-        }
-
+        Map<String, String> fieldToClip = fieldToClip(cache, model);
         List<ClipBinding> found = new ArrayList<>();
         for (ClassNode owner : chain)
             for (MethodNode method : owner.methods) {
@@ -75,6 +67,30 @@ public final class ClipBindingResolver {
                 collectPlaySites(method, fieldToClip, found, owner, diagnostics);
             }
         return List.copyOf(found);
+    }
+
+    /**
+     * Which clip each of a model's {@code AnimationDefinition} fields was baked from.
+     *
+     * <p>The join a play site needs: a model never names a clip where it plays it, so recovering
+     * what a call applies means having read the constructors first. The pose walk needs the same
+     * map, because meeting a play site mid-body it has to say which clip is being played rather
+     * than only that one is.
+     *
+     * @param cache the open client jar
+     * @param model the model's internal name
+     * @return field name to clip coordinate, empty when the model binds none
+     */
+    public static @NotNull Map<String, String> fieldToClip(@NotNull ClassNodeCache cache, @NotNull String model) {
+        Map<String, String> out = new LinkedHashMap<>();
+        List<String> passedDown = List.of();
+        for (ClassNode owner : chain(cache, model)) {
+            MethodNode constructor = constructor(owner);
+            if (constructor == null) continue;
+            out.putAll(bindings(owner, constructor, passedDown));
+            passedDown = clipArguments(constructor);
+        }
+        return out;
     }
 
     /** The model's own class and every superclass below the model roots, most-derived first. */

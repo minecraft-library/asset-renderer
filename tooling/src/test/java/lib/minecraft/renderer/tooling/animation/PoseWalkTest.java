@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -39,10 +40,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>Four models are pinned expression by expression, which is what says the walk builds vanilla's
  * own arithmetic rather than merely finishing without complaint: one for the arithmetic itself, one
  * for a bone posed from another bone's freshly written value, one for a loop that has to unroll into
- * a different expression per index, and one for a branch nothing offline decides. The roster count
- * says how far the walk reaches before an unenterable call or an unnameable bone stops it - a number
- * expected to move as those are answered, asserted so it cannot move by accident, and carrying the
- * refusal reasons in its message so what is left is a list rather than a number.
+ * a different expression per index, and one for a branch nothing offline decides.
+ *
+ * <p>The clip half is checked differently, against the shipped table rather than against a written
+ * expectation. Two mechanisms that never see each other - the binding resolver reading constructors
+ * and play sites, and this walk meeting an application mid-body - have to name the same clips under
+ * the same drives, and that agreement is worth more than either one restated by hand.
+ *
+ * <p>The roster count says how far the walk reaches before an unenterable call or an unnameable bone
+ * stops it - a number expected to move as those are answered, asserted so it cannot move by accident,
+ * and carrying a weighted list of what is still refusing so the next thing to answer is chosen by
+ * how many subjects it holds up.
  *
  * <p>Tagged {@code slow}: the walk runs against the downloaded client jar.
  */
@@ -55,6 +63,10 @@ class PoseWalkTest {
     /** The shipped table, relative to the renderer root every Test task runs at. */
     private static final @NotNull Path SHIPPED_GEOMETRY =
         Path.of("src/main/resources/lib/minecraft/renderer/entity_geometry.json");
+
+    /** The shipped pose table, which the clip half of a walk has to agree with. */
+    private static final @NotNull Path SHIPPED_POSES =
+        Path.of("src/main/resources/lib/minecraft/renderer/entity_poses.json");
 
     private static ClassNodeCache cache;
     private static Diagnostics diagnostics;
@@ -207,6 +219,64 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("the clips a walk finds are the clips the shipped table already binds")
+    void clipSitesAgreeWithTheShippedTable() {
+        // Two mechanisms that never see each other: the binding resolver reads constructors and play
+        // sites to build the shipped table, while the walk meets an application mid-body and asks
+        // what is being applied. They have to name the same clips under the same drives, and a
+        // disagreement means one of them is reading the corpus wrongly.
+        Map<String, Set<String>> shipped = shippedBindings();
+        Map<String, Set<String>> walked = new TreeMap<>();
+        extracted.values().forEach(program -> {
+            if (program.clipSites().isEmpty()) return;
+            walked.put(program.model(), program.clipSites().stream()
+                .map(site -> site.clip() + "/" + site.drive().token())
+                .collect(Collectors.toCollection(TreeSet::new)));
+        });
+
+        assertTrue(!walked.isEmpty(), "the walk is expected to reach some clip applications");
+        walked.forEach((model, clips) ->
+            assertEquals(shipped.getOrDefault(model, Set.of()), clips, model + " plays these clips"));
+    }
+
+    @Test
+    @DisplayName("a walk-driven clip carries the model's own timing and amplitude")
+    void walkDrivenClipsKeepTheirConstants() {
+        // applyWalk(pos, speed, maxSpeed, scale): the first two come off the render state and the
+        // last two are constants the MODEL owns, living nowhere in the clip. They are the reason a
+        // play site is recorded rather than skipped, so a site that lost them would look like a
+        // success. Two models applying one clip at different constants is the case that proves it.
+        List<PoseClipSite> walkDriven = extracted.values().stream()
+            .flatMap(program -> program.clipSites().stream())
+            .filter(site -> site.drive() == ClipBinding.Gate.WALK)
+            .toList();
+
+        assertTrue(!walkDriven.isEmpty(), "the corpus is expected to drive clips off the walk");
+        for (PoseClipSite site : walkDriven) {
+            assertEquals(4, site.arguments().size(), site.clip() + " is driven by four arguments");
+            assertInstanceOf(PoseExpr.Const.class, site.arguments().get(2),
+                site.clip() + " runs at a constant rate against the walk");
+            assertInstanceOf(PoseExpr.Const.class, site.arguments().get(3),
+                site.clip() + " swings by a constant amount");
+        }
+    }
+
+    @Test
+    @DisplayName("a state-driven clip carries its tick and drops the state it is gated on")
+    void stateDrivenClipsCarryOnlyTheTick() {
+        List<PoseClipSite> stateDriven = extracted.values().stream()
+            .flatMap(program -> program.clipSites().stream())
+            .filter(site -> site.drive() == ClipBinding.Gate.STATE)
+            .toList();
+
+        assertTrue(!stateDriven.isEmpty(), "the corpus is expected to gate clips behind animation states");
+        // The AnimationState operand is a reference nothing offline evaluates, and the drive already
+        // says the clip sits behind one, so it is absent rather than placeheld.
+        stateDriven.forEach(site ->
+            assertEquals(1, site.arguments().size(), site.clip() + " is driven by a tick alone"));
+    }
+
+    @Test
     @DisplayName("no extracted pose names a bone outside the model's own mesh")
     void everyPosedBoneExists() {
         Map<String, Set<String>> mesh = meshBones();
@@ -236,7 +306,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(60, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(74, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------
@@ -259,6 +329,20 @@ class PoseWalkTest {
             .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
             .forEach(entry -> report.append("\n  ").append(entry.getValue()).append("x ").append(entry.getKey()));
         return report.toString();
+    }
+
+    /** What the shipped pose table says each model plays, keyed the way the walk names a model. */
+    private static @NotNull Map<String, Set<String>> shippedBindings() {
+        JsonElement root = GSON.fromJson(read(SHIPPED_POSES), JsonElement.class);
+        Map<String, Set<String>> out = new TreeMap<>();
+        root.getAsJsonObject().getAsJsonObject("models").entrySet().forEach(entry -> {
+            Set<String> clips = new TreeSet<>();
+            entry.getValue().getAsJsonArray().forEach(binding -> clips.add(
+                binding.getAsJsonObject().get("clip").getAsString()
+                    + "/" + binding.getAsJsonObject().get("gate").getAsString()));
+            out.put(entry.getKey(), clips);
+        });
+        return out;
     }
 
     private static @NotNull List<String> rosterClasses() {

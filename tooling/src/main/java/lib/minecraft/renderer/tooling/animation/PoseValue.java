@@ -40,6 +40,13 @@ public sealed interface PoseValue {
     record PartArray(@NotNull String field) implements PoseValue {}
 
     /**
+     * A keyframe clip the model's constructor bound to one of its fields.
+     *
+     * @param coordinate the clip coordinate the clip table is keyed by
+     */
+    record Clip(@NotNull String coordinate) implements PoseValue {}
+
+    /**
      * The result of a three-way compare that did not fold, holding what it was comparing.
      *
      * <p>A float test is two instructions in bytecode - the compare, then a jump on its sign - and

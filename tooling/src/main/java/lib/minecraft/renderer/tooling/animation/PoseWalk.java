@@ -200,8 +200,10 @@ public final class PoseWalk {
         @NotNull ClassNodeCache cache,
         @NotNull String leaf,
         @NotNull PosePartIndex parts,
+        @NotNull Map<String, String> fieldToClip,
         @NotNull Interp<PoseValue> stack,
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
+        @NotNull List<PoseClipSite> clipSites,
         int @NotNull [] forks
     ) {}
 
@@ -220,10 +222,12 @@ public final class PoseWalk {
         // A model whose whole chain declares only the erased override poses nothing: what it
         // inherits is the reset. That is an empty pose rather than a refusal, and the two have to
         // stay distinguishable or a walk that failed reads as a subject that simply holds still.
-        if (body == null) return Optional.of(new PoseProgram(ClassKit.simpleName(modelClass), Map.of()));
+        if (body == null) return Optional.of(new PoseProgram(ClassKit.simpleName(modelClass), Map.of(), List.of()));
 
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
-            Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS), new LinkedHashMap<>(), new int[1]);
+            ClipBindingResolver.fieldToClip(cache, modelClass),
+            Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS),
+            new LinkedHashMap<>(), new ArrayList<>(), new int[1]);
 
         try {
             walkBody(body, context, 0);
@@ -231,7 +235,8 @@ public final class PoseWalk {
             diagnostics.info("%s not extracted: %s", ClassKit.simpleName(modelClass), error.getMessage());
             return Optional.empty();
         }
-        return Optional.of(new PoseProgram(ClassKit.simpleName(modelClass), freeze(context.pose())));
+        return Optional.of(new PoseProgram(
+            ClassKit.simpleName(modelClass), freeze(context.pose()), List.copyOf(context.clipSites())));
     }
 
     /**
@@ -323,18 +328,22 @@ public final class PoseWalk {
 
         Interp.Snapshot<PoseValue> before = stack.snapshot();
         Map<String, Map<PoseChannel, PoseExpr>> posed = copy(context.pose());
+        List<PoseClipSite> played = List.copyOf(context.clipSites());
 
         boolean takenRejoined = walkFrom(body, taken, join, context, depth);
         Interp.Snapshot<PoseValue> afterTaken = stack.snapshot();
         Map<String, Map<PoseChannel, PoseExpr>> poseTaken = copy(context.pose());
+        List<PoseClipSite> playedTaken = List.copyOf(context.clipSites());
 
         stack.restore(before);
         replace(context.pose(), posed);
+        replaceSites(context, played);
         boolean fallenRejoined = walkFrom(body, fallen, join, context, depth);
 
         if (join != null && takenRejoined && fallenRejoined) {
             Interp.Snapshot<PoseValue> afterFallen = stack.snapshot();
             replace(context.pose(), merge(condition, poseTaken, copy(context.pose())));
+            replaceSites(context, bothPlayed(playedTaken, context.clipSites()));
             stack.restore(reconcile(condition, afterTaken, afterFallen));
             return join;
         }
@@ -346,16 +355,42 @@ public final class PoseWalk {
         // the partial one had not reached yet.
         stack.restore(before);
         replace(context.pose(), posed);
+        replaceSites(context, played);
         walkFrom(body, taken, null, context, depth);
         Map<String, Map<PoseChannel, PoseExpr>> wholeTaken = copy(context.pose());
+        List<PoseClipSite> wholePlayedTaken = List.copyOf(context.clipSites());
 
         stack.restore(before);
         replace(context.pose(), posed);
+        replaceSites(context, played);
         walkFrom(body, fallen, null, context, depth);
 
         replace(context.pose(), merge(condition, wholeTaken, copy(context.pose())));
+        replaceSites(context, bothPlayed(wholePlayedTaken, context.clipSites()));
         stack.restore(before);
         return null;
+    }
+
+    /**
+     * Every clip either arm applied, in the order they were reached and without repeats.
+     *
+     * <p>A clip only one arm plays is still a clip the model can play, and it is recorded without a
+     * condition - which is what the clip table already says about every binding it holds, the drive
+     * being the whole of its gate. Recording it twice because both arms walked the same tail would
+     * be a fact about this walk rather than about the model.
+     */
+    private static @NotNull List<PoseClipSite> bothPlayed(
+        @NotNull List<PoseClipSite> taken, @NotNull List<PoseClipSite> fallen) {
+
+        List<PoseClipSite> out = new ArrayList<>(taken);
+        for (PoseClipSite site : fallen)
+            if (!out.contains(site)) out.add(site);
+        return out;
+    }
+
+    private static void replaceSites(@NotNull Context context, @NotNull List<PoseClipSite> sites) {
+        context.clipSites().clear();
+        context.clipSites().addAll(sites);
     }
 
     /**
@@ -637,6 +672,13 @@ public final class PoseWalk {
             stack.push(new PoseValue.PartArray(field.name));
             return;
         }
+        if (clipDesc().equals(field.desc)) {
+            String clip = context.fieldToClip().get(field.name);
+            if (clip == null)
+                throw new IllegalStateException("plays through '" + field.name + "', which no constructor binds");
+            stack.push(new PoseValue.Clip(clip));
+            return;
+        }
         if (field.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)) {
             stack.push(num(new PoseExpr.Input(field.name)));
             return;
@@ -700,6 +742,11 @@ public final class PoseWalk {
             return;
         }
 
+        if (VanillaSourceClasses.Types.KEYFRAME_ANIMATION.equals(call.owner)) {
+            clipSite(call, context);
+            return;
+        }
+
         if (VanillaSourceClasses.Methods.SETUP_ANIM.equals(call.name) && RESET_ROOTS.contains(call.owner)) {
             // The reset every body opens with. It restores each bone's authored pose, which is
             // exactly what an unwritten channel already reads, so there is nothing to apply.
@@ -715,6 +762,51 @@ public final class PoseWalk {
 
         throw new IllegalStateException("calls " + ClassKit.simpleName(call.owner) + "." + call.name
             + ", which is not a body this walk can enter");
+    }
+
+    /**
+     * Records a place the body applies an authored clip, rather than walking into the clip.
+     *
+     * <p>The clip's own channels are extracted once into the clip table and shared by every model
+     * that plays them, so inlining the application here would be a second copy of a fact the table
+     * already holds - and one that could disagree with it. What the table cannot hold is which clip,
+     * under which drive, and with what arguments, and that is what is kept.
+     *
+     * <p>The arguments matter and are the reason this is not simply skipped: a walk-driven clip
+     * carries the model's own timing and amplitude constants at its call site and nowhere in the
+     * clip, so consuming the call without them would drop how fast the thing moves and how far.
+     * Reference arguments are left out rather than placeheld - the animation state a state-driven
+     * clip is gated on is not a number, and the drive already says the clip sits behind one.
+     */
+    private static void clipSite(@NotNull MethodInsnNode call, @NotNull Context context) {
+        ClipBinding.Gate drive = driveOf(call.name);
+        if (drive == null)
+            throw new IllegalStateException("calls KeyframeAnimation." + call.name + ", which is not a way a clip is driven");
+
+        Interp<PoseValue> stack = context.stack();
+        Type[] parameters = ClassKit.argTypes(call.desc);
+        List<PoseValue> arguments = stack.popArguments(parameters.length);
+        PoseValue receiver = stack.pop();
+
+        if (!(receiver instanceof PoseValue.Clip clip))
+            throw new IllegalStateException("applies a clip it could not name");
+
+        List<PoseExpr> carried = new ArrayList<>(parameters.length);
+        for (int index = 0; index < parameters.length; index++) {
+            if (parameters[index].getSort() == Type.OBJECT || parameters[index].getSort() == Type.ARRAY) continue;
+            if (!(arguments.get(index) instanceof PoseValue.Num number))
+                throw new IllegalStateException("drives '" + clip.coordinate() + "' by a value it could not model");
+            carried.add(number.expr());
+        }
+        context.clipSites().add(new PoseClipSite(clip.coordinate(), drive, List.copyOf(carried)));
+    }
+
+    /** Which of the three drives a play site names, matching what the clip table already records. */
+    private static @Nullable ClipBinding.Gate driveOf(@NotNull String method) {
+        if (VanillaSourceClasses.Methods.APPLY.equals(method)) return ClipBinding.Gate.STATE;
+        if (VanillaSourceClasses.Methods.APPLY_WALK.equals(method)) return ClipBinding.Gate.WALK;
+        if (VanillaSourceClasses.Methods.APPLY_STATIC.equals(method)) return ClipBinding.Gate.STATIC;
+        return null;
     }
 
     /**
@@ -863,6 +955,10 @@ public final class PoseWalk {
 
     private static @NotNull String partArrayDesc() {
         return "[L" + VanillaSourceClasses.Types.MODEL_PART + ";";
+    }
+
+    private static @NotNull String clipDesc() {
+        return "L" + VanillaSourceClasses.Types.KEYFRAME_ANIMATION + ";";
     }
 
     private static @NotNull String key(@NotNull MethodInsnNode call) {

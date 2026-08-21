@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.animation;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -17,21 +18,28 @@ import java.util.Map;
  * statement from one it writes its authored value back to. The first costs nothing at render; the
  * second is an expression that happens to be the identity.
  *
+ * <p>A model's pose has a second half this does not hold. Where the body applies an authored clip,
+ * the clip's channels stay in the clip table and only the application is recorded here, so the two
+ * compose at render rather than one being folded into the other. A model can have both, one, or
+ * neither.
+ *
  * @param model the model class's simple name, the same spelling the pose table keys a model by
  * @param bones bone name to the expression each touched channel evaluates to, in first-write order
+ * @param clipSites the authored clips the body applies, in the order it applies them
  */
 public record PoseProgram(
     @NotNull String model,
-    @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones
+    @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
+    @NotNull List<PoseClipSite> clipSites
 ) {
 
     /**
      * Whether this model poses nothing at all.
      *
-     * @return {@code true} when no channel of any bone is written
+     * @return {@code true} when no channel of any bone is written and no clip is applied
      */
     public boolean isEmpty() {
-        return this.bones.isEmpty();
+        return this.bones.isEmpty() && this.clipSites.isEmpty();
     }
 
     /**
