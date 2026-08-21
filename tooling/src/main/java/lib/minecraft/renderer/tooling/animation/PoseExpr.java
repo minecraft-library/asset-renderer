@@ -76,15 +76,21 @@ public sealed interface PoseExpr {
     record Input(@NotNull String field) implements PoseExpr {}
 
     /**
-     * A method read off the render state, pinned at the literal arguments its call site passes.
+     * A question asked of a reference the render state holds - whether an animation is running,
+     * whether a hand is empty.
      *
-     * <p>The arguments are part of the identity: a state method called at two different literals is
-     * two input channels, because nothing offline can evaluate the method itself.
+     * <p>An input rather than an operation, because nothing offline can answer it: what is in a
+     * hand and what is playing are facts about a live world, and the pose is a function of them the
+     * same way it is a function of an angle.
      *
-     * @param method the vanilla render-state method name
-     * @param arguments the literal arguments the call site passes, in declaration order
+     * <p>The reference asked is part of the identity as much as the question is. Whether the right
+     * hand is empty and whether the left is are two inputs, and a model that poses on both would
+     * otherwise be reading one of them twice - which still renders, and renders the same arm twice.
+     *
+     * @param receiver the vanilla render-state member the question is asked of
+     * @param question the vanilla method name that asks it
      */
-    record InputFn(@NotNull String method, @NotNull List<Double> arguments) implements PoseExpr {}
+    record InputFn(@NotNull String receiver, @NotNull String question) implements PoseExpr {}
 
     /**
      * A read of a bone channel's current value.

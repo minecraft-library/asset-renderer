@@ -67,6 +67,15 @@ public final class VanillaSourceClasses {
         /** {@code java.lang.Math} - the JDK's own arithmetic, which a pose reaches beside {@link #MTH}. */
         public static final @NotNull String JAVA_MATH = "java/lang/Math";
 
+        /** {@code AnimationState} - the running-or-not a state-driven clip is gated on. */
+        public static final @NotNull String ANIMATION_STATE = MINECRAFT_ROOT + "world/entity/AnimationState";
+
+        /** {@code ItemStack} - what an entity is carrying, asked of but never evaluated offline. */
+        public static final @NotNull String ITEM_STACK = MINECRAFT_ROOT + "world/item/ItemStack";
+
+        /** {@code ItemStackRenderState} - the baked form of a carried stack a render state holds. */
+        public static final @NotNull String ITEM_STACK_RENDER_STATE = MINECRAFT_ROOT + "client/renderer/item/ItemStackRenderState";
+
         /** The keyframe-animation package root - the clip tables and the machinery that plays them. */
         public static final @NotNull String CLIENT_ANIMATION_ROOT = MINECRAFT_ROOT + "client/animation/";
 
@@ -461,6 +470,12 @@ public final class VanillaSourceClasses {
 
         /** {@code KeyframeAnimation.applyStatic()} - holds a clip at its first frame, unconditionally. */
         public static final @NotNull String APPLY_STATIC = "applyStatic";
+
+        /** {@code AnimationState.isStarted()} - whether the animation a pose is gated on is running. */
+        public static final @NotNull String IS_STARTED = "isStarted";
+
+        /** {@code ItemStack.isEmpty()} - whether an entity is carrying anything, asked of two types. */
+        public static final @NotNull String IS_EMPTY = "isEmpty";
 
         /** {@code KeyframeAnimations.degreeVec(F, F, F)} - a rotation keyframe, authored in degrees. */
         public static final @NotNull String DEGREE_VEC = "degreeVec";

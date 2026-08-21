@@ -87,6 +87,17 @@ public final class PoseWalk {
     /** The calls a pose body makes that are arithmetic by another name. */
     private static final @NotNull Map<String, PoseOperator> CALLS = calls();
 
+    /**
+     * The questions a pose body asks of a reference the render state holds, which are inputs.
+     *
+     * <p>Declared as whole coordinates rather than by a rule about shape, because a rule would
+     * absorb the next zero-argument call anyone adds and answer it with an input nothing supplies.
+     * Every row takes no arguments, and the descriptor in the key is what says so - a question with
+     * arguments would be a different identity and cannot be added here without deciding what that
+     * identity is.
+     */
+    private static final @NotNull Set<String> STATE_QUESTIONS = stateQuestions();
+
     private static final Interp.Domain<PoseValue> DOMAIN = new Interp.Domain<>() {
 
         @Override
@@ -578,20 +589,20 @@ public final class PoseWalk {
      * loudly rather than a comparison to approximate.
      */
     private static @NotNull PosePredicate enumEquality(@NotNull PoseValue tested, @Nullable PoseValue against) {
-        if (tested instanceof PoseValue.EnumConstant constant && against instanceof PoseValue.EnumInput input)
-            return matching(input, constant);
-        if (tested instanceof PoseValue.EnumInput input && against instanceof PoseValue.EnumConstant constant)
-            return matching(input, constant);
+        if (tested instanceof PoseValue.EnumConstant constant && against instanceof PoseValue.StateRef reference)
+            return matching(reference, constant);
+        if (tested instanceof PoseValue.StateRef reference && against instanceof PoseValue.EnumConstant constant)
+            return matching(reference, constant);
         throw new IllegalStateException("compares two references that are not an enum and one of its constants");
     }
 
     private static @NotNull PosePredicate matching(
-        @NotNull PoseValue.EnumInput input, @NotNull PoseValue.EnumConstant constant) {
+        @NotNull PoseValue.StateRef reference, @NotNull PoseValue.EnumConstant constant) {
 
-        if (!input.type().equals(constant.type()))
-            throw new IllegalStateException("compares " + ClassKit.simpleName(input.type())
+        if (!reference.type().equals(constant.type()))
+            throw new IllegalStateException("compares " + ClassKit.simpleName(reference.type())
                 + " against a constant of " + ClassKit.simpleName(constant.type()));
-        return new PosePredicate.EnumEq(input.field(), constant.name());
+        return new PosePredicate.EnumEq(reference.member(), constant.name());
     }
 
     private static boolean isPrimitive(@NotNull String descriptor) {
@@ -699,7 +710,8 @@ public final class PoseWalk {
     private static @NotNull String undecidable(@NotNull PoseValue tested) {
         String kind = switch (tested) {
             case PoseValue.Opaque ignored -> "a value this walk models as nothing";
-            case PoseValue.EnumInput input -> "the enum '" + input.field() + "' against something that is not its constant";
+            case PoseValue.StateRef reference -> "the render state's '" + reference.member()
+                + "' against something that is not a constant of it";
             case PoseValue.EnumConstant constant -> "the constant " + ClassKit.simpleName(constant.type()) + "."
                 + constant.name() + " against something that is not its enum";
             case PoseValue.Part part -> "the bone '" + part.bone() + "'";
@@ -765,12 +777,12 @@ public final class PoseWalk {
             return;
         }
         if (field.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)) {
-            // A render state holds numbers and it holds enums, and only the numbers are arithmetic
-            // on. Reading an enum as though it were a float would put a thing with no numeric value
-            // into an expression and only find out at the sink.
+            // A render state holds numbers and it holds references, and only the numbers are
+            // arithmetic on. Reading a reference as though it were a float would put a thing with no
+            // numeric value into an expression and only find out at the sink.
             stack.push(isPrimitive(field.desc)
                 ? num(new PoseExpr.Input(field.name))
-                : new PoseValue.EnumInput(field.name, referenced(field.desc)));
+                : new PoseValue.StateRef(field.name, referenced(field.desc)));
             return;
         }
         stack.push(OPAQUE);
@@ -827,6 +839,11 @@ public final class PoseWalk {
             return;
         }
 
+        if (STATE_QUESTIONS.contains(key(call))) {
+            stateQuestion(call, context);
+            return;
+        }
+
         if (VanillaSourceClasses.Types.MODEL_PART.equals(call.owner)) {
             partMethod(call, context);
             return;
@@ -852,6 +869,27 @@ public final class PoseWalk {
 
         throw new IllegalStateException("calls " + ClassKit.simpleName(call.owner) + "." + call.name
             + ", which is not a body this walk can enter");
+    }
+
+    /**
+     * Asks a reference the render state holds a question, and answers it as an input.
+     *
+     * <p>The bodies behind these are not arithmetic and there is nothing to walk into: emptiness is
+     * a comparison against a singleton and a running animation is a start time against a clock, and
+     * a pose depends on the answer the same way it depends on an angle. So the answer is a named
+     * input, and it is named after both the reference and the question, because a body that asks
+     * one hand and then the other is asking two things.
+     *
+     * <p>Answered as a number rather than as a condition, which is what a boolean field the state
+     * declares outright already is. A model writes one of these straight into a bone's visibility
+     * and another passes one as an argument, and both work only because it is a number by the time
+     * it gets there.
+     */
+    private static void stateQuestion(@NotNull MethodInsnNode call, @NotNull Context context) {
+        PoseValue asked = context.stack().pop();
+        if (!(asked instanceof PoseValue.StateRef reference))
+            throw new IllegalStateException("asks " + call.name + " of something the render state does not hold");
+        context.stack().push(num(new PoseExpr.InputFn(reference.member(), call.name)));
     }
 
     /**
@@ -1155,6 +1193,20 @@ public final class PoseWalk {
         out.put(Opcodes.D2F, PoseOperator.D2F);
         out.put(Opcodes.F2I, PoseOperator.F2I);
         return Map.copyOf(out);
+    }
+
+    /**
+     * The three questions the corpus asks of a reference the render state holds.
+     *
+     * <p>Two types answer emptiness and they are not one type: a stack and the baked render state of
+     * a stack are asked the same word by different models, and there is no shared supertype to key
+     * on that would not also admit everything else either of them can be asked.
+     */
+    private static @NotNull Set<String> stateQuestions() {
+        return Set.of(
+            key(VanillaSourceClasses.Types.ANIMATION_STATE, VanillaSourceClasses.Methods.IS_STARTED, "()Z"),
+            key(VanillaSourceClasses.Types.ITEM_STACK, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
+            key(VanillaSourceClasses.Types.ITEM_STACK_RENDER_STATE, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"));
     }
 
     /** The call-to-operator table, keyed on the whole coordinate so a width cannot be mistaken. */

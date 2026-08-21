@@ -15,6 +15,10 @@ import org.jetbrains.annotations.NotNull;
  * {@code this} and its render state constantly and never asks either of them anything a field
  * instruction has not already answered - but an opaque value reaching a sink is, because a bone
  * that cannot be named cannot be posed.
+ *
+ * <p>A reference the render state holds is the exception and is carried as itself: it is not a
+ * number and never becomes one, but a body compares it and questions it, so losing it to
+ * {@link Opaque} would lose which thing was compared or asked.
  */
 public sealed interface PoseValue {
 
@@ -48,17 +52,19 @@ public sealed interface PoseValue {
     record EnumConstant(@NotNull String type, @NotNull String name) implements PoseValue {}
 
     /**
-     * An enum-valued field read off the render state - which arm is swinging, what an arm is
-     * holding, which way something faces.
+     * A named reference the render state holds - the enum saying which arm is swinging, the
+     * animation state a clip is gated on, the stack an entity is carrying.
      *
-     * <p>Held apart from {@link Num} because it is not a number and cannot be arithmetic on: the
-     * only thing a pose body does with one is compare it against a constant, and answering that
-     * comparison is the whole of what this has to support.
+     * <p>Held apart from {@link Num} because it is not a number and cannot be arithmetic on. A pose
+     * body does exactly two things with one: compare it against a constant, or ask it a question
+     * whose answer is a number. Answering those two is the whole of what this has to support, and
+     * both answers name the member it was read from, because which reference was asked is as much
+     * of the question as what was asked of it.
      *
-     * @param field the vanilla render-state field name
-     * @param type the enum's internal name
+     * @param member the vanilla render-state member it was read from
+     * @param type the reference's own internal name
      */
-    record EnumInput(@NotNull String field, @NotNull String type) implements PoseValue {}
+    record StateRef(@NotNull String member, @NotNull String type) implements PoseValue {}
 
     /**
      * A keyframe clip the model's constructor bound to one of its fields.

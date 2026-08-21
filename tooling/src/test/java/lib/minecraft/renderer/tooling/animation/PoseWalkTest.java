@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,8 +42,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * own arithmetic rather than merely finishing without complaint: one for the arithmetic itself, one
  * for a bone posed from another bone's freshly written value, one for a loop that has to unroll into
  * a different expression per index, one for a branch nothing offline decides, one for a branch
- * nested inside another, which meets its own arm at the point the outer one is waiting at, and one
- * for a pose divided between a model and the base it inherits.
+ * nested inside another, which meets its own arm at the point the outer one is waiting at, one for a
+ * pose divided between a model and the base it inherits, and one for a question asked of the render
+ * state, whose answer a bone is made visible by.
+ *
+ * <p>One model is pinned for what its expressions NAME rather than for their shape: a golem asking
+ * each of its hands the same word has to be answered twice, and a walk that answered once would
+ * build a pose that renders perfectly with both hands agreeing.
  *
  * <p>The clip half is checked differently, against the shipped table rather than against a written
  * expectation. Two mechanisms that never see each other - the binding resolver reading constructors
@@ -291,6 +297,67 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a frog's croaking body is visible exactly while the croak is running")
+    void aQuestionAnswersAsANumber() {
+        // The frog asks whether an animation is running and writes the answer straight into a bone's
+        // visibility, with no branch anywhere between the two. That only works because the answer is
+        // a number by the time it arrives, which is what a boolean the render state declares as a
+        // field already is - so a question it answers through a method is spelled the same way.
+        PoseProgram frog = extracted.get("net/minecraft/client/model/animal/frog/FrogModel");
+        assertNotNull(frog, "FrogModel is expected to extract");
+
+        assertEquals(new PoseExpr.InputFn("croakAnimationState", "isStarted"),
+            frog.bones().get("croaking_body").get(PoseChannel.VISIBLE),
+            "the croaking body draws while the croak runs and not otherwise");
+    }
+
+    @Test
+    @DisplayName("a copper golem asks each hand on its own, and is answered twice")
+    void aQuestionIsNamedAfterWhatItIsAskedOf() {
+        // The golem asks whether the right hand is empty and then whether the left is: one word,
+        // asked of two things. Naming the question alone collapses those into a single input, and
+        // nothing downstream could tell - the pose still builds, the golem still renders, and it
+        // renders as though its two hands always agreed with each other.
+        PoseProgram golem = extracted.get("net/minecraft/client/model/animal/golem/CopperGolemModel");
+        assertNotNull(golem, "CopperGolemModel is expected to extract");
+
+        Set<PoseExpr.InputFn> asked = new LinkedHashSet<>();
+        golem.bones().values().forEach(channels -> channels.values().forEach(expr -> collectQuestions(expr, asked)));
+
+        assertEquals(
+            Set.of(new PoseExpr.InputFn("rightHandItemState", "isEmpty"),
+                new PoseExpr.InputFn("leftHandItemState", "isEmpty")),
+            asked, "each hand is an input of its own");
+    }
+
+    /** Every question asked of the render state anywhere inside an expression. */
+    private static void collectQuestions(PoseExpr expr, Set<PoseExpr.InputFn> out) {
+        switch (expr) {
+            case PoseExpr.InputFn question -> out.add(question);
+            case PoseExpr.Op op -> op.operands().forEach(operand -> collectQuestions(operand, out));
+            case PoseExpr.Select select -> {
+                collectQuestions(select.whenTrue(), out);
+                collectQuestions(select.whenFalse(), out);
+                collectQuestions(select.condition(), out);
+            }
+            default -> { /* a leaf asks nothing */ }
+        }
+    }
+
+    private static void collectQuestions(PosePredicate predicate, Set<PoseExpr.InputFn> out) {
+        switch (predicate) {
+            case PosePredicate.Not not -> collectQuestions(not.operand(), out);
+            case PosePredicate.All all -> all.operands().forEach(operand -> collectQuestions(operand, out));
+            case PosePredicate.Any any -> any.operands().forEach(operand -> collectQuestions(operand, out));
+            case PosePredicate.Compare compare -> {
+                collectQuestions(compare.left(), out);
+                collectQuestions(compare.right(), out);
+            }
+            default -> { /* a flag, a started state, an enum test or a decided constant asks nothing */ }
+        }
+    }
+
+    @Test
     @DisplayName("the clips a walk finds are the clips the shipped table already binds")
     void clipSitesAgreeWithTheShippedTable() {
         // Two mechanisms that never see each other: the binding resolver reads constructors and play
@@ -425,7 +492,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(78, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(86, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------
