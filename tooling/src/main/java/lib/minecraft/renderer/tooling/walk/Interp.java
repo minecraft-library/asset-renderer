@@ -353,6 +353,53 @@ public final class Interp<V> {
         this.poisoned = true;
     }
 
+    /**
+     * A machine's whole mutable state, taken so a flow can run the same instructions twice from one
+     * starting point.
+     *
+     * <p>Configuration is deliberately absent: the capacity bound, the overflow warning and its
+     * shared once-latch, the width and the inline budget all describe the machine rather than where
+     * it has got to, so restoring never silently re-arms a warning that has already fired.
+     *
+     * @param <V> the interpreted value type
+     * @param stack the operand stack, bottom first
+     * @param slots the local-variable bindings
+     * @param frames the saved slot frames, outermost first
+     * @param poisoned whether the machine had met something it refused to reason past
+     */
+    public record Snapshot<V>(
+        @NotNull List<V> stack,
+        @NotNull Map<Integer, V> slots,
+        @NotNull List<Map<Integer, V>> frames,
+        boolean poisoned
+    ) {}
+
+    /**
+     * Takes this machine's state, deeply enough that stepping on afterwards cannot disturb it.
+     *
+     * @return the state, restorable through {@link #restore}
+     */
+    public @NotNull Snapshot<V> snapshot() {
+        List<Map<Integer, V>> saved = new ArrayList<>(this.slotFrames.size());
+        for (Map<Integer, V> frame : this.slotFrames) saved.add(new LinkedHashMap<>(frame));
+        return new Snapshot<>(new ArrayList<>(this.stack), new LinkedHashMap<>(this.slots), saved, this.poisoned);
+    }
+
+    /**
+     * Puts this machine back to a state {@link #snapshot} took, discarding everything since.
+     *
+     * @param snapshot the state to return to
+     */
+    public void restore(@NotNull Snapshot<V> snapshot) {
+        this.stack.clear();
+        this.stack.addAll(snapshot.stack());
+        this.slots.clear();
+        this.slots.putAll(snapshot.slots());
+        this.slotFrames.clear();
+        for (Map<Integer, V> frame : snapshot.frames()) this.slotFrames.addLast(new LinkedHashMap<>(frame));
+        this.poisoned = snapshot.poisoned();
+    }
+
     // ------------------------------------------------------------------------------------
     // the zero-defaulting pops - the builder-dispatch reads
     // ------------------------------------------------------------------------------------

@@ -136,6 +136,62 @@ class InterpChassisTest {
     }
 
     @Test
+    @DisplayName("a snapshot restores the stack, the slots and the frames, and is not disturbed by stepping on")
+    void snapshotRestoresTheWholeMachine() {
+        Interp<Number> machine = machine(new NumberDomain());
+        machine.push(1);
+        machine.store(3, 7);
+        machine.openSlotFrame();
+        machine.store(3, 9);
+        machine.push(2);
+
+        Interp.Snapshot<Number> taken = machine.snapshot();
+
+        machine.push(3);
+        machine.store(3, 11);
+        machine.store(4, 12);
+        machine.closeSlotFrame();
+        machine.pop();
+        machine.poison();
+
+        machine.restore(taken);
+
+        assertEquals(2, machine.size(), "the stack depth comes back");
+        assertEquals(2, machine.pop());
+        assertEquals(1, machine.pop());
+        assertFalse(machine.poisoned(), "poison is state, so it comes back too");
+
+        machine.push(2);
+        machine.push(1);
+        machine.pop();
+        machine.pop();
+        assertEquals(9, machine.slot(3), "the inner frame's binding comes back");
+        assertNull(machine.slot(4), "a slot bound after the snapshot is gone again");
+
+        // And the frame stack itself, which is what a restore would silently lose by copying only
+        // the bindings currently in view.
+        machine.closeSlotFrame();
+        assertEquals(7, machine.slot(3), "closing the restored frame uncovers the outer binding");
+    }
+
+    @Test
+    @DisplayName("a restored machine no longer shares state with the snapshot it came from")
+    void snapshotIsDeepEnough() {
+        Interp<Number> machine = machine(new NumberDomain());
+        machine.push(1);
+        machine.store(0, 5);
+        Interp.Snapshot<Number> taken = machine.snapshot();
+
+        machine.restore(taken);
+        machine.push(99);
+        machine.store(0, 42);
+        machine.restore(taken);
+
+        assertEquals(1, machine.size(), "restoring twice from one snapshot answers the same depth");
+        assertEquals(5, machine.slot(0), "a slot written between restores did not leak into the snapshot");
+    }
+
+    @Test
     @DisplayName("division and remainder by a literal zero push the result-typed zero without consulting the domain")
     void divRemByLiteralZeroSkipsDomain() {
         NumberDomain domain = new NumberDomain();

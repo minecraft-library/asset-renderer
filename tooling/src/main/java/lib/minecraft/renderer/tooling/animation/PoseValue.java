@@ -40,6 +40,19 @@ public sealed interface PoseValue {
     record PartArray(@NotNull String field) implements PoseValue {}
 
     /**
+     * The result of a three-way compare that did not fold, holding what it was comparing.
+     *
+     * <p>A float test is two instructions in bytecode - the compare, then a jump on its sign - and
+     * the jump is where the interesting question is asked. Carrying the operands across that gap is
+     * what lets the branch say which two things it turned on; collapsing the compare to an unknown
+     * would leave the branch knowing only that it could not decide.
+     *
+     * @param left the left operand
+     * @param right the right operand
+     */
+    record Comparison(@NotNull PoseExpr left, @NotNull PoseExpr right) implements PoseValue {}
+
+    /**
      * Anything the model does not describe - a receiver, a render state, an item stack. Recognised
      * by identity, so the interpreter can tell it from a value that merely happens to be unknown.
      */

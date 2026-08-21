@@ -29,19 +29,20 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The pose walk against the real client jar.
  *
- * <p>Three models are pinned expression by expression, which is what says the walk builds vanilla's
+ * <p>Four models are pinned expression by expression, which is what says the walk builds vanilla's
  * own arithmetic rather than merely finishing without complaint: one for the arithmetic itself, one
- * for a bone posed from another bone's freshly written value, and one for a loop that has to unroll
- * into a different expression per index. The roster count says how far the walk reaches before an
- * undecided branch or an unenterable call stops it - a number expected to move as those are
- * answered, asserted so it cannot move by accident, and carrying the refusal reasons in its message
- * so what is left is a list rather than a number.
+ * for a bone posed from another bone's freshly written value, one for a loop that has to unroll into
+ * a different expression per index, and one for a branch nothing offline decides. The roster count
+ * says how far the walk reaches before an unenterable call or an unnameable bone stops it - a number
+ * expected to move as those are answered, asserted so it cannot move by accident, and carrying the
+ * refusal reasons in its message so what is left is a list rather than a number.
  *
  * <p>Tagged {@code slow}: the walk runs against the downloaded client jar.
  */
@@ -162,6 +163,50 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a cod's tail keeps both arms of the branch nothing offline decides")
+    void undecidedBranchBecomesAChoice() {
+        // CodModel swims at one speed in water and flaps at another out of it, and nothing offline
+        // says which. Both arms are kept and the choice is handed to whoever supplies the inputs -
+        // which is the whole point: picking an arm here would ship one of the poses a cod can take
+        // as though it were the pose, and picking the wrong one is how a fish renders mid-flop.
+        PoseProgram cod = extracted.get("net/minecraft/client/model/animal/fish/CodModel");
+        assertNotNull(cod, "CodModel is expected to extract");
+
+        PoseExpr wave = PoseExpr.Op.of(PoseOperator.MTH_SIN,
+            PoseExpr.Op.of(PoseOperator.F2D,
+                PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.6f), new PoseExpr.Input("ageInTicks"))));
+
+        // The choice sits around the SPEED, which is the only thing the two arms disagreed about,
+        // and the tail sweep is written once. That is the join-point merge earning its keep: merging
+        // at the end of the body instead would have hoisted the choice over the whole sweep and
+        // written the sine twice, which is correct and twice the size.
+        PoseExpr speed = new PoseExpr.Select(
+            PosePredicate.Compare.of(PosePredicate.Comparison.EQ,
+                new PoseExpr.Input("isInWater"), PoseExpr.Const.of(0)),
+            PoseExpr.Const.of(1.5f), PoseExpr.Const.of(1.0f));
+
+        assertEquals(
+            PoseExpr.Op.of(PoseOperator.MUL,
+                PoseExpr.Op.of(PoseOperator.MUL,
+                    PoseExpr.Op.of(PoseOperator.NEG, speed), PoseExpr.Const.of(0.45f)),
+                wave),
+            cod.bones().get("tail_fin").get(PoseChannel.Y_ROT),
+            "out of water the tail sweeps half again as far");
+    }
+
+    @Test
+    @DisplayName("a choice stays around the operand that differed rather than over what followed it")
+    void choicesDoNotHoist() {
+        // The structural half of the cod assertion, said once so it cannot be lost in a rewrite of
+        // the arithmetic: a channel whose branch merged at the join has its Select buried inside the
+        // expression, not sitting on top of it.
+        PoseProgram cod = extracted.get("net/minecraft/client/model/animal/fish/CodModel");
+        assertNotNull(cod, "CodModel is expected to extract");
+        assertInstanceOf(PoseExpr.Op.class, cod.bones().get("tail_fin").get(PoseChannel.Y_ROT),
+            "a hoisted choice would make the whole channel a Select");
+    }
+
+    @Test
     @DisplayName("no extracted pose names a bone outside the model's own mesh")
     void everyPosedBoneExists() {
         Map<String, Set<String>> mesh = meshBones();
@@ -191,14 +236,30 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(34, extracted.size(),
-            () -> "extracted " + extracted.values().stream()
-                .map(program -> program.model() + "/" + program.channelCount()).toList()
-                + "; refusals were:\n  " + String.join("\n  ", new TreeSet<>(diagnostics.entries().stream()
-                    .map(entry -> entry.message().replaceAll("^\\S+ not extracted: ", "")).toList())));
+        assertEquals(60, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------
+
+    /**
+     * What each remaining refusal costs, most models first - the work list this count stands for.
+     *
+     * <p>Built as a histogram rather than a set, because which shape to answer next is a question
+     * about how many subjects it is holding up, and a deduplicated list of reasons cannot say.
+     */
+    private static @NotNull String refusalReport() {
+        Map<String, Integer> byReason = new TreeMap<>();
+        diagnostics.entries().stream()
+            .map(entry -> entry.message().replaceAll("^\\S+ not extracted: ", ""))
+            .forEach(reason -> byReason.merge(reason, 1, Integer::sum));
+
+        StringBuilder report = new StringBuilder("extracted ").append(extracted.size())
+            .append(" of ").append(roster.size()).append("; refusals by weight:");
+        byReason.entrySet().stream()
+            .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+            .forEach(entry -> report.append("\n  ").append(entry.getValue()).append("x ").append(entry.getKey()));
+        return report.toString();
+    }
 
     private static @NotNull List<String> rosterClasses() {
         return List.copyOf(new TreeSet<>(meshBones().keySet()));

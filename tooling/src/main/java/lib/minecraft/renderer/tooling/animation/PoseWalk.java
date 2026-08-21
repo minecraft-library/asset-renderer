@@ -22,12 +22,16 @@ import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Walks a model's {@code setupAnim} body into the pose it computes.
@@ -44,17 +48,26 @@ import java.util.Optional;
  * after a write reads the write. Both fall out of holding one expression per channel and
  * substituting it where it is read.
  *
- * <p><b>Control flow is followed wherever it is decided.</b> A loop counter is a literal this walk
- * can see, so the test closing a loop decides itself and the body is walked again with the next
- * value - which means loops need no detector and a bounded loop and a frozen conditional are one
- * mechanism rather than two. What is left over is a branch that genuinely turns on the render
- * state, and that is refused rather than guessed: taking an arm would ship one of the poses a model
- * can take as though it were the pose.
+ * <p><b>Control flow is followed wherever it is decided, and kept where it is not.</b> A loop
+ * counter is a literal this walk can see, so the test closing a loop decides itself and the body is
+ * walked again with the next value - loops need no detector, a bounded loop and a frozen
+ * conditional being one mechanism rather than two. A branch that genuinely turns on the render
+ * state is neither decided nor refused: both arms run and the channels they disagree about become a
+ * choice, so what comes out is every pose the model can take rather than whichever one an arbitrary
+ * arm would have produced.
  *
- * <p>Anything not modelled is refused rather than approximated: an unresolvable bone, an undecided
- * branch, a call this cannot enter, a write to the render state or to the model itself. A pose
- * quietly missing a term is the one outcome worth failing to avoid, because it renders - it just
- * renders wrongly, and nothing downstream can tell.
+ * <p>Both arms run as far as the point their control flow rejoins, and everything they disagree
+ * about there becomes a choice - a channel, a value still on the stack, a local one of them stored.
+ * Merging at the join is what keeps a choice around the operand that actually differed rather than
+ * over all the arithmetic that happened to follow it: a fish that swims at one speed and flaps at
+ * another chooses a speed, and its tail sweep is written once. Arms that never rejoin, one returning
+ * early while the other carries on, have no such point and run to the end of the body instead, where
+ * only the pose can be merged.
+ *
+ * <p>Anything not modelled is refused rather than approximated: an unresolvable bone, a call this
+ * cannot enter, a write to the render state or to the model itself. A pose quietly missing a term
+ * is the one outcome worth failing to avoid, because it renders - it just renders wrongly, and
+ * nothing downstream can tell.
  */
 @UtilityClass
 public final class PoseWalk {
@@ -119,12 +132,15 @@ public final class PoseWalk {
         public @Nullable PoseValue binary(int opcode, @NotNull PoseValue left, @NotNull PoseValue right) {
             if (opcode >= Opcodes.LCMP && opcode <= Opcodes.DCMPG) {
                 // The three-way compare a float test is spelled as. Folding it is what lets the
-                // branch after it decide; leaving it unmodelled is what makes a comparison against
-                // a render-state value refuse instead.
+                // branch after it decide; when it does not fold, the operands travel to the branch
+                // rather than collapsing, so the branch can say what it turned on.
                 Double lhs = literal(left);
                 Double rhs = literal(right);
-                if (lhs == null || rhs == null || lhs.isNaN() || rhs.isNaN()) return null;
-                return num(PoseExpr.Const.of(Double.compare(lhs, rhs)));
+                if (lhs != null && rhs != null && !lhs.isNaN() && !rhs.isNaN())
+                    return num(PoseExpr.Const.of(Double.compare(lhs, rhs)));
+                if (left instanceof PoseValue.Num first && right instanceof PoseValue.Num second)
+                    return new PoseValue.Comparison(first.expr(), second.expr());
+                return null;
             }
             PoseOperator operator = ARITHMETIC.get(opcode);
             if (operator == null || !(left instanceof PoseValue.Num lhs) || !(right instanceof PoseValue.Num rhs))
@@ -165,6 +181,15 @@ public final class PoseWalk {
     private static final int MAX_STEPS = 200_000;
 
     /**
+     * How many undecided branches one extraction may fork on.
+     *
+     * <p>Each fork runs both arms to the end of the body it is in, so the cost compounds with
+     * branches on one path rather than with branches overall. The bound is what keeps a model whose
+     * pose is mostly conditional from being paid for in full before it is refused.
+     */
+    private static final int MAX_FORKS = 1024;
+
+    /**
      * One extraction in progress - what the whole walk needs and what the inlined bodies share.
      *
      * <p>The leaf is carried because a virtual call has to resolve against it rather than against
@@ -176,7 +201,8 @@ public final class PoseWalk {
         @NotNull String leaf,
         @NotNull PosePartIndex parts,
         @NotNull Interp<PoseValue> stack,
-        @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
+        int @NotNull [] forks
     ) {}
 
     /**
@@ -197,7 +223,7 @@ public final class PoseWalk {
         if (body == null) return Optional.of(new PoseProgram(ClassKit.simpleName(modelClass), Map.of()));
 
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
-            Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS), new LinkedHashMap<>());
+            Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS), new LinkedHashMap<>(), new int[1]);
 
         try {
             walkBody(body, context, 0);
@@ -223,16 +249,292 @@ public final class PoseWalk {
      */
     private static void walkBody(@NotNull MethodNode body, @NotNull Context context, int depth) {
         AbstractInsnNode cursor = body.instructions.getFirst();
-        if (cursor != null && AsmWalker.isPseudoNode(cursor)) cursor = AsmWalker.nextReal(cursor);
+        walkFrom(body, cursor != null && AsmWalker.isPseudoNode(cursor) ? AsmWalker.nextReal(cursor) : cursor,
+            null, context, depth);
+    }
 
+    /**
+     * Applies instructions from a point until the body returns, runs out, or reaches {@code stop}.
+     *
+     * @return {@code true} when it stopped on {@code stop} rather than ending
+     */
+    private static boolean walkFrom(
+        @NotNull MethodNode body, @Nullable AbstractInsnNode start, @Nullable AbstractInsnNode stop,
+        @NotNull Context context, int depth) {
+
+        AbstractInsnNode cursor = start;
         int steps = 0;
         while (cursor != null) {
+            if (cursor == stop) return true;
             if (++steps > MAX_STEPS)
                 throw new IllegalStateException("did not settle within " + MAX_STEPS + " instructions");
-            if (isReturn(cursor.getOpcode())) return;
+            if (isReturn(cursor.getOpcode())) return false;
+            if (cursor instanceof JumpInsnNode jump && jump.getOpcode() != Opcodes.GOTO) {
+                PoseValue tested = context.stack().pop();
+                PoseValue against = jump.getOpcode() >= Opcodes.IF_ICMPEQ && jump.getOpcode() <= Opcodes.IF_ICMPLE
+                    ? context.stack().pop() : null;
+                Integer decided = decide(jump.getOpcode(), tested, against);
+                if (decided == null) {
+                    cursor = fork(body, jump, predicate(jump.getOpcode(), tested, against), stop, context, depth);
+                    if (cursor == null) return false;
+                    continue;
+                }
+                cursor = AsmWalker.nextReal(decided != 0 ? jump.label : cursor);
+                continue;
+            }
             AbstractInsnNode target = step(cursor, context, depth);
             cursor = AsmWalker.nextReal(target != null ? target : cursor);
         }
+        return false;
+    }
+
+    /**
+     * Runs both arms of a branch nothing offline decides, and keeps what they disagree about.
+     *
+     * <p>Both arms run from the same starting state as far as the point their control flow rejoins,
+     * and everything they disagree about there becomes a choice - a channel, a value still on the
+     * stack, a local one of them stored. Merging at the join rather than at the end of the body is
+     * what keeps a choice around the operand that actually differed instead of over all the
+     * arithmetic that happened to follow it: a fish that swims at one speed and flaps at another
+     * ends up choosing a speed, not choosing between two whole tail sweeps.
+     *
+     * <p>A channel one arm writes and the other does not keeps whatever it held before the branch,
+     * which is the authored pose when nothing wrote it - the same value an untouched channel already
+     * reads, so the merge needs no third case.
+     *
+     * <p>Arms that never rejoin - one returning early while the other carries on - have no join to
+     * merge at, so both run to the end of the body instead and only the pose is merged. That is the
+     * same answer, reached the expensive way, and it is why a fork inside an inlined helper is still
+     * local: the worst case is the helper's own return.
+     *
+     * @return where to continue, or {@code null} when both arms ended the body
+     */
+    private static @Nullable AbstractInsnNode fork(
+        @NotNull MethodNode body, @NotNull JumpInsnNode jump, @NotNull PosePredicate condition,
+        @Nullable AbstractInsnNode stop, @NotNull Context context, int depth) {
+
+        if (++context.forks()[0] > MAX_FORKS)
+            throw new IllegalStateException("forks on more than " + MAX_FORKS + " undecided branches");
+
+        Interp<PoseValue> stack = context.stack();
+        AbstractInsnNode taken = AsmWalker.nextReal(jump.label);
+        AbstractInsnNode fallen = AsmWalker.nextReal(jump);
+        AbstractInsnNode join = findJoin(body, taken, fallen, stop);
+
+        Interp.Snapshot<PoseValue> before = stack.snapshot();
+        Map<String, Map<PoseChannel, PoseExpr>> posed = copy(context.pose());
+
+        boolean takenRejoined = walkFrom(body, taken, join, context, depth);
+        Interp.Snapshot<PoseValue> afterTaken = stack.snapshot();
+        Map<String, Map<PoseChannel, PoseExpr>> poseTaken = copy(context.pose());
+
+        stack.restore(before);
+        replace(context.pose(), posed);
+        boolean fallenRejoined = walkFrom(body, fallen, join, context, depth);
+
+        if (join != null && takenRejoined && fallenRejoined) {
+            Interp.Snapshot<PoseValue> afterFallen = stack.snapshot();
+            replace(context.pose(), merge(condition, poseTaken, copy(context.pose())));
+            stack.restore(reconcile(condition, afterTaken, afterFallen));
+            return join;
+        }
+
+        // One arm left the body without meeting the other, so there is no point at which their
+        // states line up. Both run to the end instead and only the pose is merged - the same answer,
+        // reached the expensive way. Re-running the arm that stopped at the join is what keeps the
+        // two maps comparable: merging a partial arm against a finished one would drop every write
+        // the partial one had not reached yet.
+        stack.restore(before);
+        replace(context.pose(), posed);
+        walkFrom(body, taken, null, context, depth);
+        Map<String, Map<PoseChannel, PoseExpr>> wholeTaken = copy(context.pose());
+
+        stack.restore(before);
+        replace(context.pose(), posed);
+        walkFrom(body, fallen, null, context, depth);
+
+        replace(context.pose(), merge(condition, wholeTaken, copy(context.pose())));
+        stack.restore(before);
+        return null;
+    }
+
+    /**
+     * Where two arms' control flow comes back together.
+     *
+     * <p>Taken as the earliest instruction both arms can reach, which is the join for anything javac
+     * emits from an {@code if}: the two regions are disjoint and everything after the join is
+     * common, so the common set's first member is where they meet. Arms that never meet - an early
+     * return on one side - answer nothing, and the caller runs them to the end instead.
+     */
+    private static @Nullable AbstractInsnNode findJoin(
+        @NotNull MethodNode body, @Nullable AbstractInsnNode taken, @Nullable AbstractInsnNode fallen,
+        @Nullable AbstractInsnNode stop) {
+
+        Set<AbstractInsnNode> fromTaken = reachable(taken, stop);
+        Set<AbstractInsnNode> fromFallen = reachable(fallen, stop);
+
+        AbstractInsnNode earliest = null;
+        int best = Integer.MAX_VALUE;
+        for (AbstractInsnNode candidate : fromTaken) {
+            if (!fromFallen.contains(candidate)) continue;
+            int index = body.instructions.indexOf(candidate);
+            if (index < best) {
+                best = index;
+                earliest = candidate;
+            }
+        }
+        return earliest;
+    }
+
+    /** Every instruction control can get to from a point, following both arms of anything on the way. */
+    private static @NotNull Set<AbstractInsnNode> reachable(
+        @Nullable AbstractInsnNode start, @Nullable AbstractInsnNode stop) {
+
+        Set<AbstractInsnNode> seen = new LinkedHashSet<>();
+        Deque<AbstractInsnNode> pending = new ArrayDeque<>();
+        if (start != null) pending.add(start);
+
+        while (!pending.isEmpty()) {
+            AbstractInsnNode node = pending.removeLast();
+            if (node == stop || !seen.add(node)) continue;
+            if (isReturn(node.getOpcode()) || node.getOpcode() == Opcodes.ATHROW) continue;
+            if (node instanceof JumpInsnNode jump) {
+                AbstractInsnNode target = AsmWalker.nextReal(jump.label);
+                if (target != null) pending.add(target);
+                if (jump.getOpcode() == Opcodes.GOTO) continue;
+            }
+            AbstractInsnNode next = AsmWalker.nextReal(node);
+            if (next != null) pending.add(next);
+        }
+        return seen;
+    }
+
+    /**
+     * The machine state at a join - one value per stack slot and per local, choosing between the
+     * arms exactly where they disagree.
+     */
+    private static @NotNull Interp.Snapshot<PoseValue> reconcile(
+        @NotNull PosePredicate condition,
+        @NotNull Interp.Snapshot<PoseValue> taken, @NotNull Interp.Snapshot<PoseValue> fallen) {
+
+        if (taken.stack().size() != fallen.stack().size() || taken.frames().size() != fallen.frames().size())
+            throw new IllegalStateException("arms of a branch reach their join holding different things");
+
+        List<PoseValue> stack = new ArrayList<>(taken.stack().size());
+        for (int index = 0; index < taken.stack().size(); index++)
+            stack.add(choose(condition, taken.stack().get(index), fallen.stack().get(index)));
+
+        Map<Integer, PoseValue> slots = new LinkedHashMap<>(fallen.slots());
+        taken.slots().forEach((slot, value) -> slots.merge(slot, value, (mine, theirs) -> choose(condition, theirs, mine)));
+
+        return new Interp.Snapshot<>(stack, slots, taken.frames(), taken.poisoned() && fallen.poisoned());
+    }
+
+    /** One value either arm may have left, as a choice when they differ and as itself when they do not. */
+    private static @NotNull PoseValue choose(
+        @NotNull PosePredicate condition, @NotNull PoseValue taken, @NotNull PoseValue fallen) {
+
+        if (taken.equals(fallen)) return taken;
+        if (taken instanceof PoseValue.Num first && fallen instanceof PoseValue.Num second)
+            return num(new PoseExpr.Select(condition, first.expr(), second.expr()));
+        // A bone, an array or a receiver cannot be chosen between - a pose that wrote through
+        // whichever one a branch happened to pick would name the wrong bone rather than blend two.
+        throw new IllegalStateException("arms of a branch leave two different bones in the same place");
+    }
+
+    /** Every channel either arm touched, as the choice between what each left it holding. */
+    private static @NotNull Map<String, Map<PoseChannel, PoseExpr>> merge(
+        @NotNull PosePredicate condition,
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> taken,
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> fallen) {
+
+        Map<String, Map<PoseChannel, PoseExpr>> out = new LinkedHashMap<>();
+        Set<String> bones = new LinkedHashSet<>(taken.keySet());
+        bones.addAll(fallen.keySet());
+
+        for (String bone : bones) {
+            Map<PoseChannel, PoseExpr> left = taken.getOrDefault(bone, Map.of());
+            Map<PoseChannel, PoseExpr> right = fallen.getOrDefault(bone, Map.of());
+            Set<PoseChannel> channels = new LinkedHashSet<>(left.keySet());
+            channels.addAll(right.keySet());
+
+            Map<PoseChannel, PoseExpr> merged = new EnumMap<>(PoseChannel.class);
+            for (PoseChannel channel : channels) {
+                // An arm that did not write leaves the authored pose standing, which is exactly what
+                // a read of the untouched channel answers.
+                PoseExpr whenTaken = left.getOrDefault(channel, new PoseExpr.BoneRead(bone, channel));
+                PoseExpr whenNot = right.getOrDefault(channel, new PoseExpr.BoneRead(bone, channel));
+                merged.put(channel, whenTaken.equals(whenNot)
+                    ? whenTaken : new PoseExpr.Select(condition, whenTaken, whenNot));
+            }
+            out.put(bone, merged);
+        }
+        return out;
+    }
+
+    /**
+     * Which arm a branch takes, when that is decided.
+     *
+     * @return {@code 1} to jump, {@code 0} to fall through, or {@code null} when nothing decides it
+     */
+    private static @Nullable Integer decide(int opcode, @NotNull PoseValue tested, @Nullable PoseValue against) {
+        if (against != null) {
+            Integer right = literalInt(tested);
+            Integer left = literalInt(against);
+            if (left == null || right == null) return null;
+            return Interp.evaluateIntComparison(opcode, left, right) ? 1 : 0;
+        }
+        Integer value = literalInt(tested);
+        if (value == null) return null;
+        return Interp.evaluateIntComparison(opcode, value, 0) ? 1 : 0;
+    }
+
+    /** What a branch turns on, said in terms of the render state rather than of the stack. */
+    private static @NotNull PosePredicate predicate(int opcode, @NotNull PoseValue tested, @Nullable PoseValue against) {
+        PosePredicate.Comparison comparison = comparisonOf(opcode);
+        if (comparison == null)
+            throw new IllegalStateException("branches on a reference, which this walk cannot decide");
+
+        if (against != null) {
+            if (!(tested instanceof PoseValue.Num right) || !(against instanceof PoseValue.Num left))
+                throw new IllegalStateException(undecidable());
+            return PosePredicate.Compare.of(comparison, left.expr(), right.expr());
+        }
+        // A float test arrives as a three-way compare the branch reads the sign of, so the operands
+        // it actually compared are the ones to name.
+        if (tested instanceof PoseValue.Comparison held)
+            return PosePredicate.Compare.of(comparison, held.left(), held.right());
+        if (tested instanceof PoseValue.Num value)
+            return PosePredicate.Compare.of(comparison, value.expr(), PoseExpr.Const.of(0));
+        throw new IllegalStateException(undecidable());
+    }
+
+    private static @Nullable PosePredicate.Comparison comparisonOf(int opcode) {
+        return switch (opcode) {
+            case Opcodes.IFEQ, Opcodes.IF_ICMPEQ -> PosePredicate.Comparison.EQ;
+            case Opcodes.IFNE, Opcodes.IF_ICMPNE -> PosePredicate.Comparison.NE;
+            case Opcodes.IFLT, Opcodes.IF_ICMPLT -> PosePredicate.Comparison.LT;
+            case Opcodes.IFGE, Opcodes.IF_ICMPGE -> PosePredicate.Comparison.GE;
+            case Opcodes.IFGT, Opcodes.IF_ICMPGT -> PosePredicate.Comparison.GT;
+            case Opcodes.IFLE, Opcodes.IF_ICMPLE -> PosePredicate.Comparison.LE;
+            default -> null;
+        };
+    }
+
+    private static @NotNull Map<String, Map<PoseChannel, PoseExpr>> copy(
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose) {
+
+        Map<String, Map<PoseChannel, PoseExpr>> out = new LinkedHashMap<>();
+        pose.forEach((bone, channels) -> out.put(bone, new EnumMap<>(channels)));
+        return out;
+    }
+
+    private static void replace(
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> target,
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> source) {
+
+        target.clear();
+        target.putAll(source);
     }
 
     /** Whether an opcode ends the body being walked, leaving any answer it has on the stack. */
@@ -248,7 +550,11 @@ public final class PoseWalk {
 
         Interp<PoseValue> stack = context.stack();
 
-        if (in instanceof JumpInsnNode jump) return branch(jump, stack);
+        if (in instanceof JumpInsnNode jump) {
+            // Conditional jumps never reach here - the walk decides or forks on them itself.
+            if (jump.getOpcode() == Opcodes.GOTO) return jump.label;
+            throw new IllegalStateException("branches on a reference, which this walk cannot decide");
+        }
         if (in.getOpcode() == Opcodes.TABLESWITCH || in.getOpcode() == Opcodes.LOOKUPSWITCH)
             throw new IllegalStateException("switches on a value, which this walk does not decide");
         if (in instanceof IincInsnNode increment) {
@@ -279,33 +585,6 @@ public final class PoseWalk {
             default -> stack.step(in);
         }
         return null;
-    }
-
-    /**
-     * Decides a branch, or refuses.
-     *
-     * <p>A condition this walk can see through is decided here and the cursor takes the arm vanilla
-     * would; anything else depends on the render state, and a walk that guessed an arm would ship a
-     * pose that is merely one of the poses the model can take.
-     *
-     * @return the label to continue at, or {@code null} to fall through
-     */
-    private static @Nullable AbstractInsnNode branch(@NotNull JumpInsnNode jump, @NotNull Interp<PoseValue> stack) {
-        int opcode = jump.getOpcode();
-        if (opcode == Opcodes.GOTO) return jump.label;
-
-        if (opcode >= Opcodes.IF_ICMPEQ && opcode <= Opcodes.IF_ICMPLE) {
-            Integer right = literalInt(stack.pop());
-            Integer left = literalInt(stack.pop());
-            if (left == null || right == null) throw new IllegalStateException(undecidable());
-            return Interp.evaluateIntComparison(opcode, left, right) ? jump.label : null;
-        }
-        if (opcode >= Opcodes.IFEQ && opcode <= Opcodes.IFLE) {
-            Integer value = literalInt(stack.pop());
-            if (value == null) throw new IllegalStateException(undecidable());
-            return Interp.evaluateIntComparison(opcode, value, 0) ? jump.label : null;
-        }
-        throw new IllegalStateException("branches on a reference, which this walk cannot decide");
     }
 
     private static @NotNull String undecidable() {
