@@ -40,6 +40,27 @@ public sealed interface PoseValue {
     record PartArray(@NotNull String field) implements PoseValue {}
 
     /**
+     * One constant of an enum, read off the class that declares it.
+     *
+     * @param type the enum's internal name
+     * @param name the constant's own name
+     */
+    record EnumConstant(@NotNull String type, @NotNull String name) implements PoseValue {}
+
+    /**
+     * An enum-valued field read off the render state - which arm is swinging, what an arm is
+     * holding, which way something faces.
+     *
+     * <p>Held apart from {@link Num} because it is not a number and cannot be arithmetic on: the
+     * only thing a pose body does with one is compare it against a constant, and answering that
+     * comparison is the whole of what this has to support.
+     *
+     * @param field the vanilla render-state field name
+     * @param type the enum's internal name
+     */
+    record EnumInput(@NotNull String field, @NotNull String type) implements PoseValue {}
+
+    /**
      * A keyframe clip the model's constructor bound to one of its fields.
      *
      * @param coordinate the clip coordinate the clip table is keyed by

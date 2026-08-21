@@ -277,6 +277,53 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("nothing that extracts today turns on an enum, though the walk can phrase one")
+    void noExtractedPoseTurnsOnAnEnumYet() {
+        // The walk reads an enum field and an enum constant and phrases the comparison between them,
+        // which is what lets an enum's own method be inlined - HumanoidModel's arm posing asks an
+        // ArmPose whether it is two-handed, and that body is nothing but such comparisons. But every
+        // model whose POSE turns on an enum is still refused for some other reason, so no expression
+        // that survives carries one.
+        //
+        // Asserted as the empty state rather than left untested: this fails the moment the humanoid
+        // family starts extracting, which is exactly when someone should come and pin what the enum
+        // tests look like instead of discovering them by accident.
+        List<PosePredicate.EnumEq> enums = new ArrayList<>();
+        extracted.values().forEach(program -> program.bones().values()
+            .forEach(channels -> channels.values().forEach(expr -> collectEnumTests(expr, enums))));
+
+        assertEquals(List.of(), enums,
+            "an extracted pose now turns on an enum - pin what it looks like and retire this");
+    }
+
+    /** Every enum test anywhere inside an expression, however deeply a choice nests it. */
+    private static void collectEnumTests(PoseExpr expr, List<PosePredicate.EnumEq> out) {
+        switch (expr) {
+            case PoseExpr.Op op -> op.operands().forEach(operand -> collectEnumTests(operand, out));
+            case PoseExpr.Select select -> {
+                collectEnumTests(select.whenTrue(), out);
+                collectEnumTests(select.whenFalse(), out);
+                collectEnumTests(select.condition(), out);
+            }
+            default -> { /* a leaf holds no test */ }
+        }
+    }
+
+    private static void collectEnumTests(PosePredicate predicate, List<PosePredicate.EnumEq> out) {
+        switch (predicate) {
+            case PosePredicate.EnumEq test -> out.add(test);
+            case PosePredicate.Not not -> collectEnumTests(not.operand(), out);
+            case PosePredicate.All all -> all.operands().forEach(operand -> collectEnumTests(operand, out));
+            case PosePredicate.Any any -> any.operands().forEach(operand -> collectEnumTests(operand, out));
+            case PosePredicate.Compare compare -> {
+                collectEnumTests(compare.left(), out);
+                collectEnumTests(compare.right(), out);
+            }
+            default -> { /* a flag, a started state or a decided constant holds no enum test */ }
+        }
+    }
+
+    @Test
     @DisplayName("no extracted pose names a bone outside the model's own mesh")
     void everyPosedBoneExists() {
         Map<String, Set<String>> mesh = meshBones();
@@ -319,15 +366,20 @@ class PoseWalkTest {
      */
     private static @NotNull String refusalReport() {
         Map<String, Integer> byReason = new TreeMap<>();
-        diagnostics.entries().stream()
-            .map(entry -> entry.message().replaceAll("^\\S+ not extracted: ", ""))
-            .forEach(reason -> byReason.merge(reason, 1, Integer::sum));
+        Map<String, String> firstSubject = new TreeMap<>();
+        diagnostics.entries().forEach(entry -> {
+            String message = entry.message();
+            String reason = message.replaceAll("^\\S+ not extracted: ", "");
+            byReason.merge(reason, 1, Integer::sum);
+            firstSubject.putIfAbsent(reason, message.substring(0, Math.max(0, message.indexOf(' '))));
+        });
 
         StringBuilder report = new StringBuilder("extracted ").append(extracted.size())
             .append(" of ").append(roster.size()).append("; refusals by weight:");
         byReason.entrySet().stream()
             .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-            .forEach(entry -> report.append("\n  ").append(entry.getValue()).append("x ").append(entry.getKey()));
+            .forEach(entry -> report.append("\n  ").append(entry.getValue()).append("x ").append(entry.getKey())
+                .append("  [e.g. ").append(firstSubject.get(entry.getKey())).append(']'));
         return report.toString();
     }
 

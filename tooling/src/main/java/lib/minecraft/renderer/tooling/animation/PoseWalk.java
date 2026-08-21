@@ -276,8 +276,7 @@ public final class PoseWalk {
             if (isReturn(cursor.getOpcode())) return false;
             if (cursor instanceof JumpInsnNode jump && jump.getOpcode() != Opcodes.GOTO) {
                 PoseValue tested = context.stack().pop();
-                PoseValue against = jump.getOpcode() >= Opcodes.IF_ICMPEQ && jump.getOpcode() <= Opcodes.IF_ICMPLE
-                    ? context.stack().pop() : null;
+                PoseValue against = takesTwoOperands(jump.getOpcode()) ? context.stack().pop() : null;
                 Integer decided = decide(jump.getOpcode(), tested, against);
                 if (decided == null) {
                     cursor = fork(body, jump, predicate(jump.getOpcode(), tested, against), stop, context, depth);
@@ -524,15 +523,28 @@ public final class PoseWalk {
         return Interp.evaluateIntComparison(opcode, value, 0) ? 1 : 0;
     }
 
+    /** Whether a jump opcode compares two things rather than one thing against zero or null. */
+    private static boolean takesTwoOperands(int opcode) {
+        return opcode >= Opcodes.IF_ICMPEQ && opcode <= Opcodes.IF_ICMPLE
+            || opcode == Opcodes.IF_ACMPEQ || opcode == Opcodes.IF_ACMPNE;
+    }
+
     /** What a branch turns on, said in terms of the render state rather than of the stack. */
     private static @NotNull PosePredicate predicate(int opcode, @NotNull PoseValue tested, @Nullable PoseValue against) {
+        if (opcode == Opcodes.IF_ACMPEQ || opcode == Opcodes.IF_ACMPNE) {
+            PosePredicate same = enumEquality(tested, against);
+            // The jump is taken when they are equal, or when they are not; the predicate names the
+            // arm the jump goes to, so the negation belongs here rather than at the merge.
+            return opcode == Opcodes.IF_ACMPEQ ? same : same.negate();
+        }
+
         PosePredicate.Comparison comparison = comparisonOf(opcode);
         if (comparison == null)
             throw new IllegalStateException("branches on a reference, which this walk cannot decide");
 
         if (against != null) {
             if (!(tested instanceof PoseValue.Num right) || !(against instanceof PoseValue.Num left))
-                throw new IllegalStateException(undecidable());
+                throw new IllegalStateException(undecidable(tested instanceof PoseValue.Num ? against : tested));
             return PosePredicate.Compare.of(comparison, left.expr(), right.expr());
         }
         // A float test arrives as a three-way compare the branch reads the sign of, so the operands
@@ -541,7 +553,41 @@ public final class PoseWalk {
             return PosePredicate.Compare.of(comparison, held.left(), held.right());
         if (tested instanceof PoseValue.Num value)
             return PosePredicate.Compare.of(comparison, value.expr(), PoseExpr.Const.of(0));
-        throw new IllegalStateException(undecidable());
+        throw new IllegalStateException(undecidable(tested));
+    }
+
+    /**
+     * A reference comparison, which in a pose body is always an enum against one of its constants.
+     *
+     * <p>Nothing else is compared by identity here: a pose asks which arm is swinging, what an arm
+     * is holding, which way a thing faces. Anything else reaching this is a shape worth meeting
+     * loudly rather than a comparison to approximate.
+     */
+    private static @NotNull PosePredicate enumEquality(@NotNull PoseValue tested, @Nullable PoseValue against) {
+        if (tested instanceof PoseValue.EnumConstant constant && against instanceof PoseValue.EnumInput input)
+            return matching(input, constant);
+        if (tested instanceof PoseValue.EnumInput input && against instanceof PoseValue.EnumConstant constant)
+            return matching(input, constant);
+        throw new IllegalStateException("compares two references that are not an enum and one of its constants");
+    }
+
+    private static @NotNull PosePredicate matching(
+        @NotNull PoseValue.EnumInput input, @NotNull PoseValue.EnumConstant constant) {
+
+        if (!input.type().equals(constant.type()))
+            throw new IllegalStateException("compares " + ClassKit.simpleName(input.type())
+                + " against a constant of " + ClassKit.simpleName(constant.type()));
+        return new PosePredicate.EnumEq(input.field(), constant.name());
+    }
+
+    private static boolean isPrimitive(@NotNull String descriptor) {
+        return descriptor.length() == 1;
+    }
+
+    /** The internal name a reference descriptor names, or the descriptor itself when it names none. */
+    private static @NotNull String referenced(@NotNull String descriptor) {
+        return descriptor.startsWith("L") && descriptor.endsWith(";")
+            ? descriptor.substring(1, descriptor.length() - 1) : descriptor;
     }
 
     private static @Nullable PosePredicate.Comparison comparisonOf(int opcode) {
@@ -600,7 +646,14 @@ public final class PoseWalk {
         switch (in.getOpcode()) {
             case Opcodes.GETFIELD -> readField((FieldInsnNode) in, context);
             case Opcodes.PUTFIELD -> writeField((FieldInsnNode) in, context);
-            case Opcodes.GETSTATIC -> stack.push(OPAQUE);
+            case Opcodes.GETSTATIC -> {
+                // An enum constant is the one static a pose body reads for anything: it is compared
+                // against a render-state field to ask which arm, which pose, which way round.
+                FieldInsnNode constant = (FieldInsnNode) in;
+                stack.push(("L" + constant.owner + ";").equals(constant.desc)
+                    ? new PoseValue.EnumConstant(constant.owner, constant.name)
+                    : OPAQUE);
+            }
             case Opcodes.ARRAYLENGTH -> {
                 if (!(stack.pop() instanceof PoseValue.PartArray array))
                     throw new IllegalStateException("measures something that is not an array of bones");
@@ -622,8 +675,26 @@ public final class PoseWalk {
         return null;
     }
 
-    private static @NotNull String undecidable() {
-        return "branches on a value that depends on the render state";
+    /**
+     * Why a branch could not be turned into a predicate, naming what it was handed.
+     *
+     * <p>A branch this walk cannot phrase is a shape to go and look at, so the message says which
+     * kind of value arrived rather than only that one did - the difference between "there is a
+     * branch here" and "a call this walk models as nothing ended up being tested".
+     */
+    private static @NotNull String undecidable(@NotNull PoseValue tested) {
+        String kind = switch (tested) {
+            case PoseValue.Opaque ignored -> "a value this walk models as nothing";
+            case PoseValue.EnumInput input -> "the enum '" + input.field() + "' against something that is not its constant";
+            case PoseValue.EnumConstant constant -> "the constant " + ClassKit.simpleName(constant.type()) + "."
+                + constant.name() + " against something that is not its enum";
+            case PoseValue.Part part -> "the bone '" + part.bone() + "'";
+            case PoseValue.PartArray array -> "the array '" + array.field() + "'";
+            case PoseValue.Clip clip -> "the clip '" + clip.coordinate() + "'";
+            case PoseValue.Comparison ignored -> "a comparison in a place one cannot be phrased";
+            case PoseValue.Num number -> "a number this walk cannot phrase a test of";
+        };
+        return "branches on " + kind;
     }
 
     /** An integral literal, or {@code null} when the value is not one this walk can read. */
@@ -680,7 +751,12 @@ public final class PoseWalk {
             return;
         }
         if (field.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)) {
-            stack.push(num(new PoseExpr.Input(field.name)));
+            // A render state holds numbers and it holds enums, and only the numbers are arithmetic
+            // on. Reading an enum as though it were a float would put a thing with no numeric value
+            // into an expression and only find out at the sink.
+            stack.push(isPrimitive(field.desc)
+                ? num(new PoseExpr.Input(field.name))
+                : new PoseValue.EnumInput(field.name, referenced(field.desc)));
             return;
         }
         stack.push(OPAQUE);
@@ -869,8 +945,7 @@ public final class PoseWalk {
         if (depth >= MAX_INLINE_DEPTH)
             throw new IllegalStateException("inlines more than " + MAX_INLINE_DEPTH + " helpers deep");
 
-        boolean dispatched = call.getOpcode() == Opcodes.INVOKEVIRTUAL || call.getOpcode() == Opcodes.INVOKEINTERFACE;
-        String owner = dispatched ? context.leaf() : call.owner;
+        String owner = dispatchOwner(context, call);
         MethodNode target = ClassKit.findMethodInHierarchy(context.cache(), owner, call.name, call.desc);
         if (target == null || target.instructions == null || target.instructions.size() == 0)
             throw new IllegalStateException("calls " + ClassKit.simpleName(call.owner) + "." + call.name
@@ -899,6 +974,33 @@ public final class PoseWalk {
             if (answered == null) throw new IllegalStateException(call.name + " returned nothing this walk could follow");
             stack.push(answered);
         }
+    }
+
+    /**
+     * Which class a call's body should be looked up on.
+     *
+     * <p>A virtual call on the model itself has to resolve against the LEAF, because two models
+     * sharing an inherited {@code setupAnim} reach different overrides through the same instruction
+     * and resolving from the declaring class would give both of them the base's. A virtual call on
+     * anything else must not: an enum asked whether it is two-handed is not the model, and looking
+     * that method up on the model finds nothing at all.
+     *
+     * <p>Told apart by whether the leaf is the owner or descends from it, which is what "called on
+     * the model" means, rather than by inspecting the receiver - the receiver of a call on
+     * {@code this} is a value the walk deliberately does not model.
+     */
+    private static @NotNull String dispatchOwner(@NotNull Context context, @NotNull MethodInsnNode call) {
+        if (call.getOpcode() != Opcodes.INVOKEVIRTUAL && call.getOpcode() != Opcodes.INVOKEINTERFACE)
+            return call.owner;
+
+        String current = context.leaf();
+        for (int depth = 0; current != null && depth < MAX_INLINE_DEPTH; depth++) {
+            if (current.equals(call.owner)) return context.leaf();
+            ClassNode node = context.cache().load(current);
+            if (node == null) break;
+            current = node.superName;
+        }
+        return call.owner;
     }
 
     /** Whether a call names a model's own logic, which is a body to walk rather than a fact to know. */
