@@ -17,8 +17,8 @@
       "entries": 11,
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
-      "promoted_at": "a88dc57ca15e7057441b0a6b69e0d386a3f75d3f",
-      "sha256": "00c4b6fcfa27117fb4470789a53f96b8917d0ae70c738c651bc506be5771b803"
+      "promoted_at": "42c0fb9489fd1b917d47fd347d12d8845e736bbc",
+      "sha256": "dbcf532c1c3ae9ec6e66ba04ae676c2b9c91b0e4e155be86f51a85102b221c30"
     },
     "manifest.dump.packs": {
       "baselined": true,
@@ -91,9 +91,9 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 52549,
-      "promoted_at": "a88dc57ca15e7057441b0a6b69e0d386a3f75d3f",
-      "sha256": "50988e8b9b39173831b0e1d01a2f2e31f5e9916262cd87c6b78bdc4976fde5db"
+      "last_duration_ms": 40364,
+      "promoted_at": "42c0fb9489fd1b917d47fd347d12d8845e736bbc",
+      "sha256": "152f0c728960e0283a0a548ec9e01cc33570bd74cc1eb55e064492c4701573af"
     },
     "manifest.visual": {
       "baselined": true,

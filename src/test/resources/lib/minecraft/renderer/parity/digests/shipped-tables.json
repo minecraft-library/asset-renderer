@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "84fd4631f869e8e3a23b5301904f522e81ca019fe5b35f4682e89f3f63c35fdd"
+      "sha256": "cebf60b7a63c30d1143030aaf94301492f31e35854ee23ef443f06a2eef95249"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "a88dc57ca15e7057441b0a6b69e0d386a3f75d3f",
+    "asset_sha": "42c0fb9489fd1b917d47fd347d12d8845e736bbc",
     "counts": {
       "digests": 11
     },
@@ -74,9 +74,8 @@
     },
     "mc_version": "26.1.2",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "test",
-    "reason": "entity_poses.json joins the shipped set as the eleventh table: the entity flow gained a third emit carrying every authored keyframe clip and, per model class, which clips it plays and under what gate. Population add only - all 22 compared artifacts moved 0 rows, the five sweeps included, and the two pre-existing tables re-emitted byte-identical.",
+    "reason": "entity_poses.json gains a poses member: the setupAnim walk is wired into the flow and emits 89 of 111 model poses plus 22 recorded refusals. clips and models subtrees byte-identical, entity_models.json and entity_geometry.json re-emit byte for byte, two launches reproduce all three.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -85,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-20T21:15:49Z",
+    "timestamp": "2026-08-21T03:59:01Z",
     "tool_version": "1.0.0"
   }
 }
