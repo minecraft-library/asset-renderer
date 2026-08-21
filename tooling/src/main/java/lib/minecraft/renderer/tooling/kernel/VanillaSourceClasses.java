@@ -61,6 +61,12 @@ public final class VanillaSourceClasses {
         /** {@code Mth} - vanilla's 65536-entry table trig. */
         public static final @NotNull String MTH = "net/minecraft/util/Mth";
 
+        /** {@code Ease} - the easing curves a pose reaches, distinct from anything on {@link #MTH}. */
+        public static final @NotNull String EASE = "net/minecraft/util/Ease";
+
+        /** {@code java.lang.Math} - the JDK's own arithmetic, which a pose reaches beside {@link #MTH}. */
+        public static final @NotNull String JAVA_MATH = "java/lang/Math";
+
         /** The keyframe-animation package root - the clip tables and the machinery that plays them. */
         public static final @NotNull String CLIENT_ANIMATION_ROOT = MINECRAFT_ROOT + "client/animation/";
 
