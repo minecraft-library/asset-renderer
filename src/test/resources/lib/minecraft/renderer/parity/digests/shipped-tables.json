@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "cebf60b7a63c30d1143030aaf94301492f31e35854ee23ef443f06a2eef95249"
+      "sha256": "bc4f81448fafd4ae5c31007be687b65a649814063ef9ca29411cd4a1fc41ce5e"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "42c0fb9489fd1b917d47fd347d12d8845e736bbc",
+    "asset_sha": "34fc6e623fcd14903dd49942dbc69ef0b256edfc",
     "counts": {
       "digests": 11
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "entity_poses.json gains a poses member: the setupAnim walk is wired into the flow and emits 89 of 111 model poses plus 22 recorded refusals. clips and models subtrees byte-identical, entity_models.json and entity_geometry.json re-emit byte for byte, two launches reproduce all three.",
+    "reason": "The spear arm and a strider's lambdas walk, 89 of 111 model poses to 102, and entity_poses.json is written as the graph it is: a sub-expression reached more than once is named once under 'shared' and used as a ref, because a humanoid's arms are twenty-two million nodes standing for nine hundred and forty seven and the tree could not be written at all. The eighty-nine poses that already extracted are 42% smaller and expand back to what they said before, but for three - parrot, vex and axolotl - which move because verifying that turned up a defect: restoring a pose handed the snapshot's own channel map over rather than copying it, so a fork's second arm and a split's third started from what the one before them wrote, which shipped a parrot flapping its wings while sitting. The dump's entity section moves for a second reason: it wrote each expression as its own toString, which follows every reference and is the tree again, so it writes the graph now and the pose digest of every posing entity moves rather than only the sixteen whose pose moved. Six sweeps, 210 visual rows, manifest.player-raw, the colour-map digest and seven pins all held, nothing evaluating a pose yet.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-21T03:59:01Z",
+    "timestamp": "2026-08-21T07:05:38Z",
     "tool_version": "1.0.0"
   }
 }
