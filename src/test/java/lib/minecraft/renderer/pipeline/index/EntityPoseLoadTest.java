@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
+import lib.minecraft.renderer.asset.pose.PosePredicate;
 import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import org.jetbrains.annotations.NotNull;
@@ -14,7 +15,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -24,13 +27,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The shipped pose table read back through the loader.
  *
- * <p>Three things are worth pinning and nothing else here is. The expression grammar has to survive
+ * <p>Four things are worth pinning and nothing else here is. The expression grammar has to survive
  * the round trip operand for operand, because a table that decodes into a DIFFERENT tree is a table
  * that reads perfectly and animates wrongly. A refusal has to arrive as a refusal, because a model
- * whose pose could not be read renders exactly like one that poses nothing. And the pose has to
- * follow the mesh across the age fork, because a baby is its own model class - the turtle is posed
- * through its baby class ALONE and the donkey through its adult class alone, so one pose per entity
- * would be wrong for one of them whichever way it was chosen.
+ * whose pose could not be read renders exactly like one that poses nothing. The pose has to follow
+ * the mesh across the age fork, because a baby is its own model class - the turtle is posed through
+ * its baby class ALONE and the donkey through its adult class alone, so one pose per entity would be
+ * wrong for one of them whichever way it was chosen. And a sub-expression the table names once has
+ * to arrive once, because a reader that rebuilt one per reference would turn a humanoid's nine
+ * hundred nodes back into the twenty-two million the table exists not to write.
  */
 @DisplayName("the shipped pose table")
 class EntityPoseLoadTest {
@@ -84,11 +89,59 @@ class EntityPoseLoadTest {
     }
 
     @Test
+    @DisplayName("a shared sub-expression arrives as one object, not one copy per place naming it")
+    void sharingSurvivesTheRoundTrip() {
+        // A humanoid's arms are a graph rather than a tree: nine hundred sub-expressions standing for
+        // twenty-two million, because a walk that follows both arms of everything it cannot decide
+        // reaches the same arithmetic down enormously many paths. The table says so once, and a
+        // reader that answered each reference with a fresh record would put the tree back - which
+        // does not merely cost memory, it is the size that could not be written down in the first
+        // place. So this counts the edges: a tree of n nodes has n-1 of them and no more.
+        EntityPose zombie = pose("minecraft:zombie");
+        assertTrue(zombie.isReadable(), "a zombie's pose is readable");
+
+        Map<Object, Integer> reached = new IdentityHashMap<>();
+        zombie.bones().values().forEach(channels -> channels.values().forEach(expr -> edges(expr, reached)));
+
+        assertFalse(reached.isEmpty(), "a zombie poses something");
+        assertTrue(reached.values().stream().anyMatch(count -> count > 1),
+            "at least one sub-expression is reached from more than one place, which a tree cannot be");
+        assertTrue(reached.size() < 4000,
+            "and the whole pose stays the size the table spells it at, not the size it stands for");
+    }
+
+    /** Every node an expression reaches, counted once per place that names it. */
+    private static void edges(@NotNull PoseExpr expr, @NotNull Map<Object, Integer> reached) {
+        if (reached.merge(expr, 1, Integer::sum) > 1) return;
+        switch (expr) {
+            case PoseExpr.Op op -> op.operands().forEach(operand -> edges(operand, reached));
+            case PoseExpr.Select select -> {
+                edges(select.condition(), reached);
+                edges(select.whenTrue(), reached);
+                edges(select.whenFalse(), reached);
+            }
+            default -> { /* a leaf reaches nothing */ }
+        }
+    }
+
+    private static void edges(@NotNull PosePredicate predicate, @NotNull Map<Object, Integer> reached) {
+        if (reached.merge(predicate, 1, Integer::sum) > 1) return;
+        switch (predicate) {
+            case PosePredicate.Not not -> edges(not.operand(), reached);
+            case PosePredicate.Compare compare -> {
+                edges(compare.left(), reached);
+                edges(compare.right(), reached);
+            }
+            default -> { /* a leaf reaches nothing */ }
+        }
+    }
+
+    @Test
     @DisplayName("a model that genuinely poses nothing is not a refusal")
     void anEmptyPoseIsNotARefusal() {
         // A slime declares no typed setupAnim anywhere in its chain, so what it inherits is the reset
         // and it really does hold still. Reading that as a failure would put it in the same bucket as
-        // the twenty-two the walk could not finish.
+        // the nine the walk could not finish.
         EntityPose slime = pose("minecraft:slime");
         assertTrue(slime.isReadable(), "a slime's pose is readable");
         assertEquals(List.of(), List.copyOf(slime.bones().keySet()), "and it is empty");

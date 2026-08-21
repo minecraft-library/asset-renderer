@@ -79,6 +79,21 @@ public final class VanillaSourceClasses {
         /** {@code Rotations} - the three angles an armour stand's pose is authored as, a record. */
         public static final @NotNull String ROTATIONS = MINECRAFT_ROOT + "core/Rotations";
 
+        /** {@code DataComponentType} - the key an item stack's components are read by. */
+        public static final @NotNull String DATA_COMPONENT_TYPE = MINECRAFT_ROOT + "core/component/DataComponentType";
+
+        /** {@code KineticWeapon} - the item component a spear's swing figures are derived from. */
+        public static final @NotNull String KINETIC_WEAPON = MINECRAFT_ROOT + "world/item/component/KineticWeapon";
+
+        /** {@code SpearAnimations} - the spear-arm pose two humanoid arm poses hand their arm to. */
+        public static final @NotNull String SPEAR_ANIMATIONS = CLIENT_MODEL_ROOT + "effects/SpearAnimations";
+
+        /** {@code SpearAnimations$UseParams} - the swing figures a kinetic weapon is used at. */
+        public static final @NotNull String SPEAR_USE_PARAMS = SPEAR_ANIMATIONS + "$UseParams";
+
+        /** {@code java.lang.Float} - the box a lambda taking a float is handed one through. */
+        public static final @NotNull String JAVA_FLOAT = "java/lang/Float";
+
         /** The keyframe-animation package root - the clip tables and the machinery that plays them. */
         public static final @NotNull String CLIENT_ANIMATION_ROOT = MINECRAFT_ROOT + "client/animation/";
 

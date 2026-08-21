@@ -13,15 +13,18 @@ import lib.minecraft.renderer.asset.pose.PoseOperator;
 import lib.minecraft.renderer.asset.pose.PosePredicate;
 import lib.minecraft.renderer.exception.PipelineException;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The raw form of {@code entity_poses.json}'s {@code poses} member - one {@link EntityPose} per
@@ -36,6 +39,12 @@ import java.util.Optional;
  * named for what it does, which no field-mapped record shape can describe; and a Gson of this
  * vintage resolves an adapter declared on a nested generic inconsistently, so a single adapter over
  * the whole subtree is both the only shape that fits and the only one that does not depend on that.
+ *
+ * <p><b>A model's {@code shared} table is read as the graph it is, never expanded.</b> Every
+ * {@code {"ref": n}} resolves to the SAME record instance rather than to a fresh copy, which is what
+ * keeps a pose the size the file says it is: a humanoid's arms name nine hundred sub-expressions and
+ * stand for twenty-two million, and a reader that rebuilt one per reference would be reading the
+ * number the table exists not to write.
  *
  * @param poses the pose of each model class, by simple name
  */
@@ -67,26 +76,92 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         JsonElement refused = node.get("refused");
         if (refused != null) return new EntityPose(Map.of(), List.of(), Optional.of(refused.getAsString()));
 
+        Shared shared = Shared.of(model, node.get("shared"));
+
         Map<String, Map<PoseChannel, PoseExpr>> bones = new LinkedHashMap<>();
         JsonElement written = node.get("bones");
         if (written != null)
             for (Map.Entry<String, JsonElement> bone : object(written, model).entrySet())
-                bones.put(bone.getKey(), channels(model, bone.getKey(), object(bone.getValue(), model)));
+                bones.put(bone.getKey(), channels(model, bone.getKey(), object(bone.getValue(), model), shared));
 
         List<EntityPose.Clip> clips = new ArrayList<>();
         JsonElement played = node.get("clips");
         if (played != null)
-            for (JsonElement clip : array(played, model)) clips.add(clip(model, object(clip, model)));
+            for (JsonElement clip : array(played, model)) clips.add(clip(model, object(clip, model), shared));
 
+        shared.requireAllRead(model);
         // Order-preserving rather than Map.copyOf, whose iteration order is salted per JVM launch.
         // Nothing reads the order for meaning, but the parity dump digests this map, and a digest
         // over a map that flaps is a row that fails its own reproducibility check and nothing else.
         return new EntityPose(Collections.unmodifiableMap(bones), List.copyOf(clips), Optional.empty());
     }
 
+    /**
+     * One model's shared sub-expressions, each built once and handed out by reference.
+     *
+     * <p>Built on first use rather than in a pass of its own, so a node is read as whichever kind
+     * the place that names it wants - and a table declaring both a condition and an expression needs
+     * no second vocabulary saying which of the two each entry is.
+     *
+     * <p>An entry the pose never names is a table carrying what nothing reads, which is a generator
+     * that wrote more than it meant to rather than a file to accept quietly; one that names itself is
+     * a cycle no emitted table can hold, and both are refused.
+     */
+    private static final class Shared {
+
+        private final @NotNull JsonArray declared;
+        private final @NotNull Map<Integer, PoseExpr> expressions = new LinkedHashMap<>();
+        private final @NotNull Map<Integer, PosePredicate> conditions = new LinkedHashMap<>();
+        private final @NotNull Set<Integer> resolving = new LinkedHashSet<>();
+
+        private Shared(@NotNull JsonArray declared) {
+            this.declared = declared;
+        }
+
+        static @NotNull Shared of(@NotNull String model, @Nullable JsonElement node) {
+            return new Shared(node == null ? new JsonArray() : array(node, model));
+        }
+
+        /** The expression an entry stands for, built once however many places name it. */
+        @NotNull PoseExpr expression(@NotNull String model, int at) {
+            PoseExpr held = this.expressions.get(at);
+            if (held != null) return held;
+            PoseExpr built = RawEntityPosesFile.expression(model, entry(model, at), this);
+            this.resolving.remove(at);
+            this.expressions.put(at, built);
+            return built;
+        }
+
+        /** The condition an entry stands for, built once however many places name it. */
+        @NotNull PosePredicate condition(@NotNull String model, int at) {
+            PosePredicate held = this.conditions.get(at);
+            if (held != null) return held;
+            PosePredicate built = RawEntityPosesFile.predicate(model, entry(model, at), this);
+            this.resolving.remove(at);
+            this.conditions.put(at, built);
+            return built;
+        }
+
+        private @NotNull JsonElement entry(@NotNull String model, int at) {
+            if (at < 0 || at >= this.declared.size())
+                throw new PipelineException("entity poses: %s names shared %d of %d",
+                    model, at, this.declared.size());
+            if (!this.resolving.add(at))
+                throw new PipelineException("entity poses: %s names shared %d from inside itself", model, at);
+            return this.declared.get(at);
+        }
+
+        private void requireAllRead(@NotNull String model) {
+            for (int at = 0; at < this.declared.size(); at++)
+                if (!this.expressions.containsKey(at) && !this.conditions.containsKey(at))
+                    throw new PipelineException("entity poses: %s declares shared %d, which nothing names", model, at);
+        }
+
+    }
+
     /** One bone's channels, held in the vocabulary's own order however the file listed them. */
     private static @NotNull Map<PoseChannel, PoseExpr> channels(
-        @NotNull String model, @NotNull String bone, @NotNull JsonObject node) {
+        @NotNull String model, @NotNull String bone, @NotNull JsonObject node, @NotNull Shared shared) {
 
         Map<PoseChannel, PoseExpr> out = new EnumMap<>(PoseChannel.class);
         for (Map.Entry<String, JsonElement> entry : node.entrySet()) {
@@ -94,13 +169,15 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
             if (channel == null)
                 throw new PipelineException("entity poses: %s.%s writes '%s', which is not a channel",
                     model, bone, entry.getKey());
-            out.put(channel, expression(model, entry.getValue()));
+            out.put(channel, expression(model, entry.getValue(), shared));
         }
         return out;
     }
 
     /** One play site: which clip, under what drive, at what the model plays it. */
-    private static @NotNull EntityPose.Clip clip(@NotNull String model, @NotNull JsonObject node) {
+    private static @NotNull EntityPose.Clip clip(
+        @NotNull String model, @NotNull JsonObject node, @NotNull Shared shared) {
+
         JsonElement coordinate = node.get("clip");
         JsonElement gate = node.get("gate");
         if (coordinate == null || gate == null)
@@ -112,7 +189,8 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
 
         List<PoseExpr> arguments = new ArrayList<>();
         JsonElement args = node.get("args");
-        if (args != null) for (JsonElement argument : array(args, model)) arguments.add(expression(model, argument));
+        if (args != null)
+            for (JsonElement argument : array(args, model)) arguments.add(expression(model, argument, shared));
         return new EntityPose.Clip(coordinate.getAsString(), drive, List.copyOf(arguments));
     }
 
@@ -122,7 +200,9 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
      * <p>The operator roster is consulted before the leaf names, so a table written by a newer
      * generator fails on the operation it names rather than on the shape of the node carrying it.
      */
-    private static @NotNull PoseExpr expression(@NotNull String model, @NotNull JsonElement node) {
+    private static @NotNull PoseExpr expression(
+        @NotNull String model, @NotNull JsonElement node, @NotNull Shared shared) {
+
         JsonObject held = object(node, model);
         Map.Entry<String, JsonElement> only = single(held, model, "an expression");
         String token = only.getKey();
@@ -131,7 +211,7 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         PoseOperator operator = PoseOperator.ofToken(token);
         if (operator != null) {
             List<PoseExpr> operands = new ArrayList<>();
-            for (JsonElement operand : array(body, model)) operands.add(expression(model, operand));
+            for (JsonElement operand : array(body, model)) operands.add(expression(model, operand, shared));
             if (operands.size() != operator.arity())
                 throw new PipelineException("entity poses: %s applies '%s' to %d operand(s), which takes %d",
                     model, token, operands.size(), operator.arity());
@@ -139,6 +219,7 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         }
 
         return switch (token) {
+            case "ref" -> shared.expression(model, body.getAsInt());
             // Narrowed through float on the way in, so the carrier holds the double a float value
             // widens to exactly. JSON writes both widths as digits, and reading "-0.2" as a double
             // gives a value no float ever had - close enough to look right and different from what
@@ -167,8 +248,8 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
             }
             case "select" -> {
                 JsonArray arms = array(body, model);
-                yield new PoseExpr.Select(predicate(model, arms.get(0)),
-                    expression(model, arms.get(1)), expression(model, arms.get(2)));
+                yield new PoseExpr.Select(predicate(model, arms.get(0), shared),
+                    expression(model, arms.get(1), shared), expression(model, arms.get(2), shared));
             }
             default -> throw new PipelineException(
                 "entity poses: %s names '%s', which this renderer does not know how to read", model, token);
@@ -176,7 +257,9 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
     }
 
     /** One condition, dispatched the same way an expression is. */
-    private static @NotNull PosePredicate predicate(@NotNull String model, @NotNull JsonElement node) {
+    private static @NotNull PosePredicate predicate(
+        @NotNull String model, @NotNull JsonElement node, @NotNull Shared shared) {
+
         JsonObject held = object(node, model);
         Map.Entry<String, JsonElement> only = single(held, model, "a condition");
         String token = only.getKey();
@@ -186,16 +269,18 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         if (comparison != null) {
             JsonArray operands = array(body, model);
             return new PosePredicate.Compare(comparison,
-                expression(model, operands.get(0)), expression(model, operands.get(1)));
+                expression(model, operands.get(0), shared), expression(model, operands.get(1), shared));
         }
 
         return switch (token) {
+            case "ref" -> shared.condition(model, body.getAsInt());
             case "always" -> new PosePredicate.Constant(body.getAsBoolean());
             case "is" -> {
                 JsonArray test = array(body, model);
                 yield new PosePredicate.Is(test.get(0).getAsString(), test.get(1).getAsString());
             }
-            case "not" -> new PosePredicate.Not(predicate(model, body));
+            case "has" -> new PosePredicate.Has(body.getAsString());
+            case "not" -> new PosePredicate.Not(predicate(model, body, shared));
             default -> throw new PipelineException(
                 "entity poses: %s turns on '%s', which this renderer does not know how to read", model, token);
         };

@@ -10,6 +10,7 @@ import lib.minecraft.renderer.tooling.walk.Insn;
 import lib.minecraft.renderer.tooling.walk.Interp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -18,6 +19,7 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.IincInsnNode;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.IntInsnNode;
+import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.LookupSwitchInsnNode;
@@ -36,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.StringJoiner;
 
 /**
  * Walks a model's {@code setupAnim} body into the pose it computes.
@@ -106,10 +109,48 @@ public final class PoseWalk {
      * <p>Declared as whole coordinates rather than by a rule about shape, because a rule would
      * absorb the next zero-argument call anyone adds and answer it with an input nothing supplies.
      * Every row takes no arguments, and the descriptor in the key is what says so - a question with
-     * arguments would be a different identity and cannot be added here without deciding what that
-     * identity is.
+     * arguments answers a different thing per argument and belongs on the reference's own name
+     * rather than on the question asked of it.
      */
     private static final @NotNull Set<String> STATE_QUESTIONS = stateQuestions();
+
+    /**
+     * The calls that read a named component off a reference the render state holds.
+     *
+     * <p>A hop rather than a question: what comes back is another reference, reached by naming a
+     * declared static, so it is carried under the path that reached it and asked its own questions
+     * afterwards. The component's own field name is the whole of what the hop adds.
+     */
+    private static final @NotNull Set<String> STATE_COMPONENTS = stateComponents();
+
+    /**
+     * The calls that re-present a reference the render state holds as the figures derived from it.
+     *
+     * <p>A body this walk cannot enter and must not refuse: what it computes lives in server data
+     * nothing offline carries, so entering it would reach the same wall one frame later. Naming it
+     * instead keeps the reference it was derived FROM, and the questions asked of the result become
+     * questions asked of that reference - which is what a caller can actually answer.
+     *
+     * <p>Every other operand has to be a number the expression already carries, so what the row
+     * drops is nothing: the derivation's only other input here is a field of the same render state,
+     * one per state rather than one per reference, so a caller answering the questions is answering
+     * them at that same value whether the name mentions it or not.
+     */
+    private static final @NotNull Set<String> STATE_DERIVATIONS = stateDerivations();
+
+    /**
+     * The two calls that put a float in a box and take it back out again.
+     *
+     * <p>Keyed on the whole coordinate rather than on the method name, because the name is shared
+     * with real arithmetic: {@code Double.floatValue} is a narrowing and {@code Float.doubleValue}
+     * a widening, and folding either into an identity would drop a rounding vanilla performs. Not
+     * rows of {@link #CALLS} either - a box is not an operation, and giving it a token would put it
+     * in the shipped table as though it were one.
+     */
+    private static final @NotNull Set<String> BOXES = boxes();
+
+    /** The handle kinds a lambda's target may be, which here is the one javac writes. */
+    private static final int STATIC_HANDLE = Opcodes.H_INVOKESTATIC;
 
     private static final Interp.Domain<PoseValue> DOMAIN = new Interp.Domain<>() {
 
@@ -210,8 +251,13 @@ public final class PoseWalk {
      * <p>Each fork runs both arms to the end of the body it is in, so the cost compounds with
      * branches on one path rather than with branches overall. The bound is what keeps a model whose
      * pose is mostly conditional from being paid for in full before it is refused.
+     *
+     * <p>The widest the corpus reaches is a humanoid, whose two arms each turn on an eleven-constant
+     * pose and whose spear arm holds a run of six more branches: seven thousand and a hundred, at
+     * which the whole roster still walks in seconds. The bound is set above that rather than at it,
+     * being a backstop against a body that does not terminate rather than a budget.
      */
-    private static final int MAX_FORKS = 1024;
+    private static final int MAX_FORKS = 16_384;
 
     /**
      * How many constants an enum may declare before a split over it is called a runaway.
@@ -461,18 +507,28 @@ public final class PoseWalk {
         // leaves at its own return is as comparable as what it leaves at a join. Re-running the arm
         // that stopped early is what keeps the two comparable at all - merging a partial arm against
         // a finished one would drop every write the partial one had not reached yet.
-        stack.restore(before);
-        replace(context.pose(), posed);
-        replaceSites(context, played);
-        walkFrom(body, taken, null, context, depth);
-        Interp.Snapshot<PoseValue> endedTaken = stack.snapshot();
-        Map<String, Map<PoseChannel, PoseExpr>> wholeTaken = copy(context.pose());
-        List<PoseClipSite> wholePlayedTaken = List.copyOf(context.clipSites());
+        //
+        // Only when there WAS a point to stop at. A branch whose arms never meet was already run to
+        // the end above, twice would be the same walk twice, and each such branch inside another
+        // doubles what that costs - which for a body holding a run of them is the difference between
+        // walking its tail a few times and walking it thousands.
+        Interp.Snapshot<PoseValue> endedTaken = afterTaken;
+        Map<String, Map<PoseChannel, PoseExpr>> wholeTaken = poseTaken;
+        List<PoseClipSite> wholePlayedTaken = playedTaken;
+        if (join != null) {
+            stack.restore(before);
+            replace(context.pose(), posed);
+            replaceSites(context, played);
+            walkFrom(body, taken, null, context, depth);
+            endedTaken = stack.snapshot();
+            wholeTaken = copy(context.pose());
+            wholePlayedTaken = List.copyOf(context.clipSites());
 
-        stack.restore(before);
-        replace(context.pose(), posed);
-        replaceSites(context, played);
-        walkFrom(body, fallen, null, context, depth);
+            stack.restore(before);
+            replace(context.pose(), posed);
+            replaceSites(context, played);
+            walkFrom(body, fallen, null, context, depth);
+        }
 
         replace(context.pose(), merge(condition, wholeTaken, copy(context.pose())));
         replaceSites(context, bothPlayed(wholePlayedTaken, context.clipSites()));
@@ -838,8 +894,12 @@ public final class PoseWalk {
             return num(new PoseExpr.Select(condition, first.expr(), second.expr()));
         // A bone, an array or a receiver cannot be chosen between - a pose that wrote through
         // whichever one a branch happened to pick would name the wrong bone rather than blend two.
-        throw new UnmergeableArms("arms of a branch on " + condition
-            + " leave two different things in the same place: " + kindOf(taken) + " and " + kindOf(fallen));
+        //
+        // The condition is deliberately not named. It is a tree of records, and a refusal is shipped
+        // text rather than a debugger's view: what a reader needs is the mechanism and the two things
+        // that met, which is what a wall is looked up by.
+        throw new UnmergeableArms("arms of a branch nothing offline decides leave two different"
+            + " things in the same place: " + kindOf(taken) + " and " + kindOf(fallen));
     }
 
     /** Every channel either arm touched, as the choice between what each left it holding. */
@@ -911,6 +971,17 @@ public final class PoseWalk {
             // The jump is taken when they are equal, or when they are not; the predicate names the
             // arm the jump goes to, so the negation belongs here rather than at the merge.
             return opcode == Opcodes.IF_ACMPEQ ? same : same.negate();
+        }
+        if (opcode == Opcodes.IFNULL || opcode == Opcodes.IFNONNULL) {
+            // Whether a reference is there at all, which a body asks about a component an item may
+            // simply not carry. Only a reference the render state was reached through can be asked:
+            // anything else is absent or present for reasons this walk did not follow, and answering
+            // one of those would guard a term on a fact nothing supplies.
+            if (!(tested instanceof PoseValue.StateRef reference))
+                throw new IllegalStateException("asks whether " + kindOf(tested)
+                    + " is there, which this walk cannot decide");
+            PosePredicate present = new PosePredicate.Has(reference.member());
+            return opcode == Opcodes.IFNONNULL ? present : present.negate();
         }
 
         PosePredicate.Comparison comparison = comparisonOf(opcode);
@@ -985,12 +1056,20 @@ public final class PoseWalk {
         return out;
     }
 
+    /**
+     * Puts a pose back to what a snapshot holds, taking a fresh channel map per bone.
+     *
+     * <p>The copy is the whole of it. A channel map handed over rather than copied would be the
+     * SAME map the snapshot holds, so the next write through the pose would land in the snapshot
+     * too - and a fork's second arm, or a split's third, would start from what the one before it
+     * wrote rather than from where they all branched.
+     */
     private static void replace(
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> target,
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> source) {
 
         target.clear();
-        target.putAll(source);
+        source.forEach((bone, channels) -> target.put(bone, new EnumMap<>(channels)));
     }
 
     /** Whether an opcode ends the body being walked, leaving any answer it has on the stack. */
@@ -1022,14 +1101,17 @@ public final class PoseWalk {
             case Opcodes.GETFIELD -> readField((FieldInsnNode) in, context);
             case Opcodes.PUTFIELD -> writeField((FieldInsnNode) in, context);
             case Opcodes.GETSTATIC -> {
-                // An enum constant is the one static a pose body reads for anything: it is compared
-                // against a render-state field to ask which arm, which pose, which way round.
+                // An enum constant is the static a pose body reads for its own sake: it is compared
+                // against a render-state field to ask which arm, which pose, which way round. The
+                // rest are read to be handed on as the name of what to fetch, so they are carried
+                // as their coordinate rather than lost - a component key that arrived as an unknown
+                // would leave the fetch it names unnameable.
                 FieldInsnNode constant = (FieldInsnNode) in;
                 if (("L" + constant.owner + ";").equals(constant.desc))
                     stack.push(new PoseValue.EnumConstant(constant.owner, constant.name));
                 else if (SWITCH_MAP_DESCRIPTOR.equals(constant.desc) && constant.name.startsWith(SWITCH_MAP_PREFIX))
                     stack.push(new PoseValue.SwitchMap(constant.owner, constant.name));
-                else stack.push(OPAQUE);
+                else stack.push(new PoseValue.StaticRef(constant.owner, constant.name));
             }
             case Opcodes.ARRAYLENGTH -> {
                 if (!(stack.pop() instanceof PoseValue.PartArray array))
@@ -1058,12 +1140,7 @@ public final class PoseWalk {
                 call((MethodInsnNode) in, context, depth);
             case Opcodes.AASTORE, Opcodes.NEW, Opcodes.ANEWARRAY ->
                 throw new IllegalStateException("allocates while posing, which this walk does not model");
-            // Refused rather than passed over. An opcode the chassis does not name has no stack
-            // effect here, and a call site that pushed nothing where a function was expected leaves
-            // every argument after it one place out - which builds a well formed pose out of the
-            // wrong operands rather than failing.
-            case Opcodes.INVOKEDYNAMIC ->
-                throw new IllegalStateException("builds a call site, which this walk does not model");
+            case Opcodes.INVOKEDYNAMIC -> callSite((InvokeDynamicInsnNode) in, context);
             default -> stack.step(in);
         }
         return null;
@@ -1110,6 +1187,10 @@ public final class PoseWalk {
             case PoseValue.Part part -> "the bone '" + part.bone() + "'";
             case PoseValue.PartArray array -> "the array '" + array.field() + "'";
             case PoseValue.StateArray array -> "the whole of the render state's '" + array.member() + "'";
+            case PoseValue.StaticRef named ->
+                "the static " + ClassKit.simpleName(named.owner()) + "." + named.name();
+            case PoseValue.Lambda lambda ->
+                "the lambda " + ClassKit.simpleName(lambda.owner()) + "." + lambda.name();
             case PoseValue.SwitchMap map -> "the switch table '" + map.field() + "'";
             case PoseValue.Clip clip -> "the clip '" + clip.coordinate() + "'";
             case PoseValue.Comparison ignored -> "a comparison in a place one cannot be phrased";
@@ -1365,9 +1446,42 @@ public final class PoseWalk {
         return new PoseExpr.InputElement(held.member(), (int) literal.value());
     }
 
+    /**
+     * A lambda a call site builds, held as the body it will run rather than entered here.
+     *
+     * <p>Refused rather than passed over when it is anything else. An opcode the chassis does not
+     * name has no stack effect, and a call site that pushed nothing where a function was expected
+     * leaves every argument after it one place out - which builds a well formed pose out of the
+     * wrong operands rather than failing.
+     */
+    private static void callSite(@NotNull InvokeDynamicInsnNode indy, @NotNull Context context) {
+        if (!AsmWalker.isLambdaInvokeDynamic(indy))
+            throw new IllegalStateException("builds a call site, which this walk does not model");
+
+        Handle target = AsmWalker.extractLambdaHandle(indy);
+        if (target == null)
+            throw new IllegalStateException("builds a lambda whose body this walk could not name");
+        if (target.getTag() != STATIC_HANDLE)
+            throw new IllegalStateException("builds a lambda over " + ClassKit.simpleName(target.getOwner())
+                + "." + target.getName() + ", which is not a static body");
+
+        List<PoseValue> captured = context.stack().popArguments(ClassKit.argTypes(indy.desc).length);
+        context.stack().push(new PoseValue.Lambda(
+            target.getOwner(), target.getName(), target.getDesc(), List.copyOf(captured)));
+    }
+
     /** A call: arithmetic by another name, a bone mutated through a method, the reset, or a body to inline. */
     private static void call(@NotNull MethodInsnNode call, @NotNull Context context, int depth) {
         Interp<PoseValue> stack = context.stack();
+
+        if (BOXES.contains(key(call))) {
+            // Both boxes take exactly one operand and answer the same number, so the machine is
+            // already right and there is nothing to apply. Asserted rather than assumed: a row whose
+            // shape is not that would otherwise leave the stack one place out and say nothing.
+            if (ClassKit.argTypes(call.desc).length + (call.getOpcode() == Opcodes.INVOKESTATIC ? 0 : 1) != 1)
+                throw new IllegalStateException("boxes through " + call.name + ", which does not take one operand");
+            return;
+        }
 
         PoseOperator operator = CALLS.get(key(call));
         if (operator != null) {
@@ -1384,6 +1498,16 @@ public final class PoseWalk {
 
         if (STATE_QUESTIONS.contains(key(call))) {
             stateQuestion(call, context);
+            return;
+        }
+
+        if (STATE_COMPONENTS.contains(key(call))) {
+            stateComponent(call, context);
+            return;
+        }
+
+        if (STATE_DERIVATIONS.contains(key(call))) {
+            stateDerivation(call, context);
             return;
         }
 
@@ -1416,18 +1540,98 @@ public final class PoseWalk {
         }
 
         if (isRenderStateReference(call)) {
-            // A state that hands back the stack in a hand is naming a thing rather than computing
-            // one, so it is the same kind of value a field read of it would have been - named after
-            // the method, which is the only name it has.
-            String type = ClassKit.returnType(call.desc).getInternalName();
-            context.referenceTypes().putIfAbsent(call.name, type);
-            stack.pop();
-            stack.push(new PoseValue.StateRef(call.name, type));
+            stateReference(call, context);
             return;
+        }
+
+        // The last thing a call can be is the application of a lambda a call site built, which is
+        // told by the receiver rather than by the method: the interface being called through
+        // declares no body, and no model descends from it, so nothing about the instruction says
+        // where to go. Taken here, where the alternative is a refusal, so no call that resolves by
+        // name pays for the look.
+        if (call.getOpcode() != Opcodes.INVOKESTATIC) {
+            List<PoseValue> arguments = stack.popArguments(ClassKit.argTypes(call.desc).length);
+            if (stack.pop() instanceof PoseValue.Lambda lambda) {
+                applyLambda(call, lambda, arguments, context, depth);
+                return;
+            }
         }
 
         throw new IllegalStateException("calls " + ClassKit.simpleName(call.owner) + "." + call.name
             + ", which is not a body this walk can enter");
+    }
+
+    /**
+     * A reference the render state names rather than computes, taken with whatever it was asked for.
+     *
+     * <p>A state that hands back the stack in a hand is naming a thing rather than computing one, so
+     * it is the same kind of value a field read of it would have been. What it is asked FOR is part
+     * of that name: one method answers a different stack per hand, and a name that dropped the hand
+     * would pose both arms off whichever one the walk happened to meet first.
+     *
+     * <p>Every argument has to be a constant, which is what makes the name derived. An argument this
+     * walk resolved to a number would name a different thing per frame and could not be written down
+     * at all, so it is refused rather than rendered into the name.
+     */
+    private static void stateReference(@NotNull MethodInsnNode call, @NotNull Context context) {
+        Interp<PoseValue> stack = context.stack();
+        List<PoseValue> arguments = stack.popArguments(ClassKit.argTypes(call.desc).length);
+
+        StringJoiner asked = new StringJoiner(", ", "(", ")");
+        for (PoseValue argument : arguments) {
+            if (!(argument instanceof PoseValue.EnumConstant constant))
+                throw new IllegalStateException("asks the render state for " + call.name + " of "
+                    + kindOf(argument) + ", which is not a constant it can be named by");
+            asked.add(constant.name());
+        }
+
+        String member = arguments.isEmpty() ? call.name : call.name + asked;
+        String type = ClassKit.returnType(call.desc).getInternalName();
+        context.referenceTypes().putIfAbsent(member, type);
+        stack.pop();
+        stack.push(new PoseValue.StateRef(member, type));
+    }
+
+    /** One named component of a reference the render state holds, carried under the path to it. */
+    private static void stateComponent(@NotNull MethodInsnNode call, @NotNull Context context) {
+        Interp<PoseValue> stack = context.stack();
+        PoseValue component = stack.pop();
+        PoseValue carrier = stack.pop();
+
+        if (!(component instanceof PoseValue.StaticRef named))
+            throw new IllegalStateException("reads " + kindOf(component) + " as a component, which is not a declared one");
+        if (!(carrier instanceof PoseValue.StateRef reference))
+            throw new IllegalStateException("reads " + named.name() + " off " + kindOf(carrier)
+                + ", which is not something the render state holds");
+
+        String member = reference.member() + "." + named.name();
+        String type = ClassKit.returnType(call.desc).getInternalName();
+        context.referenceTypes().putIfAbsent(member, type);
+        stack.push(new PoseValue.StateRef(member, type));
+    }
+
+    /** The figures derived from a reference, which stay named after the reference they came from. */
+    private static void stateDerivation(@NotNull MethodInsnNode call, @NotNull Context context) {
+        Interp<PoseValue> stack = context.stack();
+        List<PoseValue> arguments = stack.popArguments(ClassKit.argTypes(call.desc).length);
+        if (call.getOpcode() != Opcodes.INVOKESTATIC) stack.pop();
+
+        PoseValue.StateRef derivedFrom = null;
+        for (PoseValue argument : arguments) {
+            if (argument instanceof PoseValue.StateRef reference) {
+                if (derivedFrom != null)
+                    throw new IllegalStateException("derives " + call.name
+                        + " from two references the render state holds, so it names neither");
+                derivedFrom = reference;
+                continue;
+            }
+            if (!(argument instanceof PoseValue.Num))
+                throw new IllegalStateException("derives " + call.name + " from " + kindOf(argument)
+                    + ", which this walk cannot follow");
+        }
+        if (derivedFrom == null)
+            throw new IllegalStateException("derives " + call.name + " from nothing the render state holds");
+        stack.push(derivedFrom);
     }
 
     /**
@@ -1589,6 +1793,55 @@ public final class PoseWalk {
     }
 
     /**
+     * Walks a lambda's body in place, the way an inlined helper is walked.
+     *
+     * <p>The slots are what the call site closed over followed by what the application handed it,
+     * which is the order the body's own descriptor declares them in - so a lambda that captured
+     * nothing reads its arguments from slot zero and one that captured a bone reads that first.
+     *
+     * <p>The body is looked up on the class the call site named rather than on the leaf, because a
+     * lambda's body is written where the lambda was written and nothing overrides it.
+     */
+    private static void applyLambda(
+        @NotNull MethodInsnNode call, @NotNull PoseValue.Lambda lambda,
+        @NotNull List<PoseValue> arguments, @NotNull Context context, int depth) {
+
+        if (depth >= MAX_INLINE_DEPTH)
+            throw new IllegalStateException("inlines more than " + MAX_INLINE_DEPTH + " helpers deep");
+
+        String named = ClassKit.simpleName(lambda.owner()) + "." + lambda.name();
+        MethodNode target = ClassKit.findMethodInHierarchy(
+            context.cache(), lambda.owner(), lambda.name(), lambda.descriptor());
+        if (target == null || target.instructions == null || target.instructions.size() == 0)
+            throw new IllegalStateException("applies the lambda " + named + ", whose body is not in the jar");
+
+        List<PoseValue> slotted = new ArrayList<>(lambda.captured());
+        slotted.addAll(arguments);
+        Type[] parameters = ClassKit.argTypes(lambda.descriptor());
+        if (slotted.size() != parameters.length)
+            throw new IllegalStateException("applies the lambda " + named + " to " + slotted.size()
+                + " operand(s), whose body takes " + parameters.length);
+
+        Interp<PoseValue> stack = context.stack();
+        int depthBefore = stack.size();
+        stack.openSlotFrame();
+        int slot = 0;
+        for (int index = 0; index < parameters.length; index++) {
+            stack.store(slot, slotted.get(index));
+            slot += parameters[index].getSize();
+        }
+
+        walkBody(target, context, depth + 1);
+
+        PoseValue answered = stack.size() > depthBefore ? stack.pop() : null;
+        stack.closeSlotFrame();
+        if (Type.getReturnType(call.desc).getSort() != Type.VOID) {
+            if (answered == null) throw new IllegalStateException(named + " returned nothing this walk could follow");
+            stack.push(answered);
+        }
+    }
+
+    /**
      * Which class a call's body should be looked up on.
      *
      * <p>A virtual call on the model itself has to resolve against the LEAF, because two models
@@ -1669,14 +1922,14 @@ public final class PoseWalk {
     /**
      * Whether a call is a render state naming one of the things it holds rather than computing one.
      *
-     * <p>Bounded to no arguments, which is what makes the method's own name the whole of the
-     * reference's identity. One that takes an argument names a different thing per argument and
-     * would need that argument to be part of the name, which is a question to answer where a body
-     * that asks it turns up.
+     * <p>Arguments are allowed and become part of the reference's name, which is what
+     * {@link #stateReference} builds: one method answering a different thing per hand is as many
+     * references as there are hands, and a name that dropped the hand would be one reference asked
+     * for twice. What that costs is that every argument has to be a constant, which is enforced
+     * there rather than here - the values are on the stack and this reads only the instruction.
      */
     private static boolean isRenderStateReference(@NotNull MethodInsnNode call) {
         return call.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)
-            && ClassKit.argTypes(call.desc).length == 0
             && ClassKit.returnType(call.desc).getSort() == Type.OBJECT;
     }
 
@@ -1777,14 +2030,23 @@ public final class PoseWalk {
     }
 
     /**
-     * The three questions the corpus asks of a reference the render state holds.
+     * The questions the corpus asks of a reference the render state holds.
      *
      * <p>Two types answer emptiness and they are not one type: a stack and the baked render state of
      * a stack are asked the same word by different models, and there is no shared supertype to key
      * on that would not also admit everything else either of them can be asked.
+     *
+     * <p>The eight spear figures are the swing a kinetic weapon is used at, and they are named
+     * rather than derived because the numbers behind them are server data no offline run carries -
+     * measured, not assumed: the item registry's own initialiser mentions that component nowhere.
+     * All eight together are exactly a term of zero, and vanilla's own no-such-component arm adds
+     * exactly that, so a caller with no components to model renders what vanilla renders. Eight and
+     * not the ten the figures are declared as, because two of them no pose body reads: a row nothing
+     * asks for would declare an input nothing supplies.
      */
     private static @NotNull Set<String> stateQuestions() {
         String rotations = VanillaSourceClasses.Types.ROTATIONS;
+        String spear = VanillaSourceClasses.Types.SPEAR_USE_PARAMS;
         return Set.of(
             key(VanillaSourceClasses.Types.ANIMATION_STATE, VanillaSourceClasses.Methods.IS_STARTED, "()Z"),
             key(VanillaSourceClasses.Types.ITEM_STACK, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
@@ -1792,7 +2054,36 @@ public final class PoseWalk {
             key(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
             key(rotations, PoseChannel.X.token(), "()F"),
             key(rotations, PoseChannel.Y.token(), "()F"),
-            key(rotations, PoseChannel.Z.token(), "()F"));
+            key(rotations, PoseChannel.Z.token(), "()F"),
+            key(spear, "swayIntensity", "()F"),
+            key(spear, "swayScaleSlow", "()F"),
+            key(spear, "swayScaleFast", "()F"),
+            key(spear, "raiseProgressStart", "()F"),
+            key(spear, "raiseProgressMiddle", "()F"),
+            key(spear, "raiseProgressEnd", "()F"),
+            key(spear, "lowerProgress", "()F"),
+            key(spear, "raiseBackProgress", "()F"));
+    }
+
+    /** The one call that reads a named component off a reference the render state holds. */
+    private static @NotNull Set<String> stateComponents() {
+        return Set.of(key(VanillaSourceClasses.Types.ITEM_STACK, "get",
+            "(L" + VanillaSourceClasses.Types.DATA_COMPONENT_TYPE + ";)Ljava/lang/Object;"));
+    }
+
+    /** The one call that turns a component into the figures a pose reads off it. */
+    private static @NotNull Set<String> stateDerivations() {
+        String params = "L" + VanillaSourceClasses.Types.SPEAR_USE_PARAMS + ";";
+        return Set.of(key(VanillaSourceClasses.Types.SPEAR_USE_PARAMS, "fromKineticWeapon",
+            "(L" + VanillaSourceClasses.Types.KINETIC_WEAPON + ";F)" + params));
+    }
+
+    /** The box a float rides into a lambda in, and the unbox it arrives through. */
+    private static @NotNull Set<String> boxes() {
+        String box = VanillaSourceClasses.Types.JAVA_FLOAT;
+        return Set.of(
+            key(box, "valueOf", "(F)L" + box + ";"),
+            key(box, "floatValue", "()F"));
     }
 
     /** The call-to-operator table, keyed on the whole coordinate so a width cannot be mistaken. */

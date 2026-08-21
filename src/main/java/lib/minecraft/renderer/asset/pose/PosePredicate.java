@@ -8,7 +8,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>Nothing here can be decided from the table alone: a condition the generator could resolve was
  * resolved while it walked, so every predicate that reaches this side names something a caller
- * supplies. Four arms, and the shipped corpus builds all four.
+ * supplies. Five arms, and the shipped corpus builds all five.
  *
  * <p>There is deliberately no arm for a bare boolean. A boolean the render state declares as a
  * field and a question asked of something it holds both arrive as numbers, so both are compared
@@ -113,6 +113,18 @@ public sealed interface PosePredicate {
      * @param constant the constant's own name
      */
     record Is(@NotNull String member, @NotNull String constant) implements PosePredicate {}
+
+    /**
+     * A test that a reference the render state is reached through is there at all - whether the
+     * item in a named hand carries the named component the pose reads its figures off.
+     *
+     * <p>The member is a path rather than a single name, so what is being tested for is already
+     * part of it: a caller that models no item components answers false to every one of these, and
+     * gets the arm vanilla takes when an item carries nothing.
+     *
+     * @param member the path through the render state the reference is reached by
+     */
+    record Has(@NotNull String member) implements PosePredicate {}
 
     /**
      * The negation of a predicate.

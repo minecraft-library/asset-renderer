@@ -12,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
  * offline by construction: a condition the walk could resolve was resolved while walking, so every
  * predicate that survives names a render-state input.
  *
- * <p>Four arms, and the corpus builds all four. There is deliberately no arm for a boolean on its
+ * <p>Five arms, and the corpus builds all five. There is deliberately no arm for a boolean on its
  * own: a boolean the render state declares as a field arrives as a number and a question asked of
  * something it holds answers as one, so both are compared against zero and neither needs a shape of
  * its own. There is none for a conjunction either - a body that tests two things in a row is two
@@ -135,6 +135,18 @@ public sealed interface PosePredicate {
      * @param constant the enum constant's own name
      */
     record EnumEq(@NotNull String field, @NotNull String constant) implements PosePredicate {}
+
+    /**
+     * A test that a reference the render state is reached through is there at all - the null check
+     * a body makes before reading anything off a component an item may not carry.
+     *
+     * <p>Apart from {@link EnumEq}, which asks WHICH of a closed set of constants a reference is.
+     * This asks whether there is one, and the path it names is the whole of the question: the
+     * component being tested for is already a hop of that path, so nothing is owed beside it.
+     *
+     * @param member the path through the render state the reference was reached by
+     */
+    record Has(@NotNull String member) implements PosePredicate {}
 
     /**
      * The negation of a predicate.

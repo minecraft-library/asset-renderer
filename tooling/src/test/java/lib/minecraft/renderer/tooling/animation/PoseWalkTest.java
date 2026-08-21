@@ -45,10 +45,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * pose divided between a model and the base it inherits, and a question asked of the render state
  * whose answer a bone is made visible by.
  *
- * <p>Two more are pinned for what their expressions NAME rather than for the shape they take, both
+ * <p>Four more are pinned for what their expressions NAME rather than for the shape they take, all
  * being cases that would render perfectly while being wrong: a golem asking each of its hands the
- * same word has to be answered twice, and a wither posing two heads out of one array of angles has
- * to read two indices of it.
+ * same word has to be answered twice, a wither posing two heads out of one array of angles has to
+ * read two indices of it, a spear's swing has to ask eight separate things of each hand rather than
+ * one thing eight times, and a strider's six bristles have to keep the six rates one lambda was
+ * applied at rather than settling on whichever was applied last.
  *
  * <p>The clip half is checked differently, against the shipped table rather than against a written
  * expectation. Two mechanisms that never see each other - the binding resolver reading constructors
@@ -501,6 +503,182 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a spear is held at the angle vanilla computes, operand for operand")
+    void spearArmIsPinned() {
+        // The whole of the spear pose a renderer that models no item components draws, written out.
+        // Vanilla adds a sway term to this from figures a kinetic weapon carries, and every one of
+        // them is zero when there is no such component - so this expression is not an approximation
+        // of that path, it IS it.
+        //
+        // Pinned for both arms rather than one, because the two differ only by the sign the walk
+        // folds out of a boolean the call site passes: taking the flip the wrong way round poses a
+        // spear a fifth of a radian to the wrong side and nothing downstream can tell.
+        PoseProgram humanoid = extracted.get("net/minecraft/client/model/HumanoidModel");
+        assertNotNull(humanoid, "HumanoidModel is expected to extract");
+
+        List<PoseExpr> reached = new ArrayList<>();
+        humanoid.bones().values().forEach(channels -> channels.values()
+            .forEach(expr -> collectNodes(expr, reached,
+                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()))));
+
+        assertTrue(reached.contains(spearHold(-0.1f)), "the right arm holds a spear a tenth off the head's yaw");
+        assertTrue(reached.contains(spearHold(0.1f)), "the left arm holds it the same distance the other way");
+    }
+
+    /**
+     * The angle an arm holds a spear at, for the sign the call site folded out of its own boolean.
+     *
+     * <p>The head yaw it leans off is the one {@code setupAnim} has already written, substituted
+     * where it is read - so this is the whole expression rather than a reference to the head.
+     */
+    private static @NotNull PoseExpr spearHold(float lean) {
+        PoseExpr headYaw = PoseExpr.Op.of(PoseOperator.MUL,
+            new PoseExpr.Input("yRot"), PoseExpr.Const.of(0.017453292f));
+        return PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.017453292f),
+            PoseExpr.Op.of(PoseOperator.CLAMP,
+                PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(57.295776f),
+                    PoseExpr.Op.of(PoseOperator.ADD, PoseExpr.Const.of(lean), headYaw)),
+                PoseExpr.Const.of(-60f), PoseExpr.Const.of(60f)));
+    }
+
+    @Test
+    @DisplayName("a spear's sway asks eight things of each hand, and each hand answers for itself")
+    void theSwayTermAsksEachFigureOnItsOwn() {
+        // The eight figures a kinetic weapon swings at live in server data no offline run carries,
+        // so they are named rather than derived. Eight DISTINCT inputs per hand is the whole of what
+        // makes that safe: a walk that collapsed them would build a sway term out of one number, and
+        // the arm would still move, smoothly, and wrongly.
+        //
+        // Two hands and not one for the same reason a golem asks each of its own: the stack being
+        // used is part of the question, and a name that dropped it would sway both arms alike.
+        PoseProgram humanoid = extracted.get("net/minecraft/client/model/HumanoidModel");
+        assertNotNull(humanoid, "HumanoidModel is expected to extract");
+
+        Set<PoseExpr.InputFn> asked = new LinkedHashSet<>();
+        humanoid.bones().values().forEach(channels -> channels.values()
+            .forEach(expr -> collectQuestions(expr, asked)));
+
+        Set<PoseExpr.InputFn> expected = new LinkedHashSet<>();
+        for (String hand : List.of("RIGHT", "LEFT"))
+            for (String figure : List.of("swayIntensity", "swayScaleSlow", "swayScaleFast",
+                "raiseProgressStart", "raiseProgressMiddle", "raiseProgressEnd",
+                "lowerProgress", "raiseBackProgress"))
+                expected.add(new PoseExpr.InputFn(
+                    "getUseItemStackForArm(" + hand + ").KINETIC_WEAPON", figure));
+
+        assertEquals(expected, asked, "eight figures per hand, each an input of its own");
+    }
+
+    @Test
+    @DisplayName("a spear's sway is guarded on the hand carrying the component it is read off")
+    void theSwayTermIsGuardedOnTheComponent() {
+        // The guard a caller that models no item components answers false to, which is what makes
+        // the pose above the one vanilla draws rather than a term nothing supplies.
+        PoseProgram humanoid = extracted.get("net/minecraft/client/model/HumanoidModel");
+        assertNotNull(humanoid, "HumanoidModel is expected to extract");
+
+        Set<PosePredicate.Has> guards = new LinkedHashSet<>();
+        humanoid.bones().values().forEach(channels -> channels.values()
+            .forEach(expr -> collectPresence(expr, guards)));
+
+        assertEquals(Set.of(
+                new PosePredicate.Has("getUseItemStackForArm(RIGHT).KINETIC_WEAPON"),
+                new PosePredicate.Has("getUseItemStackForArm(LEFT).KINETIC_WEAPON")),
+            guards, "one guard per hand, naming the path the figures are read down");
+    }
+
+    @Test
+    @DisplayName("a strider's bristles each carry the rate the lambda was applied at")
+    void lambdaApplicationsKeepTheirOwnRate() {
+        // Six applications of one lambda, through a functional interface no model descends from and
+        // over a float that rides there in a box. What has to survive is that they are six: the
+        // three bristles of a side are stirred at three rates and shaken at three more, and a walk
+        // that lost the arguments would leave the six accumulating the same number - which draws a
+        // strider whose bristles move together and looks entirely plausible.
+        PoseProgram strider = extracted.get("net/minecraft/client/model/monster/strider/AdultStriderModel");
+        assertNotNull(strider, "AdultStriderModel is expected to extract");
+
+        List<String> bristles = List.of("right_top_bristle", "right_middle_bristle", "right_bottom_bristle",
+            "left_top_bristle", "left_middle_bristle", "left_bottom_bristle");
+        Set<PoseExpr> distinct = new LinkedHashSet<>();
+        for (String bristle : bristles) distinct.add(strider.bones().get(bristle).get(PoseChannel.Z_ROT));
+        assertEquals(bristles.size(), distinct.size(), "one lean per bristle, none of them shared");
+
+        PoseExpr flow = PoseExpr.Op.of(PoseOperator.MUL,
+            PoseExpr.Op.of(PoseOperator.MUL,
+                PoseExpr.Op.of(PoseOperator.MTH_COS, PoseExpr.Op.of(PoseOperator.F2D,
+                    PoseExpr.Op.of(PoseOperator.ADD,
+                        PoseExpr.Op.of(PoseOperator.MUL,
+                            new PoseExpr.Input("walkAnimationPos"), PoseExpr.Const.of(1.5f)),
+                        PoseExpr.Const.of(3.1415927f)))),
+                PoseExpr.Op.of(PoseOperator.MIN,
+                    new PoseExpr.Input("walkAnimationSpeed"), PoseExpr.Const.of(0.25f))),
+            PoseExpr.Const.of(0.6f));
+
+        assertEquals(
+            PoseExpr.Op.of(PoseOperator.ADD,
+                PoseExpr.Op.of(PoseOperator.ADD, PoseExpr.Const.of(-0.87266463f), flow),
+                PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.1f),
+                    PoseExpr.Op.of(PoseOperator.MTH_SIN, PoseExpr.Op.of(PoseOperator.F2D,
+                        PoseExpr.Op.of(PoseOperator.MUL,
+                            new PoseExpr.Input("ageInTicks"), PoseExpr.Const.of(0.4f)))))),
+            strider.bones().get("right_top_bristle").get(PoseChannel.Z_ROT),
+            "the top bristle leans off its authored angle, stirred at its own rate and shaken at another");
+    }
+
+    /** Every node an expression reaches, following the graph once rather than each of its paths. */
+    private static void collectNodes(PoseExpr expr, List<PoseExpr> out, Set<Object> walked) {
+        if (!walked.add(expr)) return;
+        out.add(expr);
+        switch (expr) {
+            case PoseExpr.Op op -> op.operands().forEach(operand -> collectNodes(operand, out, walked));
+            case PoseExpr.Select select -> {
+                collectNodes(select.whenTrue(), out, walked);
+                collectNodes(select.whenFalse(), out, walked);
+                collectNodes(select.condition(), out, walked);
+            }
+            default -> { /* a leaf reaches nothing */ }
+        }
+    }
+
+    private static void collectNodes(PosePredicate predicate, List<PoseExpr> out, Set<Object> walked) {
+        if (!walked.add(predicate)) return;
+        switch (predicate) {
+            case PosePredicate.Not not -> collectNodes(not.operand(), out, walked);
+            case PosePredicate.Compare compare -> {
+                collectNodes(compare.left(), out, walked);
+                collectNodes(compare.right(), out, walked);
+            }
+            default -> { /* a leaf reaches nothing */ }
+        }
+    }
+
+    /** Every presence guard anywhere inside an expression. */
+    private static void collectPresence(PoseExpr expr, Set<PosePredicate.Has> out) {
+        switch (expr) {
+            case PoseExpr.Op op -> op.operands().forEach(operand -> collectPresence(operand, out));
+            case PoseExpr.Select select -> {
+                collectPresence(select.whenTrue(), out);
+                collectPresence(select.whenFalse(), out);
+                collectPresence(select.condition(), out);
+            }
+            default -> { /* a leaf holds no guard */ }
+        }
+    }
+
+    private static void collectPresence(PosePredicate predicate, Set<PosePredicate.Has> out) {
+        switch (predicate) {
+            case PosePredicate.Has present -> out.add(present);
+            case PosePredicate.Not not -> collectPresence(not.operand(), out);
+            case PosePredicate.Compare compare -> {
+                collectPresence(compare.left(), out);
+                collectPresence(compare.right(), out);
+            }
+            default -> { /* an enum test or a decided constant holds no guard */ }
+        }
+    }
+
+    @Test
     @DisplayName("a refusal names what stopped it, so the remaining work is a list rather than a count")
     void refusalsAreAttributed() {
         Set<String> reasons = new TreeSet<>();
@@ -518,7 +696,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(89, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(102, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------

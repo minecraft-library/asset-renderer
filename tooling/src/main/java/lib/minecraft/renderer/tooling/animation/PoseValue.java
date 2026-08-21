@@ -2,6 +2,8 @@ package lib.minecraft.renderer.tooling.animation;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+
 /**
  * The value model the {@code setupAnim} interpreter runs over - one arm per thing a pose body puts
  * on the operand stack.
@@ -61,10 +63,48 @@ public sealed interface PoseValue {
      * both answers name the member it was read from, because which reference was asked is as much
      * of the question as what was asked of it.
      *
-     * @param member the vanilla render-state member it was read from
+     * <p>The member is a PATH rather than a single name, because reaching one of these takes more
+     * than one hop: an accessor picking a stack out of a hand is named with the constant it was
+     * asked for, and a component read off that stack appends the component's own declared name.
+     * Every hop names something declared, so the path stays derived from the corpus rather than
+     * invented, and two hands or two components stay two references.
+     *
+     * @param member the path through the render state this reference was reached by
      * @param type the reference's own internal name
      */
     record StateRef(@NotNull String member, @NotNull String type) implements PoseValue {}
+
+    /**
+     * A static field this walk names rather than models - a component key, a registry entry.
+     *
+     * <p>Apart from {@link EnumConstant}, which is the one static whose own declaration answers
+     * questions about it. This one answers none: the whole of what a pose body does with it is hand
+     * it to something as the name of what to fetch, so the name is all there is to carry.
+     *
+     * @param owner the internal name of the class declaring it
+     * @param name the field's own name
+     */
+    record StaticRef(@NotNull String owner, @NotNull String name) implements PoseValue {}
+
+    /**
+     * A lambda a call site built, held as the body it will run and whatever it closed over.
+     *
+     * <p>The interface it was built against is not part of it. What matters at the call that applies
+     * one is the body to enter and the operands to enter it with, and the interface method is only
+     * how the operands get there - so the apply resolves from THIS value rather than from the
+     * interface's own declaration, which no model descends from and which declares no body at all.
+     *
+     * @param owner the internal name of the class declaring the body
+     * @param name the body's own method name
+     * @param descriptor the body's descriptor
+     * @param captured what the call site closed over, in the order it pushed them
+     */
+    record Lambda(
+        @NotNull String owner,
+        @NotNull String name,
+        @NotNull String descriptor,
+        @NotNull List<PoseValue> captured
+    ) implements PoseValue {}
 
     /**
      * An array of numbers the render state holds, before an index picks an element out of it.

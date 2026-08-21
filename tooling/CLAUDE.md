@@ -42,6 +42,24 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   `renderer/block_defaults.json`, the only way a pack reaches an ASM-derived default state.
 - `EntityIndexes` is session-lifetime and `EntityContext` per-subject; do not merge them. There is no
   writer class, and the only post-pass is `EntityGroupLinker.link`.
+- **A pose in `entity_poses.json` is a GRAPH, and the `shared` table is what says so.** A
+  `setupAnim` walk follows both arms of everything it cannot decide, so one sub-expression is reached
+  down enormously many paths - a humanoid's arms are nine hundred distinct nodes standing for
+  twenty-two million, and spelling that out per path could not be written at all. So a node reached
+  more than once is written once under `shared` and used as `{"ref": n}`, entries ordered so
+  everything a node names is declared above it. Leaves stay inline however often they are reached: a
+  reference to a literal costs what the literal costs and reads worse. Both sides depend on this
+  being a graph rather than a shorthand for a tree - `PoseJson` interns bottom-up against the numbers
+  it has already given a node's children, because asking a map about a node would hash it by walking
+  the very tree this exists to avoid; and `RawEntityPosesFile` resolves every reference to ONE record
+  instance, a reader that rebuilt one per reference being a reader that puts the twenty-two million
+  back.
+- **A pose the walk restores has to be copied, not handed over.** `PoseWalk.replace` takes a fresh
+  channel map per bone; sharing the snapshot's own map means the next write lands in the snapshot,
+  and then a fork's second arm - or an enum split's third - starts from what the one before it wrote.
+  That is silent: the arms come out EQUAL, so the merge collapses them and drops the guard that told
+  them apart. It shipped a parrot flapping its wings while sitting, and a party parrot's head pose
+  standing in for a shoulder parrot's.
 - `ToolingSession.envelope` builds both header segments from one `flow` local, so renaming a flow
   rewrites every table's header.
 - **Every instruction walk here is an `AsmWalker` chain** - the one hand-written instruction loop

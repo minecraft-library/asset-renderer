@@ -16,9 +16,6 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.asset.pose.PoseChannel;
-import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTexture;
@@ -46,6 +43,10 @@ import lib.minecraft.renderer.asset.pack.rule.NbtPredicate;
 import lib.minecraft.renderer.asset.pack.rule.NbtRule;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.asset.pack.rule.TileRef;
+import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PoseChannel;
+import lib.minecraft.renderer.asset.pose.PoseExpr;
+import lib.minecraft.renderer.asset.pose.PosePredicate;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
@@ -82,6 +83,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -1333,17 +1335,109 @@ public final class PipelineParityDump {
     }
 
     /**
-     * Returns one pose expression, as the text of its own tree.
+     * Returns one pose expression, as the text of its own GRAPH.
      *
      * <p>Written as text rather than as structure because this section only ever digests it: what a
      * reader of the dump wants to know is whether the arithmetic moved, and the shipped table is
      * where the arithmetic itself is legible.
      *
+     * <p><b>A graph and not a tree, which is the difference between a line of text and no line at
+     * all.</b> The table names a sub-expression once and uses it from everywhere that reaches it, and
+     * the loader answers every one of those with the same record - so a writer that followed each
+     * reference would put back the tree the table exists not to spell out, and a humanoid's arm comes
+     * to twenty-two million nodes. A node already written is written as {@code #n} instead, numbered
+     * in the order they were reached, which is a function of the expression rather than of the walk
+     * that found it.
+     *
      * @param expr the expression to emit
      * @return the expression as a string
      */
     private static @NotNull JsonPrimitive poseExpr(@NotNull PoseExpr expr) {
-        return new JsonPrimitive(expr.toString());
+        StringBuilder text = new StringBuilder();
+        poseNode(expr, new IdentityHashMap<>(), text);
+        return new JsonPrimitive(text.toString());
+    }
+
+    /** One expression node, or a back reference to it when the graph has reached it before. */
+    private static void poseNode(
+        @NotNull PoseExpr expr, @NotNull Map<Object, Integer> written, @NotNull StringBuilder text) {
+
+        if (alreadyWritten(expr, written, text)) return;
+        switch (expr) {
+            case PoseExpr.Const literal -> text.append(switch (literal.width()) {
+                case FLOAT -> "const(" + (float) literal.value();
+                case DOUBLE -> "dconst(" + literal.value();
+                case INT -> "iconst(" + (int) literal.value();
+            }).append(')');
+            case PoseExpr.Input input -> text.append("input(").append(input.field()).append(')');
+            case PoseExpr.InputFn question -> text.append("input_fn(")
+                .append(question.receiver()).append(',').append(question.question()).append(')');
+            case PoseExpr.InputElement element -> text.append("input_element(")
+                .append(element.receiver()).append(',').append(element.index()).append(')');
+            case PoseExpr.BoneRead read -> text.append("bone(")
+                .append(read.bone()).append(',').append(read.channel().token()).append(')');
+            case PoseExpr.Op operation -> {
+                text.append(operation.operator().token()).append('(');
+                for (int index = 0; index < operation.operands().size(); index++) {
+                    if (index > 0) text.append(',');
+                    poseNode(operation.operands().get(index), written, text);
+                }
+                text.append(')');
+            }
+            case PoseExpr.Select select -> {
+                text.append("select(");
+                poseNode(select.condition(), written, text);
+                text.append(',');
+                poseNode(select.whenTrue(), written, text);
+                text.append(',');
+                poseNode(select.whenFalse(), written, text);
+                text.append(')');
+            }
+        }
+    }
+
+    /** One condition node, written the same way an expression node is. */
+    private static void poseNode(
+        @NotNull PosePredicate predicate, @NotNull Map<Object, Integer> written, @NotNull StringBuilder text) {
+
+        if (alreadyWritten(predicate, written, text)) return;
+        switch (predicate) {
+            case PosePredicate.Constant decided -> text.append("always(").append(decided.value()).append(')');
+            case PosePredicate.Is test -> text.append("is(")
+                .append(test.member()).append(',').append(test.constant()).append(')');
+            case PosePredicate.Has present -> text.append("has(").append(present.member()).append(')');
+            case PosePredicate.Not not -> {
+                text.append("not(");
+                poseNode(not.operand(), written, text);
+                text.append(')');
+            }
+            case PosePredicate.Compare compare -> {
+                text.append(compare.comparison().token()).append('(');
+                poseNode(compare.left(), written, text);
+                text.append(',');
+                poseNode(compare.right(), written, text);
+                text.append(')');
+            }
+        }
+    }
+
+    /**
+     * Whether this node has been written already, writing the back reference to it when it has.
+     *
+     * <p>Asked by IDENTITY, which is what the loader answers a reference with and is also the only
+     * question that can be asked cheaply: these are records, so asking a map about one by value
+     * hashes it by walking everything below it - the very tree neither side is willing to build.
+     */
+    private static boolean alreadyWritten(
+        @NotNull Object node, @NotNull Map<Object, Integer> written, @NotNull StringBuilder text) {
+
+        Integer at = written.get(node);
+        if (at != null) {
+            text.append('#').append(at);
+            return true;
+        }
+        written.put(node, written.size());
+        return false;
     }
 
     /**
