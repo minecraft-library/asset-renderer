@@ -87,10 +87,9 @@ class PoseWalkTest {
         diagnostics = Diagnostics.root("pose", Diagnostics.Output.NONE, null);
         roster = rosterClasses();
         extracted = new TreeMap<>();
-        for (String model : roster) {
-            Optional<PoseProgram> program = PoseWalk.extract(cache, model, diagnostics);
-            program.ifPresent(value -> extracted.put(model, value));
-        }
+        for (String model : roster)
+            if (PoseWalk.extract(cache, model, diagnostics) instanceof PoseOutcome.Extracted walked)
+                extracted.put(model, walked.program());
     }
 
     @AfterAll
@@ -373,13 +372,11 @@ class PoseWalkTest {
     private static void collectQuestions(PosePredicate predicate, Set<PoseExpr.InputFn> out) {
         switch (predicate) {
             case PosePredicate.Not not -> collectQuestions(not.operand(), out);
-            case PosePredicate.All all -> all.operands().forEach(operand -> collectQuestions(operand, out));
-            case PosePredicate.Any any -> any.operands().forEach(operand -> collectQuestions(operand, out));
             case PosePredicate.Compare compare -> {
                 collectQuestions(compare.left(), out);
                 collectQuestions(compare.right(), out);
             }
-            default -> { /* a flag, a started state, an enum test or a decided constant asks nothing */ }
+            default -> { /* an enum test or a decided constant asks nothing */ }
         }
     }
 
@@ -483,13 +480,11 @@ class PoseWalkTest {
         switch (predicate) {
             case PosePredicate.EnumEq test -> out.add(test);
             case PosePredicate.Not not -> collectEnumTests(not.operand(), out);
-            case PosePredicate.All all -> all.operands().forEach(operand -> collectEnumTests(operand, out));
-            case PosePredicate.Any any -> any.operands().forEach(operand -> collectEnumTests(operand, out));
             case PosePredicate.Compare compare -> {
                 collectEnumTests(compare.left(), out);
                 collectEnumTests(compare.right(), out);
             }
-            default -> { /* a flag, a started state or a decided constant holds no enum test */ }
+            default -> { /* a decided constant holds no enum test */ }
         }
     }
 

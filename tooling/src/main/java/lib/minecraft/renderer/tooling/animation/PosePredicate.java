@@ -3,8 +3,6 @@ package lib.minecraft.renderer.tooling.animation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-
 /**
  * What decides between the two arms of a {@link PoseExpr.Select}, and what guards a write that only
  * one arm makes.
@@ -13,6 +11,12 @@ import java.util.List;
  * assigns on one side only are the same bytecode shape read two ways. Nothing here can be decided
  * offline by construction: a condition the walk could resolve was resolved while walking, so every
  * predicate that survives names a render-state input.
+ *
+ * <p>Four arms, and the corpus builds all four. There is deliberately no arm for a boolean on its
+ * own: a boolean the render state declares as a field arrives as a number and a question asked of
+ * something it holds answers as one, so both are compared against zero and neither needs a shape of
+ * its own. There is none for a conjunction either - a body that tests two things in a row is two
+ * branches, and each is kept where it was met rather than gathered up afterwards.
  */
 public sealed interface PosePredicate {
 
@@ -93,13 +97,6 @@ public sealed interface PosePredicate {
     record Constant(boolean value) implements PosePredicate {}
 
     /**
-     * A boolean field read off the render state.
-     *
-     * @param field the vanilla render-state field name
-     */
-    record Flag(@NotNull String field) implements PosePredicate {}
-
-    /**
      * A numeric comparison between two expressions.
      *
      * @param comparison how the two are compared
@@ -140,33 +137,11 @@ public sealed interface PosePredicate {
     record EnumEq(@NotNull String field, @NotNull String constant) implements PosePredicate {}
 
     /**
-     * A test that a named animation state is running. Nothing offline starts one, so this is carried
-     * to record what the model asked rather than because it can answer true.
-     *
-     * @param field the vanilla render-state field holding the animation state
-     */
-    record Started(@NotNull String field) implements PosePredicate {}
-
-    /**
      * The negation of a predicate.
      *
      * @param operand what is negated
      */
     record Not(@NotNull PosePredicate operand) implements PosePredicate {}
-
-    /**
-     * A conjunction.
-     *
-     * @param operands what must all hold, in source order
-     */
-    record All(@NotNull List<PosePredicate> operands) implements PosePredicate {}
-
-    /**
-     * A disjunction.
-     *
-     * @param operands of which one must hold, in source order
-     */
-    record Any(@NotNull List<PosePredicate> operands) implements PosePredicate {}
 
     /**
      * The negation of this predicate, collapsing a double negation and a decided constant rather

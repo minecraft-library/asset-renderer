@@ -27,6 +27,7 @@ import org.objectweb.asm.tree.TableSwitchInsnNode;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -297,14 +298,15 @@ public final class PoseWalk {
      * @param diagnostics the scope findings are recorded against
      * @return the pose, or empty when the body holds a shape this does not model
      */
-    public static @NotNull Optional<PoseProgram> extract(
+    public static @NotNull PoseOutcome extract(
         @NotNull ClassNodeCache cache, @NotNull String modelClass, @NotNull Diagnostics diagnostics) {
 
         MethodNode body = findSetupAnim(cache, modelClass);
         // A model whose whole chain declares only the erased override poses nothing: what it
         // inherits is the reset. That is an empty pose rather than a refusal, and the two have to
         // stay distinguishable or a walk that failed reads as a subject that simply holds still.
-        if (body == null) return Optional.of(new PoseProgram(ClassKit.simpleName(modelClass), Map.of(), List.of()));
+        if (body == null) return new PoseOutcome.Extracted(
+            new PoseProgram(ClassKit.simpleName(modelClass), Map.of(), List.of()));
 
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
             ClipBindingResolver.fieldToClip(cache, modelClass),
@@ -314,11 +316,15 @@ public final class PoseWalk {
 
         try {
             walkBody(body, context, 0);
-        } catch (RuntimeException error) {
-            diagnostics.info("%s not extracted: %s", ClassKit.simpleName(modelClass), error.getMessage());
-            return Optional.empty();
+        } catch (IllegalStateException error) {
+            // Narrowed to what the walk itself raises. A jar that lost a class raises something
+            // else, and shipping that as a pose's reason would turn a broken run into a table
+            // saying the model holds still.
+            String reason = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+            diagnostics.info("%s not extracted: %s", ClassKit.simpleName(modelClass), reason);
+            return new PoseOutcome.Refused(reason);
         }
-        return Optional.of(new PoseProgram(
+        return new PoseOutcome.Extracted(new PoseProgram(
             ClassKit.simpleName(modelClass), freeze(context.pose()), List.copyOf(context.clipSites())));
     }
 
@@ -515,10 +521,6 @@ public final class PoseWalk {
                     ? null : new PoseValue.StateRef(test.field(), type);
             }
             case PosePredicate.Not not -> unresolved(not.operand(), context);
-            case PosePredicate.All all -> all.operands().stream()
-                .map(operand -> unresolved(operand, context)).filter(java.util.Objects::nonNull).findFirst().orElse(null);
-            case PosePredicate.Any any -> any.operands().stream()
-                .map(operand -> unresolved(operand, context)).filter(java.util.Objects::nonNull).findFirst().orElse(null);
             default -> null;
         };
     }
@@ -1708,12 +1710,19 @@ public final class PoseWalk {
         return null;
     }
 
+    /**
+     * The pose, made unmodifiable without losing the order it was built in.
+     *
+     * <p>Not {@code Map.copyOf}, whose iteration order is salted per JVM launch. Nothing here reads
+     * the order for meaning, but a table written out of one that flaps is a table that fails its own
+     * reproducibility check with no other symptom.
+     */
     private static @NotNull Map<String, Map<PoseChannel, PoseExpr>> freeze(
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose) {
 
         Map<String, Map<PoseChannel, PoseExpr>> out = new LinkedHashMap<>();
-        pose.forEach((bone, channels) -> out.put(bone, Map.copyOf(channels)));
-        return Map.copyOf(out);
+        pose.forEach((bone, channels) -> out.put(bone, Collections.unmodifiableMap(new EnumMap<>(channels))));
+        return Collections.unmodifiableMap(out);
     }
 
     private static @NotNull PoseValue num(@NotNull PoseExpr expr) {

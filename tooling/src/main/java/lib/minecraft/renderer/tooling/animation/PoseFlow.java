@@ -43,10 +43,12 @@ public final class PoseFlow {
     public static void emit(@NotNull ToolingSession session, @NotNull GeometryManifest manifest, @NotNull Path out) {
         Diagnostics diagnostics = session.diagnostics().child("pose");
         List<KeyframeClip> clips = KeyframeDefinitionParser.parseAll(session.cache(), diagnostics);
-        Map<String, List<ClipBinding>> byModel = resolveModels(session, manifest, diagnostics);
+        Set<String> roster = rosterClasses(manifest);
+        Map<String, List<ClipBinding>> byModel = resolveModels(session, roster, diagnostics);
+        Map<String, PoseOutcome> poses = walkModels(session, roster, diagnostics);
 
-        JsonTree root = session.envelope(
-            "definitions-package listing order for clips; GeometryManifest factory-class order for models");
+        JsonTree root = session.envelope("definitions-package listing order for clips; "
+            + "model simple name for models and for poses, and bone name within a pose");
         JsonTree clipsNode = root.child("clips");
         for (KeyframeClip clip : clips) clipsNode.put(clip.coordinate(), clipNode(clip));
 
@@ -58,7 +60,12 @@ public final class PoseFlow {
             modelsNode.put(entry.getKey(), bindings);
         }
 
+        // Written after the two that were here first, so neither of them moves a byte.
+        JsonTree posesNode = root.child("poses");
+        PoseJson.all(poses).forEach(posesNode::put);
+
         reportDeadClips(clips, byModel, diagnostics);
+        reportRefusedPoses(poses, diagnostics);
         root.write(out);
         diagnostics.info("wrote %s", out.toAbsolutePath());
     }
@@ -92,18 +99,58 @@ public final class PoseFlow {
      * derivation, so it is resolved once and the result reused.
      */
     private static @NotNull Map<String, List<ClipBinding>> resolveModels(
-        @NotNull ToolingSession session, @NotNull GeometryManifest manifest, @NotNull Diagnostics diagnostics) {
-
-        Set<String> classes = new LinkedHashSet<>();
-        for (GeometryRequest request : manifest.entries().values()) classes.add(request.factoryClass());
+        @NotNull ToolingSession session, @NotNull Set<String> roster, @NotNull Diagnostics diagnostics) {
 
         Map<String, List<ClipBinding>> out = new TreeMap<>();
-        for (String internal : classes) {
+        for (String internal : roster) {
             List<ClipBinding> bindings = ClipBindingResolver.resolve(session.cache(), internal, diagnostics);
             if (bindings.isEmpty()) continue;
             out.merge(ClassKit.simpleName(internal), bindings, (first, second) -> first);
         }
         return out;
+    }
+
+    /**
+     * Every model class the geometry manifest sources a mesh from.
+     *
+     * <p>Held apart from what is done with it, because the two halves want different subsets: a
+     * model binds a clip only if it plays one, and every model has a pose even when that pose is
+     * empty. Narrowing the roster where the clips are resolved would have made the poses the same
+     * twenty-one rows rather than the hundred and eleven models there are.
+     */
+    private static @NotNull Set<String> rosterClasses(@NotNull GeometryManifest manifest) {
+        Set<String> classes = new LinkedHashSet<>();
+        for (GeometryRequest request : manifest.entries().values()) classes.add(request.factoryClass());
+        return classes;
+    }
+
+    /**
+     * Walks every model's {@code setupAnim} into the pose it computes, or into why there is not one.
+     *
+     * <p>Keyed by simple name like the rest of the table, first binding winning, which is the same
+     * rule the clip bindings resolve under - a class appears once per mesh derivation and answers
+     * the same either time.
+     */
+    private static @NotNull Map<String, PoseOutcome> walkModels(
+        @NotNull ToolingSession session, @NotNull Set<String> roster, @NotNull Diagnostics diagnostics) {
+
+        Map<String, PoseOutcome> out = new TreeMap<>();
+        for (String internal : roster)
+            out.putIfAbsent(ClassKit.simpleName(internal), PoseWalk.extract(session.cache(), internal, diagnostics));
+        return out;
+    }
+
+    /**
+     * Counts the models whose pose could not be walked, so the gap is a stated number rather than
+     * something a reader has to total up out of the table.
+     */
+    private static void reportRefusedPoses(
+        @NotNull Map<String, PoseOutcome> poses, @NotNull Diagnostics diagnostics) {
+
+        long refused = poses.values().stream().filter(PoseOutcome.Refused.class::isInstance).count();
+        if (refused > 0)
+            diagnostics.info("walked %d of %d model poses; %d refused",
+                poses.size() - refused, poses.size(), refused);
     }
 
     /**
