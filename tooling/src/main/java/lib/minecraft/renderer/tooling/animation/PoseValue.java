@@ -151,6 +151,16 @@ public sealed interface PoseValue {
     record Comparison(@NotNull PoseExpr left, @NotNull PoseExpr right) implements PoseValue {}
 
     /**
+     * The container a model is built around, for a mesh that flattened it away.
+     *
+     * <p>Apart from {@link Part} because it is not a bone and never becomes one: the mesh names its
+     * children at top level and names it nowhere, so a channel written through it belongs to all of
+     * them rather than to any. Carried so that the write can be read as the move it is - what it
+     * shifts its children by is exactly what each of them is owed.
+     */
+    record MeshRoot() implements PoseValue {}
+
+    /**
      * Anything the model does not describe - a receiver, a render state, an item stack. Recognised
      * by identity, so the interpreter can tell it from a value that merely happens to be unknown.
      */

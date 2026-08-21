@@ -31,9 +31,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the round trip operand for operand, because a table that decodes into a DIFFERENT tree is a table
  * that reads perfectly and animates wrongly. A refusal has to arrive as a refusal, because a model
  * whose pose could not be read renders exactly like one that poses nothing. The pose has to follow
- * the mesh across the age fork, because a baby is its own model class - the turtle is posed through
- * its baby class ALONE and the donkey poses one thing as an adult and another as a foal, so one pose
- * per entity would be wrong for one of them whichever way it was chosen. And a sub-expression the
+ * the mesh across the age fork, because a baby is its own model class - a turtle poses a bone only
+ * its adult mesh has and a donkey poses its head off a pitch only its foal assigns, so one pose per
+ * entity would be wrong for one of them whichever way it was chosen. And a sub-expression the
  * table names once has
  * to arrive once, because a reader that rebuilt one per reference would turn a humanoid's nine
  * hundred nodes back into the twenty-two million the table exists not to write.
@@ -66,23 +66,31 @@ class EntityPoseLoadTest {
     @Test
     @DisplayName("a model whose pose could not be read says so rather than posing nothing")
     void aRefusalArrivesAsARefusal() {
-        EntityPose turtle = pose("minecraft:turtle");
-        assertFalse(turtle.isReadable(), "the adult turtle's pose is not readable");
-        assertTrue(turtle.refusal().orElseThrow().contains("root"),
-            "and it says what stopped it: the mesh flattened away the container the model poses");
-        assertEquals(List.of(), List.copyOf(turtle.bones().keySet()),
+        EntityPose dragon = pose("minecraft:ender_dragon");
+        assertFalse(dragon.isReadable(), "the ender dragon's pose is not readable");
+        assertTrue(dragon.refusal().orElseThrow().contains("getHistoricalPos"),
+            "and it says what stopped it: the model poses off a track of where it has lately been");
+        assertEquals(List.of(), List.copyOf(dragon.bones().keySet()),
             "a refusal poses nothing, which is how it renders and why it has to be distinguishable");
     }
 
     @Test
     @DisplayName("the pose follows the mesh across the age fork, in both directions")
     void thePoseSwapsWithTheBabyMesh() {
-        // The two directions are the whole point. A turtle is posed only as a baby and a donkey
-        // poses one thing as an adult and another as a foal, so a single pose per entity is wrong
-        // for one of them whichever way it is chosen - and wrong silently, because the bone names an
-        // adult and a baby share are the ones a wrong pose would animate.
-        assertFalse(pose("minecraft:turtle").isReadable(), "the adult turtle has no readable pose");
-        assertTrue(babyPose("minecraft:turtle").isReadable(), "the baby turtle does");
+        // The two directions are the whole point. Both ages of both animals pose, and each poses
+        // something the other does not, so a single pose per entity is wrong for one of them
+        // whichever way it is chosen - and wrong silently, because the bone names an adult and a
+        // baby share are the ones a wrong pose would animate.
+        //
+        // A turtle carries its egg on a belly bone only the adult mesh has, and only the adult's
+        // pose touches it. A baby handed the adult's pose would be posing a bone its own mesh does
+        // not declare.
+        assertTrue(pose("minecraft:turtle").isReadable(), "the adult turtle has a readable pose");
+        assertTrue(babyPose("minecraft:turtle").isReadable(), "and so does the baby");
+        assertTrue(pose("minecraft:turtle").bones().containsKey("egg_belly"),
+            "the adult turtle poses the belly it carries an egg on");
+        assertFalse(babyPose("minecraft:turtle").bones().containsKey("egg_belly"),
+            "the baby has no such bone and poses none");
 
         // Both donkeys pose, so their direction is read off what they pose WITH. A foal assigns its
         // own head pitch and reads that back, where the adult reads the pitch the render state

@@ -97,6 +97,16 @@ public final class PoseWalk {
 
     private static final @NotNull PoseValue.Opaque OPAQUE = new PoseValue.Opaque();
 
+    /**
+     * What the container a mesh flattened away is called while a walk is holding its channels.
+     *
+     * <p>Spelled so no mesh can name a bone the same way, the vocabulary a bone name is drawn from
+     * being the literals vanilla hands {@code addOrReplaceChild}. It never reaches a pose: the fold
+     * takes it out again, and a walk that left one standing fails the assertion that every posed bone
+     * is one its mesh declares.
+     */
+    private static final @NotNull String MESH_ROOT = "<mesh root>";
+
     /** The arithmetic the chassis routes here, keyed by opcode, at the width the opcode names. */
     private static final @NotNull Map<Integer, PoseOperator> ARITHMETIC = arithmetic();
 
@@ -342,11 +352,13 @@ public final class PoseWalk {
      *
      * @param cache the open client jar
      * @param modelClass the leaf model's internal name
+     * @param rootBones the bones this model's mesh names at top level, empty when it names none
      * @param diagnostics the scope findings are recorded against
      * @return the pose, or empty when the body holds a shape this does not model
      */
     public static @NotNull PoseOutcome extract(
-        @NotNull ClassNodeCache cache, @NotNull String modelClass, @NotNull Diagnostics diagnostics) {
+        @NotNull ClassNodeCache cache, @NotNull String modelClass, @NotNull Set<String> rootBones,
+        @NotNull Diagnostics diagnostics) {
 
         MethodNode body = findSetupAnim(cache, modelClass);
         // A model whose whole chain declares only the erased override poses nothing: what it
@@ -363,6 +375,7 @@ public final class PoseWalk {
 
         try {
             walkBody(body, context, 0);
+            foldMeshRoot(context, rootBones);
         } catch (IllegalStateException error) {
             // Narrowed to what the walk itself raises. A jar that lost a class raises something
             // else, and shipping that as a pose's reason would turn a broken run into a table
@@ -1344,6 +1357,7 @@ public final class PoseWalk {
             case PoseValue.EnumConstant constant ->
                 "the constant " + ClassKit.simpleName(constant.type()) + "." + constant.name();
             case PoseValue.Part part -> "the bone '" + part.bone() + "'";
+            case PoseValue.MeshRoot ignored -> "the container this mesh flattened away";
             case PoseValue.PartArray array -> "the array '" + array.field() + "'";
             case PoseValue.StateArray array -> "the whole of the render state's '" + array.member() + "'";
             case PoseValue.StaticRef named ->
@@ -1382,6 +1396,10 @@ public final class PoseWalk {
         if (VanillaSourceClasses.Types.MODEL_PART.equals(field.owner)) {
             PoseChannel channel = PoseChannel.ofField(field.name);
             if (channel == null) throw new IllegalStateException("reads ModelPart." + field.name + ", which is not a channel");
+            if (receiver instanceof PoseValue.MeshRoot) {
+                stack.push(num(current(pose, MESH_ROOT, channel)));
+                return;
+            }
             if (!(receiver instanceof PoseValue.Part part))
                 throw new IllegalStateException("reads a channel off a bone it could not name");
             stack.push(num(current(pose, part.bone(), channel)));
@@ -1391,11 +1409,15 @@ public final class PoseWalk {
             String bone = parts.boneOf(field.name);
             // The root every model inherits, which is a bone exactly when a constructor narrowed it
             // to one. Where none did it is the baked mesh root, a container the mesh flattens into
-            // several parented at nothing - and what a transform on the container means then is a
-            // question for whoever joins this to a mesh.
-            if (bone == null && isModelRoot(context, field))
-                bone = parts.rootBone().orElseThrow(() -> new IllegalStateException(
-                    "poses through the mesh root, which this mesh does not name as a bone"));
+            // several parented at nothing - so it is carried as the container it is, and what a
+            // write to it means is settled at the end, against the bones it holds.
+            if (bone == null && isModelRoot(context, field)) {
+                if (parts.rootBone().isEmpty()) {
+                    stack.push(new PoseValue.MeshRoot());
+                    return;
+                }
+                bone = parts.rootBone().orElseThrow();
+            }
             if (bone == null)
                 throw new IllegalStateException("uses part field '" + field.name + "', which no constructor binds");
             stack.push(new PoseValue.Part(bone));
@@ -1491,12 +1513,14 @@ public final class PoseWalk {
 
         PoseChannel channel = PoseChannel.ofField(field.name);
         if (channel == null) throw new IllegalStateException("writes ModelPart." + field.name + ", which is not a channel");
-        if (!(receiver instanceof PoseValue.Part part))
+        String bone = receiver instanceof PoseValue.MeshRoot ? MESH_ROOT
+            : receiver instanceof PoseValue.Part part ? part.bone() : null;
+        if (bone == null)
             throw new IllegalStateException("writes a channel to a bone it could not name");
         if (!(value instanceof PoseValue.Num written))
-            throw new IllegalStateException("writes " + part.bone() + "." + channel.token() + " a value it could not model");
+            throw new IllegalStateException("writes " + bone + "." + channel.token() + " a value it could not model");
 
-        pose.computeIfAbsent(part.bone(), bone -> new EnumMap<>(PoseChannel.class)).put(channel, written.expr());
+        pose.computeIfAbsent(bone, named -> new EnumMap<>(PoseChannel.class)).put(channel, written.expr());
     }
 
     /** One element of an array of bones, which needs the index to have folded to a literal. */
@@ -2130,6 +2154,93 @@ public final class PoseWalk {
     private static boolean isRenderStateReference(@NotNull MethodInsnNode call) {
         return call.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)
             && ClassKit.returnType(call.desc).getSort() == Type.OBJECT;
+    }
+
+    /**
+     * Folds what a body did to the flattened mesh root onto the bones that hang off it.
+     *
+     * <p>Children are placed by their container's transform and then their own, so a container
+     * carrying no rotation and no scale contributes a translation and nothing else - and a
+     * translation composes by addition, so shifting the container by an amount and shifting each of
+     * its children by that same amount put every child in the same place. The container is gone from
+     * the mesh, which is why the second spelling is the one that can be written down.
+     *
+     * <p>The guard is the whole of what makes that true and is not optional. A rotation turns the
+     * subtree about the container's own pivot, which reaches each child's POSITION as well as its
+     * rotation and is no term any one of them can be handed; a scale is the same argument. Neither
+     * is refused for being hard - they are refused because there is no answer of this shape.
+     *
+     * <p>What the fold gives a bone is what the write MOVED the container by rather than what it left
+     * it holding, which is why the container's own value never has to be known. It is already inside
+     * the children: a mesh that flattened the container placed them where it left them.
+     *
+     * <p>A bone this names is one the model never wrote to, which is the one thing here a reader
+     * would not expect from a pose. It is what the arithmetic says: the shift reaches every child,
+     * and a child the model never posed is still a child.
+     */
+    private static void foldMeshRoot(@NotNull Context context, @NotNull Set<String> rootBones) {
+        Map<PoseChannel, PoseExpr> container = context.pose().remove(MESH_ROOT);
+        if (container == null) return;
+
+        if (rootBones.isEmpty())
+            throw new IllegalStateException("poses through the mesh root, and this mesh names no bone under it");
+
+        for (Map.Entry<PoseChannel, PoseExpr> entry : container.entrySet()) {
+            PoseChannel channel = entry.getKey();
+            if (channel.kind() != PoseChannel.Kind.POSITION)
+                throw new IllegalStateException("poses the mesh root's " + channel.token()
+                    + ", which is not a move its children can each be given");
+
+            PoseExpr shift = shiftOf(entry.getValue(), channel);
+            if (shift == null)
+                throw new IllegalStateException("moves the mesh root's " + channel.token()
+                    + " to a place rather than by an amount, which its children cannot each be given");
+
+            for (String bone : rootBones)
+                write(context, bone, channel,
+                    PoseExpr.Op.of(PoseOperator.ADD, current(context.pose(), bone, channel), shift));
+        }
+    }
+
+    /**
+     * What a write to the container's channel moved it BY, rather than what it left it holding.
+     *
+     * <p>Read by taking the container's own value as the origin and keeping everything added to it:
+     * a channel left as it was found has moved by nothing, and one built by adding or subtracting a
+     * term that does not mention it has moved by that term. A write that does not reach the value it
+     * is replacing has no such reading and answers nothing, because the amount would be the
+     * difference against a value the flattened mesh no longer carries anywhere.
+     *
+     * @param written what the body left the channel holding
+     * @param channel the channel it wrote
+     * @return the amount it moved by, or {@code null} when the write is not a move
+     */
+    private static @Nullable PoseExpr shiftOf(@NotNull PoseExpr written, @NotNull PoseChannel channel) {
+        if (written.equals(new PoseExpr.BoneRead(MESH_ROOT, channel))) return PoseExpr.Const.of(0f);
+
+        if (written instanceof PoseExpr.Select select) {
+            // Each arm is a move of its own, so the choice between them is a choice of amount.
+            PoseExpr whenTrue = shiftOf(select.whenTrue(), channel);
+            PoseExpr whenFalse = shiftOf(select.whenFalse(), channel);
+            return whenTrue == null || whenFalse == null
+                ? null : new PoseExpr.Select(select.condition(), whenTrue, whenFalse);
+        }
+
+        if (!(written instanceof PoseExpr.Op op) || op.operands().size() != 2) return null;
+        PoseExpr left = op.operands().getFirst();
+        PoseExpr right = op.operands().getLast();
+        PoseExpr fromLeft = shiftOf(left, channel);
+        PoseExpr fromRight = shiftOf(right, channel);
+        // Exactly one side, because a term reaching the container's value twice is not one it was
+        // moved by - and the operand that does not reach it is carried through as itself.
+        if (fromLeft != null && fromRight != null) return null;
+        if (op.operator() == PoseOperator.ADD && fromLeft != null)
+            return PoseExpr.Op.of(PoseOperator.ADD, fromLeft, right);
+        if (op.operator() == PoseOperator.ADD && fromRight != null)
+            return PoseExpr.Op.of(PoseOperator.ADD, left, fromRight);
+        if (op.operator() == PoseOperator.SUB && fromLeft != null)
+            return PoseExpr.Op.of(PoseOperator.SUB, fromLeft, right);
+        return null;
     }
 
     /** Records one channel's new value. */

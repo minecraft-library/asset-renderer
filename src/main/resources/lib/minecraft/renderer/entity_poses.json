@@ -67402,7 +67402,552 @@
       }
     },
     "AdultTurtleModel": {
-      "refused": "poses through the mesh root, which this mesh does not name as a bone"
+      "shared": [
+        {
+          "select": [
+            {
+              "eq": [
+                {
+                  "input": "hasEgg"
+                },
+                {
+                  "iconst": 0
+                }
+              ]
+            },
+            {
+              "const": 0.0
+            },
+            {
+              "const": -1.0
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "input": "walkAnimationPos"
+            },
+            {
+              "const": 0.6662
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "mth_cos": [
+                    {
+                      "f2d": [
+                        {
+                          "ref": 1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 1.4
+                }
+              ]
+            },
+            {
+              "input": "walkAnimationSpeed"
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isOnLand"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isLayingEgg"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "input": "walkAnimationPos"
+            },
+            {
+              "const": 5.0
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "f2d": [
+                {
+                  "mul": [
+                    {
+                      "select": [
+                        {
+                          "ref": 4
+                        },
+                        {
+                          "const": 1.0
+                        },
+                        {
+                          "const": 4.0
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 5
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "select": [
+            {
+              "ref": 4
+            },
+            {
+              "const": 1.0
+            },
+            {
+              "const": 2.0
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mth_cos": [
+                {
+                  "f2d": [
+                    {
+                      "mul": [
+                        {
+                          "ref": 1
+                        },
+                        {
+                          "const": 0.6
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "const": 0.5
+                },
+                {
+                  "input": "walkAnimationSpeed"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "neg": [
+            {
+              "ref": 8
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "mth_cos": [
+                    {
+                      "f2d": [
+                        {
+                          "add": [
+                            {
+                              "ref": 1
+                            },
+                            {
+                              "const": 3.1415927
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 1.4
+                }
+              ]
+            },
+            {
+              "input": "walkAnimationSpeed"
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "f2d": [
+                {
+                  "ref": 5
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "bones": {
+        "body": {
+          "y": {
+            "add": [
+              {
+                "bone": [
+                  "body",
+                  "y"
+                ]
+              },
+              {
+                "ref": 0
+              }
+            ]
+          }
+        },
+        "egg_belly": {
+          "y": {
+            "add": [
+              {
+                "bone": [
+                  "egg_belly",
+                  "y"
+                ]
+              },
+              {
+                "ref": 0
+              }
+            ]
+          },
+          "visible": {
+            "input": "hasEgg"
+          }
+        },
+        "head": {
+          "y": {
+            "add": [
+              {
+                "bone": [
+                  "head",
+                  "y"
+                ]
+              },
+              {
+                "ref": 0
+              }
+            ]
+          },
+          "x_rot": {
+            "mul": [
+              {
+                "input": "xRot"
+              },
+              {
+                "const": 0.017453292
+              }
+            ]
+          },
+          "y_rot": {
+            "mul": [
+              {
+                "input": "yRot"
+              },
+              {
+                "const": 0.017453292
+              }
+            ]
+          }
+        },
+        "left_front_leg": {
+          "y": {
+            "add": [
+              {
+                "bone": [
+                  "left_front_leg",
+                  "y"
+                ]
+              },
+              {
+                "ref": 0
+              }
+            ]
+          },
+          "x_rot": {
+            "ref": 2
+          },
+          "y_rot": {
+            "select": [
+              {
+                "ref": 3
+              },
+              {
+                "bone": [
+                  "left_front_leg",
+                  "y_rot"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "mul": [
+                          {
+                            "ref": 6
+                          },
+                          {
+                            "const": 8.0
+                          }
+                        ]
+                      },
+                      {
+                        "input": "walkAnimationSpeed"
+                      }
+                    ]
+                  },
+                  {
+                    "ref": 7
+                  }
+                ]
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 3
+              },
+              {
+                "ref": 8
+              },
+              {
+                "bone": [
+                  "left_front_leg",
+                  "z_rot"
+                ]
+              }
+            ]
+          }
+        },
+        "left_hind_leg": {
+          "y": {
+            "add": [
+              {
+                "bone": [
+                  "left_hind_leg",
+                  "y"
+                ]
+              },
+              {
+                "ref": 0
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 3
+              },
+              {
+                "ref": 9
+              },
+              {
+                "ref": 10
+              }
+            ]
+          },
+          "y_rot": {
+            "select": [
+              {
+                "ref": 3
+              },
+              {
+                "bone": [
+                  "left_hind_leg",
+                  "y_rot"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "ref": 11
+                      },
+                      {
+                        "const": 3.0
+                      }
+                    ]
+                  },
+                  {
+                    "input": "walkAnimationSpeed"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "right_front_leg": {
+          "y": {
+            "add": [
+              {
+                "bone": [
+                  "right_front_leg",
+                  "y"
+                ]
+              },
+              {
+                "ref": 0
+              }
+            ]
+          },
+          "x_rot": {
+            "ref": 10
+          },
+          "y_rot": {
+            "select": [
+              {
+                "ref": 3
+              },
+              {
+                "bone": [
+                  "right_front_leg",
+                  "y_rot"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "mul": [
+                          {
+                            "neg": [
+                              {
+                                "ref": 6
+                              }
+                            ]
+                          },
+                          {
+                            "const": 8.0
+                          }
+                        ]
+                      },
+                      {
+                        "input": "walkAnimationSpeed"
+                      }
+                    ]
+                  },
+                  {
+                    "ref": 7
+                  }
+                ]
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 3
+              },
+              {
+                "ref": 9
+              },
+              {
+                "bone": [
+                  "right_front_leg",
+                  "z_rot"
+                ]
+              }
+            ]
+          }
+        },
+        "right_hind_leg": {
+          "y": {
+            "add": [
+              {
+                "bone": [
+                  "right_hind_leg",
+                  "y"
+                ]
+              },
+              {
+                "ref": 0
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 3
+              },
+              {
+                "ref": 8
+              },
+              {
+                "ref": 2
+              }
+            ]
+          },
+          "y_rot": {
+            "select": [
+              {
+                "ref": 3
+              },
+              {
+                "bone": [
+                  "right_hind_leg",
+                  "y_rot"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "neg": [
+                          {
+                            "ref": 11
+                          }
+                        ]
+                      },
+                      {
+                        "const": 3.0
+                      }
+                    ]
+                  },
+                  {
+                    "input": "walkAnimationSpeed"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
     },
     "AdultWolfModel": {
       "shared": [
@@ -134284,7 +134829,7 @@
       }
     },
     "EnderDragonModel": {
-      "refused": "poses through the mesh root, which this mesh does not name as a bone"
+      "refused": "asks the render state for getHistoricalPos of a number this walk cannot phrase a test of, which is not a constant it can be named by"
     },
     "EndermanModel": {
       "shared": [

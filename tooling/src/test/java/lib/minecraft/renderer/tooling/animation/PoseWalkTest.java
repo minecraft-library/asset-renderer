@@ -93,9 +93,11 @@ class PoseWalkTest {
         cache = ClassNodeCache.open(ClientAcquisition.downloadJarToCache(ClientOptions.defaults()));
         diagnostics = Diagnostics.root("pose", Diagnostics.Output.NONE, null);
         roster = rosterClasses();
+        Map<String, Set<String>> rootBones = meshRootBones();
         extracted = new TreeMap<>();
         for (String model : roster)
-            if (PoseWalk.extract(cache, model, diagnostics) instanceof PoseOutcome.Extracted walked)
+            if (PoseWalk.extract(cache, model, rootBones.getOrDefault(model, Set.of()), diagnostics)
+                instanceof PoseOutcome.Extracted walked)
                 extracted.put(model, walked.program());
     }
 
@@ -589,6 +591,36 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a turtle carrying an egg drops by one, and everything the container held drops with it")
+    void aFlattenedContainerFoldsOntoTheBonesItHeld() {
+        // AdultTurtleModel poses the container it was built around - root.y -= 1, while the egg belly
+        // is showing - and the mesh flattened that container away, so the write has nowhere of its
+        // own to land. It lands on each of the bones the container held instead, which is the same
+        // total move: translation composes by addition.
+        //
+        // Two things have to be right and each is a different animal. The set has to be the WHOLE of
+        // what the container held, because a bone left out stays where it was while the rest of the
+        // turtle drops. And what each bone is given has to be the amount the write MOVED the
+        // container by rather than what it left it holding - which is why a turtle with no egg moves
+        // by exactly nothing, and why the container's own value never has to be known.
+        PoseProgram turtle = extracted.get("net/minecraft/client/model/animal/turtle/AdultTurtleModel");
+        assertNotNull(turtle, "AdultTurtleModel is expected to extract");
+
+        PoseExpr shift = new PoseExpr.Select(
+            PosePredicate.Compare.of(PosePredicate.Comparison.EQ,
+                new PoseExpr.Input("hasEgg"), PoseExpr.Const.of(0)),
+            PoseExpr.Const.of(0f), PoseExpr.Const.of(-1f));
+
+        Set<String> held = Set.of("head", "body", "egg_belly",
+            "right_hind_leg", "left_hind_leg", "right_front_leg", "left_front_leg");
+        assertEquals(held, turtle.bones().keySet(), "the container held every bone this mesh names");
+        for (String bone : held)
+            assertEquals(PoseExpr.Op.of(PoseOperator.ADD, new PoseExpr.BoneRead(bone, PoseChannel.Y), shift),
+                turtle.bones().get(bone).get(PoseChannel.Y),
+                bone + " drops by whatever the container it hung off was moved by");
+    }
+
+    @Test
     @DisplayName("a piglin's crossbow arms turn on which arm is its main one, and land the right way round")
     void aSplitReachesInsideAComparisonTheCallerBuilt() {
         // The crossbow hold picks a main arm and an off arm out of the two bones it was handed, and
@@ -811,7 +843,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(106, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(107, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------
@@ -857,6 +889,27 @@ class PoseWalkTest {
 
     private static @NotNull List<String> rosterClasses() {
         return List.copyOf(new TreeSet<>(meshBones().keySet()));
+    }
+
+    /**
+     * The bones each model's mesh names at TOP LEVEL, which is what the flattened container holds.
+     *
+     * <p>Read off the shipped table rather than off a fresh parse, the same source the roster and the
+     * dangling-bone check are read from - so a walk and the mesh it is checked against cannot come
+     * from two different readings of the corpus.
+     */
+    private static @NotNull Map<String, Set<String>> meshRootBones() {
+        JsonElement root = GSON.fromJson(read(SHIPPED_GEOMETRY), JsonElement.class);
+        Map<String, Set<String>> out = new TreeMap<>();
+        root.getAsJsonObject().getAsJsonObject("geometries").entrySet().forEach(entry -> {
+            var mesh = entry.getValue().getAsJsonObject();
+            String owner = mesh.getAsJsonObject("source").get("class").getAsString();
+            mesh.getAsJsonObject("bones").entrySet().forEach(bone -> {
+                if (!bone.getValue().getAsJsonObject().has("parent"))
+                    out.computeIfAbsent(owner, key -> new TreeSet<>()).add(bone.getKey());
+            });
+        });
+        return out;
     }
 
     private static @NotNull Map<String, Set<String>> meshBones() {

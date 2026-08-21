@@ -13,6 +13,8 @@ import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Entry point of the {@code entityModels} Gradle task - runs the entity-models flow then the shared
@@ -36,8 +38,9 @@ public final class ToolingEntityModels {
             GeometryManifest manifest = new GeometryManifest();
             EntityRegistryWalk.run(session, subjects, manifest, root);
             session.write(root, "entity_models.json");
-            GeometryFlow.emit(session, manifest, session.resolve("entity_geometry.json"));
-            PoseFlow.emit(session, manifest, session.resolve("entity_poses.json"));
+            Map<String, Set<String>> rootBones =
+                GeometryFlow.emit(session, manifest, session.resolve("entity_geometry.json"));
+            PoseFlow.emit(session, manifest, rootBones, session.resolve("entity_poses.json"));
             session.failOnStrictGate();
         }
     }

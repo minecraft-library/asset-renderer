@@ -38,14 +38,18 @@ public final class PoseFlow {
      *
      * @param session the live session
      * @param manifest the registry the models walk populated, read for its factory classes
+     * @param rootBones the bones each class's mesh names at top level, from the geometry flow
      * @param out the output path
      */
-    public static void emit(@NotNull ToolingSession session, @NotNull GeometryManifest manifest, @NotNull Path out) {
+    public static void emit(
+        @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
+        @NotNull Map<String, Set<String>> rootBones, @NotNull Path out) {
+
         Diagnostics diagnostics = session.diagnostics().child("pose");
         List<KeyframeClip> clips = KeyframeDefinitionParser.parseAll(session.cache(), diagnostics);
         Set<String> roster = rosterClasses(manifest);
         Map<String, List<ClipBinding>> byModel = resolveModels(session, roster, diagnostics);
-        Map<String, PoseOutcome> poses = walkModels(session, roster, diagnostics);
+        Map<String, PoseOutcome> poses = walkModels(session, roster, rootBones, diagnostics);
 
         JsonTree root = session.envelope("definitions-package listing order for clips; "
             + "model simple name for models and for poses, and bone name within a pose");
@@ -132,11 +136,13 @@ public final class PoseFlow {
      * the same either time.
      */
     private static @NotNull Map<String, PoseOutcome> walkModels(
-        @NotNull ToolingSession session, @NotNull Set<String> roster, @NotNull Diagnostics diagnostics) {
+        @NotNull ToolingSession session, @NotNull Set<String> roster,
+        @NotNull Map<String, Set<String>> rootBones, @NotNull Diagnostics diagnostics) {
 
         Map<String, PoseOutcome> out = new TreeMap<>();
         for (String internal : roster)
-            out.putIfAbsent(ClassKit.simpleName(internal), PoseWalk.extract(session.cache(), internal, diagnostics));
+            out.putIfAbsent(ClassKit.simpleName(internal), PoseWalk.extract(
+                session.cache(), internal, rootBones.getOrDefault(internal, Set.of()), diagnostics));
         return out;
     }
 

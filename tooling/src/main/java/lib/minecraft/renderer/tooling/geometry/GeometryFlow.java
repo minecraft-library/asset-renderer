@@ -9,8 +9,12 @@ import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The shared geometry pipeline: consumes the manifest a models walk populated in the same
@@ -59,9 +63,14 @@ public final class GeometryFlow {
      * @param session the live session
      * @param manifest the registry the models walk populated
      * @param out the output path ({@code entity_geometry.json} / {@code block_geometry.json})
+     * @return the bones each factory class's mesh names at top level, by class
      */
-    public static void emit(@NotNull ToolingSession session, @NotNull GeometryManifest manifest, @NotNull Path out) {
+    public static @NotNull Map<String, Set<String>> emit(
+        @NotNull ToolingSession session, @NotNull GeometryManifest manifest, @NotNull Path out) {
+
         Diagnostics diagnostics = session.diagnostics().child("geometry");
+        Map<String, Set<String>> rootBones = new LinkedHashMap<>();
+        Set<String> disagreed = new LinkedHashSet<>();
         JsonTree root = session.envelope(
             "GeometryManifest registration order (walk order; append-last as a data-structure property)");
         JsonTree geometries = root.child("geometries");
@@ -84,9 +93,40 @@ public final class GeometryFlow {
                 node.put("cull", true);
             node.putIf("bones", parsed.find("bones"));
             geometries.put(key, node);
+            recordRootBones(rootBones, disagreed, request.factoryClass(), parsed);
         }
         root.write(out);
         diagnostics.info("wrote %s", out.toAbsolutePath());
+
+        disagreed.forEach(rootBones::remove);
+        return Collections.unmodifiableMap(rootBones);
+    }
+
+    /**
+     * Notes the bones one mesh names at top level, against the class that built it.
+     *
+     * <p>A bone with no parent is one the mesh root holds directly, which is what a caller asking
+     * this wants: the set a transform on that container reaches, the container itself being flattened
+     * away by the time a mesh is written.
+     *
+     * <p>A class appears once per mesh derivation and its derivations have to AGREE, because what
+     * this answers is a fact about the model rather than about one of its meshes. One whose baby and
+     * adult meshes name different sets has no single answer, so it gets none rather than one of them.
+     */
+    private static void recordRootBones(
+        @NotNull Map<String, Set<String>> rootBones, @NotNull Set<String> disagreed,
+        @NotNull String factoryClass, @NotNull JsonTree parsed) {
+
+        JsonTree bones = parsed.find("bones").orElse(null);
+        if (bones == null) return;
+
+        Set<String> named = new LinkedHashSet<>();
+        bones.members().forEach((name, bone) -> {
+            if (bone.findString("parent").isEmpty()) named.add(name);
+        });
+
+        Set<String> held = rootBones.putIfAbsent(factoryClass, Collections.unmodifiableSet(named));
+        if (held != null && !held.equals(named)) disagreed.add(factoryClass);
     }
 
     /**
