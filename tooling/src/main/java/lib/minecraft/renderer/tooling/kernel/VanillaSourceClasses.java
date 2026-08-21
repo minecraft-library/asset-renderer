@@ -471,6 +471,9 @@ public final class VanillaSourceClasses {
         /** {@code KeyframeAnimation.applyStatic()} - holds a clip at its first frame, unconditionally. */
         public static final @NotNull String APPLY_STATIC = "applyStatic";
 
+        /** {@code Enum.ordinal()} - a constant's declared position, which a switch dispatches on. */
+        public static final @NotNull String ORDINAL = "ordinal";
+
         /** {@code AnimationState.isStarted()} - whether the animation a pose is gated on is running. */
         public static final @NotNull String IS_STARTED = "isStarted";
 

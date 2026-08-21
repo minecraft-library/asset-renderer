@@ -75,6 +75,9 @@ public final class PoseWalk {
     /** The erased override every model carries beside its typed one; walking it finds no body. */
     private static final @NotNull String ERASED_SETUP_ANIM = "(Ljava/lang/Object;)V";
 
+    /** {@code Enum.ordinal}, matched whole so nothing else of that name is mistaken for it. */
+    private static final @NotNull String ORDINAL_DESCRIPTOR = "()I";
+
     /** Where the super chain stops being a pose and becomes the reset. */
     private static final @NotNull List<String> RESET_ROOTS =
         List.of(VanillaSourceClasses.Types.ENTITY_MODEL, VanillaSourceClasses.Types.MODEL);
@@ -215,8 +218,16 @@ public final class PoseWalk {
         @NotNull Interp<PoseValue> stack,
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
         @NotNull List<PoseClipSite> clipSites,
+        @NotNull Map<String, Optional<EnumConstantTable>> enums,
         int @NotNull [] forks
-    ) {}
+    ) {
+
+        /** One enum's constants, read once per extraction however many times they are asked for. */
+        @NotNull Optional<EnumConstantTable> enumeration(@NotNull String type) {
+            return this.enums.computeIfAbsent(type, named -> EnumConstantTable.of(this.cache, named));
+        }
+
+    }
 
     /**
      * Extracts one model's pose.
@@ -238,7 +249,7 @@ public final class PoseWalk {
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
             ClipBindingResolver.fieldToClip(cache, modelClass),
             Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS),
-            new LinkedHashMap<>(), new ArrayList<>(), new int[1]);
+            new LinkedHashMap<>(), new ArrayList<>(), new LinkedHashMap<>(), new int[1]);
 
         try {
             walkBody(body, context, 0);
@@ -537,6 +548,15 @@ public final class PoseWalk {
      * @return {@code 1} to jump, {@code 0} to fall through, or {@code null} when nothing decides it
      */
     private static @Nullable Integer decide(int opcode, @NotNull PoseValue tested, @Nullable PoseValue against) {
+        if (opcode == Opcodes.IF_ACMPEQ || opcode == Opcodes.IF_ACMPNE) {
+            // Two constants of an enum are the same object exactly when they are the same constant,
+            // so a comparison between them is decided rather than deferred. Without this a body that
+            // has been told which constant it is looking at still branches on the answer.
+            if (!(tested instanceof PoseValue.EnumConstant right)
+                || !(against instanceof PoseValue.EnumConstant left)) return null;
+            boolean same = left.type().equals(right.type()) && left.name().equals(right.name());
+            return same == (opcode == Opcodes.IF_ACMPEQ) ? 1 : 0;
+        }
         if (against != null) {
             Integer right = literalInt(tested);
             Integer left = literalInt(against);
@@ -798,6 +818,10 @@ public final class PoseWalk {
             else stack.push(new PoseValue.StateRef(field.name, referenced(field.desc)));
             return;
         }
+        if (receiver instanceof PoseValue.EnumConstant constant) {
+            stack.push(num(constantField(context, constant, field)));
+            return;
+        }
         stack.push(OPAQUE);
     }
 
@@ -835,6 +859,53 @@ public final class PoseWalk {
         return new PoseValue.Part(bone);
     }
 
+    /**
+     * What one enum constant's field holds, which its own declaration decided once and for all.
+     *
+     * <p>This is the whole of what an enum's accessors are: a body that reads a field a constructor
+     * bound to a literal. Answering the field answers every method that returns it, through the
+     * inliner rather than through a table of method names - a walk that knows which constant it is
+     * looking at can simply read it.
+     */
+    private static @NotNull PoseExpr constantField(
+        @NotNull Context context, @NotNull PoseValue.EnumConstant constant, @NotNull FieldInsnNode field) {
+
+        String named = ClassKit.simpleName(constant.type()) + "." + constant.name();
+        EnumConstantTable.Constant held = context.enumeration(constant.type())
+            .flatMap(table -> table.byName(constant.name()))
+            .orElseThrow(() -> new IllegalStateException("reads " + named + ", which declares no such constant"));
+
+        Double value = held.fields().get(field.name);
+        if (value == null)
+            throw new IllegalStateException("reads " + named + "." + field.name
+                + ", which its declaration does not settle on a number");
+        return switch (field.desc) {
+            case "F" -> PoseExpr.Const.of((float) (double) value);
+            case "D" -> PoseExpr.Const.of((double) value);
+            case "I", "Z", "B", "C", "S" -> PoseExpr.Const.of((int) (double) value);
+            default -> throw new IllegalStateException("reads " + named + "." + field.name
+                + ", which is not a number a pose can carry");
+        };
+    }
+
+    /**
+     * A constant's declared position, which is what a switch over an enum actually dispatches on.
+     *
+     * <p>Answered here rather than by walking {@code ordinal}, whose body is declared in the JDK and
+     * is in no client jar. A walk that tried to enter it would report a missing body and say nothing
+     * about the enum.
+     */
+    private static void constantOrdinal(@NotNull MethodInsnNode call, @NotNull Context context) {
+        PoseValue receiver = context.stack().pop();
+        if (!(receiver instanceof PoseValue.EnumConstant constant))
+            throw new IllegalStateException("asks the position of something this walk has not resolved to a constant");
+        EnumConstantTable.Constant held = context.enumeration(constant.type())
+            .flatMap(table -> table.byName(constant.name()))
+            .orElseThrow(() -> new IllegalStateException("asks the position of "
+                + ClassKit.simpleName(constant.type()) + "." + constant.name() + ", which declares no such constant"));
+        context.stack().push(num(PoseExpr.Const.of(held.ordinal())));
+    }
+
     /** One element of an array the render state holds, which needs the index to have folded. */
     private static @NotNull PoseExpr numberElement(@NotNull PoseValue array, @NotNull PoseValue index) {
         if (!(array instanceof PoseValue.StateArray held))
@@ -863,6 +934,11 @@ public final class PoseWalk {
 
         if (STATE_QUESTIONS.contains(key(call))) {
             stateQuestion(call, context);
+            return;
+        }
+
+        if (VanillaSourceClasses.Methods.ORDINAL.equals(call.name) && ORDINAL_DESCRIPTOR.equals(call.desc)) {
+            constantOrdinal(call, context);
             return;
         }
 
