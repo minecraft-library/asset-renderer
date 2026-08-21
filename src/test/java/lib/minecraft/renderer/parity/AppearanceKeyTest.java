@@ -53,6 +53,7 @@ final class AppearanceKeyTest {
             .axes(new Entity.Axes(
                 Map.of(),          // stateTextures
                 Optional.empty(),  // babyModel
+                Optional.empty(),  // babyPose
                 List.of(),         // babyOverlays
                 Optional.empty(),  // largeShape
                 Map.of(),          // sizeModels

@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.appearance.TropicalFishPattern;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.option.AppearanceOptions;
@@ -82,6 +83,10 @@ import java.util.Set;
  * @param members the self-inclusive canvas-group membership - every entity id that shares this
  *     entity's group-union fit window ({@code EntityOptions.FitMode.GROUP_BOUNDS}), the SAME list on
  *     each member of the group; empty for a singleton entity with no group
+ * @param pose what this entity's model does to its bones before it is drawn, joined from the model
+ *     class the {@link #model} coordinate is headed with. A model that poses nothing and one whose
+ *     pose could not be read are both {@link EntityPose#isReadable() distinguishable} here, because
+ *     they render identically and only one of them is right
  */
 @ClassBuilder
 public record Entity(
@@ -96,12 +101,17 @@ public record Entity(
     @NotNull Map<String, BoneToggle> boneToggles,
     @NotNull Axes axes,
     @NotNull Layers layers,
-    @NotNull List<String> members
+    @NotNull List<String> members,
+    @NotNull EntityPose pose
 ) {
 
-    /** Normalises a never-set {@link #members} to an empty (singleton) list so callers can omit it. */
+    /**
+     * Normalises a never-set {@link #members} to an empty (singleton) list and a never-set
+     * {@link #pose} to the pose of a model that poses nothing, so callers can omit either.
+     */
     public Entity {
         members = members == null ? List.of() : members;
+        pose = pose == null ? EntityPose.NONE : pose;
     }
 
     /**
@@ -169,7 +179,12 @@ public record Entity(
         Optional<Shell> armor = definition.layers().humanoidArmor()
             .map(shell -> shell.forAppearance(appearance));
         if (appearance.isBaby() && definition.axes().babyModel().isPresent()) {
+            // The pose swaps WITH the mesh and never without it. A baby is a different model class,
+            // so it is a different pose, and two of the families that pose at all are posed through
+            // the baby class alone - carrying the adult's pose onto a baby mesh would animate bones
+            // by the names the adult happens to share.
             builder.model(definition.axes().babyModel().get())
+                .pose(definition.axes().babyPose().orElse(EntityPose.NONE))
                 .overlays(gatedOverlays(definition.axes().babyOverlays(), appearance))
                 .blockOverlays(List.of())
                 .layers(new Layers(Optional.empty(), List.of(), definition.layers().markings(), armor));
@@ -304,6 +319,10 @@ public record Entity(
      *     {@code wild}/{@code tame}/{@code angry}) plus the {@code baby} texture, populated for
      *     multi-state / ageable variant models; empty otherwise. The {@code wild} entry, when present,
      *     equals the definition's {@code textureRef}
+     * @param babyPose the pose of the baby mesh's own model class, swapped in beside
+     *     {@code babyModel} rather than derived from it - two of the families that pose at all are
+     *     posed through their baby coordinate ALONE, so a single pose per entity could not say which
+     *     of the two ages it was about. Empty when the family has no distinct baby mesh
      * @param babyModel the distinct baked baby mesh, used in place of the base model when the
      *     {@code age} axis selects {@code baby}; empty for entities with no dedicated baby mesh
      * @param babyOverlays the overlay passes materialised on the baby mesh (the villager biome robe, the
@@ -333,6 +352,7 @@ public record Entity(
     public record Axes(
         @NotNull Map<String, String> stateTextures,
         @NotNull Optional<EntityModelData> babyModel,
+        @NotNull Optional<EntityPose> babyPose,
         @NotNull List<OverlayLayer> babyOverlays,
         @NotNull Optional<LargeShape> largeShape,
         @NotNull Map<Size, EntityModelData> sizeModels,

@@ -133,8 +133,13 @@ public class EntityModelData {
 
         /**
          * The bone's rotation about its {@link #pivot}, in the parent's frame - the vanilla
-         * {@code PartPose} rest rotation plus any runtime {@code setupAnim} pose. Propagates
-         * through the ancestor anchor chain so descendant bones swing along with this bone.
+         * {@code PartPose} rest rotation, and that alone. Propagates through the ancestor anchor
+         * chain so descendant bones swing along with this bone.
+         *
+         * <p>What a model does to its bones at animation time is held apart, on
+         * {@link lib.minecraft.renderer.asset.Entity#pose() Entity.pose} - a rotation here is the
+         * pose every bone is put back to before any of that is applied, which is what makes it the
+         * value an unwritten channel reads.
          */
         @JsonAdapter(EulerRotation.Adapter.class)
         private @NotNull EulerRotation rotation = EulerRotation.NONE;

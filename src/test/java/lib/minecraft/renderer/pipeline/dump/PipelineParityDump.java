@@ -16,6 +16,9 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PoseChannel;
+import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTexture;
@@ -1297,7 +1300,50 @@ public final class PipelineParityDump {
         // Canvas-group membership: emitted only for genuine groups (size > 1) so singleton entities
         // stay byte-identical; the members set has no meaningful order, so sort for a canonical array.
         if (!entity.members().isEmpty()) root.add("members", CanonicalJson.strings(entity.members()));
+        // The pose as a digest rather than in full: it is the largest thing an entity carries by a
+        // wide margin, and what this section needs of it is whether it moved. Emitted only where
+        // there is one, on the same terms as members, so the entities that pose nothing stay
+        // byte-identical - which is most of the roster and all of the block-shaped subjects.
+        if (!entity.pose().bones().isEmpty() || !entity.pose().clips().isEmpty()
+            || entity.pose().refusal().isPresent())
+            root.addProperty("pose", CanonicalJson.digest(pose(entity.pose())));
         return root;
+    }
+
+    /**
+     * Returns one entity's pose. A refusal is emitted as the reason rather than as an absence, so a
+     * model whose pose could not be read is not indistinguishable from one that poses nothing.
+     *
+     * @param pose the pose to emit
+     * @return the pose object
+     */
+    private static @NotNull JsonObject pose(@NotNull EntityPose pose) {
+        JsonObject root = new JsonObject();
+        CanonicalJson.put(root, "refusal", pose.refusal(), JsonPrimitive::new);
+        root.add("bones", CanonicalJson.map(pose.bones(),
+            channels -> CanonicalJson.map(channels, PoseChannel::token, PipelineParityDump::poseExpr)));
+        root.add("clips", CanonicalJson.ordered(pose.clips(), clip -> {
+            JsonObject node = new JsonObject();
+            node.addProperty("clip", clip.coordinate());
+            node.addProperty("gate", clip.gate().token());
+            node.add("args", CanonicalJson.ordered(clip.arguments(), PipelineParityDump::poseExpr));
+            return node;
+        }));
+        return root;
+    }
+
+    /**
+     * Returns one pose expression, as the text of its own tree.
+     *
+     * <p>Written as text rather than as structure because this section only ever digests it: what a
+     * reader of the dump wants to know is whether the arithmetic moved, and the shipped table is
+     * where the arithmetic itself is legible.
+     *
+     * @param expr the expression to emit
+     * @return the expression as a string
+     */
+    private static @NotNull JsonPrimitive poseExpr(@NotNull PoseExpr expr) {
+        return new JsonPrimitive(expr.toString());
     }
 
     /**

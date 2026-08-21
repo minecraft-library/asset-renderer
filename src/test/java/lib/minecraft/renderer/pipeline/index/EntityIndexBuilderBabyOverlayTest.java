@@ -226,7 +226,7 @@ class EntityIndexBuilderBabyOverlayTest {
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, villagerFamily());
         models.put(CONTROL, controlFamily());
-        return EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models));
+        return EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), Map.of());
     }
 
     @Test
@@ -298,7 +298,7 @@ class EntityIndexBuilderBabyOverlayTest {
             ageAxes("minecraft:textures/entity/llama/llama_creamy.png",
                 "minecraft:textures/entity/llama/llama_creamy_baby.png"),  // axes
             null));                                      // group_of
-        Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models)).get(ENTITY);
+        Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), Map.of()).get(ENTITY);
 
         assertThat("the adult decor inflates by its row grow",
             firstCubeGrow(llama.overlays().getFirst().model()), is(0.5f));

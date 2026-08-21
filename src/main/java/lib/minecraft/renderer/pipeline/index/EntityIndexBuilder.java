@@ -24,6 +24,7 @@ import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.parity.Parity;
@@ -76,19 +77,21 @@ public final class EntityIndexBuilder {
      *
      * @param geometries the geometry coordinate to bone tree table
      * @param rawFile the raw model catalog
+     * @param poses the pose of each model class, by the simple name a coordinate is headed with
      * @return definitions keyed by namespaced entity id, in file order
      * @throws PipelineException if an entity references a geometry coordinate absent from the geometry file
      */
     public static @NotNull ConcurrentMap<String, Entity> assemble(
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull RawEntityModelsFile rawFile
+        @NotNull RawEntityModelsFile rawFile,
+        @NotNull Map<String, EntityPose> poses
     ) {
         Map<String, RawModel> models = rawFile.models();
         if (models == null) return Concurrent.newMap();
         LinkedHashMap<String, Entity> definitions = new LinkedHashMap<>();
         for (Map.Entry<String, RawModel> entry : models.entrySet()) {
             if (entry.getValue() == null) continue;
-            readDefinition(entry.getKey(), entry.getValue(), geometries, definitions);
+            readDefinition(entry.getKey(), entry.getValue(), geometries, poses, definitions);
         }
         attachGroupMembers(models, definitions);
         return Concurrent.adoptMap(definitions);
@@ -165,6 +168,7 @@ public final class EntityIndexBuilder {
         @NotNull String familyId,
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Map<String, EntityPose> poses,
         @NotNull Map<String, Entity> definitions
     ) {
         // The family baseline (primary geometry + adult texture) lives under the mandatory age axis'
@@ -197,14 +201,17 @@ public final class EntityIndexBuilder {
         String babyCoord = babyGeometryOf(family);
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
             : Optional.ofNullable(geometries.get(babyCoord)).map(baby -> shiftModel(baby, babyYShift));
+        // Beside the baby MESH rather than derived from it: a baby is its own model class, and two of
+        // the families that pose at all are posed through that class alone.
+        Optional<EntityPose> babyPose = babyCoord == null ? Optional.empty() : Optional.of(poseOf(poses, babyCoord));
         List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, babyCoord, babyModel, familyId);
 
         RawVariantAxis variant = variantAxis(family);
         if (variant != null) {
             String defaultOption = variant.defaultOption();
             Map<String, RawVariantOption> options = variant.options();
-            VariantContext ctx = new VariantContext(baseCoord, geometries, hiddenBones, boneToggleSpecs, familyOverlays,
-                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyOverlays, collarTexture, equipment, markings, humanoidArmor,
+            VariantContext ctx = new VariantContext(baseCoord, geometries, poses, hiddenBones, boneToggleSpecs, familyOverlays,
+                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyPose, babyOverlays, collarTexture, equipment, markings, humanoidArmor,
                 stateDefaultOf(family));
             // one base row minecraft:<id>, the coat resolved at render. Every option
             // is built into a sub-definition; the base row IS the default coat carrying the full option map.
@@ -214,7 +221,7 @@ public final class EntityIndexBuilder {
             Entity base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
             Entity.Axes baseAxes = base.axes();
             definitions.put(familyId, base.mutate()
-                .axes(new Entity.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.babyOverlays(),
+                .axes(new Entity.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.babyPose(), baseAxes.babyOverlays(),
                     baseAxes.largeShape(), baseAxes.sizeModels(), baseAxes.sizeScales(), Map.copyOf(coats),
                     Optional.ofNullable(defaultOption), stateDefaultOf(family), sizeDefaultOf(family)))
                 .build());
@@ -242,12 +249,31 @@ public final class EntityIndexBuilder {
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .boneToggles(toggles)
-            .axes(new Entity.Axes(stateTextures, babyModel, babyOverlays,
+            .pose(poseOf(poses, baseCoord))
+            .axes(new Entity.Axes(stateTextures, babyModel, babyPose, babyOverlays,
                 buildLargeShape(family, geometries, familyId),
                 buildSizeModels(family, geometries, hiddenBones, familyId),
                 buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
             .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
             .build());
+    }
+
+    /**
+     * The pose of whatever model a geometry coordinate names.
+     *
+     * <p>The join is the coordinate's own head: a coordinate is {@code Class#member} and a pose is
+     * keyed by that class, so nothing had to be threaded through the model table to say which pose
+     * a mesh takes. A coordinate whose class the pose table does not name poses nothing, which is
+     * the honest answer for every mesh the walk never looked at - a worn shell, a saddle, a mesh
+     * derived under a suffix.
+     *
+     * @param poses the pose of each model class, by simple name
+     * @param coordinate the geometry coordinate to resolve
+     * @return the pose that model takes, or the pose of a model that poses nothing
+     */
+    private static @NotNull EntityPose poseOf(@NotNull Map<String, EntityPose> poses, @NotNull String coordinate) {
+        int member = coordinate.indexOf('#');
+        return poses.getOrDefault(member < 0 ? coordinate : coordinate.substring(0, member), EntityPose.NONE);
     }
 
     /**
@@ -257,6 +283,7 @@ public final class EntityIndexBuilder {
     private record VariantContext(
         @NotNull String baseCoord,
         @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Map<String, EntityPose> poses,
         @Nullable List<String> hiddenBones,
         @Nullable Map<String, RawToggle> boneToggleSpecs,
         @NotNull List<RawOverlay> familyOverlays,
@@ -265,6 +292,7 @@ public final class EntityIndexBuilder {
         float setupYawAddend,
         float rendererScale,
         @NotNull Optional<EntityModelData> babyModel,
+        @NotNull Optional<EntityPose> babyPose,
         @NotNull List<OverlayLayer> babyOverlays,
         @NotNull Optional<String> collarTexture,
         @NotNull List<EquipmentOverlay> equipment,
@@ -301,7 +329,8 @@ public final class EntityIndexBuilder {
             .blockOverlays(coatBlockOverlays(ctx.blockOverlays(), optionObj.block()))
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
             .boneToggles(toggles)
-            .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyOverlays(), Optional.empty(),
+            .pose(poseOf(ctx.poses(), rowCoord))
+            .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Optional.empty(),
                 Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))
             .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor()))
             .build();

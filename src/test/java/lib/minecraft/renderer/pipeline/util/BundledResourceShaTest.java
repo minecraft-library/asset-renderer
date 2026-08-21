@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.is;
  * {@code src/main/resources/lib/minecraft/renderer/}: the block snapshots
  * ({@code block_models}, {@code block_geometry}, {@code block_defaults}, {@code block_tints},
  * {@code block_items}) plus the colormap, entity, and potion / glint tables ({@code color_maps},
- * {@code entity_geometry}, {@code entity_models}, {@code potion_colors}, {@code glint_items}).
- * All ten are covered; the criterion is that a native reader consumes the file directly, which
+ * {@code entity_geometry}, {@code entity_models}, {@code entity_poses}, {@code potion_colors},
+ * {@code glint_items}). All eleven are covered; the criterion is that a native reader consumes the file directly, which
  * {@code BlockItemsLoader} does.
  * <p>
  * It guards the resources that the native readers consume directly. {@code block_geometry} carries
@@ -49,13 +49,13 @@ import static org.hamcrest.Matchers.is;
  * only, NOT a parity or value-parity gate: a file can be byte-stable and wrong, and the render
  * sweeps catch that.
  * <p>
- * <b>The covered set is discovered, not listed.</b> Every {@code .json} beside the ten is one of
+ * <b>The covered set is discovered, not listed.</b> Every {@code .json} beside the eleven is one of
  * them, so a table added or dropped by a flow shows up as a name in the directory and not in the
  * pin, or the reverse - where a hardcoded roster would have gone quietly out of date.
  * <p>
  * <b>table-canonical is Gson's form and the version rides in provenance.</b> The digest encodes
- * Gson's number formatting, so a dependency bump moves all ten at once; without the recorded
- * version that reads as ten simultaneous regressions. It is not {@code store-canonical}, which is
+ * Gson's number formatting, so a dependency bump moves all eleven at once; without the recorded
+ * version that reads as eleven simultaneous regressions. It is not {@code store-canonical}, which is
  * pretty-printed and recursively key-sorted, and a digest taken under one form says nothing under
  * the other.
  * <p>
@@ -78,7 +78,7 @@ class BundledResourceShaTest {
     /** The digest-set this test both writes and reads. */
     private static final @NotNull String ARTIFACT = "digest.shipped-tables";
 
-    /** The canonical form the ten digests are taken over, recorded per entry beside each. */
+    /** The canonical form the eleven digests are taken over, recorded per entry beside each. */
     private static final @NotNull String FORM = "table-canonical";
 
     private static final @NotNull Path RESOURCES = Path.of("src/main/resources/lib/minecraft/renderer");
