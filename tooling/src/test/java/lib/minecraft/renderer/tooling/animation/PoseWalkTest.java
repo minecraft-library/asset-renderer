@@ -442,23 +442,28 @@ class PoseWalkTest {
     }
 
     @Test
-    @DisplayName("nothing that extracts today turns on an enum, though the walk can phrase one")
-    void noExtractedPoseTurnsOnAnEnumYet() {
-        // The walk reads an enum field and an enum constant and phrases the comparison between them,
-        // which is what lets an enum's own method be inlined - HumanoidModel's arm posing asks an
-        // ArmPose whether it is two-handed, and that body is nothing but such comparisons. But every
-        // model whose POSE turns on an enum is still refused for some other reason, so no expression
-        // that survives carries one.
+    @DisplayName("a parrot's pose turns on its own enum, one guard per constant but the last")
+    void anEnumSwitchKeepsOneGuardPerConstant() {
+        // A switch over an enum is answered by walking the body once per constant and keeping the
+        // guards, folded so the constant declared last is what remains when none of the others
+        // matched. Worth pinning rather than discovering, because the near misses are all well
+        // formed and all mean something else: a guard for every constant including the last says
+        // the pose can be none of them, and guards in a different order says a different pose.
         //
-        // Asserted as the empty state rather than left untested: this fails the moment the humanoid
-        // family starts extracting, which is exactly when someone should come and pin what the enum
-        // tests look like instead of discovering them by accident.
-        List<PosePredicate.EnumEq> enums = new ArrayList<>();
-        extracted.values().forEach(program -> program.bones().values()
-            .forEach(channels -> channels.values().forEach(expr -> collectEnumTests(expr, enums))));
+        // The parrot is the whole of it - five poses, one switch, and every arm walkable.
+        PoseProgram parrot = extracted.get("net/minecraft/client/model/animal/parrot/ParrotModel");
+        assertNotNull(parrot, "ParrotModel is expected to extract");
 
-        assertEquals(List.of(), enums,
-            "an extracted pose now turns on an enum - pin what it looks like and retire this");
+        List<PosePredicate.EnumEq> tests = new ArrayList<>();
+        parrot.bones().values().forEach(channels -> channels.values()
+            .forEach(expr -> collectEnumTests(expr, tests)));
+
+        assertEquals(Set.of("pose"),
+            tests.stream().map(PosePredicate.EnumEq::field).collect(Collectors.toSet()),
+            "the only thing a parrot's pose turns on");
+        assertEquals(Set.of("FLYING", "STANDING", "SITTING", "PARTY"),
+            tests.stream().map(PosePredicate.EnumEq::constant).collect(Collectors.toSet()),
+            "one guard per pose but ON_SHOULDER, which is what is left when none of them matched");
     }
 
     /** Every enum test anywhere inside an expression, however deeply a choice nests it. */
@@ -518,7 +523,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(87, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(89, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------

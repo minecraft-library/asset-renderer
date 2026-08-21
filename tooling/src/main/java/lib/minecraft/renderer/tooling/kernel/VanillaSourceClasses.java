@@ -76,6 +76,9 @@ public final class VanillaSourceClasses {
         /** {@code ItemStackRenderState} - the baked form of a carried stack a render state holds. */
         public static final @NotNull String ITEM_STACK_RENDER_STATE = MINECRAFT_ROOT + "client/renderer/item/ItemStackRenderState";
 
+        /** {@code Rotations} - the three angles an armour stand's pose is authored as, a record. */
+        public static final @NotNull String ROTATIONS = MINECRAFT_ROOT + "core/Rotations";
+
         /** The keyframe-animation package root - the clip tables and the machinery that plays them. */
         public static final @NotNull String CLIENT_ANIMATION_ROOT = MINECRAFT_ROOT + "client/animation/";
 

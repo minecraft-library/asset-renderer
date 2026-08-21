@@ -6,6 +6,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import lib.minecraft.renderer.tooling.walk.Interp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -19,8 +20,10 @@ import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
+import org.objectweb.asm.tree.LookupSwitchInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TableSwitchInsnNode;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -77,6 +80,12 @@ public final class PoseWalk {
 
     /** {@code Enum.ordinal}, matched whole so nothing else of that name is mistaken for it. */
     private static final @NotNull String ORDINAL_DESCRIPTOR = "()I";
+
+    /** What javac calls the table it hides beside a class so a switch over an enum can be a jump. */
+    private static final @NotNull String SWITCH_MAP_PREFIX = "$SwitchMap$";
+
+    /** That table's type - an int per constant, which is why indexing it is not an array read. */
+    private static final @NotNull String SWITCH_MAP_DESCRIPTOR = "[I";
 
     /** Where the super chain stops being a pose and becomes the reset. */
     private static final @NotNull List<String> RESET_ROOTS =
@@ -204,6 +213,44 @@ public final class PoseWalk {
     private static final int MAX_FORKS = 1024;
 
     /**
+     * How many constants an enum may declare before a split over it is called a runaway.
+     *
+     * <p>Every arm re-walks the rest of the body it is in, so the cost is the enum's size times what
+     * follows the question. The widest one a pose turns on is eleven arm poses; the bound is what
+     * keeps a body that happens to ask something of a hundred-constant registry from being paid for
+     * before it is refused.
+     */
+    private static final int MAX_SPLIT_ARMS = 32;
+
+    /**
+     * Raised where the walk needs a fact only a specific constant of an enum can supply.
+     *
+     * <p>Carried rather than refused because the answer is a case split, and the place to take it is
+     * not the place that discovers it is needed. A question asked inside a helper is answered by
+     * splitting the caller, whose arms each write to a definite bone; splitting the helper would
+     * leave two bones in the same place, which is the one shape a pose must never take.
+     */
+    private static final class NeedsConstant extends IllegalStateException {
+
+        private final transient @NotNull PoseValue.StateRef reference;
+
+        private NeedsConstant(@NotNull PoseValue.StateRef reference) {
+            super("turns on the render state's '" + reference.member() + "', which nothing here resolved to a constant");
+            this.reference = reference;
+        }
+
+    }
+
+    /** Raised where two arms leave things in one place that cannot be chosen between. */
+    private static final class UnmergeableArms extends IllegalStateException {
+
+        private UnmergeableArms(@NotNull String message) {
+            super(message);
+        }
+
+    }
+
+    /**
      * One extraction in progress - what the whole walk needs and what the inlined bodies share.
      *
      * <p>The leaf is carried because a virtual call has to resolve against it rather than against
@@ -219,12 +266,25 @@ public final class PoseWalk {
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
         @NotNull List<PoseClipSite> clipSites,
         @NotNull Map<String, Optional<EnumConstantTable>> enums,
+        @NotNull Map<String, PoseValue.EnumConstant> bound,
+        @NotNull Map<String, String> referenceTypes,
+        @NotNull Map<String, Map<Integer, Integer>> switchMaps,
         int @NotNull [] forks
     ) {
 
         /** One enum's constants, read once per extraction however many times they are asked for. */
         @NotNull Optional<EnumConstantTable> enumeration(@NotNull String type) {
             return this.enums.computeIfAbsent(type, named -> EnumConstantTable.of(this.cache, named));
+        }
+
+        /** The constant a render-state member is standing for on this path, if a split named one. */
+        @Nullable PoseValue.EnumConstant boundTo(@NotNull String member) {
+            return this.bound.get(member);
+        }
+
+        /** One switch table's cases by constant position, read once per extraction. */
+        @NotNull Map<Integer, Integer> switchCases(@NotNull PoseValue.SwitchMap map) {
+            return this.switchMaps.computeIfAbsent(map.owner() + "." + map.field(), key -> readSwitchMap(this, map));
         }
 
     }
@@ -249,7 +309,8 @@ public final class PoseWalk {
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
             ClipBindingResolver.fieldToClip(cache, modelClass),
             Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS),
-            new LinkedHashMap<>(), new ArrayList<>(), new LinkedHashMap<>(), new int[1]);
+            new LinkedHashMap<>(), new ArrayList<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
+            new LinkedHashMap<>(), new LinkedHashMap<>(), new int[1]);
 
         try {
             walkBody(body, context, 0);
@@ -308,10 +369,30 @@ public final class PoseWalk {
                 cursor = AsmWalker.nextReal(decided != 0 ? jump.label : cursor);
                 continue;
             }
-            AbstractInsnNode target = step(cursor, context, depth);
+            // A question only one constant can answer is met inside the instruction that asks it,
+            // and answered by re-walking from here once per constant. The state has to be taken
+            // before the step rather than after it, because the step that failed may have written
+            // channels on its way to the wall.
+            Held before = mayAskForAConstant(cursor) ? held(context) : null;
+            AbstractInsnNode target;
+            try {
+                target = step(cursor, context, depth);
+            } catch (NeedsConstant needed) {
+                if (before == null || context.boundTo(needed.reference.member()) != null) throw needed;
+                return split(body, cursor, before, needed.reference, stop, context, depth);
+            }
             cursor = AsmWalker.nextReal(target != null ? target : cursor);
         }
         return false;
+    }
+
+    /** Whether an instruction is one that can turn out to need a constant it was not given. */
+    private static boolean mayAskForAConstant(@NotNull AbstractInsnNode in) {
+        return switch (in.getOpcode()) {
+            case Opcodes.GETFIELD, Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL,
+                 Opcodes.INVOKESPECIAL, Opcodes.INVOKEINTERFACE -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -365,19 +446,20 @@ public final class PoseWalk {
             Interp.Snapshot<PoseValue> afterFallen = stack.snapshot();
             replace(context.pose(), merge(condition, poseTaken, copy(context.pose())));
             replaceSites(context, bothPlayed(playedTaken, context.clipSites()));
-            stack.restore(reconcile(condition, afterTaken, afterFallen));
+            stack.restore(reconciled(condition, afterTaken, afterFallen, context));
             return join;
         }
 
-        // One arm left the body without meeting the other, so there is no point at which their
-        // states line up. Both run to the end instead and only the pose is merged - the same answer,
-        // reached the expensive way. Re-running the arm that stopped at the join is what keeps the
-        // two maps comparable: merging a partial arm against a finished one would drop every write
-        // the partial one had not reached yet.
+        // One arm left the body without meeting the other, so there is no point part way through at
+        // which their states line up. Both run to the end instead, where there is: what a body
+        // leaves at its own return is as comparable as what it leaves at a join. Re-running the arm
+        // that stopped early is what keeps the two comparable at all - merging a partial arm against
+        // a finished one would drop every write the partial one had not reached yet.
         stack.restore(before);
         replace(context.pose(), posed);
         replaceSites(context, played);
         walkFrom(body, taken, null, context, depth);
+        Interp.Snapshot<PoseValue> endedTaken = stack.snapshot();
         Map<String, Map<PoseChannel, PoseExpr>> wholeTaken = copy(context.pose());
         List<PoseClipSite> wholePlayedTaken = List.copyOf(context.clipSites());
 
@@ -388,8 +470,253 @@ public final class PoseWalk {
 
         replace(context.pose(), merge(condition, wholeTaken, copy(context.pose())));
         replaceSites(context, bothPlayed(wholePlayedTaken, context.clipSites()));
-        stack.restore(before);
+        // The answer a body computed is left standing at its return, so putting the machine back to
+        // before the branch discards it. A helper shaped as a choice between two answers is the
+        // commonest thing there is, and one that lost them reported that it had returned nothing.
+        stack.restore(reconciled(condition,
+            withoutLocals(endedTaken, before), withoutLocals(stack.snapshot(), before), context));
         return null;
+    }
+
+    /**
+     * The two arms' machine states as one, escalating rather than refusing when they cannot be.
+     *
+     * <p>Two arms leaving two different bones in one place is not always a refusal: when the branch
+     * that chose between them turns on an enum, it means the choice was taken too deep. An accessor
+     * that hands back one of two bones cannot answer with both, but its CALLER can be walked twice,
+     * once per constant, and then each walk writes to a bone it has already been given. Carrying the
+     * question outward is what turns that from a wall into a case split.
+     */
+    private static @NotNull Interp.Snapshot<PoseValue> reconciled(
+        @NotNull PosePredicate condition, @NotNull Interp.Snapshot<PoseValue> taken,
+        @NotNull Interp.Snapshot<PoseValue> fallen, @NotNull Context context) {
+
+        try {
+            return reconcile(condition, taken, fallen);
+        } catch (UnmergeableArms unmergeable) {
+            PoseValue.StateRef asked = unresolved(condition, context);
+            if (asked == null) throw unmergeable;
+            throw new NeedsConstant(asked);
+        }
+    }
+
+    /**
+     * The enum a condition turns on, when this path has not been told which constant it is.
+     *
+     * @return the reference to split over, or {@code null} when the condition names none
+     */
+    private static @Nullable PoseValue.StateRef unresolved(
+        @NotNull PosePredicate condition, @NotNull Context context) {
+
+        return switch (condition) {
+            case PosePredicate.EnumEq test -> {
+                String type = context.referenceTypes().get(test.field());
+                yield type == null || context.boundTo(test.field()) != null
+                    ? null : new PoseValue.StateRef(test.field(), type);
+            }
+            case PosePredicate.Not not -> unresolved(not.operand(), context);
+            case PosePredicate.All all -> all.operands().stream()
+                .map(operand -> unresolved(operand, context)).filter(java.util.Objects::nonNull).findFirst().orElse(null);
+            case PosePredicate.Any any -> any.operands().stream()
+                .map(operand -> unresolved(operand, context)).filter(java.util.Objects::nonNull).findFirst().orElse(null);
+            default -> null;
+        };
+    }
+
+    /** Everything a walk can be put back to - the machine, the pose so far, and the clips played. */
+    private record Held(
+        @NotNull Interp.Snapshot<PoseValue> machine,
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
+        @NotNull List<PoseClipSite> clipSites
+    ) {}
+
+    private static @NotNull Held held(@NotNull Context context) {
+        return new Held(context.stack().snapshot(), copy(context.pose()), List.copyOf(context.clipSites()));
+    }
+
+    private static void restore(@NotNull Context context, @NotNull Held held) {
+        context.stack().restore(held.machine());
+        replace(context.pose(), held.pose());
+        replaceSites(context, held.clipSites());
+    }
+
+    /**
+     * Runs the rest of a body once per constant of an enum the render state holds, and keeps what
+     * the arms disagree about.
+     *
+     * <p>Where a two-armed fork turns on a condition, this turns on an IDENTITY: the question was
+     * not "is this true" but "which of these is it", and the only way to answer that offline is to
+     * try each. Inside an arm the field is a concrete constant, so everything the body asks of it -
+     * a field it holds, its position, an identity comparison, which bone an accessor hands back -
+     * decides rather than deferring, and the arm walks to its end like any other.
+     *
+     * <p>Merged n-ways by folding from the last arm backwards, so the guards nest in declaration
+     * order and the last constant is what remains when none of the others matched. That is the same
+     * shape javac gives a chain of else-ifs and the same shape a switch means.
+     *
+     * <p><b>An arm that cannot be merged is escalated, not refused.</b> Two arms leaving two
+     * different bones in one place is exactly what happens when the accessor being split over is the
+     * thing that PICKS the bone - so the split was taken too deep, and the answer is to take it
+     * again further out, where each arm writes to a bone it has already chosen. Rethrowing carries
+     * that decision to the caller rather than making it here.
+     *
+     * @return {@code true} when the arms stopped on {@code stop} rather than ending
+     */
+    private static boolean split(
+        @NotNull MethodNode body, @NotNull AbstractInsnNode from, @NotNull Held before,
+        @NotNull PoseValue.StateRef reference, @Nullable AbstractInsnNode stop,
+        @NotNull Context context, int depth) {
+
+        List<EnumConstantTable.Constant> constants = context.enumeration(reference.type())
+            .orElseThrow(() -> new IllegalStateException("turns on the render state's '" + reference.member()
+                + "', which is a " + ClassKit.simpleName(reference.type()) + " rather than an enum"))
+            .constants();
+
+        if (constants.isEmpty() || constants.size() > MAX_SPLIT_ARMS)
+            throw new IllegalStateException("turns on '" + reference.member() + "', which declares "
+                + constants.size() + " constants");
+        if ((context.forks()[0] += constants.size() - 1) > MAX_FORKS)
+            throw new IllegalStateException("forks on more than " + MAX_FORKS + " undecided branches");
+
+        List<Held> arms = new ArrayList<>(constants.size());
+        List<Boolean> rejoined = new ArrayList<>(constants.size());
+        for (EnumConstantTable.Constant constant : constants) {
+            PoseValue.EnumConstant standing = new PoseValue.EnumConstant(reference.type(), constant.name());
+            restore(context, before);
+            context.stack().restore(standingIn(before.machine(), reference.member(), standing));
+            context.bound().put(reference.member(), standing);
+            try {
+                boolean met = walkFrom(body, from, stop, context, depth);
+                rejoined.add(met);
+                Held ended = held(context);
+                Interp.Snapshot<PoseValue> machine =
+                    unbound(ended.machine(), before.machine(), reference, standing);
+                arms.add(new Held(met ? machine : withoutLocals(machine, before.machine()),
+                    ended.pose(), ended.clipSites()));
+            } finally {
+                context.bound().remove(reference.member());
+            }
+        }
+
+        try {
+            restore(context, merged(constants, reference.member(), arms));
+        } catch (UnmergeableArms unmergeable) {
+            restore(context, before);
+            throw new NeedsConstant(reference);
+        }
+        return rejoined.contains(Boolean.TRUE);
+    }
+
+    /** The arms folded into one, guarded in declaration order with the last constant as the remainder. */
+    private static @NotNull Held merged(
+        @NotNull List<EnumConstantTable.Constant> constants, @NotNull String member, @NotNull List<Held> arms) {
+
+        Held folded = arms.getLast();
+        for (int index = arms.size() - 2; index >= 0; index--) {
+            PosePredicate guard = new PosePredicate.EnumEq(member, constants.get(index).name());
+            Held arm = arms.get(index);
+            folded = new Held(
+                reconcile(guard, arm.machine(), folded.machine()),
+                merge(guard, arm.pose(), folded.pose()),
+                bothPlayed(arm.clipSites(), folded.clipSites()));
+        }
+        return folded;
+    }
+
+    /** A machine state with one render-state member already standing for a constant of its enum. */
+    private static @NotNull Interp.Snapshot<PoseValue> standingIn(
+        @NotNull Interp.Snapshot<PoseValue> machine, @NotNull String member,
+        @NotNull PoseValue.EnumConstant standing) {
+
+        List<PoseValue> stack = new ArrayList<>(machine.stack().size());
+        for (PoseValue value : machine.stack()) stack.add(standing(value, member, standing));
+
+        Map<Integer, PoseValue> slots = new LinkedHashMap<>();
+        machine.slots().forEach((slot, value) -> slots.put(slot, standing(value, member, standing)));
+
+        List<Map<Integer, PoseValue>> frames = new ArrayList<>(machine.frames().size());
+        for (Map<Integer, PoseValue> frame : machine.frames()) {
+            Map<Integer, PoseValue> replaced = new LinkedHashMap<>();
+            frame.forEach((slot, value) -> replaced.put(slot, standing(value, member, standing)));
+            frames.add(replaced);
+        }
+        return new Interp.Snapshot<>(stack, slots, frames, machine.poisoned());
+    }
+
+    /**
+     * An arm's machine with the split's own binding taken back out of it.
+     *
+     * <p>A split hands each arm a different constant, so every place the binding reached ends up
+     * holding a DIFFERENT value per arm - and those places are not the arms disagreeing about
+     * anything, they are the split's own doing. Merging them would find eleven constants where one
+     * reference stood and refuse, which is a refusal about the mechanism rather than about the pose.
+     *
+     * <p>Put back only where the reference stood BEFORE and the constant is still standing there
+     * AFTER. Position alone is not enough - the whole point of the split is that the arm goes on to
+     * ask the constant something, and the answer lands in the place the reference was loaded into,
+     * so restoring by position would throw the answer away and put the question back.
+     */
+    private static @NotNull Interp.Snapshot<PoseValue> unbound(
+        @NotNull Interp.Snapshot<PoseValue> arm, @NotNull Interp.Snapshot<PoseValue> before,
+        @NotNull PoseValue.StateRef reference, @NotNull PoseValue.EnumConstant standing) {
+
+        List<PoseValue> stack = new ArrayList<>(arm.stack());
+        for (int index = 0; index < stack.size() && index < before.stack().size(); index++)
+            if (untouched(before.stack().get(index), stack.get(index), reference, standing))
+                stack.set(index, reference);
+
+        Map<Integer, PoseValue> slots = new LinkedHashMap<>(arm.slots());
+        before.slots().forEach((slot, was) -> {
+            PoseValue now = slots.get(slot);
+            if (now != null && untouched(was, now, reference, standing)) slots.put(slot, reference);
+        });
+
+        List<Map<Integer, PoseValue>> frames = new ArrayList<>(arm.frames());
+        for (int index = 0; index < frames.size() && index < before.frames().size(); index++) {
+            Map<Integer, PoseValue> replaced = new LinkedHashMap<>(frames.get(index));
+            before.frames().get(index).forEach((slot, was) -> {
+                PoseValue now = replaced.get(slot);
+                if (now != null && untouched(was, now, reference, standing)) replaced.put(slot, reference);
+            });
+            frames.set(index, replaced);
+        }
+        return new Interp.Snapshot<>(stack, slots, frames, arm.poisoned());
+    }
+
+    /** Whether one place held the reference before the split and holds only its constant still. */
+    private static boolean untouched(
+        @NotNull PoseValue was, @NotNull PoseValue now,
+        @NotNull PoseValue.StateRef reference, @NotNull PoseValue.EnumConstant standing) {
+
+        return reference.equals(was) && standing.equals(now);
+    }
+
+    /**
+     * A machine that has run a body to its end, with that body's locals taken as gone.
+     *
+     * <p>What a body left in its own slots stops existing the moment it returns, so two arms that
+     * ran to the end are not disagreeing when their slots differ - they are describing something
+     * neither of them still has. An accessor that picks a bone is exactly this: each arm parks a
+     * different bone in a local and then returns, and the bone that matters is the one it wrote
+     * through, which is already in the pose.
+     */
+    private static @NotNull Interp.Snapshot<PoseValue> withoutLocals(
+        @NotNull Interp.Snapshot<PoseValue> ended, @NotNull Interp.Snapshot<PoseValue> before) {
+
+        return new Interp.Snapshot<>(ended.stack(), before.slots(), ended.frames(), ended.poisoned());
+    }
+
+    /**
+     * One held value with the split's member standing for its constant.
+     *
+     * <p>The binding cannot be a rule about future reads alone: a body reads the render state's
+     * enums into locals as its first act and asks about them much later, so an arm that only bound
+     * what it read after the split would answer the old question with the new constant's guard.
+     */
+    private static @NotNull PoseValue standing(
+        @NotNull PoseValue value, @NotNull String member, @NotNull PoseValue.EnumConstant standing) {
+
+        return value instanceof PoseValue.StateRef reference && reference.member().equals(member) ? standing : value;
     }
 
     /**
@@ -488,7 +815,7 @@ public final class PoseWalk {
         @NotNull Interp.Snapshot<PoseValue> taken, @NotNull Interp.Snapshot<PoseValue> fallen) {
 
         if (taken.stack().size() != fallen.stack().size() || taken.frames().size() != fallen.frames().size())
-            throw new IllegalStateException("arms of a branch reach their join holding different things");
+            throw new UnmergeableArms("arms of a branch reach their join holding different things");
 
         List<PoseValue> stack = new ArrayList<>(taken.stack().size());
         for (int index = 0; index < taken.stack().size(); index++)
@@ -509,7 +836,8 @@ public final class PoseWalk {
             return num(new PoseExpr.Select(condition, first.expr(), second.expr()));
         // A bone, an array or a receiver cannot be chosen between - a pose that wrote through
         // whichever one a branch happened to pick would name the wrong bone rather than blend two.
-        throw new IllegalStateException("arms of a branch leave two different bones in the same place");
+        throw new UnmergeableArms("arms of a branch on " + condition
+            + " leave two different things in the same place: " + kindOf(taken) + " and " + kindOf(fallen));
     }
 
     /** Every channel either arm touched, as the choice between what each left it holding. */
@@ -682,7 +1010,7 @@ public final class PoseWalk {
             throw new IllegalStateException("branches on a reference, which this walk cannot decide");
         }
         if (in.getOpcode() == Opcodes.TABLESWITCH || in.getOpcode() == Opcodes.LOOKUPSWITCH)
-            throw new IllegalStateException("switches on a value, which this walk does not decide");
+            return switchArm(in, context);
         if (in instanceof IincInsnNode increment) {
             advance(stack, increment);
             return null;
@@ -695,9 +1023,11 @@ public final class PoseWalk {
                 // An enum constant is the one static a pose body reads for anything: it is compared
                 // against a render-state field to ask which arm, which pose, which way round.
                 FieldInsnNode constant = (FieldInsnNode) in;
-                stack.push(("L" + constant.owner + ";").equals(constant.desc)
-                    ? new PoseValue.EnumConstant(constant.owner, constant.name)
-                    : OPAQUE);
+                if (("L" + constant.owner + ";").equals(constant.desc))
+                    stack.push(new PoseValue.EnumConstant(constant.owner, constant.name));
+                else if (SWITCH_MAP_DESCRIPTOR.equals(constant.desc) && constant.name.startsWith(SWITCH_MAP_PREFIX))
+                    stack.push(new PoseValue.SwitchMap(constant.owner, constant.name));
+                else stack.push(OPAQUE);
             }
             case Opcodes.ARRAYLENGTH -> {
                 if (!(stack.pop() instanceof PoseValue.PartArray array))
@@ -717,7 +1047,9 @@ public final class PoseWalk {
                  Opcodes.BALOAD, Opcodes.CALOAD, Opcodes.SALOAD -> {
                 PoseValue index = stack.pop();
                 PoseValue array = stack.pop();
-                stack.push(num(numberElement(array, index)));
+                stack.push(num(array instanceof PoseValue.SwitchMap map
+                    ? PoseExpr.Const.of(switchCase(context, map, index))
+                    : numberElement(array, index)));
             }
             case Opcodes.CHECKCAST -> { /* a cast changes the type, never the value */ }
             case Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL, Opcodes.INVOKESPECIAL, Opcodes.INVOKEINTERFACE ->
@@ -730,6 +1062,26 @@ public final class PoseWalk {
     }
 
     /**
+     * Which arm a switch takes, which it decides itself once its selector is a literal.
+     *
+     * <p>The same mechanism as a frozen conditional and a bounded loop, read a third way: a switch
+     * needs no detector either, only a selector the walk can see. What makes one visible is the case
+     * split - inside an arm the enum is a constant, so its position is a number and the table picks
+     * an arm the way the running client would.
+     */
+    private static @NotNull AbstractInsnNode switchArm(@NotNull AbstractInsnNode in, @NotNull Context context) {
+        Integer key = literalInt(context.stack().pop());
+        if (key == null) throw new IllegalStateException("switches on a value, which this walk does not decide");
+        if (in instanceof TableSwitchInsnNode table) {
+            int index = key - table.min;
+            return index >= 0 && index < table.labels.size() ? table.labels.get(index) : table.dflt;
+        }
+        LookupSwitchInsnNode lookup = (LookupSwitchInsnNode) in;
+        int at = lookup.keys.indexOf(key);
+        return at >= 0 ? lookup.labels.get(at) : lookup.dflt;
+    }
+
+    /**
      * Why a branch could not be turned into a predicate, naming what it was handed.
      *
      * <p>A branch this walk cannot phrase is a shape to go and look at, so the message says which
@@ -737,20 +1089,24 @@ public final class PoseWalk {
      * branch here" and "a call this walk models as nothing ended up being tested".
      */
     private static @NotNull String undecidable(@NotNull PoseValue tested) {
-        String kind = switch (tested) {
+        return "branches on " + kindOf(tested);
+    }
+
+    /** What kind of thing a value is, said the way a refusal wants to name it. */
+    private static @NotNull String kindOf(@NotNull PoseValue tested) {
+        return switch (tested) {
             case PoseValue.Opaque ignored -> "a value this walk models as nothing";
-            case PoseValue.StateRef reference -> "the render state's '" + reference.member()
-                + "' against something that is not a constant of it";
-            case PoseValue.EnumConstant constant -> "the constant " + ClassKit.simpleName(constant.type()) + "."
-                + constant.name() + " against something that is not its enum";
+            case PoseValue.StateRef reference -> "the render state's '" + reference.member() + "'";
+            case PoseValue.EnumConstant constant ->
+                "the constant " + ClassKit.simpleName(constant.type()) + "." + constant.name();
             case PoseValue.Part part -> "the bone '" + part.bone() + "'";
             case PoseValue.PartArray array -> "the array '" + array.field() + "'";
             case PoseValue.StateArray array -> "the whole of the render state's '" + array.member() + "'";
+            case PoseValue.SwitchMap map -> "the switch table '" + map.field() + "'";
             case PoseValue.Clip clip -> "the clip '" + clip.coordinate() + "'";
             case PoseValue.Comparison ignored -> "a comparison in a place one cannot be phrased";
-            case PoseValue.Num number -> "a number this walk cannot phrase a test of";
+            case PoseValue.Num ignored -> "a number this walk cannot phrase a test of";
         };
-        return "branches on " + kind;
     }
 
     /** An integral literal, or {@code null} when the value is not one this walk can read. */
@@ -815,13 +1171,22 @@ public final class PoseWalk {
             // reference on the strength of not being primitive is how a float array ends up being
             // compared against an enum constant.
             else if (field.desc.startsWith("[")) stack.push(new PoseValue.StateArray(field.name));
-            else stack.push(new PoseValue.StateRef(field.name, referenced(field.desc)));
+            else {
+                // Remembered by name, because a predicate names the member alone and an escalation
+                // has to be able to say which enum that member is one of.
+                context.referenceTypes().putIfAbsent(field.name, referenced(field.desc));
+                PoseValue.EnumConstant standing = context.boundTo(field.name);
+                stack.push(standing != null ? standing : new PoseValue.StateRef(field.name, referenced(field.desc)));
+            }
             return;
         }
         if (receiver instanceof PoseValue.EnumConstant constant) {
             stack.push(num(constantField(context, constant, field)));
             return;
         }
+        // Reading a field OF a reference the render state holds is a question only one constant can
+        // answer, and every enum accessor is exactly that read.
+        if (receiver instanceof PoseValue.StateRef reference) throw new NeedsConstant(reference);
         stack.push(OPAQUE);
     }
 
@@ -897,6 +1262,7 @@ public final class PoseWalk {
      */
     private static void constantOrdinal(@NotNull MethodInsnNode call, @NotNull Context context) {
         PoseValue receiver = context.stack().pop();
+        if (receiver instanceof PoseValue.StateRef reference) throw new NeedsConstant(reference);
         if (!(receiver instanceof PoseValue.EnumConstant constant))
             throw new IllegalStateException("asks the position of something this walk has not resolved to a constant");
         EnumConstantTable.Constant held = context.enumeration(constant.type())
@@ -904,6 +1270,82 @@ public final class PoseWalk {
             .orElseThrow(() -> new IllegalStateException("asks the position of "
                 + ClassKit.simpleName(constant.type()) + "." + constant.name() + ", which declares no such constant"));
         context.stack().push(num(PoseExpr.Const.of(held.ordinal())));
+    }
+
+    /**
+     * One switch table, by constant position, read off the initialiser that fills it.
+     *
+     * <p>Filled one constant at a time, each entry naming the table it writes to, the constant it is
+     * about and the case it answers - so a class holding several tables is read by taking only the
+     * entries whose write names this one. The position comes from the enum's own declaration rather
+     * than from the entry, which asks for it through a call there is no reason to walk.
+     */
+    private static @NotNull Map<Integer, Integer> readSwitchMap(
+        @NotNull Context context, @NotNull PoseValue.SwitchMap map) {
+
+        Map<String, Integer> byConstant = new LinkedHashMap<>();
+        String[] table = new String[1];
+        String[] type = new String[1];
+        FieldInsnNode[] constant = new FieldInsnNode[1];
+        Integer[] answered = new Integer[1];
+
+        AsmWalker.clinit(context.cache(), map.owner())
+            .on(Insn.ofType(FieldInsnNode.class), field -> {
+                if (field.getOpcode() != Opcodes.GETSTATIC) return;
+                if (SWITCH_MAP_DESCRIPTOR.equals(field.desc)) {
+                    table[0] = field.name;
+                    constant[0] = null;
+                    answered[0] = null;
+                } else if (("L" + field.owner + ";").equals(field.desc)) constant[0] = field;
+            })
+            .on(Insn.ofType(InsnNode.class), in -> {
+                if (in.getOpcode() != Opcodes.IASTORE) {
+                    Integer literal = AsmWalker.intLiteral(in);
+                    if (literal != null) answered[0] = literal;
+                    return;
+                }
+                if (map.field().equals(table[0]) && constant[0] != null && answered[0] != null) {
+                    type[0] = constant[0].owner;
+                    byConstant.putIfAbsent(constant[0].name, answered[0]);
+                }
+                constant[0] = null;
+                answered[0] = null;
+            })
+            .on(Insn.ofType(IntInsnNode.class), in -> {
+                Integer literal = AsmWalker.intLiteral(in);
+                if (literal != null) answered[0] = literal;
+            })
+            .run();
+
+        if (type[0] == null)
+            throw new IllegalStateException("reads the switch table '" + map.field() + "', which nothing fills");
+        EnumConstantTable declared = context.enumeration(type[0])
+            .orElseThrow(() -> new IllegalStateException("reads a switch table over "
+                + ClassKit.simpleName(type[0]) + ", which is not an enum"));
+
+        Map<Integer, Integer> byOrdinal = new LinkedHashMap<>();
+        byConstant.forEach((name, answer) ->
+            declared.byName(name).ifPresent(one -> byOrdinal.put(one.ordinal(), answer)));
+        return Map.copyOf(byOrdinal);
+    }
+
+    /**
+     * The case number a switch over an enum uses for one constant.
+     *
+     * <p>Read out of the class javac parks the table in, because the table is written there rather
+     * than being derivable: it exists precisely so that a switch does not depend on the positions of
+     * the constants, which are not stable across a recompile of the enum on its own.
+     *
+     * <p>A constant the switch does not name answers zero, which is what the array holds for it and
+     * therefore what sends it to the default arm - the same answer the running client gets.
+     */
+    private static int switchCase(
+        @NotNull Context context, @NotNull PoseValue.SwitchMap map, @NotNull PoseValue index) {
+
+        Integer ordinal = literalInt(index);
+        if (ordinal == null)
+            throw new IllegalStateException("reads a switch table at a position this walk did not settle");
+        return context.switchCases(map).getOrDefault(ordinal, 0);
     }
 
     /** One element of an array the render state holds, which needs the index to have folded. */
@@ -965,6 +1407,17 @@ public final class PoseWalk {
             return;
         }
 
+        if (isRenderStateReference(call)) {
+            // A state that hands back the stack in a hand is naming a thing rather than computing
+            // one, so it is the same kind of value a field read of it would have been - named after
+            // the method, which is the only name it has.
+            String type = ClassKit.returnType(call.desc).getInternalName();
+            context.referenceTypes().putIfAbsent(call.name, type);
+            stack.pop();
+            stack.push(new PoseValue.StateRef(call.name, type));
+            return;
+        }
+
         throw new IllegalStateException("calls " + ClassKit.simpleName(call.owner) + "." + call.name
             + ", which is not a body this walk can enter");
     }
@@ -986,7 +1439,8 @@ public final class PoseWalk {
     private static void stateQuestion(@NotNull MethodInsnNode call, @NotNull Context context) {
         PoseValue asked = context.stack().pop();
         if (!(asked instanceof PoseValue.StateRef reference))
-            throw new IllegalStateException("asks " + call.name + " of something the render state does not hold");
+            throw new IllegalStateException("asks " + call.name + " of " + kindOf(asked)
+                + ", which is not something the render state holds");
         context.stack().push(num(new PoseExpr.InputFn(reference.member(), call.name)));
     }
 
@@ -1204,6 +1658,20 @@ public final class PoseWalk {
         return sort >= Type.BOOLEAN && sort <= Type.DOUBLE;
     }
 
+    /**
+     * Whether a call is a render state naming one of the things it holds rather than computing one.
+     *
+     * <p>Bounded to no arguments, which is what makes the method's own name the whole of the
+     * reference's identity. One that takes an argument names a different thing per argument and
+     * would need that argument to be part of the name, which is a question to answer where a body
+     * that asks it turns up.
+     */
+    private static boolean isRenderStateReference(@NotNull MethodInsnNode call) {
+        return call.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)
+            && ClassKit.argTypes(call.desc).length == 0
+            && ClassKit.returnType(call.desc).getSort() == Type.OBJECT;
+    }
+
     /** Records one channel's new value. */
     private static void write(
         @NotNull Context context, @NotNull String bone, @NotNull PoseChannel channel, @NotNull PoseExpr value) {
@@ -1301,10 +1769,15 @@ public final class PoseWalk {
      * on that would not also admit everything else either of them can be asked.
      */
     private static @NotNull Set<String> stateQuestions() {
+        String rotations = VanillaSourceClasses.Types.ROTATIONS;
         return Set.of(
             key(VanillaSourceClasses.Types.ANIMATION_STATE, VanillaSourceClasses.Methods.IS_STARTED, "()Z"),
             key(VanillaSourceClasses.Types.ITEM_STACK, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
-            key(VanillaSourceClasses.Types.ITEM_STACK_RENDER_STATE, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"));
+            key(VanillaSourceClasses.Types.ITEM_STACK_RENDER_STATE, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
+            key(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
+            key(rotations, PoseChannel.X.token(), "()F"),
+            key(rotations, PoseChannel.Y.token(), "()F"),
+            key(rotations, PoseChannel.Z.token(), "()F"));
     }
 
     /** The call-to-operator table, keyed on the whole coordinate so a width cannot be mistaken. */

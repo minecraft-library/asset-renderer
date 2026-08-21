@@ -78,6 +78,19 @@ public sealed interface PoseValue {
     record StateArray(@NotNull String member) implements PoseValue {}
 
     /**
+     * The table javac hides beside a class so a {@code switch} over an enum can be a jump table.
+     *
+     * <p>Not a fact about the render state at all - it is a fact about a class file, mapping each
+     * constant's position to the case number its switch uses, and it exists because the positions
+     * themselves are not stable across a recompile of the enum. Carried so that indexing it answers
+     * the case rather than an unknown.
+     *
+     * @param owner the internal name of the class holding the table
+     * @param field the table's own field name
+     */
+    record SwitchMap(@NotNull String owner, @NotNull String field) implements PoseValue {}
+
+    /**
      * A keyframe clip the model's constructor bound to one of its fields.
      *
      * @param coordinate the clip coordinate the clip table is keyed by
