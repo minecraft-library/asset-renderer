@@ -12,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -27,6 +28,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Which geometry bone each of a model's {@code ModelPart} fields refers to, for one leaf class.
@@ -62,16 +64,31 @@ import java.util.Map;
  * share one {@code setupAnim} body over arrays their own constructors size, so the same instruction
  * resolves to a different count of bones depending on which model is being posed.
  *
+ * <p>The root every model inherits is read the same way and is two different things depending on
+ * what the chain did with it. A constructor either hands its root parameter up unchanged, in which
+ * case the field is the baked mesh root - a container the mesh flattens and names nowhere - or it
+ * narrows the parameter with one {@code getChild} first, in which case the field is that named bone
+ * like any other. Only the argument to {@code super} tells them apart, so that is where it is read
+ * from; the field's own name says nothing, being the same word either way.
+ *
  * @param scalarBones model field name to geometry bone name
  * @param arrayBones model array-field name to its bones, by index
+ * @param rootBone the bone the inherited root field names, empty when it is the mesh root itself
  */
 public record PosePartIndex(
     @NotNull Map<String, String> scalarBones,
-    @NotNull Map<String, List<String>> arrayBones
+    @NotNull Map<String, List<String>> arrayBones,
+    @NotNull Optional<String> rootBone
 ) {
 
+    /** The descriptor a part field carries. */
+    private static final @NotNull String PART_DESC = "L" + VanillaSourceClasses.Types.MODEL_PART + ";";
+
     /** The descriptor an array-of-parts field carries. */
-    private static final @NotNull String PART_ARRAY_DESC = "[L" + VanillaSourceClasses.Types.MODEL_PART + ";";
+    private static final @NotNull String PART_ARRAY_DESC = "[" + PART_DESC;
+
+    /** Where a model constructor's root parameter sits, {@code this} holding the slot below it. */
+    private static final int ROOT_PARAMETER_SLOT = 1;
 
     /** The descriptor of the indexed-name helpers vanilla builds a part name with. */
     private static final @NotNull String INT_TO_STRING_DESC = "(I)Ljava/lang/String;";
@@ -95,6 +112,7 @@ public record PosePartIndex(
 
         Map<String, String> scalars = new LinkedHashMap<>();
         ArrayScan arrays = new ArrayScan(new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
+        String rooted = null;
 
         String current = modelClass;
         while (current != null
@@ -108,11 +126,48 @@ public record PosePartIndex(
                 if (!ClassKit.INIT.equals(method.name)) continue;
                 EntityBoneNames.collectFieldToBoneNameMap(owner, method, scalars);
                 collectPartArrays(cache, method, arrays);
+                if (rooted == null) rooted = rootedAt(owner, method);
             }
             current = owner.superName;
         }
 
-        return new PosePartIndex(Map.copyOf(scalars), Map.copyOf(enumerate(modelClass, arrays, diagnostics)));
+        return new PosePartIndex(Map.copyOf(scalars),
+            Map.copyOf(enumerate(modelClass, arrays, diagnostics)), Optional.ofNullable(rooted));
+    }
+
+    /**
+     * The bone a constructor narrows its root parameter to before handing it up the chain.
+     *
+     * <p>Read from the region before the super call, which is where the JVM requires the argument
+     * to be built and therefore the only place it can be. A narrowing is one {@code getChild} on a
+     * literal taken off the parameter itself - a lookup off anything else is some other part being
+     * cached, and says nothing about what the chain was handed.
+     *
+     * @param owner the class declaring the constructor
+     * @param ctor the constructor to read
+     * @return the bone name, or {@code null} when the parameter goes up unchanged
+     */
+    private static @Nullable String rootedAt(@NotNull ClassNode owner, @NotNull MethodNode ctor) {
+        Type[] parameters = ClassKit.argTypes(ctor.desc);
+        if (owner.superName == null || parameters.length == 0
+            || !PART_DESC.equals(parameters[0].getDescriptor())) return null;
+
+        return AsmWalker.over(ctor)
+            .until(Insn.invokeSpecial(owner.superName, ClassKit.INIT))
+            .firstNotNull(node -> takesRootParameter(node) ? boneFromChildCall(node) : null);
+    }
+
+    /**
+     * Whether a child lookup is taken off the root parameter, which sits one slot above
+     * {@code this} because a model constructor declares it first.
+     *
+     * @param call the instruction to test as the child lookup
+     * @return whether the lookup reads the constructor's own root parameter
+     */
+    private static boolean takesRootParameter(@NotNull AbstractInsnNode call) {
+        AbstractInsnNode named = AsmWalker.previousReal(call);
+        return named != null && AsmWalker.previousReal(named) instanceof VarInsnNode load
+            && load.getOpcode() == Opcodes.ALOAD && load.var == ROOT_PARAMETER_SLOT;
     }
 
     /**

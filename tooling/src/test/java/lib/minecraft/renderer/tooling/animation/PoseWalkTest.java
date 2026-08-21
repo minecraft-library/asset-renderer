@@ -588,6 +588,35 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("an allay spins about the bone its constructor re-rooted it at")
+    void anInheritedRootResolvesToTheBoneTheConstructorNarrowedItTo() {
+        // The allay hands super a getChild of its own root parameter, so the root every model
+        // inherits IS one of this mesh's bones - and the pose writes through it. What has to survive
+        // is that the bone was NAMED: a walk that resolved the inherited field to some other bone
+        // would still write a well formed angle, and the allay would still spin, about the wrong
+        // part of itself.
+        //
+        // The arm that does not spin is the half that proves it, because it reads the root's own
+        // authored angle back. That read names a bone, so it is only right if the field resolved to
+        // the same bone the write lands on.
+        PoseProgram allay = extracted.get("net/minecraft/client/model/animal/allay/AllayModel");
+        assertNotNull(allay, "AllayModel is expected to extract");
+
+        List<PoseExpr> reached = new ArrayList<>();
+        allay.bones().values().forEach(channels -> channels.values()
+            .forEach(expr -> collectNodes(expr, reached,
+                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()))));
+
+        assertTrue(reached.contains(new PoseExpr.Select(
+                PosePredicate.Compare.of(PosePredicate.Comparison.EQ,
+                    new PoseExpr.Input("isSpinning"), PoseExpr.Const.of(0)),
+                new PoseExpr.BoneRead("root", PoseChannel.Y_ROT),
+                PoseExpr.Op.of(PoseOperator.MUL,
+                    PoseExpr.Const.of(12.566371f), new PoseExpr.Input("spinningProgress")))),
+            "spinning turns the root two whole turns, and not spinning leaves it where it was authored");
+    }
+
+    @Test
     @DisplayName("a strider's bristles each carry the rate the lambda was applied at")
     void lambdaApplicationsKeepTheirOwnRate() {
         // Six applications of one lambda, through a functional interface no model descends from and
@@ -696,7 +725,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(102, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(103, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------

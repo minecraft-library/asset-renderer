@@ -1230,11 +1230,13 @@ public final class PoseWalk {
         }
         if (partDesc().equals(field.desc)) {
             String bone = parts.boneOf(field.name);
-            if (bone == null && RESET_ROOTS.contains(field.owner))
-                // The mesh root, which is a bone only when the mesh names one: most flatten it into
-                // several parented at nothing, and what a transform on the container means then is
-                // a question for whoever joins this to a mesh.
-                throw new IllegalStateException("poses through the mesh root, which this mesh does not name as a bone");
+            // The root every model inherits, which is a bone exactly when a constructor narrowed it
+            // to one. Where none did it is the baked mesh root, a container the mesh flattens into
+            // several parented at nothing - and what a transform on the container means then is a
+            // question for whoever joins this to a mesh.
+            if (bone == null && isModelRoot(context, field))
+                bone = parts.rootBone().orElseThrow(() -> new IllegalStateException(
+                    "poses through the mesh root, which this mesh does not name as a bone"));
             if (bone == null)
                 throw new IllegalStateException("uses part field '" + field.name + "', which no constructor binds");
             stack.push(new PoseValue.Part(bone));
@@ -1277,6 +1279,24 @@ public final class PoseWalk {
         // answer, and every enum accessor is exactly that read.
         if (receiver instanceof PoseValue.StateRef reference) throw new NeedsConstant(reference);
         stack.push(OPAQUE);
+    }
+
+    /**
+     * Whether a part field is the root every model inherits rather than one the model declares.
+     *
+     * <p>Decided by resolving the field to the class that DECLARES it, never by the class named on
+     * the instruction: javac writes the leaf as the owner of an inherited field's reference, so the
+     * name there is the class that used the field and says nothing about which field it is. Reading
+     * the owner instead leaves the inherited root looking like a field nobody bound.
+     *
+     * @param context the extraction in progress
+     * @param field the field being read
+     * @return whether the field resolves to the root a model is built around
+     */
+    private static boolean isModelRoot(@NotNull Context context, @NotNull FieldInsnNode field) {
+        ClassNode declaring = ClassKit.walkSuperChainUntil(context.cache(), field.owner,
+            node -> ClassKit.findField(node, field.name, field.desc) != null);
+        return declaring != null && RESET_ROOTS.contains(declaring.name);
     }
 
     /** A field write. Only a channel of a bone is one; anything else the walk refuses. */

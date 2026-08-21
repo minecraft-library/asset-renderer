@@ -57803,7 +57803,7 @@
       }
     },
     "AdultTurtleModel": {
-      "refused": "uses part field 'root', which no constructor binds"
+      "refused": "poses through the mesh root, which this mesh does not name as a bone"
     },
     "AdultWolfModel": {
       "shared": [
@@ -58893,7 +58893,555 @@
       }
     },
     "AllayModel": {
-      "refused": "uses part field 'root', which no constructor binds"
+      "shared": [
+        {
+          "min": [
+            {
+              "div": [
+                {
+                  "input": "walkAnimationSpeed"
+                },
+                {
+                  "const": 0.3
+                }
+              ]
+            },
+            {
+              "const": 1.0
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isDancing"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "f2d": [
+                {
+                  "add": [
+                    {
+                      "mul": [
+                        {
+                          "mul": [
+                            {
+                              "input": "ageInTicks"
+                            },
+                            {
+                              "const": 8.0
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "input": "walkAnimationSpeed"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "const": 1.0
+            },
+            {
+              "input": "spinningProgress"
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "input": "holdingAnimationProgress"
+            },
+            {
+              "lerp": [
+                {
+                  "ref": 0
+                },
+                {
+                  "const": -1.0471976
+                },
+                {
+                  "const": -1.134464
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "input": "ageInTicks"
+                },
+                {
+                  "const": 9.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "const": 1.0
+            },
+            {
+              "ref": 0
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "const": 0.43633232
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "mth_cos": [
+                            {
+                              "f2d": [
+                                {
+                                  "add": [
+                                    {
+                                      "ref": 5
+                                    },
+                                    {
+                                      "const": 4.712389
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 3.1415927
+                        }
+                      ]
+                    },
+                    {
+                      "const": 0.075
+                    }
+                  ]
+                },
+                {
+                  "mul": [
+                    {
+                      "ref": 6
+                    },
+                    {
+                      "sub": [
+                        {
+                          "const": 1.0
+                        },
+                        {
+                          "input": "holdingAnimationProgress"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "const": 0.43633232
+            },
+            {
+              "ref": 6
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "f2d": [
+                            {
+                              "add": [
+                                {
+                                  "mul": [
+                                    {
+                                      "mul": [
+                                        {
+                                          "input": "ageInTicks"
+                                        },
+                                        {
+                                          "const": 20.0
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "const": 0.017453292
+                                    }
+                                  ]
+                                },
+                                {
+                                  "input": "walkAnimationPos"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 3.1415927
+                    }
+                  ]
+                },
+                {
+                  "const": 0.15
+                }
+              ]
+            },
+            {
+              "input": "walkAnimationSpeed"
+            }
+          ]
+        }
+      ],
+      "bones": {
+        "body": {
+          "x_rot": {
+            "mul": [
+              {
+                "ref": 0
+              },
+              {
+                "const": 0.7853982
+              }
+            ]
+          }
+        },
+        "head": {
+          "x_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "mul": [
+                  {
+                    "input": "xRot"
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "head",
+                  "x_rot"
+                ]
+              }
+            ]
+          },
+          "y_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "mul": [
+                  {
+                    "input": "yRot"
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "mul": [
+                          {
+                            "ref": 2
+                          },
+                          {
+                            "const": 30.0
+                          }
+                        ]
+                      },
+                      {
+                        "const": 0.017453292
+                      }
+                    ]
+                  },
+                  {
+                    "ref": 3
+                  }
+                ]
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "bone": [
+                  "head",
+                  "z_rot"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "mul": [
+                          {
+                            "ref": 2
+                          },
+                          {
+                            "const": 14.0
+                          }
+                        ]
+                      },
+                      {
+                        "const": 0.017453292
+                      }
+                    ]
+                  },
+                  {
+                    "ref": 3
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "left_arm": {
+          "x_rot": {
+            "ref": 4
+          },
+          "y_rot": {
+            "mul": [
+              {
+                "const": -0.27925268
+              },
+              {
+                "input": "holdingAnimationProgress"
+              }
+            ]
+          },
+          "z_rot": {
+            "neg": [
+              {
+                "ref": 7
+              }
+            ]
+          }
+        },
+        "left_wing": {
+          "x_rot": {
+            "ref": 8
+          },
+          "y_rot": {
+            "sub": [
+              {
+                "const": 0.7853982
+              },
+              {
+                "ref": 9
+              }
+            ]
+          }
+        },
+        "right_arm": {
+          "x_rot": {
+            "ref": 4
+          },
+          "y_rot": {
+            "mul": [
+              {
+                "const": 0.27925268
+              },
+              {
+                "input": "holdingAnimationProgress"
+              }
+            ]
+          },
+          "z_rot": {
+            "ref": 7
+          }
+        },
+        "right_wing": {
+          "x_rot": {
+            "ref": 8
+          },
+          "y_rot": {
+            "add": [
+              {
+                "const": -0.7853982
+              },
+              {
+                "ref": 9
+              }
+            ]
+          }
+        },
+        "root": {
+          "y": {
+            "add": [
+              {
+                "bone": [
+                  "root",
+                  "y"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "d2f": [
+                          {
+                            "libm_cos": [
+                              {
+                                "f2d": [
+                                  {
+                                    "ref": 5
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "const": 0.25
+                      }
+                    ]
+                  },
+                  {
+                    "ref": 6
+                  }
+                ]
+              }
+            ]
+          },
+          "y_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "bone": [
+                  "root",
+                  "y_rot"
+                ]
+              },
+              {
+                "select": [
+                  {
+                    "eq": [
+                      {
+                        "input": "isSpinning"
+                      },
+                      {
+                        "iconst": 0
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "root",
+                      "y_rot"
+                    ]
+                  },
+                  {
+                    "mul": [
+                      {
+                        "const": 12.566371
+                      },
+                      {
+                        "input": "spinningProgress"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "bone": [
+                  "root",
+                  "z_rot"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "mul": [
+                          {
+                            "ref": 2
+                          },
+                          {
+                            "const": 16.0
+                          }
+                        ]
+                      },
+                      {
+                        "const": 0.017453292
+                      }
+                    ]
+                  },
+                  {
+                    "ref": 3
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
     },
     "ArmorStandArmorModel": {
       "shared": [
@@ -113907,7 +114455,7 @@
       }
     },
     "EnderDragonModel": {
-      "refused": "uses part field 'root', which no constructor binds"
+      "refused": "poses through the mesh root, which this mesh does not name as a bone"
     },
     "EndermanModel": {
       "shared": [
