@@ -33,19 +33,20 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The linear pose walk against the real client jar.
+ * The pose walk against the real client jar.
  *
- * <p>Three kinds of assertion, answering different questions. Two models are pinned expression by
- * expression, which says the walk builds what vanilla computes rather than merely finishing: one for
- * the arithmetic, one for a bone posed from another bone's fresh value. The roster count says how
- * far the walk reaches before a branch, a loop or an unenterable call stops it - a number expected
- * to move as those are added, asserted so it cannot move by accident, and carrying the refusal
- * reasons in its message so what is left is a list rather than a number.
+ * <p>Three models are pinned expression by expression, which is what says the walk builds vanilla's
+ * own arithmetic rather than merely finishing without complaint: one for the arithmetic itself, one
+ * for a bone posed from another bone's freshly written value, and one for a loop that has to unroll
+ * into a different expression per index. The roster count says how far the walk reaches before an
+ * undecided branch or an unenterable call stops it - a number expected to move as those are
+ * answered, asserted so it cannot move by accident, and carrying the refusal reasons in its message
+ * so what is left is a list rather than a number.
  *
  * <p>Tagged {@code slow}: the walk runs against the downloaded client jar.
  */
 @Tag("slow")
-@DisplayName("the linear pose walk")
+@DisplayName("the pose walk")
 class PoseWalkTest {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
@@ -136,6 +137,31 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a ghast's tentacles unroll to nine bones, each carrying its own index")
+    void arrayLoopUnrollsPerIndex() {
+        // GhastModel poses an array of tentacles in a loop bounded by the array's own length, and
+        // the phase of each tentacle's wave is its index. Nothing here detects a loop: the counter
+        // is a literal the walk can see, so the test that closes the loop decides itself and the
+        // body is simply walked again. What that has to produce is nine DIFFERENT expressions, which
+        // is the thing a loop left unrolled or unrolled once would get wrong.
+        PoseProgram ghast = extracted.get("net/minecraft/client/model/monster/ghast/GhastModel");
+        assertNotNull(ghast, "GhastModel is expected to extract");
+        assertEquals(9, ghast.bones().size(), "one bone per allocated tentacle");
+
+        for (int index = 0; index < 9; index++) {
+            PoseExpr phase = PoseExpr.Op.of(PoseOperator.ADD,
+                PoseExpr.Op.of(PoseOperator.MUL, new PoseExpr.Input("ageInTicks"), PoseExpr.Const.of(0.3f)),
+                PoseExpr.Op.of(PoseOperator.I2F, PoseExpr.Const.of(index)));
+            PoseExpr expected = PoseExpr.Op.of(PoseOperator.ADD,
+                PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.2f),
+                    PoseExpr.Op.of(PoseOperator.MTH_SIN, PoseExpr.Op.of(PoseOperator.F2D, phase))),
+                PoseExpr.Const.of(0.4f));
+            assertEquals(expected, ghast.bones().get("tentacle" + index).get(PoseChannel.X_ROT),
+                "tentacle " + index + " waves a phase behind the one before it");
+        }
+    }
+
+    @Test
     @DisplayName("no extracted pose names a bone outside the model's own mesh")
     void everyPosedBoneExists() {
         Map<String, Set<String>> mesh = meshBones();
@@ -165,7 +191,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(27, extracted.size(),
+        assertEquals(34, extracted.size(),
             () -> "extracted " + extracted.values().stream()
                 .map(program -> program.model() + "/" + program.channelCount()).toList()
                 + "; refusals were:\n  " + String.join("\n  ", new TreeSet<>(diagnostics.entries().stream()

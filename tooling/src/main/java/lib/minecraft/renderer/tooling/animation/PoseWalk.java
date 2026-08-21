@@ -14,6 +14,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.IincInsnNode;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
@@ -43,9 +44,16 @@ import java.util.Optional;
  * after a write reads the write. Both fall out of holding one expression per channel and
  * substituting it where it is read.
  *
- * <p>Anything not modelled is refused rather than approximated: an unresolvable bone, a branch, a
- * loop, a call this does not know, a write to the render state or to the model itself. A pose that
- * is quietly missing a term is the one outcome worth failing to avoid, because it renders - it just
+ * <p><b>Control flow is followed wherever it is decided.</b> A loop counter is a literal this walk
+ * can see, so the test closing a loop decides itself and the body is walked again with the next
+ * value - which means loops need no detector and a bounded loop and a frozen conditional are one
+ * mechanism rather than two. What is left over is a branch that genuinely turns on the render
+ * state, and that is refused rather than guessed: taking an arm would ship one of the poses a model
+ * can take as though it were the pose.
+ *
+ * <p>Anything not modelled is refused rather than approximated: an unresolvable bone, an undecided
+ * branch, a call this cannot enter, a write to the render state or to the model itself. A pose
+ * quietly missing a term is the one outcome worth failing to avoid, because it renders - it just
  * renders wrongly, and nothing downstream can tell.
  */
 @UtilityClass
@@ -109,10 +117,24 @@ public final class PoseWalk {
 
         @Override
         public @Nullable PoseValue binary(int opcode, @NotNull PoseValue left, @NotNull PoseValue right) {
+            if (opcode >= Opcodes.LCMP && opcode <= Opcodes.DCMPG) {
+                // The three-way compare a float test is spelled as. Folding it is what lets the
+                // branch after it decide; leaving it unmodelled is what makes a comparison against
+                // a render-state value refuse instead.
+                Double lhs = literal(left);
+                Double rhs = literal(right);
+                if (lhs == null || rhs == null || lhs.isNaN() || rhs.isNaN()) return null;
+                return num(PoseExpr.Const.of(Double.compare(lhs, rhs)));
+            }
             PoseOperator operator = ARITHMETIC.get(opcode);
             if (operator == null || !(left instanceof PoseValue.Num lhs) || !(right instanceof PoseValue.Num rhs))
                 return null;
             return num(PoseExpr.Op.of(operator, lhs.expr(), rhs.expr()));
+        }
+
+        private @Nullable Double literal(@NotNull PoseValue value) {
+            return value instanceof PoseValue.Num number && number.expr() instanceof PoseExpr.Const held
+                ? held.value() : null;
         }
 
         @Override
@@ -132,6 +154,15 @@ public final class PoseWalk {
      * not have cannot become a stack overflow here.
      */
     private static final int MAX_INLINE_DEPTH = 8;
+
+    /**
+     * How many instructions one body may take before the walk calls it a runaway.
+     *
+     * <p>Following jumps means the walk no longer terminates by construction, and a counter this
+     * walk misreads would spin rather than refuse. The bound is far above the corpus - the widest
+     * unrolled loop is a dragon's twelve segments - so reaching it is a fault rather than a limit.
+     */
+    private static final int MAX_STEPS = 200_000;
 
     /**
      * One extraction in progress - what the whole walk needs and what the inlined bodies share.
@@ -178,42 +209,122 @@ public final class PoseWalk {
     }
 
     /**
-     * Applies every instruction of one body in order.
+     * Applies one body, following its control flow wherever the flow is decided.
+     *
+     * <p>The cursor moves by jump rather than by position, which is what makes a loop unroll: a
+     * counter this walk can see is a literal on every pass, so the test that closes the loop decides
+     * itself and the body is simply walked again with the next value. The same step resolves a
+     * branch whose condition folds, and the two need no separate machinery - a bounded loop and a
+     * frozen conditional are one mechanism looked at from two directions.
      *
      * <p>A refusal is a thrown exception rather than a returned flag, because a body reached through
      * three inlined helpers has to abandon all three at once - and because the message is built
      * where the shape was met, which is the only place that knows what it was.
      */
     private static void walkBody(@NotNull MethodNode body, @NotNull Context context, int depth) {
-        for (AbstractInsnNode in : AsmWalker.over(body).real().toList()) step(in, context, depth);
+        AbstractInsnNode cursor = body.instructions.getFirst();
+        if (cursor != null && AsmWalker.isPseudoNode(cursor)) cursor = AsmWalker.nextReal(cursor);
+
+        int steps = 0;
+        while (cursor != null) {
+            if (++steps > MAX_STEPS)
+                throw new IllegalStateException("did not settle within " + MAX_STEPS + " instructions");
+            if (isReturn(cursor.getOpcode())) return;
+            AbstractInsnNode target = step(cursor, context, depth);
+            cursor = AsmWalker.nextReal(target != null ? target : cursor);
+        }
+    }
+
+    /** Whether an opcode ends the body being walked, leaving any answer it has on the stack. */
+    private static boolean isReturn(int opcode) {
+        return opcode >= Opcodes.IRETURN && opcode <= Opcodes.RETURN;
     }
 
     /**
      * Applies one instruction, handing the chassis everything that is not a field or a call.
      */
-    private static void step(@NotNull AbstractInsnNode in, @NotNull Context context, int depth) {
+    private static @Nullable AbstractInsnNode step(
+        @NotNull AbstractInsnNode in, @NotNull Context context, int depth) {
+
         Interp<PoseValue> stack = context.stack();
 
-        if (in instanceof JumpInsnNode || in.getOpcode() == Opcodes.TABLESWITCH || in.getOpcode() == Opcodes.LOOKUPSWITCH)
-            throw new IllegalStateException("body branches, which the linear walk does not model");
+        if (in instanceof JumpInsnNode jump) return branch(jump, stack);
+        if (in.getOpcode() == Opcodes.TABLESWITCH || in.getOpcode() == Opcodes.LOOKUPSWITCH)
+            throw new IllegalStateException("switches on a value, which this walk does not decide");
+        if (in instanceof IincInsnNode increment) {
+            advance(stack, increment);
+            return null;
+        }
 
         switch (in.getOpcode()) {
             case Opcodes.GETFIELD -> readField((FieldInsnNode) in, context);
             case Opcodes.PUTFIELD -> writeField((FieldInsnNode) in, context);
             case Opcodes.GETSTATIC -> stack.push(OPAQUE);
+            case Opcodes.ARRAYLENGTH -> {
+                if (!(stack.pop() instanceof PoseValue.PartArray array))
+                    throw new IllegalStateException("measures something that is not an array of bones");
+                stack.push(num(PoseExpr.Const.of(context.parts().arrayBones()
+                    .getOrDefault(array.field(), List.of()).size())));
+            }
             case Opcodes.AALOAD -> {
                 PoseValue index = stack.pop();
                 PoseValue array = stack.pop();
                 stack.push(element(context.parts(), array, index));
             }
             case Opcodes.CHECKCAST -> { /* a cast changes the type, never the value */ }
-            case Opcodes.RETURN -> { /* the body is done */ }
             case Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL, Opcodes.INVOKESPECIAL, Opcodes.INVOKEINTERFACE ->
                 call((MethodInsnNode) in, context, depth);
-            case Opcodes.IINC, Opcodes.ARRAYLENGTH, Opcodes.AASTORE, Opcodes.NEW, Opcodes.ANEWARRAY ->
-                throw new IllegalStateException("body holds a loop or an allocation, which the linear walk does not model");
+            case Opcodes.AASTORE, Opcodes.NEW, Opcodes.ANEWARRAY ->
+                throw new IllegalStateException("allocates while posing, which this walk does not model");
             default -> stack.step(in);
         }
+        return null;
+    }
+
+    /**
+     * Decides a branch, or refuses.
+     *
+     * <p>A condition this walk can see through is decided here and the cursor takes the arm vanilla
+     * would; anything else depends on the render state, and a walk that guessed an arm would ship a
+     * pose that is merely one of the poses the model can take.
+     *
+     * @return the label to continue at, or {@code null} to fall through
+     */
+    private static @Nullable AbstractInsnNode branch(@NotNull JumpInsnNode jump, @NotNull Interp<PoseValue> stack) {
+        int opcode = jump.getOpcode();
+        if (opcode == Opcodes.GOTO) return jump.label;
+
+        if (opcode >= Opcodes.IF_ICMPEQ && opcode <= Opcodes.IF_ICMPLE) {
+            Integer right = literalInt(stack.pop());
+            Integer left = literalInt(stack.pop());
+            if (left == null || right == null) throw new IllegalStateException(undecidable());
+            return Interp.evaluateIntComparison(opcode, left, right) ? jump.label : null;
+        }
+        if (opcode >= Opcodes.IFEQ && opcode <= Opcodes.IFLE) {
+            Integer value = literalInt(stack.pop());
+            if (value == null) throw new IllegalStateException(undecidable());
+            return Interp.evaluateIntComparison(opcode, value, 0) ? jump.label : null;
+        }
+        throw new IllegalStateException("branches on a reference, which this walk cannot decide");
+    }
+
+    private static @NotNull String undecidable() {
+        return "branches on a value that depends on the render state";
+    }
+
+    /** An integral literal, or {@code null} when the value is not one this walk can read. */
+    private static @Nullable Integer literalInt(@NotNull PoseValue value) {
+        if (!(value instanceof PoseValue.Num number) || !(number.expr() instanceof PoseExpr.Const literal))
+            return null;
+        return (int) literal.value();
+    }
+
+    /** Steps a counter the walk can see; one it cannot is what makes a loop refuse rather than spin. */
+    private static void advance(@NotNull Interp<PoseValue> stack, @NotNull IincInsnNode increment) {
+        PoseValue held = stack.slot(increment.var);
+        Integer value = held == null ? null : literalInt(held);
+        if (value == null) throw new IllegalStateException("steps a counter it cannot follow");
+        stack.store(increment.var, num(PoseExpr.Const.of(value + increment.incr)));
     }
 
     /** A field read: a bone, an array of bones, a channel's current value, or an input. */
