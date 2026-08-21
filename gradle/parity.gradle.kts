@@ -339,6 +339,10 @@ val parityReferenceRoot: String =
 val parityProducerLogDir: String = layout.buildDirectory.dir("parity").get().asFile
     .relativeTo(layout.projectDirectory.asFile).invariantSeparatorsPath
 
+/** Where one producer's teed diagnostics land, named after the task so a flow's log is its own. */
+fun parityProducerLog(producer: String): File =
+    layout.buildDirectory.file("parity/producer-$producer.log").get().asFile
+
 // ---- the parity toolkit invocation --------------------------------------------------------------
 // The default is RESOLVED against PATH rather than left as the bare name, because a bare name is not
 // startable here. Windows puts a Microsoft Store app-execution alias at
@@ -1343,12 +1347,30 @@ tasks {
         .forEach { producer -> named(producer) { mustRunAfter(harnessRunModes.keys) } }
 
     // A producer's stdout is the only source of its row counts and its wall time, and nothing
-    // redirected it: ten of the file-producing artifacts are JavaExec, whose stream Gradle discards.
-    // Driven off the artifact table so a new row needs no second edit. `test` and `slowTest` are Test
-    // rather than JavaExec and are deliberately not reached - their rows self-capture a value instead
+    // redirected it: Gradle discards the stream of a file-producing task either way. Driven off the
+    // artifact table so a new row needs no second edit. `test` and `slowTest` are Test rather than
+    // either shape below and are deliberately not reached - their rows self-capture a value instead
     // of printing a count to be parsed.
+    //
+    // BOTH exec shapes, because how a producer is STARTED says nothing about whether its output is
+    // worth keeping. The renderer's own producers are JavaExec; the eight generator flows are Exec
+    // into the tooling build's own wrapper, and reaching only the first froze all eight of their log
+    // digests at whatever they last printed while they were still JavaExec. A frozen digest is worse
+    // than a missing one: the row exists to notice a reworded diagnostic, and it read unchanged
+    // whatever the flow said.
+    //
+    // Teeing a sub-build's whole stdout is safe because the projection the digest is taken over
+    // keeps the diagnostics triples and drops every other line, so the wrapper's own chatter - a
+    // BUILD SUCCESSFUL carrying a wall time among it - never reaches the value.
     withType<JavaExec>().matching { it.name in parityProducerNames }.configureEach {
-        val log = layout.buildDirectory.file("parity/producer-$name.log").get().asFile
+        val log = parityProducerLog(name)
+        doFirst {
+            log.parentFile.mkdirs()
+            standardOutput = TeeStream(System.out, FileOutputStream(log))
+        }
+    }
+    withType<Exec>().matching { it.name in parityProducerNames }.configureEach {
+        val log = parityProducerLog(name)
         doFirst {
             log.parentFile.mkdirs()
             standardOutput = TeeStream(System.out, FileOutputStream(log))
