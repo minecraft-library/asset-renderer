@@ -399,6 +399,11 @@ public final class PoseWalk {
      * emits from an {@code if}: the two regions are disjoint and everything after the join is
      * common, so the common set's first member is where they meet. Arms that never meet - an early
      * return on one side - answer nothing, and the caller runs them to the end instead.
+     *
+     * <p>The point an enclosing region is already waiting at is a candidate like any other, and a
+     * nested branch whose arms first meet exactly there is the commonest shape there is - javac
+     * emits it for an {@code else if} and for either short-circuit operator. Excluding it would
+     * leave those arms looking as though they never met.
      */
     private static @Nullable AbstractInsnNode findJoin(
         @NotNull MethodNode body, @Nullable AbstractInsnNode taken, @Nullable AbstractInsnNode fallen,
@@ -420,7 +425,15 @@ public final class PoseWalk {
         return earliest;
     }
 
-    /** Every instruction control can get to from a point, following both arms of anything on the way. */
+    /**
+     * Every instruction control can get to from a point, following both arms of anything on the way.
+     *
+     * <p>{@code stop} is reached but not passed: it belongs to the enclosing region rather than to
+     * this one, so it counts as somewhere an arm got to while everything beyond it stays out. Both
+     * halves matter - dropping it loses the join of every branch that closes exactly where its
+     * enclosing branch was already waiting, and expanding through it makes the whole enclosing tail
+     * look like this region's own.
+     */
     private static @NotNull Set<AbstractInsnNode> reachable(
         @Nullable AbstractInsnNode start, @Nullable AbstractInsnNode stop) {
 
@@ -430,7 +443,8 @@ public final class PoseWalk {
 
         while (!pending.isEmpty()) {
             AbstractInsnNode node = pending.removeLast();
-            if (node == stop || !seen.add(node)) continue;
+            if (!seen.add(node)) continue;
+            if (node == stop) continue;
             if (isReturn(node.getOpcode()) || node.getOpcode() == Opcodes.ATHROW) continue;
             if (node instanceof JumpInsnNode jump) {
                 AbstractInsnNode target = AsmWalker.nextReal(jump.label);
@@ -831,7 +845,7 @@ public final class PoseWalk {
             return;
         }
 
-        if (isModelLogic(call.owner)) {
+        if (isModelLogic(call.owner) || isRenderStateArithmetic(call)) {
             inline(call, context, depth);
             return;
         }
@@ -1007,6 +1021,25 @@ public final class PoseWalk {
     private static boolean isModelLogic(@NotNull String owner) {
         return owner.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_ROOT)
             && !owner.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_GEOM_ROOT);
+    }
+
+    /**
+     * Whether a call is a render state computing a number out of the fields it already holds.
+     *
+     * <p>A state that offers a derived angle rather than the two fields it is derived from is
+     * offering arithmetic, and arithmetic is walked rather than named: inlining it reaches the same
+     * inputs a field read would have, so the expression stays in terms of what the render state
+     * actually carries instead of gaining an opaque channel nothing downstream could supply.
+     *
+     * <p>Bounded to a primitive answer, which is what makes it a number rather than a way of
+     * reaching another object. A state method handing back a reference is a different question and
+     * keeps its own refusal, because what happens to that reference is where the interesting part
+     * of it is.
+     */
+    private static boolean isRenderStateArithmetic(@NotNull MethodInsnNode call) {
+        if (!call.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)) return false;
+        int sort = ClassKit.returnType(call.desc).getSort();
+        return sort >= Type.BOOLEAN && sort <= Type.DOUBLE;
     }
 
     /** Records one channel's new value. */

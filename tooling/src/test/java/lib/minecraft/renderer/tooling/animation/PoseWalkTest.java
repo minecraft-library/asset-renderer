@@ -37,10 +37,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The pose walk against the real client jar.
  *
- * <p>Four models are pinned expression by expression, which is what says the walk builds vanilla's
+ * <p>Five models are pinned expression by expression, which is what says the walk builds vanilla's
  * own arithmetic rather than merely finishing without complaint: one for the arithmetic itself, one
  * for a bone posed from another bone's freshly written value, one for a loop that has to unroll into
- * a different expression per index, and one for a branch nothing offline decides.
+ * a different expression per index, one for a branch nothing offline decides, and one for a branch
+ * nested inside another, which meets its own arm at the point the outer one is waiting at.
  *
  * <p>The clip half is checked differently, against the shipped table rather than against a written
  * expectation. Two mechanisms that never see each other - the binding resolver reading constructors
@@ -219,6 +220,45 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a wolf's roll is the render state's own arithmetic, clamp and all")
+    void renderStateArithmeticIsWalkedRatherThanNamed() {
+        // WolfModel poses the body from getBodyRollAngle, a render-state method that computes an
+        // angle out of one field the state carries. Walking it rather than naming it is what keeps
+        // the expression in terms of shakeAnim, which a caller can supply, instead of an opaque
+        // channel nothing could.
+        //
+        // It is also the corpus's proof that a nested branch closing where its enclosing branch was
+        // already waiting has a join: the clamp's upper arm jumps straight to the lower arm's join,
+        // so the two levels of Select below exist only if that point counts as somewhere both arms
+        // reached. Without it the walk runs the body twice and loses the value it was computing.
+        PoseProgram wolf = extracted.get("net/minecraft/client/model/animal/wolf/AdultWolfModel");
+        assertNotNull(wolf, "AdultWolfModel is expected to extract");
+
+        PoseExpr shake = PoseExpr.Op.of(PoseOperator.DIV,
+            PoseExpr.Op.of(PoseOperator.ADD, new PoseExpr.Input("shakeAnim"), PoseExpr.Const.of(-0.16f)),
+            PoseExpr.Const.of(1.8f));
+        PoseExpr clamped = new PoseExpr.Select(
+            PosePredicate.Compare.of(PosePredicate.Comparison.GE, shake, PoseExpr.Const.of(0f)),
+            new PoseExpr.Select(
+                PosePredicate.Compare.of(PosePredicate.Comparison.LE, shake, PoseExpr.Const.of(1f)),
+                shake, PoseExpr.Const.of(1f)),
+            PoseExpr.Const.of(0f));
+        PoseExpr turn = PoseExpr.Op.of(PoseOperator.MUL, clamped, PoseExpr.Const.of(3.1415927f));
+
+        assertEquals(
+            PoseExpr.Op.of(PoseOperator.MUL,
+                PoseExpr.Op.of(PoseOperator.MUL,
+                    PoseExpr.Op.of(PoseOperator.MUL,
+                        PoseExpr.Op.of(PoseOperator.MTH_SIN, PoseExpr.Op.of(PoseOperator.F2D, turn)),
+                        PoseExpr.Op.of(PoseOperator.MTH_SIN, PoseExpr.Op.of(PoseOperator.F2D,
+                            PoseExpr.Op.of(PoseOperator.MUL, turn, PoseExpr.Const.of(11.0f))))),
+                    PoseExpr.Const.of(0.15f)),
+                PoseExpr.Const.of(3.1415927f)),
+            wolf.bones().get("body").get(PoseChannel.Z_ROT),
+            "the body rolls on two sines of the clamped shake");
+    }
+
+    @Test
     @DisplayName("the clips a walk finds are the clips the shipped table already binds")
     void clipSitesAgreeWithTheShippedTable() {
         // Two mechanisms that never see each other: the binding resolver reads constructors and play
@@ -353,7 +393,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(74, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(76, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------
