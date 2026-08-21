@@ -837,7 +837,7 @@ public final class PoseWalk {
             return;
         }
 
-        if (VanillaSourceClasses.Methods.SETUP_ANIM.equals(call.name) && RESET_ROOTS.contains(call.owner)) {
+        if (isReset(context, call)) {
             // The reset every body opens with. It restores each bone's authored pose, which is
             // exactly what an unwritten channel already reads, so there is nothing to apply.
             stack.popArguments(ClassKit.argTypes(call.desc).length);
@@ -1015,6 +1015,32 @@ public final class PoseWalk {
             current = node.superName;
         }
         return call.owner;
+    }
+
+    /**
+     * Whether a call is the reset a pose body opens with rather than an inherited pose to walk.
+     *
+     * <p>Decided by where the body it reaches is DECLARED, never by the class the instruction
+     * happens to name. A leaf spells {@code super.setupAnim} against its immediate superclass, and a
+     * superclass that declares no pose of its own inherits the reset - so the same call means two
+     * different things depending on a class the instruction does not mention. Reading the owner
+     * instead makes a base that adds nothing look like a pose, and the walk goes off into the
+     * bone-list loop the reset is built out of.
+     *
+     * <p>Resolving rather than naming is a widening in one direction only: a call that resolves to
+     * a class declaring its own body still answers false, so a base that really does pose is still
+     * walked.
+     */
+    private static boolean isReset(@NotNull Context context, @NotNull MethodInsnNode call) {
+        if (!VanillaSourceClasses.Methods.SETUP_ANIM.equals(call.name)) return false;
+        String current = call.owner;
+        for (int depth = 0; current != null && depth < MAX_INLINE_DEPTH; depth++) {
+            ClassNode node = context.cache().load(current);
+            if (node == null) return false;
+            if (ClassKit.findMethod(node, call.name, call.desc) != null) return RESET_ROOTS.contains(current);
+            current = node.superName;
+        }
+        return false;
     }
 
     /** Whether a call names a model's own logic, which is a body to walk rather than a fact to know. */

@@ -37,11 +37,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The pose walk against the real client jar.
  *
- * <p>Five models are pinned expression by expression, which is what says the walk builds vanilla's
+ * <p>Six models are pinned expression by expression, which is what says the walk builds vanilla's
  * own arithmetic rather than merely finishing without complaint: one for the arithmetic itself, one
  * for a bone posed from another bone's freshly written value, one for a loop that has to unroll into
- * a different expression per index, one for a branch nothing offline decides, and one for a branch
- * nested inside another, which meets its own arm at the point the outer one is waiting at.
+ * a different expression per index, one for a branch nothing offline decides, one for a branch
+ * nested inside another, which meets its own arm at the point the outer one is waiting at, and one
+ * for a pose divided between a model and the base it inherits.
  *
  * <p>The clip half is checked differently, against the shipped table rather than against a written
  * expectation. Two mechanisms that never see each other - the binding resolver reading constructors
@@ -259,6 +260,37 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a base that poses is walked, and a base that only resets is not")
+    void inheritedPoseSurvivesTheResetTest() {
+        // Whether a super.setupAnim is the reset or an inherited pose is decided by where the body
+        // it reaches is declared, and both answers have to keep working or the failure is silent:
+        // treating a posing base as the reset drops every term it contributed, and the leaf still
+        // extracts, still names bones its mesh has, and still says nothing about what went missing.
+        //
+        // The sheep answers both at once. Its legs are posed by the quadruped base it calls up to
+        // and its head by its own body, so the two channels below can only both be right if the
+        // walk entered one and not the other. The feline sits on the opposite side of the same
+        // test - its base declares no pose at all, so the identical instruction IS the reset.
+        PoseProgram sheep = extracted.get("net/minecraft/client/model/animal/sheep/SheepModel");
+        assertNotNull(sheep, "SheepModel is expected to extract");
+
+        assertEquals(
+            PoseExpr.Op.of(PoseOperator.MUL,
+                PoseExpr.Op.of(PoseOperator.MUL,
+                    PoseExpr.Op.of(PoseOperator.MTH_COS, PoseExpr.Op.of(PoseOperator.F2D,
+                        PoseExpr.Op.of(PoseOperator.MUL,
+                            new PoseExpr.Input("walkAnimationPos"), PoseExpr.Const.of(0.6662f)))),
+                    PoseExpr.Const.of(1.4f)),
+                new PoseExpr.Input("walkAnimationSpeed")),
+            sheep.bones().get("right_hind_leg").get(PoseChannel.X_ROT),
+            "the hind leg swings the quadruped base's own stride, which only the base writes");
+
+        assertEquals(new PoseExpr.Input("headEatAngleScale"),
+            sheep.bones().get("head").get(PoseChannel.X_ROT),
+            "the head is the sheep's own, written over the base's after it");
+    }
+
+    @Test
     @DisplayName("the clips a walk finds are the clips the shipped table already binds")
     void clipSitesAgreeWithTheShippedTable() {
         // Two mechanisms that never see each other: the binding resolver reads constructors and play
@@ -393,7 +425,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(76, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(78, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------
