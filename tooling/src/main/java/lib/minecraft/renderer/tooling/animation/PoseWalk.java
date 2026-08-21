@@ -572,6 +572,14 @@ public final class PoseWalk {
     /**
      * The enum a condition turns on, when this path has not been told which constant it is.
      *
+     * <p>Searched through the whole condition rather than at its head, because the question is not
+     * always what a branch was spelled with. A helper handed a boolean its caller computed from an
+     * enum tests that boolean against zero, so the branch is a comparison and the enum is an operand
+     * of one of its sides - two levels down, under the choice the caller left there. Reading only
+     * the head answers nothing for exactly the bodies a split exists to serve.
+     *
+     * @param condition what the branch turns on
+     * @param context the extraction in progress
      * @return the reference to split over, or {@code null} when the condition names none
      */
     private static @Nullable PoseValue.StateRef unresolved(
@@ -584,8 +592,36 @@ public final class PoseWalk {
                     ? null : new PoseValue.StateRef(test.field(), type);
             }
             case PosePredicate.Not not -> unresolved(not.operand(), context);
+            case PosePredicate.Compare compare -> {
+                PoseValue.StateRef asked = unresolved(compare.left(), context);
+                yield asked != null ? asked : unresolved(compare.right(), context);
+            }
             default -> null;
         };
+    }
+
+    /** The enum an expression turns on, wherever inside itself it asks about one. */
+    private static @Nullable PoseValue.StateRef unresolved(
+        @NotNull PoseExpr expr, @NotNull Context context) {
+
+        switch (expr) {
+            case PoseExpr.Select select -> {
+                PoseValue.StateRef asked = unresolved(select.condition(), context);
+                if (asked != null) return asked;
+                asked = unresolved(select.whenTrue(), context);
+                return asked != null ? asked : unresolved(select.whenFalse(), context);
+            }
+            case PoseExpr.Op op -> {
+                for (PoseExpr operand : op.operands()) {
+                    PoseValue.StateRef asked = unresolved(operand, context);
+                    if (asked != null) return asked;
+                }
+                return null;
+            }
+            default -> {
+                return null;
+            }
+        }
     }
 
     /**
@@ -789,11 +825,86 @@ public final class PoseWalk {
      * <p>The binding cannot be a rule about future reads alone: a body reads the render state's
      * enums into locals as its first act and asks about them much later, so an arm that only bound
      * what it read after the split would answer the old question with the new constant's guard.
+     *
+     * <p>Nor about references alone. A caller that has already ASKED the question is holding the
+     * answer as a choice rather than as the reference - which is what a helper taking a boolean is
+     * handed - so an arm that bound only the places still holding the reference would walk on with
+     * the question standing where its own constant answers it.
      */
     private static @NotNull PoseValue standing(
         @NotNull PoseValue value, @NotNull String member, @NotNull PoseValue.EnumConstant standing) {
 
-        return value instanceof PoseValue.StateRef reference && reference.member().equals(member) ? standing : value;
+        if (value instanceof PoseValue.StateRef reference && reference.member().equals(member)) return standing;
+        if (!(value instanceof PoseValue.Num number)) return value;
+        PoseExpr settled = decided(number.expr(), member, standing.name());
+        return settled == number.expr() ? value : num(settled);
+    }
+
+    /**
+     * An expression with every test of one member against a constant already answered.
+     *
+     * <p>Sound because the arm IS that constant, and strictly simplifying: an answered test collapses
+     * a choice to the arm it picked, so what comes out is a sub-tree of what went in. That is what
+     * turns a question the caller left standing into a branch this arm decides rather than forks on.
+     *
+     * @param expr the expression to settle
+     * @param member the render-state member the arm has been told the constant of
+     * @param constant the constant it stands for
+     * @return the settled expression, or the same object when nothing in it asked
+     */
+    private static @NotNull PoseExpr decided(
+        @NotNull PoseExpr expr, @NotNull String member, @NotNull String constant) {
+
+        switch (expr) {
+            case PoseExpr.Op op -> {
+                List<PoseExpr> operands = new ArrayList<>(op.operands().size());
+                boolean settled = false;
+                for (PoseExpr operand : op.operands()) {
+                    PoseExpr answered = decided(operand, member, constant);
+                    settled |= answered != operand;
+                    operands.add(answered);
+                }
+                return settled ? PoseExpr.Op.of(op.operator(), operands) : op;
+            }
+            case PoseExpr.Select select -> {
+                PosePredicate condition = decided(select.condition(), member, constant);
+                PoseExpr whenTrue = decided(select.whenTrue(), member, constant);
+                PoseExpr whenFalse = decided(select.whenFalse(), member, constant);
+                if (condition instanceof PosePredicate.Constant answered)
+                    return answered.value() ? whenTrue : whenFalse;
+                return condition == select.condition() && whenTrue == select.whenTrue()
+                    && whenFalse == select.whenFalse()
+                    ? select : new PoseExpr.Select(condition, whenTrue, whenFalse);
+            }
+            default -> {
+                return expr;
+            }
+        }
+    }
+
+    /** A predicate with every test of one member against a constant already answered. */
+    private static @NotNull PosePredicate decided(
+        @NotNull PosePredicate predicate, @NotNull String member, @NotNull String constant) {
+
+        switch (predicate) {
+            case PosePredicate.EnumEq test -> {
+                return test.field().equals(member)
+                    ? new PosePredicate.Constant(test.constant().equals(constant)) : test;
+            }
+            case PosePredicate.Not not -> {
+                PosePredicate operand = decided(not.operand(), member, constant);
+                return operand == not.operand() ? not : operand.negate();
+            }
+            case PosePredicate.Compare compare -> {
+                PoseExpr left = decided(compare.left(), member, constant);
+                PoseExpr right = decided(compare.right(), member, constant);
+                return left == compare.left() && right == compare.right()
+                    ? compare : PosePredicate.Compare.of(compare.comparison(), left, right);
+            }
+            default -> {
+                return predicate;
+            }
+        }
     }
 
     /**

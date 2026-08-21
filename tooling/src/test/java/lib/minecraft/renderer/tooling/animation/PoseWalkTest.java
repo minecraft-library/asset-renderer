@@ -33,6 +33,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -47,12 +48,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * pose divided between a model and the base it inherits, and a question asked of the render state
  * whose answer a bone is made visible by.
  *
- * <p>Four more are pinned for what their expressions NAME rather than for the shape they take, all
+ * <p>Others are pinned for what their expressions NAME rather than for the shape they take, all
  * being cases that would render perfectly while being wrong: a golem asking each of its hands the
  * same word has to be answered twice, a wither posing two heads out of one array of angles has to
  * read two indices of it, a spear's swing has to ask eight separate things of each hand rather than
- * one thing eight times, and a strider's six bristles have to keep the six rates one lambda was
- * applied at rather than settling on whichever was applied last.
+ * one thing eight times, a strider's six bristles have to keep the six rates one lambda was applied
+ * at rather than settling on whichever was applied last, an allay has to spin about the bone its
+ * constructor re-rooted it at, a foal has to hold the pitch it assigned itself rather than the one
+ * it was handed, and a piglin's crossbow has to land on the arm its render state calls the main one.
  *
  * <p>The clip half is checked differently, against the shipped table rather than against a written
  * expectation. Two mechanisms that never see each other - the binding resolver reading constructors
@@ -586,6 +589,49 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a piglin's crossbow arms turn on which arm is its main one, and land the right way round")
+    void aSplitReachesInsideAComparisonTheCallerBuilt() {
+        // The crossbow hold picks a main arm and an off arm out of the two bones it was handed, and
+        // picks them with a boolean the CALLER computed from the render state's main-arm enum. So
+        // the branch inside the helper is a comparison against zero and the enum is two levels down
+        // inside one of its operands - and the two arms of that branch leave two different BONES in
+        // one place, which is the one shape a pose must never take. The answer is to split the
+        // caller instead, once per constant, so each walk writes to an arm it has already been given.
+        //
+        // Pinned by the SIGN each arm carries, because that is exactly what a split resolved the
+        // other way round would swap: vanilla leans the main arm out by three tenths and the off arm
+        // back by six, so the right arm is negative on both counts and the left positive on both. A
+        // piglin holding its crossbow on the wrong arm renders perfectly.
+        PoseProgram piglin = extracted.get("net/minecraft/client/model/monster/piglin/AdultPiglinModel");
+        assertNotNull(piglin, "AdultPiglinModel is expected to extract");
+
+        Set<Double> right = constantsIn(piglin.bones().get("right_arm").get(PoseChannel.Y_ROT));
+        Set<Double> left = constantsIn(piglin.bones().get("left_arm").get(PoseChannel.Y_ROT));
+
+        assertTrue(right.containsAll(Set.of((double) -0.3f, (double) -0.6f)),
+            "the right arm leans out three tenths as the main arm and back six as the off one");
+        assertFalse(right.contains((double) 0.3f) || right.contains((double) 0.6f),
+            "and never the other way, which is the whole of what a split resolved backwards gives it");
+        assertTrue(left.containsAll(Set.of((double) 0.3f, (double) 0.6f)),
+            "the left arm carries the same two offsets mirrored");
+        assertFalse(left.contains((double) -0.3f) || left.contains((double) -0.6f),
+            "and never the right arm's");
+
+        List<PosePredicate.EnumEq> tests = new ArrayList<>();
+        collectEnumTests(piglin.bones().get("right_arm").get(PoseChannel.Y_ROT), tests);
+        assertTrue(tests.stream().anyMatch(test -> test.field().equals("mainArm")),
+            "which arm leans which way is the render state's own question, kept rather than decided");
+    }
+
+    /** Every literal an expression reaches, walking the graph once rather than each of its paths. */
+    private static @NotNull Set<Double> constantsIn(@NotNull PoseExpr expr) {
+        List<PoseExpr> nodes = new ArrayList<>();
+        collectNodes(expr, nodes, Collections.newSetFromMap(new IdentityHashMap<>()));
+        return nodes.stream().filter(PoseExpr.Const.class::isInstance)
+            .map(node -> ((PoseExpr.Const) node).value()).collect(Collectors.toSet());
+    }
+
+    @Test
     @DisplayName("a foal holds its head at the pitch it assigned itself, not the one it was handed")
     void anAssignmentToTheRenderStateIsReadBack() {
         // BabyDonkeyModel runs the donkey's own pose, then writes thirty degrees down to the render
@@ -765,7 +811,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(104, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(106, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------
