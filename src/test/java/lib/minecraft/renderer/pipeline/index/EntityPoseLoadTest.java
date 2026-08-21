@@ -32,8 +32,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * that reads perfectly and animates wrongly. A refusal has to arrive as a refusal, because a model
  * whose pose could not be read renders exactly like one that poses nothing. The pose has to follow
  * the mesh across the age fork, because a baby is its own model class - the turtle is posed through
- * its baby class ALONE and the donkey through its adult class alone, so one pose per entity would be
- * wrong for one of them whichever way it was chosen. And a sub-expression the table names once has
+ * its baby class ALONE and the donkey poses one thing as an adult and another as a foal, so one pose
+ * per entity would be wrong for one of them whichever way it was chosen. And a sub-expression the
+ * table names once has
  * to arrive once, because a reader that rebuilt one per reference would turn a humanoid's nine
  * hundred nodes back into the twenty-two million the table exists not to write.
  */
@@ -76,16 +77,36 @@ class EntityPoseLoadTest {
     @Test
     @DisplayName("the pose follows the mesh across the age fork, in both directions")
     void thePoseSwapsWithTheBabyMesh() {
-        // The two directions are the whole point. A turtle is posed only as a baby and a donkey only
-        // as an adult, so a single pose per entity is wrong for one of them whichever way it is
-        // chosen - and wrong silently, because the bone names an adult and a baby share are the ones
-        // a wrong pose would animate.
+        // The two directions are the whole point. A turtle is posed only as a baby and a donkey
+        // poses one thing as an adult and another as a foal, so a single pose per entity is wrong
+        // for one of them whichever way it is chosen - and wrong silently, because the bone names an
+        // adult and a baby share are the ones a wrong pose would animate.
         assertFalse(pose("minecraft:turtle").isReadable(), "the adult turtle has no readable pose");
         assertTrue(babyPose("minecraft:turtle").isReadable(), "the baby turtle does");
 
+        // Both donkeys pose, so their direction is read off what they pose WITH. A foal assigns its
+        // own head pitch and reads that back, where the adult reads the pitch the render state
+        // carries - so a foal handed the adult's pose would look wherever the animal is looking.
         assertTrue(pose("minecraft:donkey").isReadable(), "the adult donkey has a readable pose");
-        assertFalse(babyPose("minecraft:donkey").isReadable(),
-            "the baby donkey does not - it writes its own input and reads it back");
+        assertTrue(babyPose("minecraft:donkey").isReadable(), "and so does the foal");
+        assertTrue(reads(pose("minecraft:donkey"), "xRot"),
+            "the adult donkey's head follows the pitch it is handed");
+        assertFalse(reads(babyPose("minecraft:donkey"), "xRot"),
+            "the foal's does not - it holds the angle it assigned itself");
+    }
+
+    /**
+     * Whether any channel of a pose reads a named render-state field.
+     *
+     * @param pose the pose to search
+     * @param field the vanilla render-state field name
+     * @return whether the field is read anywhere inside it
+     */
+    private static boolean reads(@NotNull EntityPose pose, @NotNull String field) {
+        Map<Object, Integer> reached = new IdentityHashMap<>();
+        pose.bones().values().forEach(channels -> channels.values().forEach(expr -> edges(expr, reached)));
+        return reached.keySet().stream()
+            .anyMatch(node -> node instanceof PoseExpr.Input input && input.field().equals(field));
     }
 
     @Test

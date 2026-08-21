@@ -62010,7 +62010,638 @@
       }
     },
     "BabyDonkeyModel": {
-      "refused": "writes DonkeyRenderState.xRot, so its pose is not a function of its inputs alone"
+      "shared": [
+        {
+          "sub": [
+            {
+              "const": 1.0
+            },
+            {
+              "input": "standAnimation"
+            }
+          ]
+        },
+        {
+          "mth_sin": [
+            {
+              "f2d": [
+                {
+                  "input": "ageInTicks"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "const": 1.0
+            },
+            {
+              "max": [
+                {
+                  "input": "standAnimation"
+                },
+                {
+                  "input": "eatAnimation"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "clamp": [
+            {
+              "input": "yRot"
+            },
+            {
+              "const": -20.0
+            },
+            {
+              "const": 20.0
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "bone": [
+                "left_front_leg",
+                "y"
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "const": 1.0
+                },
+                {
+                  "input": "standAnimation"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "bone": [
+                "left_front_leg",
+                "z"
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "const": 0.5
+                },
+                {
+                  "input": "standAnimation"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "f2d": [
+                {
+                  "add": [
+                    {
+                      "mul": [
+                        {
+                          "input": "ageInTicks"
+                        },
+                        {
+                          "const": 0.6
+                        }
+                      ]
+                    },
+                    {
+                      "const": 3.1415927
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "f2d": [
+                {
+                  "add": [
+                    {
+                      "mul": [
+                        {
+                          "mul": [
+                            {
+                              "select": [
+                                {
+                                  "eq": [
+                                    {
+                                      "input": "isInWater"
+                                    },
+                                    {
+                                      "iconst": 0
+                                    }
+                                  ]
+                                },
+                                {
+                                  "const": 1.0
+                                },
+                                {
+                                  "const": 0.2
+                                }
+                              ]
+                            },
+                            {
+                              "input": "walkAnimationPos"
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.6662
+                        }
+                      ]
+                    },
+                    {
+                      "const": 3.1415927
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "ref": 7
+                    },
+                    {
+                      "const": 0.8
+                    }
+                  ]
+                },
+                {
+                  "input": "walkAnimationSpeed"
+                }
+              ]
+            },
+            {
+              "ref": 0
+            }
+          ]
+        },
+        {
+          "lerp": [
+            {
+              "input": "standAnimation"
+            },
+            {
+              "bone": [
+                "left_hind_leg",
+                "y"
+              ]
+            },
+            {
+              "const": -0.3
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "const": 1.0471976
+            },
+            {
+              "input": "standAnimation"
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "ref": 7
+                    },
+                    {
+                      "const": 0.5
+                    }
+                  ]
+                },
+                {
+                  "input": "walkAnimationSpeed"
+                }
+              ]
+            },
+            {
+              "ref": 0
+            }
+          ]
+        }
+      ],
+      "bones": {
+        "body": {
+          "x_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "input": "standAnimation"
+                  },
+                  {
+                    "const": -0.7853982
+                  }
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "ref": 0
+                  },
+                  {
+                    "bone": [
+                      "body",
+                      "x_rot"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "head_parts": {
+          "y": {
+            "lerp": [
+              {
+                "input": "eatAnimation"
+              },
+              {
+                "bone": [
+                  "head_parts",
+                  "y"
+                ]
+              },
+              {
+                "const": -1.2
+              }
+            ]
+          },
+          "z": {
+            "lerp": [
+              {
+                "input": "standAnimation"
+              },
+              {
+                "bone": [
+                  "head_parts",
+                  "z"
+                ]
+              },
+              {
+                "const": -3.6
+              }
+            ]
+          },
+          "x_rot": {
+            "add": [
+              {
+                "add": [
+                  {
+                    "mul": [
+                      {
+                        "input": "standAnimation"
+                      },
+                      {
+                        "const": -0.2617994
+                      }
+                    ]
+                  },
+                  {
+                    "mul": [
+                      {
+                        "input": "eatAnimation"
+                      },
+                      {
+                        "add": [
+                          {
+                            "const": 1.5707964
+                          },
+                          {
+                            "mul": [
+                              {
+                                "ref": 1
+                              },
+                              {
+                                "const": 0.05
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "add": [
+                      {
+                        "const": 0.0
+                      },
+                      {
+                        "mul": [
+                          {
+                            "mul": [
+                              {
+                                "input": "feedingAnimation"
+                              },
+                              {
+                                "ref": 1
+                              }
+                            ]
+                          },
+                          {
+                            "const": 0.05
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "y_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "input": "standAnimation"
+                      },
+                      {
+                        "ref": 3
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "mul": [
+                      {
+                        "ref": 3
+                      },
+                      {
+                        "const": 0.017453292
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "left_chest": {
+          "visible": {
+            "input": "hasChest"
+          }
+        },
+        "left_front_leg": {
+          "y": {
+            "ref": 4
+          },
+          "z": {
+            "ref": 5
+          },
+          "x_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "add": [
+                      {
+                        "const": 0.0
+                      },
+                      {
+                        "ref": 6
+                      }
+                    ]
+                  },
+                  {
+                    "input": "standAnimation"
+                  }
+                ]
+              },
+              {
+                "ref": 8
+              }
+            ]
+          }
+        },
+        "left_hind_leg": {
+          "y": {
+            "ref": 9
+          },
+          "x_rot": {
+            "sub": [
+              {
+                "ref": 10
+              },
+              {
+                "ref": 11
+              }
+            ]
+          }
+        },
+        "right_chest": {
+          "visible": {
+            "input": "hasChest"
+          }
+        },
+        "right_front_leg": {
+          "y": {
+            "ref": 4
+          },
+          "z": {
+            "ref": 5
+          },
+          "x_rot": {
+            "sub": [
+              {
+                "mul": [
+                  {
+                    "sub": [
+                      {
+                        "const": 0.0
+                      },
+                      {
+                        "ref": 6
+                      }
+                    ]
+                  },
+                  {
+                    "input": "standAnimation"
+                  }
+                ]
+              },
+              {
+                "ref": 8
+              }
+            ]
+          }
+        },
+        "right_hind_leg": {
+          "y": {
+            "lerp": [
+              {
+                "input": "standAnimation"
+              },
+              {
+                "ref": 9
+              },
+              {
+                "const": -0.3
+              }
+            ]
+          },
+          "x_rot": {
+            "add": [
+              {
+                "ref": 10
+              },
+              {
+                "ref": 11
+              }
+            ]
+          }
+        },
+        "tail": {
+          "y": {
+            "add": [
+              {
+                "bone": [
+                  "tail",
+                  "y"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "input": "walkAnimationSpeed"
+                  },
+                  {
+                    "input": "ageScale"
+                  }
+                ]
+              }
+            ]
+          },
+          "z": {
+            "add": [
+              {
+                "bone": [
+                  "tail",
+                  "z"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "input": "walkAnimationSpeed"
+                      },
+                      {
+                        "const": 2.0
+                      }
+                    ]
+                  },
+                  {
+                    "input": "ageScale"
+                  }
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "add": [
+              {
+                "const": -0.2617994
+              },
+              {
+                "mul": [
+                  {
+                    "input": "walkAnimationSpeed"
+                  },
+                  {
+                    "const": 0.75
+                  }
+                ]
+              }
+            ]
+          },
+          "y_rot": {
+            "select": [
+              {
+                "eq": [
+                  {
+                    "input": "animateTail"
+                  },
+                  {
+                    "iconst": 0
+                  }
+                ]
+              },
+              {
+                "const": 0.0
+              },
+              {
+                "mth_cos": [
+                  {
+                    "f2d": [
+                      {
+                        "mul": [
+                          {
+                            "input": "ageInTicks"
+                          },
+                          {
+                            "const": 0.7
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
     },
     "BabyDrownedModel": {
       "shared": [

@@ -311,6 +311,7 @@ public final class PoseWalk {
         @NotNull Map<String, String> fieldToClip,
         @NotNull Interp<PoseValue> stack,
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
+        @NotNull Map<String, PoseExpr> written,
         @NotNull List<PoseClipSite> clipSites,
         @NotNull Map<String, Optional<EnumConstantTable>> enums,
         @NotNull Map<String, PoseValue.EnumConstant> bound,
@@ -357,8 +358,8 @@ public final class PoseWalk {
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
             ClipBindingResolver.fieldToClip(cache, modelClass),
             Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS),
-            new LinkedHashMap<>(), new ArrayList<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
-            new LinkedHashMap<>(), new LinkedHashMap<>(), new int[1]);
+            new LinkedHashMap<>(), new LinkedHashMap<>(), new ArrayList<>(), new LinkedHashMap<>(),
+            new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(), new int[1]);
 
         try {
             walkBody(body, context, 0);
@@ -518,12 +519,14 @@ public final class PoseWalk {
         // What it left in its own slots is gone either way, which is what withoutLocals says.
         Held endedFallen = held(context);
         restore(context, joined(condition,
-            new Held(withoutLocals(endedTaken.machine(), before.machine()), endedTaken.pose(),
-                endedTaken.clipSites()),
-            new Held(withoutLocals(endedFallen.machine(), before.machine()), endedFallen.pose(),
-                endedFallen.clipSites()),
-            context));
+            returned(endedTaken, before), returned(endedFallen, before), context));
         return null;
+    }
+
+    /** An arm that ran a body to its end, with the slots that body alone could see taken as gone. */
+    private static @NotNull Held returned(@NotNull Held ended, @NotNull Held before) {
+        return new Held(withoutLocals(ended.machine(), before.machine()),
+            ended.pose(), ended.written(), ended.clipSites());
     }
 
     /**
@@ -540,6 +543,7 @@ public final class PoseWalk {
         return new Held(
             reconciled(condition, taken.machine(), fallen.machine(), context),
             merge(condition, taken.pose(), fallen.pose()),
+            mergeWritten(condition, taken.written(), fallen.written()),
             bothPlayed(taken.clipSites(), fallen.clipSites()));
     }
 
@@ -584,20 +588,31 @@ public final class PoseWalk {
         };
     }
 
-    /** Everything a walk can be put back to - the machine, the pose so far, and the clips played. */
+    /**
+     * Everything a walk can be put back to - the machine, the pose so far, what the body has
+     * written to the render state, and the clips played.
+     *
+     * @param machine the operand stack and the slot frames
+     * @param pose the channels written so far, by bone
+     * @param written what the body has assigned to the render state, by member
+     * @param clipSites the authored clips applied so far
+     */
     private record Held(
         @NotNull Interp.Snapshot<PoseValue> machine,
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
+        @NotNull Map<String, PoseExpr> written,
         @NotNull List<PoseClipSite> clipSites
     ) {}
 
     private static @NotNull Held held(@NotNull Context context) {
-        return new Held(context.stack().snapshot(), copy(context.pose()), List.copyOf(context.clipSites()));
+        return new Held(context.stack().snapshot(), copy(context.pose()),
+            new LinkedHashMap<>(context.written()), List.copyOf(context.clipSites()));
     }
 
     private static void restore(@NotNull Context context, @NotNull Held held) {
         context.stack().restore(held.machine());
         replace(context.pose(), held.pose());
+        replaceWritten(context, held.written());
         replaceSites(context, held.clipSites());
     }
 
@@ -653,7 +668,7 @@ public final class PoseWalk {
                 Interp.Snapshot<PoseValue> machine =
                     unbound(ended.machine(), before.machine(), reference, standing);
                 arms.add(new Held(met ? machine : withoutLocals(machine, before.machine()),
-                    ended.pose(), ended.clipSites()));
+                    ended.pose(), ended.written(), ended.clipSites()));
             } finally {
                 context.bound().remove(reference.member());
             }
@@ -679,6 +694,7 @@ public final class PoseWalk {
             folded = new Held(
                 reconcile(guard, arm.machine(), folded.machine()),
                 merge(guard, arm.pose(), folded.pose()),
+                mergeWritten(guard, arm.written(), folded.written()),
                 bothPlayed(arm.clipSites(), folded.clipSites()));
         }
         return folded;
@@ -800,6 +816,35 @@ public final class PoseWalk {
     private static void replaceSites(@NotNull Context context, @NotNull List<PoseClipSite> sites) {
         context.clipSites().clear();
         context.clipSites().addAll(sites);
+    }
+
+    private static void replaceWritten(@NotNull Context context, @NotNull Map<String, PoseExpr> written) {
+        context.written().clear();
+        context.written().putAll(written);
+    }
+
+    /**
+     * Every render-state member either arm assigned, as the choice between what each left it at.
+     *
+     * <p>An arm that assigned nothing leaves the member reading what the render state carries, which
+     * is exactly what an unassigned member already answers - the same third case a channel does not
+     * need either.
+     */
+    private static @NotNull Map<String, PoseExpr> mergeWritten(
+        @NotNull PosePredicate condition,
+        @NotNull Map<String, PoseExpr> taken, @NotNull Map<String, PoseExpr> fallen) {
+
+        Map<String, PoseExpr> out = new LinkedHashMap<>();
+        Set<String> members = new LinkedHashSet<>(taken.keySet());
+        members.addAll(fallen.keySet());
+
+        for (String member : members) {
+            PoseExpr whenTaken = taken.getOrDefault(member, new PoseExpr.Input(member));
+            PoseExpr whenNot = fallen.getOrDefault(member, new PoseExpr.Input(member));
+            out.put(member, whenTaken.equals(whenNot)
+                ? whenTaken : new PoseExpr.Select(condition, whenTaken, whenNot));
+        }
+        return out;
     }
 
     /**
@@ -1260,7 +1305,11 @@ public final class PoseWalk {
             // A render state holds numbers and it holds references, and only the numbers are
             // arithmetic on. Reading a reference as though it were a float would put a thing with no
             // numeric value into an expression and only find out at the sink.
-            if (isPrimitive(field.desc)) stack.push(num(new PoseExpr.Input(field.name)));
+            //
+            // A number the body has assigned reads that assignment, the way a written channel reads
+            // its write; one it has not reads what the render state carries.
+            if (isPrimitive(field.desc)) stack.push(num(context.written()
+                .getOrDefault(field.name, new PoseExpr.Input(field.name))));
             // An array is neither: it answers no question and matches no constant, and calling one a
             // reference on the strength of not being primitive is how a float array ends up being
             // compared against an enum constant.
@@ -1308,6 +1357,22 @@ public final class PoseWalk {
         Map<String, Map<PoseChannel, PoseExpr>> pose = context.pose();
         PoseValue value = stack.pop();
         PoseValue receiver = stack.pop();
+
+        // A body may assign a number to the render state it was handed and read it straight back,
+        // which is not a dependence on anything: the value is the body's own, and the read after it
+        // answers the assignment the way a channel answers its last write. Held per path like the
+        // pose, so an arm that assigns and an arm that does not stay two different states - and a
+        // reference is refused, because what a body does with one of those is where the interesting
+        // part of it is and an assignment would hide that.
+        if (field.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)
+            && isPrimitive(field.desc)) {
+
+            if (!(value instanceof PoseValue.Num assigned))
+                throw new IllegalStateException("assigns the render state's '" + field.name
+                    + "' a value it could not model");
+            context.written().put(field.name, assigned.expr());
+            return;
+        }
 
         if (!VanillaSourceClasses.Types.MODEL_PART.equals(field.owner))
             throw new IllegalStateException("writes " + ClassKit.simpleName(field.owner) + "." + field.name

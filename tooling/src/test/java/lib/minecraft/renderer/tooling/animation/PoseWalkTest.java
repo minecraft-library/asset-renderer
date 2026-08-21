@@ -21,6 +21,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -516,11 +518,7 @@ class PoseWalkTest {
         PoseProgram humanoid = extracted.get("net/minecraft/client/model/HumanoidModel");
         assertNotNull(humanoid, "HumanoidModel is expected to extract");
 
-        List<PoseExpr> reached = new ArrayList<>();
-        humanoid.bones().values().forEach(channels -> channels.values()
-            .forEach(expr -> collectNodes(expr, reached,
-                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()))));
-
+        List<PoseExpr> reached = nodesOf(humanoid);
         assertTrue(reached.contains(spearHold(-0.1f)), "the right arm holds a spear a tenth off the head's yaw");
         assertTrue(reached.contains(spearHold(0.1f)), "the left arm holds it the same distance the other way");
     }
@@ -588,6 +586,38 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a foal holds its head at the pitch it assigned itself, not the one it was handed")
+    void anAssignmentToTheRenderStateIsReadBack() {
+        // BabyDonkeyModel runs the donkey's own pose, then writes thirty degrees down to the render
+        // state's pitch and reads it straight back. That is an assignment rather than a dependence,
+        // and the difference is the whole foal: substituted, its head is pinned down by a constant
+        // the model owns; left as an input it tilts with wherever the animal happens to be looking,
+        // which renders perfectly and is a different animal.
+        //
+        // Vanilla adds the assigned angle to a literal, so the fold is what says it was substituted:
+        // a walk that read it back has one number where a walk that did not has a term.
+        PoseProgram foal = extracted.get("net/minecraft/client/model/animal/equine/BabyDonkeyModel");
+        assertNotNull(foal, "BabyDonkeyModel is expected to extract");
+
+        List<PoseExpr> reached = nodesOf(foal);
+        assertTrue(reached.contains(PoseExpr.Op.of(PoseOperator.MUL,
+                new PoseExpr.Input("standAnimation"),
+                PoseExpr.Const.of(0.2617994f + -30.0f * 0.017453292f))),
+            "the head's standing term carries the assigned pitch folded into its own literal");
+        assertEquals(List.of(), reached.stream().filter(PoseExpr.Input.class::isInstance)
+                .map(PoseExpr.Input.class::cast).map(PoseExpr.Input::field).filter("xRot"::equals).toList(),
+            "nothing is left reading the pitch the render state carries");
+
+        // The assignment belongs to the walk that made it. The donkey the foal calls up to is walked
+        // on its own as well, and there the same field is an input like any other - which is what
+        // says the substitution is a fact about one path rather than about the field.
+        PoseProgram donkey = extracted.get("net/minecraft/client/model/animal/equine/DonkeyModel");
+        assertNotNull(donkey, "DonkeyModel is expected to extract");
+        assertTrue(nodesOf(donkey).contains(new PoseExpr.Input("xRot")),
+            "a donkey of its own reads the pitch it is handed");
+    }
+
+    @Test
     @DisplayName("an allay spins about the bone its constructor re-rooted it at")
     void anInheritedRootResolvesToTheBoneTheConstructorNarrowedItTo() {
         // The allay hands super a getChild of its own root parameter, so the root every model
@@ -602,12 +632,7 @@ class PoseWalkTest {
         PoseProgram allay = extracted.get("net/minecraft/client/model/animal/allay/AllayModel");
         assertNotNull(allay, "AllayModel is expected to extract");
 
-        List<PoseExpr> reached = new ArrayList<>();
-        allay.bones().values().forEach(channels -> channels.values()
-            .forEach(expr -> collectNodes(expr, reached,
-                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()))));
-
-        assertTrue(reached.contains(new PoseExpr.Select(
+        assertTrue(nodesOf(allay).contains(new PoseExpr.Select(
                 PosePredicate.Compare.of(PosePredicate.Comparison.EQ,
                     new PoseExpr.Input("isSpinning"), PoseExpr.Const.of(0)),
                 new PoseExpr.BoneRead("root", PoseChannel.Y_ROT),
@@ -653,6 +678,21 @@ class PoseWalkTest {
                             new PoseExpr.Input("ageInTicks"), PoseExpr.Const.of(0.4f)))))),
             strider.bones().get("right_top_bristle").get(PoseChannel.Z_ROT),
             "the top bristle leans off its authored angle, stirred at its own rate and shaken at another");
+    }
+
+    /**
+     * Every node a model's channels reach, following the graph once rather than each of its paths.
+     *
+     * <p>One walked set across the whole pose rather than one per channel, because a pose is a graph
+     * and the sharing is the point: a humanoid's arms are nine hundred distinct nodes standing for
+     * twenty-two million paths, and a set per channel would walk the paths.
+     */
+    private static @NotNull List<PoseExpr> nodesOf(@NotNull PoseProgram program) {
+        List<PoseExpr> out = new ArrayList<>();
+        Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
+        program.bones().values().forEach(channels -> channels.values()
+            .forEach(expr -> collectNodes(expr, out, walked)));
+        return out;
     }
 
     /** Every node an expression reaches, following the graph once rather than each of its paths. */
@@ -725,7 +765,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(103, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(104, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------
