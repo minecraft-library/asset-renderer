@@ -597,6 +597,65 @@ hands each renderer the one its subject wears. There is no armour file; the shel
   `EntityIndexBuilder.assemble`, which owns the geometry join, the mesh surgery, the axes pivot, the
   per-variant fold, the grouping and every leaf decode.
 
+## Posing an entity at a tick
+
+`EntityOptions.PoseMode` chooses between the mesh as authored and the mesh its model puts it in, and
+`engine/kit/PoseKit.posed` is the one place that answers. It nests on `EntityOptions` beside
+`FitMode` because exactly one bag names it.
+
+**`BIND` is the default and hands back the very instance it was given.** Identity, not equality: an
+equal copy is still a copy, and every float in it is one the authored path never computed. The same
+answer serves a subject whose model poses nothing, one whose pose could not be read, and one writing
+only channels a mesh does not carry - so the authored path allocates nothing and rounds nothing, and
+that is the whole of why the runtime landed at zero movers. Anything that makes the default return a
+rebuilt mesh has broken the contract whether or not the bytes move that day.
+
+- The insertion is one line at the top of `EntityRenderer.renderEntity`'s `buildAtTick` lambda, and
+  the posed mesh goes into `FeatureContext` too - the collar and the horse marking redraw the body's
+  own geometry, so they move with it or they detach from it.
+- The rebuild preserves the mesh's **own bone order**, that order being the tied-depth priority. A
+  `LinkedHashMap`, never `Map.copyOf`, whose iteration is salted per JVM launch.
+- Composition is channel-wise on the Euler triplet `BoneKit.applyBoneRotation` feeds to
+  `Quaternionf.rotationZYX`. **Do not pre-compose a rotation as a matrix** - it reaches that call
+  through different arithmetic and parts from the authored pose at a delta of zero.
+- **A channel written back to what the mesh already held keeps the mesh's own degrees.** The table is
+  radians throughout and a bone stores degrees, and `toDegrees(toRadians(d))` does not return `d` for
+  about one float in fifty thousand - `31f` is one - so converting unconditionally walks every bone a
+  bind-resolving pose touches by an ulp a render.
+- Three scale axes fold onto the one a bone holds and a divergence is refused. `HappyGhastModel`
+  writes one expression to all three, so the fold is exact rather than a rounding to accept.
+- **The container enters as a synthetic cubeless bone** named `$container`, every top-level bone
+  re-parented onto it, which reuses the chain composition instead of needing quaternion-to-Euler
+  algebra a rotation above the roots would otherwise want. Top-level is read the way `BoneKit` reads
+  it, which is wider than a null parent: **a bone naming a parent its mesh does not declare hangs
+  from the root too**, and the breeze ships two of them.
+
+**A bone the MESH does not declare is not evaluated.** A pose belongs to a model class where a mesh
+belongs to a subject, so the two part company wherever a bone rests undrawn and took its subtree with
+it: an illager resting with its arms crossed has no arm to hang, and vanilla's own `setupAnim` writes
+those fields on parts nothing renders. `PoseEvaluator.evaluate` passes them over - without that it
+throws on all four crossed-arm illagers and the armour stand. It still throws where the disagreement
+is real: a bone the mesh does have, reading one it does not.
+
+**What varies with the tick is elapsed age and nothing else.** An offline subject stands still, so
+`PoseKit`'s frame is `PoseEvaluator.restingIn` with `ageInTicks` answered as the tick - it walks at no
+speed, swings at nothing and holds nothing. Starting from `restingIn` rather than `ZERO` is what keeps
+a humanoid's arms off NaN.
+
+**No flag channel in the corpus reads elapsed time**, so per-frame visibility agrees with the resting
+strip on every subject at every tick, and the strip is the only thing that applies one. That is
+measured rather than assumed, and it is why the guardian's eye and the fox's legs need neither a
+harness pin nor an asset answer: vanilla writes the eye `true` unconditionally, and calls the fox's
+`setWalkingPose` - which sets all four legs `true` - before any branch, leaving only `setSleepingPose`
+behind an `isSleeping` that rests false.
+
+**The canvas is measured across every frame the schedule samples**, each through its own posed mesh
+and its own tick's texture, unioned by `EntityRenderer.computeScreenBoundsAcrossFrames`. It wraps the
+scope dispatch from OUTSIDE, so the group union and the frame union compose rather than one swallowing
+the other. A one-frame schedule measures the one frame it draws and draws the geometry it already
+built for the empty-canvas early-out; a schedule with frames to spare builds each of them, nothing
+about a posed tick being carryable to its neighbour.
+
 ## Block icons
 
 A block item's inventory icon is the item model its `minecraft:item_model` component names, baked at

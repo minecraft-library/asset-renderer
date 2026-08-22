@@ -26,6 +26,7 @@ import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.engine.kit.PoseEvaluator;
+import lib.minecraft.renderer.engine.kit.PoseKit;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.parity.Parity;
@@ -1094,20 +1095,9 @@ public final class EntityIndexBuilder {
         for (String bone : bones.keySet())
             if (!PoseEvaluator.drawsAtRest(pose, model, bone, restingState)) undrawn.add(bone);
         if (undrawn.isEmpty()) return model;
-        // Fixpoint so a subtree of any depth closes regardless of parent-before-child ordering.
-        boolean grew = true;
-        while (grew) {
-            grew = false;
-            for (Map.Entry<String, EntityModelData.Bone> bone : bones.entrySet()) {
-                if (undrawn.contains(bone.getKey())) continue;
-                String parent = bone.getValue().getParent();
-                if (parent != null && undrawn.contains(parent)) {
-                    undrawn.add(bone.getKey());
-                    grew = true;
-                }
-            }
-        }
-        bones.keySet().removeAll(undrawn);
+        // Closed downwards by the runtime's own walk, so the strip and a posed frame cannot come to
+        // disagree about what a hidden bone takes with it.
+        bones.keySet().removeAll(PoseKit.withDescendants(bones, undrawn));
         return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(),
             Concurrent.adoptLinkedMap(bones), model.isCull());
     }

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -22,8 +23,10 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -43,6 +46,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * rather than making the trip out to radians and back; and every subject in the corpus poses to a
  * number at every tick, which is what says the table and the shipped meshes agree about what a bone
  * is called.
+ *
+ * <p>The flag half is pinned twice over, because its two halves fail differently. On the corpus, no
+ * subject may gain or lose a bone to a posed frame - not one flag in the shipped table reads elapsed
+ * time, so a frame decides visibility exactly as the load-time strip did, and the day that stops
+ * being true a limb starts appearing partway through an animation with nothing to say why. On a mesh
+ * built here, hiding and skipping have to drop different things, which is the only reason there are
+ * two channels.
  */
 @DisplayName("the shipped pose table applied to a mesh")
 class PoseKitTest {
@@ -173,6 +183,70 @@ class PoseKitTest {
     }
 
     @Test
+    @DisplayName("no subject in the corpus gains or loses a bone to a posed frame")
+    void theFlagChannelsAgreeWithTheRestingStrip() {
+        // The measurement the whole flag half rests on: not one flag in the corpus reads elapsed
+        // time, so a posed frame decides visibility exactly the way the load-time strip already did
+        // and no subject can differ from itself between two instants. It is asserted rather than
+        // assumed because the day a model starts reading a clock for a flag is the day the two part,
+        // and the failure would otherwise be a limb quietly appearing partway through an animation.
+        for (Entity entity : entities.values()) {
+            Set<String> declared = entity.model().getBones().keySet();
+            for (int tick : TICKS)
+                assertTrue(PoseKit.posed(EntityOptions.PoseMode.ANIMATED, entity, tick)
+                        .getBones().keySet().containsAll(declared),
+                    entity.id() + " draws every bone it declares at tick " + tick);
+        }
+    }
+
+    @Test
+    @DisplayName("a fox stands on four legs and a guardian keeps its eye, at every tick")
+    void theTwoFrameDrivenVisibilityWritersDraw() {
+        // Both write visibility with no toggle over them, which is why they waited for a runtime that
+        // reads the channel at all. Vanilla decides both outside every branch a still subject could
+        // take: FoxModel.setupAnim calls setWalkingPose - which sets all four legs visible - before it
+        // tests anything, leaving only setSleepingPose behind an isSleeping that rests false; and
+        // GuardianModel writes its eye visible unconditionally, past the guard that skips the eye's
+        // position when nothing is being looked at. So both draw, and this is what says they still do.
+        for (int tick : TICKS) {
+            EntityModelData fox = PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject("minecraft:fox"), tick);
+            for (String leg : new String[] {"left_front_leg", "right_front_leg", "left_hind_leg", "right_hind_leg"})
+                assertTrue(fox.getBones().containsKey(leg), "a fox stands on its " + leg + " at tick " + tick);
+            for (String id : new String[] {"minecraft:guardian", "minecraft:elder_guardian"})
+                assertTrue(PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject(id), tick)
+                    .getBones().containsKey("eye"), id + " keeps its eye at tick " + tick);
+        }
+    }
+
+    @Test
+    @DisplayName("a hidden bone takes its subtree and a skipped one takes only its own cubes")
+    void theTwoFlagsDropDifferentThings() {
+        // The difference is the whole reason there are two channels. Hiding is vanilla's
+        // `visible = false`, which skips the part and everything under it - dropping the name alone
+        // would re-parent each orphan onto the root and land geometry where the subject is not.
+        // Skipping keeps every descendant drawing and loses only what the bone itself owns.
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", cubed(null));
+        mesh.getBones().put("head", cubed("body"));
+        mesh.getBones().put("hat", cubed("head"));
+        mesh.getBones().put("tail", cubed("body"));
+
+        EntityModelData hidden = PoseKit.posed(EntityOptions.PoseMode.ANIMATED,
+            subject("minecraft:test", mesh, flags(Map.of("head",
+                Map.of(PoseChannel.VISIBLE, new PoseExpr.Const(0d, PoseOperator.Width.FLOAT))))), 0);
+        assertEquals(List.of("body", "tail"), List.copyOf(hidden.getBones().keySet()),
+            "the hidden bone goes and takes its hat with it");
+
+        EntityModelData skipped = PoseKit.posed(EntityOptions.PoseMode.ANIMATED,
+            subject("minecraft:test", mesh, flags(Map.of("head",
+                Map.of(PoseChannel.SKIP_DRAW, new PoseExpr.Const(1d, PoseOperator.Width.FLOAT))))), 0);
+        assertEquals(List.of("body", "head", "hat", "tail"), List.copyOf(skipped.getBones().keySet()),
+            "the skipped bone stays, and so does everything under it");
+        assertTrue(skipped.getBones().get("head").getCubes().isEmpty(), "and draws none of its own cubes");
+        assertFalse(skipped.getBones().get("hat").getCubes().isEmpty(), "while its child draws all of its");
+    }
+
+    @Test
     @DisplayName("a bone scaled unevenly is refused rather than folded to one of its axes")
     void perAxisScaleIsRefused() {
         // A bone holds one scale where the table holds three. Every write in the corpus puts one
@@ -209,6 +283,19 @@ class PoseKitTest {
     private static @NotNull EntityModelData.Bone bone(String parent) {
         return new EntityModelData.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f,
             Concurrent.newList(), parent);
+    }
+
+    /** A bone carrying one cube, so dropping its cubes is tellable from leaving them alone. */
+    private static @NotNull EntityModelData.Bone cubed(String parent) {
+        ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
+        cubes.add(new EntityModelData.Cube());
+        return new EntityModelData.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f,
+            cubes, parent);
+    }
+
+    /** A pose that writes the given flags and nothing else. */
+    private static @NotNull EntityPose flags(@NotNull Map<String, Map<PoseChannel, PoseExpr>> bones) {
+        return new EntityPose(Map.of(), bones, List.of(), Map.of(), Optional.empty());
     }
 
     private static boolean finite(@NotNull Vector3f vector) {
