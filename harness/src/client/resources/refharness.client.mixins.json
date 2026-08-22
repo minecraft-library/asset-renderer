@@ -25,6 +25,7 @@
     "HideCloudsMixin",
     "HideHandMixin",
     "HideSkyMixin",
+    "IllagerArmPoseMixin",
     "LlamaModelMixin",
     "MenuRenderTargetMixin",
     "PhantomStateMixin",

@@ -136,6 +136,9 @@ public final class PoseEvaluator {
     /** The frame that answers every question with nothing, which is a starting point and not a pose. */
     public static final @NotNull Frame ZERO = new Frame() {};
 
+    /** The one question whose resting answer is not nothing - see {@link #restingIn}. */
+    private static final @NotNull String IS_EMPTY = "isEmpty";
+
     /**
      * The frame a subject is in before anything has happened to it.
      *
@@ -143,6 +146,13 @@ public final class PoseEvaluator {
      * names reads what its own render state builds it at, which is nothing for most of them and one
      * for a living subject's age scale and a humanoid's speed - the latter being divided by, so a
      * humanoid posed from {@code ZERO} has NaN arms and one posed from this has still ones.
+     *
+     * <p>The same holds for a question, and the corpus asks one that answers to it: a caller that
+     * supplies no item is a subject holding none, and a stack nobody put anything in <em>is</em>
+     * empty. Answering {@code isEmpty} nothing says the opposite - that there is something there -
+     * which drew a zombie nautilus without the corals it wears when it is not armoured. Every other
+     * question the table asks rests at nothing, {@code isStarted} included: an animation nothing
+     * started has not started.
      *
      * <p>A caller that models something delegates to this for the rest, rather than answering the
      * whole surface itself.
@@ -152,11 +162,15 @@ public final class PoseEvaluator {
      */
     public static @NotNull Frame restingIn(@NotNull EntityPose pose) {
         Map<String, Float> defaults = pose.inputDefaults();
-        if (defaults.isEmpty()) return ZERO;
         return new Frame() {
             @Override
             public float input(@NotNull String field) {
                 return defaults.getOrDefault(field, 0f);
+            }
+
+            @Override
+            public float question(@NotNull String receiver, @NotNull String question) {
+                return IS_EMPTY.equals(question) ? 1f : 0f;
             }
         };
     }

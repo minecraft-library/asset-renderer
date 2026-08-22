@@ -1052,14 +1052,37 @@ public final class EntityIndexBuilder {
      *
      * <p>Applied where the strip already happened rather than at render, so a resting mesh is the
      * same object it always was and the canvas it sizes is measured off the same bones.
+     *
+     * <p><b>A bone that does not draw takes its subtree with it.</b> Vanilla's {@code visible = false}
+     * skips the part and everything hanging off it, and a name-only removal does something else
+     * entirely: an orphan's parent lookup misses, so {@link lib.minecraft.renderer.engine.kit.BoneKit
+     * BoneKit} anchors it at the root instead, and geometry that should have vanished lands somewhere
+     * the subject is not. A zombie nautilus is what that looks like - its {@code corals} group left,
+     * and four sprigs of coral floating clear of the shell.
      */
     private static @NotNull EntityModelData applyRestingVisibility(
         @NotNull EntityModelData model, @NotNull EntityPose pose) {
 
         if (pose.bones().isEmpty()) return model;
         LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(model.getBones());
-        boolean dropped = bones.keySet().removeIf(bone -> !PoseEvaluator.drawsAtRest(pose, model, bone));
-        if (!dropped) return model;
+        Set<String> undrawn = new LinkedHashSet<>();
+        for (String bone : bones.keySet())
+            if (!PoseEvaluator.drawsAtRest(pose, model, bone)) undrawn.add(bone);
+        if (undrawn.isEmpty()) return model;
+        // Fixpoint so a subtree of any depth closes regardless of parent-before-child ordering.
+        boolean grew = true;
+        while (grew) {
+            grew = false;
+            for (Map.Entry<String, EntityModelData.Bone> bone : bones.entrySet()) {
+                if (undrawn.contains(bone.getKey())) continue;
+                String parent = bone.getValue().getParent();
+                if (parent != null && undrawn.contains(parent)) {
+                    undrawn.add(bone.getKey());
+                    grew = true;
+                }
+            }
+        }
+        bones.keySet().removeAll(undrawn);
         return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(),
             Concurrent.adoptLinkedMap(bones), model.isCull());
     }
