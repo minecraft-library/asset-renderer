@@ -7,7 +7,7 @@
   "provenance": {
     "artifact": "sweep.entity",
     "asset_dirty": false,
-    "asset_sha": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+    "asset_sha": "b1778c95cf10c827862e269cb33a7e7ba24686b0",
     "counts": {
       "failed": 0,
       "rows": 402
@@ -17,9 +17,8 @@
     "mc_version": "26.1.2",
     "mode": "EVERY",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "entityParityVanilla",
-    "reason": "Whole-store capture on a clean tree at the end of the parity-cleanup follow-up. Twenty-three of twenty-four artifacts are byte-identical to the previous baseline, including all six sweeps after a full ground-truth re-render, so the six landed phases moved no hashed byte and the reference tree had no staleness to shed. manifest.visual gains 46 rows and moves none: its membership was widened from six sub-trees to eight, and entity-projections and projection-smoke are hashed here for the first time.",
+    "reason": "reins, shell and crossed arms - 12 entity rows, sum 60.0047 to 59.4901, 12 references re-rendered",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -28,10 +27,10 @@
       "items": 479,
       "players": 2
     },
-    "reference_manifest_digest": "d380e24f3d253cf6ccb5f9c3beb1ba1b9e12a827c438ec3898dc38acbf29d170",
-    "timestamp": "2026-08-07T16:43:13Z",
+    "reference_manifest_digest": "f378ff55f219d575f9c121e4680fc610d5c0c214f40529e46af4247cd603abe5",
+    "timestamp": "2026-08-22T07:14:28Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 24670
+    "wall_time_ms": 23999
   },
   "rows": [
     {
@@ -47,27 +46,27 @@
       "vanilla_w": "160"
     },
     {
-      "differing_pixels": "9258",
-      "java_coverage": "0.7321",
-      "java_h": "265",
+      "differing_pixels": "8851",
+      "java_coverage": "0.7014",
+      "java_h": "248",
       "java_w": "260",
-      "mean_argb_delta": "0.5403",
+      "mean_argb_delta": "0.1552",
       "status": "ok",
       "subject": "minecraft__armadillo",
-      "vanilla_coverage": "0.7321",
-      "vanilla_h": "265",
+      "vanilla_coverage": "0.7014",
+      "vanilla_h": "248",
       "vanilla_w": "260"
     },
     {
-      "differing_pixels": "3096",
-      "java_coverage": "0.7125",
-      "java_h": "167",
+      "differing_pixels": "2832",
+      "java_coverage": "0.6829",
+      "java_h": "156",
       "java_w": "172",
-      "mean_argb_delta": "0.1953",
+      "mean_argb_delta": "0.1863",
       "status": "ok",
       "subject": "minecraft__armadillo~age=baby",
-      "vanilla_coverage": "0.7126",
-      "vanilla_h": "167",
+      "vanilla_coverage": "0.6829",
+      "vanilla_h": "156",
       "vanilla_w": "172"
     },
     {
@@ -335,14 +334,14 @@
       "vanilla_w": "612"
     },
     {
-      "differing_pixels": "8139",
-      "java_coverage": "0.6472",
+      "differing_pixels": "7975",
+      "java_coverage": "0.6471",
       "java_h": "719",
       "java_w": "614",
-      "mean_argb_delta": "0.0416",
+      "mean_argb_delta": "0.0412",
       "status": "ok",
       "subject": "minecraft__camel_husk~equip=saddle",
-      "vanilla_coverage": "0.6472",
+      "vanilla_coverage": "0.6471",
       "vanilla_h": "719",
       "vanilla_w": "614"
     },
@@ -359,14 +358,14 @@
       "vanilla_w": "612"
     },
     {
-      "differing_pixels": "34245",
-      "java_coverage": "0.6472",
+      "differing_pixels": "34394",
+      "java_coverage": "0.6471",
       "java_h": "719",
       "java_w": "614",
-      "mean_argb_delta": "0.1347",
+      "mean_argb_delta": "0.1353",
       "status": "ok",
       "subject": "minecraft__camel~equip=saddle",
-      "vanilla_coverage": "0.6472",
+      "vanilla_coverage": "0.6471",
       "vanilla_h": "719",
       "vanilla_w": "614"
     },
@@ -959,14 +958,14 @@
       "vanilla_w": "378"
     },
     {
-      "differing_pixels": "21996",
-      "java_coverage": "0.5552",
+      "differing_pixels": "22414",
+      "java_coverage": "0.5540",
       "java_h": "450",
       "java_w": "440",
-      "mean_argb_delta": "0.1747",
+      "mean_argb_delta": "0.1769",
       "status": "ok",
       "subject": "minecraft__donkey~equip=saddle",
-      "vanilla_coverage": "0.5552",
+      "vanilla_coverage": "0.5540",
       "vanilla_h": "450",
       "vanilla_w": "440"
     },
@@ -1079,16 +1078,16 @@
       "vanilla_w": "136"
     },
     {
-      "differing_pixels": "1050",
-      "java_coverage": "0.6544",
+      "differing_pixels": "122",
+      "java_coverage": "0.6320",
       "java_h": "516",
-      "java_w": "262",
-      "mean_argb_delta": "0.0194",
+      "java_w": "260",
+      "mean_argb_delta": "0.0013",
       "status": "ok",
       "subject": "minecraft__evoker",
-      "vanilla_coverage": "0.6544",
+      "vanilla_coverage": "0.6320",
       "vanilla_h": "516",
-      "vanilla_w": "262"
+      "vanilla_w": "260"
     },
     {
       "differing_pixels": "1702",
@@ -1439,14 +1438,14 @@
       "vanilla_w": "556"
     },
     {
-      "differing_pixels": "29411",
-      "java_coverage": "0.5801",
+      "differing_pixels": "30370",
+      "java_coverage": "0.5795",
       "java_h": "548",
       "java_w": "556",
-      "mean_argb_delta": "0.3141",
+      "mean_argb_delta": "0.3236",
       "status": "ok",
       "subject": "minecraft__horse_white~equip=saddle",
-      "vanilla_coverage": "0.5801",
+      "vanilla_coverage": "0.5795",
       "vanilla_h": "548",
       "vanilla_w": "556"
     },
@@ -1535,16 +1534,16 @@
       "vanilla_w": "290"
     },
     {
-      "differing_pixels": "842",
-      "java_coverage": "0.6689",
+      "differing_pixels": "396",
+      "java_coverage": "0.6462",
       "java_h": "527",
-      "java_w": "262",
-      "mean_argb_delta": "0.0986",
+      "java_w": "260",
+      "mean_argb_delta": "0.0052",
       "status": "ok",
       "subject": "minecraft__illusioner",
-      "vanilla_coverage": "0.6689",
+      "vanilla_coverage": "0.6462",
       "vanilla_h": "527",
-      "vanilla_w": "262"
+      "vanilla_w": "260"
     },
     {
       "differing_pixels": "36143",
@@ -1787,14 +1786,14 @@
       "vanilla_w": "378"
     },
     {
-      "differing_pixels": "1939",
-      "java_coverage": "0.5565",
+      "differing_pixels": "1948",
+      "java_coverage": "0.5554",
       "java_h": "476",
       "java_w": "464",
-      "mean_argb_delta": "0.0288",
+      "mean_argb_delta": "0.0290",
       "status": "ok",
       "subject": "minecraft__mule~equip=saddle",
-      "vanilla_coverage": "0.5565",
+      "vanilla_coverage": "0.5554",
       "vanilla_h": "476",
       "vanilla_w": "464"
     },
@@ -2663,14 +2662,14 @@
       "vanilla_w": "462"
     },
     {
-      "differing_pixels": "10645",
-      "java_coverage": "0.5598",
+      "differing_pixels": "11122",
+      "java_coverage": "0.5579",
       "java_h": "482",
       "java_w": "462",
-      "mean_argb_delta": "0.1466",
+      "mean_argb_delta": "0.1531",
       "status": "ok",
       "subject": "minecraft__skeleton_horse~equip=saddle",
-      "vanilla_coverage": "0.5598",
+      "vanilla_coverage": "0.5579",
       "vanilla_h": "482",
       "vanilla_w": "462"
     },
@@ -3935,16 +3934,16 @@
       "vanilla_w": "260"
     },
     {
-      "differing_pixels": "4436",
-      "java_coverage": "0.6274",
+      "differing_pixels": "3284",
+      "java_coverage": "0.6021",
       "java_h": "516",
-      "java_w": "262",
-      "mean_argb_delta": "0.0529",
+      "java_w": "260",
+      "mean_argb_delta": "0.0252",
       "status": "ok",
       "subject": "minecraft__vindicator",
-      "vanilla_coverage": "0.6274",
+      "vanilla_coverage": "0.6021",
       "vanilla_h": "516",
-      "vanilla_w": "262"
+      "vanilla_w": "260"
     },
     {
       "differing_pixels": "3452",
@@ -4475,14 +4474,14 @@
       "vanilla_w": "500"
     },
     {
-      "differing_pixels": "3246",
-      "java_coverage": "0.5780",
+      "differing_pixels": "3254",
+      "java_coverage": "0.5768",
       "java_h": "498",
       "java_w": "500",
-      "mean_argb_delta": "0.0187",
+      "mean_argb_delta": "0.0188",
       "status": "ok",
       "subject": "minecraft__zombie_horse~equip=saddle",
-      "vanilla_coverage": "0.5780",
+      "vanilla_coverage": "0.5768",
       "vanilla_h": "498",
       "vanilla_w": "500"
     },
@@ -4861,8 +4860,8 @@
   ],
   "summary": {
     "buckets": {
-      "<0.25": 306,
-      "<0.50": 394,
+      "<0.25": 307,
+      "<0.50": 395,
       "<0.75": 400,
       "<1.00": 401,
       "failed": 0,
@@ -4870,6 +4869,6 @@
     },
     "failed": 0,
     "rows": 402,
-    "sum": "60.0047"
+    "sum": "59.4901"
   }
 }

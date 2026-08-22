@@ -268,7 +268,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_armadillo.png",
-      "sha256": "451c7b749d3fb94906e9c9ad00174357bbab0dcbe58f645de97bf21849bba72d"
+      "sha256": "7c33fd7504e50ff48ea2f993cffb2f94b1b19bd2a13046670a68032b8e04a28c"
     },
     {
       "path": "entity-render-3d/minecraft_armor_stand.png",
@@ -368,7 +368,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_evoker.png",
-      "sha256": "04ca0755173a657464c9ca1e7a022a0c0caf0d48b59bd626fe2e405ab3000e68"
+      "sha256": "bc341e425710e1f73e04e3ea0e34c82f6a84490e469efe914e8c06a63ddd3180"
     },
     {
       "path": "entity-render-3d/minecraft_fox.png",
@@ -416,7 +416,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_illusioner.png",
-      "sha256": "8096b6220b95e0aa7bc4e6155b2ac8fe37776f7e1796fe19a21084be683ec4c5"
+      "sha256": "5282426a58c892b699ae6a47a37355add7895a111d2483afe704086df2f5172a"
     },
     {
       "path": "entity-render-3d/minecraft_iron_golem.png",
@@ -572,7 +572,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_vindicator.png",
-      "sha256": "9da312196107f4b0282428997eec49da434f50ddd0642e15190a551813123a6a"
+      "sha256": "92b9dab8baa4e6739d433845786ddcd15ee4310d08e0125ce35ed547497e4db0"
     },
     {
       "path": "entity-render-3d/minecraft_wandering_trader.png",
@@ -849,7 +849,7 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "77b9bda348563f75d55b0de82b9d76085af7b80c",
+    "asset_sha": "b1778c95cf10c827862e269cb33a7e7ba24686b0",
     "counts": {
       "files": 210
     },
@@ -858,7 +858,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "Lombok to simplified-annotations across all four builds, byte-neutral: 24 of 25 artifacts moved nothing and the eight tooling flows re-ran to identical tables. The one mover is menu-render/server_menu.png, stale since Fix server_menu changed that render's rows, player inventory and two slots two commits after the previous baseline; a clean tree at that commit renders the sha promoted here.",
+    "reason": "reins, shell and crossed arms - 12 entity rows, sum 60.0047 to 59.4901, 12 references re-rendered",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -868,7 +868,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-16T06:18:55Z",
+    "timestamp": "2026-08-22T07:14:24Z",
     "tool_version": "1.0.0"
   }
 }

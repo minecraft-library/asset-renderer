@@ -4400,11 +4400,11 @@
     },
     {
       "path": "entities/minecraft__armadillo.png",
-      "sha256": "a6180c9f89db725a8582e8bb43dbba23555f968a419e011d1635b6c92e2ba16f"
+      "sha256": "6dc18fec097f44c29aa03aa90801ec023fe840b3432135e04465748d046cb72b"
     },
     {
       "path": "entities/minecraft__armadillo~age=baby.png",
-      "sha256": "c80778b41ab4bf77154aef9715a28bc641b0381eece093525f603de829abd7c1"
+      "sha256": "cb1a528a0dc3f5b084e00ebded112af751020236498f871e1cb24efe7576e1d8"
     },
     {
       "path": "entities/minecraft__armor_stand.png",
@@ -4496,7 +4496,7 @@
     },
     {
       "path": "entities/minecraft__camel_husk~equip=saddle.png",
-      "sha256": "91154369ecfe938764e07b044b5ee0f15a88c384b7e25d0a93b0e9f8aa2b2170"
+      "sha256": "713476d46291100653b5ef349b5a02dfc315efb004f4154f08e9e98013a78be5"
     },
     {
       "path": "entities/minecraft__camel~age=baby.png",
@@ -4504,7 +4504,7 @@
     },
     {
       "path": "entities/minecraft__camel~equip=saddle.png",
-      "sha256": "e7baa948edd3c18820ece9ac4420eaec7a441492868141726425773b68a35eea"
+      "sha256": "a52d7e23d9d97533f9ad0f53c2db7aa7b064b2d63c89d180a17f934b74b09304"
     },
     {
       "path": "entities/minecraft__cat_all_black.png",
@@ -4704,7 +4704,7 @@
     },
     {
       "path": "entities/minecraft__donkey~equip=saddle.png",
-      "sha256": "4f7c0e03ef8a134218e54357aafe34cd5dbe93baa4ce92f6aa45565284d4c893"
+      "sha256": "9331a7274c6a75bcedacb9834a18b076f6f0473db462bb6f565e642acaad9857"
     },
     {
       "path": "entities/minecraft__donkey~toggle=chest.png",
@@ -4744,7 +4744,7 @@
     },
     {
       "path": "entities/minecraft__evoker.png",
-      "sha256": "d79071a2c9c491efdb2f947f96ab88c49110c43adc46c1e6db6bf52bcdb36f6e"
+      "sha256": "9d5e90e6c6c09fa8e33d2824059812568896272efb09c9f21e2dda5d23c23fff"
     },
     {
       "path": "entities/minecraft__fox.png",
@@ -4864,7 +4864,7 @@
     },
     {
       "path": "entities/minecraft__horse_white~equip=saddle.png",
-      "sha256": "b2528bc9f3dbb8c580b15e14b66462df94faf857440978f485d69d28e84dbd12"
+      "sha256": "00d6f28f5ac01b03ab37e02472407a673d2db4db137ae31c8d7b39f35669d064"
     },
     {
       "path": "entities/minecraft__horse_white~markings=black_dots.png",
@@ -4896,7 +4896,7 @@
     },
     {
       "path": "entities/minecraft__illusioner.png",
-      "sha256": "be4fb0a5fc1ba559bb53d56d87390e5b03cc010c3535353e715970b5b00c93ec"
+      "sha256": "004f3f2246bac1fa4c13c7cdd9f96634884d410710acb2bf8a0c101cec2c8bc0"
     },
     {
       "path": "entities/minecraft__iron_golem.png",
@@ -4980,7 +4980,7 @@
     },
     {
       "path": "entities/minecraft__mule~equip=saddle.png",
-      "sha256": "d38260918b42b636cd12848c599e35c894a45f6b6d81411651b64b49557a632b"
+      "sha256": "0f8ca58506a034a014897427873b2f89e9ed0b05e8f041ed3739d7259e811c05"
     },
     {
       "path": "entities/minecraft__mule~toggle=chest.png",
@@ -5272,7 +5272,7 @@
     },
     {
       "path": "entities/minecraft__skeleton_horse~equip=saddle.png",
-      "sha256": "55068a7e6b87c7a09fd588243c6c54c5709381b887fb38cacc79820a324e5b13"
+      "sha256": "bacbc065e5bd8e658baa95aa793ac48427934f9223034c7f7fc59cadaebcaeed"
     },
     {
       "path": "entities/minecraft__skeleton~armor=iron.png",
@@ -5696,7 +5696,7 @@
     },
     {
       "path": "entities/minecraft__vindicator.png",
-      "sha256": "2e8a03504c53d5a17719f0aaa5e6e5ade35b6d51d08f0eadca2408403b0dd4d7"
+      "sha256": "572e62c26140b80b008f3aa911fabbcfcfbeb77423da6e8c1dfae1508ba13d91"
     },
     {
       "path": "entities/minecraft__wandering_trader.png",
@@ -5876,7 +5876,7 @@
     },
     {
       "path": "entities/minecraft__zombie_horse~equip=saddle.png",
-      "sha256": "7d96d769384222796eaaf5e7cf03c7d73f37ab5117c06cf02c704638eb5eb5e8"
+      "sha256": "3134fa89bee817682d6a2181a9140299ce6fe71788b4bb29590f3921d96b7e32"
     },
     {
       "path": "entities/minecraft__zombie_nautilus_temperate.png",
@@ -9297,7 +9297,7 @@
   "provenance": {
     "artifact": "manifest.references",
     "asset_dirty": false,
-    "asset_sha": "494a152fd3bf76bc2290aada4291024e0e49791e",
+    "asset_sha": "b1778c95cf10c827862e269cb33a7e7ba24686b0",
     "counts": {
       "files": 2322
     },
@@ -9305,10 +9305,9 @@
     "flags": {},
     "mc_version": "26.1.2",
     "mode": "EVERY",
-    "parity_class": "shaped",
-    "population_changed": true,
+    "parity_class": "moving",
     "producer": "renderVanillaAllReferences",
-    "reason": "the anvil rendered through the client unnamed and named; two references added, none of the 2320 moved",
+    "reason": "reins, shell and crossed arms - 12 entity rows, sum 60.0047 to 59.4901, 12 references re-rendered",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -9318,8 +9317,8 @@
       "players": 2
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-08-15T15:00:28Z",
+    "timestamp": "2026-08-22T07:14:23Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 138071
+    "wall_time_ms": 138405
   }
 }
