@@ -36,7 +36,7 @@
     },
     {
       "path": "entity_poses.json",
-      "sha256": "2eeccbf507812a8244e957654c2ecd704ffddbf88a87efd4130d13bd55924f17"
+      "sha256": "79a93f7c0a2b12e91f577cf42b9d5d5e787d3ed2a75801a1b0f4bccf1470698d"
     },
     {
       "path": "glint_items.json",
@@ -56,14 +56,14 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "e1e68adbf4bff55251cbcf094743329698140e6438b814858ec4b8e8f80ec10e",
+    "entityModels": "173184701cc95cedee5e647aa8ee5a36a3be789abc6f9c4e8734930a154a9ff5",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
     "asset_dirty": false,
-    "asset_sha": "34fc6e623fcd14903dd49942dbc69ef0b256edfc",
+    "asset_sha": "b116041bcb33507dfe88cdb7f00449581322b9f0",
     "counts": {
       "files": 11,
       "logs": 8
@@ -73,7 +73,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "The spear arm and a strider's lambdas walk, 89 of 111 model poses to 102, and entity_poses.json is written as the graph it is: a sub-expression reached more than once is named once under 'shared' and used as a ref, because a humanoid's arms are twenty-two million nodes standing for nine hundred and forty seven and the tree could not be written at all. The eighty-nine poses that already extracted are 42% smaller and expand back to what they said before, but for three - parrot, vex and axolotl - which move because verifying that turned up a defect: restoring a pose handed the snapshot's own channel map over rather than copying it, so a fork's second arm and a split's third started from what the one before them wrote, which shipped a parrot flapping its wings while sitting. The dump's entity section moves for a second reason: it wrote each expression as its own toString, which follows every reference and is the tree again, so it writes the graph now and the pose digest of every posing entity moves rather than only the sixteen whose pose moved. Six sweeps, 210 visual rows, manifest.player-raw, the colour-map digest and seven pins all held, nothing evaluating a pose yet.",
+    "reason": "The pose walk reaches 110 of 111 model classes, up from 102: a constructor-narrowed mesh root, a flattened container's translate folded onto the bones it held, a body's own assignment to the render state read back, a split taken on an enum a comparison was built out of, a figure a model carries between poses named as an input, and the vector and declared table a guardian poses off. entity_models.json and entity_geometry.json byte-identical throughout; every sweep held its row count and its sum.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -83,8 +83,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-21T07:05:39Z",
+    "timestamp": "2026-08-22T00:24:21Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 42229
+    "wall_time_ms": 43659
   }
 }
