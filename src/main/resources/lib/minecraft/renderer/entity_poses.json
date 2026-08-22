@@ -190844,5 +190844,15 @@
         }
       }
     }
+  },
+  "input_defaults": {
+    "ageScale": 1.0,
+    "hasLeftHorn": 1.0,
+    "hasRightHorn": 1.0,
+    "hasStinger": 1.0,
+    "inWaterFactor": 1.0,
+    "showBasePlate": 1.0,
+    "speedValue": 1.0,
+    "tailAngle": 0.62831855
   }
 }

@@ -27,21 +27,32 @@ import java.util.Optional;
  * at rest rather than at an authored pose, the flattening having already put whatever it held into
  * the bones below it.
  *
+ * <p><b>An unanswered figure is not always zero.</b> A pose names the render-state figures it could
+ * not derive so that a caller who models none of them still gets a frame vanilla draws - and that
+ * only holds where the figure rests at nothing. Several do not: a living subject's {@code ageScale}
+ * and a humanoid's {@code speedValue} are built at one, and a humanoid DIVIDES by the second, so
+ * answering zero is a collapsed subject and a NaN rather than a still one. {@link #inputDefaults}
+ * carries what each named figure is built at, and is one table shared by every pose rather than a
+ * fact of any single model.
+ *
  * @param container the expression each written channel of the flattened container carries
  * @param bones the expression each bone channel is written with, by bone name
  * @param clips the authored clips this model plays, in the order it plays them
+ * @param inputDefaults what each named figure reads as before anything has happened to the subject,
+ *     holding only those built at something other than zero
  * @param refusal why there is no pose here, or empty when the rest is the whole answer
  */
 public record EntityPose(
     @NotNull Map<PoseChannel, PoseExpr> container,
     @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
     @NotNull List<Clip> clips,
+    @NotNull Map<String, Float> inputDefaults,
     @NotNull Optional<String> refusal
 ) {
 
     /** The pose of a model that poses nothing, which is a real answer rather than a missing one. */
     public static final @NotNull EntityPose NONE =
-        new EntityPose(Map.of(), Map.of(), List.of(), Optional.empty());
+        new EntityPose(Map.of(), Map.of(), List.of(), Map.of(), Optional.empty());
 
     /**
      * One authored clip this model plays, and what it plays it at.

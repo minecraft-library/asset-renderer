@@ -32,13 +32,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The shipped pose table evaluated.
  *
- * <p>Three things are worth pinning here. Every pose in the corpus has to evaluate to finite
- * numbers, because a pose is arithmetic a caller cannot inspect before trusting and a NaN in a bone
- * channel is a limb that vanishes rather than an error anyone sees. A shared sub-expression has to
- * be computed ONCE, which is the difference between an evaluator that returns and one that does not
- * - and it is pinned as a COUNT rather than as a timeout, because the failure mode is exponential
- * and a timeout would report it as a slow machine. And an expression has to answer the arithmetic
- * the table spells, operand for operand.
+ * <p>Four things are worth pinning here. Every pose in the corpus has to evaluate to finite numbers,
+ * because a pose is arithmetic a caller cannot inspect before trusting and a NaN in a bone channel
+ * is a limb that vanishes rather than an error anyone sees. A shared sub-expression has to be
+ * computed ONCE, which is the difference between an evaluator that returns and one that does not -
+ * and it is pinned as a COUNT rather than as a timeout, because the failure mode is exponential and
+ * a timeout would report it as a slow machine. A figure its own render state builds non-zero has to
+ * be answered as built, which the humanoid arm proves by being NaN when it is not. And an expression
+ * has to answer the arithmetic the table spells, operand for operand.
  */
 @DisplayName("the shipped pose table evaluated")
 class PoseEvaluatorTest {
@@ -50,22 +51,8 @@ class PoseEvaluatorTest {
         entities = EntityModelLoader.load();
     }
 
-    /**
-     * Every render-state figure whose own constructor gives it something other than zero.
-     *
-     * <p>One today, and it is load-bearing rather than incidental: {@code HumanoidRenderState}
-     * constructs {@code speedValue} at one and every humanoid divides an arm swing by it, so a
-     * caller answering the blanket zero gets NaN where vanilla gets the swing undivided.
-     */
-    private static final @NotNull PoseEvaluator.Frame DECLARED_DEFAULTS = new PoseEvaluator.Frame() {
-        @Override
-        public float input(@NotNull String field) {
-            return "speedValue".equals(field) ? 1f : 0f;
-        }
-    };
-
     @Test
-    @DisplayName("every pose in the corpus evaluates to finite numbers")
+    @DisplayName("every pose in the corpus evaluates to finite numbers at rest")
     void theWholeCorpusEvaluates() {
         int evaluated = 0;
         for (Entity entity : entities.values()) {
@@ -73,7 +60,7 @@ class PoseEvaluatorTest {
             if (!pose.isReadable()) continue;
 
             PoseEvaluator.ChannelWrites written =
-                PoseEvaluator.evaluate(pose, meshFor(pose), DECLARED_DEFAULTS);
+                PoseEvaluator.evaluate(pose, meshFor(pose), PoseEvaluator.restingIn(pose));
             written.container().forEach((channel, value) -> assertTrue(Float.isFinite(value),
                 "the container's " + channel.token() + " evaluates to a number"));
             written.bones().forEach((bone, channels) -> channels.forEach((channel, value) ->
@@ -116,6 +103,26 @@ class PoseEvaluatorTest {
     }
 
     @Test
+    @DisplayName("a figure its render state builds non-zero is answered as built, not as nothing")
+    void aRestingFrameAnswersWhatTheRenderStateBuilds() {
+        // The shipped defaults are load-bearing rather than tidy, and a humanoid is where it shows:
+        // HumanoidRenderState builds speedValue at one and every humanoid DIVIDES an arm swing by
+        // it, so the blanket zero is a division by zero and the arm is NaN. Both sides are asserted
+        // because only the pair says the table is doing anything.
+        EntityPose zombie = poseOf("minecraft:zombie");
+        assertEquals(1f, zombie.inputDefaults().get("speedValue"),
+            "the table carries what a humanoid's speed is built at");
+
+        EntityModelData mesh = meshFor(zombie);
+        assertTrue(Float.isNaN(PoseEvaluator.evaluate(zombie, mesh, PoseEvaluator.ZERO)
+                .bones().get("left_arm").get(PoseChannel.X_ROT)),
+            "answering nothing to a figure vanilla divides by is a division by zero");
+        assertTrue(Float.isFinite(PoseEvaluator.evaluate(zombie, mesh, PoseEvaluator.restingIn(zombie))
+                .bones().get("left_arm").get(PoseChannel.X_ROT)),
+            "and answering what it rests at is a still arm");
+    }
+
+    @Test
     @DisplayName("a turtle's container drops by one exactly when it is carrying an egg")
     void aConditionalChannelTakesTheArmItsConditionChooses() {
         // Select over Compare over Input, which is the commonest shape in the corpus, evaluated both
@@ -146,7 +153,7 @@ class PoseEvaluatorTest {
 
         EntityPose reads = new EntityPose(Map.of(), Map.of("head",
             Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT))),
-            List.of(), Optional.empty());
+            List.of(), Map.of(), Optional.empty());
 
         assertEquals((float) Math.toRadians(90d),
             PoseEvaluator.evaluate(reads, mesh, PoseEvaluator.ZERO).bones().get("head").get(PoseChannel.X_ROT),

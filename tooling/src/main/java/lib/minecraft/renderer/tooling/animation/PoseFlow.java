@@ -68,6 +68,16 @@ public final class PoseFlow {
         JsonTree posesNode = root.child("poses");
         PoseJson.all(poses).forEach(posesNode::put);
 
+        // What a figure reads as before anything has happened to the subject, for the figures whose
+        // own render state builds them at something other than nothing. Written at the root because
+        // a figure is named by its bare field name, which is one keyspace across every model.
+        Map<String, Float> defaults =
+            InputDefaultResolver.resolve(session.cache(), InputDefaultResolver.namedBy(poses), diagnostics);
+        if (!defaults.isEmpty()) {
+            JsonTree defaultsNode = root.child("input_defaults");
+            defaults.forEach(defaultsNode::put);
+        }
+
         reportDeadClips(clips, byModel, diagnostics);
         reportRefusedPoses(poses, diagnostics);
         root.write(out);

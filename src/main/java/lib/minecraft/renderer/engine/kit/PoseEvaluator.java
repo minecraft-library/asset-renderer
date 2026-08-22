@@ -34,11 +34,11 @@ import java.util.Map;
  *
  * <p><b>An unanswered question is zero, and zero is not always the value vanilla starts from.</b>
  * Most named figures are a displacement that rests at nothing, so a caller that models none of them
- * gets the pose a model holds before anything has happened to its subject. A field whose own render
- * state gives it a non-zero default is the exception and has to be answered:
- * {@code HumanoidRenderState} constructs {@code speedValue} at one and every humanoid DIVIDES an arm
- * swing by it, so a caller leaving it at zero gets NaN rather than a still arm. {@link #ZERO} is the
- * frame that answers nothing to everything, which is a starting point rather than a rest pose.
+ * gets the pose a model holds before anything has happened to its subject. A figure whose own render
+ * state builds it at something else is the exception: {@code HumanoidRenderState} builds
+ * {@code speedValue} at one and every humanoid DIVIDES an arm swing by it, so a caller leaving it at
+ * zero gets NaN rather than a still arm. {@link #ZERO} answers nothing to everything and
+ * {@link #restingIn} answers each figure what it actually rests at - start from the second.
  *
  * <p>Channels come back in the units the table carries: a rotation in RADIANS, where
  * {@link EntityModelData.Bone#getRotation()} is in degrees. Whatever applies these owns that
@@ -52,18 +52,17 @@ public final class PoseEvaluator {
      *
      * <p>Every question has an answer of nothing, so a caller supplies only what it models - which
      * is what makes a subject that neither moves nor carries anything cost no code. What that does
-     * not excuse is a figure whose own render state constructs it at something other than zero: it
-     * is a real value vanilla always has, and answering nothing substitutes a number vanilla never
-     * holds. {@link #input} carries the one the corpus divides by.
+     * not excuse is a figure whose own render state builds it at something other than zero, which is
+     * why {@link #restingIn} rather than a bare implementation of this is where a caller starts.
      */
     public interface Frame {
 
         /**
          * A figure the render state carries under its own field name.
          *
-         * <p><b>{@code speedValue} is the one the corpus divides by</b>, and
-         * {@code HumanoidRenderState} constructs it at one rather than at zero - so every humanoid
-         * arm swing is NaN under an answer of nothing. A caller posing a humanoid answers it.
+         * <p>Answering nothing is right for a figure that rests at nothing and wrong for one its own
+         * render state builds at something else - {@link #restingIn} is the frame that knows which,
+         * and is what a caller should start from rather than this.
          *
          * @param field the vanilla render-state field
          * @return its value, or zero where the caller models none
@@ -136,6 +135,31 @@ public final class PoseEvaluator {
 
     /** The frame that answers every question with nothing, which is a starting point and not a pose. */
     public static final @NotNull Frame ZERO = new Frame() {};
+
+    /**
+     * The frame a subject is in before anything has happened to it.
+     *
+     * <p>What {@link #ZERO} would be if zero were the right answer everywhere. Each figure the pose
+     * names reads what its own render state builds it at, which is nothing for most of them and one
+     * for a living subject's age scale and a humanoid's speed - the latter being divided by, so a
+     * humanoid posed from {@code ZERO} has NaN arms and one posed from this has still ones.
+     *
+     * <p>A caller that models something delegates to this for the rest, rather than answering the
+     * whole surface itself.
+     *
+     * @param pose the pose whose named figures are being answered
+     * @return a frame answering each figure its own resting value
+     */
+    public static @NotNull Frame restingIn(@NotNull EntityPose pose) {
+        Map<String, Float> defaults = pose.inputDefaults();
+        if (defaults.isEmpty()) return ZERO;
+        return new Frame() {
+            @Override
+            public float input(@NotNull String field) {
+                return defaults.getOrDefault(field, 0f);
+            }
+        };
+    }
 
     /**
      * What one evaluation wrote, per channel.

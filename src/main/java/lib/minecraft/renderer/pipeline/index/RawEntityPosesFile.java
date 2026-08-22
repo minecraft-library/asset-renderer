@@ -30,10 +30,11 @@ import java.util.Set;
  * The raw form of {@code entity_poses.json}'s {@code poses} member - one {@link EntityPose} per
  * model class simple name, which is what a geometry coordinate is headed with.
  *
- * <p>The file's other two members are not declared and Gson drops them: {@code clips} is the
- * authored keyframe tables, which are read by whatever plays one rather than by whatever selects a
- * pose, and {@code models} restates which clips a model plays without the rate and amplitude it
- * plays them at - the same facts {@code poses} carries in full.
+ * <p>The file's {@code input_defaults} is read with it and handed to every pose, being one keyspace
+ * across the whole table rather than a per-model fact. Its other two members are not declared and
+ * Gson drops them: {@code clips} is the authored keyframe tables, which are read by whatever plays
+ * one rather than by whatever selects a pose, and {@code models} restates which clips a model plays
+ * without the rate and amplitude it plays them at - the same facts {@code poses} carries in full.
  *
  * <p><b>Walked by hand rather than mapped.</b> An expression node is an object with one member
  * named for what it does, which no field-mapped record shape can describe; and a Gson of this
@@ -59,23 +60,44 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
             @NotNull JsonElement root, @NotNull Type type, @NotNull JsonDeserializationContext context) {
 
             if (!root.isJsonObject()) throw new PipelineException("entity poses: the file is not an object");
+            Map<String, Float> defaults = inputDefaults(root.getAsJsonObject().get("input_defaults"));
             JsonElement poses = root.getAsJsonObject().get("poses");
             if (poses == null) return new RawEntityPosesFile(Map.of());
             if (!poses.isJsonObject()) throw new PipelineException("entity poses: 'poses' is not an object");
 
             Map<String, EntityPose> out = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> entry : poses.getAsJsonObject().entrySet())
-                out.put(entry.getKey(), pose(entry.getKey(), object(entry.getValue(), entry.getKey())));
+                out.put(entry.getKey(), pose(entry.getKey(), object(entry.getValue(), entry.getKey()), defaults));
             return new RawEntityPosesFile(Collections.unmodifiableMap(out));
         }
 
     }
 
+    /**
+     * What each named figure reads as before anything has happened to the subject.
+     *
+     * <p>Narrowed through {@code float} on the way in, on the same terms a literal is: the values
+     * are what a render state's own constructor built a float field at, and reading the decimal back
+     * as a double gives a number no float ever held.
+     */
+    private static @NotNull Map<String, Float> inputDefaults(@Nullable JsonElement node) {
+        if (node == null) return Map.of();
+        if (!node.isJsonObject())
+            throw new PipelineException("entity poses: 'input_defaults' is not an object");
+
+        Map<String, Float> out = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : node.getAsJsonObject().entrySet())
+            out.put(entry.getKey(), (float) entry.getValue().getAsDouble());
+        return Collections.unmodifiableMap(out);
+    }
+
     /** One model's pose, or the record of why it has none. */
-    private static @NotNull EntityPose pose(@NotNull String model, @NotNull JsonObject node) {
+    private static @NotNull EntityPose pose(
+        @NotNull String model, @NotNull JsonObject node, @NotNull Map<String, Float> defaults) {
+
         JsonElement refused = node.get("refused");
         if (refused != null)
-            return new EntityPose(Map.of(), Map.of(), List.of(), Optional.of(refused.getAsString()));
+            return new EntityPose(Map.of(), Map.of(), List.of(), Map.of(), Optional.of(refused.getAsString()));
 
         Shared shared = Shared.of(model, node.get("shared"));
 
@@ -101,7 +123,7 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         // Nothing reads the order for meaning, but the parity dump digests this map, and a digest
         // over a map that flaps is a row that fails its own reproducibility check and nothing else.
         return new EntityPose(container, Collections.unmodifiableMap(bones),
-            List.copyOf(clips), Optional.empty());
+            List.copyOf(clips), defaults, Optional.empty());
     }
 
     /**
