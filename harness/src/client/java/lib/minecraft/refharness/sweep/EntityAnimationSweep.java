@@ -130,22 +130,29 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
     /**
      * Measures one canvas per family, across every member of it and every tick of the schedule.
      *
-     * <p>Two unions rather than one, and they compose: a family shares a canvas so its members' common
-     * geometry lands on common pixels, and a strip shares one so a subject that moves is not cropped
-     * at the ticks the fit was not measured at. Both are monotone, so the canvas holds every frame of
-     * every member whichever order they are taken in.
+     * <p>Three unions rather than one, and they compose: a family shares a canvas so its members'
+     * common geometry lands on common pixels, a type is measured across every adult coat because the
+     * asset-renderer unions those too, and a strip shares one canvas so a subject that moves is not
+     * cropped at the ticks the fit was not measured at. All three are monotone, so the canvas holds
+     * every frame of every member whichever order they are taken in.
+     *
+     * <p><b>What is measured is wider than what is rendered, and has to be.</b> One coat per type is
+     * drawn, because a pose is the same under every skin; but a coat is a different set of opaque
+     * texels, and the canvas is alpha-tight, so measuring the drawn coat alone framed a cow 386 px
+     * wide against the 442 the asset-renderer framed it at and reported the difference as pixels.
      */
     @Override
     public void prepare(SweepContext ctx, List<Frame> subjects) {
         Map<EntityType<?>, Bounds> familyBounds = new LinkedHashMap<>();
         long t0 = System.nanoTime();
         int measured = 0;
-        for (EntityType<?> type : EntitySweep.selectTypes(ctx)) {
-            Bounds bounds = measure(ctx, type);
-            if (bounds == null) continue;
-            familyBounds.merge(EntityRoster.familyRoot(type), bounds, Bounds::union);
-            measured++;
-        }
+        for (EntityType<?> type : EntitySweep.selectTypes(ctx))
+            for (EntitySweep.Subject member : EntitySweep.canvasMembers(ctx, type)) {
+                Bounds bounds = measure(ctx, member);
+                if (bounds == null) continue;
+                familyBounds.merge(EntityRoster.familyRoot(type), bounds, Bounds::union);
+                measured++;
+            }
 
         Map<EntityType<?>, Canvas> fits = new LinkedHashMap<>();
         for (Map.Entry<EntityType<?>, Bounds> entry : familyBounds.entrySet())
@@ -165,20 +172,22 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
     }
 
     /**
-     * Measures one type across the whole schedule, or answers null when vanilla declines to build it.
+     * Measures one subject across the whole schedule, or answers null when vanilla declines to build
+     * it.
      *
      * @param ctx the sweep context
-     * @param type the entity type to measure
+     * @param subject the subject to measure
      * @return the union of its bounds over every tick, or null
      */
-    private Bounds measure(SweepContext ctx, EntityType<?> type) {
-        AppearanceRequest.set(Appearance.DEFAULT);
+    private Bounds measure(SweepContext ctx, EntitySweep.Subject subject) {
+        AppearanceRequest.set(subject.appearance());
         try {
-            Entity entity = AppearanceApplier.build(ctx, type, Appearance.DEFAULT);
+            Entity entity = AppearanceApplier.build(ctx, subject.type(), subject.appearance());
             if (entity == null) return null;
             return frameRenderer.measureAcrossTicks(ctx.client(), entity, ticks());
         } catch (RuntimeException ex) {
-            LOG.warn("EntityAnimationSweep: measure failed for {}: {}", EntityType.getKey(type), ex.toString());
+            LOG.warn("EntityAnimationSweep: measure failed for {}: {}",
+                EntityType.getKey(subject.type()), ex.toString());
             return null;
         } finally {
             AppearanceRequest.clear();

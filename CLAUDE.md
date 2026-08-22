@@ -283,13 +283,25 @@ and `-PjmhProfilers=gc,stack`. Forks get `-Xmx2g` plus the Vector module. Benche
 
 The [vanilla-reference-harness] is `harness/`, its own Gradle build with its own `gradlew`. It
 renders every subject through the real Minecraft client at a locked iso pose; those PNGs are the
-byte-stable ground truth the seven sweeps diff against, one sub-tree each under
+byte-stable ground truth the eight sweeps diff against, one sub-tree each under
 `cache/asset-renderer/vanilla/<mc>/references/`. Internals live in
 [vanilla-reference-harness/CLAUDE.md]. The Java side walks vanilla model bytecode into
 `entity_models.json` and `entity_geometry.json`.
 
 - One repository means one sha, so provenance records `asset_sha` alone - a second would be equal to
   it by construction.
+- **`animation/` is the one sub-tree a whole-tree run needs a second boot for.** Seven sweeps freeze
+  `setupAnim` and are ground truth for the mesh as authored; the eighth turns that freeze off and is
+  ground truth for the mesh its model poses at a tick. Both freezes read `refharness.animated` once
+  per JVM, so a run that poses one subject poses every subject - which is why `EVERY` does not hold
+  an eighth arm and `renderVanillaAllReferences` takes an ordering edge on
+  `renderVanillaAnimationReferences` instead. Every other run leaves that sub-tree exactly as it
+  found it, and says so.
+- **A harness pin that reaches nothing under the freeze is not free.** It is unread on the seven and
+  read on the eighth, so a value chosen to look right becomes a state the asset side has no way to
+  know about and reads there as its own defect. The guardian's spikes were that: pinned to the alert
+  pose, inert in every frozen render, and worth 128 of animated delta against a table reproducing
+  vanilla's own zero. Where the field is deterministic already, leave it alone and record why.
 - The sweeps are diagnostic reports, not pass/fail gates; one becomes a gate only when its table is
   compared against a baseline.
 - Six sweeps submit geometry and the menu sweep does not: a container screen is captured by driving
@@ -664,6 +676,15 @@ measured rather than assumed, and it is why the guardian's eye and the fox's leg
 harness pin nor an asset answer: vanilla writes the eye `true` unconditionally, and calls the fox's
 `setWalkingPose` - which sets all four legs `true` - before any branch, leaving only `setSleepingPose`
 behind an `isSleeping` that rests false.
+
+**The ground truth for a posed subject is `animation/`, and it is a second reference set rather than
+a replacement.** `entityAnimationParityVanilla` renders each subject at `ANIMATED` over the same
+schedule the harness stepped - `EntityAnimationSweep`'s `START_TICK`, `FRAME_COUNT` and
+`TICKS_PER_FRAME` are pinned on both sides - and diffs frame by frame. It is the only gate that can
+see the pose table at all: everything else compares the mesh as authored, where both sides freeze and
+agree by construction. Two thirds of the corpus lands under `0.25` there, which is the still sweep's
+own bar; what the rest names is listed by the sweep and is a divergence per subject rather than a
+property of the mechanism.
 
 **The canvas is measured across every frame the schedule samples**, each through its own posed mesh
 and its own tick's texture, unioned by `EntityRenderer.computeScreenBoundsAcrossFrames`. It wraps the

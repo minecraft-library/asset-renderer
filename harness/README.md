@@ -1,6 +1,6 @@
 # vanilla-reference-harness
 
-Headless Fabric mod for **Minecraft 26.1.2** that drives the actual vanilla client to render every block, every living entity (including variants), every non-block item, and the animated enchantment glint into transparent-background reference PNGs at a locked iso pose. This is a directory of [asset-renderer], with its own Gradle build and its own wrapper; the output PNGs are the byte-stable ground truth that repository's parity tests diff its Java rendering pipeline against. Blocks render as true 3D geometry through vanilla's block-model and block-entity pipelines (never as flat inventory icons); non-block items render as GUI inventory icons.
+Headless Fabric mod for **Minecraft 26.1.2** that drives the actual vanilla client to render every block, every living entity (including variants and, in a boot of its own, every entity posed at each tick of one schedule), every non-block item, and the animated enchantment glint into transparent-background reference PNGs at a locked iso pose. This is a directory of [asset-renderer], with its own Gradle build and its own wrapper; the output PNGs are the byte-stable ground truth that repository's parity tests diff its Java rendering pipeline against. Blocks render as true 3D geometry through vanilla's block-model and block-entity pipelines (never as flat inventory icons); non-block items render as GUI inventory icons.
 
 > [!IMPORTANT]
 > This is a single-purpose dev tool. The renders it produces are checked in to asset-renderer's cache as the parity baseline. **Do not delete or modify those PNGs by hand** - re-run the harness instead.
@@ -61,6 +61,14 @@ PNGs are RGBA with the subject opaque on a fully transparent (`α = 0`) backgrou
 | `runRenderReferences` direct                 | `vanilla-reference-harness/build/refharness-output/{blocks,entities,items}/<ns>__<id>.png`  |
 | `renderVanillaReferences` from asset-renderer | `asset-renderer/cache/asset-renderer/vanilla/26.1/references/{blocks,entities,items}/<ns>__<id>.png` |
 | Glint (per-frame, decoupled run)             | `.../references/glint/<ns>__<id>/frame_NNN.png` + `glint/atlas_uv.json`                     |
+| Animated entities (per-frame, own boot)      | `.../references/animation/<ns>__<id>/frame_NNN.png`                                          |
+
+### Animated entity canvas
+
+One strip per entity, `FRAME_COUNT` frames `TICKS_PER_FRAME` ticks apart, at the appearance the still sweep names that entity by. The canvas is family-locked exactly as the still one is and is measured over one union more: every adult coat of the type, at every tick of the schedule. Wider than what is drawn, deliberately - one coat is rendered because a pose is the same under every skin, while a coat is a different set of opaque texels and the fit is alpha-tight, so measuring only the drawn coat frames a cow 386 px wide where asset-renderer frames it at 442 and the difference is reported as pixels.
+
+> [!NOTE]
+> No bone is pinned here. `EntityRoster.bonePins` forces the flags vanilla writes from `setupAnim` precisely because the still sweep does not run it; this run does, so the real writes land and a pin would be a second authority for the same bone.
 
 ### Block canvas
 
@@ -184,6 +192,7 @@ Use `-PrefharnessXxx` on the Gradle command line.
 | `refharnessTargets`       | _(empty)_                | Comma-separated `<ns>:<id>` filter; empty means all                                                |
 | `refharnessOutputDir`     | `build/refharness-output` | Output root; `blocks/`, `entities/`, `items/`, `glint/` are created under it                       |
 | `refharnessGlintOnly`     | `false`                  | Render only the animated-glint references (the 7 foil items + 4 armor diagnostics); skip the full sweep |
+| `refharnessAnimated`      | `false`                  | Render only `animation/` - one strip per entity with vanilla's own `setupAnim` running. Turns both freezes off for the whole boot, so no other sweep can share it |
 | `refharnessPitchRollSweep`| `false`                  | Diagnostic: render the first filtered target 576× as `pNNN_rNNN.png` over a pitch×roll grid       |
 
 ### System properties
@@ -195,6 +204,7 @@ Set automatically by the Loom run config; override with `-Drefharness.xxx=` for 
 | `refharness.headless`        | `true`  | Hides the GLFW window via mixin; gates every refharness mixin so non-harness consumers of the jar get vanilla behaviour |
 | `refharness.size`            | `512`   | Block canvas square edge (pixels)                                                                                    |
 | `refharness.glintOnly`       | `false` | Run only `GlintSweep` (animated-glint references), skipping the block / item / entity sweeps                       |
+| `refharness.animated`        | `false` | Run only `EntityAnimationSweep`, and let `setupAnim` through while `ageInTicks` follows the frame's tick             |
 
 **Entity texel resolution and the canvas cap are frozen constants, not properties.** `HarnessConfig.PIXELS_PER_BLOCK` (`256`) and `HarnessConfig.MAX_CANVAS_SIZE` (`1024`) used to read `-Drefharness.pixelsPerBlock` / `-Drefharness.maxCanvasSize`, and asset-renderer's `EntityOptions` read the same two property names on its own JVM. No task on either side forwarded either, so the documented override was inert - and had it worked on one side only, every entity reference would have been measured at one scale and compared against renders taken at another, which reports framing rather than the render. A literal on each side makes that unrepresentable. Changing either means editing both constants in one commit.
 
@@ -247,6 +257,7 @@ src/
     │   │   ├── ItemFrameRenderer.java      # PIP GUI item-icon render → PNG
     │   │   ├── EntityFrameRenderer.java    # PIP entity render: fit, chirality, pose, submit
     │   │   ├── EntityBoundsWalker.java     # The reflective silhouette walk that sizes a subject
+    │   │   ├── AnimatedEntityFrameRenderer.java # Arms the tick, unions bounds across the schedule
     │   │   ├── PlayerFrameRenderer.java    # PIP player-model render (no Entity; bakes the layer)
     │   │   ├── BlockGuiTransform.java      # Resolves a block's authored display.gui transform
     │   │   └── FirstVariantRandomSource.java # nextInt→0: pin weighted block variants to variants[0]
@@ -254,6 +265,7 @@ src/
     │   │   ├── BlockSweep.java             # BLOCK registry → BE renderer, falling back to plain 3D
     │   │   ├── ItemSweep.java              # ITEM registry (non-BlockItem) → GUI icon
     │   │   ├── EntitySweep.java            # Variant expansion + family canvas pre-pass
+    │   │   ├── EntityAnimationSweep.java   # One strip per entity, posed at each tick of one schedule
     │   │   ├── PlayerSweep.java            # FULL + SKULL scopes
     │   │   ├── GlintSweep.java             # Animated-glint frame sequences + atlas-UV dump
     │   │   ├── ArmorSweep.java             # Armored adult/baby diagnostics
@@ -272,7 +284,8 @@ src/
     │       ├── BeeStateMixin.java               # Force isOnGround=true (rest pose, no wing flap)
     │       ├── EnderDragonModelMixin.java       # Cancel setupAnim → authored rest pose (redundant under SkipSetupAnimMixin)
     │       ├── WitherBossModelMixin.java        # Cancel setupAnim → no chest-bob (redundant under SkipSetupAnimMixin)
-    │       ├── GuardianStateMixin.java          # Pin spikesAnimation, tailAnimation, lookAt
+    │       ├── GuardianStateMixin.java          # Pin tailAnimation, lookAt
+    │       ├── WitchNoseMixin.java               # Pin entityId=0 (nose-bob frequency is per-instance)
     │       ├── PhantomStateMixin.java           # Pin flapTime=0
     │       ├── PufferfishStateMixin.java        # Pin puffState=STATE_FULL
     │       ├── ZombieVillagerStateMixin.java    # Pin villagerData to PLAINS/NONE/1 (default)
@@ -315,7 +328,8 @@ src/
 | ------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `FreezeAnimationStateMixin`    | `LivingEntityRenderer.extractRenderState`    | Zeroes `ageInTicks`, `walkAnimationPos`, `walkAnimationSpeed`, `deathTime`, `ticksSinceKineticHitFeedback`, `wornHeadAnimationPos`. Forces `state.isInWater = true` for `AbstractFish` so salmon/cod/tropical_fish render upright. |
 | `SuppressShakingMixin`         | `LivingEntityRenderer.setupRotations`        | Cancels the `isShaking(state)` bodyRot wobble (`cos(floor(ageInTicks)*3.25) * π * 0.4` degrees), landing on the bind pose instead of an animation yaw offset.                                                                  |
-| `SkipSetupAnimMixin`           | every `EntityModel.setupAnim` callsite from `LivingEntityRenderer.submit` | Skips `setupAnim` so the produced PNG uses the authored `createBodyLayer` bind pose. Most `setupAnim` implementations rewrite pivots / rotations even at `ageInTicks = 0`; bind pose is the only fair comparison target until asset-renderer animates. |
+| `SkipSetupAnimMixin`           | every `EntityModel.setupAnim` callsite from `LivingEntityRenderer.submit` | Skips `setupAnim` so the produced PNG uses the authored `createBodyLayer` bind pose. Most `setupAnim` implementations rewrite pivots / rotations even at `ageInTicks = 0`, and the bind pose is what the asset-renderer's own default draws. Lifted for the whole run by `refharness.animated`, which is what makes `animation/` a second reference set rather than a replacement for `entities/`. |
+| `WitchNoseMixin`               | `WitchRenderer.extractRenderState`    | Pins `entityId = 0`. Vanilla bobs the nose at `0.01 * (entityId % 10)` so a crowd does not move in lockstep, and an id counts every entity the client has built - so the frequency is a function of run history. Inert while `setupAnim` is frozen; without it `animation/` does not reproduce past frame 0 |
 
 ### Per-renderer state pins
 
@@ -327,7 +341,7 @@ src/
 | `BeeStateMixin`             | `BeeRenderer.extractRenderState`      | Forces `state.isOnGround = true` - skips wing flap math + `bobUpAndDown`'s `0.179 rad` forward-tilt, giving the at-rest pose with flat wings + level body                                                                                                       |
 | `EnderDragonModelMixin`     | `EnderDragonModel.setupAnim`          | Cancels `setupAnim` entirely - leaves every part at its authored `PartPose` (flat wings, straight neck/tail, closed jaw). Now redundant under `SkipSetupAnimMixin`; idempotent and kept as model-specific documentation                                         |
 | `WitherBossModelMixin`      | `WitherBossModel.setupAnim`           | Cancels at-rest chest-bob. Now redundant under `SkipSetupAnimMixin`; kept as model-specific documentation                                                                                                                                                       |
-| `GuardianStateMixin`        | `GuardianRenderer.extractRenderState` | Pins `spikesAnimation = 1.0` (extended-spikes silhouette), `tailAnimation = 0` (defeats per-instance `random.nextFloat()` constructor seed), `lookAtPosition = lookDirection = null` (skips eye-direction block that tracks the player camera)                  |
+| `GuardianStateMixin`        | `GuardianRenderer.extractRenderState` | Pins `tailAnimation = 0` (defeats per-instance `random.nextFloat()` constructor seed) and `lookAtPosition = lookDirection = null` (skips the eye-direction block that tracks the player camera). Leaves `spikesAnimation` at the `0` a never-ticked guardian reports, which is what the asset side rests it at |
 | `PhantomStateMixin`         | `PhantomRenderer.extractRenderState`  | Pins `flapTime = 0` - vanilla seeds `flapTime = entity.getUniqueFlapTickOffset() + ageInTicks`, where the offset is per-instance pseudo-random. Pinning to 0 gives the canonical flat-wing glide pose                                                          |
 | `PufferfishStateMixin`      | `PufferfishRenderer.extractRenderState` | Pins `state.puffState = Pufferfish.STATE_FULL` (= 2) - iconic adult silhouette. Vanilla's transient pufferfish defaults to `STATE_SMALL = 0` (deflated)                                                                                                          |
 | `ZombieVillagerStateMixin`  | `ZombieVillagerRenderer.extractRenderState` | Pins `state.villagerData` to `Villager.createDefaultVillagerData()` (type `PLAINS`, profession `NONE`, level 1). Vanilla `ZombieVillager.initializeVillagerData` randomly assigns profession via the registry + spawn-biome-driven type                  |
@@ -353,7 +367,7 @@ These make the block / item / glint sweeps match the in-world appearance and run
 | `GlintTexturingMixin`          | `TextureTransform.setupGlintTexturing`      | Substitutes `GlintClock.overrideT` for vanilla's wall-clock glint time (`Util.getMillis()·glintSpeed·8`) when `overrideT ≥ 0`, rebuilding the exact scroll matrix so each captured frame lands at a deterministic, asset-aligned glint phase. |
 
 > [!CAUTION]
-> **Delete the freeze + skip mixins once asset-renderer adds animation support.** `SkipSetupAnimMixin` is the broadest one - removing it reverts every entity to vanilla's frame-0 animation pose. `EnderDragonModelMixin` and `WitherBossModelMixin` become deletable at the same time (they're already redundant). The state pins (`BeeStateMixin`, `GuardianStateMixin`, `PhantomStateMixin`, `PufferfishStateMixin`, `ZombieVillagerStateMixin`) stay until asset-renderer can reproduce per-renderer state randomization. On the block side, `FreezeSpriteAnimationMixin` (texture animation) and `BannerFlagModelMixin` (cloth wave) delete when asset-renderer animates those; `GlintTexturingMixin` and `ShadeFalseFullBrightMixin` are permanent (they enforce determinism / in-world parity, not a freeze).
+> **The `setupAnim` freezes are gated rather than deleted.** `SkipSetupAnimMixin` is the broadest one, and `entities/` is ground truth for exactly what it produces - the authored bind pose, which is what asset-renderer's own default draws; removing it moves 88 of the 90 modelled entities. So it and the two per-model cancels beside it (`EnderDragonModelMixin`, whose renderer is not a `LivingEntityRenderer` and which is therefore load-bearing, and `WitherBossModelMixin`) read `refharness.animated`, and the posed reference set lives beside the frozen one under `animation/`. The state pins (`BeeStateMixin`, `GuardianStateMixin`, `PhantomStateMixin`, `PufferfishStateMixin`, `ZombieVillagerStateMixin`, `WitchNoseMixin`) are not freezes and stay: each takes an input that varies with the client's own history out of the render, and the animated set needs them more, because most of them are read through no code at all while the freeze holds. On the block side, `FreezeSpriteAnimationMixin` (texture animation) and `BannerFlagModelMixin` (cloth wave) delete when asset-renderer animates those; `GlintTexturingMixin` and `ShadeFalseFullBrightMixin` are permanent (they enforce determinism / in-world parity, not a freeze).
 
 ---
 

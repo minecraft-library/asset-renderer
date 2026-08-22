@@ -1,12 +1,15 @@
 # vanilla-reference-harness
 
-Single-purpose headless Fabric mod that drives the real MC client to produce the byte-stable ground-truth PNGs [asset-renderer]'s parity tests diff against - this mod lives inside that repo, at `harness/`, and stays its own Gradle build. Seven sweeps: **blocks** (true 3D, not item icons), **entities**, **non-block items** (GUI icons), the **player**, **armored mobs**, **animated glint**, and **container screens**. **README is the user-facing reference** (architecture, mixin catalog, family map, configuration); this file is the session-refresh / contributor's quick reference.
+Single-purpose headless Fabric mod that drives the real MC client to produce the byte-stable ground-truth PNGs [asset-renderer]'s parity tests diff against - this mod lives inside that repo, at `harness/`, and stays its own Gradle build. Eight sweeps: **blocks** (true 3D, not item icons), **entities**, **non-block items** (GUI icons), the **player**, **armored mobs**, **animated glint**, **container screens**, and **animated entities**. **README is the user-facing reference** (architecture, mixin catalog, family map, configuration); this file is the session-refresh / contributor's quick reference.
+
+**The eighth is the odd one and it needs its own boot.** Seven of them freeze `setupAnim` and are ground truth for the mesh as authored; the animated sweep turns that freeze off and is ground truth for the mesh its model poses. Both freezes read `refharness.animated` once per JVM, so a run that poses one subject poses every subject and the two sets cannot share a client. `renderVanillaAllReferences` therefore boots twice - the animated pass is an ordering edge on it rather than an eighth arm of `EVERY`.
 
 ## Build / run
 - JDK 25 (Loom toolchain; `JAVA_25` mixin compat), Gradle 9.4.1, Fabric Loom 1.16-SNAPSHOT, Fabric Loader 0.19.2, Fabric API 0.147.0+26.1.2, MC 26.1.2.
 - Full sweep (blocks + items + entities, ~5 min warm): `./gradlew runRenderReferences [-PrefharnessTargets=ns:id,...]` from this dir, or `./gradlew renderVanillaReferences` from asset-renderer (output → asset-renderer's cache). **Not the whole tree** - it leaves `glint/` and `armor/` alone, which is 337 of 2310 references.
 - Whole tree in one boot - **run this after any change to a frame renderer**: `./gradlew runRenderReferences -PrefharnessEverySweep=true`, or `./gradlew renderVanillaAllReferences` from asset-renderer. Every sweep in one client launch, measured at **152s** against 125s for the incomplete full sweep and 195s for the three narrower tasks run separately - it pays the boot once. The narrow modes below stay for scoped iteration; relying on them is what left stale ground truth on disk twice.
 - Glint-only (fast, decoupled): `./gradlew runRenderReferences -PrefharnessGlintOnly=true`, or `./gradlew renderVanillaGlintReferences` from asset-renderer.
+- Animated-only: `./gradlew runRenderReferences -PrefharnessAnimated=true`, or `./gradlew renderVanillaAnimationReferences` from asset-renderer. ~58 s for 90 subjects x 8 frames into `animation/<subject>/frame_NNN.png`. It is the ONLY run whose client draws a posed subject; every other one, this flag unset, is bit-for-bit what it always was.
 - Armor-only (fast, decoupled): `./gradlew runRenderReferences -PrefharnessArmorOnly=true`, or `./gradlew renderVanillaArmorReferences` from asset-renderer. `ArmorSweep` renders a fixed roster of **armored** mobs, adult and baby (zombie / piglin, iron and dyed leather), which the main entity sweep cannot produce - it equips nothing and ages nothing. Diagnostic, not a byte-stable reference set: each subject is fit to 80% of a square canvas so the armor shell stays inside the frame regardless of what was measured, and the consuming diff crops and aligns by silhouette. (The bounds walker **can** see the shell now - it used to reject every `ArmorModelSet` component because the record is generic and they all erase to `Object` - so the reserved margin is belt-and-braces rather than the only thing keeping the shell in frame.)
 - Output dirs under the output root: `blocks/`, `entities/`, `items/`, `glint/` (+ `glint/atlas_uv.json`), `armor/`.
 - World corruption from a hard JVM exit: `./gradlew resetRefharnessWorld`.
@@ -14,7 +17,7 @@ Single-purpose headless Fabric mod that drives the real MC client to produce the
 
 ## Sweep architecture
 
-`RefHarnessRenderer` advances one sweep step per client tick after a 60-tick warmup. A run's sweeps come from `HarnessMode` - `FULL` is block → item → entity → player, `EVERY` is those four plus glint, armor and menus; `GLINT`, `PLAYERS`, `ARMOR`, `MENUS` and `PITCH_ROLL` each run one sweep alone. Setting two mode properties now **throws** rather than letting the first silently win. **`FULL` is the odd name** - `EVERY` is the one that renders the whole reference tree, and the gap between them is where stale ground truth accumulated twice.
+`RefHarnessRenderer` advances one sweep step per client tick after a 60-tick warmup. A run's sweeps come from `HarnessMode` - `FULL` is block → item → entity → player, `EVERY` is those four plus glint, armor and menus; `GLINT`, `PLAYERS`, `ARMOR`, `MENUS`, `ANIMATION` and `PITCH_ROLL` each run one sweep alone. Setting two mode properties now **throws** rather than letting the first silently win. **`FULL` is the odd name** - `EVERY` is the one that renders the whole reference tree, and the gap between them is where stale ground truth accumulated twice. `ANIMATION` is alone in its run by construction rather than by choice, the freezes being a property of the JVM.
 
 Every sweep implements `api.Sweep` (`outputDir` / `enumerate` / `key` / `canvas` / `render`, plus the `prepare` / `beforeSubject` / `afterSweep` hooks) and is driven by `api.SweepRunner`, which owns the work index, the tally, the completion latch and the one-PNG-per-tick pacing. **Every sweep renders exactly one subject per tick**, entity variants included - the readback is async, so firing a second render before the prior one lands would corrupt it.
 
@@ -121,10 +124,11 @@ Full catalog + formulas in README's Mixins section. Quick reference:
 
 - `FreezeAnimationStateMixin` (`LivingEntityRenderer.extractRenderState`) - zero per-tick anim fields (`ageInTicks`, `walkAnimationPos/Speed`, `deathTime`, ...); force `isInWater` on `AbstractFish` (salmon/cod/tropical_fish upright).
 - `SuppressShakingMixin` (`LivingEntityRenderer.setupRotations`) - cancel the `isShaking` bodyRot wobble.
-- `SkipSetupAnimMixin` (every `setupAnim` callsite) - authored bind pose, not frame-0 animated pose. **Broadest freeze.**
+- `SkipSetupAnimMixin` (every `setupAnim` callsite) - authored bind pose, not frame-0 animated pose. **Broadest freeze**, and the one `refharness.animated` lifts.
+- `WitchNoseMixin` (`WitchRenderer`) - `entityId = 0`. Vanilla bobs the nose at `0.01 * (entityId % 10)` so a crowd of witches does not bob in lockstep, and an id comes off a counter over every entity the client has built - so which of the ten frequencies a subject gets is a function of how many were built before it. Inert while `setupAnim` is frozen; without it the animated set does not reproduce.
 - `BeeStateMixin` (`BeeRenderer`) - `isOnGround = true` (flat wings, level body).
 - `EnderDragonModelMixin` / `WitherBossModelMixin` - cancel `setupAnim`; now redundant under `SkipSetupAnimMixin`, kept as model-specific docs.
-- `GuardianStateMixin` - `spikesAnimation = 1`, `tailAnimation = 0`, `lookAt = null`.
+- `GuardianStateMixin` - `tailAnimation = 0`, `lookAt = null`; `spikesAnimation` deliberately unpinned.
 - `PhantomStateMixin` - `flapTime = 0`.
 - `PufferfishStateMixin` - `puffState = STATE_FULL`.
 - `ZombieVillagerStateMixin` - `villagerData = default` (PLAINS/NONE/1).
@@ -145,6 +149,13 @@ When a new transient entity renders inconsistently across runs, check its constr
 | (any) | `getEntityToLookAt(...)` → falls back to `Minecraft.getCameraEntity()` | lookAt drifts with player camera | `state.lookAtPosition=null` |
 | ZombieVillager | `BuiltInRegistries.VILLAGER_PROFESSION.getRandom(random)` | profession overlay flips between runs | pin `villagerData` to default |
 | Bat | `random.nextFloat()` sleeping flutter | TBD | TBD |
+| Witch | `entityId % 10` nose-bob frequency | nose sits at a different angle every run from tick 1 on | `state.entityId=0` |
+
+**A per-instance offset is a randomization even where no `random` call is in sight.** Vanilla spreads
+an idle animation across a crowd by seeding it from the entity's network id, and that id is a counter
+over everything the client has built - so it reads as deterministic per subject and is not. It is
+invisible while `setupAnim` is frozen, and it is what a strip catches: frame 0 is stable, because
+every one of these enters as a phase and `sin(0)` is zero whatever the frequency.
 
 ## Bounds walker
 
@@ -173,7 +184,27 @@ Pre-pass measures every (entity, variant) pair, groups by family root via `Entit
 
 ## When to delete a freeze mixin
 
-> **Delete `EnderDragonModelMixin` once asset-renderer adds animation support.** Same for any per-renderer freeze: once asset-renderer reproduces a feature, removing the freeze restores vanilla behaviour as the new ground truth. `SkipSetupAnimMixin` is the broadest one - removing it should be the last step of asset-renderer animation work. On the block side, `FreezeSpriteAnimationMixin` (texture animation) and `BannerFlagModelMixin` (cloth wave) delete when asset-renderer animates those; `GlintTexturingMixin` and `ShadeFalseFullBrightMixin` are permanent (they enforce determinism / in-world parity, not a freeze).
+> **A `setupAnim` freeze is never deleted; it is gated.** `SkipSetupAnimMixin` and the two per-model
+> cancels beside it (`EnderDragonModelMixin`, `WitherBossModelMixin` - the dragon's is load-bearing,
+> its renderer not being a `LivingEntityRenderer`) are what `entities/` is ground truth FOR, and the
+> asset-renderer's own default draws the mesh as authored. Deleting one would move 88 of the 90
+> modelled entities. So each of them, and `FreezeAnimationStateMixin`'s `ageInTicks`, reads
+> `HarnessConfig.ANIMATED` and the two reference sets exist side by side.
+>
+> A **pin** is a different thing and outlives every freeze: `GlintTexturingMixin`, `WitchNoseMixin`,
+> the guardian's tail and gaze, the phantom's flap offset all take an input that varies with the
+> client's own history out of the render, and an animated run needs them more than a frozen one does,
+> because a frozen run reads most of them through no code at all.
+>
+> On the block side, `FreezeSpriteAnimationMixin` (texture animation) and `BannerFlagModelMixin`
+> (cloth wave) delete when asset-renderer animates those; `ShadeFalseFullBrightMixin` is permanent
+> (it enforces in-world parity, not a freeze).
+>
+> **A pin that reaches nothing under the freeze is not free.** It is unread on seven sub-trees and
+> read on the eighth, so a value chosen to look right is a state the asset side has no way to know
+> about and reads as its own defect. The guardian's spikes were exactly that - pinned to the alert
+> pose the field is inert in a frozen run, worth 128 of animated delta against a table reproducing
+> vanilla's own zero. Where such a field is deterministic already, leave it alone and say so.
 
 ## Session-refresh checklist
 

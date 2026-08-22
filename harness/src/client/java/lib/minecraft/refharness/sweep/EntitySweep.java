@@ -273,17 +273,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         long t0 = System.nanoTime();
         int measured = 0;
         for (EntityType<?> type : selectTypes(ctx)) {
-            ResourceKey<? extends Registry<?>> variantRegistry = EntityRoster.VARIANT_REGISTRIES.get(type);
-            List<Subject> measuredSubjects = new ArrayList<>();
-            if (variantRegistry != null) {
-                Registry<?> registry = ctx.level().registryAccess().lookupOrThrow(variantRegistry);
-                for (Identifier variantId : registry.keySet())
-                    measuredSubjects.add(Subject.coated(type,
-                        Appearance.Coat.ofString("variant", variantId.toString(), variantId.getPath())));
-            } else {
-                measuredSubjects.add(Subject.plain(type));
-            }
-            for (Subject subject : measuredSubjects) {
+            for (Subject subject : canvasMembers(ctx, type)) {
                 Bounds bounds = measure(ctx, subject);
                 if (bounds == null) continue;
                 familyBounds.merge(subject.canvasKey(), bounds, Bounds::union);
@@ -349,6 +339,33 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                 fit.getValue().fit().orElseThrow().anchorY()))
             .sorted()
             .forEach(LOG::info);
+    }
+
+    /**
+     * Returns the adult subjects one type's canvas is measured across.
+     *
+     * <p>The registry coats of a variant-bearing family, or the plain type for everything else - the
+     * asset-renderer unions a subject's canvas over every adult coat of its own model, so a harness
+     * that measured one of them would frame the render differently and the comparison would report
+     * framing. Shared with {@link EntityAnimationSweep} for exactly that reason: a canvas measured
+     * over a different set on the animated side is the same defect read at a different tick.
+     *
+     * <p>Deliberately not the coats the render pass enumerates - see the class doc for why the horse
+     * and mooshroom expansions are measured at their default and rendered at every coat.
+     *
+     * @param ctx the sweep context, for the variant registry
+     * @param type the entity type
+     * @return the subjects to measure, never empty
+     */
+    static List<Subject> canvasMembers(SweepContext ctx, EntityType<?> type) {
+        ResourceKey<? extends Registry<?>> variantRegistry = EntityRoster.VARIANT_REGISTRIES.get(type);
+        if (variantRegistry == null) return List.of(Subject.plain(type));
+        List<Subject> members = new ArrayList<>();
+        Registry<?> registry = ctx.level().registryAccess().lookupOrThrow(variantRegistry);
+        for (Identifier variantId : registry.keySet())
+            members.add(Subject.coated(type,
+                Appearance.Coat.ofString("variant", variantId.toString(), variantId.getPath())));
+        return members;
     }
 
     /**

@@ -10,22 +10,26 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Forces every refharness guardian / elder-guardian render to display extended spikes
- * and pins the tail to a fixed pose so cross-render output is byte-stable.
+ * Pins the guardian's tail and its gaze so cross-render output is byte-stable.
  *
- * <h2>{@link GuardianRenderState#spikesAnimation spikesAnimation} = 1</h2>
+ * <h2>{@link GuardianRenderState#spikesAnimation spikesAnimation} is left alone</h2>
  * {@code GuardianModel.setupAnim} positions each spike via
  * {@code 1.0 - ((1 - spikesAnimation) * 0.55) - cos(...)*0.01}. The two endpoints:
  * <ul>
- *   <li>{@code 0} (vanilla default for an idle guardian) → spike offset ≈ {@code 0.45} →
- *       spikes retracted into the body, only the small surface bumps poke through.</li>
- *   <li>{@code 1} (alert / cave-guardian-glaring-at-you state) → offset ≈ {@code 1.0} →
- *       spikes fully extended outward, the iconic silhouette.</li>
+ *   <li>{@code 0} (an idle guardian) → spike offset ≈ {@code 0.45} → spikes retracted into
+ *       the body, only the small surface bumps poking through.</li>
+ *   <li>{@code 1} (alert / cave-guardian-glaring-at-you) → offset ≈ {@code 1.0} → spikes
+ *       fully extended outward, the iconic silhouette.</li>
  * </ul>
- * Our transient entity has {@code oSpikesAnimation == spikesAnimation == 0} (no tick has
- * run), so vanilla's {@code Guardian.getSpikesAnimation(partialTick)} lerps to {@code 0}
- * and the render lands on the retracted bumps. Pin {@code state.spikesAnimation = 1.0f}
- * so the reference render shows the recognisable extended-spike pose.
+ * A transient entity has {@code oSpikesAnimation == spikesAnimation == 0} (no tick has run),
+ * so vanilla's {@code Guardian.getSpikesAnimation(partialTick)} lerps to {@code 0} and the
+ * render lands on the retracted bumps. That value is deterministic and it is what the
+ * asset-renderer's own pose evaluator answers, an input nothing supplies resting at what its
+ * render state was constructed holding - so a pin to the alert pose is a state no subject here
+ * is in and one only this side would know about. It is worth writing down because the field is
+ * inert under the {@code setupAnim} freeze and reads as free to choose: it is read by
+ * {@code setupAnim} and by nothing else, so the frozen sub-trees cannot see either value and
+ * the animated one sees the whole 0.55 of spike travel.
  *
  * <h2>{@link GuardianRenderState#tailAnimation tailAnimation} = 0</h2>
  * The {@link Guardian} constructor seeds {@code clientSideTailAnimation =
@@ -73,7 +77,6 @@ public abstract class GuardianStateMixin {
         at = @At("RETURN"))
     private void refharness$pinAnimationState(Guardian entity, GuardianRenderState state, float partialTick, CallbackInfo ci) {
         if (!Boolean.getBoolean("refharness.headless")) return;
-        state.spikesAnimation = 1.0f;
         state.tailAnimation = 0.0f;
         state.lookAtPosition = null;
         state.lookDirection = null;

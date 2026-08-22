@@ -36,6 +36,7 @@
     "SuppressScreenBackdropMixin",
     "SuppressShakingMixin",
     "TurtleEggBellyMixin",
+    "WitchNoseMixin",
     "WitherBossModelMixin",
     "ZombieVillagerStateMixin"
   ],
