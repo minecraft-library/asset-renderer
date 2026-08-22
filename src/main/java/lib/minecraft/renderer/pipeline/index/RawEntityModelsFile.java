@@ -64,12 +64,17 @@ record RawRender(
 ) {}
 
 /**
- * The family {@code bones} block.
+ * A {@code bones} block, on the family or on an equipment layer's overlay.
  *
+ * @param pose the simple name of the model class whose pose says which way these bones point,
+ *     or {@code null} when the mesh's own geometry coordinate already names it. Written only
+ *     where the two disagree, which is a saddle: vanilla declares a saddle's mesh factory on
+ *     the wearer's model class and hands the layer a different class to pose it with
  * @param hidden the bone names stripped from the default mesh, or {@code null} when none
  * @param toggles the named visibility toggles keyed by toggle name, or {@code null} when none
  */
 record RawBones(
+    @Nullable String pose,
     @Nullable List<String> hidden,
     @Nullable Map<String, RawToggle> toggles
 ) {}
@@ -385,6 +390,8 @@ record RawLayerWhen(@Nullable String equipment, @Nullable String age, @Nullable 
  *
  * @param texture the collar overlay texture path, or {@code null}
  * @param geometry the equipment or armor overlay geometry coordinate, or {@code null}
+ * @param bones the {@code hidden} strip and {@code toggles} specs the layer's own model class
+ *     declares over that geometry, or {@code null} when it declares none
  * @param grow the armor row's two layer deformations, or {@code null} for every other row
  * @param scaled the whole-mesh scale the armor set is registered through, or {@code null} at the
  *     identity - the eleven wearers vanilla registers unscaled
@@ -397,6 +404,7 @@ record RawLayerWhen(@Nullable String equipment, @Nullable String age, @Nullable 
 record RawLayerOverlay(
     @Nullable String texture,
     @Nullable String geometry,
+    @Nullable RawBones bones,
     @Nullable RawArmorGrow grow,
     @Nullable Float scaled,
     @Nullable RawArmorAlternate alternate,

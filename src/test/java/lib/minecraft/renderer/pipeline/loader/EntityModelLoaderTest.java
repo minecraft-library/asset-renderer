@@ -13,15 +13,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -418,10 +421,51 @@ class EntityModelLoaderTest {
             is(not(equalTo(equipmentLayer(defs, "minecraft:mule", "saddle").model().getBones().get("body").getPivot()))));
 
         // ... and one shared mesh where vanilla registers the same one: both undead horses bake the
-        // unscaled EquineSaddleModel, so they must join on a single geometry entry rather than duplicate it.
+        // unscaled EquineSaddleModel, so they must join on a single geometry entry rather than duplicate
+        // it. Read at a bone rather than at the mesh: each layer's resting strip copies the bone map, so
+        // the two hold different maps over the same bones.
         assertThat("skeleton and zombie horse saddles share one baked mesh",
-            equipmentLayer(defs, "minecraft:skeleton_horse", "saddle").model(),
-            sameInstance(equipmentLayer(defs, "minecraft:zombie_horse", "saddle").model()));
+            equipmentLayer(defs, "minecraft:skeleton_horse", "saddle").model().getBones().get("body"),
+            sameInstance(equipmentLayer(defs, "minecraft:zombie_horse", "saddle").model().getBones().get("body")));
+    }
+
+    /** The bones each saddle draws only while something is riding, by the entity wearing it. */
+    private static final Map<String, List<String>> RIDDEN_BONES = Map.of(
+        "minecraft:camel", List.of("reins"),
+        "minecraft:camel_husk", List.of("reins"),
+        "minecraft:donkey", List.of("left_saddle_line", "right_saddle_line"),
+        "minecraft:mule", List.of("left_saddle_line", "right_saddle_line"),
+        "minecraft:horse", List.of("left_saddle_line", "right_saddle_line"),
+        "minecraft:skeleton_horse", List.of("left_saddle_line", "right_saddle_line"),
+        "minecraft:zombie_horse", List.of("left_saddle_line", "right_saddle_line"));
+
+    @Test
+    @DisplayName("a saddle rests without the reins it draws only while ridden, and the toggle puts them back")
+    void saddleReinsRestUndrawn() {
+        // A layer is posed by a model class of its own, which is not always the one that baked its
+        // mesh: every equine saddle is posed by EquineSaddleModel while a donkey's is baked by
+        // DonkeyModel. That class writes its reins' visibility from isRidden, which a render state is
+        // built holding false, so a resting saddle carries the mesh's other bones and not those, and
+        // only a selection puts them back. Reading the baking class instead answers the wearer's chest
+        // gate for a mesh with reins.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
+        for (Map.Entry<String, List<String>> wearer : RIDDEN_BONES.entrySet()) {
+            String entityId = wearer.getKey();
+            Entity.EquipmentOverlay saddle = equipmentLayer(defs, entityId, "saddle");
+            assertThat(entityId + " saddle rests with its own strap",
+                saddle.model().getBones().keySet(), hasItem("saddle"));
+            for (String bone : wearer.getValue())
+                assertThat(entityId + " saddle rests without '" + bone + "'",
+                    saddle.model().getBones().keySet(), not(hasItem(bone)));
+
+            Entity ridden = defs.get(entityId).resolve(AppearanceOptions.builder()
+                .equipment(Map.of("saddle", "saddle")).toggles(Set.of("ridden")).build());
+            assertThat(entityId + " draws its reins while ridden",
+                ridden.layers().equipment().stream()
+                    .filter(overlay -> overlay.slot().equals("saddle"))
+                    .findFirst().orElseThrow().model().getBones().keySet(),
+                hasItems(wearer.getValue().toArray(String[]::new)));
+        }
     }
 
     /**

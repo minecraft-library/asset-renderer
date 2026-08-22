@@ -691,6 +691,9 @@ public final class VanillaSourceClasses {
         /** The {@code ModelPart} field / return-type reference descriptor. */
         public static final @NotNull String MODEL_PART_REF = ref(Types.MODEL_PART);
 
+        /** The {@code ModelPart[]} field descriptor - the type a model caches a run of bones in. */
+        public static final @NotNull String MODEL_PART_ARRAY_REF = array(MODEL_PART_REF);
+
         /** The {@code ArmorModelSet} field reference descriptor - the type that names an armor mesh. */
         public static final @NotNull String ARMOR_MODEL_SET_REF = ref(Types.ARMOR_MODEL_SET);
 
@@ -767,6 +770,16 @@ public final class VanillaSourceClasses {
          */
         public static @NotNull String ref(@NotNull String internalName) {
             return "L" + internalName + ";";
+        }
+
+        /**
+         * Wraps a descriptor as the descriptor of an array of it ({@code [<element>}).
+         *
+         * @param element the element-type descriptor
+         * @return the array descriptor
+         */
+        public static @NotNull String array(@NotNull String element) {
+            return "[" + element;
         }
 
     }

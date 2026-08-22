@@ -278,6 +278,8 @@ src/
     │       ├── ZombieVillagerStateMixin.java    # Pin villagerData to PLAINS/NONE/1 (default)
     │       ├── DonkeyModelMixin.java            # Hide left_chest/right_chest bones (equipment-driven)
     │       ├── LlamaModelMixin.java             # Hide left_chest/right_chest bones (equipment-driven)
+    │       ├── CamelSaddleReinsMixin.java       # Hide the camel saddle's reins (isRidden-driven)
+    │       ├── EquineSaddleLinesMixin.java      # Hide the equine saddle's lines (isRidden-driven)
     │       ├── FreezeSpriteAnimationMixin.java  # Pin animated texture sprites to frame 0
     │       ├── ShadeFalseFullBrightMixin.java   # shade:false faces render full-bright
     │       ├── BannerFlagModelMixin.java        # Flatten banner cloth (cancel wave)
@@ -336,6 +338,8 @@ src/
 | --------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DonkeyModelMixin`          | `DonkeyModel` ctor + `createBodyLayer` | Hides `left_chest` / `right_chest` bones (8×8×3 cubes that hang off the body at ±6 X). `DonkeyModel.setupAnim` writes `visible = state.hasChest`; for a freshly-loaded harness donkey/mule this is always false, so the bones are vestigial and inflate bounds without contributing pixels |
 | `LlamaModelMixin`           | `LlamaModel` ctor + `createBodyLayer`  | Same as donkey - hides `right_chest` / `left_chest` for every harness-baked llama (covers llama + trader_llama which share the model)                                                                                                                            |
+| `CamelSaddleReinsMixin`     | `CamelSaddleModel` ctor                | Hides `reins`, the strap a rider holds. `CamelSaddleModel.setupAnim` writes `reins.visible = state.isRidden` and nothing rides a transient camel, so a normally-rendered saddle draws its bridle and no reins                                                    |
+| `EquineSaddleLinesMixin`    | `EquineSaddleModel` ctor               | Same for `left_saddle_line` / `right_saddle_line`, which `setupAnim` writes from `isRidden` over the `ridingParts` array holding both. One class serves five subjects - donkey and mule bake their saddle through `DonkeyModel.createSaddleLayer` and are still handed this class to pose it |
 
 ### Block & texture render fixes
 

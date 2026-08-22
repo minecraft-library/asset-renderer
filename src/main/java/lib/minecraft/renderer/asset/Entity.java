@@ -200,7 +200,7 @@ public record Entity(
                 selectedToggles = new LinkedHashSet<>(selectedToggles);
                 selectedToggles.add("sheared");
             }
-            EntityModelData toggled = applyBoneToggles(definition, selectedToggles);
+            EntityModelData toggled = applyBoneToggles(definition.model(), definition.boneToggles(), selectedToggles);
             if (toggled != null) builder.model(toggled);
             builder.blockOverlays(resolveBlockOverlays(definition, appearance));
             // The shape axis (tropical fish) swaps to the large body when the selected pattern's Shape is
@@ -223,7 +223,10 @@ public record Entity(
             // rather than resolving self-similar to the default.
             appearance.getSize().map(definition.axes().sizeScales()::get)
                 .ifPresent(scale -> builder.rendererScale(definition.rendererScale() * scale));
-            builder.layers(new Layers(definition.layers().collar(), definition.layers().equipment(),
+            // A layer's own toggles ride the same selection the wearer's do, so an equipped saddle
+            // draws its reins for a ridden subject and its chest panniers for a chested one.
+            builder.layers(new Layers(definition.layers().collar(),
+                toggledEquipment(definition.layers().equipment(), selectedToggles),
                 definition.layers().markings(), armor));
         }
         // The base_color axis (tropical fish) overrides the model base_tint with the selected dye; absent
@@ -286,28 +289,59 @@ public record Entity(
     }
 
     /**
-     * Rebuilds the definition's model with the appearance's selected bone toggles flipped, or
-     * {@code null} when no selected toggle applies (leaving the default model). A default-hidden toggle
-     * re-adds its bones (chest); a default-visible toggle removes them (goat horns). Re-added bones'
-     * parents are already present, so the kit resolves them by name; the rebuilt model grows / shrinks
-     * the canvas bounds automatically.
+     * Rebuilds a mesh with the appearance's selected bone toggles flipped, or {@code null} when no
+     * selected toggle applies (leaving the mesh as it is). A default-hidden toggle re-adds its bones
+     * (chest); a default-visible toggle removes them (goat horns). Re-added bones' parents are
+     * already present, so the kit resolves them by name; the rebuilt model grows / shrinks the canvas
+     * bounds automatically.
+     *
+     * <p>One arithmetic for the wearer and for what it wears: a saddle declares its own toggles over
+     * its own mesh, and a selection reaches both.
+     *
+     * @param model the mesh to flip
+     * @param specs the toggles that mesh declares
+     * @param toggles the appearance's selected toggle names
+     * @return the rebuilt mesh, or {@code null} when none of the selected toggles is one of its own
      */
-    private static @Nullable EntityModelData applyBoneToggles(@NotNull Entity definition, @NotNull Set<String> toggles) {
-        if (toggles.isEmpty() || definition.boneToggles().isEmpty()) return null;
+    private static @Nullable EntityModelData applyBoneToggles(
+        @NotNull EntityModelData model, @NotNull Map<String, BoneToggle> specs, @NotNull Set<String> toggles) {
+
+        if (toggles.isEmpty() || specs.isEmpty()) return null;
         LinkedHashMap<String, EntityModelData.Bone> bones = null;
         for (String toggle : toggles) {
-            BoneToggle spec = definition.boneToggles().get(toggle);
+            BoneToggle spec = specs.get(toggle);
             if (spec == null || spec.bones().isEmpty()) continue;
-            if (bones == null) bones = new LinkedHashMap<>(definition.model().getBones());
+            if (bones == null) bones = new LinkedHashMap<>(model.getBones());
             if (spec.defaultVisible())
                 spec.bones().keySet().forEach(bones::remove);
             else
                 bones.putAll(spec.bones());
         }
         if (bones == null) return null;
-        return new EntityModelData(
-            definition.model().getTextureSize(),
-            definition.model().getInventoryYRotation(), Concurrent.adoptLinkedMap(bones), definition.model().isCull());
+        return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(),
+            Concurrent.adoptLinkedMap(bones), model.isCull());
+    }
+
+    /**
+     * The equipment overlays with their selected toggles flipped, or the given list when nothing
+     * moves.
+     *
+     * @param equipment the resolved definition's equipment overlays
+     * @param toggles the appearance's selected toggle names
+     * @return the overlays drawing what the selection asks for
+     */
+    private static @NotNull List<EquipmentOverlay> toggledEquipment(
+        @NotNull List<EquipmentOverlay> equipment, @NotNull Set<String> toggles) {
+
+        if (toggles.isEmpty() || equipment.isEmpty()) return equipment;
+        List<EquipmentOverlay> out = new ArrayList<>(equipment.size());
+        boolean moved = false;
+        for (EquipmentOverlay overlay : equipment) {
+            EquipmentOverlay toggled = overlay.withToggles(toggles);
+            moved |= toggled != overlay;
+            out.add(toggled);
+        }
+        return moved ? List.copyOf(out) : equipment;
     }
 
     /**
@@ -582,13 +616,17 @@ public record Entity(
      *     saddle layer shares {@code minecraft:saddle}, so the mapping is data rather than convention
      * @param defaultMaterial the material substituted when the slot is selected without one
      *     ({@code saddle} for a saddle, {@code leather} for horse body armor)
+     * @param boneToggles the layer's own named bone-visibility toggles, flipped by the same selection
+     *     the wearer's are - an equine saddle's reins ride {@code ridden}, a donkey saddle's chest
+     *     panniers ride {@code chest}
      */
     public record EquipmentOverlay(
         @NotNull String slot,
         @NotNull EntityModelData model,
         @NotNull LayerType layerType,
         @NotNull Map<String, ResourceId> materialAssets,
-        @NotNull String defaultMaterial
+        @NotNull String defaultMaterial,
+        @NotNull Map<String, BoneToggle> boneToggles
     ) {
         /**
          * Resolves the equipment asset id for a selected material; falls back to
@@ -601,6 +639,18 @@ public record Entity(
          */
         public @NotNull Optional<ResourceId> assetFor(@NotNull String material) {
             return Optional.ofNullable(this.materialAssets.get(material.isBlank() ? this.defaultMaterial : material));
+        }
+
+        /**
+         * This overlay with its selected toggles flipped, or itself when none of them is selected.
+         *
+         * @param toggles the appearance's selected toggle names
+         * @return the overlay drawing what the selection asks for
+         */
+        @NotNull EquipmentOverlay withToggles(@NotNull Set<String> toggles) {
+            EntityModelData toggled = applyBoneToggles(this.model, this.boneToggles, toggles);
+            return toggled == null ? this : new EquipmentOverlay(
+                this.slot, toggled, this.layerType, this.materialAssets, this.defaultMaterial, this.boneToggles);
         }
     }
 

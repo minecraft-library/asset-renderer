@@ -538,9 +538,20 @@ hands each renderer the one its subject wears. There is no armour file; the shel
 - The index is keyed by plain entity id and nothing synthesises a `minecraft:<id>_<option>` key. Do
   not revive id-encoding as a convenience API - the keyspace is the vanilla entity registry, so a
   synthesised key and a declared one are indistinguishable. `variant_of` is in-memory only.
-- A `bones.toggles` entry's `default` is derived from the packed flag's polarity, not assumed false:
-  `EntitySpawnFlagResolver` reads the accessor's mask and branch alongside the byte's registered
-  default, taking both arms off the jump. Anything that does not match answers `false`.
+- **A `bones.toggles` entry says which bones a toggle flips and never which way.** The side each
+  rests on is read off the model class's own pose at load, `PoseEvaluator.drawsAtRest` against the
+  figures a render state is built holding, so nothing declares it twice. `hidden` keeps only the
+  bones nothing ever draws, which no pose speaks for at all.
+- **An equipment layer carries a `bones` node of its own, and `pose` is what names the class it is
+  read against.** A layer poses its mesh with the model class the renderer hands it, which is not
+  always the class that baked the mesh: every equine saddle is posed by `EquineSaddleModel` while a
+  donkey's is baked by `DonkeyModel#createSaddleLayer`. The geometry coordinate's head names that
+  class everywhere else, so `pose` is written only where the two disagree - the donkey's and the
+  mule's saddle rows, and nothing else in the corpus. Reading the baking class instead answers the
+  wearer's `chest` gate for a mesh whose gated bones are reins.
+- **A layer's toggles take the same selection the wearer's do.** One flip serves both, so an equipped
+  saddle draws its reins for a `ridden` subject and its chest panniers for a `chest` one, and the
+  layer's mesh takes the resting strip the body's already did.
 - Every `<init>` feeds the field-to-bone map, not the first, because a model offering both a `(root)`
   and a `(root, Function)` form builds its parts in the wider one. A miss falls back to
   `StringUtil.toSnakeCase`; a raw Java field name is never a bone name.

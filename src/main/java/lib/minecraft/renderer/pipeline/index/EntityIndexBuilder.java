@@ -196,7 +196,7 @@ public final class EntityIndexBuilder {
         List<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null ? List.of() : loadBlockOverlays(family.blockOverlays());
 
         Optional<String> collarTexture = collarTextureOf(family);
-        List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId);
+        List<EquipmentOverlay> equipment = loadEquipment(family, geometries, poses, familyId);
         boolean markings = markingsOf(family);
         Optional<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId);
         String babyCoord = babyGeometryOf(family);
@@ -796,10 +796,17 @@ public final class EntityIndexBuilder {
      * each overlay's {@code geometry} coordinate to its baked mesh and decoding its render layer and
      * {@code material -> asset id} table. A layer naming an unknown geometry or an unknown layer type
      * warns and drops.
+     *
+     * <p>A layer takes the same bone surgery the body does, off the pose of its OWN model class: an
+     * equine saddle's reins are drawn while something is riding and a donkey's saddle carries no
+     * chest until the donkey does, and the mesh a layer draws holds those bones either way. The pose
+     * is looked up by the layer's geometry coordinate, so a layer posed by a class the walk never
+     * looked at rests as it is baked.
      */
     private static @NotNull List<EquipmentOverlay> loadEquipment(
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Map<String, EntityPose> poses,
         @NotNull String entityId
     ) {
         List<EquipmentOverlay> out = new ArrayList<>();
@@ -822,10 +829,18 @@ public final class EntityIndexBuilder {
                 // diagnostics.warn("entity '%s' equipment layer names unknown layer type '%s'", entityId, overlay.layerType());
                 continue;
             }
+            RawBones bones = overlay.bones();
+            EntityPose pose = poseOf(poses, bones == null || bones.pose() == null ? coord : bones.pose());
+            // Off the FULL mesh, ahead of both strips, for the reason the body's are: a toggle whose
+            // bones rest undrawn has to keep them somewhere to re-add them from.
+            Map<String, BoneToggle> toggles = loadBoneToggles(
+                bones == null ? null : bones.toggles(), model, pose, entityId);
+            model = applyRestingVisibility(
+                applyHiddenBones(model, bones == null ? null : bones.hidden(), entityId), pose);
             Map<String, ResourceId> materialAssets = new LinkedHashMap<>();
             overlay.materialAssets().forEach((material, assetId) -> materialAssets.put(material, ResourceId.parse(assetId)));
             out.add(new EquipmentOverlay(layer.when().equipment(), model, layerType.get(),
-                Map.copyOf(materialAssets), overlay.defaultMaterial()));
+                Map.copyOf(materialAssets), overlay.defaultMaterial(), toggles));
         }
         return List.copyOf(out);
     }

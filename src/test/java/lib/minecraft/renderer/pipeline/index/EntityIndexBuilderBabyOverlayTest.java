@@ -159,6 +159,7 @@ class EntityIndexBuilderBabyOverlayTest {
             new RawLayerOverlay(
                 "minecraft:textures/entity/villager/villager_collar.png",  // texture
                 null,                                                      // geometry
+                null,                                                      // bones
                 null,                                                      // grow
                 null,                                                      // scaled
                 null,                                                      // alternate
@@ -175,6 +176,7 @@ class EntityIndexBuilderBabyOverlayTest {
             new RawLayerOverlay(
                 null,                                  // texture
                 ADULT_COORD,                           // geometry
+                null,                                  // bones
                 null,                                  // grow
                 null,                                  // scaled
                 null,                                  // alternate
