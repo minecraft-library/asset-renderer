@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "f1bedd3ba0e50b4beddb2bc98596febbcbcb19e0fd5fc70444c1bed5b40042d6"
+      "sha256": "8fd3d9fd33fb90b50de158f2ccdfcbe7f8475f2e04a0590feba9a10647d7b312"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "b116041bcb33507dfe88cdb7f00449581322b9f0",
+    "asset_sha": "5fc5df1c448fd263d405a52c17708cdf3f0fda8b",
     "counts": {
       "digests": 11
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "The pose walk reaches 110 of 111 model classes, up from 102: a constructor-narrowed mesh root, a flattened container's translate folded onto the bones it held, a body's own assignment to the render state read back, a split taken on an enum a comparison was built out of, a figure a model carries between poses named as an input, and the vector and declared table a guardian poses off. entity_models.json and entity_geometry.json byte-identical throughout; every sweep held its row count and its sum.",
+    "reason": "The pose walk reaches 111 of 111 model classes, closing the roster: EnderDragonModel lands, which took a state reference named by the whole number it was asked for, two flight-history figures, an int-to-double widening and a double max. The container a mesh flattens away is now carried as the pose's own member rather than folded onto the bones it held - the only spelling exact for the dragon's rotation - and AdultTurtleModel moves onto it too. entity_models.json and entity_geometry.json byte-identical throughout; every sweep held its row count and its sum.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-22T00:24:20Z",
+    "timestamp": "2026-08-22T01:39:56Z",
     "tool_version": "1.0.0"
   }
 }

@@ -16,7 +16,7 @@
     },
     {
       "path": "entities.json",
-      "sha256": "63454b2adf10f5b4e1a766917942b25bfd857c3f8c6a987fc20db62ddb92086d"
+      "sha256": "2abb0af0b8e5df7d43dbc866d4652281f963485c3b0c30737226d7104215b88f"
     },
     {
       "path": "item-models.json",
@@ -65,7 +65,7 @@
   "provenance": {
     "artifact": "manifest.dump.packs",
     "asset_dirty": false,
-    "asset_sha": "b116041bcb33507dfe88cdb7f00449581322b9f0",
+    "asset_sha": "5fc5df1c448fd263d405a52c17708cdf3f0fda8b",
     "counts": {
       "files": 14
     },
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "The pose walk reaches 110 of 111 model classes, up from 102: a constructor-narrowed mesh root, a flattened container's translate folded onto the bones it held, a body's own assignment to the render state read back, a split taken on an enum a comparison was built out of, a figure a model carries between poses named as an input, and the vector and declared table a guardian poses off. entity_models.json and entity_geometry.json byte-identical throughout; every sweep held its row count and its sum.",
+    "reason": "The pose walk reaches 111 of 111 model classes, closing the roster: EnderDragonModel lands, which took a state reference named by the whole number it was asked for, two flight-history figures, an int-to-double widening and a double max. The container a mesh flattens away is now carried as the pose's own member rather than folded onto the bones it held - the only spelling exact for the dragon's rotation - and AdultTurtleModel moves onto it too. entity_models.json and entity_geometry.json byte-identical throughout; every sweep held its row count and its sum.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,8 +84,8 @@
       "players": 2
     },
     "root": "cache/parity-dump/head/packs",
-    "timestamp": "2026-08-22T00:24:20Z",
+    "timestamp": "2026-08-22T01:39:56Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 28626
+    "wall_time_ms": 28061
   }
 }
