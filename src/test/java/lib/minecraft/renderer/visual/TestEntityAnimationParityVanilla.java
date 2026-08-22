@@ -2,10 +2,10 @@ package lib.minecraft.renderer.visual;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.ImageData;
 import dev.simplified.image.codec.gif.GifImageWriter;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import dev.simplified.image.data.AnimatedImageData;
-import dev.simplified.image.ImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
