@@ -82,6 +82,9 @@ public enum PoseOperator {
     /** Widens an int to a float. */
     I2F("i2f", 1, Width.FLOAT),
 
+    /** Widens an int to a double, exactly. */
+    I2D("i2d", 1, Width.DOUBLE),
+
     /** Truncates a float to an int, toward zero. */
     F2I("f2i", 1, Width.INT),
 
@@ -141,6 +144,9 @@ public enum PoseOperator {
 
     /** Calls the JDK square root, which is exact where the sampled one is not. */
     LIBM_SQRT("libm_sqrt", 1, Width.DOUBLE),
+
+    /** Answers the larger of two doubles. */
+    LIBM_MAX("libm_max", 2, Width.DOUBLE),
 
     /** Eases in along a quarter circle. */
     EASE_IN_CIRC("ease_in_circ", 1, Width.FLOAT),

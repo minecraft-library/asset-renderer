@@ -96,6 +96,9 @@ public enum PoseOperator {
     /** Widens an int to a float. */
     I2F("i2f", 1, Width.FLOAT),
 
+    /** Widens an int to a double, exactly. */
+    I2D("i2d", 1, Width.DOUBLE),
+
     /** Truncates a float to an int, toward zero. */
     F2I("f2i", 1, Width.INT),
 
@@ -159,6 +162,9 @@ public enum PoseOperator {
 
     /** Calls the JDK square root, which is exact where the sampled one is not. */
     LIBM_SQRT("libm_sqrt", 1, Width.DOUBLE),
+
+    /** Answers the larger of two doubles. */
+    LIBM_MAX("libm_max", 2, Width.DOUBLE),
 
     // The eight reachable easings.
 
@@ -275,6 +281,7 @@ public enum PoseOperator {
             case F2D -> operands[0];
             case D2F -> (float) operands[0];
             case I2F -> (float) (int) operands[0];
+            case I2D -> (double) (int) operands[0];
             case F2I -> (int) (float) operands[0];
             case MTH_SIN -> VanillaMth.mthSin(operands[0]);
             case MTH_COS -> VanillaMth.mthCos(operands[0]);
@@ -295,6 +302,7 @@ public enum PoseOperator {
             case LIBM_ABS -> Math.abs(operands[0]);
             case LIBM_SIGNUM -> Math.signum(operands[0]);
             case LIBM_SQRT -> Math.sqrt(operands[0]);
+            case LIBM_MAX -> Math.max(operands[0], operands[1]);
             case EASE_IN_CIRC -> VanillaEase.inCirc((float) operands[0]);
             case EASE_IN_QUAD -> VanillaEase.inQuad((float) operands[0]);
             case EASE_OUT_CIRC -> VanillaEase.outCirc((float) operands[0]);

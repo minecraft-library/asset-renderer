@@ -2752,6 +2752,7 @@ public final class PoseWalk {
         out.put(Opcodes.IREM, PoseOperator.IREM);
         out.put(Opcodes.INEG, PoseOperator.INEG);
         out.put(Opcodes.I2F, PoseOperator.I2F);
+        out.put(Opcodes.I2D, PoseOperator.I2D);
         out.put(Opcodes.F2D, PoseOperator.F2D);
         out.put(Opcodes.D2F, PoseOperator.D2F);
         out.put(Opcodes.F2I, PoseOperator.F2I);
@@ -2852,6 +2853,7 @@ public final class PoseWalk {
         out.put(key(math, "abs", "(D)D"), PoseOperator.LIBM_ABS);
         out.put(key(math, "signum", "(D)D"), PoseOperator.LIBM_SIGNUM);
         out.put(key(math, "sqrt", "(D)D"), PoseOperator.LIBM_SQRT);
+        out.put(key(math, "max", "(DD)D"), PoseOperator.LIBM_MAX);
 
         out.put(key(ease, "inCirc", "(F)F"), PoseOperator.EASE_IN_CIRC);
         out.put(key(ease, "inQuad", "(F)F"), PoseOperator.EASE_IN_QUAD);
