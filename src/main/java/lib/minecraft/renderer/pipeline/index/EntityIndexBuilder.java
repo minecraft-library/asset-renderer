@@ -25,6 +25,7 @@ import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.engine.kit.PoseEvaluator;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.parity.Parity;
@@ -230,7 +231,8 @@ public final class EntityIndexBuilder {
 
         // Plain family: one row. The size / shape axes attach only to plain families, so they resolve here.
         EntityModelData model = resolveModel(geometries, baseCoord, familyId);
-        Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, familyId);
+        EntityPose pose = poseOf(poses, baseCoord);
+        Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, pose, familyId);
         model = applyHiddenBones(model, hiddenBones, familyId);
         // Ahead of the overlay load so a same-geometry pass is materialised on the shifted mesh and
         // travels with it; a pass on a mesh of its OWN would not, which the shift warns about.
@@ -249,7 +251,7 @@ public final class EntityIndexBuilder {
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .boneToggles(toggles)
-            .pose(poseOf(poses, baseCoord))
+            .pose(pose)
             .axes(new Entity.Axes(stateTextures, babyModel, babyPose, babyOverlays,
                 buildLargeShape(family, geometries, familyId),
                 buildSizeModels(family, geometries, hiddenBones, familyId),
@@ -318,7 +320,8 @@ public final class EntityIndexBuilder {
     ) {
         String rowCoord = optionObj.geometry() == null ? ctx.baseCoord() : optionObj.geometry();
         EntityModelData model = resolveModel(ctx.geometries(), rowCoord, rowId);
-        Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, rowId);
+        EntityPose pose = poseOf(ctx.poses(), rowCoord);
+        Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, pose, rowId);
         model = applyHiddenBones(model, ctx.hiddenBones(), rowId);
         List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), rowCoord, model, rowId);
         Map<String, String> stateTextures = variantStateTextures(optionObj);
@@ -329,7 +332,7 @@ public final class EntityIndexBuilder {
             .blockOverlays(coatBlockOverlays(ctx.blockOverlays(), optionObj.block()))
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
             .boneToggles(toggles)
-            .pose(poseOf(ctx.poses(), rowCoord))
+            .pose(pose)
             .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Optional.empty(),
                 Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))
             .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor()))
@@ -952,10 +955,18 @@ public final class EntityIndexBuilder {
      * default-hidden toggle's bones are still present for the resolver to re-add (donkey / mule / llama
      * chest). A named bone absent from the geometry warns and drops; a toggle left with no resolvable bones
      * is omitted.
+     *
+     * <p><b>Which way a toggle points is READ OFF THE POSE rather than declared beside it.</b> A
+     * toggle is a name for the state a subject is not resting in, and what it rests in is something
+     * the model already says: a goat's horns are drawn because {@code hasLeftHorn} is what a goat's
+     * render state is built holding, and a donkey's chest is not because {@code hasChest} is not.
+     * Deriving it keeps one answer to that question instead of two that can drift apart - and they
+     * had, on the bee.
      */
     private static @NotNull Map<String, BoneToggle> loadBoneToggles(
         @Nullable Map<String, RawToggle> toggles,
         @NotNull EntityModelData fullModel,
+        @NotNull EntityPose pose,
         @NotNull String entityId
     ) {
         if (toggles == null) return Map.of();
@@ -963,7 +974,7 @@ public final class EntityIndexBuilder {
         for (Map.Entry<String, RawToggle> entry : toggles.entrySet()) {
             RawToggle spec = entry.getValue();
             if (spec.bones() == null) continue;
-            boolean defaultVisible = spec.defaultVisible();
+            boolean defaultVisible = restsDrawn(pose, fullModel, spec.bones());
             LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
             for (String boneName : spec.bones()) {
                 if (boneName == null) continue;
@@ -978,6 +989,26 @@ public final class EntityIndexBuilder {
             if (!bones.isEmpty()) out.put(entry.getKey(), new BoneToggle(bones, defaultVisible));
         }
         return out;
+    }
+
+    /**
+     * Whether the bones one toggle names are drawn at rest.
+     *
+     * <p>The bones a toggle holds are one thing shown or hidden together, so they answer together;
+     * a toggle whose bones disagreed would be two toggles wearing one name. Bones the model writes
+     * no visibility for do not vote - a subtree is hidden by its own root, and the parent carries
+     * the write where its children are simply carried along.
+     */
+    private static boolean restsDrawn(
+        @NotNull EntityPose pose, @NotNull EntityModelData fullModel, @NotNull List<String> named) {
+
+        boolean drawn = true;
+        for (String bone : named) {
+            if (bone == null || !pose.bones().containsKey(bone)) continue;
+            drawn = PoseEvaluator.drawsAtRest(pose, fullModel, bone);
+            break;
+        }
+        return drawn;
     }
 
     /**
