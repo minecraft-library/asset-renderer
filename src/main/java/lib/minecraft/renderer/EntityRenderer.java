@@ -42,6 +42,7 @@ import lib.minecraft.renderer.engine.kit.ElytraKit;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.engine.kit.EquipmentKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
+import lib.minecraft.renderer.engine.kit.PoseKit;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
@@ -254,8 +255,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
             BoundsScope scope = boundsScopeFor(options.getFitMode());
             Matrix4f renderOrient = engine.orient(effective);
-            Box screenBounds = computeScreenBoundsFor(scope, options.getEntityId().get(), resolved,
-                renderOrient, modelScale, texture.get(), startTick);
+            Box screenBounds = computeScreenBoundsAcrossFrames(scope, options.getEntityId().get(),
+                resolved, options, timeline, renderOrient, modelScale, texture.get());
             // Fold a selected equipment overlay's mesh into the pre-measured silhouette so an inflated /
             // protruding equipment mesh can't crop at the canvas edge under the NATIVE_SCALE fit (which
             // sizes from these bounds, not the rendered triangles). Measured through the overlay's own
@@ -342,12 +343,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // thread-safe parallel strip baking. FeatureContext carries the shared geometry-build frame
         // (the render frame, textures, pack context, tick) the static feature constants cannot capture.
         IntFunction<ConcurrentList<VisibleTriangle>> buildAtTick = tick -> {
+            EntityModelData posed = PoseKit.posed(options.getPoseMode(), resolved, tick);
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(texture.get());
-            ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(model, frameTexture,
+            ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(posed, frameTexture,
                 new EntityGeometryKit.EntityBuildParams(
                     kitFrame, PassDeclaration.DEFAULT, resolved.baseTintArgb())).triangles();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            FeatureContext featureCtx = new FeatureContext(resolved, options, model, frameTexture,
+            FeatureContext featureCtx = new FeatureContext(resolved, options, posed, frameTexture,
                 kitFrame, this.context, tick);
             for (EntityFeature feature : EntityFeature.values())
                 feature.contribute(featureCtx, stack);
@@ -361,12 +363,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         };
 
         // Build frame 0 once, up front, for the empty-geometry early-out (a bones-but-no-triangles
-        // entity renders a transparent canvas, exactly as before). It doubles as the frame-0 geometry
-        // the callback reuses, so a static render never rebuilds.
+        // entity renders a transparent canvas, exactly as before). A one-frame schedule draws this
+        // very geometry - it samples the start tick and there is no other frame to draw - so a static
+        // render still builds exactly once. A schedule with frames to spare builds each of them,
+        // because a posed subject stands somewhere different at every tick and nothing about a tick's
+        // geometry can be carried to its neighbour.
         ConcurrentList<VisibleTriangle> startTriangles = buildAtTick.apply(startTick);
         if (startTriangles.isEmpty())
             return Timeline.still(PixelBuffer.create(canvasW, canvasH));
 
+        boolean single = timeline.frames() == 1;
         boolean enchanted = options.getArmor().hasEnchanted();
 
         // Rasterize + optional FXAA + supersample-downscale + masked glint via the shared tail. The
@@ -375,26 +381,26 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         //
         // Route through the schedule UNCONDITIONALLY (the FluidRenderer pattern): a frameCount=1 timeline
         // yields the same single static frame but sampled at the timeline's start tick, so bake draws
-        // at timeline.tickAt(0) == startTick and the callback's `tick == startTick` reuse fires. A raw
-        // Static(0) would instead hardcode tick 0, which - since the canvas/bounds/startTriangles
-        // above are built at startTick - would size the canvas for startTick's frame yet DRAW frame 0
-        // (a wrong-frame + wasted-rebuild mismatch on an animated texture with a non-zero startTick).
+        // at timeline.tickAt(0) == startTick, which is the frame already built above. A raw Static(0)
+        // would instead hardcode tick 0, which - since the canvas/bounds/startTriangles above are built
+        // at startTick - would size the canvas for startTick's frame yet DRAW frame 0 (a wrong-frame
+        // mismatch on an animated texture with a non-zero startTick).
         // At frameCount=1 the timeline is a Static at startTick and the foil takes the scroll
         // direction; at frameCount>1 it bakes the strip and stamps per frame. Default (startTick=0,
         // frameCount=1) is byte-identical.
         //
-        // Canvas-sizing tradeoff (opt-in animated textures): the orthographic canvas + NATIVE_SCALE
-        // silhouette are measured ONCE from the startTick frame's alpha-tight bounds, but frames render
-        // at per-tick textures. A flipbook whose later frames paint opaque texels outside frame 0's
-        // silhouette can crop at the fixed canvas edge. Geometry-driven bounds are
-        // frame-invariant, so this only bites texture-alpha-driven silhouette growth; vanilla never
-        // triggers it (no animated entity texture). Callers needing an uncropped fat-later-frame render
-        // can pad via canvasSize/padding or the perspective path (which auto-fills per frame).
+        // The orthographic canvas + NATIVE_SCALE silhouette are measured across EVERY frame the
+        // schedule samples, each through its own posed mesh and its own tick's texture, and the
+        // union is what the canvas is sized from. Both halves of a growing silhouette need that: a
+        // bone the pose swings wider at a later tick, and a flipbook painting opaque texels outside
+        // frame 0's outline. A static schedule measures the one frame it draws, so it sizes exactly
+        // the canvas it always did. The perspective path measures nothing here - it auto-fills per
+        // frame in the engine.
         int ssaa = options.getOutput().getSupersample();
         return timeline.bake(
             RasterPass.of(canvasW, canvasH, ssaa, options.getOutput().isAntiAlias(), (target, tick) ->
                     new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT).rasterizeFitted(
-                        tick == startTick ? startTriangles : buildAtTick.apply(tick), target, effective, fitRequest))
+                        single ? startTriangles : buildAtTick.apply(tick), target, effective, fitRequest))
                 .withMask(enchanted)
                 .finishing(GlintKit.Foil.armor(engine.context()::resolveTexture, enchanted)));
     }
@@ -1186,6 +1192,70 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 boundsBlockOverlays(definition, this.javaEntities.get(entityId)));
             case GROUP_UNION -> computeGroupUnionScreenBounds(entityId, definition, transform, modelScale, texture, tick);
         };
+    }
+
+    /**
+     * Unions {@link #computeScreenBoundsFor} across every frame the schedule samples - the canvas has
+     * to hold each of them, and it is sized once.
+     *
+     * <p>Wrapped from outside that dispatch rather than folded into it, so the two unions compose:
+     * a frame is measured against whichever scope the fit mode asked for, and neither the group union
+     * nor this one swallows the other.
+     *
+     * <p>Each frame is measured through its own posed mesh and its own tick's texture, which is what
+     * a frame actually draws. A one-frame schedule is one measurement of the frame it draws, at the
+     * start tick and through the texture already resolved there - the same call, with the same
+     * arguments, that sizing has always made.
+     *
+     * @param scope whether a frame measures this entity alone or its whole canvas group
+     * @param entityId the namespaced id the group scope resolves its members from
+     * @param resolved the age / carried-resolved definition being measured
+     * @param options the render options supplying the pose mode and the texture precedence
+     * @param timeline the frame schedule whose sample ticks are measured
+     * @param transform the exact render orientation the silhouette is measured through
+     * @param modelScale the per-entity render scale the bounds are taken at
+     * @param startTexture the base texture already resolved at the schedule's start tick
+     * @return the union of every frame's projected silhouette
+     */
+    private @NotNull Box computeScreenBoundsAcrossFrames(
+        @NotNull BoundsScope scope,
+        @NotNull String entityId,
+        @NotNull Entity resolved,
+        @NotNull EntityOptions options,
+        @NotNull Timeline.TickTimeline timeline,
+        @NotNull Matrix4f transform,
+        float modelScale,
+        @NotNull PixelBuffer startTexture
+    ) {
+        int startTick = timeline.tickAt(0);
+        Box bounds = computeScreenBoundsFor(scope, entityId, posedSubject(resolved, options, startTick),
+            transform, modelScale, startTexture, startTick);
+        for (int frame = 1; frame < timeline.frames(); frame++) {
+            int tick = timeline.tickAt(frame);
+            PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(startTexture);
+            bounds = bounds.union(computeScreenBoundsFor(scope, entityId, posedSubject(resolved, options, tick),
+                transform, modelScale, frameTexture, tick));
+        }
+        return bounds;
+    }
+
+    /**
+     * The definition as it stands at one tick - itself, unless its model poses it somewhere else.
+     *
+     * <p>The identity check is what keeps the authored pose free: {@link PoseKit} answers the very
+     * mesh it was handed when nothing poses it, so the subject measured is the subject itself rather
+     * than a rebuilt copy of it.
+     *
+     * @param subject the resolved definition to pose
+     * @param options the render options supplying the pose mode
+     * @param tick the frame's sample tick
+     * @return the definition carrying the mesh it holds at that tick
+     */
+    private static @NotNull Entity posedSubject(
+        @NotNull Entity subject, @NotNull EntityOptions options, int tick) {
+
+        EntityModelData posed = PoseKit.posed(options.getPoseMode(), subject, tick);
+        return posed == subject.model() ? subject : subject.mutate().model(posed).build();
     }
 
     /**

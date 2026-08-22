@@ -32,14 +32,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The shipped pose table evaluated.
  *
- * <p>Four things are worth pinning here. Every pose in the corpus has to evaluate to finite numbers,
+ * <p>Five things are worth pinning here. Every pose in the corpus has to evaluate to finite numbers,
  * because a pose is arithmetic a caller cannot inspect before trusting and a NaN in a bone channel
  * is a limb that vanishes rather than an error anyone sees. A shared sub-expression has to be
  * computed ONCE, which is the difference between an evaluator that returns and one that does not -
  * and it is pinned as a COUNT rather than as a timeout, because the failure mode is exponential and
  * a timeout would report it as a slow machine. A figure its own render state builds non-zero has to
- * be answered as built, which the humanoid arm proves by being NaN when it is not. And an expression
- * has to answer the arithmetic the table spells, operand for operand.
+ * be answered as built, which the humanoid arm proves by being NaN when it is not. An expression has
+ * to answer the arithmetic the table spells, operand for operand. And a bone the mesh does not declare
+ * has to be passed over, because a pose belongs to a model class where a mesh belongs to a subject,
+ * and the two part company wherever a bone rests undrawn.
  */
 @DisplayName("the shipped pose table evaluated")
 class PoseEvaluatorTest {
@@ -158,6 +160,27 @@ class PoseEvaluatorTest {
         assertEquals((float) Math.toRadians(90d),
             PoseEvaluator.evaluate(reads, mesh, PoseEvaluator.ZERO).bones().get("head").get(PoseChannel.X_ROT),
             "ninety degrees of authored pitch reads back as the radians the table computes in");
+    }
+
+    @Test
+    @DisplayName("a bone the mesh does not declare is passed over rather than read")
+    void aBoneTheMeshDoesNotDeclareIsNotEvaluated() {
+        // An illager rests with its arms crossed, which takes the pair it would hang out of the mesh
+        // and the subtree under them with it - and the pose still writes those bones, because
+        // vanilla's own setupAnim writes those fields on parts nothing renders. Evaluating one means
+        // reading the mesh for a channel of a bone that is gone, which is a throw rather than a
+        // number, and it is the whole roster of crossed-arm illagers plus the armour stand.
+        Entity evoker = entities.get("minecraft:evoker");
+        assertNotNull(evoker, "the evoker is expected to load");
+        assertFalse(evoker.model().getBones().containsKey("left_arm"),
+            "an evoker rests with its arms crossed, so the arm it would hang is not in its mesh");
+        assertTrue(evoker.pose().bones().containsKey("left_arm"),
+            "and its model poses that arm all the same");
+
+        PoseEvaluator.ChannelWrites written = PoseEvaluator.evaluate(evoker.pose(), evoker.model(),
+            PoseEvaluator.restingIn(evoker.pose(), evoker.restingState()));
+        assertFalse(written.bones().containsKey("left_arm"), "so nothing is written for it");
+        assertFalse(written.bones().isEmpty(), "while the bones the mesh does declare are posed");
     }
 
     // ------------------------------------------------------------------------------------

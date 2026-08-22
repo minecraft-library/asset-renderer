@@ -15,6 +15,7 @@ import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Evaluates one model's pose at one instant - the arithmetic a {@code setupAnim} body does, read off
@@ -217,10 +218,18 @@ public final class PoseEvaluator {
     }
 
     /**
-     * Evaluates every channel a pose writes.
+     * Evaluates every channel a pose writes to a bone this mesh has.
      *
      * <p>A pose that could not be read writes nothing, the same as one that poses nothing - the two
      * are told apart on {@link EntityPose#isReadable()}, before this, by whatever cares.
+     *
+     * <p><b>A bone the mesh does not declare is not evaluated</b>, because it does not draw and no
+     * caller has anywhere to put the answer. A pose belongs to a model class where a mesh belongs to
+     * a subject, so the two disagree by construction wherever a bone rests undrawn and its subtree
+     * came out with it - an illager's crossed arms leave the pose still naming the pair it hangs
+     * instead, and vanilla's own {@code setupAnim} writes those same fields on parts nothing renders.
+     * Reading the mesh for a channel of a bone that is gone is what would fail, and it fails loudly
+     * where it is genuinely wrong: a bone the mesh <em>does</em> have, reading one it does not.
      *
      * @param pose the model's pose
      * @param model the mesh being posed, which is what an unwritten channel is read from
@@ -237,9 +246,15 @@ public final class PoseEvaluator {
         Map<Object, Double> memo = new IdentityHashMap<>();
 
         Map<PoseChannel, Float> container = channels(pose.container(), model, frame, memo);
-        Map<String, Map<PoseChannel, Float>> bones = new LinkedHashMap<>();
-        pose.bones().forEach((bone, written) ->
-            bones.put(bone, channels(written, model, frame, memo)));
+        // Collected into a LinkedHashMap rather than through Map.copyOf: what comes out is read in
+        // order downstream, and copyOf salts its iteration per JVM launch.
+        Map<String, Map<PoseChannel, Float>> bones = pose.bones()
+            .entrySet()
+            .stream()
+            .filter(written -> model.getBones().containsKey(written.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                written -> channels(written.getValue(), model, frame, memo),
+                (first, second) -> first, LinkedHashMap::new));
         return new ChannelWrites(container, Collections.unmodifiableMap(bones));
     }
 

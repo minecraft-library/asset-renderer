@@ -128,6 +128,17 @@ public class EntityOptions implements RenderOptions {
     private final @NotNull AnimationOptions animation = AnimationOptions.defaults();
 
     /**
+     * Whether the entity's bones stand where its mesh authors them or where its model puts them at
+     * each frame's tick. Defaults to {@link PoseMode#BIND}, the authored pose, so a caller that asks
+     * for nothing renders the still subject it always did.
+     *
+     * <p>Orthogonal to {@link #getAnimation() animation}, which chooses the instants that are
+     * sampled rather than whether anything moves between them: a caller wanting a subject that moves
+     * sets both, and one setting this alone gets a single frame of a subject posed at one tick.
+     */
+    private final @NotNull PoseMode poseMode = PoseMode.BIND;
+
+    /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
      * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */
@@ -187,6 +198,33 @@ public class EntityOptions implements RenderOptions {
          * too; keep {@code padding = 0} to preserve byte-equal output against the harness PNGs.
          */
         GROUP_BOUNDS
+
+    }
+
+    /**
+     * Whether an entity's bones are drawn where they are authored or where its model puts them.
+     *
+     * <p>The mesh a frame is built from is the whole of what varies between the two - the canvas,
+     * the layers, the textures and the lighting are reached the same way either way.
+     */
+    public enum PoseMode {
+
+        /**
+         * The authored bind pose - every bone at the pivot, rotation and scale its mesh declares.
+         *
+         * <p>The default, and what every subject draws whose model poses nothing, whose pose could
+         * not be read, and which carries no pose at all.
+         */
+        BIND,
+
+        /**
+         * The pose the subject's model evaluates at each frame's tick.
+         *
+         * <p>What moves is what the shipped pose table drives from elapsed time - a head that bobs,
+         * a tail that sways, a wing that beats - because a subject standing still answers every
+         * other figure with what it rests at, and time is the one that runs.
+         */
+        ANIMATED
 
     }
 
