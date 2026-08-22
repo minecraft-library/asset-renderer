@@ -57131,7 +57131,1491 @@
       }
     },
     "AdultFoxModel": {
-      "refused": "writes FoxModel.legMotionPos, so its pose is not a function of its inputs alone"
+      "shared": [
+        {
+          "eq": [
+            {
+              "input": "isPouncing"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isCrouching"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isSleeping"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isSitting"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "select": [
+            {
+              "ref": 1
+            },
+            {
+              "select": [
+                {
+                  "ref": 2
+                },
+                {
+                  "select": [
+                    {
+                      "ref": 3
+                    },
+                    {
+                      "bone": [
+                        "body",
+                        "y"
+                      ]
+                    },
+                    {
+                      "sub": [
+                        {
+                          "bone": [
+                            "body",
+                            "y"
+                          ]
+                        },
+                        {
+                          "const": 7.0
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "add": [
+                    {
+                      "bone": [
+                        "body",
+                        "y"
+                      ]
+                    },
+                    {
+                      "const": 5.0
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "add": [
+                {
+                  "bone": [
+                    "body",
+                    "y"
+                  ]
+                },
+                {
+                  "input": "crouchAmount"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "div": [
+            {
+              "input": "crouchAmount"
+            },
+            {
+              "const": 2.0
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mth_cos": [
+                {
+                  "f2d": [
+                    {
+                      "input": "ageInTicks"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "const": 0.05
+            }
+          ]
+        },
+        {
+          "select": [
+            {
+              "ref": 1
+            },
+            {
+              "select": [
+                {
+                  "ref": 2
+                },
+                {
+                  "select": [
+                    {
+                      "ref": 3
+                    },
+                    {
+                      "bone": [
+                        "head",
+                        "y"
+                      ]
+                    },
+                    {
+                      "sub": [
+                        {
+                          "bone": [
+                            "head",
+                            "y"
+                          ]
+                        },
+                        {
+                          "const": 6.5
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "add": [
+                    {
+                      "bone": [
+                        "head",
+                        "y"
+                      ]
+                    },
+                    {
+                      "const": 2.99
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "add": [
+                {
+                  "bone": [
+                    "head",
+                    "y"
+                  ]
+                },
+                {
+                  "mul": [
+                    {
+                      "input": "crouchAmount"
+                    },
+                    {
+                      "input": "ageScale"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "ne": [
+            {
+              "input": "isSleeping"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "select": [
+            {
+              "ref": 1
+            },
+            {
+              "select": [
+                {
+                  "ref": 2
+                },
+                {
+                  "select": [
+                    {
+                      "ref": 3
+                    },
+                    {
+                      "bone": [
+                        "head",
+                        "x_rot"
+                      ]
+                    },
+                    {
+                      "const": 0.0
+                    }
+                  ]
+                },
+                {
+                  "bone": [
+                    "head",
+                    "x_rot"
+                  ]
+                }
+              ]
+            },
+            {
+              "bone": [
+                "head",
+                "x_rot"
+              ]
+            }
+          ]
+        },
+        {
+          "ne": [
+            {
+              "input": "isFaceplanted"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "ne": [
+            {
+              "input": "isCrouching"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "select": [
+            {
+              "ref": 1
+            },
+            {
+              "select": [
+                {
+                  "ref": 2
+                },
+                {
+                  "select": [
+                    {
+                      "ref": 3
+                    },
+                    {
+                      "bone": [
+                        "head",
+                        "y_rot"
+                      ]
+                    },
+                    {
+                      "const": 0.0
+                    }
+                  ]
+                },
+                {
+                  "const": -2.0943952
+                }
+              ]
+            },
+            {
+              "bone": [
+                "head",
+                "y_rot"
+              ]
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isFaceplanted"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "input": "walkAnimationPos"
+            },
+            {
+              "const": 0.6662
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "mth_cos": [
+                    {
+                      "f2d": [
+                        {
+                          "ref": 14
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 1.4
+                }
+              ]
+            },
+            {
+              "input": "walkAnimationSpeed"
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "carried": "legMotionPos"
+                },
+                {
+                  "const": 0.67
+                }
+              ]
+            },
+            {
+              "const": 0.4662
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mth_cos": [
+                {
+                  "f2d": [
+                    {
+                      "ref": 16
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "const": 0.1
+            }
+          ]
+        },
+        {
+          "div": [
+            {
+              "ref": 6
+            },
+            {
+              "const": 2.0
+            }
+          ]
+        },
+        {
+          "select": [
+            {
+              "ref": 1
+            },
+            {
+              "select": [
+                {
+                  "ref": 2
+                },
+                {
+                  "iconst": 1
+                },
+                {
+                  "iconst": 0
+                }
+              ]
+            },
+            {
+              "iconst": 1
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "mth_cos": [
+                    {
+                      "f2d": [
+                        {
+                          "add": [
+                            {
+                              "ref": 14
+                            },
+                            {
+                              "const": 3.1415927
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 1.4
+                }
+              ]
+            },
+            {
+              "input": "walkAnimationSpeed"
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mth_cos": [
+                {
+                  "f2d": [
+                    {
+                      "add": [
+                        {
+                          "ref": 16
+                        },
+                        {
+                          "const": 3.1415927
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "const": 0.1
+            }
+          ]
+        }
+      ],
+      "bones": {
+        "body": {
+          "y": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "ref": 4
+              },
+              {
+                "sub": [
+                  {
+                    "ref": 4
+                  },
+                  {
+                    "ref": 5
+                  }
+                ]
+              }
+            ]
+          },
+          "z": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 3
+                      },
+                      {
+                        "bone": [
+                          "body",
+                          "z"
+                        ]
+                      },
+                      {
+                        "add": [
+                          {
+                            "bone": [
+                              "body",
+                              "z"
+                            ]
+                          },
+                          {
+                            "const": 3.0
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "body",
+                      "z"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "body",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 3
+                      },
+                      {
+                        "bone": [
+                          "body",
+                          "x_rot"
+                        ]
+                      },
+                      {
+                        "const": 0.5235988
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "body",
+                      "x_rot"
+                    ]
+                  }
+                ]
+              },
+              {
+                "add": [
+                  {
+                    "bone": [
+                      "body",
+                      "x_rot"
+                    ]
+                  },
+                  {
+                    "const": 0.10471976
+                  }
+                ]
+              }
+            ]
+          },
+          "y_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "bone": [
+                  "body",
+                  "y_rot"
+                ]
+              },
+              {
+                "ref": 6
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "bone": [
+                      "body",
+                      "z_rot"
+                    ]
+                  },
+                  {
+                    "const": -1.5707964
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "body",
+                  "z_rot"
+                ]
+              }
+            ]
+          }
+        },
+        "head": {
+          "x": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "bone": [
+                      "head",
+                      "x"
+                    ]
+                  },
+                  {
+                    "add": [
+                      {
+                        "bone": [
+                          "head",
+                          "x"
+                        ]
+                      },
+                      {
+                        "const": 2.0
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "head",
+                  "x"
+                ]
+              }
+            ]
+          },
+          "y": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "ref": 7
+              },
+              {
+                "sub": [
+                  {
+                    "ref": 7
+                  },
+                  {
+                    "ref": 5
+                  }
+                ]
+              }
+            ]
+          },
+          "z": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 3
+                      },
+                      {
+                        "bone": [
+                          "head",
+                          "z"
+                        ]
+                      },
+                      {
+                        "add": [
+                          {
+                            "bone": [
+                              "head",
+                              "z"
+                            ]
+                          },
+                          {
+                            "const": 2.75
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "head",
+                      "z"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "head",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 2
+              },
+              {
+                "select": [
+                  {
+                    "ref": 8
+                  },
+                  {
+                    "ref": 9
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 10
+                      },
+                      {
+                        "ref": 9
+                      },
+                      {
+                        "select": [
+                          {
+                            "ref": 11
+                          },
+                          {
+                            "ref": 9
+                          },
+                          {
+                            "mul": [
+                              {
+                                "input": "xRot"
+                              },
+                              {
+                                "const": 0.017453292
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.0
+              }
+            ]
+          },
+          "y_rot": {
+            "select": [
+              {
+                "ref": 2
+              },
+              {
+                "select": [
+                  {
+                    "ref": 8
+                  },
+                  {
+                    "ref": 12
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 10
+                      },
+                      {
+                        "ref": 12
+                      },
+                      {
+                        "select": [
+                          {
+                            "ref": 11
+                          },
+                          {
+                            "ref": 12
+                          },
+                          {
+                            "mul": [
+                              {
+                                "input": "yRot"
+                              },
+                              {
+                                "const": 0.017453292
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": -2.0943952
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 2
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "input": "headRollAngle"
+                      },
+                      {
+                        "const": 0.0
+                      }
+                    ]
+                  },
+                  {
+                    "input": "headRollAngle"
+                  }
+                ]
+              },
+              {
+                "div": [
+                  {
+                    "mth_cos": [
+                      {
+                        "f2d": [
+                          {
+                            "mul": [
+                              {
+                                "input": "ageInTicks"
+                              },
+                              {
+                                "const": 0.027
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 22.0
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "left_front_leg": {
+          "x_rot": {
+            "select": [
+              {
+                "ref": 13
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "select": [
+                          {
+                            "ref": 3
+                          },
+                          {
+                            "ref": 15
+                          },
+                          {
+                            "const": -0.2617994
+                          }
+                        ]
+                      },
+                      {
+                        "ref": 15
+                      }
+                    ]
+                  },
+                  {
+                    "ref": 15
+                  }
+                ]
+              },
+              {
+                "ref": 17
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "bone": [
+                  "left_front_leg",
+                  "z_rot"
+                ]
+              },
+              {
+                "ref": 18
+              }
+            ]
+          },
+          "visible": {
+            "ref": 19
+          }
+        },
+        "left_hind_leg": {
+          "y": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 3
+                      },
+                      {
+                        "bone": [
+                          "left_hind_leg",
+                          "y"
+                        ]
+                      },
+                      {
+                        "add": [
+                          {
+                            "bone": [
+                              "left_hind_leg",
+                              "y"
+                            ]
+                          },
+                          {
+                            "const": 4.0
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "left_hind_leg",
+                      "y"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "left_hind_leg",
+                  "y"
+                ]
+              }
+            ]
+          },
+          "z": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 3
+                      },
+                      {
+                        "bone": [
+                          "left_hind_leg",
+                          "z"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "left_hind_leg",
+                              "z"
+                            ]
+                          },
+                          {
+                            "const": 0.25
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "left_hind_leg",
+                      "z"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "left_hind_leg",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 13
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "select": [
+                          {
+                            "ref": 3
+                          },
+                          {
+                            "ref": 20
+                          },
+                          {
+                            "const": -1.3089969
+                          }
+                        ]
+                      },
+                      {
+                        "ref": 20
+                      }
+                    ]
+                  },
+                  {
+                    "ref": 20
+                  }
+                ]
+              },
+              {
+                "ref": 21
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "bone": [
+                  "left_hind_leg",
+                  "z_rot"
+                ]
+              },
+              {
+                "ref": 6
+              }
+            ]
+          },
+          "visible": {
+            "ref": 19
+          }
+        },
+        "right_front_leg": {
+          "x_rot": {
+            "select": [
+              {
+                "ref": 13
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "select": [
+                          {
+                            "ref": 3
+                          },
+                          {
+                            "ref": 20
+                          },
+                          {
+                            "const": -0.2617994
+                          }
+                        ]
+                      },
+                      {
+                        "ref": 20
+                      }
+                    ]
+                  },
+                  {
+                    "ref": 20
+                  }
+                ]
+              },
+              {
+                "ref": 21
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "bone": [
+                  "right_front_leg",
+                  "z_rot"
+                ]
+              },
+              {
+                "ref": 18
+              }
+            ]
+          },
+          "visible": {
+            "ref": 19
+          }
+        },
+        "right_hind_leg": {
+          "y": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 3
+                      },
+                      {
+                        "bone": [
+                          "right_hind_leg",
+                          "y"
+                        ]
+                      },
+                      {
+                        "add": [
+                          {
+                            "bone": [
+                              "right_hind_leg",
+                              "y"
+                            ]
+                          },
+                          {
+                            "const": 4.0
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "right_hind_leg",
+                      "y"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "right_hind_leg",
+                  "y"
+                ]
+              }
+            ]
+          },
+          "z": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 3
+                      },
+                      {
+                        "bone": [
+                          "right_hind_leg",
+                          "z"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "right_hind_leg",
+                              "z"
+                            ]
+                          },
+                          {
+                            "const": 0.25
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "right_hind_leg",
+                      "z"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "right_hind_leg",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 13
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "select": [
+                          {
+                            "ref": 3
+                          },
+                          {
+                            "ref": 15
+                          },
+                          {
+                            "const": -1.3089969
+                          }
+                        ]
+                      },
+                      {
+                        "ref": 15
+                      }
+                    ]
+                  },
+                  {
+                    "ref": 15
+                  }
+                ]
+              },
+              {
+                "ref": 17
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "bone": [
+                  "right_hind_leg",
+                  "z_rot"
+                ]
+              },
+              {
+                "ref": 6
+              }
+            ]
+          },
+          "visible": {
+            "ref": 19
+          }
+        },
+        "tail": {
+          "z": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 3
+                      },
+                      {
+                        "bone": [
+                          "tail",
+                          "z"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "tail",
+                              "z"
+                            ]
+                          },
+                          {
+                            "const": 1.0
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "tail",
+                      "z"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "tail",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 3
+                      },
+                      {
+                        "bone": [
+                          "tail",
+                          "x_rot"
+                        ]
+                      },
+                      {
+                        "const": 0.7853982
+                      }
+                    ]
+                  },
+                  {
+                    "const": -2.6179938
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "tail",
+                  "x_rot"
+                ]
+              }
+            ]
+          }
+        }
+      }
     },
     "AdultPiglinModel": {
       "shared": [
@@ -83125,7 +84609,1739 @@
       }
     },
     "BabyFoxModel": {
-      "refused": "writes FoxModel.legMotionPos, so its pose is not a function of its inputs alone"
+      "shared": [
+        {
+          "eq": [
+            {
+              "input": "isCrouching"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isSleeping"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isSitting"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mth_cos": [
+                {
+                  "f2d": [
+                    {
+                      "input": "ageInTicks"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "const": 0.05
+            }
+          ]
+        },
+        {
+          "ne": [
+            {
+              "input": "isSleeping"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "select": [
+            {
+              "ref": 0
+            },
+            {
+              "select": [
+                {
+                  "ref": 1
+                },
+                {
+                  "select": [
+                    {
+                      "ref": 2
+                    },
+                    {
+                      "bone": [
+                        "head",
+                        "x_rot"
+                      ]
+                    },
+                    {
+                      "const": 0.0
+                    }
+                  ]
+                },
+                {
+                  "bone": [
+                    "head",
+                    "x_rot"
+                  ]
+                }
+              ]
+            },
+            {
+              "bone": [
+                "head",
+                "x_rot"
+              ]
+            }
+          ]
+        },
+        {
+          "ne": [
+            {
+              "input": "isFaceplanted"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "ne": [
+            {
+              "input": "isCrouching"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "select": [
+            {
+              "ref": 0
+            },
+            {
+              "select": [
+                {
+                  "ref": 1
+                },
+                {
+                  "select": [
+                    {
+                      "ref": 2
+                    },
+                    {
+                      "bone": [
+                        "head",
+                        "y_rot"
+                      ]
+                    },
+                    {
+                      "const": 0.0
+                    }
+                  ]
+                },
+                {
+                  "const": -2.0943952
+                }
+              ]
+            },
+            {
+              "bone": [
+                "head",
+                "y_rot"
+              ]
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isFaceplanted"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "carried": "legMotionPos"
+                },
+                {
+                  "const": 0.67
+                }
+              ]
+            },
+            {
+              "const": 0.4662
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mth_cos": [
+                {
+                  "f2d": [
+                    {
+                      "ref": 10
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "const": 0.1
+            }
+          ]
+        },
+        {
+          "div": [
+            {
+              "ref": 3
+            },
+            {
+              "const": 2.0
+            }
+          ]
+        },
+        {
+          "select": [
+            {
+              "ref": 0
+            },
+            {
+              "select": [
+                {
+                  "ref": 1
+                },
+                {
+                  "iconst": 1
+                },
+                {
+                  "iconst": 0
+                }
+              ]
+            },
+            {
+              "iconst": 1
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mth_cos": [
+                {
+                  "f2d": [
+                    {
+                      "add": [
+                        {
+                          "ref": 10
+                        },
+                        {
+                          "const": 3.1415927
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "const": 0.1
+            }
+          ]
+        }
+      ],
+      "bones": {
+        "body": {
+          "x": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "bone": [
+                      "body",
+                      "x"
+                    ]
+                  },
+                  {
+                    "sub": [
+                      {
+                        "bone": [
+                          "body",
+                          "x"
+                        ]
+                      },
+                      {
+                        "const": 1.5
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "body",
+                  "x"
+                ]
+              }
+            ]
+          },
+          "y": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "body",
+                          "y"
+                        ]
+                      },
+                      {
+                        "add": [
+                          {
+                            "bone": [
+                              "body",
+                              "y"
+                            ]
+                          },
+                          {
+                            "mul": [
+                              {
+                                "const": 3.0
+                              },
+                              {
+                                "input": "ageScale"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "add": [
+                      {
+                        "bone": [
+                          "body",
+                          "y"
+                        ]
+                      },
+                      {
+                        "const": 1.5
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "add": [
+                  {
+                    "bone": [
+                      "body",
+                      "y"
+                    ]
+                  },
+                  {
+                    "div": [
+                      {
+                        "input": "crouchAmount"
+                      },
+                      {
+                        "const": 6.0
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "z": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "body",
+                          "z"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "body",
+                              "z"
+                            ]
+                          },
+                          {
+                            "mul": [
+                              {
+                                "const": 4.5
+                              },
+                              {
+                                "input": "ageScale"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "sub": [
+                      {
+                        "bone": [
+                          "body",
+                          "z"
+                        ]
+                      },
+                      {
+                        "const": 1.5
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "body",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "body",
+                          "x_rot"
+                        ]
+                      },
+                      {
+                        "const": -0.959931
+                      }
+                    ]
+                  },
+                  {
+                    "const": -0.17453292
+                  }
+                ]
+              },
+              {
+                "add": [
+                  {
+                    "bone": [
+                      "body",
+                      "x_rot"
+                    ]
+                  },
+                  {
+                    "const": 0.10471976
+                  }
+                ]
+              }
+            ]
+          },
+          "y_rot": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "body",
+                  "y_rot"
+                ]
+              },
+              {
+                "ref": 3
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "bone": [
+                      "body",
+                      "z_rot"
+                    ]
+                  },
+                  {
+                    "const": -1.5707964
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "body",
+                  "z_rot"
+                ]
+              }
+            ]
+          }
+        },
+        "head": {
+          "x": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "bone": [
+                      "head",
+                      "x"
+                    ]
+                  },
+                  {
+                    "sub": [
+                      {
+                        "bone": [
+                          "head",
+                          "x"
+                        ]
+                      },
+                      {
+                        "const": 2.0
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "head",
+                  "x"
+                ]
+              }
+            ]
+          },
+          "y": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "head",
+                          "y"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "head",
+                              "y"
+                            ]
+                          },
+                          {
+                            "const": 0.75
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "add": [
+                      {
+                        "bone": [
+                          "head",
+                          "y"
+                        ]
+                      },
+                      {
+                        "const": 2.8
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "add": [
+                  {
+                    "bone": [
+                      "head",
+                      "y"
+                    ]
+                  },
+                  {
+                    "mul": [
+                      {
+                        "input": "crouchAmount"
+                      },
+                      {
+                        "input": "ageScale"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "z": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "head",
+                          "z"
+                        ]
+                      },
+                      {
+                        "add": [
+                          {
+                            "bone": [
+                              "head",
+                              "z"
+                            ]
+                          },
+                          {
+                            "const": 0.0
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "sub": [
+                      {
+                        "bone": [
+                          "head",
+                          "z"
+                        ]
+                      },
+                      {
+                        "const": 4.0
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "head",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 4
+                  },
+                  {
+                    "ref": 5
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 6
+                      },
+                      {
+                        "ref": 5
+                      },
+                      {
+                        "select": [
+                          {
+                            "ref": 7
+                          },
+                          {
+                            "ref": 5
+                          },
+                          {
+                            "mul": [
+                              {
+                                "input": "xRot"
+                              },
+                              {
+                                "const": 0.017453292
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.0
+              }
+            ]
+          },
+          "y_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 4
+                  },
+                  {
+                    "ref": 8
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 6
+                      },
+                      {
+                        "ref": 8
+                      },
+                      {
+                        "select": [
+                          {
+                            "ref": 7
+                          },
+                          {
+                            "ref": 8
+                          },
+                          {
+                            "mul": [
+                              {
+                                "input": "yRot"
+                              },
+                              {
+                                "const": 0.017453292
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": -2.0943952
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "select": [
+                  {
+                    "ref": 0
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 1
+                      },
+                      {
+                        "input": "headRollAngle"
+                      },
+                      {
+                        "const": 0.0
+                      }
+                    ]
+                  },
+                  {
+                    "input": "headRollAngle"
+                  }
+                ]
+              },
+              {
+                "div": [
+                  {
+                    "mth_cos": [
+                      {
+                        "f2d": [
+                          {
+                            "mul": [
+                              {
+                                "input": "ageInTicks"
+                              },
+                              {
+                                "const": 0.027
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 22.0
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "left_front_leg": {
+          "x": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "left_front_leg",
+                          "x"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "left_front_leg",
+                              "x"
+                            ]
+                          },
+                          {
+                            "const": 0.01
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "left_front_leg",
+                      "x"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "left_front_leg",
+                  "x"
+                ]
+              }
+            ]
+          },
+          "z": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "left_front_leg",
+                          "z"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "left_front_leg",
+                              "z"
+                            ]
+                          },
+                          {
+                            "const": 1.5
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "left_front_leg",
+                      "z"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "left_front_leg",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 9
+              },
+              {
+                "select": [
+                  {
+                    "ref": 0
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 1
+                      },
+                      {
+                        "select": [
+                          {
+                            "ref": 2
+                          },
+                          {
+                            "bone": [
+                              "left_front_leg",
+                              "x_rot"
+                            ]
+                          },
+                          {
+                            "const": -0.2617994
+                          }
+                        ]
+                      },
+                      {
+                        "bone": [
+                          "left_front_leg",
+                          "x_rot"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "left_front_leg",
+                      "x_rot"
+                    ]
+                  }
+                ]
+              },
+              {
+                "ref": 11
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "left_front_leg",
+                  "z_rot"
+                ]
+              },
+              {
+                "ref": 12
+              }
+            ]
+          },
+          "visible": {
+            "ref": 13
+          }
+        },
+        "left_hind_leg": {
+          "x": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "left_hind_leg",
+                          "x"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "left_hind_leg",
+                              "x"
+                            ]
+                          },
+                          {
+                            "const": 0.01
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "left_hind_leg",
+                      "x"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "left_hind_leg",
+                  "x"
+                ]
+              }
+            ]
+          },
+          "z": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "left_hind_leg",
+                          "z"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "left_hind_leg",
+                              "z"
+                            ]
+                          },
+                          {
+                            "const": 3.75
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "left_hind_leg",
+                      "z"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "left_hind_leg",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 9
+              },
+              {
+                "bone": [
+                  "left_hind_leg",
+                  "x_rot"
+                ]
+              },
+              {
+                "ref": 14
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "left_hind_leg",
+                  "z_rot"
+                ]
+              },
+              {
+                "ref": 3
+              }
+            ]
+          },
+          "visible": {
+            "ref": 13
+          }
+        },
+        "right_front_leg": {
+          "x": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "right_front_leg",
+                          "x"
+                        ]
+                      },
+                      {
+                        "add": [
+                          {
+                            "bone": [
+                              "right_front_leg",
+                              "x"
+                            ]
+                          },
+                          {
+                            "const": 0.01
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "right_front_leg",
+                      "x"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "right_front_leg",
+                  "x"
+                ]
+              }
+            ]
+          },
+          "z": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "right_front_leg",
+                          "z"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "right_front_leg",
+                              "z"
+                            ]
+                          },
+                          {
+                            "const": 1.5
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "right_front_leg",
+                      "z"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "right_front_leg",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 9
+              },
+              {
+                "select": [
+                  {
+                    "ref": 0
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 1
+                      },
+                      {
+                        "select": [
+                          {
+                            "ref": 2
+                          },
+                          {
+                            "bone": [
+                              "right_front_leg",
+                              "x_rot"
+                            ]
+                          },
+                          {
+                            "const": -0.2617994
+                          }
+                        ]
+                      },
+                      {
+                        "bone": [
+                          "right_front_leg",
+                          "x_rot"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "right_front_leg",
+                      "x_rot"
+                    ]
+                  }
+                ]
+              },
+              {
+                "ref": 14
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "right_front_leg",
+                  "z_rot"
+                ]
+              },
+              {
+                "ref": 12
+              }
+            ]
+          },
+          "visible": {
+            "ref": 13
+          }
+        },
+        "right_hind_leg": {
+          "x": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "right_hind_leg",
+                          "x"
+                        ]
+                      },
+                      {
+                        "add": [
+                          {
+                            "bone": [
+                              "right_hind_leg",
+                              "x"
+                            ]
+                          },
+                          {
+                            "const": 0.01
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "right_hind_leg",
+                      "x"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "right_hind_leg",
+                  "x"
+                ]
+              }
+            ]
+          },
+          "z": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "right_hind_leg",
+                          "z"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "right_hind_leg",
+                              "z"
+                            ]
+                          },
+                          {
+                            "const": 3.75
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bone": [
+                      "right_hind_leg",
+                      "z"
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "right_hind_leg",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 9
+              },
+              {
+                "bone": [
+                  "right_hind_leg",
+                  "x_rot"
+                ]
+              },
+              {
+                "ref": 11
+              }
+            ]
+          },
+          "z_rot": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "right_hind_leg",
+                  "z_rot"
+                ]
+              },
+              {
+                "ref": 3
+              }
+            ]
+          },
+          "visible": {
+            "ref": 13
+          }
+        },
+        "tail": {
+          "x": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "bone": [
+                      "tail",
+                      "x"
+                    ]
+                  },
+                  {
+                    "sub": [
+                      {
+                        "bone": [
+                          "tail",
+                          "x"
+                        ]
+                      },
+                      {
+                        "const": 0.7
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "tail",
+                  "x"
+                ]
+              }
+            ]
+          },
+          "y": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "tail",
+                          "y"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "tail",
+                              "y"
+                            ]
+                          },
+                          {
+                            "const": 0.6
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "add": [
+                      {
+                        "bone": [
+                          "tail",
+                          "y"
+                        ]
+                      },
+                      {
+                        "const": 0.9
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "tail",
+                  "y"
+                ]
+              }
+            ]
+          },
+          "z": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "tail",
+                          "z"
+                        ]
+                      },
+                      {
+                        "sub": [
+                          {
+                            "bone": [
+                              "tail",
+                              "z"
+                            ]
+                          },
+                          {
+                            "mul": [
+                              {
+                                "const": 2.0
+                              },
+                              {
+                                "input": "ageScale"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "add": [
+                      {
+                        "bone": [
+                          "tail",
+                          "z"
+                        ]
+                      },
+                      {
+                        "const": 0.6
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "tail",
+                  "z"
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "select": [
+                  {
+                    "ref": 1
+                  },
+                  {
+                    "select": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "bone": [
+                          "tail",
+                          "x_rot"
+                        ]
+                      },
+                      {
+                        "const": 0.95993114
+                      }
+                    ]
+                  },
+                  {
+                    "const": -2.1816616
+                  }
+                ]
+              },
+              {
+                "bone": [
+                  "tail",
+                  "x_rot"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "clips": [
+        {
+          "clip": "FoxBabyAnimation#FOX_BABY_WALK",
+          "gate": "walk",
+          "args": [
+            {
+              "input": "walkAnimationPos"
+            },
+            {
+              "input": "walkAnimationSpeed"
+            },
+            {
+              "const": 1.0
+            },
+            {
+              "const": 2.5
+            }
+          ]
+        }
+      ]
     },
     "BabyGoatModel": {
       "shared": [

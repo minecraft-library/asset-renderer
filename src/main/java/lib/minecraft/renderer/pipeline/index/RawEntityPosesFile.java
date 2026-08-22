@@ -228,6 +228,7 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
             case "dconst" -> new PoseExpr.Const(body.getAsDouble(), PoseOperator.Width.DOUBLE);
             case "iconst" -> new PoseExpr.Const(body.getAsInt(), PoseOperator.Width.INT);
             case "input" -> new PoseExpr.Input(body.getAsString());
+            case "carried" -> new PoseExpr.Carried(body.getAsString());
             case "input_fn" -> {
                 JsonArray asked = array(body, model);
                 yield new PoseExpr.InputFn(asked.get(0).getAsString(), asked.get(1).getAsString());

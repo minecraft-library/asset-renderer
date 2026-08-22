@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.EnumMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -321,7 +322,8 @@ public final class PoseWalk {
         @NotNull Map<String, String> fieldToClip,
         @NotNull Interp<PoseValue> stack,
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
-        @NotNull Map<String, PoseExpr> written,
+        @NotNull Map<PoseExpr, PoseExpr> assigned,
+        @NotNull Set<String> accumulated,
         @NotNull List<PoseClipSite> clipSites,
         @NotNull Map<String, Optional<EnumConstantTable>> enums,
         @NotNull Map<String, PoseValue.EnumConstant> bound,
@@ -370,12 +372,14 @@ public final class PoseWalk {
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
             ClipBindingResolver.fieldToClip(cache, modelClass),
             Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS),
-            new LinkedHashMap<>(), new LinkedHashMap<>(), new ArrayList<>(), new LinkedHashMap<>(),
-            new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(), new int[1]);
+            new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashSet<>(), new ArrayList<>(),
+            new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
+            new int[1]);
 
         try {
             walkBody(body, context, 0);
             foldMeshRoot(context, rootBones);
+            requireAccumulated(context);
         } catch (IllegalStateException error) {
             // Narrowed to what the walk itself raises. A jar that lost a class raises something
             // else, and shipping that as a pose's reason would turn a broken run into a table
@@ -539,7 +543,7 @@ public final class PoseWalk {
     /** An arm that ran a body to its end, with the slots that body alone could see taken as gone. */
     private static @NotNull Held returned(@NotNull Held ended, @NotNull Held before) {
         return new Held(withoutLocals(ended.machine(), before.machine()),
-            ended.pose(), ended.written(), ended.clipSites());
+            ended.pose(), ended.assigned(), ended.clipSites());
     }
 
     /**
@@ -556,7 +560,7 @@ public final class PoseWalk {
         return new Held(
             reconciled(condition, taken.machine(), fallen.machine(), context),
             merge(condition, taken.pose(), fallen.pose()),
-            mergeWritten(condition, taken.written(), fallen.written()),
+            mergeAssigned(condition, taken.assigned(), fallen.assigned()),
             bothPlayed(taken.clipSites(), fallen.clipSites()));
     }
 
@@ -643,25 +647,25 @@ public final class PoseWalk {
      *
      * @param machine the operand stack and the slot frames
      * @param pose the channels written so far, by bone
-     * @param written what the body has assigned to the render state, by member
+     * @param assigned what the body has assigned, by the read each assignment answers
      * @param clipSites the authored clips applied so far
      */
     private record Held(
         @NotNull Interp.Snapshot<PoseValue> machine,
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
-        @NotNull Map<String, PoseExpr> written,
+        @NotNull Map<PoseExpr, PoseExpr> assigned,
         @NotNull List<PoseClipSite> clipSites
     ) {}
 
     private static @NotNull Held held(@NotNull Context context) {
         return new Held(context.stack().snapshot(), copy(context.pose()),
-            new LinkedHashMap<>(context.written()), List.copyOf(context.clipSites()));
+            new LinkedHashMap<>(context.assigned()), List.copyOf(context.clipSites()));
     }
 
     private static void restore(@NotNull Context context, @NotNull Held held) {
         context.stack().restore(held.machine());
         replace(context.pose(), held.pose());
-        replaceWritten(context, held.written());
+        replaceAssigned(context, held.assigned());
         replaceSites(context, held.clipSites());
     }
 
@@ -717,7 +721,7 @@ public final class PoseWalk {
                 Interp.Snapshot<PoseValue> machine =
                     unbound(ended.machine(), before.machine(), reference, standing);
                 arms.add(new Held(met ? machine : withoutLocals(machine, before.machine()),
-                    ended.pose(), ended.written(), ended.clipSites()));
+                    ended.pose(), ended.assigned(), ended.clipSites()));
             } finally {
                 context.bound().remove(reference.member());
             }
@@ -743,7 +747,7 @@ public final class PoseWalk {
             folded = new Held(
                 reconcile(guard, arm.machine(), folded.machine()),
                 merge(guard, arm.pose(), folded.pose()),
-                mergeWritten(guard, arm.written(), folded.written()),
+                mergeAssigned(guard, arm.assigned(), folded.assigned()),
                 bothPlayed(arm.clipSites(), folded.clipSites()));
         }
         return folded;
@@ -942,30 +946,35 @@ public final class PoseWalk {
         context.clipSites().addAll(sites);
     }
 
-    private static void replaceWritten(@NotNull Context context, @NotNull Map<String, PoseExpr> written) {
-        context.written().clear();
-        context.written().putAll(written);
+    private static void replaceAssigned(@NotNull Context context, @NotNull Map<PoseExpr, PoseExpr> assigned) {
+        context.assigned().clear();
+        context.assigned().putAll(assigned);
     }
 
     /**
-     * Every render-state member either arm assigned, as the choice between what each left it at.
+     * Everything either arm assigned, as the choice between what each left it at.
      *
-     * <p>An arm that assigned nothing leaves the member reading what the render state carries, which
-     * is exactly what an unassigned member already answers - the same third case a channel does not
-     * need either.
+     * <p>Keyed by the READ each assignment answers rather than by a name, which is what lets one map
+     * serve a field of the render state and a field of the model itself: an arm that assigned nothing
+     * leaves the read answering itself, so the key IS the default and no case has to know which kind
+     * of thing it was keyed on.
+     *
+     * <p>Asking a map about an expression is only safe because every key here is a LEAF - an input or
+     * a carried figure, each one string - so hashing one is a constant rather than a walk of the tree
+     * the graph form exists to avoid.
      */
-    private static @NotNull Map<String, PoseExpr> mergeWritten(
+    private static @NotNull Map<PoseExpr, PoseExpr> mergeAssigned(
         @NotNull PosePredicate condition,
-        @NotNull Map<String, PoseExpr> taken, @NotNull Map<String, PoseExpr> fallen) {
+        @NotNull Map<PoseExpr, PoseExpr> taken, @NotNull Map<PoseExpr, PoseExpr> fallen) {
 
-        Map<String, PoseExpr> out = new LinkedHashMap<>();
-        Set<String> members = new LinkedHashSet<>(taken.keySet());
-        members.addAll(fallen.keySet());
+        Map<PoseExpr, PoseExpr> out = new LinkedHashMap<>();
+        Set<PoseExpr> reads = new LinkedHashSet<>(taken.keySet());
+        reads.addAll(fallen.keySet());
 
-        for (String member : members) {
-            PoseExpr whenTaken = taken.getOrDefault(member, new PoseExpr.Input(member));
-            PoseExpr whenNot = fallen.getOrDefault(member, new PoseExpr.Input(member));
-            out.put(member, whenTaken.equals(whenNot)
+        for (PoseExpr read : reads) {
+            PoseExpr whenTaken = taken.getOrDefault(read, read);
+            PoseExpr whenNot = fallen.getOrDefault(read, read);
+            out.put(read, whenTaken.equals(whenNot)
                 ? whenTaken : new PoseExpr.Select(condition, whenTaken, whenNot));
         }
         return out;
@@ -1441,8 +1450,7 @@ public final class PoseWalk {
             //
             // A number the body has assigned reads that assignment, the way a written channel reads
             // its write; one it has not reads what the render state carries.
-            if (isPrimitive(field.desc)) stack.push(num(context.written()
-                .getOrDefault(field.name, new PoseExpr.Input(field.name))));
+            if (isPrimitive(field.desc)) stack.push(num(assigned(context, new PoseExpr.Input(field.name))));
             // An array is neither: it answers no question and matches no constant, and calling one a
             // reference on the strength of not being primitive is how a float array ends up being
             // compared against an enum constant.
@@ -1463,7 +1471,90 @@ public final class PoseWalk {
         // Reading a field OF a reference the render state holds is a question only one constant can
         // answer, and every enum accessor is exactly that read.
         if (receiver instanceof PoseValue.StateRef reference) throw new NeedsConstant(reference);
+        // A figure the model keeps for itself, which is not a function of anything the render state
+        // carries. Answered as the carried figure it is; what makes that safe is the WRITE, which
+        // only ever adds to what the field already held.
+        if (isModelLogic(field.owner) && isPrimitive(field.desc)) {
+            stack.push(num(assigned(context, new PoseExpr.Carried(field.name))));
+            return;
+        }
         stack.push(OPAQUE);
+    }
+
+    /** What a read answers - the assignment the path made to it, or the read itself. */
+    private static @NotNull PoseExpr assigned(@NotNull Context context, @NotNull PoseExpr read) {
+        return context.assigned().getOrDefault(read, read);
+    }
+
+    /**
+     * Whether a write to a model's own field only ADDS to what that field already held.
+     *
+     * <p>The one shape that leaves the field's starting point standing as a term of its own, which is
+     * what makes naming that starting point an input honest: everything else about the value is the
+     * model's own arithmetic, so a caller who has nothing to supply supplies nothing and gets the
+     * frame vanilla computes the first time it poses the model.
+     *
+     * <p>Exactly one side, and the other side must not reach it either - a field built out of its own
+     * value twice is a multiple of it rather than a step along it, and would read as a step.
+     *
+     * @param written what the body is leaving the field holding
+     * @param held what the field held before the write
+     * @return whether the write is a step along the field rather than a fresh value for it
+     */
+    private static boolean accumulates(@NotNull PoseExpr written, @NotNull PoseExpr held) {
+        if (!(written instanceof PoseExpr.Op op) || op.operands().size() != 2) return false;
+        if (op.operator() != PoseOperator.ADD && op.operator() != PoseOperator.SUB) return false;
+
+        PoseExpr left = op.operands().getFirst();
+        PoseExpr right = op.operands().getLast();
+        if (left.equals(held)) return !mentions(right, held);
+        return op.operator() == PoseOperator.ADD && right.equals(held) && !mentions(left, held);
+    }
+
+    /** Whether an expression reaches another anywhere inside itself. */
+    private static boolean mentions(@NotNull PoseExpr expr, @NotNull PoseExpr sought) {
+        if (expr.equals(sought)) return true;
+        return switch (expr) {
+            case PoseExpr.Op op -> op.operands().stream().anyMatch(operand -> mentions(operand, sought));
+            case PoseExpr.Select select ->
+                mentions(select.whenTrue(), sought) || mentions(select.whenFalse(), sought);
+            default -> false;
+        };
+    }
+
+    /**
+     * Refuses a pose naming a figure the model carries but never stepped along.
+     *
+     * <p>A field only ever read is one a constructor settled, so naming it an input would ask a
+     * caller for a number the model already has and would answer a different pose when they guessed.
+     * Only a field the body accumulates has a starting point to be handed.
+     */
+    private static void requireAccumulated(@NotNull Context context) {
+        for (Map<PoseChannel, PoseExpr> channels : context.pose().values())
+            for (PoseExpr expr : channels.values()) {
+                List<PoseExpr.Carried> named = new ArrayList<>();
+                carried(expr, named, Collections.newSetFromMap(new IdentityHashMap<>()));
+                for (PoseExpr.Carried figure : named)
+                    if (!context.accumulated().contains(figure.field()))
+                        throw new IllegalStateException("poses off " + figure.field()
+                            + ", which it keeps for itself and never steps along");
+            }
+    }
+
+    /** Every carried figure an expression names, walking the graph once rather than each of its paths. */
+    private static void carried(
+        @NotNull PoseExpr expr, @NotNull List<PoseExpr.Carried> out, @NotNull Set<Object> walked) {
+
+        if (!walked.add(expr)) return;
+        switch (expr) {
+            case PoseExpr.Carried figure -> out.add(figure);
+            case PoseExpr.Op op -> op.operands().forEach(operand -> carried(operand, out, walked));
+            case PoseExpr.Select select -> {
+                carried(select.whenTrue(), out, walked);
+                carried(select.whenFalse(), out, walked);
+            }
+            default -> { /* a leaf names none */ }
+        }
     }
 
     /**
@@ -1500,10 +1591,29 @@ public final class PoseWalk {
         if (field.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)
             && isPrimitive(field.desc)) {
 
-            if (!(value instanceof PoseValue.Num assigned))
+            if (!(value instanceof PoseValue.Num written))
                 throw new IllegalStateException("assigns the render state's '" + field.name
                     + "' a value it could not model");
-            context.written().put(field.name, assigned.expr());
+            context.assigned().put(new PoseExpr.Input(field.name), written.expr());
+            return;
+        }
+
+        // A figure the model keeps for itself, which is a function of how many times it has been
+        // posed rather than of anything the render state carries. Named as an input rather than
+        // refused, on the same ground as a figure that lives in server data: binding it to nothing
+        // reproduces a real vanilla frame - the first one after the model was built - bit for bit.
+        //
+        // Only an ACCUMULATION, which is the whole of what makes it nameable. A field a body assigns
+        // outright, or builds out of its own value by anything other than adding to it, is not a
+        // figure with a starting point a caller can be handed.
+        if (isModelLogic(field.owner) && isPrimitive(field.desc)) {
+            PoseExpr carried = new PoseExpr.Carried(field.name);
+            PoseExpr held = assigned(context, carried);
+            if (!(value instanceof PoseValue.Num written) || !accumulates(written.expr(), held))
+                throw new IllegalStateException("writes " + ClassKit.simpleName(field.owner) + "."
+                    + field.name + ", so its pose is not a function of its inputs alone");
+            context.assigned().put(carried, written.expr());
+            context.accumulated().add(field.name);
             return;
         }
 

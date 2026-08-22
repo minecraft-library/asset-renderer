@@ -55,7 +55,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * one thing eight times, a strider's six bristles have to keep the six rates one lambda was applied
  * at rather than settling on whichever was applied last, an allay has to spin about the bone its
  * constructor re-rooted it at, a foal has to hold the pitch it assigned itself rather than the one
- * it was handed, and a piglin's crossbow has to land on the arm its render state calls the main one.
+ * it was handed, a piglin's crossbow has to land on the arm its render state calls the main one, and
+ * a fox's four legs have to trot in diagonal pairs off a figure the model carries for itself.
  *
  * <p>The clip half is checked differently, against the shipped table rather than against a written
  * expectation. Two mechanisms that never see each other - the binding resolver reading constructors
@@ -591,6 +592,44 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a faceplanted fox twitches off a figure it carries, and its legs trot in diagonal pairs")
+    void aCarriedFigureIsNamedRatherThanDerived() {
+        // FoxModel steps a field of its own once per pose and reads it into all four legs. That is
+        // genuinely not a function of the render state, so it is NAMED rather than derived, on the
+        // same ground as a figure that lives in server data: the only write the walk allows is a step
+        // added to what the field already held, so the figure has a starting point, and a caller with
+        // nothing to supply gets the frame vanilla computes the first time it poses the model.
+        //
+        // Named as a carried figure and not as an input, which is the difference that matters to a
+        // caller: legMotionPos is a field of the MODEL and the render state has nothing under that
+        // name, so an input would send them looking somewhere it can never be.
+        //
+        // Two phases across four legs and not one - vanilla trots, so the diagonals share. A walk
+        // that lost the step would put all four on the same phase, which is a fox padding along with
+        // its legs in lockstep and looks entirely plausible.
+        PoseProgram fox = extracted.get("net/minecraft/client/model/animal/fox/AdultFoxModel");
+        assertNotNull(fox, "AdultFoxModel is expected to extract");
+
+        PoseExpr phase = PoseExpr.Op.of(PoseOperator.MUL,
+            PoseExpr.Op.of(PoseOperator.ADD,
+                new PoseExpr.Carried("legMotionPos"), PoseExpr.Const.of(0.67f)),
+            PoseExpr.Const.of(0.4662f));
+        PoseExpr leading = PoseExpr.Op.of(PoseOperator.MUL,
+            PoseExpr.Op.of(PoseOperator.MTH_COS, PoseExpr.Op.of(PoseOperator.F2D, phase)),
+            PoseExpr.Const.of(0.1f));
+        PoseExpr trailing = PoseExpr.Op.of(PoseOperator.MUL,
+            PoseExpr.Op.of(PoseOperator.MTH_COS, PoseExpr.Op.of(PoseOperator.F2D,
+                PoseExpr.Op.of(PoseOperator.ADD, phase, PoseExpr.Const.of(3.1415927f)))),
+            PoseExpr.Const.of(0.1f));
+
+        List<PoseExpr> reached = nodesOf(fox);
+        assertTrue(reached.contains(leading), "one diagonal twitches on the figure as it stands");
+        assertTrue(reached.contains(trailing), "the other twitches half a turn behind it");
+        assertFalse(reached.contains(new PoseExpr.Input("legMotionPos")),
+            "a field of the model is never spelled as a field of the render state");
+    }
+
+    @Test
     @DisplayName("a turtle carrying an egg drops by one, and everything the container held drops with it")
     void aFlattenedContainerFoldsOntoTheBonesItHeld() {
         // AdultTurtleModel poses the container it was built around - root.y -= 1, while the egg belly
@@ -843,7 +882,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(107, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(109, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------

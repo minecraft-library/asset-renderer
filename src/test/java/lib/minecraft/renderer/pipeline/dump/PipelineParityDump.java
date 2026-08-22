@@ -1370,6 +1370,7 @@ public final class PipelineParityDump {
                 case INT -> "iconst(" + (int) literal.value();
             }).append(')');
             case PoseExpr.Input input -> text.append("input(").append(input.field()).append(')');
+            case PoseExpr.Carried carried -> text.append("carried(").append(carried.field()).append(')');
             case PoseExpr.InputFn question -> text.append("input_fn(")
                 .append(question.receiver()).append(',').append(question.question()).append(')');
             case PoseExpr.InputElement element -> text.append("input_element(")

@@ -76,6 +76,23 @@ public sealed interface PoseExpr {
     record Input(@NotNull String field) implements PoseExpr {}
 
     /**
+     * A figure the model keeps between poses rather than reads off the render state.
+     *
+     * <p>Apart from {@link Input} because a caller answering the two looks them up in different
+     * places: an input is a field of the render state a caller is already building, and this is a
+     * field of the MODEL, whose value is how many times that model has been posed. Spelling both as
+     * inputs would put a name the render state does not have into the namespace of names it does,
+     * where a caller finds nothing under it and cannot tell why.
+     *
+     * <p>Nameable at all because the walk allows only one shape of write: a step added to whatever
+     * the field already held. So the figure has a starting point, and a caller with nothing to supply
+     * supplies nothing and gets the frame vanilla computes the first time it poses the model.
+     *
+     * @param field the vanilla model field name
+     */
+    record Carried(@NotNull String field) implements PoseExpr {}
+
+    /**
      * A question asked of a reference the render state holds - whether an animation is running,
      * whether a hand is empty.
      *

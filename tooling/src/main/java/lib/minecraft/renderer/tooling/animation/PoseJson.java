@@ -259,6 +259,7 @@ public final class PoseJson {
                 case PoseExpr.Const literal ->
                     "const " + literal.width() + ' ' + Double.doubleToRawLongBits(literal.value());
                 case PoseExpr.Input input -> "input " + input.field();
+                case PoseExpr.Carried carried -> "carried " + carried.field();
                 case PoseExpr.InputFn question ->
                     "input_fn " + question.receiver() + ' ' + question.question();
                 case PoseExpr.InputElement element ->
@@ -287,6 +288,7 @@ public final class PoseJson {
         return switch (expr) {
             case PoseExpr.Const literal -> literal(literal);
             case PoseExpr.Input input -> JsonTree.object().put("input", input.field());
+            case PoseExpr.Carried carried -> JsonTree.object().put("carried", carried.field());
             case PoseExpr.InputFn question -> JsonTree.object()
                 .put("input_fn", JsonTree.arrayOf(question.receiver(), question.question()));
             case PoseExpr.InputElement element -> JsonTree.object().put("input_element",
