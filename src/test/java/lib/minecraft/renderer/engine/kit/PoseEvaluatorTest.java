@@ -60,7 +60,7 @@ class PoseEvaluatorTest {
             if (!pose.isReadable()) continue;
 
             PoseEvaluator.ChannelWrites written =
-                PoseEvaluator.evaluate(pose, meshFor(pose), PoseEvaluator.restingIn(pose));
+                PoseEvaluator.evaluate(pose, meshFor(pose), PoseEvaluator.restingIn(pose, Map.of()));
             written.container().forEach((channel, value) -> assertTrue(Float.isFinite(value),
                 "the container's " + channel.token() + " evaluates to a number"));
             written.bones().forEach((bone, channels) -> channels.forEach((channel, value) ->
@@ -117,7 +117,7 @@ class PoseEvaluatorTest {
         assertTrue(Float.isNaN(PoseEvaluator.evaluate(zombie, mesh, PoseEvaluator.ZERO)
                 .bones().get("left_arm").get(PoseChannel.X_ROT)),
             "answering nothing to a figure vanilla divides by is a division by zero");
-        assertTrue(Float.isFinite(PoseEvaluator.evaluate(zombie, mesh, PoseEvaluator.restingIn(zombie))
+        assertTrue(Float.isFinite(PoseEvaluator.evaluate(zombie, mesh, PoseEvaluator.restingIn(zombie, Map.of()))
                 .bones().get("left_arm").get(PoseChannel.X_ROT)),
             "and answering what it rests at is a still arm");
     }

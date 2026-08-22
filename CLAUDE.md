@@ -542,6 +542,21 @@ hands each renderer the one its subject wears. There is no armour file; the shel
   rests on is read off the model class's own pose at load, `PoseEvaluator.drawsAtRest` against the
   figures a render state is built holding, so nothing declares it twice. `hidden` keeps only the
   bones nothing ever draws, which no pose speaks for at all.
+- **A bone that rests undrawn takes its subtree with it.** Vanilla's `visible = false` skips the part
+  and everything under it; removing the name alone re-parents each orphan to the root, so geometry
+  that should have vanished lands somewhere the subject is not - four sprigs of coral floating clear
+  of a zombie nautilus.
+- **`rest` says which constant each enum render-state field holds before anything happens**, per
+  entity, because that is the subject's own fact and not its model's: one `IllagerModel` serves every
+  illager and only the pillager hangs its arms. `EntityRestStateResolver` reads the accessor
+  `extractRenderState` fills the field from and takes its last unguarded return, resolved against the
+  **subject's** entity class - a renderer shared by several calls the accessor on the type they have
+  in common, so reading the owner off the instruction gives every illager `AbstractIllager`'s
+  unconditional `CROSSED`. Answering no constant at all is a state no enum is in, and it drew three
+  illagers with the wrong pair of arms.
+- **A question about a reference nobody supplied rests at nothing, and `isEmpty` is the exception**:
+  a stack nothing was put in is empty, so `PoseEvaluator.restingIn` answers it true. Answering
+  nothing says the opposite, and undressed a zombie nautilus of the corals it wears unarmoured.
 - **An equipment layer carries a `bones` node of its own, and `pose` is what names the class it is
   read against.** A layer poses its mesh with the model class the renderer hands it, which is not
   always the class that baked the mesh: every equine saddle is posed by `EquineSaddleModel` while a

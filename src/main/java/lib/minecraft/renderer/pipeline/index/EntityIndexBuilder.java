@@ -35,6 +35,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -188,6 +189,7 @@ public final class EntityIndexBuilder {
         float babyYShift = babyAge == null ? 0f : babyAge.yShift();
         int baseTint = render == null || render.tint() == null ? WHITE : ArgbHex.parse(render.tint());
 
+        Map<String, String> restingState = restingStateOf(family);
         RawBones bones = family.bones();
         List<String> hiddenBones = bones == null ? null : bones.hidden();
         Map<String, RawToggle> boneToggleSpecs = bones == null ? null : bones.toggles();
@@ -196,7 +198,7 @@ public final class EntityIndexBuilder {
         List<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null ? List.of() : loadBlockOverlays(family.blockOverlays());
 
         Optional<String> collarTexture = collarTextureOf(family);
-        List<EquipmentOverlay> equipment = loadEquipment(family, geometries, poses, familyId);
+        List<EquipmentOverlay> equipment = loadEquipment(family, geometries, poses, restingState, familyId);
         boolean markings = markingsOf(family);
         Optional<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId);
         String babyCoord = babyGeometryOf(family);
@@ -209,14 +211,14 @@ public final class EntityIndexBuilder {
         // where the strip below is read off the baby's own.
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
             : Optional.ofNullable(geometries.get(babyCoord))
-                .map(baby -> shiftModel(applyRestingVisibility(baby, babyPose.orElse(EntityPose.NONE)), babyYShift));
+                .map(baby -> shiftModel(applyRestingVisibility(baby, babyPose.orElse(EntityPose.NONE), restingState), babyYShift));
         List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, babyCoord, babyModel, familyId);
 
         RawVariantAxis variant = variantAxis(family);
         if (variant != null) {
             String defaultOption = variant.defaultOption();
             Map<String, RawVariantOption> options = variant.options();
-            VariantContext ctx = new VariantContext(baseCoord, geometries, poses, hiddenBones, boneToggleSpecs, familyOverlays,
+            VariantContext ctx = new VariantContext(baseCoord, geometries, poses, restingState, hiddenBones, boneToggleSpecs, familyOverlays,
                 blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyPose, babyOverlays, collarTexture, equipment, markings, humanoidArmor,
                 stateDefaultOf(family));
             // one base row minecraft:<id>, the coat resolved at render. Every option
@@ -237,8 +239,8 @@ public final class EntityIndexBuilder {
         // Plain family: one row. The size / shape axes attach only to plain families, so they resolve here.
         EntityModelData model = resolveModel(geometries, baseCoord, familyId);
         EntityPose pose = poseOf(poses, baseCoord);
-        Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, pose, familyId);
-        model = applyRestingVisibility(applyHiddenBones(model, hiddenBones, familyId), pose);
+        Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, pose, restingState, familyId);
+        model = applyRestingVisibility(applyHiddenBones(model, hiddenBones, familyId), pose, restingState);
         // Ahead of the overlay load so a same-geometry pass is materialised on the shifted mesh and
         // travels with it; a pass on a mesh of its OWN would not, which the shift warns about.
         model = shiftModel(model, adult.yShift());
@@ -257,12 +259,28 @@ public final class EntityIndexBuilder {
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .boneToggles(toggles)
             .pose(pose)
+            .restingState(restingState)
             .axes(new Entity.Axes(stateTextures, babyModel, babyPose, babyOverlays,
                 buildLargeShape(family, geometries, familyId),
-                buildSizeModels(family, geometries, poses, hiddenBones, familyId),
+                buildSizeModels(family, geometries, poses, hiddenBones, restingState, familyId),
                 buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
             .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
             .build());
+    }
+
+    /**
+     * Which constant each of a subject's enum render-state fields rests at, in the order the table
+     * declares them.
+     *
+     * <p>Insertion-ordered rather than {@link Map#copyOf} because a dump would otherwise re-salt its
+     * iteration per run, and this is a table a reader may well want to print.
+     *
+     * @param family the raw model entry
+     * @return the resting constants, empty when the entry declares none
+     */
+    private static @NotNull Map<String, String> restingStateOf(@NotNull RawModel family) {
+        if (family.rest() == null || family.rest().isEmpty()) return Map.of();
+        return Collections.unmodifiableMap(new LinkedHashMap<>(family.rest()));
     }
 
     /**
@@ -291,6 +309,7 @@ public final class EntityIndexBuilder {
         @NotNull String baseCoord,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
+        @NotNull Map<String, String> restingState,
         @Nullable List<String> hiddenBones,
         @Nullable Map<String, RawToggle> boneToggleSpecs,
         @NotNull List<RawOverlay> familyOverlays,
@@ -326,8 +345,8 @@ public final class EntityIndexBuilder {
         String rowCoord = optionObj.geometry() == null ? ctx.baseCoord() : optionObj.geometry();
         EntityModelData model = resolveModel(ctx.geometries(), rowCoord, rowId);
         EntityPose pose = poseOf(ctx.poses(), rowCoord);
-        Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, pose, rowId);
-        model = applyRestingVisibility(applyHiddenBones(model, ctx.hiddenBones(), rowId), pose);
+        Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, pose, ctx.restingState(), rowId);
+        model = applyRestingVisibility(applyHiddenBones(model, ctx.hiddenBones(), rowId), pose, ctx.restingState());
         List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), rowCoord, model, rowId);
         Map<String, String> stateTextures = variantStateTextures(optionObj);
         Optional<String> textureRef = variantWildTexture(optionObj);
@@ -338,6 +357,7 @@ public final class EntityIndexBuilder {
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
             .boneToggles(toggles)
             .pose(pose)
+            .restingState(ctx.restingState())
             .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Optional.empty(),
                 Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))
             .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor()))
@@ -812,6 +832,7 @@ public final class EntityIndexBuilder {
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
+        @NotNull Map<String, String> restingState,
         @NotNull String entityId
     ) {
         List<EquipmentOverlay> out = new ArrayList<>();
@@ -839,9 +860,9 @@ public final class EntityIndexBuilder {
             // Off the FULL mesh, ahead of both strips, for the reason the body's are: a toggle whose
             // bones rest undrawn has to keep them somewhere to re-add them from.
             Map<String, BoneToggle> toggles = loadBoneToggles(
-                bones == null ? null : bones.toggles(), model, pose, entityId);
+                bones == null ? null : bones.toggles(), model, pose, restingState, entityId);
             model = applyRestingVisibility(
-                applyHiddenBones(model, bones == null ? null : bones.hidden(), entityId), pose);
+                applyHiddenBones(model, bones == null ? null : bones.hidden(), entityId), pose, restingState);
             Map<String, ResourceId> materialAssets = new LinkedHashMap<>();
             overlay.materialAssets().forEach((material, assetId) -> materialAssets.put(material, ResourceId.parse(assetId)));
             out.add(new EquipmentOverlay(layer.when().equipment(), model, layerType.get(),
@@ -888,6 +909,7 @@ public final class EntityIndexBuilder {
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
         @Nullable List<String> hiddenBones,
+        @NotNull Map<String, String> restingState,
         @NotNull String entityId
     ) {
         Map<String, RawSizeOption> options = sizeOptions(family);
@@ -902,7 +924,7 @@ public final class EntityIndexBuilder {
             // Its own size's pose, because a size option names its own geometry and therefore its
             // own model class - an armour stand's small form among them.
             mesh = applyRestingVisibility(
-                applyHiddenBones(mesh, hiddenBones, entityId), poseOf(poses, body.geometry()));
+                applyHiddenBones(mesh, hiddenBones, entityId), poseOf(poses, body.geometry()), restingState);
             mesh = shiftModel(mesh, yShift);
             out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
         }
@@ -992,6 +1014,7 @@ public final class EntityIndexBuilder {
         @Nullable Map<String, RawToggle> toggles,
         @NotNull EntityModelData fullModel,
         @NotNull EntityPose pose,
+        @NotNull Map<String, String> restingState,
         @NotNull String entityId
     ) {
         if (toggles == null) return Map.of();
@@ -999,7 +1022,7 @@ public final class EntityIndexBuilder {
         for (Map.Entry<String, RawToggle> entry : toggles.entrySet()) {
             RawToggle spec = entry.getValue();
             if (spec.bones() == null) continue;
-            boolean defaultVisible = restsDrawn(pose, fullModel, spec.bones());
+            boolean defaultVisible = restsDrawn(pose, fullModel, spec.bones(), restingState);
             LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
             for (String boneName : spec.bones()) {
                 if (boneName == null) continue;
@@ -1025,12 +1048,13 @@ public final class EntityIndexBuilder {
      * the write where its children are simply carried along.
      */
     private static boolean restsDrawn(
-        @NotNull EntityPose pose, @NotNull EntityModelData fullModel, @NotNull List<String> named) {
+        @NotNull EntityPose pose, @NotNull EntityModelData fullModel, @NotNull List<String> named,
+        @NotNull Map<String, String> restingState) {
 
         boolean drawn = true;
         for (String bone : named) {
             if (bone == null || !pose.bones().containsKey(bone)) continue;
-            drawn = PoseEvaluator.drawsAtRest(pose, fullModel, bone);
+            drawn = PoseEvaluator.drawsAtRest(pose, fullModel, bone, restingState);
             break;
         }
         return drawn;
@@ -1061,13 +1085,14 @@ public final class EntityIndexBuilder {
      * and four sprigs of coral floating clear of the shell.
      */
     private static @NotNull EntityModelData applyRestingVisibility(
-        @NotNull EntityModelData model, @NotNull EntityPose pose) {
+        @NotNull EntityModelData model, @NotNull EntityPose pose,
+        @NotNull Map<String, String> restingState) {
 
         if (pose.bones().isEmpty()) return model;
         LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(model.getBones());
         Set<String> undrawn = new LinkedHashSet<>();
         for (String bone : bones.keySet())
-            if (!PoseEvaluator.drawsAtRest(pose, model, bone)) undrawn.add(bone);
+            if (!PoseEvaluator.drawsAtRest(pose, model, bone, restingState)) undrawn.add(bone);
         if (undrawn.isEmpty()) return model;
         // Fixpoint so a subtree of any depth closes regardless of parent-before-child ordering.
         boolean grew = true;

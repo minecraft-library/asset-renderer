@@ -87,6 +87,11 @@ import java.util.Set;
  *     class the {@link #model} coordinate is headed with. A model that poses nothing and one whose
  *     pose could not be read are both {@link EntityPose#isReadable() distinguishable} here, because
  *     they render identically and only one of them is right
+ * @param restingState which constant each of this entity's enum render-state fields holds before
+ *     anything has happened to it, keyed by the field's own name. A pose that turns on one of these
+ *     is asking a question no default can answer - "not any constant" is a state no enum is in - and
+ *     what the subject rests at is its own rather than its model's: one {@code IllagerModel} serves
+ *     every illager, and the pillager is the one that hangs its arms
  */
 @ClassBuilder
 public record Entity(
@@ -102,16 +107,19 @@ public record Entity(
     @NotNull Axes axes,
     @NotNull Layers layers,
     @NotNull List<String> members,
-    @NotNull EntityPose pose
+    @NotNull EntityPose pose,
+    @NotNull Map<String, String> restingState
 ) {
 
     /**
-     * Normalises a never-set {@link #members} to an empty (singleton) list and a never-set
-     * {@link #pose} to the pose of a model that poses nothing, so callers can omit either.
+     * Normalises a never-set {@link #members} to an empty (singleton) list, a never-set
+     * {@link #pose} to the pose of a model that poses nothing, and a never-set
+     * {@link #restingState} to nothing answered, so callers can omit any of them.
      */
     public Entity {
         members = members == null ? List.of() : members;
         pose = pose == null ? EntityPose.NONE : pose;
+        restingState = restingState == null ? Map.of() : restingState;
     }
 
     /**

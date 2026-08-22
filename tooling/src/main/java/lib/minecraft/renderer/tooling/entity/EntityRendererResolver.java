@@ -34,6 +34,7 @@ final class EntityRendererResolver {
     private final @NotNull EntityGeometryRefResolver geometryRef;
     private final @NotNull EntityTextureResolver texture;
     private final @NotNull EntityRenderTraitsResolver renderTraits;
+    private final @NotNull EntityRestStateResolver restState;
     private final @NotNull EntityBoneResolver bones;
     private final @NotNull EntityAxesResolver axes;
     private final @NotNull EntityOverlayResolver overlays;
@@ -53,6 +54,7 @@ final class EntityRendererResolver {
         this.geometryRef = new EntityGeometryRefResolver(context.scope("geometry"));
         this.texture = new EntityTextureResolver(context.scope("texture"));
         this.renderTraits = new EntityRenderTraitsResolver(context.scope("render"));
+        this.restState = new EntityRestStateResolver(context.scope("rest"));
         this.bones = new EntityBoneResolver(context.scope("bones"), this.geometryRef);
         this.axes = new EntityAxesResolver(context.scope("axes"), this.geometryRef);
         this.overlays = new EntityOverlayResolver(context.scope("overlays"), this.layerRoster, this.geometryRef);
@@ -80,6 +82,7 @@ final class EntityRendererResolver {
         JsonTree overlays = this.overlays.resolve();
         return node
             .putIf("render", this.renderTraits.resolve())                               // {scale?, yaw_addend?, tint?}
+            .putIf("rest", this.restState.resolve())                                    // enum state field -> constant
             .putIf("bones", this.bones.resolve())                                       // {hidden?, toggles?}
             // The setupRotations Y shift is per-age, so it rides the age options rather than `render`.
             .put("axes", this.axes.resolve(baseGeometry, texturePath, overlays,

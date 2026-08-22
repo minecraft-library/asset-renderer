@@ -202,6 +202,7 @@ class EntityIndexBuilderBabyOverlayTest {
     private static RawModel villagerFamily() {
         return new RawModel(
             null,                                      // render
+            null,                                      // rest
             null,                                      // bones
             List.of(typePass(), professionPass()),     // overlays
             List.of(mushroomOverlay()),                // block_overlays
@@ -215,6 +216,7 @@ class EntityIndexBuilderBabyOverlayTest {
     private static RawModel controlFamily() {
         return new RawModel(
             null,                 // render
+            null,                 // rest
             null,                 // bones
             List.of(woolPass()),  // overlays
             null,                 // block_overlays
@@ -293,6 +295,7 @@ class EntityIndexBuilderBabyOverlayTest {
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, new RawModel(
             null,                                        // render
+            null,                                        // rest
             null,                                        // bones
             List.of(decor),                              // overlays
             null,                                        // block_overlays

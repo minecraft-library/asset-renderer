@@ -1059,6 +1059,10 @@
     },
     "minecraft:evoker": {
       "renderer": "net/minecraft/client/renderer/entity/EvokerRenderer",
+      "rest": {
+        "armPose": "CROSSED",
+        "mainArm": "RIGHT"
+      },
       "bones": {
         "hidden": [
           "hat"
@@ -1509,6 +1513,10 @@
     },
     "minecraft:illusioner": {
       "renderer": "net/minecraft/client/renderer/entity/IllusionerRenderer",
+      "rest": {
+        "armPose": "CROSSED",
+        "mainArm": "RIGHT"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -2194,6 +2202,9 @@
     },
     "minecraft:piglin": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
+      "rest": {
+        "armPose": "DEFAULT"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -2237,6 +2248,9 @@
     },
     "minecraft:piglin_brute": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
+      "rest": {
+        "armPose": "DEFAULT"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -2266,6 +2280,10 @@
     },
     "minecraft:pillager": {
       "renderer": "net/minecraft/client/renderer/entity/PillagerRenderer",
+      "rest": {
+        "armPose": "NEUTRAL",
+        "mainArm": "RIGHT"
+      },
       "bones": {
         "hidden": [
           "hat"
@@ -3108,6 +3126,10 @@
     },
     "minecraft:vindicator": {
       "renderer": "net/minecraft/client/renderer/entity/VindicatorRenderer",
+      "rest": {
+        "armPose": "CROSSED",
+        "mainArm": "RIGHT"
+      },
       "bones": {
         "hidden": [
           "hat"

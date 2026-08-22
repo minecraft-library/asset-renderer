@@ -33,6 +33,8 @@ public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
  * every {@code source} / {@code layer_index} authoring hint are simply not declared, so Gson ignores them.
  *
  * @param render the family render tuning ({@code scale} / {@code yaw_addend} / {@code tint}), or {@code null}
+ * @param rest which constant each of the subject's enum render-state fields holds before anything
+ *     has happened to it, or {@code null} when its renderer fills none from a readable accessor
  * @param bones the {@code hidden} strip and {@code toggles} specs, or {@code null} when the family has none
  * @param overlays the body overlay layers in declared order, or {@code null} when absent
  * @param blockOverlays the vanilla-block-shaped overlays, or {@code null} when absent
@@ -42,6 +44,7 @@ public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
  */
 record RawModel(
     @Nullable RawRender render,
+    @Nullable Map<String, String> rest,
     @Nullable RawBones bones,
     @Nullable List<RawOverlay> overlays,
     @SerializedName("block_overlays") @Nullable List<RawBlockOverlay> blockOverlays,

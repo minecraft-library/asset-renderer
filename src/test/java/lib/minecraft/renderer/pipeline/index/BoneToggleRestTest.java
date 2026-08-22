@@ -23,9 +23,9 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Which way a bone toggle points, read off the pose rather than off the member beside it.
@@ -132,7 +132,7 @@ class BoneToggleRestTest {
         Entity bee = entities.get("minecraft:bee");
         assertNotNull(bee, "minecraft:bee is expected to load");
 
-        assertEquals(true, PoseEvaluator.drawsAtRest(bee.pose(), bee.model(), "stinger"),
+        assertEquals(true, PoseEvaluator.drawsAtRest(bee.pose(), bee.model(), "stinger", bee.restingState()),
             "the model draws the sting on a bee that has not stung");
         assertTrue(bee.model().getBones().containsKey("stinger"), "and the resting mesh carries it");
     }

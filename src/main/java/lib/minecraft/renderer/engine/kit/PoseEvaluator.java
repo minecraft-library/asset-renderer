@@ -157,10 +157,18 @@ public final class PoseEvaluator {
      * <p>A caller that models something delegates to this for the rest, rather than answering the
      * whole surface itself.
      *
+     * <p>An enum member answers the same way, and cannot be answered from the pose at all: which
+     * constant a subject rests holding is the subject's own, where the pose belongs to a model
+     * several subjects may share. So the caller supplies it, and a member nothing named still
+     * answers false to every constant.
+     *
      * @param pose the pose whose named figures are being answered
+     * @param restingState which constant each enum render-state member rests at, by member name
      * @return a frame answering each figure its own resting value
      */
-    public static @NotNull Frame restingIn(@NotNull EntityPose pose) {
+    public static @NotNull Frame restingIn(
+        @NotNull EntityPose pose, @NotNull Map<String, String> restingState) {
+
         Map<String, Float> defaults = pose.inputDefaults();
         return new Frame() {
             @Override
@@ -171,6 +179,11 @@ public final class PoseEvaluator {
             @Override
             public float question(@NotNull String receiver, @NotNull String question) {
                 return IS_EMPTY.equals(question) ? 1f : 0f;
+            }
+
+            @Override
+            public boolean is(@NotNull String member, @NotNull String constant) {
+                return constant.equals(restingState.get(member));
             }
         };
     }
@@ -243,14 +256,16 @@ public final class PoseEvaluator {
      * @param pose the model's pose
      * @param model the mesh being posed
      * @param bone the bone to ask about
+     * @param restingState which constant each enum render-state member rests at, by member name
      * @return whether it draws before anything has happened
      */
     public static boolean drawsAtRest(
-        @NotNull EntityPose pose, @NotNull EntityModelData model, @NotNull String bone) {
+        @NotNull EntityPose pose, @NotNull EntityModelData model, @NotNull String bone,
+        @NotNull Map<String, String> restingState) {
 
         PoseExpr written = pose.bones().getOrDefault(bone, Map.of()).get(PoseChannel.VISIBLE);
         if (written == null) return true;
-        return value(written, model, restingIn(pose), new IdentityHashMap<>()) != 0d;
+        return value(written, model, restingIn(pose, restingState), new IdentityHashMap<>()) != 0d;
     }
 
     // ------------------------------------------------------------------------------------
