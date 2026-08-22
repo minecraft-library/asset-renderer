@@ -36,7 +36,7 @@
     },
     {
       "path": "entity_poses.json",
-      "sha256": "10036042cf229b023ed31a4efcbcc999e77de68310468558258eb9d9441f974e"
+      "sha256": "b5665903ac03665ab5e4478a8e3970ee5cc3fa4a2dd4fb20fbe10be70db2a121"
     },
     {
       "path": "glint_items.json",
@@ -63,7 +63,7 @@
   "provenance": {
     "artifact": "manifest.tooling-tables",
     "asset_dirty": false,
-    "asset_sha": "5fc5df1c448fd263d405a52c17708cdf3f0fda8b",
+    "asset_sha": "554ff6a159844b62b0b7a21045f477d882b7680e",
     "counts": {
       "files": 11,
       "logs": 8
@@ -73,7 +73,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "The pose walk reaches 111 of 111 model classes, closing the roster: EnderDragonModel lands, which took a state reference named by the whole number it was asked for, two flight-history figures, an int-to-double widening and a double max. The container a mesh flattens away is now carried as the pose's own member rather than folded onto the bones it held - the only spelling exact for the dragon's rotation - and AdultTurtleModel moves onto it too. entity_models.json and entity_geometry.json byte-identical throughout; every sweep held its row count and its sum.",
+    "reason": "The pose table carries what each render-state figure it names is built at, for the eight built at something other than zero. A pose names the figures it could not derive so that a caller modelling none of them still gets a frame vanilla draws, and that was false wherever the figure does not rest at nothing: LivingEntityRenderState builds ageScale at one and every humanoid DIVIDES an arm swing by speedValue, so the blanket zero was a collapsed subject and a NaN arm. Read off each render state's own constructor across the whole package, since javac names the leaf as the owner of an inherited read. poses byte-identical; the diagnostics log and both dumps unmoved; every sweep held its row count and its sum.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -83,8 +83,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-22T01:39:57Z",
+    "timestamp": "2026-08-22T03:03:20Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 49107
+    "wall_time_ms": 43278
   }
 }

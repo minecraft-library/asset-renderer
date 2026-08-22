@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "8fd3d9fd33fb90b50de158f2ccdfcbe7f8475f2e04a0590feba9a10647d7b312"
+      "sha256": "7c7d11803ca2d4833053e189ea4cacb9a5ec341e520ed2962b2fd494cb8a817c"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "5fc5df1c448fd263d405a52c17708cdf3f0fda8b",
+    "asset_sha": "554ff6a159844b62b0b7a21045f477d882b7680e",
     "counts": {
       "digests": 11
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "The pose walk reaches 111 of 111 model classes, closing the roster: EnderDragonModel lands, which took a state reference named by the whole number it was asked for, two flight-history figures, an int-to-double widening and a double max. The container a mesh flattens away is now carried as the pose's own member rather than folded onto the bones it held - the only spelling exact for the dragon's rotation - and AdultTurtleModel moves onto it too. entity_models.json and entity_geometry.json byte-identical throughout; every sweep held its row count and its sum.",
+    "reason": "The pose table carries what each render-state figure it names is built at, for the eight built at something other than zero. A pose names the figures it could not derive so that a caller modelling none of them still gets a frame vanilla draws, and that was false wherever the figure does not rest at nothing: LivingEntityRenderState builds ageScale at one and every humanoid DIVIDES an arm swing by speedValue, so the blanket zero was a collapsed subject and a NaN arm. Read off each render state's own constructor across the whole package, since javac names the leaf as the owner of an inherited read. poses byte-identical; the diagnostics log and both dumps unmoved; every sweep held its row count and its sum.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-22T01:39:56Z",
+    "timestamp": "2026-08-22T03:03:18Z",
     "tool_version": "1.0.0"
   }
 }
