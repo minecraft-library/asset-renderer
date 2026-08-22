@@ -200,14 +200,24 @@ class PoseKitTest {
     }
 
     @Test
-    @DisplayName("a fox stands on four legs and a guardian keeps its eye, at every tick")
-    void theTwoFrameDrivenVisibilityWritersDraw() {
-        // Both write visibility with no toggle over them, which is why they waited for a runtime that
-        // reads the channel at all. Vanilla decides both outside every branch a still subject could
-        // take: FoxModel.setupAnim calls setWalkingPose - which sets all four legs visible - before it
-        // tests anything, leaving only setSleepingPose behind an isSleeping that rests false; and
-        // GuardianModel writes its eye visible unconditionally, past the guard that skips the eye's
-        // position when nothing is being looked at. So both draw, and this is what says they still do.
+    @DisplayName("the four subjects whose models write visibility with no toggle over them")
+    void theFrameDrivenVisibilityWritersLandWhereVanillaPutsThem() {
+        // These four wrote visibility with nothing selecting it, which is why they waited for a
+        // runtime that reads the channel at all. Vanilla decides each of them outside every branch a
+        // still subject could take, so each has one right answer and this is what says it still holds.
+        //
+        // Three draw. FoxModel.setupAnim calls setWalkingPose - which sets all four legs visible -
+        // before it tests anything, leaving only setSleepingPose behind an isSleeping that rests
+        // false. GuardianModel writes its eye visible unconditionally, past the guard that skips the
+        // eye's POSITION when nothing is being looked at. EndermanModel writes its head visible
+        // unconditionally too, on the instruction after its super call.
+        //
+        // The frog is the one that does not, and it is the only flag in the corpus whose right answer
+        // is to hide: croakingBody.visible is croakAnimationState.isStarted(), and an animation
+        // nothing started has not started - a frog at rest is not mid-croak, so it has no inflated
+        // throat. The sac is a whole opaque cube sitting inside the body with its flanks exactly
+        // coplanar with the body's, so drawing it would paint a tan patch over the brown - which is
+        // what makes this assertable from the render rather than only from the bytecode.
         for (int tick : TICKS) {
             EntityModelData fox = PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject("minecraft:fox"), tick);
             for (String leg : new String[] {"left_front_leg", "right_front_leg", "left_hind_leg", "right_hind_leg"})
@@ -215,6 +225,10 @@ class PoseKitTest {
             for (String id : new String[] {"minecraft:guardian", "minecraft:elder_guardian"})
                 assertTrue(PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject(id), tick)
                     .getBones().containsKey("eye"), id + " keeps its eye at tick " + tick);
+            assertTrue(PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject("minecraft:enderman"), tick)
+                .getBones().containsKey("head"), "an enderman keeps its head at tick " + tick);
+            assertFalse(PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject("minecraft:frog"), tick)
+                .getBones().containsKey("croaking_body"), "a frog is not mid-croak at tick " + tick);
         }
     }
 
