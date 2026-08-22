@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
+import lib.minecraft.refharness.HarnessConfig;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.model.geom.ModelPart;
@@ -56,11 +57,18 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * redirect and the per-model HEAD cancel resolve to "skip {@code setupAnim}".
  *
  * <h2>When to remove this mixin</h2>
- * <b>If asset-renderer ever gains animation support, delete this mixin so the harness goes back
- * to producing the actual idle-pose vanilla shows in-game.</b> Asset-renderer would then need
- * to reproduce each {@code setupAnim} formula to match.
+ * <b>Never, while the seven static sub-trees exist.</b> This freeze is what they are ground truth
+ * for: 88 of the 90 entities the asset-renderer models have a {@code setupAnim} that transitively
+ * writes a {@code ModelPart} pose, so deleting it moves essentially the whole {@code entities/}
+ * tree, and the asset-renderer's own default renders the mesh as authored. The animated pose is a
+ * second reference set rather than a replacement for this one, and
+ * {@link lib.minecraft.refharness.HarnessConfig#ANIMATED ANIMATED} is what selects between them -
+ * a whole-run switch, because both redirects decide per render and a run producing one kind of
+ * reference cannot produce the other.
  *
- * <p>Same {@code refharness.headless} gate as the other harness mixins.
+ * <p>Same {@code refharness.headless} gate as the other harness mixins, and the animated flag beside
+ * it: a run with neither is vanilla, a run with headless alone freezes, and a run with both lets
+ * vanilla's own animation through.
  */
 @Mixin({LivingEntityRenderer.class, ModelFeatureRenderer.class})
 public abstract class SkipSetupAnimMixin {
@@ -71,7 +79,7 @@ public abstract class SkipSetupAnimMixin {
         require = 0
     )
     private void refharness$skipLivingEntityRendererSetupAnim(EntityModel<?> model, Object state) {
-        if (Boolean.getBoolean("refharness.headless")) return;
+        if (Boolean.getBoolean("refharness.headless") && !HarnessConfig.ANIMATED) return;
         @SuppressWarnings({"unchecked", "rawtypes"})
         EntityModel raw = model;
         raw.setupAnim(state);
@@ -83,7 +91,7 @@ public abstract class SkipSetupAnimMixin {
         require = 0
     )
     private void refharness$skipFeatureRendererSetupAnim(Model<?> model, Object state) {
-        if (Boolean.getBoolean("refharness.headless")) return;
+        if (Boolean.getBoolean("refharness.headless") && !HarnessConfig.ANIMATED) return;
         @SuppressWarnings({"unchecked", "rawtypes"})
         Model raw = model;
         raw.setupAnim(state);

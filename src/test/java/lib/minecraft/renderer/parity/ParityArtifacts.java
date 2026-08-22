@@ -108,6 +108,11 @@ public final class ParityArtifacts {
         Registration.store("sweep.armor", 2, "armorParityVanilla"),
         Registration.store("sweep.glint", 2, "glintParityVanilla"),
         Registration.store("sweep.menu", 2, "menuParityVanilla"),
+        // The eighth sweep is the only one measured against a moving client: its ground truth is the
+        // animation/ sub-tree, which one boot writes with the setupAnim freezes off while the seven
+        // above are what those freezes are ground truth FOR. Same floor, for the same reason - a
+        // sweep is a pure function of two file sets.
+        Registration.store("sweep.entity-animation", 2, "entityAnimationParityVanilla"),
 
         // --- render-manifest. Two-run reproducibility is the precondition that makes a digest
         // comparison admissible at all; the dump pair carries 5 because that is what was measured.

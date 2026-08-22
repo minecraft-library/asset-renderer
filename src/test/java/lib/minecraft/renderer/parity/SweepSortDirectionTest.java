@@ -47,7 +47,8 @@ final class SweepSortDirectionTest {
      * is dropped from it.
      */
     private static final List<String> WRITERS = List.of(
-        "TestEntityParityVanilla.java", "TestBlockParityVanilla.java", "TestItemParityVanilla.java",
+        "TestEntityParityVanilla.java", "TestEntityAnimationParityVanilla.java",
+        "TestBlockParityVanilla.java", "TestItemParityVanilla.java",
         "TestPlayerParityVanilla.java", "TestArmorParityVanilla.java", "TestGlintParityVanilla.java",
         "TestMenuParityVanilla.java");
 

@@ -4,6 +4,7 @@ import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.sweep.ArmorSweep;
 import lib.minecraft.refharness.sweep.BlockSweep;
 import lib.minecraft.refharness.sweep.DepthQuantumSweep;
+import lib.minecraft.refharness.sweep.EntityAnimationSweep;
 import lib.minecraft.refharness.sweep.EntitySweep;
 import lib.minecraft.refharness.sweep.GlintSweep;
 import lib.minecraft.refharness.sweep.ItemSweep;
@@ -34,6 +35,13 @@ public enum HarnessMode {
     ARMOR,
     /** Only the container-screen references. */
     MENUS,
+    /**
+     * Only the animated entity references, with vanilla's own animation running.
+     *
+     * <p>Alone by construction rather than by choice: the freezes the other seven sweeps are defined
+     * by are off for the whole boot, so no sweep that wants them can share it.
+     */
+    ANIMATION,
     /** Only the diagnostic pitch x roll pose sweep, which writes outside the reference tree. */
     PITCH_ROLL,
     /** Only the diagnostic depth-quantum probe, which writes outside the reference tree. */
@@ -56,6 +64,7 @@ public enum HarnessMode {
         if (HarnessConfig.PLAYERS_ONLY) selected.add(PLAYERS);
         if (HarnessConfig.ARMOR_ONLY) selected.add(ARMOR);
         if (HarnessConfig.MENUS_ONLY) selected.add(MENUS);
+        if (HarnessConfig.ANIMATED) selected.add(ANIMATION);
         if (HarnessConfig.PITCH_ROLL_SWEEP) selected.add(PITCH_ROLL);
         if (HarnessConfig.DEPTH_QUANTUM_PROBE) selected.add(DEPTH_QUANTUM);
         if (selected.size() > 1)
@@ -77,6 +86,7 @@ public enum HarnessMode {
             case PLAYERS -> List.of(new PlayerSweep());
             case ARMOR -> List.of(new ArmorSweep());
             case MENUS -> List.of(new MenuSweep());
+            case ANIMATION -> List.of(new EntityAnimationSweep());
             case PITCH_ROLL -> List.of(new PitchRollSweep());
             case DEPTH_QUANTUM -> List.of(new DepthQuantumSweep());
         };

@@ -143,7 +143,7 @@ final class BlindnessMapTest {
         "B21 -> sweep.item",
         "B22 -> manifest.dump.packs", "B22 -> manifest.dump.vanilla",
         "B23 -> manifest.player-raw", "B23 -> sweep.armor", "B23 -> sweep.block",
-        "B23 -> sweep.entity", "B23 -> sweep.glint", "B23 -> sweep.item",
+        "B23 -> sweep.entity", "B23 -> sweep.entity-animation", "B23 -> sweep.glint", "B23 -> sweep.item",
         "B24 -> manifest.dump.packs", "B24 -> manifest.dump.vanilla");
 
     /**
@@ -310,7 +310,7 @@ final class BlindnessMapTest {
     private static final Pattern SUBJECT_CONSTANT = Pattern.compile("Subject\\.(\\w+)");
 
     /**
-     * The stored artifact whose name identifies each renderer that has one.
+     * The stored artifacts whose names identify each renderer that has one.
      *
      * <p>Seven of the eleven. The atlas renderer's output is registered as no artifact by decision -
      * it does not reproduce, so a digest over it would be a gate failing for its own reasons - and
@@ -321,15 +321,21 @@ final class BlindnessMapTest {
      * <p>Written down rather than derived from the id grammar, because {@code sweep.armor} and
      * {@code sweep.glint} are named for what is drawn rather than for who draws it, and a rule that
      * split ids on a dot would hand each of them a renderer that does not exist.
+     *
+     * <p><b>A renderer can have more than one picture and the entity renderer has two</b>, one per
+     * pose the same subjects are drawn in. So the clauses below quantify over a list: reaching any
+     * of a renderer's own artifacts is naming that renderer, and reaching any of another's is the
+     * contradiction - which is what lets a claim over the animated sweep alone belong to the entity
+     * renderer without also having to move the still one.
      */
-    private static final Map<String, String> IDENTIFYING_ARTIFACT = Map.of(
-        "BLOCK", "sweep.block",
-        "ENTITY", "sweep.entity",
-        "FLUID", "manifest.fluid",
-        "ITEM", "sweep.item",
-        "MENU", "sweep.menu",
-        "PLAYER", "sweep.player",
-        "PORTAL", "manifest.portal");
+    private static final Map<String, List<String>> IDENTIFYING_ARTIFACTS = Map.of(
+        "BLOCK", List.of("sweep.block"),
+        "ENTITY", List.of("sweep.entity", "sweep.entity-animation"),
+        "FLUID", List.of("manifest.fluid"),
+        "ITEM", List.of("sweep.item"),
+        "MENU", List.of("sweep.menu"),
+        "PLAYER", List.of("sweep.player"),
+        "PORTAL", List.of("manifest.portal"));
 
     /** The skill body, whose frontmatter is what decides when the gate is offered at all. */
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
@@ -1371,12 +1377,13 @@ final class BlindnessMapTest {
             String subject = named.iterator().next();
             Set<String> sees = strings(rule.getAsJsonArray("sees"));
             checked.add(key + " -> " + subject);
-            IDENTIFYING_ARTIFACT.forEach((renderer, artifact) -> {
+            IDENTIFYING_ARTIFACTS.forEach((renderer, artifacts) -> {
                 if (renderer.equals(subject)) {
-                    if (!sees.contains(artifact)) absent.add(key + " names " + subject
-                        + " and does not reach " + artifact);
-                } else if (sees.contains(artifact)) {
-                    contradicted.add(key + " names " + subject + " and reaches " + artifact);
+                    if (artifacts.stream().noneMatch(sees::contains)) absent.add(key + " names "
+                        + subject + " and reaches none of " + artifacts);
+                } else {
+                    artifacts.stream().filter(sees::contains).forEach(artifact ->
+                        contradicted.add(key + " names " + subject + " and reaches " + artifact));
                 }
             });
         }

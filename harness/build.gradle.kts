@@ -78,6 +78,10 @@ loom {
             // renderer two sweeps share cannot leave one of them behind. Driven by
             // renderVanillaAllReferences.
             optionalProperty("refharnessEverySweep")?.let { property("refharness.everySweep", it) }
+            // Animated entity references under animation/, with the two setupAnim freezes off for
+            // the whole boot - which is why it is its own run rather than a sweep the whole-tree
+            // mode could pick up. Driven by renderVanillaAnimationReferences.
+            optionalProperty("refharnessAnimated")?.let { property("refharness.animated", it) }
             optionalProperty("refharnessBoundsDump")?.let { property("refharness.boundsDump", it) }
             // Per-triangle screen-coord dump - mirror of asset-renderer ModelEngine's prop.
             // Usage: -PentityPixelDump=21,0,21,800 (one column slice for witch x=21 hunt)

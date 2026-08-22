@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
+import lib.minecraft.refharness.AnimationClock;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
@@ -38,7 +39,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *       offset for entities wearing helmets / pumpkins / mob heads.</li>
  *   <li>{@link EntityRenderState#ageInTicks ageInTicks}
  *       (inherited) - drives idle animations on most models (allay arm bob, ghast tentacle
- *       drift, fish swim wiggle, hoglin tail flick, ...).</li>
+ *       drift, fish swim wiggle, hoglin tail flick, ...). <b>The one field an animated run answers
+ *       differently</b>, and it is {@link AnimationClock#ageInTicks} that decides which - the
+ *       frame's own tick there, zero here. Every other field above stays pinned on both, because an
+ *       offline subject stands still whatever the tick: it walks at no speed and has died no ticks
+ *       ago.</li>
  * </ul>
  *
  * <p>Does <b>not</b> touch dimension fields ({@link LivingEntityRenderState#scale scale},
@@ -66,7 +71,7 @@ public abstract class FreezeAnimationStateMixin {
         at = @At("RETURN"))
     private void refharness$freezeAnimationState(LivingEntity entity, LivingEntityRenderState state, float partialTick, CallbackInfo ci) {
         if (!Boolean.getBoolean("refharness.headless")) return;
-        state.ageInTicks = 0f;
+        state.ageInTicks = AnimationClock.ageInTicks();
         state.walkAnimationPos = 0f;
         state.walkAnimationSpeed = 0f;
         state.deathTime = 0f;

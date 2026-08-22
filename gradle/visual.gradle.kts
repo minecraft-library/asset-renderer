@@ -167,6 +167,17 @@ register<JavaExec>("entityParityVanilla") {
     // auto-forward to this fork via the global JavaExec forwarder near the top of this file.
 }
 
+register<JavaExec>("entityAnimationParityVanilla") {
+    description = "Per-entity animated parity report comparing the Java pipeline posed at each tick of the shared schedule against the harness animation references at cache/.../references/animation/<entity>/frame_NNN.png. Writes per-frame vanilla/java/diff PNGs, a per-subject contact sheet and a TSV to cache/visual/entity-animation-parity-vanilla/. Run renderVanillaAnimationReferences first. -PentityId=minecraft:zombie"
+    group = "visual"
+    mainClass.set("lib.minecraft.renderer.visual.TestEntityAnimationParityVanilla")
+    classpath = sourceSets["test"].runtimeClasspath
+    val entityId = project.findProperty("entityId") as String?
+    args = if (entityId != null) listOf(entityId) else listOf()
+    // -Dasset.* sysprops auto-forward to this fork via the global JavaExec forwarder in the root
+    // script, the same way they reach the still sweep beside it.
+}
+
 register<JavaExec>("blockParityVanilla") {
     description = "Per-block parity report comparing Java pipeline vs vanilla-reference-harness ground truth. Output -> cache/visual/block-parity-vanilla/<block>/. Run renderVanillaReferences first if the cache is missing. -PblockId=minecraft:tnt"
     group = "visual"

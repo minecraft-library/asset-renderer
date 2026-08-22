@@ -463,6 +463,11 @@ val parityArtifacts = listOf(
     ParityArtifact("sweep.armor", listOf("armorParityVanilla"), "cache/visual/armor-parity-vanilla"),
     ParityArtifact("sweep.glint", listOf("glintParityVanilla"), "cache/visual/glint-parity-vanilla", listOf("itemId")),
     ParityArtifact("sweep.menu", listOf("menuParityVanilla"), "cache/visual/menu-parity-vanilla", listOf("menuId")),
+    // Measured against animation/ rather than entities/, which is the same reference tree and a
+    // different sub-tree of it - so the digest this row's provenance carries names the ground truth
+    // it was taken off, exactly as the seven above do.
+    ParityArtifact("sweep.entity-animation", listOf("entityAnimationParityVanilla"),
+        "cache/visual/entity-animation-parity-vanilla", listOf("entityId")),
     ParityArtifact("manifest.references", listOf("renderVanillaAllReferences"), parityReferenceRoot, listOf("refharnessTargets")),
     ParityArtifact("manifest.visual", listOf("visualSweepSet"), "cache/visual"),
     // Shares manifest.visual's parent and its member mechanism, and covers a disjoint file set: that
@@ -605,8 +610,15 @@ fun resolveParityArtifacts(spec: String?): List<ParityArtifact> {
 /** Composable harness diagnostics: stdout only, so a run carrying one still produces the same bytes. */
 val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDump")
 
-/** Every sub-tree the reference tree holds, so a partial run can name what it did NOT refresh. */
-val referenceSubTrees = listOf("blocks", "items", "entities", "players", "glint", "armor", "menus")
+// Every sub-tree the reference tree holds, so a partial run can name what it did NOT refresh.
+//
+// `animation` is the one no single client boot can be written alongside: the two setupAnim freezes
+// are read once per JVM and the seven sub-trees above are defined by them being in force, so the
+// whole-tree task boots the client twice rather than running an eighth sweep. It is in this list
+// because it is in the tree - the reference manifest walks the root for images at any depth, so a
+// sub-tree left out of the list is one every partial run stops naming while the manifest goes on
+// hashing it.
+val referenceSubTrees = listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "animation")
 
 /** The whole-suite producers, which order a capture step but are never finalized by one. */
 val paritySuiteProducers = setOf("test", "slowTest")
@@ -1010,9 +1022,23 @@ tasks {
         "Runs the harness in MENUS mode: references/menus/ only - the eight shipped container screens, " +
         "each drawn through the client's own GUI pipeline. Then run menuParityVanilla.")
 
+    registerHarnessRun("renderVanillaAnimationReferences", "refharnessAnimated", "ANIMATION", true,
+        listOf("animation"),
+        "Runs the harness in ANIMATION mode: references/animation/ only - every entity posed at each tick " +
+        "of one schedule, with vanilla's own setupAnim running. The two freezes are off for the whole boot, " +
+        "which is why no other sweep shares it. Then run entityAnimationParityVanilla.")
+
     registerHarnessRun("renderVanillaAllReferences", "refharnessEverySweep", "EVERY", true, referenceSubTrees,
-        "Runs every sweep in ONE client boot and writes the whole reference tree. ~152 s, which is 43 s " +
-        "cheaper than the three narrower tasks run separately. The only task that can leave no sub-tree stale.")
+        "Runs every frozen sweep in ONE client boot, then the animated pass in a second one, and writes the " +
+        "whole reference tree. ~152 s for the first, which is 43 s cheaper than the three narrower tasks run " +
+        "separately. The only task that can leave no sub-tree stale.")
+        // The second boot, and the reason there is one: a mixin configuration is a property of the
+        // JVM, so the run that poses every subject cannot also be the run that freezes every subject.
+        // An edge rather than a sweep in the EVERY arm, because what differs is the client rather
+        // than the work list - and it is here rather than left to an operator for the reason this
+        // task exists at all, which is that relying on the narrow runs left stale ground truth on
+        // disk twice. It is what keeps the sentence above true with an eighth sub-tree in the tree.
+        .configure { dependsOn("renderVanillaAnimationReferences") }
 
     registerHarnessRun("renderVanillaPitchRollProbe", "refharnessPitchRollSweep", "PITCH_ROLL", true, emptyList(),
         "Harness PITCH_ROLL probe: renders the first -PrefharnessTargets subject over a 24x24 pitch/roll " +

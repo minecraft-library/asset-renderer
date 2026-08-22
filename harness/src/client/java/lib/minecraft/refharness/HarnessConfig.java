@@ -2,6 +2,7 @@ package lib.minecraft.refharness;
 
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.refharness.sweep.ArmorSweep;
+import lib.minecraft.refharness.sweep.EntityAnimationSweep;
 import lib.minecraft.refharness.sweep.GlintSweep;
 import lib.minecraft.refharness.sweep.MenuSweep;
 import lib.minecraft.refharness.sweep.PlayerSweep;
@@ -127,6 +128,24 @@ public final class HarnessConfig {
      * {@code -PrefharnessEverySweep=true} on {@code renderVanillaAllReferences}.
      */
     public static final boolean EVERY_SWEEP = Boolean.getBoolean("refharness.everySweep");
+
+    /**
+     * When {@code true}, the harness runs <em>only</em> the {@link EntityAnimationSweep} - each
+     * entity posed at every tick of one shared schedule, under {@code animation/} - and, being the
+     * one run that wants vanilla's own animation, it is also what turns the two freezes off:
+     * {@code SkipSetupAnimMixin} lets {@code setupAnim} through and
+     * {@code FreezeAnimationStateMixin} answers {@code ageInTicks} as the frame's tick rather than
+     * as zero.
+     *
+     * <p><b>An animated run and a frozen one cannot share a boot.</b> Both mixins decide per render
+     * from a value read once per JVM, so a run that poses one subject poses every subject - and the
+     * seven static sub-trees are defined by those freezes being in force. That is what makes this a
+     * mode of its own rather than an option on {@link lib.minecraft.refharness.sweep.EntitySweep},
+     * and why {@link #EVERY_SWEEP} does not run it: the task that refreshes the whole tree boots the
+     * client twice. Pair with {@code -PrefharnessAnimated=true} on
+     * {@code renderVanillaAnimationReferences}.
+     */
+    public static final boolean ANIMATED = Boolean.getBoolean("refharness.animated");
 
     /**
      * Diagnostic flag: when {@code true}, the entity sweeper renders the first filtered

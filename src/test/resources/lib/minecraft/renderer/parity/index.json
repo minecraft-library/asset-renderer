@@ -215,6 +215,11 @@
       "sha256": "57c0127d69d608cc51bdc64999fced7d61f3dacb37874b8812e9c3522d464721",
       "sum": "59.4901"
     },
+    "sweep.entity-animation": {
+      "baselined": false,
+      "determinism_floor": 2,
+      "kind": "sweep-table"
+    },
     "sweep.glint": {
       "baselined": true,
       "determinism_floor": 2,
