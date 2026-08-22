@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.asset.pose;
 
+import lib.minecraft.renderer.tensor.VanillaEase;
+import lib.minecraft.renderer.tensor.VanillaMth;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -19,6 +21,12 @@ import org.jetbrains.annotations.Nullable;
  * <p>This is the reader's half of a vocabulary the generator writes. The two sides share no code -
  * the tables travel as tokens rather than as types - so the roster here is what the shipped bytes
  * can say, and a token outside it is a table this renderer is too old to read.
+ *
+ * <p><b>{@link #apply} is what makes folding at extraction safe.</b> The generator folds every
+ * sub-expression whose operands it already knows, so most of what a table ships was computed on the
+ * other side of that divide; the arithmetic here has to answer the same bits for the rest, or a
+ * folded term and an evaluated one are two different poses in one expression. The two copies are
+ * held to each other by test rather than by a shared type.
  */
 public enum PoseOperator {
 
@@ -221,6 +229,77 @@ public enum PoseOperator {
      */
     public @NotNull Width width() {
         return this.width;
+    }
+
+    /**
+     * Applies this operation to concrete operands.
+     *
+     * <p>Every arm is the same call the generator made when it folded, so an expression folded there
+     * and the same expression evaluated here answer the same bits. Operands arrive as {@code double}
+     * because that is the only carrier wide enough to hold all three widths without loss; each arm
+     * narrows its own way back out, so a float operation rounds exactly once and an integral one
+     * truncates rather than rounding at all.
+     *
+     * @param operands the operand values, in declaration order
+     * @return the result, at this operation's own width
+     * @throws IllegalArgumentException if the operand count is not this operation's arity
+     */
+    public double apply(double @NotNull ... operands) {
+        if (operands.length != this.arity)
+            throw new IllegalArgumentException(
+                "'" + this.token + "' takes " + this.arity + " operand(s), got " + operands.length);
+        return switch (this) {
+            case ADD -> (float) operands[0] + (float) operands[1];
+            case SUB -> (float) operands[0] - (float) operands[1];
+            case MUL -> (float) operands[0] * (float) operands[1];
+            case DIV -> (float) operands[0] / (float) operands[1];
+            case REM -> (float) operands[0] % (float) operands[1];
+            case NEG -> -(float) operands[0];
+            case DADD -> operands[0] + operands[1];
+            case DSUB -> operands[0] - operands[1];
+            case DMUL -> operands[0] * operands[1];
+            case DDIV -> operands[0] / operands[1];
+            case DNEG -> -operands[0];
+            case IADD -> (int) operands[0] + (int) operands[1];
+            case ISUB -> (int) operands[0] - (int) operands[1];
+            case IMUL -> (int) operands[0] * (int) operands[1];
+            case IDIV -> (int) operands[0] / (int) operands[1];
+            case IREM -> (int) operands[0] % (int) operands[1];
+            case INEG -> -(int) operands[0];
+            case F2D -> operands[0];
+            case D2F -> (float) operands[0];
+            case I2F -> (float) (int) operands[0];
+            case I2D -> (double) (int) operands[0];
+            case F2I -> (int) (float) operands[0];
+            case MTH_SIN -> VanillaMth.mthSin(operands[0]);
+            case MTH_COS -> VanillaMth.mthCos(operands[0]);
+            case SQRT -> VanillaMth.sqrt((float) operands[0]);
+            case CLAMP -> VanillaMth.clamp((float) operands[0], (float) operands[1], (float) operands[2]);
+            case LERP -> VanillaMth.lerp((float) operands[0], (float) operands[1], (float) operands[2]);
+            case INVERSE_LERP -> VanillaMth.inverseLerp((float) operands[0], (float) operands[1], (float) operands[2]);
+            case ROT_LERP -> VanillaMth.rotLerp((float) operands[0], (float) operands[1], (float) operands[2]);
+            case ROT_LERP_RAD -> VanillaMth.rotLerpRad((float) operands[0], (float) operands[1], (float) operands[2]);
+            case WRAP_DEGREES -> VanillaMth.wrapDegrees((float) operands[0]);
+            case TRIANGLE_WAVE -> VanillaMth.triangleWave((float) operands[0], (float) operands[1]);
+            case MIN -> Math.min((float) operands[0], (float) operands[1]);
+            case MAX -> Math.max((float) operands[0], (float) operands[1]);
+            case ABS -> Math.abs((float) operands[0]);
+            case IABS -> Math.abs((int) operands[0]);
+            case LIBM_SIN -> Math.sin(operands[0]);
+            case LIBM_COS -> Math.cos(operands[0]);
+            case LIBM_ABS -> Math.abs(operands[0]);
+            case LIBM_SIGNUM -> Math.signum(operands[0]);
+            case LIBM_SQRT -> Math.sqrt(operands[0]);
+            case LIBM_MAX -> Math.max(operands[0], operands[1]);
+            case EASE_IN_CIRC -> VanillaEase.inCirc((float) operands[0]);
+            case EASE_IN_QUAD -> VanillaEase.inQuad((float) operands[0]);
+            case EASE_OUT_CIRC -> VanillaEase.outCirc((float) operands[0]);
+            case EASE_OUT_CUBIC -> VanillaEase.outCubic((float) operands[0]);
+            case EASE_OUT_QUART -> VanillaEase.outQuart((float) operands[0]);
+            case EASE_IN_OUT_SINE -> VanillaEase.inOutSine((float) operands[0]);
+            case EASE_IN_OUT_EXPO -> VanillaEase.inOutExpo((float) operands[0]);
+            case EASE_IN_OUT_ELASTIC -> VanillaEase.inOutElastic((float) operands[0]);
+        };
     }
 
     /**
