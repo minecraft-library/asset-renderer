@@ -2204,9 +2204,11 @@ public final class PoseWalk {
      * of that name: one method answers a different stack per hand, and a name that dropped the hand
      * would pose both arms off whichever one the walk happened to meet first.
      *
-     * <p>Every argument has to be a constant, which is what makes the name derived. An argument this
-     * walk resolved to a number would name a different thing per frame and could not be written down
-     * at all, so it is refused rather than rendered into the name.
+     * <p>Every argument has to be a constant, which is what makes the name derived. A named constant
+     * and a whole number are equally one: an unrolled loop's index is a literal on every pass, so a
+     * body reading five entries of a ring buffer names five references the same way two hands name
+     * two. An argument that stays an expression would name a different thing per frame and could not
+     * be written down at all, so it is refused rather than rendered into the name.
      */
     private static void stateReference(@NotNull MethodInsnNode call, @NotNull Context context) {
         Interp<PoseValue> stack = context.stack();
@@ -2214,10 +2216,15 @@ public final class PoseWalk {
 
         StringJoiner asked = new StringJoiner(", ", "(", ")");
         for (PoseValue argument : arguments) {
-            if (!(argument instanceof PoseValue.EnumConstant constant))
+            if (argument instanceof PoseValue.EnumConstant constant) {
+                asked.add(constant.name());
+                continue;
+            }
+            Integer whole = literalInt(argument);
+            if (whole == null)
                 throw new IllegalStateException("asks the render state for " + call.name + " of "
                     + kindOf(argument) + ", which is not a constant it can be named by");
-            asked.add(constant.name());
+            asked.add(String.valueOf(whole));
         }
 
         String member = arguments.isEmpty() ? call.name : call.name + asked;
@@ -2765,10 +2772,16 @@ public final class PoseWalk {
      * exactly that, so a caller with no components to model renders what vanilla renders. Eight and
      * not the ten the figures are declared as, because two of them no pose body reads: a row nothing
      * asks for would declare an input nothing supplies.
+     *
+     * <p>The two flight-history figures stand on the same footing. A flight path is server data no
+     * offline run carries, and a fresh history fills all sixty-four of its entries with a height and
+     * a turn of zero - so a caller answering both with nothing gets the dragon vanilla draws before
+     * it has flown anywhere, which is a real frame rather than an approximation of one.
      */
     private static @NotNull Set<String> stateQuestions() {
         String rotations = VanillaSourceClasses.Types.ROTATIONS;
         String spear = VanillaSourceClasses.Types.SPEAR_USE_PARAMS;
+        String sample = VanillaSourceClasses.Types.FLIGHT_HISTORY_SAMPLE;
         return Set.of(
             key(VanillaSourceClasses.Types.ANIMATION_STATE, VanillaSourceClasses.Methods.IS_STARTED, "()Z"),
             key(VanillaSourceClasses.Types.ITEM_STACK, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
@@ -2784,7 +2797,9 @@ public final class PoseWalk {
             key(spear, "raiseProgressMiddle", "()F"),
             key(spear, "raiseProgressEnd", "()F"),
             key(spear, "lowerProgress", "()F"),
-            key(spear, "raiseBackProgress", "()F"));
+            key(spear, "raiseBackProgress", "()F"),
+            key(sample, "y", "()D"),
+            key(sample, "yRot", "()F"));
     }
 
     /** The one call that reads a named component off a reference the render state holds. */

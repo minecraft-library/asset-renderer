@@ -94,6 +94,10 @@ public final class VanillaSourceClasses {
         /** {@code SpearAnimations$UseParams} - the swing figures a kinetic weapon is used at. */
         public static final @NotNull String SPEAR_USE_PARAMS = SPEAR_ANIMATIONS + "$UseParams";
 
+        /** {@code DragonFlightHistory$Sample} - one entry of the flight path a dragon is posed along. */
+        public static final @NotNull String FLIGHT_HISTORY_SAMPLE =
+            MINECRAFT_ROOT + "world/entity/boss/enderdragon/DragonFlightHistory$Sample";
+
         /** {@code java.lang.Float} - the box a lambda taking a float is handed one through. */
         public static final @NotNull String JAVA_FLOAT = "java/lang/Float";
 
