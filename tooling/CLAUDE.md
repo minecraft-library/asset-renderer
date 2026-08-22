@@ -60,6 +60,50 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   That is silent: the arms come out EQUAL, so the merge collapses them and drops the guard that told
   them apart. It shipped a parrot flapping its wings while sitting, and a party parrot's head pose
   standing in for a shoulder parrot's.
+- **Everything a fork restores rides on one `Held`.** The machine, the pose, what the body has
+  assigned and the clips played are restored together at four points, and the split beside it folds
+  the same record n-ways. A part left out of that record does not fail - both arms end up holding
+  whatever the last of them wrote, so they agree, the merge collapses them, and the fork reports one
+  arm's answer under both arms' name. Add the next one to `Held`, never beside it.
+- **The root every model inherits is two different things and the field's own name says which
+  neither time.** A constructor either hands its root parameter up the chain unchanged, leaving
+  `Model.root` standing for the baked mesh root - a container the mesh flattens and names nowhere -
+  or narrows it with one `getChild` first, leaving it standing for that named bone like any other.
+  Only the argument to `super` tells them apart, so `PosePartIndex` reads it there. Reading the class
+  named on the instruction answers nothing either way: javac writes the LEAF as the owner of an
+  inherited field's reference, so it names the class that used the field rather than the one that
+  declares it. `PoseWalk.isModelRoot` resolves instead, the way `isReset` does.
+- **A write to a flattened container folds onto the bones it held, and both guards have no subject.**
+  Children are placed by their container's transform and then their own, so a container with no
+  rotation and no scale contributes a translation, and translation composes by addition - shifting
+  the container by an amount and shifting each child by that same amount put every child in the same
+  place. What a bone is given is what the write MOVED the container by rather than what it left it
+  holding, which is why the container's own value never has to be known: a mesh that flattened it
+  placed the children where it left them. A rotation or a scale reaches each child's POSITION as well
+  and is refused; so is a write that does not reach the value it replaces. Nothing in the corpus meets
+  either guard - `EnderDragonModel`, which writes an absolute `root.y` and a `root.xRot` and would
+  meet both, refuses before it reaches them. Which bones the container held is a fact only the mesh
+  has, so `GeometryFlow.emit` answers it and `PoseFlow` takes it; a class whose derivations disagree
+  gets no answer rather than one of them.
+- **A figure the model carries between poses is named, and only when it is stepped along.** A field a
+  body accumulates - `FoxModel.legMotionPos += 0.67` - is not a function of the render state, so it
+  is named rather than derived, on the ground that binding it to nothing reproduces a real vanilla
+  frame: the first one after the model was built. The only write allowed is a step ADDED to what the
+  field already held, checked at the write and again over the emitted pose, because a field assigned
+  outright has no starting point a caller could be handed and one never stepped along is a number a
+  constructor settled. It gets its own shipped arm rather than riding `input`: a caller answers the
+  two in different places, and a render-state field of the same name would otherwise become the same
+  input in silence.
+- **`Vec3` is the one value type a pose body allocates**, carried as its three components. Vanilla's
+  shape for building one leaves two references and the constructor consumes one, so the finished
+  value has to reach every place the unbuilt one did - found by what they hold, since nothing on the
+  stack says where those places are. Two arms answering two vectors choose component by component.
+  Everything else allocated while posing is still refused.
+- **A static table of numbers is read off the initialiser that fills it**, the way the switch tables
+  are: a Java array has no declared contents. What an entry belongs to is unknown until the store
+  that closes the fill names a field, so entries are gathered against whichever field closes them,
+  and every position the allocation declares has to have been filled - a table short by one is a
+  spike at an angle nothing authored, which reads as zero and renders.
 - `ToolingSession.envelope` builds both header segments from one `flow` local, so renaming a flow
   rewrites every table's header.
 - **Every instruction walk here is an `AsmWalker` chain** - the one hand-written instruction loop
