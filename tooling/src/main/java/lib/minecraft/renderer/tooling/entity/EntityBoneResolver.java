@@ -74,12 +74,15 @@ final class EntityBoneResolver {
         if (entry == null) return null;
         HierarchyScan scan = scanModelHierarchy(entry.factoryClass());
 
-        // hidden = unconditional + state-gated whose zero state renders hidden, minus the
-        // renderer's own ctor re-enables; model fields translate to geometry bone names via
-        // the ctor getChild map.
+        // hidden = unconditional only, minus the renderer's own ctor re-enables; model fields
+        // translate to geometry bone names via the ctor getChild map.
+        //
+        // A state-gated bone is NOT hidden here even where its zero state draws nothing. Which way
+        // a gate points is something the model's own pose says - the expression it writes the bone's
+        // visibility with, read at the figures a render state is built holding - and saying it twice
+        // is how the two came to disagree about whether a bee rests with its sting. What is left is
+        // the bones nothing ever draws, which no pose speaks for at all.
         LinkedHashSet<String> hiddenFields = new LinkedHashSet<>(scan.unconditionalHidden());
-        for (Map.Entry<String, LinkedHashSet<String>> gate : scan.stateGatedByFlag().entrySet())
-            if (!visibleAtZeroState(gate.getKey())) hiddenFields.addAll(gate.getValue());
         LinkedHashSet<String> reEnabled = collectReEnabledBones();
         hiddenFields.removeAll(reEnabled);
         LinkedHashSet<String> hidden = new LinkedHashSet<>();
@@ -112,10 +115,11 @@ final class EntityBoneResolver {
         if (!hidden.isEmpty()) node.putStrings("hidden", hidden.toArray(String[]::new));
         if (!toggles.isEmpty()) {
             JsonTree togglesNode = node.child("toggles");
+            // Which bones, and nothing about which way. A toggle names the state its subject is not
+            // resting in, and what it rests in is read off the pose rather than declared here.
             for (Map.Entry<String, Toggle> toggle : toggles.entrySet())
                 togglesNode.put(toggle.getKey(), JsonTree.object()
-                    .putStrings("bones", toggle.getValue().bones().toArray(String[]::new))
-                    .put("default", toggle.getValue().defaultVisible()));
+                    .putStrings("bones", toggle.getValue().bones().toArray(String[]::new)));
         }
         this.diagnostics.info("bones: hidden=%s toggles=%s", hidden, toggles.keySet());
         return node;

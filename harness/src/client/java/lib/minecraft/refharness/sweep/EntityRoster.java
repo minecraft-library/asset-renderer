@@ -375,12 +375,23 @@ public final class EntityRoster {
         return pins;
     }
 
-    /** The bones one toggle name reaches, and what selecting it does to them. */
+    /**
+     * The bones one toggle name reaches, and what selecting it does to them.
+     *
+     * <p><b>A toggle names the state its subject is NOT resting in</b>, so every entry here is the
+     * opposite of what the subject draws with nothing selected. A stand rests without arms and keeps
+     * its base plate, a goat rests horned, a donkey rests without its chest - so selecting reads
+     * true, false, false, true in that order, and a pin that answered a subject's own resting side
+     * would render a second copy of the reference beside it rather than the other appearance.
+     */
     private static Map<String, Boolean> toggleBones(String toggle) {
         return switch (toggle) {
             case "arms" -> Map.of("left_arm", true, "right_arm", true);
             case "base_plate" -> Map.of("base_plate", false);
-            case "stinger" -> Map.of("stinger", true);
+            // A bee rests WITH its sting: BeeRenderState builds hasStinger at one, nothing pins the
+            // bone, and the cancelled setupAnim leaves ModelPart's constructed visible standing. So
+            // the toggle is the bee that has stung, and pinning it true drew the resting bee twice.
+            case "stinger" -> Map.of("stinger", false);
             case "chest" -> Map.of("left_chest", true, "right_chest", true);
             case "horn" -> Map.of("left_horn", false, "right_horn", false);
             case "egg" -> Map.of("egg_belly", true);

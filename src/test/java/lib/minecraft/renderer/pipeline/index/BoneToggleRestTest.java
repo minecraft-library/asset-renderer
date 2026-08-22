@@ -24,6 +24,7 @@ import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
@@ -35,24 +36,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * render state is built holding. Reading it there rather than from a second declaration is what
  * keeps the two from drifting.
  *
- * <p>They HAD drifted. The shipped {@code default} agrees with the derived answer for every toggle
- * but the bee's, which is recorded here rather than smoothed over: it is a real disagreement about
- * whether a bee rests with its sting, and the pose is the side with the evidence.
+ * <p>They HAD drifted, on whether a bee rests with its sting, which is why only one of them is left:
+ * the shipped table declares which bones a toggle flips and says nothing about which way, and the
+ * {@code hidden} list beside it keeps only the bones nothing ever draws.
  */
 @DisplayName("a bone toggle's resting side")
 class BoneToggleRestTest {
 
     /** Where the shipped declaration this is compared against lives. */
     private static final @NotNull String MODELS = "/lib/minecraft/renderer/entity_models.json";
-
-    /**
-     * The one toggle whose shipped declaration disagrees with what the model says.
-     *
-     * <p>{@code BeeRenderState} builds {@code hasStinger} at one, so a bee rests WITH its sting and
-     * a toggle named for it hides one. The shipped member says the opposite, which made selecting
-     * the toggle re-add a bone that was never removed - a toggle that did nothing.
-     */
-    private static final @NotNull String DRIFTED = "minecraft:bee/stinger";
 
     private static ConcurrentMap<String, Entity> entities;
     private static JsonObject models;
@@ -64,33 +56,43 @@ class BoneToggleRestTest {
     }
 
     @Test
-    @DisplayName("is what the model rests as, and the shipped member agrees everywhere but the bee")
-    void theDerivedSideIsTheDeclaredOne() {
-        Map<String, String> disagreed = new TreeMap<>();
-        int compared = 0;
+    @DisplayName("is the only place which way is written down, the shipped table saying only which bones")
+    void theShippedTableDeclaresNoSide() {
+        Map<String, String> declared = new TreeMap<>();
+        int walked = 0;
 
         for (Map.Entry<String, JsonElement> entry : models.entrySet()) {
             JsonObject bones = entry.getValue().getAsJsonObject().getAsJsonObject("bones");
             JsonObject toggles = bones == null ? null : bones.getAsJsonObject("toggles");
             if (toggles == null) continue;
 
-            Entity entity = entities.get(entry.getKey());
-            assertNotNull(entity, entry.getKey() + " is expected to load");
-
             for (Map.Entry<String, JsonElement> toggle : toggles.entrySet()) {
-                Entity.BoneToggle held = entity.boneToggles().get(toggle.getKey());
-                if (held == null) continue;
-                boolean declared = toggle.getValue().getAsJsonObject().get("default").getAsBoolean();
-                compared++;
-                if (held.defaultVisible() != declared)
-                    disagreed.put(entry.getKey() + "/" + toggle.getKey(),
-                        "declared " + declared + ", the model rests " + held.defaultVisible());
+                walked++;
+                for (String member : toggle.getValue().getAsJsonObject().keySet())
+                    if (!"bones".equals(member))
+                        declared.put(entry.getKey() + "/" + toggle.getKey(), member);
             }
         }
 
-        assertFalse(compared == 0, "the shipped toggles are expected to be walked, not skipped past");
-        assertEquals(Map.of(DRIFTED, "declared false, the model rests true"), disagreed,
-            "every toggle but the recorded one is derived to the side its shipped member declares");
+        assertFalse(walked == 0, "the shipped toggles are expected to be walked, not skipped past");
+        assertEquals(Map.of(), declared, "a toggle names its bones and nothing about which way");
+    }
+
+    @Test
+    @DisplayName("leaves the hidden list holding only bones no pose ever draws")
+    void theHiddenListKeepsOnlyWhatNothingDraws() {
+        // The other half of having one answer: a bone a state gates is not hidden here, because the
+        // pose says whether it rests drawn. What is left is the bones nothing speaks for at all.
+        Map<String, String> hidden = new TreeMap<>();
+        for (Map.Entry<String, JsonElement> entry : models.entrySet()) {
+            JsonObject bones = entry.getValue().getAsJsonObject().getAsJsonObject("bones");
+            JsonElement list = bones == null ? null : bones.get("hidden");
+            if (list == null) continue;
+            for (JsonElement bone : list.getAsJsonArray())
+                hidden.merge(bone.getAsString(), entry.getKey(), (a, b) -> a + ", " + b);
+        }
+        assertEquals(Set.of("hat"), hidden.keySet(),
+            "every remaining hidden bone is one nothing ever draws: " + hidden);
     }
 
     @Test
@@ -117,26 +119,22 @@ class BoneToggleRestTest {
     }
 
     @Test
-    @DisplayName("the bee rests without a bone its own model draws, which is why its toggle moves nothing")
-    void theBeeRestsWithoutABoneItsModelDraws() {
-        // The bee is the one subject where the mesh and the model disagree, and it is pinned rather
-        // than smoothed over because the disagreement is the reason its toggle does nothing.
+    @DisplayName("gives a bee the sting its own model draws, which the hidden list used to take away")
+    void theBeeRestsWithTheStingItsModelDraws() {
+        // The subject the two answers disagreed about. BeeRenderState builds hasStinger at one, so
+        // AdultBeeModel draws the sting on a bee that has not stung - which is every bee this
+        // renderer builds - and the hidden list stripped the bone anyway.
         //
-        // BeeRenderState builds hasStinger at one, so AdultBeeModel draws the sting on a bee that
-        // has not stung - which is every bee this renderer builds. The shipped hidden list strips
-        // that bone anyway, so the resting mesh is missing something the model says is drawn, and a
-        // toggle derived from the model then asks to remove a bone that was never there.
-        //
-        // It costs no pixels today: the sting is a single zero-width plane cube and the sweep gives
-        // the bee identical coverage either way. The fix is to the hidden list rather than to
-        // anything here, and it is deliberately not bundled with this change.
+        // It costs no pixels either way: the sting is a single zero-width plane cube, and the
+        // vanilla reference is byte-identical whether the harness pins the bone drawn or hidden.
+        // What it costs is the ability to say which of two answers was right, which is the whole
+        // reason there is now one.
         Entity bee = entities.get("minecraft:bee");
         assertNotNull(bee, "minecraft:bee is expected to load");
 
         assertEquals(true, PoseEvaluator.drawsAtRest(bee.pose(), bee.model(), "stinger"),
             "the model draws the sting on a bee that has not stung");
-        assertFalse(bee.model().getBones().containsKey("stinger"),
-            "and the resting mesh does not carry it, which is the disagreement");
+        assertTrue(bee.model().getBones().containsKey("stinger"), "and the resting mesh carries it");
     }
 
     // ------------------------------------------------------------------------------------

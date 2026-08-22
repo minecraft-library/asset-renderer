@@ -233,7 +233,7 @@ public final class EntityIndexBuilder {
         EntityModelData model = resolveModel(geometries, baseCoord, familyId);
         EntityPose pose = poseOf(poses, baseCoord);
         Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, pose, familyId);
-        model = applyHiddenBones(model, hiddenBones, familyId);
+        model = applyRestingVisibility(applyHiddenBones(model, hiddenBones, familyId), pose);
         // Ahead of the overlay load so a same-geometry pass is materialised on the shifted mesh and
         // travels with it; a pass on a mesh of its OWN would not, which the shift warns about.
         model = shiftModel(model, adult.yShift());
@@ -254,7 +254,7 @@ public final class EntityIndexBuilder {
             .pose(pose)
             .axes(new Entity.Axes(stateTextures, babyModel, babyPose, babyOverlays,
                 buildLargeShape(family, geometries, familyId),
-                buildSizeModels(family, geometries, hiddenBones, familyId),
+                buildSizeModels(family, geometries, poses, hiddenBones, familyId),
                 buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
             .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
             .build());
@@ -322,7 +322,7 @@ public final class EntityIndexBuilder {
         EntityModelData model = resolveModel(ctx.geometries(), rowCoord, rowId);
         EntityPose pose = poseOf(ctx.poses(), rowCoord);
         Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, pose, rowId);
-        model = applyHiddenBones(model, ctx.hiddenBones(), rowId);
+        model = applyRestingVisibility(applyHiddenBones(model, ctx.hiddenBones(), rowId), pose);
         List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), rowCoord, model, rowId);
         Map<String, String> stateTextures = variantStateTextures(optionObj);
         Optional<String> textureRef = variantWildTexture(optionObj);
@@ -866,6 +866,7 @@ public final class EntityIndexBuilder {
     private static @NotNull Map<Size, EntityModelData> buildSizeModels(
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Map<String, EntityPose> poses,
         @Nullable List<String> hiddenBones,
         @NotNull String entityId
     ) {
@@ -878,7 +879,11 @@ public final class EntityIndexBuilder {
             if (body.geometry() == null) continue;
             EntityModelData mesh = geometries.get(body.geometry());
             if (mesh == null) continue;
-            mesh = shiftModel(applyHiddenBones(mesh, hiddenBones, entityId), yShift);
+            // Its own size's pose, because a size option names its own geometry and therefore its
+            // own model class - an armour stand's small form among them.
+            mesh = applyRestingVisibility(
+                applyHiddenBones(mesh, hiddenBones, entityId), poseOf(poses, body.geometry()));
+            mesh = shiftModel(mesh, yShift);
             out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
         }
         return out;
@@ -1017,6 +1022,28 @@ public final class EntityIndexBuilder {
      * entity state at render; the static renderer hides the unwanted ones through this list. A named bone
      * absent from the geometry warns.
      */
+    /**
+     * Drops every bone the model's own pose says is not drawn before anything happens to the subject.
+     *
+     * <p>What the {@code hidden} list used to carry for a state-gated bone, read off the pose
+     * instead: a donkey rests without its chest because {@code hasChest} is not what a donkey's
+     * render state is built holding, and a goat rests horned because {@code hasLeftHorn} is. The
+     * list keeps only the bones nothing ever draws, which no pose speaks for.
+     *
+     * <p>Applied where the strip already happened rather than at render, so a resting mesh is the
+     * same object it always was and the canvas it sizes is measured off the same bones.
+     */
+    private static @NotNull EntityModelData applyRestingVisibility(
+        @NotNull EntityModelData model, @NotNull EntityPose pose) {
+
+        if (pose.bones().isEmpty()) return model;
+        LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(model.getBones());
+        boolean dropped = bones.keySet().removeIf(bone -> !PoseEvaluator.drawsAtRest(pose, model, bone));
+        if (!dropped) return model;
+        return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(),
+            Concurrent.adoptLinkedMap(bones), model.isCull());
+    }
+
     private static @NotNull EntityModelData applyHiddenBones(
         @NotNull EntityModelData model,
         @Nullable List<String> hiddenBones,

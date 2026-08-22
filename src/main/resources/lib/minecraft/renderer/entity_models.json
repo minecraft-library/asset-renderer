@@ -39,23 +39,19 @@
       "renderer": "net/minecraft/client/renderer/entity/ArmorStandRenderer",
       "bones": {
         "hidden": [
-          "hat",
-          "left_arm",
-          "right_arm"
+          "hat"
         ],
         "toggles": {
           "arms": {
             "bones": [
               "left_arm",
               "right_arm"
-            ],
-            "default": false
+            ]
           },
           "base_plate": {
             "bones": [
               "base_plate"
-            ],
-            "default": true
+            ]
           }
         }
       },
@@ -172,15 +168,11 @@
     "minecraft:bee": {
       "renderer": "net/minecraft/client/renderer/entity/BeeRenderer",
       "bones": {
-        "hidden": [
-          "stinger"
-        ],
         "toggles": {
           "stinger": {
             "bones": [
               "stinger"
-            ],
-            "default": false
+            ]
           }
         }
       },
@@ -227,8 +219,7 @@
               "brown_mushroom_2",
               "brown_mushroom_3",
               "brown_mushroom_4"
-            ],
-            "default": true
+            ]
           }
         }
       },
@@ -807,17 +798,12 @@
     "minecraft:donkey": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
       "bones": {
-        "hidden": [
-          "left_chest",
-          "right_chest"
-        ],
         "toggles": {
           "chest": {
             "bones": [
               "left_chest",
               "right_chest"
-            ],
-            "default": false
+            ]
           }
         }
       },
@@ -1259,8 +1245,7 @@
             "bones": [
               "left_horn",
               "right_horn"
-            ],
-            "default": true
+            ]
           }
         }
       },
@@ -1567,17 +1552,12 @@
     "minecraft:llama": {
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
       "bones": {
-        "hidden": [
-          "right_chest",
-          "left_chest"
-        ],
         "toggles": {
           "chest": {
             "bones": [
               "right_chest",
               "left_chest"
-            ],
-            "default": false
+            ]
           }
         }
       },
@@ -1822,17 +1802,12 @@
     "minecraft:mule": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
       "bones": {
-        "hidden": [
-          "left_chest",
-          "right_chest"
-        ],
         "toggles": {
           "chest": {
             "bones": [
               "left_chest",
               "right_chest"
-            ],
-            "default": false
+            ]
           }
         }
       },
@@ -2806,17 +2781,12 @@
     "minecraft:trader_llama": {
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
       "bones": {
-        "hidden": [
-          "right_chest",
-          "left_chest"
-        ],
         "toggles": {
           "chest": {
             "bones": [
               "right_chest",
               "left_chest"
-            ],
-            "default": false
+            ]
           }
         }
       },
@@ -2972,15 +2942,11 @@
     "minecraft:turtle": {
       "renderer": "net/minecraft/client/renderer/entity/TurtleRenderer",
       "bones": {
-        "hidden": [
-          "egg_belly"
-        ],
         "toggles": {
           "egg": {
             "bones": [
               "egg_belly"
-            ],
-            "default": false
+            ]
           }
         }
       },

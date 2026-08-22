@@ -75,14 +75,17 @@ record RawBones(
 ) {}
 
 /**
- * One {@code bones.toggles} spec.
+ * One {@code bones.toggles} spec - which bones a toggle flips, and nothing about which way.
+ *
+ * <p>Which way it points is the model's own to say: a toggle names the state its subject is not
+ * resting in, and what it rests in is the visibility its pose writes, read at the figures a render
+ * state is built holding. A member declaring it here would be a second answer to a question that
+ * already has one.
  *
  * @param bones the bone names this toggle flips
- * @param defaultVisible whether the bones render by default ({@code true} = toggle hides; {@code false} = reveals)
  */
 record RawToggle(
-    @Nullable List<String> bones,
-    @SerializedName("default") boolean defaultVisible
+    @Nullable List<String> bones
 ) {}
 
 /**
