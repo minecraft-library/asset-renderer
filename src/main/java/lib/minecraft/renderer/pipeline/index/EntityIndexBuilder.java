@@ -200,11 +200,16 @@ public final class EntityIndexBuilder {
         boolean markings = markingsOf(family);
         Optional<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId);
         String babyCoord = babyGeometryOf(family);
-        Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
-            : Optional.ofNullable(geometries.get(babyCoord)).map(baby -> shiftModel(baby, babyYShift));
         // Beside the baby MESH rather than derived from it: a baby is its own model class, and two of
         // the families that pose at all are posed through that class alone.
         Optional<EntityPose> babyPose = babyCoord == null ? Optional.empty() : Optional.of(poseOf(poses, babyCoord));
+        // A baby takes the resting strip its own pose says, the way the body and every size mesh do -
+        // a baby armadillo rests walking rather than curled, and its shell is one bone of the mesh
+        // either way. Not the family's `hidden` list, though: that is read off the ADULT's model class,
+        // where the strip below is read off the baby's own.
+        Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
+            : Optional.ofNullable(geometries.get(babyCoord))
+                .map(baby -> shiftModel(applyRestingVisibility(baby, babyPose.orElse(EntityPose.NONE)), babyYShift));
         List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, babyCoord, babyModel, familyId);
 
         RawVariantAxis variant = variantAxis(family);
