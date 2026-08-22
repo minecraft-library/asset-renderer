@@ -16,7 +16,7 @@
     },
     {
       "path": "entities.json",
-      "sha256": "2abb0af0b8e5df7d43dbc866d4652281f963485c3b0c30737226d7104215b88f"
+      "sha256": "8d421cd84debf00db191d33afcf8c1d129e85219bbed9b46882b91e24ba7b79e"
     },
     {
       "path": "item-models.json",
@@ -65,7 +65,7 @@
   "provenance": {
     "artifact": "manifest.dump.packs",
     "asset_dirty": false,
-    "asset_sha": "5fc5df1c448fd263d405a52c17708cdf3f0fda8b",
+    "asset_sha": "e251d9f985d01d2ddac3f1f8b6c76bb62cddc3e7",
     "counts": {
       "files": 14
     },
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "The pose walk reaches 111 of 111 model classes, closing the roster: EnderDragonModel lands, which took a state reference named by the whole number it was asked for, two flight-history figures, an int-to-double widening and a double max. The container a mesh flattens away is now carried as the pose's own member rather than folded onto the bones it held - the only spelling exact for the dragon's rotation - and AdultTurtleModel moves onto it too. entity_models.json and entity_geometry.json byte-identical throughout; every sweep held its row count and its sum.",
+    "reason": "A bone toggle's resting side is read off the pose rather than off the member declared beside it. A toggle names the state a subject is not resting in, and what it rests in is something the model already says - a goat draws its horns because hasLeftHorn is what a goat's render state is built holding. The derived answer matches the shipped member for every toggle but the bee's, which is the two having drifted: BeeRenderState builds hasStinger at one, so a bee rests with its sting and the member said otherwise. Only the dump moves, in the bone_toggles it records; every sweep, every pin and manifest.visual held their row counts and their sums, no rendered byte having changed.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,8 +84,8 @@
       "players": 2
     },
     "root": "cache/parity-dump/head/packs",
-    "timestamp": "2026-08-22T01:39:56Z",
+    "timestamp": "2026-08-22T04:05:02Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 28061
+    "wall_time_ms": 28913
   }
 }
