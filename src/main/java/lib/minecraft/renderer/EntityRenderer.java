@@ -343,13 +343,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // thread-safe parallel strip baking. FeatureContext carries the shared geometry-build frame
         // (the render frame, textures, pack context, tick) the static feature constants cannot capture.
         IntFunction<ConcurrentList<VisibleTriangle>> buildAtTick = tick -> {
-            EntityModelData posed = PoseKit.posed(options.getPoseMode(), resolved, tick);
+            // The whole subject at this tick, body and every overlay pass, so a pass drawing geometry
+            // of its own moves with the body rather than staying where it was authored.
+            Entity posed = PoseKit.posedSubject(options.getPoseMode(), resolved, tick);
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(texture.get());
-            ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(posed, frameTexture,
+            ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(posed.model(), frameTexture,
                 new EntityGeometryKit.EntityBuildParams(
                     kitFrame, PassDeclaration.DEFAULT, resolved.baseTintArgb())).triangles();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            FeatureContext featureCtx = new FeatureContext(resolved, options, posed, frameTexture,
+            FeatureContext featureCtx = new FeatureContext(posed, options, posed.model(), frameTexture,
                 kitFrame, this.context, tick);
             for (EntityFeature feature : EntityFeature.values())
                 feature.contribute(featureCtx, stack);
@@ -1228,34 +1230,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer startTexture
     ) {
         int startTick = timeline.tickAt(0);
-        Box bounds = computeScreenBoundsFor(scope, entityId, posedSubject(resolved, options, startTick),
+        Box bounds = computeScreenBoundsFor(scope, entityId, PoseKit.posedSubject(options.getPoseMode(), resolved, startTick),
             transform, modelScale, startTexture, startTick);
         for (int frame = 1; frame < timeline.frames(); frame++) {
             int tick = timeline.tickAt(frame);
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(startTexture);
-            bounds = bounds.union(computeScreenBoundsFor(scope, entityId, posedSubject(resolved, options, tick),
+            bounds = bounds.union(computeScreenBoundsFor(scope, entityId, PoseKit.posedSubject(options.getPoseMode(), resolved, tick),
                 transform, modelScale, frameTexture, tick));
         }
         return bounds;
-    }
-
-    /**
-     * The definition as it stands at one tick - itself, unless its model poses it somewhere else.
-     *
-     * <p>The identity check is what keeps the authored pose free: {@link PoseKit} answers the very
-     * mesh it was handed when nothing poses it, so the subject measured is the subject itself rather
-     * than a rebuilt copy of it.
-     *
-     * @param subject the resolved definition to pose
-     * @param options the render options supplying the pose mode
-     * @param tick the frame's sample tick
-     * @return the definition carrying the mesh it holds at that tick
-     */
-    private static @NotNull Entity posedSubject(
-        @NotNull Entity subject, @NotNull EntityOptions options, int tick) {
-
-        EntityModelData posed = PoseKit.posed(options.getPoseMode(), subject, tick);
-        return posed == subject.model() ? subject : subject.mutate().model(posed).build();
     }
 
     /**

@@ -610,9 +610,25 @@ only channels a mesh does not carry - so the authored path allocates nothing and
 that is the whole of why the runtime landed at zero movers. Anything that makes the default return a
 rebuilt mesh has broken the contract whether or not the bytes move that day.
 
-- The insertion is one line at the top of `EntityRenderer.renderEntity`'s `buildAtTick` lambda, and
-  the posed mesh goes into `FeatureContext` too - the collar and the horse marking redraw the body's
-  own geometry, so they move with it or they detach from it.
+**A subject is more than one posed mesh, and the class that poses one is not the class that baked
+it.** Both halves are the same rule read at different sites, and both were wrong by omission.
+
+- **What poses a body is the class the RENDERER hands the model.** A geometry coordinate is headed
+  with the class that baked the mesh, and a model reusing its parent's layer bakes none - a zombie's
+  mesh is `HumanoidModel#createMesh` while the renderer hands it a `ZombieModel`. Keying the pose off
+  the coordinate poses it as a plain humanoid and loses `AnimationUtils.animateZombieArms`, the
+  arms-out stance every zombie stands in. `EntityPoseClass` reads it as the first `EntityModel` a
+  renderer's constructor chain allocates - a body's model is built into the `super` call's arguments,
+  which is evaluated before any `addLayer`, and a renderer allocating none delegates to the one it
+  extends. `bones.pose` names it, written only where the two disagree: nine subjects, and the three
+  equine body-armour rows the equipment site had been suppressing for want of a toggle.
+- **Every overlay pass poses its own mesh with its own class**, so `Entity.OverlayLayer` carries a
+  pose and `PoseKit.posedSubject` poses the body and every pass together. Posing the body alone
+  leaves a sheep's wool where the sheep no longer is. A pass drawing the body's own mesh takes the
+  body's pose rather than its coordinate's, or the two part company on a subject that moves.
+- The insertion is one line at the top of `EntityRenderer.renderEntity`'s `buildAtTick` lambda - the
+  posed *definition* goes into `FeatureContext`, so a feature reading `ctx.definition()` gets posed
+  passes without a gate of its own, and the collar and the horse marking redraw the posed body.
 - The rebuild preserves the mesh's **own bone order**, that order being the tied-depth priority. A
   `LinkedHashMap`, never `Map.copyOf`, whose iteration is salted per JVM launch.
 - Composition is channel-wise on the Euler triplet `BoneKit.applyBoneRotation` feeds to

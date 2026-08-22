@@ -73,6 +73,18 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   named on the instruction answers nothing either way: javac writes the LEAF as the owner of an
   inherited field's reference, so it names the class that used the field rather than the one that
   declares it. `PoseWalk.isModelRoot` resolves instead, the way `isReset` does.
+- **The class that bakes a mesh is not the class that poses it, and `bones.pose` is the only place
+  that is said.** A geometry coordinate is headed with the baking class, and a model reusing its
+  parent's layer bakes nothing of its own - so the coordinate names `HumanoidModel` for a zombie the
+  renderer hands a `ZombieModel`, and reading it there loses the arms-out stance. `EntityPoseClass`
+  answers it as the first `EntityModel` a renderer's constructor chain allocates: a body's model is
+  built into the `super` call's arguments, evaluated before any `addLayer`, and a renderer allocating
+  none delegates to the one it extends. `EntityBoneResolver` emits the member wherever that class and
+  the mesh's factory disagree - **including when the class declares no hidden bone and no toggle**,
+  which is what the early return used to swallow, and which is why three equine body-armour rows had
+  been posing off their mesh. A posing class bakes no mesh, so `PoseFlow` would never have walked it:
+  its roster takes the posing classes beside the manifest's and reads each one's top-level bones off
+  its nearest baking ancestor, that ancestor being the very class it reuses the layer of.
 - **A write to a flattened container is carried as the pose's own container, never pushed down onto
   the bones it held.** It is a parent transform above every bone the mesh names at top level, and
   `EntityPose.container` is where it lives on both sides. Only a translation could be pushed down at

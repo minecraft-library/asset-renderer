@@ -8,8 +8,10 @@ import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,12 +45,12 @@ public final class PoseFlow {
      */
     public static void emit(
         @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
-        @NotNull Map<String, Set<String>> rootBones, @NotNull Path out) {
+        @NotNull Map<String, Set<String>> rootBones, @NotNull Set<String> posing, @NotNull Path out) {
 
         Diagnostics diagnostics = session.diagnostics().child("pose");
         List<KeyframeClip> clips = KeyframeDefinitionParser.parseAll(session.cache(), diagnostics);
-        Set<String> roster = rosterClasses(manifest);
-        Map<String, List<ClipBinding>> byModel = resolveModels(session, roster, diagnostics);
+        Map<String, String> roster = rosterClasses(session, manifest, posing, diagnostics);
+        Map<String, List<ClipBinding>> byModel = resolveModels(session, roster.keySet(), diagnostics);
         Map<String, PoseOutcome> poses = walkModels(session, roster, rootBones, diagnostics);
 
         JsonTree root = session.envelope("definitions-package listing order for clips; "
@@ -132,10 +134,44 @@ public final class PoseFlow {
      * empty. Narrowing the roster where the clips are resolved would have made the poses the same
      * twenty-one rows rather than the hundred and eleven models there are.
      */
-    private static @NotNull Set<String> rosterClasses(@NotNull GeometryManifest manifest) {
-        Set<String> classes = new LinkedHashSet<>();
-        for (GeometryRequest request : manifest.entries().values()) classes.add(request.factoryClass());
+    private static @NotNull Map<String, String> rosterClasses(
+        @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
+        @NotNull Set<String> posing, @NotNull Diagnostics diagnostics) {
+
+        Map<String, String> classes = new LinkedHashMap<>();
+        for (GeometryRequest request : manifest.entries().values())
+            classes.putIfAbsent(request.factoryClass(), request.factoryClass());
+        // A class that poses a mesh it did not bake still has to be walked, or the model table names
+        // a pose the pose table does not carry and the reader resolves it to nothing at all. The mesh
+        // it poses is the one its nearest baking ancestor declares - a subclass reusing its parent's
+        // layer is exactly what put it here - so that is where its top-level bones are read from.
+        for (String model : posing) {
+            if (classes.containsKey(model)) continue;
+            String bakes = nearestBaking(session, model, classes.keySet());
+            if (bakes == null) {
+                diagnostics.warn("pose class '%s' bakes no mesh and inherits none - walked without one",
+                    ClassKit.simpleName(model));
+                bakes = model;
+            }
+            classes.put(model, bakes);
+        }
         return classes;
+    }
+
+    /**
+     * The nearest class up a model's own hierarchy that bakes a mesh, itself included.
+     *
+     * <p>What a posing subclass poses is whatever its parent declared, because reusing that layer
+     * rather than declaring one is the whole reason the two classes parted company.
+     */
+    private static @Nullable String nearestBaking(
+        @NotNull ToolingSession session, @NotNull String model, @NotNull Set<String> baking) {
+
+        String[] found = {null};
+        ClassKit.walkSuperChain(session.cache(), model, node -> {
+            if (found[0] == null && baking.contains(node.name)) found[0] = node.name;
+        });
+        return found[0];
     }
 
     /**
@@ -146,13 +182,14 @@ public final class PoseFlow {
      * the same either time.
      */
     private static @NotNull Map<String, PoseOutcome> walkModels(
-        @NotNull ToolingSession session, @NotNull Set<String> roster,
+        @NotNull ToolingSession session, @NotNull Map<String, String> roster,
         @NotNull Map<String, Set<String>> rootBones, @NotNull Diagnostics diagnostics) {
 
         Map<String, PoseOutcome> out = new TreeMap<>();
-        for (String internal : roster)
-            out.putIfAbsent(ClassKit.simpleName(internal), PoseWalk.extract(
-                session.cache(), internal, rootBones.getOrDefault(internal, Set.of()), diagnostics));
+        for (Map.Entry<String, String> model : roster.entrySet())
+            out.putIfAbsent(ClassKit.simpleName(model.getKey()), PoseWalk.extract(
+                session.cache(), model.getKey(),
+                rootBones.getOrDefault(model.getValue(), Set.of()), diagnostics));
         return out;
     }
 

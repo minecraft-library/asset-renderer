@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.animation.PoseFlow;
+import lib.minecraft.renderer.tooling.entity.EntityPoseClass;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryWalk;
 import lib.minecraft.renderer.tooling.entity.EntitySubject;
@@ -12,6 +13,7 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,7 +42,14 @@ public final class ToolingEntityModels {
             session.write(root, "entity_models.json");
             Map<String, Set<String>> rootBones =
                 GeometryFlow.emit(session, manifest, session.resolve("entity_geometry.json"));
-            PoseFlow.emit(session, manifest, rootBones, session.resolve("entity_poses.json"));
+            // The classes the renderers pose with, which the geometry manifest does not name: a model
+            // reusing its parent's layer bakes no mesh, so nothing would have walked its pose.
+            Set<String> posing = new LinkedHashSet<>();
+            for (EntitySubject subject : subjects) {
+                String model = EntityPoseClass.of(session.cache(), subject.rendererClass());
+                if (model != null) posing.add(model);
+            }
+            PoseFlow.emit(session, manifest, rootBones, posing, session.resolve("entity_poses.json"));
             session.failOnStrictGate();
         }
     }

@@ -595,6 +595,10 @@ public record Entity(
      * @param noHatModel the alternate mesh a suppressed pass draws instead - this overlay's mesh with the
      *     head-subtree cubes emptied (the villager robe pass under a hat-bearing profession), or empty
      *     when the overlay has no alternate
+     * @param pose what this overlay's own model does to its bones before it is drawn. A layer poses its
+     *     mesh with its own model class rather than borrowing the wearer's, so a pass carries a pose of
+     *     its own - and an overlay sharing the body's mesh shares the body's pose with it, or the two
+     *     would part company on a subject that moves
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,
@@ -605,7 +609,8 @@ public record Entity(
         @NotNull Optional<String> tintBy,
         @NotNull Optional<String> textureBy,
         @NotNull Optional<AppearanceGate> gate,
-        @NotNull Optional<EntityModelData> noHatModel
+        @NotNull Optional<EntityModelData> noHatModel,
+        @NotNull EntityPose pose
     ) {}
 
     /**

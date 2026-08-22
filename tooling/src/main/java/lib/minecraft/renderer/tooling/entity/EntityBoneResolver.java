@@ -81,7 +81,12 @@ final class EntityBoneResolver {
         if (this.geometryRef == null) return null;
         var entry = this.geometryRef.resolvedEntry();
         if (entry == null) return null;
-        return resolve(entry.factoryClass(), this.geometryRef.registeredRequest());
+        // The class the RENDERER hands the model, which is the one whose setupAnim runs - not the
+        // one that happened to bake the mesh. The two differ wherever a subclass reuses its parent's
+        // layer, and reading the coordinate there poses a zombie as a plain humanoid.
+        String posedBy = EntityPoseClass.of(this.cache, this.subject.rendererClass());
+        return resolve(posedBy == null ? entry.factoryClass() : posedBy,
+            this.geometryRef.registeredRequest());
     }
 
     /**
@@ -135,16 +140,22 @@ final class EntityBoneResolver {
         }
 
         if (!toggles.isEmpty()) expandToggleSubtrees(toggles, request);
-        if (hidden.isEmpty() && toggles.isEmpty()) return null;
 
-        JsonTree node = JsonTree.object();
         // Which way each of these points is read off the pose, and the pose is keyed by model class.
         // A mesh coordinate already names one, so this says nothing where the two agree - and they
-        // disagree for a saddle, whose mesh factory vanilla declares on the wearer's own model class
-        // while handing the layer a different class to pose it with.
+        // disagree twice over: for a saddle, whose mesh factory vanilla declares on the wearer's own
+        // model class while handing the layer a different class to pose it with, and for a body whose
+        // model reuses the layer its parent declares rather than baking one of its own.
         String posedBy = ClassKit.simpleName(modelClass);
-        if (request != null && !posedBy.equals(ClassKit.simpleName(request.factoryClass())))
-            node.put("pose", posedBy);
+        boolean namesItsPoser = request != null
+            && !posedBy.equals(ClassKit.simpleName(request.factoryClass()));
+        // A pose the coordinate cannot reach is a reason to emit the node on its own. Falling through
+        // here because the class declares no hidden bone and no toggle would drop the one member
+        // saying which class to read the pose off, and the reader would key it off the mesh again.
+        if (hidden.isEmpty() && toggles.isEmpty() && !namesItsPoser) return null;
+
+        JsonTree node = JsonTree.object();
+        if (namesItsPoser) node.put("pose", posedBy);
         if (!hidden.isEmpty()) node.putStrings("hidden", hidden.toArray(String[]::new));
         if (!toggles.isEmpty()) {
             JsonTree togglesNode = node.child("toggles");

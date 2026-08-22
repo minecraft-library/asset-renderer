@@ -194,6 +194,11 @@ public final class EntityIndexBuilder {
         RawBones bones = family.bones();
         List<String> hiddenBones = bones == null ? null : bones.hidden();
         Map<String, RawToggle> boneToggleSpecs = bones == null ? null : bones.toggles();
+        // The class the body's pose is read against, which is the renderer's own and not always the
+        // one that baked the mesh - a model reusing its parent's layer is headed with the parent
+        // everywhere a coordinate appears, and reading it there poses a zombie as a plain humanoid.
+        // Written only where the two disagree, so a coordinate answers for the rest.
+        String poseClass = bones == null ? null : bones.pose();
 
         List<RawOverlay> familyOverlays = nullToEmpty(family.overlays());
         List<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null ? List.of() : loadBlockOverlays(family.blockOverlays());
@@ -213,13 +218,14 @@ public final class EntityIndexBuilder {
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
             : Optional.ofNullable(geometries.get(babyCoord))
                 .map(baby -> shiftModel(applyRestingVisibility(baby, babyPose.orElse(EntityPose.NONE), restingState), babyYShift));
-        List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, babyCoord, babyModel, familyId);
+        List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
+            babyPose.orElse(EntityPose.NONE), babyCoord, babyModel, familyId);
 
         RawVariantAxis variant = variantAxis(family);
         if (variant != null) {
             String defaultOption = variant.defaultOption();
             Map<String, RawVariantOption> options = variant.options();
-            VariantContext ctx = new VariantContext(baseCoord, geometries, poses, restingState, hiddenBones, boneToggleSpecs, familyOverlays,
+            VariantContext ctx = new VariantContext(baseCoord, poseClass, geometries, poses, restingState, hiddenBones, boneToggleSpecs, familyOverlays,
                 blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyPose, babyOverlays, collarTexture, equipment, markings, humanoidArmor,
                 stateDefaultOf(family));
             // one base row minecraft:<id>, the coat resolved at render. Every option
@@ -239,13 +245,13 @@ public final class EntityIndexBuilder {
 
         // Plain family: one row. The size / shape axes attach only to plain families, so they resolve here.
         EntityModelData model = resolveModel(geometries, baseCoord, familyId);
-        EntityPose pose = poseOf(poses, baseCoord);
+        EntityPose pose = poseOf(poses, poseClass == null ? baseCoord : poseClass);
         Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, pose, restingState, familyId);
         model = applyRestingVisibility(applyHiddenBones(model, hiddenBones, familyId), pose, restingState);
         // Ahead of the overlay load so a same-geometry pass is materialised on the shifted mesh and
         // travels with it; a pass on a mesh of its OWN would not, which the shift warns about.
         model = shiftModel(model, adult.yShift());
-        List<OverlayLayer> overlays = loadOverlays(familyOverlays, geometries, baseCoord, model, familyId);
+        List<OverlayLayer> overlays = loadOverlays(familyOverlays, geometries, poses, pose, baseCoord, model, familyId);
         Optional<String> textureRef = adult.texture() == null ? Optional.empty() : Optional.of(stripEntity(adult.texture()));
 
         Map<String, String> stateTextures = new LinkedHashMap<>();
@@ -262,7 +268,7 @@ public final class EntityIndexBuilder {
             .pose(pose)
             .restingState(restingState)
             .axes(new Entity.Axes(stateTextures, babyModel, babyPose, babyOverlays,
-                buildLargeShape(family, geometries, familyId),
+                buildLargeShape(family, geometries, poses, familyId),
                 buildSizeModels(family, geometries, poses, hiddenBones, restingState, familyId),
                 buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
             .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
@@ -308,6 +314,7 @@ public final class EntityIndexBuilder {
      */
     private record VariantContext(
         @NotNull String baseCoord,
+        @Nullable String poseClass,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
         @NotNull Map<String, String> restingState,
@@ -345,10 +352,12 @@ public final class EntityIndexBuilder {
     ) {
         String rowCoord = optionObj.geometry() == null ? ctx.baseCoord() : optionObj.geometry();
         EntityModelData model = resolveModel(ctx.geometries(), rowCoord, rowId);
-        EntityPose pose = poseOf(ctx.poses(), rowCoord);
+        // A coat swaps the mesh and never the renderer, so the class the pose is read against is the
+        // family's whatever geometry this option names.
+        EntityPose pose = poseOf(ctx.poses(), ctx.poseClass() == null ? rowCoord : ctx.poseClass());
         Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, pose, ctx.restingState(), rowId);
         model = applyRestingVisibility(applyHiddenBones(model, ctx.hiddenBones(), rowId), pose, ctx.restingState());
-        List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), rowCoord, model, rowId);
+        List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(), pose, rowCoord, model, rowId);
         Map<String, String> stateTextures = variantStateTextures(optionObj);
         Optional<String> textureRef = variantWildTexture(optionObj);
         return Entity.builder()
@@ -394,6 +403,8 @@ public final class EntityIndexBuilder {
     private static @NotNull List<OverlayLayer> loadOverlays(
         @NotNull List<RawOverlay> overlays,
         @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Map<String, EntityPose> poses,
+        @NotNull EntityPose bodyPose,
         @NotNull String baseCoord,
         @NotNull EntityModelData baseModel,
         @NotNull String entityId
@@ -413,6 +424,10 @@ public final class EntityIndexBuilder {
                     continue;
                 }
             }
+            // A pass poses its mesh with its own model class, so it reads the pose its own coordinate
+            // names - and a pass drawing the body's mesh takes the BODY's pose, which is the one the
+            // family's own posing class was resolved against rather than whatever the coordinate says.
+            EntityPose overlayPose = sameGeometry ? bodyPose : poseOf(poses, coord);
             Optional<String> overlayTexture = entry.texture() == null ? Optional.empty() : Optional.of(stripEntity(entry.texture()));
             // retain_bones (warden pulsating spots) restricts the overlay to a vanilla retainExactParts
             // subset of the shared mesh, so the glow texture draws only where vanilla's subset
@@ -458,7 +473,7 @@ public final class EntityIndexBuilder {
                 : clearSubtreeCubes(materialised, entry.noHatRoot(), entityId);
             PassDeclaration pass = new PassDeclaration(emissive, blend, alpha, writesDepth, sorted);
             out.add(new OverlayLayer(materialised, overlayTexture, pass, overlayTint, skipBounds, tintBy,
-                textureBy, gate, noHatModel));
+                textureBy, gate, noHatModel, overlayPose));
         }
         return out;
     }
@@ -488,6 +503,8 @@ public final class EntityIndexBuilder {
     private static @NotNull List<OverlayLayer> loadBabyOverlays(
         @NotNull List<RawOverlay> overlays,
         @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Map<String, EntityPose> poses,
+        @NotNull EntityPose babyPose,
         @Nullable String babyCoord,
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull String entityId
@@ -518,7 +535,7 @@ public final class EntityIndexBuilder {
             // diagnostics.warn("entity '%s' baby overlay references geometry '%s' absent from entity_geometry", entityId, babyCoord);
             return List.of();
         }
-        return loadOverlays(forms, geometries, babyCoord, babyModel.get(), entityId);
+        return loadOverlays(forms, geometries, poses, babyPose, babyCoord, babyModel.get(), entityId);
     }
 
     /**
@@ -880,6 +897,7 @@ public final class EntityIndexBuilder {
     private static @NotNull Optional<LargeShape> buildLargeShape(
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Map<String, EntityPose> poses,
         @NotNull String entityId
     ) {
         RawAxes axes = family.axes();
@@ -889,7 +907,8 @@ public final class EntityIndexBuilder {
         String coord = large.geometry();
         EntityModelData model = geometries.get(coord);
         if (model == null) return Optional.empty();
-        List<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), geometries, coord, model, entityId);
+        List<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), geometries, poses,
+            poseOf(poses, coord), coord, model, entityId);
         Optional<String> textureRef = large.texture() != null ? Optional.of(stripEntity(large.texture())) : Optional.of("");
         return Optional.of(new LargeShape(model, textureRef, overlays));
     }

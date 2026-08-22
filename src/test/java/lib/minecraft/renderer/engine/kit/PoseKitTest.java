@@ -183,6 +183,43 @@ class PoseKitTest {
     }
 
     @Test
+    @DisplayName("a subject is posed by the class its renderer hands the model, not the one that baked it")
+    void theRenderersClassIsWhatPosesTheBody() {
+        // A zombie's mesh is HumanoidModel#createMesh, because ZombieModel declares no layer of its
+        // own - but the renderer hands the layer a ZombieModel, and it is that class whose setupAnim
+        // runs. Reading the coordinate poses it as a plain humanoid and loses AnimationUtils
+        // .animateZombieArms, which is the arms-out stance every zombie stands in: both arms at
+        // -PI/2.25, symmetric, where the humanoid alone leaves one at nothing and the other partway.
+        float armsOut = (float) Math.toDegrees(-Math.PI / 2.25);
+        for (String id : new String[] {"minecraft:zombie", "minecraft:husk", "minecraft:giant"}) {
+            EntityModelData mesh = PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject(id), 0);
+            float left = mesh.getBones().get("left_arm").getRotation().pitch();
+            float right = mesh.getBones().get("right_arm").getRotation().pitch();
+            assertEquals(left, right, 1e-4f, id + " holds both arms at one angle");
+            assertEquals(armsOut, left, 1e-3f, id + " holds them out, at the angle vanilla swings them to");
+        }
+    }
+
+    @Test
+    @DisplayName("an overlay pass moves with the body rather than staying where it is authored")
+    void anOverlayPassIsPosedToo() {
+        // A pass carries geometry of its own and poses it with its own model class, so posing the
+        // body alone leaves a sheep's wool where the sheep no longer is. Counted over the corpus
+        // rather than named, because which passes move is a property of the shipped table.
+        int moved = 0;
+        for (Entity entity : entities.values()) {
+            assertSame(entity, PoseKit.posedSubject(EntityOptions.PoseMode.BIND, entity, 13),
+                entity.id() + " is its own subject under the authored pose");
+            Entity posed = PoseKit.posedSubject(EntityOptions.PoseMode.ANIMATED, entity, 13);
+            assertEquals(entity.overlays().size(), posed.overlays().size(),
+                entity.id() + " draws the passes it drew");
+            for (int pass = 0; pass < entity.overlays().size(); pass++)
+                if (posed.overlays().get(pass).model() != entity.overlays().get(pass).model()) moved++;
+        }
+        assertTrue(moved > 0, "some overlay pass in the corpus is expected to move: " + moved);
+    }
+
+    @Test
     @DisplayName("no subject in the corpus gains or loses a bone to a posed frame")
     void theFlagChannelsAgreeWithTheRestingStrip() {
         // The measurement the whole flag half rests on: not one flag in the corpus reads elapsed

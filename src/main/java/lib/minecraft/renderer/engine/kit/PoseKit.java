@@ -12,9 +12,12 @@ import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -40,10 +43,11 @@ import java.util.stream.Collectors;
  * what makes a pose that resolves to the bind pose a bit-for-bit no-op rather than a round trip
  * through radians.
  *
- * <p>What this poses is the subject's own mesh. A model overlay carries geometry of its own with no
- * pose beside it, so an overlay pass draws where it is authored; the passes that reuse the body's
- * mesh - the collar, the horse marking - move with the body because they are handed the same posed
- * mesh it is.
+ * <p><b>A subject is more than one posed mesh.</b> Each overlay pass carries geometry of its own and
+ * poses it with its own model class, so {@link #posedSubject} poses the body and every pass together
+ * - posing the body alone leaves a sheep's wool where the sheep no longer is. The passes that redraw
+ * the body's own mesh, the collar and the horse marking, are handed the posed body directly and move
+ * with it for free.
  *
  * <p><b>The two flag channels are applied per frame, by the same rule the resting strip applies at
  * load</b> - a bone the pose hides takes its whole subtree with it, and one it skips loses its own
@@ -77,16 +81,81 @@ public final class PoseKit {
      */
     public static @NotNull EntityModelData posed(
         @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
+        return posed(mode, subject.pose(), subject.restingState(), subject.model(), tick);
+    }
 
-        EntityModelData model = subject.model();
+    /**
+     * One mesh where the pose that belongs to it leaves it at one tick.
+     *
+     * <p>Held apart from the subject because a subject is more than one posed mesh: each overlay pass
+     * poses its own with its own model class, and what they share is the wearer's resting state
+     * rather than a pose.
+     *
+     * @param mode whether the mesh stands in its authored pose or the one its model evaluates
+     * @param pose the pose belonging to this mesh
+     * @param restingState which constant each enum render-state member rests at, by member name
+     * @param model the mesh to pose
+     * @param tick the frame's sample tick
+     * @return the posed mesh, or the given mesh itself where nothing poses it
+     */
+    public static @NotNull EntityModelData posed(
+        @NotNull EntityOptions.PoseMode mode, @NotNull EntityPose pose,
+        @NotNull Map<String, String> restingState, @NotNull EntityModelData model, int tick) {
+
         if (mode != EntityOptions.PoseMode.ANIMATED) return model;
-
-        EntityPose pose = subject.pose();
         if (!pose.isReadable()) return model;
 
         PoseEvaluator.ChannelWrites writes =
-            PoseEvaluator.evaluate(pose, model, frameAt(pose, subject.restingState(), tick));
+            PoseEvaluator.evaluate(pose, model, frameAt(pose, restingState, tick));
         return writes.isEmpty() ? model : rebuild(model, writes);
+    }
+
+    /**
+     * The whole subject as it stands at one tick - its own mesh posed, and every overlay pass's mesh
+     * posed by the model class that pass belongs to.
+     *
+     * <p>An overlay carries geometry of its own and a pose of its own, so posing the body alone
+     * leaves a sheep's wool where the sheep no longer is. What they share is the resting state, the
+     * subject being one animal however many passes draw it.
+     *
+     * <p>Answers the very definition it was given when nothing moved, which is what keeps the
+     * authored pose from rebuilding a definition per frame and per measured bound.
+     *
+     * @param mode whether the subject stands in its authored pose or the one its models evaluate
+     * @param subject the resolved subject
+     * @param tick the frame's sample tick
+     * @return the subject carrying the meshes it holds at that tick
+     */
+    public static @NotNull Entity posedSubject(
+        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
+
+        EntityModelData model = posed(mode, subject, tick);
+        List<Entity.OverlayLayer> overlays = posedOverlays(mode, subject, tick);
+        if (model == subject.model() && overlays == subject.overlays()) return subject;
+        return subject.mutate().model(model).overlays(overlays).build();
+    }
+
+    /** Each overlay pass where its own model leaves it, or the list itself when none of them moved. */
+    private static @NotNull List<Entity.OverlayLayer> posedOverlays(
+        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
+
+        List<Entity.OverlayLayer> overlays = subject.overlays();
+        List<Entity.OverlayLayer> out = new ArrayList<>(overlays.size());
+        boolean moved = false;
+        for (Entity.OverlayLayer overlay : overlays) {
+            EntityModelData mesh =
+                posed(mode, overlay.pose(), subject.restingState(), overlay.model(), tick);
+            // The suppressed-pass alternate is the same mesh with a subtree emptied, so it takes the
+            // same pose - a villager under a full-hat profession still moves the head it draws none of.
+            Optional<EntityModelData> noHat = overlay.noHatModel()
+                .map(alternate -> posed(mode, overlay.pose(), subject.restingState(), alternate, tick));
+            moved |= mesh != overlay.model()
+                || !noHat.equals(overlay.noHatModel());
+            out.add(new Entity.OverlayLayer(mesh, overlay.textureRef(), overlay.pass(),
+                overlay.tintArgb(), overlay.skipBounds(), overlay.tintBy(), overlay.textureBy(),
+                overlay.gate(), noHat, overlay.pose()));
+        }
+        return moved ? List.copyOf(out) : overlays;
     }
 
     // ------------------------------------------------------------------------------------

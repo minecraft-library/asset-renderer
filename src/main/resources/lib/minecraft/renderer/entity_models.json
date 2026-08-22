@@ -386,6 +386,9 @@
     },
     "minecraft:cat": {
       "renderer": "net/minecraft/client/renderer/entity/CatRenderer",
+      "bones": {
+        "pose": "AdultCatModel"
+      },
       "axes": {
         "variant": {
           "default": "black",
@@ -1222,6 +1225,9 @@
     },
     "minecraft:giant": {
       "renderer": "net/minecraft/client/renderer/entity/GiantMobRenderer",
+      "bones": {
+        "pose": "GiantZombieModel"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -1332,6 +1338,9 @@
     },
     "minecraft:horse": {
       "renderer": "net/minecraft/client/renderer/entity/HorseRenderer",
+      "bones": {
+        "pose": "HorseModel"
+      },
       "axes": {
         "variant": {
           "default": "white",
@@ -1419,6 +1428,9 @@
           },
           "overlay": {
             "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1@scaled=1.1",
+            "bones": {
+              "pose": "HorseModel"
+            },
             "layer_type": "horse_body",
             "default_material": "leather",
             "material_assets": {
@@ -1461,6 +1473,9 @@
     },
     "minecraft:husk": {
       "renderer": "net/minecraft/client/renderer/entity/HuskRenderer",
+      "bones": {
+        "pose": "ZombieModel"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -1971,6 +1986,9 @@
     },
     "minecraft:ocelot": {
       "renderer": "net/minecraft/client/renderer/entity/OcelotRenderer",
+      "bones": {
+        "pose": "AdultOcelotModel"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -2560,6 +2578,9 @@
     },
     "minecraft:skeleton_horse": {
       "renderer": "net/minecraft/client/renderer/entity/UndeadHorseRenderer",
+      "bones": {
+        "pose": "HorseModel"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -2585,6 +2606,9 @@
           },
           "overlay": {
             "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1",
+            "bones": {
+              "pose": "HorseModel"
+            },
             "layer_type": "horse_body",
             "default_material": "leather",
             "material_assets": {
@@ -3518,6 +3542,9 @@
     },
     "minecraft:zombie": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieRenderer",
+      "bones": {
+        "pose": "ZombieModel"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -3569,6 +3596,9 @@
     },
     "minecraft:zombie_horse": {
       "renderer": "net/minecraft/client/renderer/entity/UndeadHorseRenderer",
+      "bones": {
+        "pose": "HorseModel"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -3594,6 +3624,9 @@
           },
           "overlay": {
             "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1",
+            "bones": {
+              "pose": "HorseModel"
+            },
             "layer_type": "horse_body",
             "default_material": "leather",
             "material_assets": {
@@ -3796,6 +3829,9 @@
     },
     "minecraft:zombified_piglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZombifiedPiglinRenderer",
+      "bones": {
+        "pose": "AdultZombifiedPiglinModel"
+      },
       "axes": {
         "age": {
           "default": "adult",

@@ -108,20 +108,24 @@ class PoseEvaluatorTest {
     @DisplayName("a figure its render state builds non-zero is answered as built, not as nothing")
     void aRestingFrameAnswersWhatTheRenderStateBuilds() {
         // The shipped defaults are load-bearing rather than tidy, and a humanoid is where it shows:
-        // HumanoidRenderState builds speedValue at one and every humanoid DIVIDES an arm swing by
-        // it, so the blanket zero is a division by zero and the arm is NaN. Both sides are asserted
+        // HumanoidRenderState builds speedValue at one and every humanoid DIVIDES a limb swing by
+        // it, so the blanket zero is a division by zero and the limb is NaN. Both sides are asserted
         // because only the pair says the table is doing anything.
+        //
+        // Read at the LEG rather than the arm. A zombie is posed by its own class and not by the one
+        // that baked its mesh, and that class assigns the arm outright after the humanoid arithmetic
+        // has run - the arms-out stance overwrites the swing, NaN and all. The legs it leaves alone.
         EntityPose zombie = poseOf("minecraft:zombie");
         assertEquals(1f, zombie.inputDefaults().get("speedValue"),
             "the table carries what a humanoid's speed is built at");
 
         EntityModelData mesh = meshFor(zombie);
         assertTrue(Float.isNaN(PoseEvaluator.evaluate(zombie, mesh, PoseEvaluator.ZERO)
-                .bones().get("left_arm").get(PoseChannel.X_ROT)),
+                .bones().get("left_leg").get(PoseChannel.X_ROT)),
             "answering nothing to a figure vanilla divides by is a division by zero");
         assertTrue(Float.isFinite(PoseEvaluator.evaluate(zombie, mesh, PoseEvaluator.restingIn(zombie, Map.of()))
-                .bones().get("left_arm").get(PoseChannel.X_ROT)),
-            "and answering what it rests at is a still arm");
+                .bones().get("left_leg").get(PoseChannel.X_ROT)),
+            "and answering what it rests at is a still leg");
     }
 
     @Test

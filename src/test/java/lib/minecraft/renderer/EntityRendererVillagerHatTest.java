@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.appearance.Villager;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta.Villager.Hat;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.option.AppearanceOptions;
@@ -181,7 +182,7 @@ class EntityRendererVillagerHatTest {
     private static OverlayLayer pass(String textureBy, String textureRef) {
         return new OverlayLayer(new EntityModelData(), Optional.of(textureRef), PassDeclaration.DEFAULT,
             0xFFFFFFFF, true, Optional.empty(), Optional.of(textureBy),
-            Optional.empty(), Optional.empty());
+            Optional.empty(), Optional.empty(), EntityPose.NONE);
     }
 
 }
