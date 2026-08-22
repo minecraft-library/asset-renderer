@@ -139,6 +139,9 @@ public enum PoseOperator {
     /** Answers the sign of a double as one of minus one, zero or one. */
     LIBM_SIGNUM("libm_signum", 1, Width.DOUBLE),
 
+    /** Calls the JDK square root, which is exact where the sampled one is not. */
+    LIBM_SQRT("libm_sqrt", 1, Width.DOUBLE),
+
     /** Eases in along a quarter circle. */
     EASE_IN_CIRC("ease_in_circ", 1, Width.FLOAT),
 

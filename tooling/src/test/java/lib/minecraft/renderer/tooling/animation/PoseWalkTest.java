@@ -55,8 +55,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * one thing eight times, a strider's six bristles have to keep the six rates one lambda was applied
  * at rather than settling on whichever was applied last, an allay has to spin about the bone its
  * constructor re-rooted it at, a foal has to hold the pitch it assigned itself rather than the one
- * it was handed, a piglin's crossbow has to land on the arm its render state calls the main one, and
- * a fox's four legs have to trot in diagonal pairs off a figure the model carries for itself.
+ * it was handed, a piglin's crossbow has to land on the arm its render state calls the main one, a
+ * fox's four legs have to trot in diagonal pairs off a figure the model carries for itself, and a
+ * guardian's twelve spikes have to stand at twelve rows of a table its own class settles.
  *
  * <p>The clip half is checked differently, against the shipped table rather than against a written
  * expectation. Two mechanisms that never see each other - the binding resolver reading constructors
@@ -592,6 +593,59 @@ class PoseWalkTest {
     }
 
     @Test
+    @DisplayName("a guardian's twelve spikes each sit at their own row of the table its class settles")
+    void aDeclaredTableIsReadPerIndex() {
+        // The spikes are posed in a loop over a static array the class fills in its own initialiser,
+        // so what has to come out is TWELVE different placements. A walk that read the table as one
+        // value would stand every spike in the same place, which is a guardian that renders as a
+        // cube - and one that read it a row out would render as a guardian, wrongly.
+        //
+        // The leading constant of each is that spike's own row, checked against the numbers the
+        // initialiser actually stores rather than against the walk's own reading of them.
+        PoseProgram guardian = extracted.get("net/minecraft/client/model/monster/guardian/GuardianModel");
+        assertNotNull(guardian, "GuardianModel is expected to extract");
+
+        List<Float> across = List.of(0f, 0f, 8f, -8f, -8f, 8f, 8f, -8f, 0f, 0f, 8f, -8f);
+        Set<PoseExpr> distinct = new LinkedHashSet<>();
+        for (int spike = 0; spike < across.size(); spike++) {
+            PoseExpr placed = guardian.bones().get("spike" + spike).get(PoseChannel.X);
+            distinct.add(placed);
+            assertEquals(PoseExpr.Const.of(across.get(spike)),
+                assertInstanceOf(PoseExpr.Op.class, placed).operands().getFirst(),
+                "spike " + spike + " stands out by its own row of the table");
+        }
+        assertEquals(across.size(), distinct.size(), "one placement per spike, none of them shared");
+    }
+
+    @Test
+    @DisplayName("a guardian's eye tracks a look direction it flattens, and holds still without one")
+    void aValueTypeIsBuiltFromItsComponents() {
+        // The guardian builds a vector out of the direction it is looking with the vertical component
+        // REPLACED by zero, normalises it, turns it a quarter and takes a dot product. The vector is
+        // carried as its three components rather than as a thing, and the flattening is what says so:
+        // a walk that carried it whole would read a vertical the model deliberately threw away.
+        //
+        // And the whole of it is guarded on there being something to look at. That guard is what
+        // makes this the pose an offline caller draws rather than a term nothing supplies - answering
+        // no to both leaves the eye exactly where the mesh authored it, which is what vanilla does
+        // when a guardian has no target.
+        PoseProgram guardian = extracted.get("net/minecraft/client/model/monster/guardian/GuardianModel");
+        assertNotNull(guardian, "GuardianModel is expected to extract");
+
+        List<PoseExpr> reached = nodesOf(guardian);
+        assertTrue(reached.contains(new PoseExpr.Input("lookDirection.x")), "it tracks across");
+        assertTrue(reached.contains(new PoseExpr.Input("lookDirection.z")), "and along");
+        assertFalse(reached.contains(new PoseExpr.Input("lookDirection.y")),
+            "and never up, the model having replaced that component with zero before using it");
+
+        Set<PosePredicate.Has> guards = new LinkedHashSet<>();
+        guardian.bones().values().forEach(channels -> channels.values()
+            .forEach(expr -> collectPresence(expr, guards)));
+        assertEquals(Set.of(new PosePredicate.Has("lookAtPosition"), new PosePredicate.Has("lookDirection")),
+            guards, "both halves of having something to look at are kept as guards");
+    }
+
+    @Test
     @DisplayName("a faceplanted fox twitches off a figure it carries, and its legs trot in diagonal pairs")
     void aCarriedFigureIsNamedRatherThanDerived() {
         // FoxModel steps a field of its own once per pose and reads it into all four legs. That is
@@ -882,7 +936,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(109, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(110, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------

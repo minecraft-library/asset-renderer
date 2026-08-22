@@ -16,6 +16,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.IincInsnNode;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.IntInsnNode;
@@ -26,6 +27,7 @@ import org.objectweb.asm.tree.LookupSwitchInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TableSwitchInsnNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -40,6 +42,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.UnaryOperator;
 
 /**
  * Walks a model's {@code setupAnim} body into the pose it computes.
@@ -107,6 +110,9 @@ public final class PoseWalk {
      * is one its mesh declares.
      */
     private static final @NotNull String MESH_ROOT = "<mesh root>";
+
+    /** What the one value type this walk allocates calls the origin. */
+    private static final @NotNull String ORIGIN = "ZERO";
 
     /** The arithmetic the chassis routes here, keyed by opcode, at the width the opcode names. */
     private static final @NotNull Map<Integer, PoseOperator> ARITHMETIC = arithmetic();
@@ -329,7 +335,9 @@ public final class PoseWalk {
         @NotNull Map<String, PoseValue.EnumConstant> bound,
         @NotNull Map<String, String> referenceTypes,
         @NotNull Map<String, Map<Integer, Integer>> switchMaps,
-        int @NotNull [] forks
+        @NotNull Map<String, List<PoseExpr>> declaredArrays,
+        int @NotNull [] forks,
+        int @NotNull [] allocations
     ) {
 
         /** One enum's constants, read once per extraction however many times they are asked for. */
@@ -374,7 +382,7 @@ public final class PoseWalk {
             Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS),
             new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashSet<>(), new ArrayList<>(),
             new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
-            new int[1]);
+            new LinkedHashMap<>(), new int[1], new int[1]);
 
         try {
             walkBody(body, context, 0);
@@ -758,16 +766,33 @@ public final class PoseWalk {
         @NotNull Interp.Snapshot<PoseValue> machine, @NotNull String member,
         @NotNull PoseValue.EnumConstant standing) {
 
+        return rewritten(machine, value -> standing(value, member, standing));
+    }
+
+    /**
+     * A machine with one substitution applied to every place it holds a value.
+     *
+     * <p>Every place, because a value is not held only where it was last pushed: a body loads what it
+     * is working on into slots and duplicates it across frames, and a substitution that reached the
+     * stack alone would leave the same thing standing under two different answers.
+     *
+     * @param machine the state to rewrite
+     * @param mapping what each held value becomes
+     * @return the rewritten state
+     */
+    private static @NotNull Interp.Snapshot<PoseValue> rewritten(
+        @NotNull Interp.Snapshot<PoseValue> machine, @NotNull UnaryOperator<PoseValue> mapping) {
+
         List<PoseValue> stack = new ArrayList<>(machine.stack().size());
-        for (PoseValue value : machine.stack()) stack.add(standing(value, member, standing));
+        for (PoseValue value : machine.stack()) stack.add(mapping.apply(value));
 
         Map<Integer, PoseValue> slots = new LinkedHashMap<>();
-        machine.slots().forEach((slot, value) -> slots.put(slot, standing(value, member, standing)));
+        machine.slots().forEach((slot, value) -> slots.put(slot, mapping.apply(value)));
 
         List<Map<Integer, PoseValue>> frames = new ArrayList<>(machine.frames().size());
         for (Map<Integer, PoseValue> frame : machine.frames()) {
             Map<Integer, PoseValue> replaced = new LinkedHashMap<>();
-            frame.forEach((slot, value) -> replaced.put(slot, standing(value, member, standing)));
+            frame.forEach((slot, value) -> replaced.put(slot, mapping.apply(value)));
             frames.add(replaced);
         }
         return new Interp.Snapshot<>(stack, slots, frames, machine.poisoned());
@@ -1073,6 +1098,15 @@ public final class PoseWalk {
         if (taken.equals(fallen)) return taken;
         if (taken instanceof PoseValue.Num first && fallen instanceof PoseValue.Num second)
             return num(new PoseExpr.Select(condition, first.expr(), second.expr()));
+        // Three numbers chosen between one at a time rather than as a whole, which is what keeps the
+        // choice around the components that actually differed: an arm that answers the origin and an
+        // arm that answers a direction disagree about every component, but two that disagree about
+        // one leave the other two written once.
+        if (taken instanceof PoseValue.Vector first && fallen instanceof PoseValue.Vector second)
+            return new PoseValue.Vector(
+                chosen(condition, first.x(), second.x()),
+                chosen(condition, first.y(), second.y()),
+                chosen(condition, first.z(), second.z()));
         // A bone, an array or a receiver cannot be chosen between - a pose that wrote through
         // whichever one a branch happened to pick would name the wrong bone rather than blend two.
         //
@@ -1081,6 +1115,13 @@ public final class PoseWalk {
         // that met, which is what a wall is looked up by.
         throw new UnmergeableArms("arms of a branch nothing offline decides leave two different"
             + " things in the same place: " + kindOf(taken) + " and " + kindOf(fallen));
+    }
+
+    /** One expression either arm may have left, as a choice when they differ and as itself when not. */
+    private static @NotNull PoseExpr chosen(
+        @NotNull PosePredicate condition, @NotNull PoseExpr taken, @NotNull PoseExpr fallen) {
+
+        return taken.equals(fallen) ? taken : new PoseExpr.Select(condition, taken, fallen);
     }
 
     /** Every channel either arm touched, as the choice between what each left it holding. */
@@ -1288,7 +1329,13 @@ public final class PoseWalk {
                 // as their coordinate rather than lost - a component key that arrived as an unknown
                 // would leave the fetch it names unnameable.
                 FieldInsnNode constant = (FieldInsnNode) in;
-                if (("L" + constant.owner + ";").equals(constant.desc))
+                // The origin, which the one value type this walk allocates hands back where it has
+                // no direction to give. Answered as the three numbers it is rather than left as a
+                // name, because the arm that returns it meets an arm that returns a computed one.
+                if (VanillaSourceClasses.Types.VEC3.equals(constant.owner) && ORIGIN.equals(constant.name))
+                    stack.push(new PoseValue.Vector(
+                        PoseExpr.Const.of(0d), PoseExpr.Const.of(0d), PoseExpr.Const.of(0d)));
+                else if (("L" + constant.owner + ";").equals(constant.desc))
                     stack.push(new PoseValue.EnumConstant(constant.owner, constant.name));
                 else if (SWITCH_MAP_DESCRIPTOR.equals(constant.desc) && constant.name.startsWith(SWITCH_MAP_PREFIX))
                     stack.push(new PoseValue.SwitchMap(constant.owner, constant.name));
@@ -1314,12 +1361,24 @@ public final class PoseWalk {
                 PoseValue array = stack.pop();
                 stack.push(num(array instanceof PoseValue.SwitchMap map
                     ? PoseExpr.Const.of(switchCase(context, map, index))
-                    : numberElement(array, index)));
+                    : array instanceof PoseValue.StaticRef declared
+                        ? declaredElement(context, declared, index)
+                        : numberElement(array, index)));
             }
             case Opcodes.CHECKCAST -> { /* a cast changes the type, never the value */ }
             case Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL, Opcodes.INVOKESPECIAL, Opcodes.INVOKEINTERFACE ->
                 call((MethodInsnNode) in, context, depth);
-            case Opcodes.AASTORE, Opcodes.NEW, Opcodes.ANEWARRAY ->
+            case Opcodes.NEW -> {
+                // Only the one value type a pose body computes with. Anything else allocated while
+                // posing is a shape this walk does not model, and saying so is worth more than
+                // carrying an object it can answer nothing about.
+                String type = ((TypeInsnNode) in).desc;
+                if (!VanillaSourceClasses.Types.VEC3.equals(type))
+                    throw new IllegalStateException("allocates " + ClassKit.simpleName(type)
+                        + " while posing, which this walk does not model");
+                stack.push(new PoseValue.Fresh(type, context.allocations()[0]++));
+            }
+            case Opcodes.AASTORE, Opcodes.ANEWARRAY ->
                 throw new IllegalStateException("allocates while posing, which this walk does not model");
             case Opcodes.INVOKEDYNAMIC -> callSite((InvokeDynamicInsnNode) in, context);
             default -> stack.step(in);
@@ -1367,6 +1426,8 @@ public final class PoseWalk {
                 "the constant " + ClassKit.simpleName(constant.type()) + "." + constant.name();
             case PoseValue.Part part -> "the bone '" + part.bone() + "'";
             case PoseValue.MeshRoot ignored -> "the container this mesh flattened away";
+            case PoseValue.Vector ignored -> "three numbers computed as one";
+            case PoseValue.Fresh fresh -> "an unbuilt " + ClassKit.simpleName(fresh.type());
             case PoseValue.PartArray array -> "the array '" + array.field() + "'";
             case PoseValue.StateArray array -> "the whole of the render state's '" + array.member() + "'";
             case PoseValue.StaticRef named ->
@@ -1468,9 +1529,25 @@ public final class PoseWalk {
             stack.push(num(constantField(context, constant, field)));
             return;
         }
-        // Reading a field OF a reference the render state holds is a question only one constant can
-        // answer, and every enum accessor is exactly that read.
-        if (receiver instanceof PoseValue.StateRef reference) throw new NeedsConstant(reference);
+        if (receiver instanceof PoseValue.Vector vector) {
+            PoseExpr component = componentOf(vector, field);
+            if (component == null)
+                throw new IllegalStateException("reads " + ClassKit.simpleName(field.owner) + "."
+                    + field.name + ", which is not one of its three components");
+            stack.push(num(component));
+            return;
+        }
+        if (receiver instanceof PoseValue.StateRef reference) {
+            // A number reached down a path through the render state, which is an input like any
+            // other and named by the path it was reached by - the same spelling a component hop
+            // already gives a reference. Only where the reference is not an enum: there, reading a
+            // field is a question only one constant can answer, and every enum accessor is that read.
+            if (isPrimitive(field.desc) && context.enumeration(reference.type()).isEmpty()) {
+                stack.push(num(new PoseExpr.Input(reference.member() + "." + field.name)));
+                return;
+            }
+            throw new NeedsConstant(reference);
+        }
         // A figure the model keeps for itself, which is not a function of anything the render state
         // carries. Answered as the carried figure it is; what makes that safe is the WRITE, which
         // only ever adds to what the field already held.
@@ -1479,6 +1556,27 @@ public final class PoseWalk {
             return;
         }
         stack.push(OPAQUE);
+    }
+
+    /**
+     * Which of a vector's three components a field names.
+     *
+     * <p>Read off the field's own name, which is the only thing that distinguishes them: the three
+     * are declared in the order the constructor takes them and there is nothing else to key on.
+     *
+     * @param vector the value being read
+     * @param field the field naming a component
+     * @return the component, or {@code null} when the field is not one of the three
+     */
+    private static @Nullable PoseExpr componentOf(
+        @NotNull PoseValue.Vector vector, @NotNull FieldInsnNode field) {
+
+        return switch (field.name) {
+            case "x" -> vector.x();
+            case "y" -> vector.y();
+            case "z" -> vector.z();
+            default -> null;
+        };
     }
 
     /** What a read answers - the assignment the path made to it, or the read itself. */
@@ -1770,6 +1868,126 @@ public final class PoseWalk {
         return context.switchCases(map).getOrDefault(ordinal, 0);
     }
 
+    /**
+     * One element of a table a class settles in its own initialiser.
+     *
+     * <p>A pose body reaches for one of these where the figure varies per part and not per frame - a
+     * dozen spikes at a dozen authored angles - so the answer is a literal, and the read costs the
+     * emitted pose nothing at all.
+     *
+     * <p>Read the same way the switch tables beside it are: off the initialiser rather than off any
+     * declaration, because a Java array has no declared contents. What tells the two apart is only
+     * which field the fill is closed onto.
+     *
+     * @param context the extraction in progress
+     * @param array the static the body read
+     * @param index the position it read
+     * @return the literal at that position
+     */
+    private static @NotNull PoseExpr declaredElement(
+        @NotNull Context context, @NotNull PoseValue.StaticRef array, @NotNull PoseValue index) {
+
+        String named = ClassKit.simpleName(array.owner()) + "." + array.name();
+        Integer at = literalInt(index);
+        if (at == null)
+            throw new IllegalStateException("reads " + named + " at a position this walk did not settle");
+
+        List<PoseExpr> settled = context.declaredArrays().computeIfAbsent(
+            array.owner() + "." + array.name(), key -> readDeclaredArray(context, array, named));
+        if (at < 0 || at >= settled.size())
+            throw new IllegalStateException("reads " + named + " at " + at
+                + ", where its initialiser settles " + settled.size());
+        return settled.get(at);
+    }
+
+    /**
+     * One table of numbers, read off the initialiser that fills it.
+     *
+     * <p>Filled one element at a time, each entry pushing its position and then its value, and the
+     * array itself reaching its field only at the closing store - so what an entry belongs to is not
+     * known until the fill is over, and entries are gathered against whichever field closes them.
+     *
+     * <p>Every position the allocation declares has to have been filled. A table short by one is a
+     * spike at an angle nothing authored, which reads as zero and renders.
+     */
+    private static @NotNull List<PoseExpr> readDeclaredArray(
+        @NotNull Context context, @NotNull PoseValue.StaticRef array, @NotNull String named) {
+
+        ClassNode owner = context.cache().load(array.owner());
+        FieldNode declared = owner == null ? null : ClassKit.findField(owner, array.name());
+        if (declared == null || declared.desc.length() != 2 || declared.desc.charAt(0) != '[')
+            throw new IllegalStateException("reads " + named + ", which is not an array of numbers");
+        char element = declared.desc.charAt(1);
+
+        Map<Integer, Double> filled = new LinkedHashMap<>();
+        Map<Integer, Double> closed = new LinkedHashMap<>();
+        Double[] recent = new Double[2];
+        Integer[] length = new Integer[2];
+
+        AsmWalker.clinit(context.cache(), array.owner())
+            .on(Insn.of(AbstractInsnNode.class, node -> numberLiteral(node) != null), node -> {
+                recent[0] = recent[1];
+                recent[1] = numberLiteral(node);
+            })
+            .on(Insn.opcode(Opcodes.NEWARRAY, Opcodes.ANEWARRAY), allocation -> {
+                // A fresh array, so anything gathered belongs to whatever came before it, and the
+                // length is the literal that was standing when the allocation happened.
+                filled.clear();
+                length[0] = recent[1] == null ? null : (int) (double) recent[1];
+            })
+            .on(Insn.opcode(Opcodes.IASTORE, Opcodes.FASTORE, Opcodes.DASTORE,
+                Opcodes.BASTORE, Opcodes.CASTORE, Opcodes.SASTORE, Opcodes.LASTORE), store -> {
+                if (recent[0] != null && recent[1] != null)
+                    filled.putIfAbsent((int) (double) recent[0], recent[1]);
+                recent[0] = null;
+                recent[1] = null;
+            })
+            .on(Insn.of(FieldInsnNode.class, field -> field.getOpcode() == Opcodes.PUTSTATIC), field -> {
+                if (array.name().equals(field.name) && array.owner().equals(field.owner)) {
+                    closed.putAll(filled);
+                    length[1] = length[0];
+                }
+                filled.clear();
+                recent[0] = null;
+                recent[1] = null;
+            })
+            .run();
+
+        if (length[1] == null || closed.size() != length[1])
+            throw new IllegalStateException("reads " + named + ", whose initialiser settles "
+                + closed.size() + " of the " + (length[1] == null ? "none" : length[1]) + " it declares");
+
+        List<PoseExpr> settled = new ArrayList<>(length[1]);
+        for (int position = 0; position < length[1]; position++) {
+            Double value = closed.get(position);
+            if (value == null)
+                throw new IllegalStateException("reads " + named + ", whose initialiser leaves "
+                    + position + " unsettled");
+            settled.add(literalAt(element, value, named));
+        }
+        return List.copyOf(settled);
+    }
+
+    /** A number an instruction pushes, at whatever width it pushes it. */
+    private static @Nullable Double numberLiteral(@NotNull AbstractInsnNode node) {
+        Integer whole = AsmWalker.intLiteral(node);
+        if (whole != null) return (double) whole;
+        Float single = AsmWalker.floatLiteral(node);
+        if (single != null) return (double) single;
+        return AsmWalker.doubleLiteral(node);
+    }
+
+    /** One settled number at the width its array declares, which is what says how it was written. */
+    private static @NotNull PoseExpr literalAt(char element, double value, @NotNull String named) {
+        return switch (element) {
+            case 'F' -> PoseExpr.Const.of((float) value);
+            case 'D' -> PoseExpr.Const.of(value);
+            case 'I', 'Z', 'B', 'C', 'S' -> PoseExpr.Const.of((int) value);
+            default -> throw new IllegalStateException("reads " + named
+                + ", which is not an array of numbers a pose can carry");
+        };
+    }
+
     /** One element of an array the render state holds, which needs the index to have folded. */
     private static @NotNull PoseExpr numberElement(@NotNull PoseValue array, @NotNull PoseValue index) {
         if (!(array instanceof PoseValue.StateArray held))
@@ -1826,6 +2044,19 @@ public final class PoseWalk {
                 operands.add(number.expr());
             }
             stack.push(num(PoseExpr.Op.of(operator, operands)));
+            return;
+        }
+
+        if (VanillaSourceClasses.Types.VEC3.equals(call.owner)) {
+            // The one value type a pose body builds and computes with. Its constructor finishes an
+            // allocation; everything else it offers is arithmetic written in its own class, so it is
+            // walked rather than named - which keeps the expression in terms of the numbers that
+            // went in instead of gaining an opaque channel nothing downstream could supply.
+            if (ClassKit.INIT.equals(call.name)) {
+                buildVector(call, context);
+                return;
+            }
+            inline(call, context, depth);
             return;
         }
 
@@ -1892,6 +2123,39 @@ public final class PoseWalk {
 
         throw new IllegalStateException("calls " + ClassKit.simpleName(call.owner) + "." + call.name
             + ", which is not a body this walk can enter");
+    }
+
+    /**
+     * Finishes an allocation, putting the built value everywhere the unbuilt one reached.
+     *
+     * <p>The constructor consumes one of the two references the allocation left, and the OTHER is the
+     * finished object - still standing wherever the body duplicated it to. Nothing on the stack says
+     * which places those are, so they are found by what they hold: every copy of this allocation
+     * becomes the value, and the copy the constructor itself popped is simply one of them.
+     */
+    private static void buildVector(@NotNull MethodInsnNode call, @NotNull Context context) {
+        Interp<PoseValue> stack = context.stack();
+        List<PoseValue> arguments = stack.popArguments(ClassKit.argTypes(call.desc).length);
+        PoseValue receiver = stack.pop();
+
+        if (!(receiver instanceof PoseValue.Fresh fresh))
+            throw new IllegalStateException("builds " + ClassKit.simpleName(call.owner) + " out of "
+                + kindOf(receiver) + ", which is not an allocation this walk is holding");
+        if (arguments.size() != 3)
+            throw new IllegalStateException("builds " + ClassKit.simpleName(call.owner) + " from "
+                + arguments.size() + " operand(s), where this walk models the three-component form");
+
+        List<PoseExpr> components = new ArrayList<>(arguments.size());
+        for (PoseValue argument : arguments) {
+            if (!(argument instanceof PoseValue.Num number))
+                throw new IllegalStateException("builds " + ClassKit.simpleName(call.owner) + " out of "
+                    + kindOf(argument) + ", which is not a number");
+            components.add(number.expr());
+        }
+
+        PoseValue built = new PoseValue.Vector(
+            components.get(0), components.get(1), components.get(2));
+        stack.restore(rewritten(stack.snapshot(), value -> fresh.equals(value) ? built : value));
     }
 
     /**
@@ -2534,6 +2798,7 @@ public final class PoseWalk {
         out.put(key(math, "cos", "(D)D"), PoseOperator.LIBM_COS);
         out.put(key(math, "abs", "(D)D"), PoseOperator.LIBM_ABS);
         out.put(key(math, "signum", "(D)D"), PoseOperator.LIBM_SIGNUM);
+        out.put(key(math, "sqrt", "(D)D"), PoseOperator.LIBM_SQRT);
 
         out.put(key(ease, "inCirc", "(F)F"), PoseOperator.EASE_IN_CIRC);
         out.put(key(ease, "inQuad", "(F)F"), PoseOperator.EASE_IN_QUAD);

@@ -79,6 +79,9 @@ public final class VanillaSourceClasses {
         /** {@code Rotations} - the three angles an armour stand's pose is authored as, a record. */
         public static final @NotNull String ROTATIONS = MINECRAFT_ROOT + "core/Rotations";
 
+        /** {@code Vec3} - three doubles and the arithmetic over them, which a pose body allocates. */
+        public static final @NotNull String VEC3 = MINECRAFT_ROOT + "world/phys/Vec3";
+
         /** {@code DataComponentType} - the key an item stack's components are read by. */
         public static final @NotNull String DATA_COMPONENT_TYPE = MINECRAFT_ROOT + "core/component/DataComponentType";
 

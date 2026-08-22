@@ -151,6 +151,34 @@ public sealed interface PoseValue {
     record Comparison(@NotNull PoseExpr left, @NotNull PoseExpr right) implements PoseValue {}
 
     /**
+     * Three numbers a pose body computes with as one thing.
+     *
+     * <p>The one value type a pose body allocates. It is carried whole rather than as three numbers
+     * because a body hands it about, asks it for its own arithmetic and reads components back off
+     * it - so what it is has to survive the round trip, and the components are what an expression
+     * eventually wants rather than what the body is holding.
+     *
+     * @param x the first component
+     * @param y the second component
+     * @param z the third component
+     */
+    record Vector(@NotNull PoseExpr x, @NotNull PoseExpr y, @NotNull PoseExpr z) implements PoseValue {}
+
+    /**
+     * A place an object has been made but not yet built, between the allocation and its constructor.
+     *
+     * <p>Vanilla's own shape for building one is to allocate, duplicate the reference, push the
+     * arguments and call the constructor - which consumes ONE of the two references and leaves the
+     * other standing as the finished object. So the reference has to be recognisable in every place
+     * it reached, and the {@code at} is what makes two of them apart: a body that allocates while
+     * already holding an unbuilt one would otherwise finish the wrong one.
+     *
+     * @param type the internal name of what is being built
+     * @param at which allocation of this walk it is
+     */
+    record Fresh(@NotNull String type, int at) implements PoseValue {}
+
+    /**
      * The container a model is built around, for a mesh that flattened it away.
      *
      * <p>Apart from {@link Part} because it is not a bone and never becomes one: the mesh names its
