@@ -40,12 +40,12 @@
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "3a7fb4a59e8ee49298538bd0612b888e8efd110a2cb76bea3085e92c398c9d0a"
+      "sha256": "b619ceec32bd2f606cee21c23a7b3bc501b5c255e50c10485c1f7efe9b6c8da2"
     },
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "7c7d11803ca2d4833053e189ea4cacb9a5ec341e520ed2962b2fd494cb8a817c"
+      "sha256": "e55cbf5a3ffbe335c8271d1034eb7e76da60978e1c181c6ae1c615e48030d341"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "b1778c95cf10c827862e269cb33a7e7ba24686b0",
+    "asset_sha": "b4706878fe9b369803f0aa7c4855294a671d902c",
     "counts": {
       "digests": 11
     },
@@ -73,9 +73,9 @@
       "gson": "2.13.2"
     },
     "mc_version": "26.1.2",
-    "parity_class": "moving",
+    "parity_class": "shaped",
     "producer": "test",
-    "reason": "reins, shell and crossed arms - 12 entity rows, sum 60.0047 to 59.4901, 12 references re-rendered",
+    "reason": "a subject is posed by the class its renderer hands the model, not the one that baked the mesh: 9 subjects and 3 equine body-armour rows gain bones.pose, the pose roster gains the 6 posing classes the geometry manifest never named, and every overlay pass now carries a pose of its own; every render sweep, CRC pin and manifest.visual at 0 movers",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-22T07:14:20Z",
+    "timestamp": "2026-08-22T21:31:43Z",
     "tool_version": "1.0.0"
   }
 }
