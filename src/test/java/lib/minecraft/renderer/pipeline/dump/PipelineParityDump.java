@@ -1306,8 +1306,8 @@ public final class PipelineParityDump {
         // wide margin, and what this section needs of it is whether it moved. Emitted only where
         // there is one, on the same terms as members, so the entities that pose nothing stay
         // byte-identical - which is most of the roster and all of the block-shaped subjects.
-        if (!entity.pose().bones().isEmpty() || !entity.pose().clips().isEmpty()
-            || entity.pose().refusal().isPresent())
+        if (!entity.pose().container().isEmpty() || !entity.pose().bones().isEmpty()
+            || !entity.pose().clips().isEmpty() || entity.pose().refusal().isPresent())
             root.addProperty("pose", CanonicalJson.digest(pose(entity.pose())));
         return root;
     }
@@ -1322,6 +1322,8 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject pose(@NotNull EntityPose pose) {
         JsonObject root = new JsonObject();
         CanonicalJson.put(root, "refusal", pose.refusal(), JsonPrimitive::new);
+        root.add("container",
+            CanonicalJson.map(pose.container(), PoseChannel::token, PipelineParityDump::poseExpr));
         root.add("bones", CanonicalJson.map(pose.bones(),
             channels -> CanonicalJson.map(channels, PoseChannel::token, PipelineParityDump::poseExpr)));
         root.add("clips", CanonicalJson.ordered(pose.clips(), clip -> {

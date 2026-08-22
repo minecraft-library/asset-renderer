@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.index;
 
+import com.google.gson.Gson;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.appearance.Age;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -27,19 +29,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The shipped pose table read back through the loader.
  *
- * <p>Four things are worth pinning and nothing else here is. The expression grammar has to survive
+ * <p>Five things are worth pinning and nothing else here is. The expression grammar has to survive
  * the round trip operand for operand, because a table that decodes into a DIFFERENT tree is a table
- * that reads perfectly and animates wrongly. A refusal has to arrive as a refusal, because a model
- * whose pose could not be read renders exactly like one that poses nothing. The pose has to follow
+ * that reads perfectly and animates wrongly. A container has to arrive as a container rather than as
+ * a bone, because it is the parent transform every bone the mesh names at top level hangs off and a
+ * bone of that name is one nothing draws. A refusal has to arrive as a refusal, because a model whose
+ * pose could not be read renders exactly like one that poses nothing - pinned from a written table
+ * rather than from a shipped model, every model in the corpus being readable. The pose has to follow
  * the mesh across the age fork, because a baby is its own model class - a turtle poses a bone only
  * its adult mesh has and a donkey poses its head off a pitch only its foal assigns, so one pose per
- * entity would be wrong for one of them whichever way it was chosen. And a sub-expression the
- * table names once has
- * to arrive once, because a reader that rebuilt one per reference would turn a humanoid's nine
- * hundred nodes back into the twenty-two million the table exists not to write.
+ * entity would be wrong for one of them whichever way it was chosen. And a sub-expression the table
+ * names once has to arrive once, because a reader that rebuilt one per reference would turn a
+ * humanoid's nine hundred nodes back into the twenty-two million the table exists not to write.
  */
 @DisplayName("the shipped pose table")
 class EntityPoseLoadTest {
+
+    /** Plain, because the reader is declared on the type it reads rather than configured onto one. */
+    private static final @NotNull Gson GSON = new Gson();
 
     private static ConcurrentMap<String, Entity> entities;
 
@@ -66,12 +73,49 @@ class EntityPoseLoadTest {
     @Test
     @DisplayName("a model whose pose could not be read says so rather than posing nothing")
     void aRefusalArrivesAsARefusal() {
-        EntityPose dragon = pose("minecraft:ender_dragon");
-        assertFalse(dragon.isReadable(), "the ender dragon's pose is not readable");
-        assertTrue(dragon.refusal().orElseThrow().contains("getHistoricalPos"),
-            "and it says what stopped it: the model poses off a track of where it has lately been");
-        assertEquals(List.of(), List.copyOf(dragon.bones().keySet()),
+        // Written here rather than taken off a shipped model, because every model in the corpus is
+        // readable. The arm stays live all the same: a version bump is exactly the event that puts a
+        // body in front of the walk it cannot phrase, and the table has to be able to say so.
+        EntityPose refused = GSON.fromJson("""
+            {"poses": {"SomeModel": {"refused": "poses off something this walk cannot phrase"}}}""",
+            RawEntityPosesFile.class).poses().get("SomeModel");
+
+        assertFalse(refused.isReadable(), "a pose carrying a reason is not a readable one");
+        assertEquals("poses off something this walk cannot phrase", refused.refusal().orElseThrow(),
+            "and it carries what stopped the walk verbatim");
+        assertEquals(List.of(), List.copyOf(refused.bones().keySet()),
             "a refusal poses nothing, which is how it renders and why it has to be distinguishable");
+        assertEquals(Map.of(), refused.container(), "and it poses no container either");
+    }
+
+    @Test
+    @DisplayName("a container arrives above the bones rather than as one of them")
+    void aContainerArrivesAsAContainer() {
+        // Two models pose the container their mesh was built around, and neither mesh names a bone
+        // for it - so a reader that filed it under `bones` would be posing a bone nothing draws and
+        // leaving the thing that carries the model where it is drawn unposed.
+        //
+        // The dragon is the one that could not be answered any other way. Its container turns as
+        // well as moving, and a rotation reaches each child's POSITION about the container's pivot
+        // as well as composing with the child's own rotation, so there is no per-bone term for it.
+        EntityPose dragon = pose("minecraft:ender_dragon");
+        assertTrue(dragon.isReadable(), "the ender dragon has a readable pose");
+        assertEquals(Set.of(PoseChannel.Y, PoseChannel.Z, PoseChannel.X_ROT), dragon.container().keySet(),
+            "its container is placed twice and turned once");
+        assertFalse(dragon.bones().containsKey("<mesh root>"),
+            "and the container is nowhere among the bones, under that spelling or any other");
+
+        // A turtle drops the container it hangs off by one while it is carrying an egg. What the
+        // channel holds is a number rather than a read of a bone, because a flattened container has
+        // no authored pose left to read - the mesh put whatever it held into the bones below it.
+        EntityPose turtle = pose("minecraft:turtle");
+        assertEquals(Set.of(PoseChannel.Y), turtle.container().keySet(), "the turtle moves its container once");
+        assertEquals(new PoseExpr.Select(
+                new PosePredicate.Compare(PosePredicate.Comparison.EQ,
+                    new PoseExpr.Input("hasEgg"), new PoseExpr.Const(0, PoseOperator.Width.INT)),
+                constant(0f), constant(-1f)),
+            turtle.container().get(PoseChannel.Y),
+            "and it rests at zero when there is no egg to carry");
     }
 
     @Test

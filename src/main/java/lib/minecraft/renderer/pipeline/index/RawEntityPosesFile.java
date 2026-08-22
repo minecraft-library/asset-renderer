@@ -74,9 +74,16 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
     /** One model's pose, or the record of why it has none. */
     private static @NotNull EntityPose pose(@NotNull String model, @NotNull JsonObject node) {
         JsonElement refused = node.get("refused");
-        if (refused != null) return new EntityPose(Map.of(), List.of(), Optional.of(refused.getAsString()));
+        if (refused != null)
+            return new EntityPose(Map.of(), Map.of(), List.of(), Optional.of(refused.getAsString()));
 
         Shared shared = Shared.of(model, node.get("shared"));
+
+        // The container the mesh flattened away, which is a parent transform above the bones rather
+        // than one of them, so it is read into its own map and never into the bone map.
+        JsonElement held = node.get("container");
+        Map<PoseChannel, PoseExpr> container = held == null
+            ? Map.of() : channels(model, "container", object(held, model), shared);
 
         Map<String, Map<PoseChannel, PoseExpr>> bones = new LinkedHashMap<>();
         JsonElement written = node.get("bones");
@@ -93,7 +100,8 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         // Order-preserving rather than Map.copyOf, whose iteration order is salted per JVM launch.
         // Nothing reads the order for meaning, but the parity dump digests this map, and a digest
         // over a map that flaps is a row that fails its own reproducibility check and nothing else.
-        return new EntityPose(Collections.unmodifiableMap(bones), List.copyOf(clips), Optional.empty());
+        return new EntityPose(container, Collections.unmodifiableMap(bones),
+            List.copyOf(clips), Optional.empty());
     }
 
     /**

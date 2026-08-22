@@ -23,12 +23,18 @@ import java.util.Map;
  * compose at render rather than one being folded into the other. A model can have both, one, or
  * neither.
  *
+ * <p>A body can also pose the container its mesh was built around, which the mesh flattens away and
+ * names nowhere. That is a parent transform above every bone the mesh holds at top level rather than
+ * a bone of its own, so it is carried apart from them and composes above them at render.
+ *
  * @param model the model class's simple name, the same spelling the pose table keys a model by
+ * @param container the expression each touched channel of the flattened container evaluates to
  * @param bones bone name to the expression each touched channel evaluates to, in first-write order
  * @param clipSites the authored clips the body applies, in the order it applies them
  */
 public record PoseProgram(
     @NotNull String model,
+    @NotNull Map<PoseChannel, PoseExpr> container,
     @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
     @NotNull List<PoseClipSite> clipSites
 ) {
@@ -36,10 +42,11 @@ public record PoseProgram(
     /**
      * Whether this model poses nothing at all.
      *
-     * @return {@code true} when no channel of any bone is written and no clip is applied
+     * @return {@code true} when no channel of any bone or of the container is written and no clip is
+     *     applied
      */
     public boolean isEmpty() {
-        return this.bones.isEmpty() && this.clipSites.isEmpty();
+        return this.container.isEmpty() && this.bones.isEmpty() && this.clipSites.isEmpty();
     }
 
     /**

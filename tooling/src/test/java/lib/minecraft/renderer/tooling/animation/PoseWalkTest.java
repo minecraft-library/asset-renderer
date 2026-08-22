@@ -77,6 +77,9 @@ class PoseWalkTest {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
+    /** What a reference to one entry of a dragon's flight history is named by. */
+    private static final @NotNull String HISTORY_AT = "getHistoricalPos(";
+
     /** The shipped table, relative to the renderer root every Test task runs at. */
     private static final @NotNull Path SHIPPED_GEOMETRY =
         Path.of("src/main/resources/lib/minecraft/renderer/entity_geometry.json");
@@ -684,33 +687,64 @@ class PoseWalkTest {
     }
 
     @Test
-    @DisplayName("a turtle carrying an egg drops by one, and everything the container held drops with it")
-    void aFlattenedContainerFoldsOntoTheBonesItHeld() {
+    @DisplayName("a turtle carrying an egg drops by one, and what drops is the container it hangs off")
+    void aFlattenedContainerIsCarriedAsAContainer() {
         // AdultTurtleModel poses the container it was built around - root.y -= 1, while the egg belly
-        // is showing - and the mesh flattened that container away, so the write has nowhere of its
-        // own to land. It lands on each of the bones the container held instead, which is the same
-        // total move: translation composes by addition.
+        // is showing - and the mesh flattened that container away, so there is no bone of that name
+        // for the write to land on. It is carried as the pose's own container instead, which is what
+        // it is: one parent transform above every bone the mesh names at top level.
         //
-        // Two things have to be right and each is a different animal. The set has to be the WHOLE of
-        // what the container held, because a bone left out stays where it was while the rest of the
-        // turtle drops. And what each bone is given has to be the amount the write MOVED the
-        // container by rather than what it left it holding - which is why a turtle with no egg moves
-        // by exactly nothing, and why the container's own value never has to be known.
+        // What it holds is a NUMBER where a bone would hold a name, and that is the flattening
+        // showing through. A bone reads its authored pose, which only the mesh knows; a flattened
+        // container has none left to read, the flattening having already put whatever it held into
+        // the bones below it - so it starts at rest, and a turtle with no egg holds at exactly zero.
         PoseProgram turtle = extracted.get("net/minecraft/client/model/animal/turtle/AdultTurtleModel");
         assertNotNull(turtle, "AdultTurtleModel is expected to extract");
 
-        PoseExpr shift = new PoseExpr.Select(
-            PosePredicate.Compare.of(PosePredicate.Comparison.EQ,
-                new PoseExpr.Input("hasEgg"), PoseExpr.Const.of(0)),
-            PoseExpr.Const.of(0f), PoseExpr.Const.of(-1f));
+        assertEquals(Map.of(PoseChannel.Y, new PoseExpr.Select(
+                PosePredicate.Compare.of(PosePredicate.Comparison.EQ,
+                    new PoseExpr.Input("hasEgg"), PoseExpr.Const.of(0)),
+                PoseExpr.Const.of(0f), PoseExpr.Const.of(-1f))),
+            turtle.container(), "the container drops by one, and rests at zero without an egg");
+        assertFalse(turtle.bones().containsKey("body"),
+            "and no bone the model never posed is written to in order to say so");
+    }
 
-        Set<String> held = Set.of("head", "body", "egg_belly",
-            "right_hind_leg", "left_hind_leg", "right_front_leg", "left_front_leg");
-        assertEquals(held, turtle.bones().keySet(), "the container held every bone this mesh names");
-        for (String bone : held)
-            assertEquals(PoseExpr.Op.of(PoseOperator.ADD, new PoseExpr.BoneRead(bone, PoseChannel.Y), shift),
-                turtle.bones().get(bone).get(PoseChannel.Y),
-                bone + " drops by whatever the container it hung off was moved by");
+    @Test
+    @DisplayName("a dragon's neck and tail each reach one place further back than the segment before")
+    void aDragonNamesEveryFlightHistoryEntryItReads() {
+        // The neck and the tail are cursor chains: a segment is posed from the segment before it,
+        // which was itself posed from the flight history one entry further back. So the entries a
+        // segment reaches are the entries the one before it reaches plus exactly one more, and that
+        // is the shape a reference named by the number it was asked for buys. A walk that dropped
+        // the argument would name one reference everywhere and render a neck and a tail that each
+        // move as one rigid piece - smoothly, and wrongly.
+        PoseProgram dragon = extracted.get("net/minecraft/client/model/monster/dragon/EnderDragonModel");
+        assertNotNull(dragon, "EnderDragonModel is expected to extract");
+
+        for (String limb : List.of("neck", "tail")) {
+            int segments = "neck".equals(limb) ? 5 : 12;
+            for (int segment = 1; segment < segments; segment++) {
+                Set<Integer> behind = historySampledBy(dragon, limb + (segment - 1));
+                Set<Integer> reached = historySampledBy(dragon, limb + segment);
+                assertTrue(reached.containsAll(behind),
+                    limb + segment + " reaches everything " + limb + (segment - 1) + " does");
+                assertEquals(behind.size() + 1, reached.size(),
+                    limb + segment + " reaches exactly one entry further back than the segment before it");
+            }
+        }
+
+        // The head is posed from the freshest entry of all, and it is the only thing that reads it.
+        assertTrue(historySampledBy(dragon, "head").contains(0), "the head reads where the dragon is now");
+        for (String bone : dragon.bones().keySet())
+            assertEquals("head".equals(bone), historySampledBy(dragon, bone).contains(0),
+                bone + " reads the freshest entry only if it is the head");
+
+        // All three container channels are what puts the dragon where it is drawn, and the turn is
+        // why a container is carried rather than pushed down onto the bones it holds: a rotation
+        // reaches each child's POSITION as well as its rotation, so no per-bone term expresses it.
+        assertEquals(Set.of(PoseChannel.Y, PoseChannel.Z, PoseChannel.X_ROT), dragon.container().keySet(),
+            "the body places the container twice and turns it once");
     }
 
     @Test
@@ -861,9 +895,29 @@ class PoseWalkTest {
     private static @NotNull List<PoseExpr> nodesOf(@NotNull PoseProgram program) {
         List<PoseExpr> out = new ArrayList<>();
         Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
+        program.container().values().forEach(expr -> collectNodes(expr, out, walked));
         program.bones().values().forEach(channels -> channels.values()
             .forEach(expr -> collectNodes(expr, out, walked)));
         return out;
+    }
+
+    /** Which entries of the flight history one bone's channels reach. */
+    private static @NotNull Set<Integer> historySampledBy(
+        @NotNull PoseProgram program, @NotNull String bone) {
+
+        List<PoseExpr> reached = new ArrayList<>();
+        Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
+        program.bones().getOrDefault(bone, Map.of()).values()
+            .forEach(expr -> collectNodes(expr, reached, walked));
+
+        Set<Integer> sampled = new TreeSet<>();
+        for (PoseExpr node : reached) {
+            if (!(node instanceof PoseExpr.InputFn question)) continue;
+            String receiver = question.receiver();
+            if (!receiver.startsWith(HISTORY_AT) || !receiver.endsWith(")")) continue;
+            sampled.add(Integer.parseInt(receiver.substring(HISTORY_AT.length(), receiver.length() - 1)));
+        }
+        return sampled;
     }
 
     /** Every node an expression reaches, following the graph once rather than each of its paths. */
@@ -936,7 +990,7 @@ class PoseWalkTest {
         // so this number is a floor rather than a target. It is asserted so that adding those
         // cannot quietly move it the wrong way, and it is expected to be edited upward when they
         // land - the refusal reasons are the work list.
-        assertEquals(110, extracted.size(), PoseWalkTest::refusalReport);
+        assertEquals(111, extracted.size(), PoseWalkTest::refusalReport);
     }
 
     // ------------------------------------------------------------------------------------

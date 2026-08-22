@@ -73,18 +73,25 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   named on the instruction answers nothing either way: javac writes the LEAF as the owner of an
   inherited field's reference, so it names the class that used the field rather than the one that
   declares it. `PoseWalk.isModelRoot` resolves instead, the way `isReset` does.
-- **A write to a flattened container folds onto the bones it held, and both guards have no subject.**
-  Children are placed by their container's transform and then their own, so a container with no
-  rotation and no scale contributes a translation, and translation composes by addition - shifting
-  the container by an amount and shifting each child by that same amount put every child in the same
-  place. What a bone is given is what the write MOVED the container by rather than what it left it
-  holding, which is why the container's own value never has to be known: a mesh that flattened it
-  placed the children where it left them. A rotation or a scale reaches each child's POSITION as well
-  and is refused; so is a write that does not reach the value it replaces. Nothing in the corpus meets
-  either guard - `EnderDragonModel`, which writes an absolute `root.y` and a `root.xRot` and would
-  meet both, refuses before it reaches them. Which bones the container held is a fact only the mesh
-  has, so `GeometryFlow.emit` answers it and `PoseFlow` takes it; a class whose derivations disagree
-  gets no answer rather than one of them.
+- **A write to a flattened container is carried as the pose's own container, never pushed down onto
+  the bones it held.** It is a parent transform above every bone the mesh names at top level, and
+  `EntityPose.container` is where it lives on both sides. Only a translation could be pushed down at
+  all - that composes by addition, so every child taking the same amount lands where the container
+  would have put it - and a rotation cannot: it turns each child's POSITION about the container's
+  pivot as well as composing with the child's own rotation, and the three Euler angles a bone carries
+  are applied in one fixed order, so the two together are not a triple. Two models pose one and they
+  are why both halves are needed: `AdultTurtleModel` moves it, `EnderDragonModel` places it twice and
+  turns it once.
+- **A flattened container starts at REST, where a bone starts at its authored pose.** The geometry
+  flow dissolves the root's pose into the bones below it - the plain root vanilla builds at
+  `PartPose.ZERO`, and equally the transformed root a whole-mesh scale or an aged-down proportion
+  rewrites, which `applyMeshTransformerScaling` pushes onto the top-level bones as a translate and
+  onto every bone as a factor. So every bone a mesh names at top level already carries whatever the
+  container was holding, and a read of a container channel nothing has written is a NUMBER rather than
+  a name. `PoseWalk.unwritten` is the one place that is decided, for the channel read and for the arm
+  a fork did not write alike, which is what keeps the internal sentinel out of the shipped bytes.
+  Which bones the container held is a fact only the mesh has, so `GeometryFlow.emit` answers it and
+  `PoseFlow` takes it; a class whose derivations disagree gets no answer rather than one of them.
 - **A figure the model carries between poses is named, and only when it is stepped along.** A field a
   body accumulates - `FoxModel.legMotionPos += 0.67` - is not a function of the render state, so it
   is named rather than derived, on the ground that binding it to nothing reproduces a real vanilla

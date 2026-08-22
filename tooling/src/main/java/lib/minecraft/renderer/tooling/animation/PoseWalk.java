@@ -105,9 +105,10 @@ public final class PoseWalk {
      * What the container a mesh flattened away is called while a walk is holding its channels.
      *
      * <p>Spelled so no mesh can name a bone the same way, the vocabulary a bone name is drawn from
-     * being the literals vanilla hands {@code addOrReplaceChild}. It never reaches a pose: the fold
-     * takes it out again, and a walk that left one standing fails the assertion that every posed bone
-     * is one its mesh declares.
+     * being the literals vanilla hands {@code addOrReplaceChild}. It never reaches a pose: the
+     * container is taken out into its own member, its channels read as numbers rather than as reads
+     * of it, and a walk that left one standing fails the assertion that every posed bone is one its
+     * mesh declares.
      */
     private static final @NotNull String MESH_ROOT = "<mesh root>";
 
@@ -375,7 +376,7 @@ public final class PoseWalk {
         // inherits is the reset. That is an empty pose rather than a refusal, and the two have to
         // stay distinguishable or a walk that failed reads as a subject that simply holds still.
         if (body == null) return new PoseOutcome.Extracted(
-            new PoseProgram(ClassKit.simpleName(modelClass), Map.of(), List.of()));
+            new PoseProgram(ClassKit.simpleName(modelClass), Map.of(), Map.of(), List.of()));
 
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
             ClipBindingResolver.fieldToClip(cache, modelClass),
@@ -384,10 +385,11 @@ public final class PoseWalk {
             new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
             new LinkedHashMap<>(), new int[1], new int[1]);
 
+        Map<PoseChannel, PoseExpr> container;
         try {
             walkBody(body, context, 0);
-            foldMeshRoot(context, rootBones);
             requireAnswerable(context);
+            container = liftContainer(context, rootBones);
         } catch (IllegalStateException error) {
             // Narrowed to what the walk itself raises. A jar that lost a class raises something
             // else, and shipping that as a pose's reason would turn a broken run into a table
@@ -396,8 +398,8 @@ public final class PoseWalk {
             diagnostics.info("%s not extracted: %s", ClassKit.simpleName(modelClass), reason);
             return new PoseOutcome.Refused(reason);
         }
-        return new PoseOutcome.Extracted(new PoseProgram(
-            ClassKit.simpleName(modelClass), freeze(context.pose()), List.copyOf(context.clipSites())));
+        return new PoseOutcome.Extracted(new PoseProgram(ClassKit.simpleName(modelClass),
+            container, freeze(context.pose()), List.copyOf(context.clipSites())));
     }
 
     /**
@@ -1142,10 +1144,10 @@ public final class PoseWalk {
 
             Map<PoseChannel, PoseExpr> merged = new EnumMap<>(PoseChannel.class);
             for (PoseChannel channel : channels) {
-                // An arm that did not write leaves the authored pose standing, which is exactly what
-                // a read of the untouched channel answers.
-                PoseExpr whenTaken = left.getOrDefault(channel, new PoseExpr.BoneRead(bone, channel));
-                PoseExpr whenNot = right.getOrDefault(channel, new PoseExpr.BoneRead(bone, channel));
+                // An arm that did not write leaves standing whatever the channel already held, which
+                // is exactly what a read of the untouched channel answers.
+                PoseExpr whenTaken = left.getOrDefault(channel, unwritten(bone, channel));
+                PoseExpr whenNot = right.getOrDefault(channel, unwritten(bone, channel));
                 merged.put(channel, whenTaken.equals(whenNot)
                     ? whenTaken : new PoseExpr.Select(condition, whenTaken, whenNot));
             }
@@ -1643,17 +1645,10 @@ public final class PoseWalk {
         for (Map<PoseChannel, PoseExpr> channels : context.pose().values())
             for (PoseExpr expr : channels.values()) nodes(expr, reached, walked);
 
-        for (PoseExpr node : reached) {
+        for (PoseExpr node : reached)
             if (node instanceof PoseExpr.Carried figure && !context.accumulated().contains(figure.field()))
                 throw new IllegalStateException("poses off " + figure.field()
                     + ", which it keeps for itself and never steps along");
-            // A read of the flattened container, which the fold answers by handing each of its
-            // children the amount it moved by. One that survived is a read of the container's own
-            // value, which no bone carries and nothing downstream could seed.
-            if (node instanceof PoseExpr.BoneRead read && MESH_ROOT.equals(read.bone()))
-                throw new IllegalStateException("poses off the mesh root's own " + read.channel().token()
-                    + ", which a flattened container carries nowhere");
-        }
     }
 
     /**
@@ -2576,90 +2571,28 @@ public final class PoseWalk {
     }
 
     /**
-     * Folds what a body did to the flattened mesh root onto the bones that hang off it.
+     * Takes what a body did to the flattened mesh root out of the pose, as the pose's own container.
      *
-     * <p>Children are placed by their container's transform and then their own, so a container
-     * carrying no rotation and no scale contributes a translation and nothing else - and a
-     * translation composes by addition, so shifting the container by an amount and shifting each of
-     * its children by that same amount put every child in the same place. The container is gone from
-     * the mesh, which is why the second spelling is the one that can be written down.
+     * <p>It is a parent transform, so it is carried as one rather than pushed down onto the bones it
+     * holds. Only a translation could be pushed down at all - that composes by addition, so every
+     * child taking the same amount lands where the container would have put it - and a rotation
+     * cannot: it turns each child's POSITION about the container's pivot as well as composing with
+     * the child's own rotation, and the three Euler angles a bone carries are applied in one fixed
+     * order, so the two together are not a triple. Carrying the container as a container is the
+     * spelling that answers for all three, and it says what the body did besides.
      *
-     * <p>The guard is the whole of what makes that true and is not optional. A rotation turns the
-     * subtree about the container's own pivot, which reaches each child's POSITION as well as its
-     * rotation and is no term any one of them can be handed; a scale is the same argument. Neither
-     * is refused for being hard - they are refused because there is no answer of this shape.
-     *
-     * <p>What the fold gives a bone is what the write MOVED the container by rather than what it left
-     * it holding, which is why the container's own value never has to be known. It is already inside
-     * the children: a mesh that flattened the container placed them where it left them.
-     *
-     * <p>A bone this names is one the model never wrote to, which is the one thing here a reader
-     * would not expect from a pose. It is what the arithmetic says: the shift reaches every child,
-     * and a child the model never posed is still a child.
+     * <p>A container over a mesh that names no bone at top level reaches nothing, which is a mesh and
+     * a model disagreeing about what the model is posing rather than a pose that moves nothing.
      */
-    private static void foldMeshRoot(@NotNull Context context, @NotNull Set<String> rootBones) {
+    private static @NotNull Map<PoseChannel, PoseExpr> liftContainer(
+        @NotNull Context context, @NotNull Set<String> rootBones) {
+
         Map<PoseChannel, PoseExpr> container = context.pose().remove(MESH_ROOT);
-        if (container == null) return;
+        if (container == null) return Map.of();
 
         if (rootBones.isEmpty())
             throw new IllegalStateException("poses through the mesh root, and this mesh names no bone under it");
-
-        for (Map.Entry<PoseChannel, PoseExpr> entry : container.entrySet()) {
-            PoseChannel channel = entry.getKey();
-            if (channel.kind() != PoseChannel.Kind.POSITION)
-                throw new IllegalStateException("poses the mesh root's " + channel.token()
-                    + ", which is not a move its children can each be given");
-
-            PoseExpr shift = shiftOf(entry.getValue(), channel);
-            if (shift == null)
-                throw new IllegalStateException("moves the mesh root's " + channel.token()
-                    + " to a place rather than by an amount, which its children cannot each be given");
-
-            for (String bone : rootBones)
-                write(context, bone, channel,
-                    PoseExpr.Op.of(PoseOperator.ADD, current(context.pose(), bone, channel), shift));
-        }
-    }
-
-    /**
-     * What a write to the container's channel moved it BY, rather than what it left it holding.
-     *
-     * <p>Read by taking the container's own value as the origin and keeping everything added to it:
-     * a channel left as it was found has moved by nothing, and one built by adding or subtracting a
-     * term that does not mention it has moved by that term. A write that does not reach the value it
-     * is replacing has no such reading and answers nothing, because the amount would be the
-     * difference against a value the flattened mesh no longer carries anywhere.
-     *
-     * @param written what the body left the channel holding
-     * @param channel the channel it wrote
-     * @return the amount it moved by, or {@code null} when the write is not a move
-     */
-    private static @Nullable PoseExpr shiftOf(@NotNull PoseExpr written, @NotNull PoseChannel channel) {
-        if (written.equals(new PoseExpr.BoneRead(MESH_ROOT, channel))) return PoseExpr.Const.of(0f);
-
-        if (written instanceof PoseExpr.Select select) {
-            // Each arm is a move of its own, so the choice between them is a choice of amount.
-            PoseExpr whenTrue = shiftOf(select.whenTrue(), channel);
-            PoseExpr whenFalse = shiftOf(select.whenFalse(), channel);
-            return whenTrue == null || whenFalse == null
-                ? null : new PoseExpr.Select(select.condition(), whenTrue, whenFalse);
-        }
-
-        if (!(written instanceof PoseExpr.Op op) || op.operands().size() != 2) return null;
-        PoseExpr left = op.operands().getFirst();
-        PoseExpr right = op.operands().getLast();
-        PoseExpr fromLeft = shiftOf(left, channel);
-        PoseExpr fromRight = shiftOf(right, channel);
-        // Exactly one side, because a term reaching the container's value twice is not one it was
-        // moved by - and the operand that does not reach it is carried through as itself.
-        if (fromLeft != null && fromRight != null) return null;
-        if (op.operator() == PoseOperator.ADD && fromLeft != null)
-            return PoseExpr.Op.of(PoseOperator.ADD, fromLeft, right);
-        if (op.operator() == PoseOperator.ADD && fromRight != null)
-            return PoseExpr.Op.of(PoseOperator.ADD, left, fromRight);
-        if (op.operator() == PoseOperator.SUB && fromLeft != null)
-            return PoseExpr.Op.of(PoseOperator.SUB, fromLeft, right);
-        return null;
+        return Collections.unmodifiableMap(new EnumMap<>(container));
     }
 
     /** Records one channel's new value. */
@@ -2669,13 +2602,33 @@ public final class PoseWalk {
         context.pose().computeIfAbsent(bone, key -> new EnumMap<>(PoseChannel.class)).put(channel, value);
     }
 
-    /** A channel's value so far - what a write left, or the authored pose the reset restored. */
+    /** A channel's value so far - what a write left, or what it held before any write reached it. */
     private static @NotNull PoseExpr current(
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose, @NotNull String bone, @NotNull PoseChannel channel) {
 
         Map<PoseChannel, PoseExpr> written = pose.get(bone);
         PoseExpr held = written == null ? null : written.get(channel);
-        return held != null ? held : new PoseExpr.BoneRead(bone, channel);
+        return held != null ? held : unwritten(bone, channel);
+    }
+
+    /**
+     * What a channel held before any write reached it.
+     *
+     * <p>A bone held its authored pose, which the reset restored and which only the mesh knows, so
+     * it is named rather than valued. The flattened container held its REST value, which is a
+     * number: the geometry flow dissolves the root's pose into the bones below it, the plain root
+     * vanilla builds at zero and equally the transformed root a whole-mesh scale or an aged-down
+     * proportion rewrites. Every bone a mesh names at top level therefore already carries whatever
+     * the container was holding, and what a pose writes to is a container that starts at rest.
+     */
+    private static @NotNull PoseExpr unwritten(@NotNull String bone, @NotNull PoseChannel channel) {
+        if (!MESH_ROOT.equals(bone)) return new PoseExpr.BoneRead(bone, channel);
+        return switch (channel.kind()) {
+            case POSITION, ROTATION -> PoseExpr.Const.of(0f);
+            case SCALE -> PoseExpr.Const.of(1f);
+            // A part draws, and skips none of its own cubes, until something says otherwise.
+            case FLAG -> PoseExpr.Const.of(channel == PoseChannel.VISIBLE ? 1 : 0);
+        };
     }
 
     /** The typed {@code setupAnim} nearest the leaf, skipping the erased override beside it. */

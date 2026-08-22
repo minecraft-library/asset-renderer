@@ -55,6 +55,9 @@ public final class PoseJson {
     /** The member one of those is used through. */
     private static final @NotNull String REF = "ref";
 
+    /** The member holding what this model does to the container its mesh flattened away. */
+    private static final @NotNull String CONTAINER = "container";
+
     /**
      * Writes one model's outcome.
      *
@@ -67,12 +70,21 @@ public final class PoseJson {
 
         PoseProgram program = ((PoseOutcome.Extracted) outcome).program();
         Map<String, Map<PoseChannel, PoseExpr>> bones = new TreeMap<>(program.bones());
-        Shared shared = Shared.of(bones, program.clipSites());
+        Shared shared = Shared.of(program.container(), bones, program.clipSites());
 
         JsonTree node = JsonTree.object();
         if (!shared.table().isEmpty()) {
             JsonTree declared = node.childArray(SHARED);
             for (JsonTree entry : shared.table()) declared.add(entry);
+        }
+
+        // Above the bones, which is where it sits: the container is the parent transform every bone
+        // the mesh names at top level hangs off, and the mesh names it nowhere.
+        if (!program.container().isEmpty()) {
+            JsonTree held = node.child(CONTAINER);
+            for (PoseChannel channel : PoseChannel.values())
+                if (program.container().containsKey(channel))
+                    held.put(channel.token(), shared.use(program.container().get(channel)));
         }
 
         JsonTree written = node.child("bones");
@@ -147,10 +159,11 @@ public final class PoseJson {
         private final @NotNull List<JsonTree> table = new ArrayList<>();
 
         static @NotNull Shared of(
+            @NotNull Map<PoseChannel, PoseExpr> container,
             @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones, @NotNull List<PoseClipSite> sites) {
 
             Shared shared = new Shared();
-            forEachRoot(bones, sites, root -> shared.reached(shared.intern(root)));
+            forEachRoot(container, bones, sites, root -> shared.reached(shared.intern(root)));
             for (List<Integer> below : List.copyOf(shared.operands))
                 for (int operand : below) shared.reached(operand);
             // Ascending order is deepest first, so everything a node names is in the table above it.
@@ -171,9 +184,12 @@ public final class PoseJson {
          * number a function of the pose rather than of the traversal that found it.
          */
         private static void forEachRoot(
+            @NotNull Map<PoseChannel, PoseExpr> container,
             @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones, @NotNull List<PoseClipSite> sites,
             @NotNull Consumer<PoseExpr> root) {
 
+            for (PoseChannel channel : PoseChannel.values())
+                if (container.containsKey(channel)) root.accept(container.get(channel));
             bones.forEach((bone, channels) -> {
                 for (PoseChannel channel : PoseChannel.values())
                     if (channels.containsKey(channel)) root.accept(channels.get(channel));

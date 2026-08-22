@@ -68888,26 +68888,6 @@
     "AdultTurtleModel": {
       "shared": [
         {
-          "select": [
-            {
-              "eq": [
-                {
-                  "input": "hasEgg"
-                },
-                {
-                  "iconst": 0
-                }
-              ]
-            },
-            {
-              "const": 0.0
-            },
-            {
-              "const": -1.0
-            }
-          ]
-        },
-        {
           "mul": [
             {
               "input": "walkAnimationPos"
@@ -68926,7 +68906,7 @@
                     {
                       "f2d": [
                         {
-                          "ref": 1
+                          "ref": 0
                         }
                       ]
                     }
@@ -68981,7 +68961,7 @@
                     {
                       "select": [
                         {
-                          "ref": 4
+                          "ref": 3
                         },
                         {
                           "const": 1.0
@@ -68992,7 +68972,7 @@
                       ]
                     },
                     {
-                      "ref": 5
+                      "ref": 4
                     }
                   ]
                 }
@@ -69003,7 +68983,7 @@
         {
           "select": [
             {
-              "ref": 4
+              "ref": 3
             },
             {
               "const": 1.0
@@ -69022,7 +69002,7 @@
                     {
                       "mul": [
                         {
-                          "ref": 1
+                          "ref": 0
                         },
                         {
                           "const": 0.6
@@ -69048,7 +69028,7 @@
         {
           "neg": [
             {
-              "ref": 8
+              "ref": 7
             }
           ]
         },
@@ -69063,7 +69043,7 @@
                         {
                           "add": [
                             {
-                              "ref": 1
+                              "ref": 0
                             },
                             {
                               "const": 3.1415927
@@ -69089,61 +69069,42 @@
             {
               "f2d": [
                 {
-                  "ref": 5
+                  "ref": 4
                 }
               ]
             }
           ]
         }
       ],
+      "container": {
+        "y": {
+          "select": [
+            {
+              "eq": [
+                {
+                  "input": "hasEgg"
+                },
+                {
+                  "iconst": 0
+                }
+              ]
+            },
+            {
+              "const": 0.0
+            },
+            {
+              "const": -1.0
+            }
+          ]
+        }
+      },
       "bones": {
-        "body": {
-          "y": {
-            "add": [
-              {
-                "bone": [
-                  "body",
-                  "y"
-                ]
-              },
-              {
-                "ref": 0
-              }
-            ]
-          }
-        },
         "egg_belly": {
-          "y": {
-            "add": [
-              {
-                "bone": [
-                  "egg_belly",
-                  "y"
-                ]
-              },
-              {
-                "ref": 0
-              }
-            ]
-          },
           "visible": {
             "input": "hasEgg"
           }
         },
         "head": {
-          "y": {
-            "add": [
-              {
-                "bone": [
-                  "head",
-                  "y"
-                ]
-              },
-              {
-                "ref": 0
-              }
-            ]
-          },
           "x_rot": {
             "mul": [
               {
@@ -69166,26 +69127,13 @@
           }
         },
         "left_front_leg": {
-          "y": {
-            "add": [
-              {
-                "bone": [
-                  "left_front_leg",
-                  "y"
-                ]
-              },
-              {
-                "ref": 0
-              }
-            ]
-          },
           "x_rot": {
-            "ref": 2
+            "ref": 1
           },
           "y_rot": {
             "select": [
               {
-                "ref": 3
+                "ref": 2
               },
               {
                 "bone": [
@@ -69200,7 +69148,7 @@
                       {
                         "mul": [
                           {
-                            "ref": 6
+                            "ref": 5
                           },
                           {
                             "const": 8.0
@@ -69213,7 +69161,7 @@
                     ]
                   },
                   {
-                    "ref": 7
+                    "ref": 6
                   }
                 ]
               }
@@ -69222,10 +69170,10 @@
           "z_rot": {
             "select": [
               {
-                "ref": 3
+                "ref": 2
               },
               {
-                "ref": 8
+                "ref": 7
               },
               {
                 "bone": [
@@ -69237,36 +69185,23 @@
           }
         },
         "left_hind_leg": {
-          "y": {
-            "add": [
-              {
-                "bone": [
-                  "left_hind_leg",
-                  "y"
-                ]
-              },
-              {
-                "ref": 0
-              }
-            ]
-          },
           "x_rot": {
             "select": [
               {
-                "ref": 3
+                "ref": 2
+              },
+              {
+                "ref": 8
               },
               {
                 "ref": 9
-              },
-              {
-                "ref": 10
               }
             ]
           },
           "y_rot": {
             "select": [
               {
-                "ref": 3
+                "ref": 2
               },
               {
                 "bone": [
@@ -69279,7 +69214,7 @@
                   {
                     "mul": [
                       {
-                        "ref": 11
+                        "ref": 10
                       },
                       {
                         "const": 3.0
@@ -69295,26 +69230,13 @@
           }
         },
         "right_front_leg": {
-          "y": {
-            "add": [
-              {
-                "bone": [
-                  "right_front_leg",
-                  "y"
-                ]
-              },
-              {
-                "ref": 0
-              }
-            ]
-          },
           "x_rot": {
-            "ref": 10
+            "ref": 9
           },
           "y_rot": {
             "select": [
               {
-                "ref": 3
+                "ref": 2
               },
               {
                 "bone": [
@@ -69331,7 +69253,7 @@
                           {
                             "neg": [
                               {
-                                "ref": 6
+                                "ref": 5
                               }
                             ]
                           },
@@ -69346,7 +69268,7 @@
                     ]
                   },
                   {
-                    "ref": 7
+                    "ref": 6
                   }
                 ]
               }
@@ -69355,10 +69277,10 @@
           "z_rot": {
             "select": [
               {
-                "ref": 3
+                "ref": 2
               },
               {
-                "ref": 9
+                "ref": 8
               },
               {
                 "bone": [
@@ -69370,36 +69292,23 @@
           }
         },
         "right_hind_leg": {
-          "y": {
-            "add": [
-              {
-                "bone": [
-                  "right_hind_leg",
-                  "y"
-                ]
-              },
-              {
-                "ref": 0
-              }
-            ]
-          },
           "x_rot": {
             "select": [
               {
-                "ref": 3
-              },
-              {
-                "ref": 8
-              },
-              {
                 "ref": 2
+              },
+              {
+                "ref": 7
+              },
+              {
+                "ref": 1
               }
             ]
           },
           "y_rot": {
             "select": [
               {
-                "ref": 3
+                "ref": 2
               },
               {
                 "bone": [
@@ -69414,7 +69323,7 @@
                       {
                         "neg": [
                           {
-                            "ref": 11
+                            "ref": 10
                           }
                         ]
                       },
@@ -138045,7 +137954,5091 @@
       }
     },
     "EnderDragonModel": {
-      "refused": "asks the render state for getHistoricalPos of a number this walk cannot phrase a test of, which is not a constant it can be named by"
+      "shared": [
+        {
+          "mul": [
+            {
+              "input": "flapTime"
+            },
+            {
+              "const": 6.2831855
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "mth_sin": [
+                {
+                  "f2d": [
+                    {
+                      "sub": [
+                        {
+                          "ref": 0
+                        },
+                        {
+                          "const": 1.0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "const": 1.0
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "ref": 1
+                    },
+                    {
+                      "ref": 1
+                    }
+                  ]
+                },
+                {
+                  "mul": [
+                    {
+                      "ref": 1
+                    },
+                    {
+                      "const": 2.0
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "const": 0.05
+            }
+          ]
+        },
+        {
+          "wrap_degrees": [
+            {
+              "sub": [
+                {
+                  "input_fn": [
+                    "getHistoricalPos(5)",
+                    "yRot"
+                  ]
+                },
+                {
+                  "input_fn": [
+                    "getHistoricalPos(10)",
+                    "yRot"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "wrap_degrees": [
+                    {
+                      "sub": [
+                        {
+                          "input_fn": [
+                            "getHistoricalPos(5)",
+                            "yRot"
+                          ]
+                        },
+                        {
+                          "input_fn": [
+                            "getHistoricalPos(6)",
+                            "yRot"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.017453292
+                }
+              ]
+            },
+            {
+              "const": 1.5
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 4
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "add": [
+                {
+                  "const": 0.0
+                },
+                {
+                  "ref": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isLandingOrTakingOff"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "eq": [
+            {
+              "input": "isSitting"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "libm_max": [
+            {
+              "ddiv": [
+                {
+                  "input": "distanceToEgg"
+                },
+                {
+                  "dconst": 4.0
+                }
+              ]
+            },
+            {
+              "dconst": 1.0
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "mul": [
+                {
+                  "mth_cos": [
+                    {
+                      "ref": 6
+                    }
+                  ]
+                },
+                {
+                  "const": 0.15
+                }
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "select": [
+                                {
+                                  "ref": 7
+                                },
+                                {
+                                  "select": [
+                                    {
+                                      "ref": 8
+                                    },
+                                    {
+                                      "dsub": [
+                                        {
+                                          "input_fn": [
+                                            "getHistoricalPos(5)",
+                                            "y"
+                                          ]
+                                        },
+                                        {
+                                          "input_fn": [
+                                            "getHistoricalPos(6)",
+                                            "y"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "dconst": 0.0
+                                    }
+                                  ]
+                                },
+                                {
+                                  "ddiv": [
+                                    {
+                                      "dconst": 0.0
+                                    },
+                                    {
+                                      "ref": 9
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 10
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 11
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "bone": [
+                "neck0",
+                "x"
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 5
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 12
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "wrap_degrees": [
+                    {
+                      "sub": [
+                        {
+                          "input_fn": [
+                            "getHistoricalPos(4)",
+                            "yRot"
+                          ]
+                        },
+                        {
+                          "input_fn": [
+                            "getHistoricalPos(6)",
+                            "yRot"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.017453292
+                }
+              ]
+            },
+            {
+              "const": 1.5
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 14
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "add": [
+                {
+                  "const": 0.45
+                },
+                {
+                  "ref": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "mul": [
+                {
+                  "mth_cos": [
+                    {
+                      "ref": 16
+                    }
+                  ]
+                },
+                {
+                  "const": 0.15
+                }
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "select": [
+                                {
+                                  "ref": 7
+                                },
+                                {
+                                  "select": [
+                                    {
+                                      "ref": 8
+                                    },
+                                    {
+                                      "dsub": [
+                                        {
+                                          "input_fn": [
+                                            "getHistoricalPos(4)",
+                                            "y"
+                                          ]
+                                        },
+                                        {
+                                          "input_fn": [
+                                            "getHistoricalPos(6)",
+                                            "y"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "dconst": 1.0
+                                    }
+                                  ]
+                                },
+                                {
+                                  "ddiv": [
+                                    {
+                                      "dconst": 1.0
+                                    },
+                                    {
+                                      "ref": 9
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 17
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 18
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 13
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 15
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 19
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "wrap_degrees": [
+                    {
+                      "sub": [
+                        {
+                          "input_fn": [
+                            "getHistoricalPos(3)",
+                            "yRot"
+                          ]
+                        },
+                        {
+                          "input_fn": [
+                            "getHistoricalPos(6)",
+                            "yRot"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.017453292
+                }
+              ]
+            },
+            {
+              "const": 1.5
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 21
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "add": [
+                {
+                  "const": 0.9
+                },
+                {
+                  "ref": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "mul": [
+                {
+                  "mth_cos": [
+                    {
+                      "ref": 23
+                    }
+                  ]
+                },
+                {
+                  "const": 0.15
+                }
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "select": [
+                                {
+                                  "ref": 7
+                                },
+                                {
+                                  "select": [
+                                    {
+                                      "ref": 8
+                                    },
+                                    {
+                                      "dsub": [
+                                        {
+                                          "input_fn": [
+                                            "getHistoricalPos(3)",
+                                            "y"
+                                          ]
+                                        },
+                                        {
+                                          "input_fn": [
+                                            "getHistoricalPos(6)",
+                                            "y"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "dconst": 2.0
+                                    }
+                                  ]
+                                },
+                                {
+                                  "ddiv": [
+                                    {
+                                      "dconst": 2.0
+                                    },
+                                    {
+                                      "ref": 9
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 24
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 25
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 20
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 22
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 26
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "wrap_degrees": [
+                    {
+                      "sub": [
+                        {
+                          "input_fn": [
+                            "getHistoricalPos(2)",
+                            "yRot"
+                          ]
+                        },
+                        {
+                          "input_fn": [
+                            "getHistoricalPos(6)",
+                            "yRot"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.017453292
+                }
+              ]
+            },
+            {
+              "const": 1.5
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 28
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "add": [
+                {
+                  "const": 1.3499999
+                },
+                {
+                  "ref": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "mul": [
+                {
+                  "mth_cos": [
+                    {
+                      "ref": 30
+                    }
+                  ]
+                },
+                {
+                  "const": 0.15
+                }
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "select": [
+                                {
+                                  "ref": 7
+                                },
+                                {
+                                  "select": [
+                                    {
+                                      "ref": 8
+                                    },
+                                    {
+                                      "dsub": [
+                                        {
+                                          "input_fn": [
+                                            "getHistoricalPos(2)",
+                                            "y"
+                                          ]
+                                        },
+                                        {
+                                          "input_fn": [
+                                            "getHistoricalPos(6)",
+                                            "y"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "dconst": 3.0
+                                    }
+                                  ]
+                                },
+                                {
+                                  "ddiv": [
+                                    {
+                                      "dconst": 3.0
+                                    },
+                                    {
+                                      "ref": 9
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 31
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 32
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 27
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 29
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 33
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "wrap_degrees": [
+                    {
+                      "sub": [
+                        {
+                          "input_fn": [
+                            "getHistoricalPos(1)",
+                            "yRot"
+                          ]
+                        },
+                        {
+                          "input_fn": [
+                            "getHistoricalPos(6)",
+                            "yRot"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.017453292
+                }
+              ]
+            },
+            {
+              "const": 1.5
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 35
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "add": [
+                {
+                  "const": 1.8
+                },
+                {
+                  "ref": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "mul": [
+                {
+                  "mth_cos": [
+                    {
+                      "ref": 37
+                    }
+                  ]
+                },
+                {
+                  "const": 0.15
+                }
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "select": [
+                                {
+                                  "ref": 7
+                                },
+                                {
+                                  "select": [
+                                    {
+                                      "ref": 8
+                                    },
+                                    {
+                                      "dsub": [
+                                        {
+                                          "input_fn": [
+                                            "getHistoricalPos(1)",
+                                            "y"
+                                          ]
+                                        },
+                                        {
+                                          "input_fn": [
+                                            "getHistoricalPos(6)",
+                                            "y"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "dconst": 4.0
+                                    }
+                                  ]
+                                },
+                                {
+                                  "ddiv": [
+                                    {
+                                      "dconst": 4.0
+                                    },
+                                    {
+                                      "ref": 9
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 38
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 39
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "bone": [
+                "neck0",
+                "y"
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 11
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 41
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 18
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 42
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 25
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 43
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 32
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "bone": [
+                "neck0",
+                "z"
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 5
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 12
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 45
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 15
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 19
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 46
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 22
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 26
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 47
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 29
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 33
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "wrap_degrees": [
+            {
+              "add": [
+                {
+                  "input_fn": [
+                    "getHistoricalPos(5)",
+                    "yRot"
+                  ]
+                },
+                {
+                  "div": [
+                    {
+                      "ref": 3
+                    },
+                    {
+                      "const": 2.0
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 0
+            }
+          ]
+        },
+        {
+          "mth_sin": [
+            {
+              "ref": 50
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "ref": 2
+            },
+            {
+              "const": 0.1
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "const": 0.75
+            },
+            {
+              "ref": 52
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "const": 1.3
+            },
+            {
+              "ref": 52
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "const": -0.5
+            },
+            {
+              "ref": 52
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "const": 1.0
+            },
+            {
+              "ref": 52
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "const": 0.5
+            },
+            {
+              "ref": 52
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "const": 0.125
+            },
+            {
+              "mul": [
+                {
+                  "mth_cos": [
+                    {
+                      "ref": 50
+                    }
+                  ]
+                },
+                {
+                  "const": 0.2
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "neg": [
+                {
+                  "add": [
+                    {
+                      "ref": 51
+                    },
+                    {
+                      "const": 0.125
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "const": 0.8
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mth_sin": [
+                    {
+                      "f2d": [
+                        {
+                          "add": [
+                            {
+                              "ref": 0
+                            },
+                            {
+                              "const": 2.0
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.5
+                }
+              ]
+            },
+            {
+              "const": 0.75
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "const": 0.0
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 6
+                    }
+                  ]
+                },
+                {
+                  "const": 0.05
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 61
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "dsub": [
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(12)",
+                                    "y"
+                                  ]
+                                },
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(11)",
+                                    "y"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "wrap_degrees": [
+                        {
+                          "sub": [
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(12)",
+                                "yRot"
+                              ]
+                            },
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(11)",
+                                "yRot"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 180.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 63
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 62
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 65
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "bone": [
+                "tail0",
+                "x"
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 64
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 66
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "bone": [
+                "tail0",
+                "y"
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 65
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "bone": [
+                "tail0",
+                "z"
+              ]
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 64
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 66
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 61
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 16
+                    }
+                  ]
+                },
+                {
+                  "const": 0.05
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 70
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "dsub": [
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(13)",
+                                    "y"
+                                  ]
+                                },
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(11)",
+                                    "y"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "wrap_degrees": [
+                        {
+                          "sub": [
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(13)",
+                                "yRot"
+                              ]
+                            },
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(11)",
+                                "yRot"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 180.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 72
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 71
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 74
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 67
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 73
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 75
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "wrap_degrees": [
+                        {
+                          "sub": [
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(14)",
+                                "yRot"
+                              ]
+                            },
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(11)",
+                                "yRot"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 180.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 77
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 70
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 23
+                    }
+                  ]
+                },
+                {
+                  "const": 0.05
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 79
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "dsub": [
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(14)",
+                                    "y"
+                                  ]
+                                },
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(11)",
+                                    "y"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 80
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 81
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 76
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 78
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 82
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "wrap_degrees": [
+                        {
+                          "sub": [
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(15)",
+                                "yRot"
+                              ]
+                            },
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(11)",
+                                "yRot"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 180.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 84
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 79
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 30
+                    }
+                  ]
+                },
+                {
+                  "const": 0.05
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 86
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "dsub": [
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(15)",
+                                    "y"
+                                  ]
+                                },
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(11)",
+                                    "y"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 87
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 88
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 83
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 85
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 89
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "wrap_degrees": [
+                        {
+                          "sub": [
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(16)",
+                                "yRot"
+                              ]
+                            },
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(11)",
+                                "yRot"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 180.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 91
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 86
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 37
+                    }
+                  ]
+                },
+                {
+                  "const": 0.05
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 93
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "dsub": [
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(16)",
+                                    "y"
+                                  ]
+                                },
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(11)",
+                                    "y"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 94
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 95
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 90
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 92
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 96
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "wrap_degrees": [
+                        {
+                          "sub": [
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(17)",
+                                "yRot"
+                              ]
+                            },
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(11)",
+                                "yRot"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 180.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 98
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 93
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "f2d": [
+                        {
+                          "add": [
+                            {
+                              "const": 2.25
+                            },
+                            {
+                              "ref": 0
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.05
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 100
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "dsub": [
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(17)",
+                                    "y"
+                                  ]
+                                },
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(11)",
+                                    "y"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 101
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 102
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 97
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 99
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 103
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "wrap_degrees": [
+                        {
+                          "sub": [
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(18)",
+                                "yRot"
+                              ]
+                            },
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(11)",
+                                "yRot"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 180.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 105
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 100
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "f2d": [
+                        {
+                          "add": [
+                            {
+                              "const": 2.6999998
+                            },
+                            {
+                              "ref": 0
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.05
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 107
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "dsub": [
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(18)",
+                                    "y"
+                                  ]
+                                },
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(11)",
+                                    "y"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 108
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 109
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 104
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 106
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 110
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "wrap_degrees": [
+                        {
+                          "sub": [
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(19)",
+                                "yRot"
+                              ]
+                            },
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(11)",
+                                "yRot"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 180.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 112
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 107
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "f2d": [
+                        {
+                          "add": [
+                            {
+                              "const": 3.1499999
+                            },
+                            {
+                              "ref": 0
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.05
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 114
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "dsub": [
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(19)",
+                                    "y"
+                                  ]
+                                },
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(11)",
+                                    "y"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 115
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 116
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 111
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 113
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 117
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "wrap_degrees": [
+                        {
+                          "sub": [
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(20)",
+                                "yRot"
+                              ]
+                            },
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(11)",
+                                "yRot"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 180.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 119
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 114
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "f2d": [
+                        {
+                          "add": [
+                            {
+                              "const": 3.6
+                            },
+                            {
+                              "ref": 0
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.05
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 121
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "dsub": [
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(20)",
+                                    "y"
+                                  ]
+                                },
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(11)",
+                                    "y"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 122
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 123
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 118
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 120
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 124
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "wrap_degrees": [
+                        {
+                          "sub": [
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(21)",
+                                "yRot"
+                              ]
+                            },
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(11)",
+                                "yRot"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 180.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 126
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 121
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "f2d": [
+                        {
+                          "add": [
+                            {
+                              "const": 4.0499997
+                            },
+                            {
+                              "ref": 0
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.05
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 128
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "dsub": [
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(21)",
+                                    "y"
+                                  ]
+                                },
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(11)",
+                                    "y"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 129
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 130
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 125
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_sin": [
+                        {
+                          "ref": 127
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 131
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 68
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 74
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 133
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 81
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 134
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 88
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 135
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 95
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 136
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 102
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 137
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 109
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 138
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 116
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 139
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 123
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 140
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "ref": 130
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 69
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 73
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 75
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 142
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 78
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 82
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 143
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 85
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 89
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 144
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 92
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 96
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 145
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 99
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 103
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 146
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 106
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 110
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 147
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 113
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 117
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 148
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 120
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 124
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sub": [
+            {
+              "ref": 149
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mth_cos": [
+                        {
+                          "ref": 127
+                        }
+                      ]
+                    },
+                    {
+                      "ref": 131
+                    }
+                  ]
+                },
+                {
+                  "const": 10.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 128
+            },
+            {
+              "mul": [
+                {
+                  "mth_sin": [
+                    {
+                      "f2d": [
+                        {
+                          "add": [
+                            {
+                              "const": 4.5
+                            },
+                            {
+                              "ref": 0
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 0.05
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "add": [
+            {
+              "ref": 151
+            },
+            {
+              "mul": [
+                {
+                  "mul": [
+                    {
+                      "mul": [
+                        {
+                          "d2f": [
+                            {
+                              "dsub": [
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(22)",
+                                    "y"
+                                  ]
+                                },
+                                {
+                                  "input_fn": [
+                                    "getHistoricalPos(11)",
+                                    "y"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 0.017453292
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 5.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "add": [
+                {
+                  "mul": [
+                    {
+                      "wrap_degrees": [
+                        {
+                          "sub": [
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(22)",
+                                "yRot"
+                              ]
+                            },
+                            {
+                              "input_fn": [
+                                "getHistoricalPos(11)",
+                                "yRot"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "const": 1.5
+                    }
+                  ]
+                },
+                {
+                  "const": 180.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 153
+            }
+          ]
+        },
+        {
+          "f2d": [
+            {
+              "ref": 152
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "ref": 155
+            }
+          ]
+        }
+      ],
+      "container": {
+        "y": {
+          "mul": [
+            {
+              "sub": [
+                {
+                  "ref": 2
+                },
+                {
+                  "const": 2.0
+                }
+              ]
+            },
+            {
+              "const": 16.0
+            }
+          ]
+        },
+        "z": {
+          "const": -48.0
+        },
+        "x_rot": {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "ref": 2
+                },
+                {
+                  "const": 2.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        }
+      },
+      "bones": {
+        "body": {
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "neg": [
+                      {
+                        "ref": 3
+                      }
+                    ]
+                  },
+                  {
+                    "const": 1.5
+                  }
+                ]
+              },
+              {
+                "const": 0.017453292
+              }
+            ]
+          }
+        },
+        "head": {
+          "x": {
+            "sub": [
+              {
+                "ref": 34
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "mth_sin": [
+                          {
+                            "ref": 36
+                          }
+                        ]
+                      },
+                      {
+                        "ref": 40
+                      }
+                    ]
+                  },
+                  {
+                    "const": 10.0
+                  }
+                ]
+              }
+            ]
+          },
+          "y": {
+            "add": [
+              {
+                "ref": 44
+              },
+              {
+                "mul": [
+                  {
+                    "mth_sin": [
+                      {
+                        "ref": 39
+                      }
+                    ]
+                  },
+                  {
+                    "const": 10.0
+                  }
+                ]
+              }
+            ]
+          },
+          "z": {
+            "sub": [
+              {
+                "ref": 48
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "mth_cos": [
+                          {
+                            "ref": 36
+                          }
+                        ]
+                      },
+                      {
+                        "ref": 40
+                      }
+                    ]
+                  },
+                  {
+                    "const": 10.0
+                  }
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "wrap_degrees": [
+                          {
+                            "d2f": [
+                              {
+                                "select": [
+                                  {
+                                    "ref": 7
+                                  },
+                                  {
+                                    "select": [
+                                      {
+                                        "ref": 8
+                                      },
+                                      {
+                                        "dconst": 0.0
+                                      },
+                                      {
+                                        "dconst": 6.0
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "ddiv": [
+                                      {
+                                        "dconst": 6.0
+                                      },
+                                      {
+                                        "ref": 9
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "const": 0.017453292
+                      }
+                    ]
+                  },
+                  {
+                    "const": 1.5
+                  }
+                ]
+              },
+              {
+                "const": 5.0
+              }
+            ]
+          },
+          "y_rot": {
+            "mul": [
+              {
+                "wrap_degrees": [
+                  {
+                    "sub": [
+                      {
+                        "input_fn": [
+                          "getHistoricalPos(0)",
+                          "yRot"
+                        ]
+                      },
+                      {
+                        "input_fn": [
+                          "getHistoricalPos(6)",
+                          "yRot"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.017453292
+              }
+            ]
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "neg": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(0)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.017453292
+              }
+            ]
+          }
+        },
+        "jaw": {
+          "x_rot": {
+            "mul": [
+              {
+                "add": [
+                  {
+                    "ref": 51
+                  },
+                  {
+                    "const": 1.0
+                  }
+                ]
+              },
+              {
+                "const": 0.2
+              }
+            ]
+          }
+        },
+        "left_front_foot": {
+          "x_rot": {
+            "ref": 53
+          }
+        },
+        "left_front_leg": {
+          "x_rot": {
+            "ref": 54
+          }
+        },
+        "left_front_leg_tip": {
+          "x_rot": {
+            "ref": 55
+          }
+        },
+        "left_hind_foot": {
+          "x_rot": {
+            "ref": 53
+          }
+        },
+        "left_hind_leg": {
+          "x_rot": {
+            "ref": 56
+          }
+        },
+        "left_hind_leg_tip": {
+          "x_rot": {
+            "ref": 57
+          }
+        },
+        "left_wing": {
+          "x_rot": {
+            "ref": 58
+          },
+          "y_rot": {
+            "const": -0.25
+          },
+          "z_rot": {
+            "ref": 59
+          }
+        },
+        "left_wing_tip": {
+          "z_rot": {
+            "ref": 60
+          }
+        },
+        "neck0": {
+          "x": {
+            "bone": [
+              "neck0",
+              "x"
+            ]
+          },
+          "y": {
+            "bone": [
+              "neck0",
+              "y"
+            ]
+          },
+          "z": {
+            "bone": [
+              "neck0",
+              "z"
+            ]
+          },
+          "x_rot": {
+            "ref": 10
+          },
+          "y_rot": {
+            "ref": 4
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "neg": [
+                      {
+                        "wrap_degrees": [
+                          {
+                            "sub": [
+                              {
+                                "input_fn": [
+                                  "getHistoricalPos(5)",
+                                  "yRot"
+                                ]
+                              },
+                              {
+                                "ref": 49
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "neck1": {
+          "x": {
+            "ref": 13
+          },
+          "y": {
+            "ref": 41
+          },
+          "z": {
+            "ref": 45
+          },
+          "x_rot": {
+            "ref": 17
+          },
+          "y_rot": {
+            "ref": 14
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "neg": [
+                      {
+                        "wrap_degrees": [
+                          {
+                            "sub": [
+                              {
+                                "input_fn": [
+                                  "getHistoricalPos(4)",
+                                  "yRot"
+                                ]
+                              },
+                              {
+                                "ref": 49
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "neck2": {
+          "x": {
+            "ref": 20
+          },
+          "y": {
+            "ref": 42
+          },
+          "z": {
+            "ref": 46
+          },
+          "x_rot": {
+            "ref": 24
+          },
+          "y_rot": {
+            "ref": 21
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "neg": [
+                      {
+                        "wrap_degrees": [
+                          {
+                            "sub": [
+                              {
+                                "input_fn": [
+                                  "getHistoricalPos(3)",
+                                  "yRot"
+                                ]
+                              },
+                              {
+                                "ref": 49
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "neck3": {
+          "x": {
+            "ref": 27
+          },
+          "y": {
+            "ref": 43
+          },
+          "z": {
+            "ref": 47
+          },
+          "x_rot": {
+            "ref": 31
+          },
+          "y_rot": {
+            "ref": 28
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "neg": [
+                      {
+                        "wrap_degrees": [
+                          {
+                            "sub": [
+                              {
+                                "input_fn": [
+                                  "getHistoricalPos(2)",
+                                  "yRot"
+                                ]
+                              },
+                              {
+                                "ref": 49
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "neck4": {
+          "x": {
+            "ref": 34
+          },
+          "y": {
+            "ref": 44
+          },
+          "z": {
+            "ref": 48
+          },
+          "x_rot": {
+            "ref": 38
+          },
+          "y_rot": {
+            "ref": 35
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "neg": [
+                      {
+                        "wrap_degrees": [
+                          {
+                            "sub": [
+                              {
+                                "input_fn": [
+                                  "getHistoricalPos(1)",
+                                  "yRot"
+                                ]
+                              },
+                              {
+                                "ref": 49
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "right_front_foot": {
+          "x_rot": {
+            "ref": 53
+          }
+        },
+        "right_front_leg": {
+          "x_rot": {
+            "ref": 54
+          }
+        },
+        "right_front_leg_tip": {
+          "x_rot": {
+            "ref": 55
+          }
+        },
+        "right_hind_foot": {
+          "x_rot": {
+            "ref": 53
+          }
+        },
+        "right_hind_leg": {
+          "x_rot": {
+            "ref": 56
+          }
+        },
+        "right_hind_leg_tip": {
+          "x_rot": {
+            "ref": 57
+          }
+        },
+        "right_wing": {
+          "x_rot": {
+            "ref": 58
+          },
+          "y_rot": {
+            "const": 0.25
+          },
+          "z_rot": {
+            "neg": [
+              {
+                "ref": 59
+              }
+            ]
+          }
+        },
+        "right_wing_tip": {
+          "z_rot": {
+            "neg": [
+              {
+                "ref": 60
+              }
+            ]
+          }
+        },
+        "tail0": {
+          "x": {
+            "bone": [
+              "tail0",
+              "x"
+            ]
+          },
+          "y": {
+            "bone": [
+              "tail0",
+              "y"
+            ]
+          },
+          "z": {
+            "bone": [
+              "tail0",
+              "z"
+            ]
+          },
+          "x_rot": {
+            "ref": 62
+          },
+          "y_rot": {
+            "ref": 63
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(12)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "tail1": {
+          "x": {
+            "ref": 67
+          },
+          "y": {
+            "ref": 68
+          },
+          "z": {
+            "ref": 69
+          },
+          "x_rot": {
+            "ref": 71
+          },
+          "y_rot": {
+            "ref": 72
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(13)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "tail10": {
+          "x": {
+            "ref": 132
+          },
+          "y": {
+            "ref": 141
+          },
+          "z": {
+            "ref": 150
+          },
+          "x_rot": {
+            "ref": 152
+          },
+          "y_rot": {
+            "ref": 153
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(22)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "tail11": {
+          "x": {
+            "sub": [
+              {
+                "ref": 132
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "mth_sin": [
+                          {
+                            "ref": 154
+                          }
+                        ]
+                      },
+                      {
+                        "ref": 156
+                      }
+                    ]
+                  },
+                  {
+                    "const": 10.0
+                  }
+                ]
+              }
+            ]
+          },
+          "y": {
+            "add": [
+              {
+                "ref": 141
+              },
+              {
+                "mul": [
+                  {
+                    "mth_sin": [
+                      {
+                        "ref": 155
+                      }
+                    ]
+                  },
+                  {
+                    "const": 10.0
+                  }
+                ]
+              }
+            ]
+          },
+          "z": {
+            "sub": [
+              {
+                "ref": 150
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "mth_cos": [
+                          {
+                            "ref": 154
+                          }
+                        ]
+                      },
+                      {
+                        "ref": 156
+                      }
+                    ]
+                  },
+                  {
+                    "const": 10.0
+                  }
+                ]
+              }
+            ]
+          },
+          "x_rot": {
+            "add": [
+              {
+                "add": [
+                  {
+                    "ref": 151
+                  },
+                  {
+                    "mul": [
+                      {
+                        "mth_sin": [
+                          {
+                            "f2d": [
+                              {
+                                "add": [
+                                  {
+                                    "const": 4.95
+                                  },
+                                  {
+                                    "ref": 0
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "const": 0.05
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "mul": [
+                          {
+                            "d2f": [
+                              {
+                                "dsub": [
+                                  {
+                                    "input_fn": [
+                                      "getHistoricalPos(23)",
+                                      "y"
+                                    ]
+                                  },
+                                  {
+                                    "input_fn": [
+                                      "getHistoricalPos(11)",
+                                      "y"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "const": 0.017453292
+                          }
+                        ]
+                      },
+                      {
+                        "const": 1.5
+                      }
+                    ]
+                  },
+                  {
+                    "const": 5.0
+                  }
+                ]
+              }
+            ]
+          },
+          "y_rot": {
+            "mul": [
+              {
+                "add": [
+                  {
+                    "mul": [
+                      {
+                        "wrap_degrees": [
+                          {
+                            "sub": [
+                              {
+                                "input_fn": [
+                                  "getHistoricalPos(23)",
+                                  "yRot"
+                                ]
+                              },
+                              {
+                                "input_fn": [
+                                  "getHistoricalPos(11)",
+                                  "yRot"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "const": 1.5
+                      }
+                    ]
+                  },
+                  {
+                    "const": 180.0
+                  }
+                ]
+              },
+              {
+                "const": 0.017453292
+              }
+            ]
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(23)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "tail2": {
+          "x": {
+            "ref": 76
+          },
+          "y": {
+            "ref": 133
+          },
+          "z": {
+            "ref": 142
+          },
+          "x_rot": {
+            "ref": 80
+          },
+          "y_rot": {
+            "ref": 77
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(14)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "tail3": {
+          "x": {
+            "ref": 83
+          },
+          "y": {
+            "ref": 134
+          },
+          "z": {
+            "ref": 143
+          },
+          "x_rot": {
+            "ref": 87
+          },
+          "y_rot": {
+            "ref": 84
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(15)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "tail4": {
+          "x": {
+            "ref": 90
+          },
+          "y": {
+            "ref": 135
+          },
+          "z": {
+            "ref": 144
+          },
+          "x_rot": {
+            "ref": 94
+          },
+          "y_rot": {
+            "ref": 91
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(16)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "tail5": {
+          "x": {
+            "ref": 97
+          },
+          "y": {
+            "ref": 136
+          },
+          "z": {
+            "ref": 145
+          },
+          "x_rot": {
+            "ref": 101
+          },
+          "y_rot": {
+            "ref": 98
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(17)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "tail6": {
+          "x": {
+            "ref": 104
+          },
+          "y": {
+            "ref": 137
+          },
+          "z": {
+            "ref": 146
+          },
+          "x_rot": {
+            "ref": 108
+          },
+          "y_rot": {
+            "ref": 105
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(18)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "tail7": {
+          "x": {
+            "ref": 111
+          },
+          "y": {
+            "ref": 138
+          },
+          "z": {
+            "ref": 147
+          },
+          "x_rot": {
+            "ref": 115
+          },
+          "y_rot": {
+            "ref": 112
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(19)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "tail8": {
+          "x": {
+            "ref": 118
+          },
+          "y": {
+            "ref": 139
+          },
+          "z": {
+            "ref": 148
+          },
+          "x_rot": {
+            "ref": 122
+          },
+          "y_rot": {
+            "ref": 119
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(20)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        },
+        "tail9": {
+          "x": {
+            "ref": 125
+          },
+          "y": {
+            "ref": 140
+          },
+          "z": {
+            "ref": 149
+          },
+          "x_rot": {
+            "ref": 129
+          },
+          "y_rot": {
+            "ref": 126
+          },
+          "z_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "wrap_degrees": [
+                      {
+                        "sub": [
+                          {
+                            "input_fn": [
+                              "getHistoricalPos(21)",
+                              "yRot"
+                            ]
+                          },
+                          {
+                            "ref": 49
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 1.5
+              }
+            ]
+          }
+        }
+      }
     },
     "EndermanModel": {
       "shared": [

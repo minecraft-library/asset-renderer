@@ -21,18 +21,27 @@ import java.util.Optional;
  * pose could not be read holds still too, and is wrong. {@link #refusal} is what keeps the two
  * apart; anything that treats an absent pose as a still one has to consult it first.
  *
+ * <p><b>The container is a parent transform, not a bone.</b> A model whose mesh was built around a
+ * container poses that container, and the mesh flattens it away and names it nowhere - so it is
+ * carried apart from the bones and composes above every bone the mesh holds at top level. It starts
+ * at rest rather than at an authored pose, the flattening having already put whatever it held into
+ * the bones below it.
+ *
+ * @param container the expression each written channel of the flattened container carries
  * @param bones the expression each bone channel is written with, by bone name
  * @param clips the authored clips this model plays, in the order it plays them
- * @param refusal why there is no pose here, or empty when {@link #bones} is the whole answer
+ * @param refusal why there is no pose here, or empty when the rest is the whole answer
  */
 public record EntityPose(
+    @NotNull Map<PoseChannel, PoseExpr> container,
     @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
     @NotNull List<Clip> clips,
     @NotNull Optional<String> refusal
 ) {
 
     /** The pose of a model that poses nothing, which is a real answer rather than a missing one. */
-    public static final @NotNull EntityPose NONE = new EntityPose(Map.of(), List.of(), Optional.empty());
+    public static final @NotNull EntityPose NONE =
+        new EntityPose(Map.of(), Map.of(), List.of(), Optional.empty());
 
     /**
      * One authored clip this model plays, and what it plays it at.
