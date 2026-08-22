@@ -387,7 +387,7 @@ public final class PoseWalk {
         try {
             walkBody(body, context, 0);
             foldMeshRoot(context, rootBones);
-            requireAccumulated(context);
+            requireAnswerable(context);
         } catch (IllegalStateException error) {
             // Narrowed to what the walk itself raises. A jar that lost a class raises something
             // else, and shipping that as a pose's reason would turn a broken run into a table
@@ -1614,8 +1614,18 @@ public final class PoseWalk {
         if (expr.equals(sought)) return true;
         return switch (expr) {
             case PoseExpr.Op op -> op.operands().stream().anyMatch(operand -> mentions(operand, sought));
-            case PoseExpr.Select select ->
-                mentions(select.whenTrue(), sought) || mentions(select.whenFalse(), sought);
+            case PoseExpr.Select select -> mentions(select.condition(), sought)
+                || mentions(select.whenTrue(), sought) || mentions(select.whenFalse(), sought);
+            default -> false;
+        };
+    }
+
+    /** Whether a predicate reaches an expression anywhere inside itself. */
+    private static boolean mentions(@NotNull PosePredicate predicate, @NotNull PoseExpr sought) {
+        return switch (predicate) {
+            case PosePredicate.Not not -> mentions(not.operand(), sought);
+            case PosePredicate.Compare compare ->
+                mentions(compare.left(), sought) || mentions(compare.right(), sought);
             default -> false;
         };
     }
@@ -1627,31 +1637,59 @@ public final class PoseWalk {
      * caller for a number the model already has and would answer a different pose when they guessed.
      * Only a field the body accumulates has a starting point to be handed.
      */
-    private static void requireAccumulated(@NotNull Context context) {
+    private static void requireAnswerable(@NotNull Context context) {
+        List<PoseExpr> reached = new ArrayList<>();
+        Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Map<PoseChannel, PoseExpr> channels : context.pose().values())
-            for (PoseExpr expr : channels.values()) {
-                List<PoseExpr.Carried> named = new ArrayList<>();
-                carried(expr, named, Collections.newSetFromMap(new IdentityHashMap<>()));
-                for (PoseExpr.Carried figure : named)
-                    if (!context.accumulated().contains(figure.field()))
-                        throw new IllegalStateException("poses off " + figure.field()
-                            + ", which it keeps for itself and never steps along");
-            }
+            for (PoseExpr expr : channels.values()) nodes(expr, reached, walked);
+
+        for (PoseExpr node : reached) {
+            if (node instanceof PoseExpr.Carried figure && !context.accumulated().contains(figure.field()))
+                throw new IllegalStateException("poses off " + figure.field()
+                    + ", which it keeps for itself and never steps along");
+            // A read of the flattened container, which the fold answers by handing each of its
+            // children the amount it moved by. One that survived is a read of the container's own
+            // value, which no bone carries and nothing downstream could seed.
+            if (node instanceof PoseExpr.BoneRead read && MESH_ROOT.equals(read.bone()))
+                throw new IllegalStateException("poses off the mesh root's own " + read.channel().token()
+                    + ", which a flattened container carries nowhere");
+        }
     }
 
-    /** Every carried figure an expression names, walking the graph once rather than each of its paths. */
-    private static void carried(
-        @NotNull PoseExpr expr, @NotNull List<PoseExpr.Carried> out, @NotNull Set<Object> walked) {
+    /**
+     * Every node a pose reaches, walking the graph once rather than each of its paths.
+     *
+     * <p>Through conditions as well as through operands, because a guard that walked only the arms of
+     * a choice could be stepped around by putting the thing it looks for in the test between them.
+     */
+    private static void nodes(
+        @NotNull PoseExpr expr, @NotNull List<PoseExpr> out, @NotNull Set<Object> walked) {
 
         if (!walked.add(expr)) return;
+        out.add(expr);
         switch (expr) {
-            case PoseExpr.Carried figure -> out.add(figure);
-            case PoseExpr.Op op -> op.operands().forEach(operand -> carried(operand, out, walked));
+            case PoseExpr.Op op -> op.operands().forEach(operand -> nodes(operand, out, walked));
             case PoseExpr.Select select -> {
-                carried(select.whenTrue(), out, walked);
-                carried(select.whenFalse(), out, walked);
+                nodes(select.condition(), out, walked);
+                nodes(select.whenTrue(), out, walked);
+                nodes(select.whenFalse(), out, walked);
             }
-            default -> { /* a leaf names none */ }
+            default -> { /* a leaf reaches nothing */ }
+        }
+    }
+
+    /** Every node a predicate reaches, joining the same walk its choice is part of. */
+    private static void nodes(
+        @NotNull PosePredicate predicate, @NotNull List<PoseExpr> out, @NotNull Set<Object> walked) {
+
+        if (!walked.add(predicate)) return;
+        switch (predicate) {
+            case PosePredicate.Not not -> nodes(not.operand(), out, walked);
+            case PosePredicate.Compare compare -> {
+                nodes(compare.left(), out, walked);
+                nodes(compare.right(), out, walked);
+            }
+            default -> { /* a leaf reaches nothing */ }
         }
     }
 
