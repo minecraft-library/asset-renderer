@@ -40,7 +40,7 @@
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "b619ceec32bd2f606cee21c23a7b3bc501b5c255e50c10485c1f7efe9b6c8da2"
+      "sha256": "c0ac387cd0a66b3a7a737c8c96d2fe39e02b89672833aaee05c878f96675bed5"
     },
     "entity_poses": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "04be22d55e29ddec1262e360a9f9592e0a63b41c",
+    "asset_sha": "8e93bf9d3569b425ae5df685a14a472ae6f9532a",
     "counts": {
       "digests": 11
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "The pose table gained rest_defaults, which constant each enum render-state member rests holding, resolved per model off the state its own setupAnim names. Only entity_poses moved; the other ten tables are byte-identical. Measured on the animated sweep, the only gate that can see a pose table: 1039.8971 to 573.0354 over 90 rows, 64 rows under 0.25 to 73, nine rows moved and no other row moved at all - enderman 142.7294 to 0.0056 the largest.",
+    "reason": "The entity table gained a rest row for isInWater on the five AbstractFish subjects, scoped exactly as the harness pin is. Only entity_models moved; the other ten tables are byte-identical. Measured on the animated sweep: 430.8372 to 370.6485 over 90 rows, 75 rows under 0.25 to 76 - tadpole 46.2340 to 0.0146 taking its canvas onto vanilla's, salmon 53.0587 to 24.5526, and cod and tropical_fish rising because their rows held two mechanisms whose errors were cancelling.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-23T01:57:41Z",
+    "timestamp": "2026-08-23T03:16:33Z",
     "tool_version": "1.0.0"
   }
 }
