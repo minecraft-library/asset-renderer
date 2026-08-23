@@ -91,7 +91,7 @@ final class InputDefaultResolver {
         for (PoseOutcome outcome : poses.values()) {
             if (!(outcome instanceof PoseOutcome.Extracted extracted)) continue;
             PoseProgram program = extracted.program();
-            program.container().values().forEach(expr -> collect(expr, named, walked));
+            program.container().forEach(step -> step.values().forEach(expr -> collect(expr, named, walked)));
             program.bones().values().forEach(channels ->
                 channels.values().forEach(expr -> collect(expr, named, walked)));
         }
@@ -151,7 +151,7 @@ final class InputDefaultResolver {
         for (PoseOutcome outcome : poses.values()) {
             if (!(outcome instanceof PoseOutcome.Extracted extracted)) continue;
             PoseProgram program = extracted.program();
-            program.container().values().forEach(expr -> tested(expr, named, walked));
+            program.container().forEach(step -> step.values().forEach(expr -> tested(expr, named, walked)));
             program.bones().values().forEach(channels ->
                 channels.values().forEach(expr -> tested(expr, named, walked)));
         }

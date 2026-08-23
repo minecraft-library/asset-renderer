@@ -79,12 +79,17 @@ public final class PoseJson {
         }
 
         // Above the bones, which is where it sits: the container is the parent transform every bone
-        // the mesh names at top level hangs off, and the mesh names it nowhere.
+        // the mesh names at top level hangs off, and the mesh names it nowhere. An ARRAY, because it
+        // is a sequence: each element is a part pose, written outermost first, and within one the
+        // channel order is the vocabulary's own the way a bone's is.
         if (!program.container().isEmpty()) {
-            JsonTree held = node.child(CONTAINER);
-            for (PoseChannel channel : PoseChannel.values())
-                if (program.container().containsKey(channel))
-                    held.put(channel.token(), shared.use(program.container().get(channel)));
+            JsonTree steps = node.childArray(CONTAINER);
+            for (Map<PoseChannel, PoseExpr> step : program.container()) {
+                JsonTree held = JsonTree.object();
+                for (PoseChannel channel : PoseChannel.values())
+                    if (step.containsKey(channel)) held.put(channel.token(), shared.use(step.get(channel)));
+                steps.add(held);
+            }
         }
 
         JsonTree written = node.child("bones");
@@ -159,7 +164,7 @@ public final class PoseJson {
         private final @NotNull List<JsonTree> table = new ArrayList<>();
 
         static @NotNull Shared of(
-            @NotNull Map<PoseChannel, PoseExpr> container,
+            @NotNull List<Map<PoseChannel, PoseExpr>> container,
             @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones, @NotNull List<PoseClipSite> sites) {
 
             Shared shared = new Shared();
@@ -184,12 +189,13 @@ public final class PoseJson {
          * number a function of the pose rather than of the traversal that found it.
          */
         private static void forEachRoot(
-            @NotNull Map<PoseChannel, PoseExpr> container,
+            @NotNull List<Map<PoseChannel, PoseExpr>> container,
             @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones, @NotNull List<PoseClipSite> sites,
             @NotNull Consumer<PoseExpr> root) {
 
-            for (PoseChannel channel : PoseChannel.values())
-                if (container.containsKey(channel)) root.accept(container.get(channel));
+            for (Map<PoseChannel, PoseExpr> step : container)
+                for (PoseChannel channel : PoseChannel.values())
+                    if (step.containsKey(channel)) root.accept(step.get(channel));
             bones.forEach((bone, channels) -> {
                 for (PoseChannel channel : PoseChannel.values())
                     if (channels.containsKey(channel)) root.accept(channels.get(channel));

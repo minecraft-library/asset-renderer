@@ -71958,28 +71958,30 @@
           ]
         }
       ],
-      "container": {
-        "y": {
-          "select": [
-            {
-              "eq": [
-                {
-                  "input": "hasEgg"
-                },
-                {
-                  "iconst": 0
-                }
-              ]
-            },
-            {
-              "const": 0.0
-            },
-            {
-              "const": -1.0
-            }
-          ]
+      "container": [
+        {
+          "y": {
+            "select": [
+              {
+                "eq": [
+                  {
+                    "input": "hasEgg"
+                  },
+                  {
+                    "iconst": 0
+                  }
+                ]
+              },
+              {
+                "const": 0.0
+              },
+              {
+                "const": -1.0
+              }
+            ]
+          }
         }
-      },
+      ],
       "bones": {
         "egg_belly": {
           "visible": {
@@ -153051,45 +153053,47 @@
           ]
         }
       ],
-      "container": {
-        "y": {
-          "mul": [
-            {
-              "sub": [
-                {
-                  "ref": 2
-                },
-                {
-                  "const": 2.0
-                }
-              ]
-            },
-            {
-              "const": 16.0
-            }
-          ]
-        },
-        "z": {
-          "const": -48.0
-        },
-        "x_rot": {
-          "mul": [
-            {
-              "mul": [
-                {
-                  "ref": 2
-                },
-                {
-                  "const": 2.0
-                }
-              ]
-            },
-            {
-              "const": 0.017453292
-            }
-          ]
+      "container": [
+        {
+          "y": {
+            "mul": [
+              {
+                "sub": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "const": 2.0
+                  }
+                ]
+              },
+              {
+                "const": 16.0
+              }
+            ]
+          },
+          "z": {
+            "const": -48.0
+          },
+          "x_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "ref": 2
+                  },
+                  {
+                    "const": 2.0
+                  }
+                ]
+              },
+              {
+                "const": 0.017453292
+              }
+            ]
+          }
         }
-      },
+      ],
       "bones": {
         "body": {
           "z_rot": {

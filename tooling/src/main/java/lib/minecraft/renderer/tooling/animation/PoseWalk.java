@@ -376,7 +376,7 @@ public final class PoseWalk {
         // inherits is the reset. That is an empty pose rather than a refusal, and the two have to
         // stay distinguishable or a walk that failed reads as a subject that simply holds still.
         if (body == null) return new PoseOutcome.Extracted(
-            new PoseProgram(ClassKit.simpleName(modelClass), Map.of(), Map.of(), List.of()));
+            new PoseProgram(ClassKit.simpleName(modelClass), List.of(), Map.of(), List.of()));
 
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
             ClipBindingResolver.fieldToClip(cache, modelClass),
@@ -385,7 +385,7 @@ public final class PoseWalk {
             new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
             new LinkedHashMap<>(), new int[1], new int[1]);
 
-        Map<PoseChannel, PoseExpr> container;
+        List<Map<PoseChannel, PoseExpr>> container;
         try {
             walkBody(body, context, 0);
             requireAnswerable(context);
@@ -2584,15 +2584,17 @@ public final class PoseWalk {
      * <p>A container over a mesh that names no bone at top level reaches nothing, which is a mesh and
      * a model disagreeing about what the model is posing rather than a pose that moves nothing.
      */
-    private static @NotNull Map<PoseChannel, PoseExpr> liftContainer(
+    private static @NotNull List<Map<PoseChannel, PoseExpr>> liftContainer(
         @NotNull Context context, @NotNull Set<String> rootBones) {
 
         Map<PoseChannel, PoseExpr> container = context.pose().remove(MESH_ROOT);
-        if (container == null) return Map.of();
+        if (container == null) return List.of();
 
         if (rootBones.isEmpty())
             throw new IllegalStateException("poses through the mesh root, and this mesh names no bone under it");
-        return Collections.unmodifiableMap(new EnumMap<>(container));
+        // ONE step: a body assigns the root's six fields and vanilla applies them as a part pose, so
+        // there is no sequence here to record and nothing to say by ordering it.
+        return List.of(Collections.unmodifiableMap(new EnumMap<>(container)));
     }
 
     /** Records one channel's new value. */

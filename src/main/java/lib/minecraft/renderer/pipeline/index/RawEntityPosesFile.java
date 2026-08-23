@@ -219,16 +219,20 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
 
         JsonElement refused = node.get("refused");
         if (refused != null)
-            return new EntityPose(Map.of(), Map.of(), List.of(), Map.of(), Map.of(),
+            return new EntityPose(List.of(), Map.of(), List.of(), Map.of(), Map.of(),
                 Optional.of(refused.getAsString()));
 
         Shared shared = Shared.of(model, node.get("shared"));
 
         // The container the mesh flattened away, which is a parent transform above the bones rather
-        // than one of them, so it is read into its own map and never into the bone map.
+        // than one of them, so it is read into its own list and never into the bone map. An ORDERED
+        // list, because a renderer composing one out of a sequence says everything by the order:
+        // each element is a part pose, and only a body posing a flattened root writes just the one.
+        List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>();
         JsonElement held = node.get("container");
-        Map<PoseChannel, PoseExpr> container = held == null
-            ? Map.of() : channels(model, "container", object(held, model), shared);
+        if (held != null)
+            for (JsonElement step : array(held, model))
+                container.add(channels(model, "container", object(step, model), shared));
 
         Map<String, Map<PoseChannel, PoseExpr>> bones = new LinkedHashMap<>();
         JsonElement written = node.get("bones");
@@ -246,7 +250,7 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         // Order-preserving rather than Map.copyOf, whose iteration order is salted per JVM launch.
         // Nothing reads the order for meaning, but the parity dump digests this map, and a digest
         // over a map that flaps is a row that fails its own reproducibility check and nothing else.
-        return new EntityPose(container, Collections.unmodifiableMap(bones),
+        return new EntityPose(List.copyOf(container), Collections.unmodifiableMap(bones),
             List.copyOf(clips), defaults, resting, Optional.empty());
     }
 

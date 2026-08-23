@@ -87,7 +87,7 @@ class EntityPoseLoadTest {
             "and it carries what stopped the walk verbatim");
         assertEquals(List.of(), List.copyOf(refused.bones().keySet()),
             "a refusal poses nothing, which is how it renders and why it has to be distinguishable");
-        assertEquals(Map.of(), refused.container(), "and it poses no container either");
+        assertEquals(List.of(), refused.container(), "and it poses no container either");
     }
 
     @Test
@@ -102,8 +102,10 @@ class EntityPoseLoadTest {
         // as well as composing with the child's own rotation, so there is no per-bone term for it.
         EntityPose dragon = pose("minecraft:ender_dragon");
         assertTrue(dragon.isReadable(), "the ender dragon has a readable pose");
-        assertEquals(Set.of(PoseChannel.Y, PoseChannel.Z, PoseChannel.X_ROT), dragon.container().keySet(),
-            "its container is placed twice and turned once");
+        assertEquals(1, dragon.container().size(),
+            "a body assigns the root's fields once, so the sequence it composes is one step long");
+        assertEquals(Set.of(PoseChannel.Y, PoseChannel.Z, PoseChannel.X_ROT),
+            dragon.container().getFirst().keySet(), "its container is placed twice and turned once");
         assertFalse(dragon.bones().containsKey("<mesh root>"),
             "and the container is nowhere among the bones, under that spelling or any other");
 
@@ -111,12 +113,14 @@ class EntityPoseLoadTest {
         // channel holds is a number rather than a read of a bone, because a flattened container has
         // no authored pose left to read - the mesh put whatever it held into the bones below it.
         EntityPose turtle = pose("minecraft:turtle");
-        assertEquals(Set.of(PoseChannel.Y), turtle.container().keySet(), "the turtle moves its container once");
+        assertEquals(1, turtle.container().size(), "and the turtle's is one step too");
+        assertEquals(Set.of(PoseChannel.Y), turtle.container().getFirst().keySet(),
+            "the turtle moves its container once");
         assertEquals(new PoseExpr.Select(
                 new PosePredicate.Compare(PosePredicate.Comparison.EQ,
                     new PoseExpr.Input("hasEgg"), new PoseExpr.Const(0, PoseOperator.Width.INT)),
                 constant(0f), constant(-1f)),
-            turtle.container().get(PoseChannel.Y),
+            turtle.container().getFirst().get(PoseChannel.Y),
             "and it rests at zero when there is no egg to carry");
     }
 
@@ -249,8 +253,8 @@ class EntityPoseLoadTest {
             Set<String> switched = new TreeSet<>();
             pose.bones().values().forEach(channels ->
                 channels.values().forEach(expr -> switched(expr, switched, new IdentityHashMap<>())));
-            pose.container().values()
-                .forEach(expr -> switched(expr, switched, new IdentityHashMap<>()));
+            pose.container().forEach(step -> step.values()
+                .forEach(expr -> switched(expr, switched, new IdentityHashMap<>())));
             for (String member : switched) {
                 // A member reached through a call is not a field and has no constructor to rest in -
                 // what an item stack accessor answers is the subject's inventory, not its construction.

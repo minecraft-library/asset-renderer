@@ -27,14 +27,19 @@ import java.util.Map;
  * names nowhere. That is a parent transform above every bone the mesh holds at top level rather than
  * a bone of its own, so it is carried apart from them and composes above them at render.
  *
+ * <p>The container is an ORDERED list of steps, each a part pose applied the way a {@code ModelPart}
+ * is. A body poses a flattened root once and writes just the one; a sequence is what a renderer's own
+ * {@code setupRotations} composes instead, and there the order is the whole meaning.
+ *
  * @param model the model class's simple name, the same spelling the pose table keys a model by
- * @param container the expression each touched channel of the flattened container evaluates to
+ * @param container the steps the container is composed of, outermost first, each carrying the
+ *     expression its touched channels evaluate to
  * @param bones bone name to the expression each touched channel evaluates to, in first-write order
  * @param clipSites the authored clips the body applies, in the order it applies them
  */
 public record PoseProgram(
     @NotNull String model,
-    @NotNull Map<PoseChannel, PoseExpr> container,
+    @NotNull List<Map<PoseChannel, PoseExpr>> container,
     @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
     @NotNull List<PoseClipSite> clipSites
 ) {

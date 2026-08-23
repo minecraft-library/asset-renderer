@@ -178,7 +178,7 @@ class PoseKitTest {
         mesh.getBones().put("head", new EntityModelData.Bone(new Vector3f(1f, 2f, 3f), authored,
             EulerRotation.NONE, 1f, Concurrent.newList(), null));
 
-        EntityPose readsItself = new EntityPose(Map.of(),
+        EntityPose readsItself = new EntityPose(List.of(),
             Map.of("head", Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT))),
             List.of(), Map.of(), Map.of(), Optional.empty());
 
@@ -199,7 +199,7 @@ class PoseKitTest {
         mesh.getBones().put("head", bone("body"));
 
         EntityPose drops = new EntityPose(
-            Map.of(PoseChannel.Y, new PoseExpr.Const(-3d, PoseOperator.Width.FLOAT)),
+            List.of(Map.of(PoseChannel.Y, new PoseExpr.Const(-3d, PoseOperator.Width.FLOAT))),
             Map.of(), List.of(), Map.of(), Map.of(), Optional.empty());
 
         EntityModelData posed = PoseKit.posed(EntityOptions.PoseMode.IDLE,
@@ -337,7 +337,7 @@ class PoseKitTest {
         EntityModelData mesh = new EntityModelData();
         mesh.getBones().put("body", bone(null));
 
-        EntityPose uneven = new EntityPose(Map.of(), Map.of("body", Map.of(
+        EntityPose uneven = new EntityPose(List.of(), Map.of("body", Map.of(
             PoseChannel.X_SCALE, new PoseExpr.Const(2d, PoseOperator.Width.FLOAT),
             PoseChannel.Y_SCALE, new PoseExpr.Const(3d, PoseOperator.Width.FLOAT),
             PoseChannel.Z_SCALE, new PoseExpr.Const(2d, PoseOperator.Width.FLOAT))),
@@ -377,7 +377,7 @@ class PoseKitTest {
 
     /** A pose that writes the given flags and nothing else. */
     private static @NotNull EntityPose flags(@NotNull Map<String, Map<PoseChannel, PoseExpr>> bones) {
-        return new EntityPose(Map.of(), bones, List.of(), Map.of(), Map.of(), Optional.empty());
+        return new EntityPose(List.of(), bones, List.of(), Map.of(), Map.of(), Optional.empty());
     }
 
     private static boolean finite(@NotNull Vector3f vector) {

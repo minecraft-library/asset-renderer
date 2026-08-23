@@ -220,16 +220,16 @@ public final class PoseEvaluator {
      * <p>The container is held apart from the bones because it is not one: it is the parent
      * transform above every bone the mesh names at top level, and the mesh names it nowhere.
      *
-     * @param container what the flattened container's written channels evaluate to
+     * @param container what each of the container's steps evaluates to, outermost first
      * @param bones what each bone's written channels evaluate to, by bone name
      */
     public record ChannelWrites(
-        @NotNull Map<PoseChannel, Float> container,
+        @NotNull List<Map<PoseChannel, Float>> container,
         @NotNull Map<String, Map<PoseChannel, Float>> bones
     ) {
 
         /** What a model that poses nothing writes, which is a real answer rather than a missing one. */
-        public static final @NotNull ChannelWrites NONE = new ChannelWrites(Map.of(), Map.of());
+        public static final @NotNull ChannelWrites NONE = new ChannelWrites(List.of(), Map.of());
 
         /**
          * Whether this wrote nothing at all.
@@ -270,7 +270,12 @@ public final class PoseEvaluator {
         // bones, so a memo per channel would walk the paths the table exists not to write.
         Map<Object, Double> memo = new IdentityHashMap<>();
 
-        Map<PoseChannel, Float> container = channels(pose.container(), model, frame, memo);
+        // In order, because the container is a sequence rather than one transform: a step is a part
+        // pose and what separates two of them is that composing them the other way round is a
+        // different placement.
+        List<Map<PoseChannel, Float>> container = pose.container().stream()
+            .map(step -> channels(step, model, frame, memo))
+            .toList();
         // Collected into a LinkedHashMap rather than through Map.copyOf: what comes out is read in
         // order downstream, and copyOf salts its iteration per JVM launch.
         Map<String, Map<PoseChannel, Float>> bones = pose.bones()

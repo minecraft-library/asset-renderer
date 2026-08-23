@@ -63,8 +63,9 @@ class PoseEvaluatorTest {
 
             PoseEvaluator.ChannelWrites written =
                 PoseEvaluator.evaluate(pose, meshFor(pose), PoseEvaluator.restingIn(pose, Map.of()));
-            written.container().forEach((channel, value) -> assertTrue(Float.isFinite(value),
-                "the container's " + channel.token() + " evaluates to a number"));
+            written.container().forEach(step -> step.forEach((channel, value) ->
+                assertTrue(Float.isFinite(value),
+                    "the container's " + channel.token() + " evaluates to a number")));
             written.bones().forEach((bone, channels) -> channels.forEach((channel, value) ->
                 assertTrue(Float.isFinite(value),
                     bone + "." + channel.token() + " evaluates to a number")));
@@ -137,7 +138,8 @@ class PoseEvaluatorTest {
         EntityModelData mesh = meshFor(turtle);
 
         assertEquals(0f, PoseEvaluator.evaluate(turtle, mesh, PoseEvaluator.ZERO)
-            .container().get(PoseChannel.Y), "a turtle at rest carries no egg and holds where it is");
+            .container().getFirst().get(PoseChannel.Y),
+            "a turtle at rest carries no egg and holds where it is");
 
         PoseEvaluator.Frame carrying = new PoseEvaluator.Frame() {
             @Override
@@ -145,7 +147,7 @@ class PoseEvaluatorTest {
                 return "hasEgg".equals(field) ? 1f : 0f;
             }
         };
-        assertEquals(-1f, PoseEvaluator.evaluate(turtle, mesh, carrying).container().get(PoseChannel.Y),
+        assertEquals(-1f, PoseEvaluator.evaluate(turtle, mesh, carrying).container().getFirst().get(PoseChannel.Y),
             "and drops by one when it is");
     }
 
@@ -157,7 +159,7 @@ class PoseEvaluatorTest {
         EntityModelData mesh = new EntityModelData();
         mesh.getBones().put("head", bone(new EulerRotation(90f, 0f, 0f)));
 
-        EntityPose reads = new EntityPose(Map.of(), Map.of("head",
+        EntityPose reads = new EntityPose(List.of(), Map.of("head",
             Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT))),
             List.of(), Map.of(), Map.of(), Optional.empty());
 
@@ -204,7 +206,7 @@ class PoseEvaluatorTest {
     private static @NotNull EntityModelData meshFor(@NotNull EntityPose pose) {
         EntityModelData mesh = new EntityModelData();
         Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
-        pose.container().values().forEach(expr -> declareRead(expr, mesh, walked));
+        pose.container().forEach(step -> step.values().forEach(expr -> declareRead(expr, mesh, walked)));
         pose.bones().forEach((bone, channels) -> {
             mesh.getBones().put(bone, bone(EulerRotation.NONE));
             channels.values().forEach(expr -> declareRead(expr, mesh, walked));

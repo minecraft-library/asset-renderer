@@ -743,7 +743,7 @@ class PoseWalkTest {
         // All three container channels are what puts the dragon where it is drawn, and the turn is
         // why a container is carried rather than pushed down onto the bones it holds: a rotation
         // reaches each child's POSITION as well as its rotation, so no per-bone term expresses it.
-        assertEquals(Set.of(PoseChannel.Y, PoseChannel.Z, PoseChannel.X_ROT), dragon.container().keySet(),
+        assertEquals(Set.of(PoseChannel.Y, PoseChannel.Z, PoseChannel.X_ROT), dragon.container().getFirst().keySet(),
             "the body places the container twice and turns it once");
     }
 
@@ -895,7 +895,7 @@ class PoseWalkTest {
     private static @NotNull List<PoseExpr> nodesOf(@NotNull PoseProgram program) {
         List<PoseExpr> out = new ArrayList<>();
         Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
-        program.container().values().forEach(expr -> collectNodes(expr, out, walked));
+        program.container().forEach(step -> step.values().forEach(expr -> collectNodes(expr, out, walked)));
         program.bones().values().forEach(channels -> channels.values()
             .forEach(expr -> collectNodes(expr, out, walked)));
         return out;

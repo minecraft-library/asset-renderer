@@ -1322,8 +1322,8 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject pose(@NotNull EntityPose pose) {
         JsonObject root = new JsonObject();
         CanonicalJson.put(root, "refusal", pose.refusal(), JsonPrimitive::new);
-        root.add("container",
-            CanonicalJson.map(pose.container(), PoseChannel::token, PipelineParityDump::poseExpr));
+        root.add("container", CanonicalJson.ordered(pose.container(),
+            step -> CanonicalJson.map(step, PoseChannel::token, PipelineParityDump::poseExpr)));
         root.add("bones", CanonicalJson.map(pose.bones(),
             channels -> CanonicalJson.map(channels, PoseChannel::token, PipelineParityDump::poseExpr)));
         root.add("clips", CanonicalJson.ordered(pose.clips(), clip -> {

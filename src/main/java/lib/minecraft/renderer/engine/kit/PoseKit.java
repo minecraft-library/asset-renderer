@@ -582,24 +582,58 @@ public final class PoseKit {
      * ships two of them. Reading only the null would seat the container above every bone but those,
      * which would draw them somewhere the rest of the subject is not.
      *
+     * <p><b>A step per step, hung off each other in order, rather than one bone folding them.</b>
+     * Each step is a part pose and the chain composition already applies one exactly as vanilla
+     * applies a {@code ModelPart} - so a sequence needs no arithmetic of its own, only the parenting
+     * that says which came first, and the bounds walk composes it the same way for free. Folding two
+     * steps into one bone is what cannot be done: a translate between two rotations about different
+     * axes is not a triple, and recovering one by pre-composing the product is the matrix arithmetic
+     * that parts from an authored pose at a delta of zero.
+     *
      * @throws RendererException if the container writes a channel a parent bone does not carry
      */
     private static void seatUnderContainer(
         @NotNull LinkedHashMap<String, EntityModelData.Bone> bones,
-        @NotNull Map<PoseChannel, Float> written, float flattened) {
+        @NotNull List<Map<PoseChannel, Float>> steps, float flattened) {
 
-        for (PoseChannel channel : written.keySet())
-            if (channel.isFlag() || channel.kind() == PoseChannel.Kind.SCALE)
-                throw new RendererException(
-                    "entity pose: the container writes '%s', which reaches no bone below it",
-                    channel.token());
+        for (Map<PoseChannel, Float> written : steps)
+            for (PoseChannel channel : written.keySet())
+                if (channel.isFlag() || channel.kind() == PoseChannel.Kind.SCALE)
+                    throw new RendererException(
+                        "entity pose: the container writes '%s', which reaches no bone below it",
+                        channel.token());
 
-        String name = containerName(bones.keySet());
-        EntityModelData.Bone container = posedBone(new EntityModelData.Bone(), name, written, flattened);
-        bones.replaceAll((bone, seated) -> !isTopLevel(bones, bone, seated) ? seated
-            : new EntityModelData.Bone(seated.getPivot(), seated.getRotation(),
-                seated.getBindPoseRotation(), seated.getScale(), seated.getCubes(), name));
-        bones.put(name, container);
+        // Named off the growing set, so the second step cannot take the first's name and the whole
+        // chain stays clear of what the mesh already answers to.
+        Set<String> taken = new LinkedHashSet<>(bones.keySet());
+        List<String> names = new ArrayList<>(steps.size());
+        for (int step = 0; step < steps.size(); step++) {
+            String name = containerName(taken);
+            taken.add(name);
+            names.add(name);
+        }
+
+        // The mesh's own roots hang off the INNERMOST step, and they are re-parented before any step
+        // enters the map so that what reads as top-level is what the mesh itself declares.
+        String innermost = names.getLast();
+        bones.replaceAll((bone, seated) -> !isTopLevel(bones, bone, seated)
+            ? seated : reparented(seated, innermost));
+        // Then the steps, each hung off the one before it, and all of them after every bone that
+        // draws so no drawing order changes.
+        for (int step = 0; step < steps.size(); step++) {
+            EntityModelData.Bone seated =
+                posedBone(new EntityModelData.Bone(), names.get(step), steps.get(step), flattened);
+            bones.put(names.get(step),
+                step == 0 ? seated : reparented(seated, names.get(step - 1)));
+        }
+    }
+
+    /** One bone hung off a different parent, everything else about it untouched. */
+    private static @NotNull EntityModelData.Bone reparented(
+        @NotNull EntityModelData.Bone bone, @NotNull String parent) {
+
+        return new EntityModelData.Bone(bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
+            bone.getScale(), bone.getCubes(), parent);
     }
 
     /** Whether a bone hangs from the root, by the same three tests the chain composition applies. */

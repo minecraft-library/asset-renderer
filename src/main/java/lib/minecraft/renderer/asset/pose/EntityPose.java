@@ -27,6 +27,15 @@ import java.util.Optional;
  * at rest rather than at an authored pose, the flattening having already put whatever it held into
  * the bones below it.
  *
+ * <p><b>It is an ORDERED list of steps, and each step is a part pose.</b> A step carries up to the
+ * six channels a {@code ModelPart} does and is applied the way one is - the translate, then
+ * {@code rotationZYX} - so a body that poses a flattened root writes one step and says exactly what
+ * it said before. A sequence is what a renderer's own {@code setupRotations} does instead, bracketing
+ * {@code mulPose} calls with translates, and there the order is the whole meaning: a translate
+ * between two rotations about different axes is not a triple, and no single part pose spells it.
+ * A step naming one channel is exactly a single-axis {@code mulPose}, {@code rotationZYX} reducing to
+ * it when the other two angles are zero.
+ *
  * <p><b>An unanswered figure is not always zero.</b> A pose names the render-state figures it could
  * not derive so that a caller who models none of them still gets a frame vanilla draws - and that
  * only holds where the figure rests at nothing. Several do not: a living subject's {@code ageScale}
@@ -44,7 +53,8 @@ import java.util.Optional;
  * {@code pose} and every other subject's are two fields, and the model's own {@code setupAnim} is
  * what says which of them is being read. A subject whose answer is its own overrides this.
  *
- * @param container the expression each written channel of the flattened container carries
+ * @param container the steps the container is composed of, outermost first, each carrying the
+ *     expression its written channels hold
  * @param bones the expression each bone channel is written with, by bone name
  * @param clips the authored clips this model plays, in the order it plays them
  * @param inputDefaults what each named figure reads as before anything has happened to the subject,
@@ -53,7 +63,7 @@ import java.util.Optional;
  * @param refusal why there is no pose here, or empty when the rest is the whole answer
  */
 public record EntityPose(
-    @NotNull Map<PoseChannel, PoseExpr> container,
+    @NotNull List<Map<PoseChannel, PoseExpr>> container,
     @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
     @NotNull List<Clip> clips,
     @NotNull Map<String, Float> inputDefaults,
@@ -63,7 +73,7 @@ public record EntityPose(
 
     /** The pose of a model that poses nothing, which is a real answer rather than a missing one. */
     public static final @NotNull EntityPose NONE =
-        new EntityPose(Map.of(), Map.of(), List.of(), Map.of(), Map.of(), Optional.empty());
+        new EntityPose(List.of(), Map.of(), List.of(), Map.of(), Map.of(), Optional.empty());
 
     /**
      * One authored clip this model plays, and what it plays it at.

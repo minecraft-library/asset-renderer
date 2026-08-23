@@ -155,7 +155,7 @@ class ClipKitTest {
 
         // A static site holds the clip at nothing, so the instant is driven in as a walk position:
         // millis is `position * 50 * rate`, and a rate of 20 turns a second of clip into a second.
-        EntityPose pose = new EntityPose(Map.of(), Map.of(), List.of(new EntityPose.Clip(
+        EntityPose pose = new EntityPose(List.of(), Map.of(), List.of(new EntityPose.Clip(
             "test", EntityPose.Gate.WALK,
             List.of(constant(at), constant(1f), constant(WALK_RATE), constant(1f)), clip)),
             Map.of(), Map.of(), Optional.empty());
@@ -171,7 +171,7 @@ class ClipKitTest {
         PoseClip clip = new PoseClip(1f, false, List.of(new PoseClip.Channel(bone,
             PoseClip.Target.SCALE, List.of(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0.5f, PoseClip.Interpolation.LINEAR)))));
-        return new EntityPose(Map.of(), Map.of(), List.of(new EntityPose.Clip(
+        return new EntityPose(List.of(), Map.of(), List.of(new EntityPose.Clip(
             "test", EntityPose.Gate.STATIC, List.of(), clip)),
             Map.of(), Map.of(), Optional.empty());
     }
