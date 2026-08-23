@@ -32,11 +32,11 @@
     },
     {
       "path": "entity_models.json",
-      "sha256": "a67ddfef47bc2c1fbe4668fbaa85f94cd75b1bc0423bdefc6f4eeac8cd8eafda"
+      "sha256": "e4a218c33824488fb66cfe9a3e04d13914cb415886d9b618cfa4e9efb442569e"
     },
     {
       "path": "entity_poses.json",
-      "sha256": "a867a95714690674f978eff3ccbedf00151e56ab362057d237ad7ab48c758277"
+      "sha256": "b5a2eec3eba5eeae54e6b966b14ddfeec5c0bfbec46634f4543f3b067305cba4"
     },
     {
       "path": "glint_items.json",
@@ -56,14 +56,14 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "0ccee0b1aefbef39b627e50c4a53b8307075ffa43f89857acf51be6aeb02b57b",
+    "entityModels": "069c1345e28c11a7fa7103728fce477a59c80f17c6ca08786e641bae6671b22d",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
     "asset_dirty": false,
-    "asset_sha": "b4706878fe9b369803f0aa7c4855294a671d902c",
+    "asset_sha": "c1f543615c8682878fbabfe9d52ed0887d258741",
     "counts": {
       "files": 11,
       "logs": 8
@@ -73,7 +73,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "a subject is posed by the class its renderer hands the model, not the one that baked the mesh: 9 subjects and 3 equine body-armour rows gain bones.pose, the pose roster gains the 6 posing classes the geometry manifest never named, and every overlay pass now carries a pose of its own; every render sweep, CRC pin and manifest.visual at 0 movers",
+    "reason": "the container becomes an ordered list of part-pose steps, so a sequence a renderer composes is expressible where one triplet cannot hold a translate between two turns: entity_poses re-shapes the turtle's container and the dragon's into one-element arrays and the dump digests the pose it loaded, and the tooling-tables rows carry the entity_models and log drift accumulated since b4706878 besides. No render moved - every sweep, CRC pin, manifest.visual and manifest.player-* at 0, and both container subjects byte-identical at turtle 0.0571 and dragon 0.0780",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -83,8 +83,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-22T21:31:46Z",
+    "timestamp": "2026-08-23T05:30:15Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 44324
+    "wall_time_ms": 45217
   }
 }

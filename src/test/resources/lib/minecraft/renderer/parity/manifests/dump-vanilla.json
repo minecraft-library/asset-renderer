@@ -16,7 +16,7 @@
     },
     {
       "path": "entities.json",
-      "sha256": "e4025aa69bb2701a7bd504ed128c1f0e4f329704154a599b3da8b69cb4b31cb0"
+      "sha256": "19a24fc5bf11ae7f4d47c412a4dcc6f229ca6acebeaa9a9b5953f145b4c8ce79"
     },
     {
       "path": "item-models.json",
@@ -65,7 +65,7 @@
   "provenance": {
     "artifact": "manifest.dump.vanilla",
     "asset_dirty": false,
-    "asset_sha": "b4706878fe9b369803f0aa7c4855294a671d902c",
+    "asset_sha": "c1f543615c8682878fbabfe9d52ed0887d258741",
     "counts": {
       "files": 14
     },
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "parityDump",
-    "reason": "a subject is posed by the class its renderer hands the model, not the one that baked the mesh: 9 subjects and 3 equine body-armour rows gain bones.pose, the pose roster gains the 6 posing classes the geometry manifest never named, and every overlay pass now carries a pose of its own; every render sweep, CRC pin and manifest.visual at 0 movers",
+    "reason": "the container becomes an ordered list of part-pose steps, so a sequence a renderer composes is expressible where one triplet cannot hold a translate between two turns: entity_poses re-shapes the turtle's container and the dragon's into one-element arrays and the dump digests the pose it loaded, and the tooling-tables rows carry the entity_models and log drift accumulated since b4706878 besides. No render moved - every sweep, CRC pin, manifest.visual and manifest.player-* at 0, and both container subjects byte-identical at turtle 0.0571 and dragon 0.0780",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,8 +84,8 @@
       "players": 2
     },
     "root": "cache/parity-dump/head/vanilla",
-    "timestamp": "2026-08-22T21:31:44Z",
+    "timestamp": "2026-08-23T05:30:13Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 28360
+    "wall_time_ms": 28992
   }
 }
