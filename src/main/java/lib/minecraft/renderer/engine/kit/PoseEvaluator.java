@@ -183,6 +183,7 @@ public final class PoseEvaluator {
 
         Map<String, Float> defaults = pose.inputDefaults();
         Map<String, String> resting = pose.restDefaults();
+        Map<String, Float> answers = pose.questionDefaults();
         return new Frame() {
             @Override
             public float input(@NotNull String field) {
@@ -203,6 +204,13 @@ public final class PoseEvaluator {
 
             @Override
             public float question(@NotNull String receiver, @NotNull String question) {
+                // The table first, because a question asked of a reference the state holds rests at
+                // whatever that reference was built at rather than at nothing: an armour stand's
+                // legs splay a degree each way before anything has happened to it. What falls
+                // through is the one question whose answer is about absence rather than about a
+                // value - a stack nobody put anything in is empty, and no table row can say so.
+                Float held = answers.get(receiver + '.' + question);
+                if (held != null) return held;
                 return IS_EMPTY.equals(question) ? 1f : 0f;
             }
 

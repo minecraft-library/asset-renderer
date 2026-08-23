@@ -180,7 +180,7 @@ class PoseKitTest {
 
         EntityPose readsItself = new EntityPose(List.of(),
             Map.of("head", Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT))),
-            List.of(), Map.of(), Map.of(), Optional.empty());
+            List.of(), Map.of(), Map.of(), Map.of(), Optional.empty());
 
         EntityModelData posed = PoseKit.posed(EntityOptions.PoseMode.IDLE,
             subject("minecraft:test", mesh, readsItself), 4);
@@ -200,7 +200,7 @@ class PoseKitTest {
 
         EntityPose drops = new EntityPose(
             List.of(Map.of(PoseChannel.Y, new PoseExpr.Const(-3d, PoseOperator.Width.FLOAT))),
-            Map.of(), List.of(), Map.of(), Map.of(), Optional.empty());
+            Map.of(), List.of(), Map.of(), Map.of(), Map.of(), Optional.empty());
 
         EntityModelData posed = PoseKit.posed(EntityOptions.PoseMode.IDLE,
             subject("minecraft:test", mesh, drops), 0);
@@ -226,7 +226,7 @@ class PoseKitTest {
 
         EntityPose drops = new EntityPose(
             List.of(Map.of(PoseChannel.Y, new PoseExpr.Const(-3d, PoseOperator.Width.FLOAT))),
-            Map.of(), List.of(), Map.of(), Map.of(), Optional.empty());
+            Map.of(), List.of(), Map.of(), Map.of(), Map.of(), Optional.empty());
         Entity subject = Entity.builder()
             .id(ResourceId.parse("minecraft:test"))
             .model(mesh)
@@ -395,7 +395,7 @@ class PoseKitTest {
             PoseChannel.X_SCALE, new PoseExpr.Const(2d, PoseOperator.Width.FLOAT),
             PoseChannel.Y_SCALE, new PoseExpr.Const(3d, PoseOperator.Width.FLOAT),
             PoseChannel.Z_SCALE, new PoseExpr.Const(2d, PoseOperator.Width.FLOAT))),
-            List.of(), Map.of(), Map.of(), Optional.empty());
+            List.of(), Map.of(), Map.of(), Map.of(), Optional.empty());
 
         RendererException refused = assertThrows(RendererException.class, () -> PoseKit.posed(
             EntityOptions.PoseMode.IDLE, subject("minecraft:test", mesh, uneven), 0));
@@ -431,7 +431,7 @@ class PoseKitTest {
 
     /** A pose that writes the given flags and nothing else. */
     private static @NotNull EntityPose flags(@NotNull Map<String, Map<PoseChannel, PoseExpr>> bones) {
-        return new EntityPose(List.of(), bones, List.of(), Map.of(), Map.of(), Optional.empty());
+        return new EntityPose(List.of(), bones, List.of(), Map.of(), Map.of(), Map.of(), Optional.empty());
     }
 
     private static boolean finite(@NotNull Vector3f vector) {

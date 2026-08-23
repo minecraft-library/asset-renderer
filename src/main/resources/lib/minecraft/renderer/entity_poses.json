@@ -220317,6 +220317,28 @@
       "useItemHand": "MAIN_HAND"
     }
   },
+  "question_defaults": {
+    "ArmorStandModel": {
+      "leftArmPose.x": -10.0,
+      "leftArmPose.z": -10.0,
+      "leftLegPose.x": -1.0,
+      "leftLegPose.z": -1.0,
+      "rightArmPose.x": -15.0,
+      "rightArmPose.z": 10.0,
+      "rightLegPose.x": 1.0,
+      "rightLegPose.z": 1.0
+    },
+    "ArmorStandArmorModel": {
+      "leftArmPose.x": -10.0,
+      "leftArmPose.z": -10.0,
+      "leftLegPose.x": -1.0,
+      "leftLegPose.z": -1.0,
+      "rightArmPose.x": -15.0,
+      "rightArmPose.z": 10.0,
+      "rightLegPose.x": 1.0,
+      "rightLegPose.z": 1.0
+    }
+  },
   "renderers": {
     "ArmorStandRenderer": {
       "refused": "turns by an angle it could not read"

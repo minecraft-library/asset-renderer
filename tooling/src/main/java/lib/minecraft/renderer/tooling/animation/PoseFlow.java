@@ -93,19 +93,34 @@ public final class PoseFlow {
         // not one type. Two unrelated states declare a 'pose' and two more a 'rightArmPose', and a
         // flat table cannot say which a subject reads - where the model can, its own setupAnim
         // naming the state its members are read off.
+        //
+        // What a QUESTION rests answering rides the same keying and the same walk of the state
+        // chain, because it is the same question about a different kind of member: a reference the
+        // state holds is a whole value, and every component of it is an answer a subject stands at.
         JsonTree restingNode = JsonTree.object();
+        JsonTree questionsNode = JsonTree.object();
         Set<String> switched = InputDefaultResolver.constantsNamedBy(poses);
+        Set<String> asked = InputDefaultResolver.questionsNamedBy(poses);
         for (Map.Entry<String, String> model : roster.entrySet()) {
             String renderState = PoseWalk.renderStateOf(session.cache(), model.getKey());
             if (renderState == null) continue;
+            String name = ClassKit.simpleName(model.getKey());
             Map<String, String> resting =
                 InputDefaultResolver.resolveConstants(session.cache(), renderState, switched);
-            if (resting.isEmpty()) continue;
-            JsonTree perModel = JsonTree.object();
-            resting.forEach(perModel::put);
-            restingNode.put(ClassKit.simpleName(model.getKey()), perModel);
+            if (!resting.isEmpty()) {
+                JsonTree perModel = JsonTree.object();
+                resting.forEach(perModel::put);
+                restingNode.put(name, perModel);
+            }
+            Map<String, Float> answers =
+                InputDefaultResolver.resolveQuestions(session.cache(), renderState, asked);
+            if (answers.isEmpty()) continue;
+            JsonTree perModelQuestions = JsonTree.object();
+            answers.forEach(perModelQuestions::put);
+            questionsNode.put(name, perModelQuestions);
         }
         if (!restingNode.isEmpty()) root.put("rest_defaults", restingNode);
+        if (!questionsNode.isEmpty()) root.put("question_defaults", questionsNode);
 
         // What each RENDERER puts above every mesh it submits, which is a fact about the renderer
         // rather than about any one model: a subject draws its body and its overlay passes through

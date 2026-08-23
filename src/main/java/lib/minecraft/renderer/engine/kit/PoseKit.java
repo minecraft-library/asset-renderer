@@ -191,7 +191,7 @@ public final class PoseKit {
         List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>(steps);
         container.addAll(pose.container());
         return new EntityPose(List.copyOf(container), pose.bones(), pose.clips(),
-            pose.inputDefaults(), pose.restDefaults(), pose.refusal());
+            pose.inputDefaults(), pose.restDefaults(), pose.questionDefaults(), pose.refusal());
     }
 
     /** Each overlay pass where its own model leaves it, or the list itself when none of them moved. */

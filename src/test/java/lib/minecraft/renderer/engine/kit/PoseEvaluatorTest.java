@@ -152,6 +152,25 @@ class PoseEvaluatorTest {
     }
 
     @Test
+    @DisplayName("an armour stand's legs splay a degree each way before anything happens to it")
+    void aQuestionRestsAtWhatItsReceiverWasBuiltHolding() {
+        // The corpus's one subject whose legs stand at anything: ArmorStand builds its default leg
+        // poses at (-1, 0, -1) and (1, 0, 1), which the stand's own state holds before it has ticked.
+        // A stand answering zero to every question stands with its legs together, and the two arms of
+        // the splay are opposite - so a table that lost which leg it was answering would splay them
+        // the same way and cost more than answering nothing does.
+        Entity stand = entities.get("minecraft:armor_stand");
+        assertNotNull(stand, "the corpus carries an armour stand");
+        PoseEvaluator.Frame rest = PoseEvaluator.restingIn(stand.pose(), stand.restingState());
+
+        assertEquals(-1f, rest.question("leftLegPose", "x"), "the left leg turns one way");
+        assertEquals(1f, rest.question("rightLegPose", "x"), "and the right turns the other");
+        assertEquals(0f, rest.question("leftLegPose", "y"), "a component built at nothing rests there");
+        assertEquals(1f, rest.question("mainHandItem", "isEmpty"),
+            "and a stack nobody put anything in is still empty, which no table row says");
+    }
+
+    @Test
     @DisplayName("an unwritten channel reads the mesh, and a rotation reads it in radians")
     void aBoneReadAnswersTheMeshInTheTablesOwnUnits() {
         // The table's arithmetic is in radians where the mesh stores degrees, so a read that handed
@@ -161,7 +180,7 @@ class PoseEvaluatorTest {
 
         EntityPose reads = new EntityPose(List.of(), Map.of("head",
             Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT))),
-            List.of(), Map.of(), Map.of(), Optional.empty());
+            List.of(), Map.of(), Map.of(), Map.of(), Optional.empty());
 
         assertEquals((float) Math.toRadians(90d),
             PoseEvaluator.evaluate(reads, mesh, PoseEvaluator.ZERO).bones().get("head").get(PoseChannel.X_ROT),

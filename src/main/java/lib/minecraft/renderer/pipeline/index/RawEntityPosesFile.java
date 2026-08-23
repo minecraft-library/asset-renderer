@@ -75,6 +75,7 @@ public record RawEntityPosesFile(
             if (!root.isJsonObject()) throw new PipelineException("entity poses: the file is not an object");
             Map<String, Float> defaults = inputDefaults(root.getAsJsonObject().get("input_defaults"));
             JsonElement resting = root.getAsJsonObject().get("rest_defaults");
+            JsonElement answers = root.getAsJsonObject().get("question_defaults");
             Map<String, PoseClip> tables = clipTables(root.getAsJsonObject().get("clips"));
             Map<String, List<Map<PoseChannel, PoseExpr>>> transforms =
                 renderTransforms(root.getAsJsonObject().get("renderers"));
@@ -85,7 +86,8 @@ public record RawEntityPosesFile(
             Map<String, EntityPose> out = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> entry : poses.getAsJsonObject().entrySet())
                 out.put(entry.getKey(), pose(entry.getKey(), object(entry.getValue(), entry.getKey()),
-                    defaults, restDefaults(resting, entry.getKey()), tables));
+                    defaults, restDefaults(resting, entry.getKey()),
+                    questionDefaults(answers, entry.getKey()), tables));
             return new RawEntityPosesFile(Collections.unmodifiableMap(out), transforms);
         }
 
@@ -167,6 +169,32 @@ public record RawEntityPosesFile(
         Map<String, String> out = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> entry : object(held, model).entrySet())
             out.put(entry.getKey(), entry.getValue().getAsString());
+        return Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * What each question this model asks rests answering, keyed {@code receiver.question}.
+     *
+     * <p>Keyed by model for the reason the enum constants are: a bare receiver name spans more than
+     * one type, and an armour stand's {@code rightArmPose} is a triple of angles beside a humanoid's
+     * arm pose.
+     *
+     * <p>Narrowed through {@code float} on the way in, on the same terms every other numeric read
+     * here is: the values are components a record's own initialiser built at float width.
+     */
+    private static @NotNull Map<String, Float> questionDefaults(
+        @Nullable JsonElement node, @NotNull String model) {
+
+        if (node == null) return Map.of();
+        if (!node.isJsonObject())
+            throw new PipelineException("entity poses: 'question_defaults' is not an object");
+
+        JsonElement held = node.getAsJsonObject().get(model);
+        if (held == null) return Map.of();
+
+        Map<String, Float> out = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : object(held, model).entrySet())
+            out.put(entry.getKey(), (float) entry.getValue().getAsDouble());
         return Collections.unmodifiableMap(out);
     }
 
@@ -265,11 +293,12 @@ public record RawEntityPosesFile(
     /** One model's pose, or the record of why it has none. */
     private static @NotNull EntityPose pose(
         @NotNull String model, @NotNull JsonObject node, @NotNull Map<String, Float> defaults,
-        @NotNull Map<String, String> resting, @NotNull Map<String, PoseClip> tables) {
+        @NotNull Map<String, String> resting, @NotNull Map<String, Float> answers,
+        @NotNull Map<String, PoseClip> tables) {
 
         JsonElement refused = node.get("refused");
         if (refused != null)
-            return new EntityPose(List.of(), Map.of(), List.of(), Map.of(), Map.of(),
+            return new EntityPose(List.of(), Map.of(), List.of(), Map.of(), Map.of(), Map.of(),
                 Optional.of(refused.getAsString()));
 
         Shared shared = Shared.of(model, node.get("shared"));
@@ -301,7 +330,7 @@ public record RawEntityPosesFile(
         // Nothing reads the order for meaning, but the parity dump digests this map, and a digest
         // over a map that flaps is a row that fails its own reproducibility check and nothing else.
         return new EntityPose(List.copyOf(container), Collections.unmodifiableMap(bones),
-            List.copyOf(clips), defaults, resting, Optional.empty());
+            List.copyOf(clips), defaults, resting, answers, Optional.empty());
     }
 
     /**

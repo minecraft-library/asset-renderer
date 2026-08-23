@@ -643,11 +643,22 @@ its owner is the field's declared type, true of an enum constant and of `ItemSta
 of a static the state merely holds. A member named through a call is answered by the fields it
 forwards to, and refuses where two branches disagree.
 
-**A question asked of a reference the render state holds still rests at nothing, and that is a known
-gap.** `input_fn` answers zero for everything but `isEmpty`, where `ArmorStandRenderState` builds six
-`Rotations` at non-zero - the legs at a degree of splay each way. It is the armour stand's whole
-remaining divergence and reaches no other subject, the arms a spawned stand does not draw being the
-only other reader.
+**A question asked of a reference the render state holds rests at what that reference was built
+with, and `entity_poses.json`'s `question_defaults` carries it**, keyed per MODEL for the reason
+`rest_defaults` is and then by `receiver.question`. Where a figure the state builds at zero and one
+nobody models are the same number, a reference is a whole value and every component of it is an
+answer a subject stands at - an armour stand's legs splay a degree each way before anything happens
+to it, and answering zero stands it with its legs together.
+
+- Answerable because the shape is closed: the state's constructor assigns the field a static of the
+  field's own declared type, that type is a record of floats, and the static's own initialiser builds
+  it from literals. So the question names a record component, the component names a constructor
+  argument BY POSITION, and the argument is a number. Losing the position splays both legs the same
+  way, which costs more than answering nothing - measured at 7.68 against the 4.56 of a stand with
+  its legs together, and 0.05 with the positions right.
+- Anything outside that shape answers nothing rather than a guess, and a zero row is omitted on the
+  same terms `input_defaults` omits one. That cannot shadow `isEmpty`, which rests at ONE: an
+  emptiness is asked of a stack rather than read off a record of floats, so no row can ever name it.
 
 **`BIND` is the default and hands back the very instance it was given.** Identity, not equality: an
 equal copy is still a copy, and every float in it is one the authored path never computed. The same

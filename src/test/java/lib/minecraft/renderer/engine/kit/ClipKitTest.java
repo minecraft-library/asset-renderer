@@ -158,7 +158,7 @@ class ClipKitTest {
         EntityPose pose = new EntityPose(List.of(), Map.of(), List.of(new EntityPose.Clip(
             "test", EntityPose.Gate.WALK,
             List.of(constant(at), constant(1f), constant(WALK_RATE), constant(1f)), clip)),
-            Map.of(), Map.of(), Optional.empty());
+            Map.of(), Map.of(), Map.of(), Optional.empty());
 
         Map<PoseChannel, Float> written =
             ClipKit.deltas(pose, mesh, PoseEvaluator.ZERO).get("body");
@@ -173,7 +173,7 @@ class ClipKitTest {
                 new PoseClip.Keyframe(0f, 0f, 0f, 0.5f, PoseClip.Interpolation.LINEAR)))));
         return new EntityPose(List.of(), Map.of(), List.of(new EntityPose.Clip(
             "test", EntityPose.Gate.STATIC, List.of(), clip)),
-            Map.of(), Map.of(), Optional.empty());
+            Map.of(), Map.of(), Map.of(), Optional.empty());
     }
 
     private static @NotNull EntityModelData.Bone child(@NotNull String parent) {

@@ -13,7 +13,9 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.RecordComponentNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayList;
@@ -189,6 +191,182 @@ final class InputDefaultResolver {
             case PosePredicate.Not not -> tested(not.operand(), named, walked);
             default -> { /* a presence test or a decided constant names no member */ }
         }
+    }
+
+    /**
+     * Every question the walked poses ask of a reference the render state holds.
+     *
+     * <p>Walked once per node, on the same terms and for the same reason the other two collectors
+     * are. The pair is the identity: whether the left leg is turned about x and whether the right is
+     * are two questions, and a table keyed on the receiver alone would answer both legs the same way
+     * and splay a stand's legs the same direction.
+     *
+     * <p>A receiver reached through something rather than held in a field is left out, and so is one
+     * reached through a call. Neither has a field of the state to be built with, which is the only
+     * thing this can read.
+     *
+     * @param poses what the walk extracted, refusals included and ignored
+     * @return each question as {@code receiver.question}, in sorted order
+     */
+    static @NotNull Set<String> questionsNamedBy(@NotNull Map<String, PoseOutcome> poses) {
+        Set<String> named = new TreeSet<>();
+        Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (PoseOutcome outcome : poses.values()) {
+            if (!(outcome instanceof PoseOutcome.Extracted extracted)) continue;
+            PoseProgram program = extracted.program();
+            program.container().forEach(step -> step.values().forEach(expr -> asked(expr, named, walked)));
+            program.bones().values().forEach(channels ->
+                channels.values().forEach(expr -> asked(expr, named, walked)));
+        }
+        return named;
+    }
+
+    /** Every question one expression asks, reached through its operands and its arms. */
+    private static void asked(
+        @NotNull PoseExpr expr, @NotNull Set<String> named, @NotNull Set<Object> walked) {
+
+        if (!walked.add(expr)) return;
+        switch (expr) {
+            case PoseExpr.InputFn question -> {
+                if (question.receiver().indexOf('.') < 0 && question.receiver().indexOf('(') < 0)
+                    named.add(question.receiver() + '.' + question.question());
+            }
+            case PoseExpr.Op op -> op.operands().forEach(operand -> asked(operand, named, walked));
+            case PoseExpr.Select select -> {
+                asked(select.whenTrue(), named, walked);
+                asked(select.whenFalse(), named, walked);
+                asked(select.condition(), named, walked);
+            }
+            default -> { /* a leaf that is not a question asks none */ }
+        }
+    }
+
+    /** Every question one condition reaches, which is the same walk a step lower. */
+    private static void asked(
+        @NotNull PosePredicate predicate, @NotNull Set<String> named, @NotNull Set<Object> walked) {
+
+        if (!walked.add(predicate)) return;
+        switch (predicate) {
+            case PosePredicate.Compare compare -> {
+                asked(compare.left(), named, walked);
+                asked(compare.right(), named, walked);
+            }
+            case PosePredicate.Not not -> asked(not.operand(), named, walked);
+            default -> { /* an enum test, a presence test or a decided constant asks nothing */ }
+        }
+    }
+
+    /**
+     * What each named question rests answering, read off the value its receiver is built holding.
+     *
+     * <p><b>A question is not a figure and rests at nothing only by accident.</b> Where a figure the
+     * state builds at zero and one nobody models are the same number, a reference the state holds is
+     * a whole value and every component of it is an answer - {@code ArmorStandRenderState} builds six
+     * {@code Rotations} in its constructor and two of them are a degree of leg splay each way, which
+     * a stand answering nothing stands without.
+     *
+     * <p>Answerable because the shape is closed: the state's constructor assigns the field a static
+     * of the field's own declared type, that type is a record of floats, and the static's own
+     * initialiser builds it from literals. So the question names a record component, the component
+     * names a constructor argument by position, and the argument is a number. Anything else - a value
+     * built in the constructor, a component that is not a float, a question naming no component, an
+     * argument that is not a literal - answers nothing rather than a guess, and the question falls
+     * back to what it rested at before.
+     *
+     * @param cache the open client jar
+     * @param renderState the state this model's own {@code setupAnim} reads
+     * @param named the questions the walked poses ask, as {@code receiver.question}
+     * @return each question's resting answer, for the ones this shape reaches
+     */
+    static @NotNull Map<String, Float> resolveQuestions(
+        @NotNull ClassNodeCache cache, @NotNull String renderState, @NotNull Collection<String> named) {
+
+        Map<String, FieldInsnNode> sources = new TreeMap<>();
+        // Base first, so a state that re-builds an inherited reference wins - the same order and the
+        // same reason the enum constants are read in.
+        for (String owner : chain(cache, renderState).reversed()) {
+            ClassNode declaring = cache.load(owner);
+            if (declaring == null) continue;
+            MethodNode constructor = ClassKit.findMethod(declaring, "<init>", "()V");
+            if (constructor == null) continue;
+
+            AsmWalker.over(constructor)
+                .on(Insn.of(FieldInsnNode.class, put -> put.getOpcode() == Opcodes.PUTFIELD), put -> {
+                    AbstractInsnNode push = AsmWalker.previousReal(put);
+                    if (push instanceof FieldInsnNode read && read.getOpcode() == Opcodes.GETSTATIC
+                        && read.desc.equals(put.desc)) sources.put(put.name, read);
+                    else sources.remove(put.name);
+                })
+                .run();
+        }
+
+        Map<String, Float> out = new TreeMap<>();
+        for (String asked : named) {
+            int split = asked.indexOf('.');
+            if (split < 0) continue;
+            FieldInsnNode source = sources.get(asked.substring(0, split));
+            if (source == null) continue;
+            Float rests = component(cache, source, asked.substring(split + 1));
+            // A zero row says what its own absence says, on the same terms a figure's does - and it
+            // cannot shadow the one question that rests at something else, an emptiness being asked
+            // of a stack rather than read off a record of floats.
+            if (rests != null && rests != 0f) out.put(asked, rests);
+        }
+        // Order-preserving rather than Map.copyOf, for the reason resolve's own return is.
+        return Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * One record component of the value a static holds, read off the literals its initialiser
+     * builds that value from.
+     *
+     * <p>The component's POSITION is what joins the question to the argument - a record's canonical
+     * constructor takes its components in declaration order, so the accessor's name resolves to an
+     * index and the index resolves to a push. Reading the accessor's body instead would answer the
+     * same thing one indirection later and would need the field-to-component join anyway.
+     */
+    private static @Nullable Float component(
+        @NotNull ClassNodeCache cache, @NotNull FieldInsnNode source, @NotNull String question) {
+
+        if (!source.desc.startsWith("L") || !source.desc.endsWith(";")) return null;
+        String type = source.desc.substring(1, source.desc.length() - 1);
+        ClassNode held = cache.load(type);
+        if (held == null || held.recordComponents == null || held.recordComponents.isEmpty()) return null;
+
+        int found = -1;
+        for (int at = 0; at < held.recordComponents.size(); at++) {
+            RecordComponentNode component = held.recordComponents.get(at);
+            if (!"F".equals(component.descriptor)) return null;
+            if (component.name.equals(question)) found = at;
+        }
+        if (found < 0) return null;
+        int index = found;
+
+        MethodNode clinit = ClassKit.findClinit(cache, source.owner);
+        if (clinit == null) return null;
+
+        int arity = held.recordComponents.size();
+        Float[] built = {null};
+        AsmWalker.over(clinit)
+            .on(Insn.of(FieldInsnNode.class, put -> put.getOpcode() == Opcodes.PUTSTATIC
+                && put.owner.equals(source.owner) && put.name.equals(source.name)), put -> {
+                AbstractInsnNode call = AsmWalker.previousReal(put);
+                if (!(call instanceof MethodInsnNode init) || init.getOpcode() != Opcodes.INVOKESPECIAL
+                    || !ClassKit.INIT.equals(init.name) || !init.owner.equals(type)) return;
+
+                // The arguments walked back one push at a time, which is what makes each of them a
+                // literal rather than the tail of an expression that happened to end in one.
+                Float[] arguments = new Float[arity];
+                AbstractInsnNode node = init;
+                for (int at = arity - 1; at >= 0; at--) {
+                    node = AsmWalker.previousReal(node);
+                    arguments[at] = AsmWalker.floatLiteral(node);
+                    if (arguments[at] == null) return;
+                }
+                built[0] = arguments[index];
+            })
+            .run();
+        return built[0];
     }
 
     /**
