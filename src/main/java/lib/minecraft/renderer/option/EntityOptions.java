@@ -202,10 +202,17 @@ public class EntityOptions implements RenderOptions {
     }
 
     /**
-     * Whether an entity's bones are drawn where they are authored or where its model puts them.
+     * Whether an entity's bones are drawn where they are authored or where its model puts them, and
+     * what the subject is taken to be doing while they are.
      *
-     * <p>The mesh a frame is built from is the whole of what varies between the two - the canvas,
-     * the layers, the textures and the lighting are reached the same way either way.
+     * <p>The mesh a frame is built from is the whole of what varies between them - the canvas, the
+     * layers, the textures and the lighting are reached the same way whichever is chosen.
+     *
+     * <p><b>What separates the two moving presets is which figures stop answering their resting
+     * value.</b> A pose is a function of what the caller says about the subject, and a subject that
+     * is merely standing there answers everything but elapsed time with what it rests at. Naming a
+     * gait is naming the further figures that stop resting; it is not a second pose mechanism, and
+     * every one of them goes through {@code PoseKit} the same way.
      */
     public enum PoseMode {
 
@@ -213,18 +220,37 @@ public class EntityOptions implements RenderOptions {
          * The authored bind pose - every bone at the pivot, rotation and scale its mesh declares.
          *
          * <p>The default, and what every subject draws whose model poses nothing, whose pose could
-         * not be read, and which carries no pose at all.
+         * not be read, and which carries no pose at all. It hands back the very mesh it was given
+         * rather than an equal one, so a caller that asks for nothing allocates nothing and rounds
+         * nothing.
          */
         BIND,
 
         /**
-         * The pose the subject's model evaluates at each frame's tick.
+         * A subject standing where it is, at each frame's tick.
          *
-         * <p>What moves is what the shipped pose table drives from elapsed time - a head that bobs,
-         * a tail that sways, a wing that beats - because a subject standing still answers every
-         * other figure with what it rests at, and time is the one that runs.
+         * <p>Elapsed time is the only figure that stops resting, so what moves is what the shipped
+         * pose table drives from it - a head that bobs, a tail that sways, a wing that beats. The
+         * subject walks at no speed, swings at nothing and holds nothing.
          */
-        ANIMATED
+        IDLE,
+
+        /**
+         * A subject walking on the spot, at each frame's tick.
+         *
+         * <p>{@link #IDLE} plus the two figures a stride is carried on: the amplitude a limb swings
+         * through and the phase it is at. Vanilla accumulates the phase by the amplitude once a
+         * tick rather than deriving it from the clock, so the two are one schedule and not two
+         * inputs - which is why the preset owns them and a caller does not set them separately.
+         *
+         * <p>The amplitude is the full one. Vanilla clamps what it accumulates to one, so a subject
+         * at that value is walking as hard as anything in the corpus ever walks, and every lesser
+         * gait is a fraction of the same curve rather than a different one.
+         *
+         * <p><b>There is no vanilla reference for this yet</b>, so it renders and is not gated: the
+         * animated reference set was drawn from a never-ticked subject, which walks at no speed.
+         */
+        WALK
 
     }
 

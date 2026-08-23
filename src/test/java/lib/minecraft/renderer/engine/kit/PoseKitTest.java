@@ -84,7 +84,7 @@ class PoseKitTest {
         int posed = 0;
         for (Entity entity : entities.values()) {
             for (int tick : TICKS) {
-                EntityModelData mesh = PoseKit.posed(EntityOptions.PoseMode.ANIMATED, entity, tick);
+                EntityModelData mesh = PoseKit.posed(EntityOptions.PoseMode.IDLE, entity, tick);
                 String where = entity.id() + " at tick " + tick;
                 mesh.getBones().forEach((name, bone) -> {
                     assertTrue(finite(bone.getPivot()), where + ": " + name + " stands somewhere");
@@ -92,11 +92,42 @@ class PoseKitTest {
                     assertTrue(Float.isFinite(bone.getScale()), where + ": " + name + " is some size");
                 });
             }
-            if (PoseKit.posed(EntityOptions.PoseMode.ANIMATED, entity, 0) != entity.model()) posed++;
+            if (PoseKit.posed(EntityOptions.PoseMode.IDLE, entity, 0) != entity.model()) posed++;
         }
         // A floor rather than a count, for the reason the evaluator's own corpus walk carries one:
         // the roster follows the entity registry and moves on a version bump.
         assertTrue(posed > 50, "the corpus is expected to be posed, not skipped past: " + posed);
+    }
+
+    @Test
+    @DisplayName("a walking subject moves what a standing one holds still, and stays finite doing it")
+    void walkingDrivesTheStrideAndNothingElse() {
+        // A gait is the further figures that stop resting, so the whole of what separates the two
+        // presets is the stride pair. Two things are worth pinning and they fail differently.
+        //
+        // That WALK reaches anything at all: the pair is read by 81 of the corpus's pose classes and
+        // by far more bones than elapsed time is, so a preset that answered them at rest would look
+        // like it worked and draw an idle subject. Counted over the corpus rather than asserted on
+        // one animal, the roster following the entity registry.
+        int strides = 0;
+        for (Entity entity : entities.values()) {
+            for (int tick : TICKS) {
+                EntityModelData walked = PoseKit.posed(EntityOptions.PoseMode.WALK, entity, tick);
+                String where = entity.id() + " walking at tick " + tick;
+                // And that it stays a number. The stride is divided by `speedValue` in every
+                // humanoid arm swing, so a preset that drove the amplitude without the phase - or
+                // either of them past what vanilla clamps to - is a NaN rather than a wrong angle.
+                walked.getBones().forEach((name, bone) -> {
+                    assertTrue(finite(bone.getPivot()), where + ": " + name + " stands somewhere");
+                    assertTrue(finite(bone.getRotation()), where + ": " + name + " points somewhere");
+                    assertTrue(Float.isFinite(bone.getScale()), where + ": " + name + " is some size");
+                });
+            }
+            EntityModelData idle = PoseKit.posed(EntityOptions.PoseMode.IDLE, entity, 7);
+            EntityModelData walking = PoseKit.posed(EntityOptions.PoseMode.WALK, entity, 7);
+            if (!idle.getBones().equals(walking.getBones())) strides++;
+        }
+        assertTrue(strides > 50, "the corpus is expected to walk, not stand: " + strides);
     }
 
     @Test
@@ -105,7 +136,7 @@ class PoseKitTest {
         // The order is the tied-depth priority a coplanar pair is decided by, so a rebuild that
         // reordered the map would re-decide which face survives on subjects nothing else touched.
         for (Entity entity : entities.values()) {
-            EntityModelData mesh = PoseKit.posed(EntityOptions.PoseMode.ANIMATED, entity, 13);
+            EntityModelData mesh = PoseKit.posed(EntityOptions.PoseMode.IDLE, entity, 13);
             if (mesh == entity.model()) continue;
             List<String> declared = List.copyOf(entity.model().getBones().keySet());
             List<String> posed = List.copyOf(mesh.getBones().keySet());
@@ -123,12 +154,12 @@ class PoseKitTest {
         // A humanoid bobs its arms off ageInTicks unconditionally, so a zombie standing perfectly
         // still is the cheapest subject that has to differ between two instants.
         Entity zombie = subject("minecraft:zombie");
-        EntityModelData at0 = PoseKit.posed(EntityOptions.PoseMode.ANIMATED, zombie, 0);
-        EntityModelData at9 = PoseKit.posed(EntityOptions.PoseMode.ANIMATED, zombie, 9);
+        EntityModelData at0 = PoseKit.posed(EntityOptions.PoseMode.IDLE, zombie, 0);
+        EntityModelData at9 = PoseKit.posed(EntityOptions.PoseMode.IDLE, zombie, 9);
 
         assertNotEquals(at0.getBones().get("left_arm").getRotation(),
             at9.getBones().get("left_arm").getRotation(), "nine ticks of standing still is an arm bob");
-        assertEquals(at0.getBones(), PoseKit.posed(EntityOptions.PoseMode.ANIMATED, zombie, 0).getBones(),
+        assertEquals(at0.getBones(), PoseKit.posed(EntityOptions.PoseMode.IDLE, zombie, 0).getBones(),
             "and one tick asked twice is one subject");
     }
 
@@ -151,7 +182,7 @@ class PoseKitTest {
             Map.of("head", Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT))),
             List.of(), Map.of(), Map.of(), Optional.empty());
 
-        EntityModelData posed = PoseKit.posed(EntityOptions.PoseMode.ANIMATED,
+        EntityModelData posed = PoseKit.posed(EntityOptions.PoseMode.IDLE,
             subject("minecraft:test", mesh, readsItself), 4);
         assertEquals(authored, posed.getBones().get("head").getRotation(),
             "a channel written back to what it held is the number it held");
@@ -171,7 +202,7 @@ class PoseKitTest {
             Map.of(PoseChannel.Y, new PoseExpr.Const(-3d, PoseOperator.Width.FLOAT)),
             Map.of(), List.of(), Map.of(), Map.of(), Optional.empty());
 
-        EntityModelData posed = PoseKit.posed(EntityOptions.PoseMode.ANIMATED,
+        EntityModelData posed = PoseKit.posed(EntityOptions.PoseMode.IDLE,
             subject("minecraft:test", mesh, drops), 0);
 
         String container = List.copyOf(posed.getBones().keySet()).getLast();
@@ -192,7 +223,7 @@ class PoseKitTest {
         // -PI/2.25, symmetric, where the humanoid alone leaves one at nothing and the other partway.
         float armsOut = (float) Math.toDegrees(-Math.PI / 2.25);
         for (String id : new String[] {"minecraft:zombie", "minecraft:husk", "minecraft:giant"}) {
-            EntityModelData mesh = PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject(id), 0);
+            EntityModelData mesh = PoseKit.posed(EntityOptions.PoseMode.IDLE, subject(id), 0);
             float left = mesh.getBones().get("left_arm").getRotation().pitch();
             float right = mesh.getBones().get("right_arm").getRotation().pitch();
             assertEquals(left, right, 1e-4f, id + " holds both arms at one angle");
@@ -210,7 +241,7 @@ class PoseKitTest {
         for (Entity entity : entities.values()) {
             assertSame(entity, PoseKit.posedSubject(EntityOptions.PoseMode.BIND, entity, 13),
                 entity.id() + " is its own subject under the authored pose");
-            Entity posed = PoseKit.posedSubject(EntityOptions.PoseMode.ANIMATED, entity, 13);
+            Entity posed = PoseKit.posedSubject(EntityOptions.PoseMode.IDLE, entity, 13);
             assertEquals(entity.overlays().size(), posed.overlays().size(),
                 entity.id() + " draws the passes it drew");
             for (int pass = 0; pass < entity.overlays().size(); pass++)
@@ -230,7 +261,7 @@ class PoseKitTest {
         for (Entity entity : entities.values()) {
             Set<String> declared = entity.model().getBones().keySet();
             for (int tick : TICKS)
-                assertTrue(PoseKit.posed(EntityOptions.PoseMode.ANIMATED, entity, tick)
+                assertTrue(PoseKit.posed(EntityOptions.PoseMode.IDLE, entity, tick)
                         .getBones().keySet().containsAll(declared),
                     entity.id() + " draws every bone it declares at tick " + tick);
         }
@@ -256,15 +287,15 @@ class PoseKitTest {
         // coplanar with the body's, so drawing it would paint a tan patch over the brown - which is
         // what makes this assertable from the render rather than only from the bytecode.
         for (int tick : TICKS) {
-            EntityModelData fox = PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject("minecraft:fox"), tick);
+            EntityModelData fox = PoseKit.posed(EntityOptions.PoseMode.IDLE, subject("minecraft:fox"), tick);
             for (String leg : new String[] {"left_front_leg", "right_front_leg", "left_hind_leg", "right_hind_leg"})
                 assertTrue(fox.getBones().containsKey(leg), "a fox stands on its " + leg + " at tick " + tick);
             for (String id : new String[] {"minecraft:guardian", "minecraft:elder_guardian"})
-                assertTrue(PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject(id), tick)
+                assertTrue(PoseKit.posed(EntityOptions.PoseMode.IDLE, subject(id), tick)
                     .getBones().containsKey("eye"), id + " keeps its eye at tick " + tick);
-            assertTrue(PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject("minecraft:enderman"), tick)
+            assertTrue(PoseKit.posed(EntityOptions.PoseMode.IDLE, subject("minecraft:enderman"), tick)
                 .getBones().containsKey("head"), "an enderman keeps its head at tick " + tick);
-            assertFalse(PoseKit.posed(EntityOptions.PoseMode.ANIMATED, subject("minecraft:frog"), tick)
+            assertFalse(PoseKit.posed(EntityOptions.PoseMode.IDLE, subject("minecraft:frog"), tick)
                 .getBones().containsKey("croaking_body"), "a frog is not mid-croak at tick " + tick);
         }
     }
@@ -282,13 +313,13 @@ class PoseKitTest {
         mesh.getBones().put("hat", cubed("head"));
         mesh.getBones().put("tail", cubed("body"));
 
-        EntityModelData hidden = PoseKit.posed(EntityOptions.PoseMode.ANIMATED,
+        EntityModelData hidden = PoseKit.posed(EntityOptions.PoseMode.IDLE,
             subject("minecraft:test", mesh, flags(Map.of("head",
                 Map.of(PoseChannel.VISIBLE, new PoseExpr.Const(0d, PoseOperator.Width.FLOAT))))), 0);
         assertEquals(List.of("body", "tail"), List.copyOf(hidden.getBones().keySet()),
             "the hidden bone goes and takes its hat with it");
 
-        EntityModelData skipped = PoseKit.posed(EntityOptions.PoseMode.ANIMATED,
+        EntityModelData skipped = PoseKit.posed(EntityOptions.PoseMode.IDLE,
             subject("minecraft:test", mesh, flags(Map.of("head",
                 Map.of(PoseChannel.SKIP_DRAW, new PoseExpr.Const(1d, PoseOperator.Width.FLOAT))))), 0);
         assertEquals(List.of("body", "head", "hat", "tail"), List.copyOf(skipped.getBones().keySet()),
@@ -313,7 +344,7 @@ class PoseKitTest {
             List.of(), Map.of(), Map.of(), Optional.empty());
 
         RendererException refused = assertThrows(RendererException.class, () -> PoseKit.posed(
-            EntityOptions.PoseMode.ANIMATED, subject("minecraft:test", mesh, uneven), 0));
+            EntityOptions.PoseMode.IDLE, subject("minecraft:test", mesh, uneven), 0));
         assertTrue(refused.getMessage().contains("body"), "the refusal names the bone: " + refused.getMessage());
     }
 

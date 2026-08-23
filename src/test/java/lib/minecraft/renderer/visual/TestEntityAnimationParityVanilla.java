@@ -220,7 +220,7 @@ public final class TestEntityAnimationParityVanilla {
                 .entityId(Optional.of(subject.key().entityId()))
                 .appearance(subject.key().appearance())
                 .fitMode(EntityOptions.FitMode.GROUP_BOUNDS)
-                .poseMode(EntityOptions.PoseMode.ANIMATED)
+                .poseMode(EntityOptions.PoseMode.IDLE)
                 .animation(AnimationOptions.builder()
                     .startTick(START_TICK)
                     .frameCount(FRAME_COUNT)

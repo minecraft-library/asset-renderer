@@ -65,6 +65,21 @@ public final class PoseKit {
     /** The render-state figure a frame's tick answers - vanilla's free-running age for the subject. */
     private static final @NotNull String AGE_IN_TICKS = "ageInTicks";
 
+    /** How far through its stride a walking subject is, which vanilla steps rather than derives. */
+    private static final @NotNull String WALK_POSITION = "walkAnimationPos";
+
+    /** How hard a walking subject is walking, and the amount its stride advances by each tick. */
+    private static final @NotNull String WALK_SPEED = "walkAnimationSpeed";
+
+    /**
+     * The stride amplitude {@link EntityOptions.PoseMode#WALK} walks at.
+     *
+     * <p>The full one: vanilla clamps what it accumulates into this figure to one, so a subject here
+     * is walking as hard as anything ever does and every lesser gait is a fraction of the same
+     * curve. It is also what the phase advances by per tick, the two being one schedule.
+     */
+    private static final float WALK_AMPLITUDE = 1f;
+
     /**
      * The name the container enters the bone map under, when a pose writes one at all - chosen to
      * collide with nothing a vanilla model class declares a field for.
@@ -74,7 +89,7 @@ public final class PoseKit {
     /**
      * The mesh this subject's model leaves it holding at one tick.
      *
-     * @param mode whether the subject stands in its authored pose or the one its model evaluates
+     * @param mode the authored pose, or the one its model evaluates at the tick under a gait
      * @param subject the resolved subject, supplying the mesh, the pose and what it rests at
      * @param tick the frame's sample tick
      * @return the posed mesh, or the subject's own mesh itself where nothing poses it
@@ -91,7 +106,7 @@ public final class PoseKit {
      * poses its own with its own model class, and what they share is the wearer's resting state
      * rather than a pose.
      *
-     * @param mode whether the mesh stands in its authored pose or the one its model evaluates
+     * @param mode the authored pose, or the one its model evaluates at the tick under a gait
      * @param pose the pose belonging to this mesh
      * @param restingState which constant each enum render-state member rests at, by member name
      * @param model the mesh to pose
@@ -102,11 +117,11 @@ public final class PoseKit {
         @NotNull EntityOptions.PoseMode mode, @NotNull EntityPose pose,
         @NotNull Map<String, String> restingState, @NotNull EntityModelData model, int tick) {
 
-        if (mode != EntityOptions.PoseMode.ANIMATED) return model;
+        if (mode == EntityOptions.PoseMode.BIND) return model;
         if (!pose.isReadable()) return model;
 
         PoseEvaluator.ChannelWrites writes =
-            PoseEvaluator.evaluate(pose, model, frameAt(pose, restingState, tick));
+            PoseEvaluator.evaluate(pose, model, frameAt(mode, pose, restingState, tick));
         return writes.isEmpty() ? model : rebuild(model, writes);
     }
 
@@ -121,7 +136,7 @@ public final class PoseKit {
      * <p>Answers the very definition it was given when nothing moved, which is what keeps the
      * authored pose from rebuilding a definition per frame and per measured bound.
      *
-     * @param mode whether the subject stands in its authored pose or the one its models evaluate
+     * @param mode the authored pose, or the one its models evaluate at the tick under a gait
      * @param subject the resolved subject
      * @param tick the frame's sample tick
      * @return the subject carrying the meshes it holds at that tick
@@ -161,23 +176,35 @@ public final class PoseKit {
     // ------------------------------------------------------------------------------------
 
     /**
-     * What the subject answers about itself at one tick - what it rests at, with time run forward.
+     * What the subject answers about itself at one tick - what it rests at, with the figures this
+     * preset drives run forward.
      *
-     * <p>A subject an offline render poses is standing still, so every figure but one is the figure
-     * it rests at: it is walking at no speed, swinging at nothing and holding nothing. Elapsed age
-     * is the exception and the reason a frame differs from its neighbour at all.
+     * <p>A subject an offline render poses is standing where it is, so every figure but elapsed age
+     * is the figure it rests at: it is walking at no speed, swinging at nothing and holding nothing.
+     * Elapsed age is the exception and the reason a frame differs from its neighbour at all.
+     *
+     * <p>A gait names the further figures that stop resting, and nothing else about it differs.
+     * {@link EntityOptions.PoseMode#WALK} answers the two a stride is carried on: vanilla steps the
+     * phase by the amplitude once a tick rather than deriving it from the clock, so the phase is the
+     * tick times the amplitude and the two are one schedule.
      *
      * <p>Delegating the rest to {@link PoseEvaluator#restingIn} rather than answering it here is
      * what keeps a humanoid's arms off NaN - {@code speedValue} is divided by and is built at one.
      */
     private static @NotNull PoseEvaluator.Frame frameAt(
-        @NotNull EntityPose pose, @NotNull Map<String, String> restingState, int tick) {
+        @NotNull EntityOptions.PoseMode mode, @NotNull EntityPose pose,
+        @NotNull Map<String, String> restingState, int tick) {
 
         PoseEvaluator.Frame rest = PoseEvaluator.restingIn(pose, restingState);
+        boolean walking = mode == EntityOptions.PoseMode.WALK;
         return new PoseEvaluator.Frame() {
             @Override
             public float input(@NotNull String field) {
-                return AGE_IN_TICKS.equals(field) ? tick : rest.input(field);
+                if (AGE_IN_TICKS.equals(field)) return tick;
+                if (!walking) return rest.input(field);
+                if (WALK_SPEED.equals(field)) return WALK_AMPLITUDE;
+                if (WALK_POSITION.equals(field)) return tick * WALK_AMPLITUDE;
+                return rest.input(field);
             }
 
             @Override
