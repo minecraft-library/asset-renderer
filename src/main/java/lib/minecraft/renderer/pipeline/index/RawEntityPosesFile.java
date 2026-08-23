@@ -8,6 +8,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.annotations.JsonAdapter;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
+import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
 import lib.minecraft.renderer.asset.pose.PosePredicate;
@@ -30,11 +31,13 @@ import java.util.Set;
  * The raw form of {@code entity_poses.json}'s {@code poses} member - one {@link EntityPose} per
  * model class simple name, which is what a geometry coordinate is headed with.
  *
- * <p>The file's {@code input_defaults} is read with it and handed to every pose, being one keyspace
- * across the whole table rather than a per-model fact. Its other two members are not declared and
- * Gson drops them: {@code clips} is the authored keyframe tables, which are read by whatever plays
- * one rather than by whatever selects a pose, and {@code models} restates which clips a model plays
- * without the rate and amplitude it plays them at - the same facts {@code poses} carries in full.
+ * <p>The file's {@code input_defaults} and {@code rest_defaults} are read with it and handed to each
+ * pose - the first one keyspace across the whole table, the second keyed per model because a bare
+ * field name spans more than one type. {@code clips} is read too, and each play site is resolved to
+ * its table here rather than at render, so nothing downstream needs the file's global index and a
+ * site naming a clip the file does not carry fails where the file is read. Only {@code models} is
+ * left undeclared for Gson to drop: it restates which clips a model plays without the rate and
+ * amplitude it plays them at, which are the facts {@code poses} carries in full.
  *
  * <p><b>Walked by hand rather than mapped.</b> An expression node is an object with one member
  * named for what it does, which no field-mapped record shape can describe; and a Gson of this
@@ -62,6 +65,7 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
             if (!root.isJsonObject()) throw new PipelineException("entity poses: the file is not an object");
             Map<String, Float> defaults = inputDefaults(root.getAsJsonObject().get("input_defaults"));
             JsonElement resting = root.getAsJsonObject().get("rest_defaults");
+            Map<String, PoseClip> tables = clipTables(root.getAsJsonObject().get("clips"));
             JsonElement poses = root.getAsJsonObject().get("poses");
             if (poses == null) return new RawEntityPosesFile(Map.of());
             if (!poses.isJsonObject()) throw new PipelineException("entity poses: 'poses' is not an object");
@@ -69,7 +73,7 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
             Map<String, EntityPose> out = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> entry : poses.getAsJsonObject().entrySet())
                 out.put(entry.getKey(), pose(entry.getKey(), object(entry.getValue(), entry.getKey()),
-                    defaults, restDefaults(resting, entry.getKey())));
+                    defaults, restDefaults(resting, entry.getKey()), tables));
             return new RawEntityPosesFile(Collections.unmodifiableMap(out));
         }
 
@@ -116,10 +120,102 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         return Collections.unmodifiableMap(out);
     }
 
+    /**
+     * Every authored clip the file carries, by the coordinate a play site names it with.
+     *
+     * <p>Read once for the file rather than per pose, the same table serving every model that plays
+     * it - a nautilus and a zombie nautilus play one swim, and a camel and its saddle one sit.
+     */
+    private static @NotNull Map<String, PoseClip> clipTables(@Nullable JsonElement node) {
+        if (node == null) return Map.of();
+        if (!node.isJsonObject()) throw new PipelineException("entity poses: 'clips' is not an object");
+
+        Map<String, PoseClip> out = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : node.getAsJsonObject().entrySet())
+            out.put(entry.getKey(), clipTable(entry.getKey(), object(entry.getValue(), entry.getKey())));
+        return Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * One authored clip.
+     *
+     * <p>Times and values are narrowed through {@code float} on the way in, on the same terms a
+     * literal is: they are what vanilla's own builder computed at that width, and reading the
+     * decimal back as a double gives a number no float ever held.
+     */
+    private static @NotNull PoseClip clipTable(@NotNull String coordinate, @NotNull JsonObject node) {
+        JsonElement length = node.get("length");
+        if (length == null)
+            throw new PipelineException("entity poses: clip %s declares no length", coordinate);
+
+        List<PoseClip.Channel> channels = new ArrayList<>();
+        JsonElement declared = node.get("channels");
+        if (declared != null)
+            for (JsonElement channel : array(declared, coordinate))
+                channels.add(clipChannel(coordinate, object(channel, coordinate)));
+
+        JsonElement looping = node.get("looping");
+        return new PoseClip((float) length.getAsDouble(),
+            looping != null && looping.getAsBoolean(), List.copyOf(channels));
+    }
+
+    /** One bone's displacement table, in one of its three members. */
+    private static @NotNull PoseClip.Channel clipChannel(
+        @NotNull String coordinate, @NotNull JsonObject node) {
+
+        JsonElement bone = node.get("bone");
+        JsonElement target = node.get("target");
+        if (bone == null || target == null)
+            throw new PipelineException("entity poses: clip %s carries a channel naming no bone or no target",
+                coordinate);
+
+        PoseClip.Target displaces = PoseClip.Target.ofToken(target.getAsString());
+        if (displaces == null)
+            throw new PipelineException("entity poses: clip %s displaces '%s', which is not a target",
+                coordinate, target.getAsString());
+
+        List<PoseClip.Keyframe> keyframes = new ArrayList<>();
+        JsonElement declared = node.get("keyframes");
+        if (declared != null)
+            for (JsonElement keyframe : array(declared, coordinate))
+                keyframes.add(clipKeyframe(coordinate, object(keyframe, coordinate)));
+        if (keyframes.isEmpty())
+            throw new PipelineException("entity poses: clip %s displaces '%s' at no instant",
+                coordinate, bone.getAsString());
+
+        return new PoseClip.Channel(bone.getAsString(), displaces, List.copyOf(keyframes));
+    }
+
+    /** One authored instant of a channel. */
+    private static @NotNull PoseClip.Keyframe clipKeyframe(
+        @NotNull String coordinate, @NotNull JsonObject node) {
+
+        JsonElement time = node.get("time");
+        JsonElement value = node.get("value");
+        JsonElement curve = node.get("curve");
+        if (time == null || value == null || curve == null)
+            throw new PipelineException("entity poses: clip %s carries a keyframe missing a member",
+                coordinate);
+
+        PoseClip.Interpolation interpolation = PoseClip.Interpolation.ofToken(curve.getAsString());
+        if (interpolation == null)
+            throw new PipelineException("entity poses: clip %s reaches a keyframe by '%s', which is not a curve",
+                coordinate, curve.getAsString());
+
+        JsonArray components = array(value, coordinate);
+        if (components.size() != 3)
+            throw new PipelineException("entity poses: clip %s carries a keyframe of %d components, which takes 3",
+                coordinate, components.size());
+
+        return new PoseClip.Keyframe((float) time.getAsDouble(),
+            (float) components.get(0).getAsDouble(), (float) components.get(1).getAsDouble(),
+            (float) components.get(2).getAsDouble(), interpolation);
+    }
+
     /** One model's pose, or the record of why it has none. */
     private static @NotNull EntityPose pose(
         @NotNull String model, @NotNull JsonObject node, @NotNull Map<String, Float> defaults,
-        @NotNull Map<String, String> resting) {
+        @NotNull Map<String, String> resting, @NotNull Map<String, PoseClip> tables) {
 
         JsonElement refused = node.get("refused");
         if (refused != null)
@@ -143,7 +239,8 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         List<EntityPose.Clip> clips = new ArrayList<>();
         JsonElement played = node.get("clips");
         if (played != null)
-            for (JsonElement clip : array(played, model)) clips.add(clip(model, object(clip, model), shared));
+            for (JsonElement clip : array(played, model))
+                clips.add(clip(model, object(clip, model), shared, tables));
 
         shared.requireAllRead(model);
         // Order-preserving rather than Map.copyOf, whose iteration order is salted per JVM launch.
@@ -233,12 +330,18 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
 
     /** One play site: which clip, under what drive, at what the model plays it. */
     private static @NotNull EntityPose.Clip clip(
-        @NotNull String model, @NotNull JsonObject node, @NotNull Shared shared) {
+        @NotNull String model, @NotNull JsonObject node, @NotNull Shared shared,
+        @NotNull Map<String, PoseClip> tables) {
 
         JsonElement coordinate = node.get("clip");
         JsonElement gate = node.get("gate");
         if (coordinate == null || gate == null)
             throw new PipelineException("entity poses: %s plays a clip that names no coordinate or no drive", model);
+
+        PoseClip table = tables.get(coordinate.getAsString());
+        if (table == null)
+            throw new PipelineException("entity poses: %s plays '%s', which this file declares no table for",
+                model, coordinate.getAsString());
 
         EntityPose.Gate drive = EntityPose.Gate.ofToken(gate.getAsString())
             .orElseThrow(() -> new PipelineException("entity poses: %s drives a clip by '%s', which is not a drive",
@@ -248,7 +351,7 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         JsonElement args = node.get("args");
         if (args != null)
             for (JsonElement argument : array(args, model)) arguments.add(expression(model, argument, shared));
-        return new EntityPose.Clip(coordinate.getAsString(), drive, List.copyOf(arguments));
+        return new EntityPose.Clip(coordinate.getAsString(), drive, List.copyOf(arguments), table);
     }
 
     /**

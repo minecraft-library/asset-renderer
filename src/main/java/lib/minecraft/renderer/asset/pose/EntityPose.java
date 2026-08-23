@@ -72,14 +72,20 @@ public record EntityPose(
      * to it: how fast the thing moves and how far are the model's own constants and appear nowhere
      * in the clip, so two models playing one clip at two rates are indistinguishable without them.
      *
+     * <p>The table itself is resolved at load rather than looked up at render, so nothing downstream
+     * needs the file's global clip index and a play site naming a clip the file does not carry fails
+     * where the file is read.
+     *
      * @param coordinate the clip coordinate, keyed the way the table's own clip index is
      * @param gate what drives the clip
      * @param arguments what the model plays it at, in declaration order
+     * @param clip the authored table this site plays
      */
     public record Clip(
         @NotNull String coordinate,
         @NotNull Gate gate,
-        @NotNull List<PoseExpr> arguments
+        @NotNull List<PoseExpr> arguments,
+        @NotNull PoseClip clip
     ) {}
 
     /** What drives a clip, which decides what its own time axis is read from. */

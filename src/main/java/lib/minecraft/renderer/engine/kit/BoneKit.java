@@ -121,7 +121,7 @@ public class BoneKit {
         if (cached != null) return cached;
         EntityModelData.Bone bone = bones.get(name);
         if (bone == null) return root;
-        if (visiting.contains(name)) return applyBoneRotation(root, bone.getPivot(), bone.getRotation());
+        if (visiting.contains(name)) return applyBonePose(root, bone);
         visiting.add(name);
 
         String parent = bone.getParent();
@@ -131,7 +131,7 @@ public class BoneKit {
         } else {
             base = resolveChainFrom(parent, bones, cache, visiting, root);
         }
-        Matrix4f composed = applyBoneRotation(base, bone.getPivot(), bone.getRotation());
+        Matrix4f composed = applyBonePose(base, bone);
 
         visiting.remove(name);
         cache.put(name, composed);
@@ -204,6 +204,31 @@ public class BoneKit {
      * @param rotation the bone rotation (skipped when identity)
      * @return {@code base * T(pivot) * R}, or {@code base} unchanged when both are trivial
      */
+    /**
+     * The bone's own step of the chain: its pivot, its rotation, then what a clip scales it by.
+     *
+     * <p>{@code T * R * S}, which is vanilla's order in {@code ModelPart.translateAndRotate} - the
+     * scale goes on the stack AFTER the rotation, so it reaches this bone's cubes and every
+     * descendant's alike. That propagation is the whole reason it belongs here rather than beside
+     * the uniform factor {@link #scaledCubeBounds} applies: that one the tooling already flattened
+     * onto every bone of its mesh, so putting it on the chain would apply it once per level.
+     *
+     * <p>Skipped whole when the bone stands at no displacement, which is every bone of every mesh
+     * that is not being posed - so a still render composes the matrix it always did.
+     *
+     * @param base the chain matrix to post-multiply onto
+     * @param bone the bone whose step this is
+     * @return the chain with this bone's step applied
+     */
+    private static @NotNull Matrix4f applyBonePose(
+        @NotNull Matrix4f base, @NotNull EntityModelData.Bone bone) {
+
+        Matrix4f chain = applyBoneRotation(base, bone.getPivot(), bone.getRotation());
+        if (!bone.isPoseScaled()) return chain;
+        Vector3f scale = bone.getPoseScale();
+        return chain.scale(scale.x(), scale.y(), scale.z());
+    }
+
     private static @NotNull Matrix4f applyBoneRotation(
         @NotNull Matrix4f base,
         @NotNull Vector3f pivot,

@@ -10,10 +10,12 @@ import lib.minecraft.renderer.asset.pose.PosePredicate;
 import lib.minecraft.renderer.exception.RendererException;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -261,6 +263,32 @@ public final class PoseEvaluator {
                 written -> channels(written.getValue(), model, frame, memo),
                 (first, second) -> first, LinkedHashMap::new));
         return new ChannelWrites(container, Collections.unmodifiableMap(bones));
+    }
+
+    /**
+     * A list of expressions, each narrowed to the width a channel is finally stored at.
+     *
+     * <p>What a clip's play site carries: how far through the clip the model is and how hard it is
+     * playing it are the model's own arithmetic over the same figures a bone channel reads, so they
+     * go through the same evaluation rather than a second one.
+     *
+     * <p>Memoized within the call and not across it. A play site's terms are a handful of nodes
+     * where a bone channel's are nine hundred, and the sharing that makes one memo worth carrying
+     * across a whole pose does not reach here.
+     *
+     * @param expressions the expressions to evaluate, in order
+     * @param model the mesh being posed, which is what an unwritten channel is read from
+     * @param frame what the caller answers about the subject
+     * @return each expression's value, in the order given
+     */
+    public static @NotNull List<Float> values(
+        @NotNull List<PoseExpr> expressions, @NotNull EntityModelData model, @NotNull Frame frame) {
+
+        Map<Object, Double> memo = new IdentityHashMap<>();
+        List<Float> out = new ArrayList<>(expressions.size());
+        for (PoseExpr expression : expressions)
+            out.add((float) value(expression, model, frame, memo));
+        return Collections.unmodifiableList(out);
     }
 
     /**

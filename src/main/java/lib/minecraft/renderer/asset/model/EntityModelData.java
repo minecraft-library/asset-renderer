@@ -124,6 +124,9 @@ public class EntityModelData {
     @EqualsAndHashCode
     public static class Bone {
 
+        /** No displacement on any axis - what every bone a mesh is loaded with stands at. */
+        private static final @NotNull Vector3f UNIT_SCALE = new Vector3f(1f, 1f, 1f);
+
         /**
          * The bone's parent-relative offset - the anchor point (in the parent bone's frame) about
          * which this bone's {@link #rotation} is applied. Measured from the entity root for a root
@@ -183,6 +186,53 @@ public class EntityModelData {
          */
         @SerializedName("parent")
         private @Nullable String parent = null;
+
+        /**
+         * The per-axis scale a clip displaces this bone by at one instant, resting at one on every
+         * axis. Composed into the ancestor chain as vanilla's {@code T * R * S}, so it reaches this
+         * bone's own cubes AND every descendant.
+         *
+         * <p><b>Held apart from {@link #scale}, which is a different fact.</b> That one is the
+         * whole-mesh factor the tooling already flattened onto every bone of the mesh, so it is
+         * applied to a cube's own operands and deliberately does NOT propagate - propagating it
+         * would apply it once per level of the chain. This one is written at render time by
+         * something that never saw the flattening, so it has to propagate the way vanilla's
+         * {@code PoseStack.scale} does.
+         *
+         * <p>The two never meet: <b>no bone any shipped clip scales carries a baked factor</b>, all
+         * 278 that do being untouched by one, so a clip's displacement lands on a bone resting at
+         * one and the factor here is exactly {@code 1 + delta} rather than a ratio that would have
+         * to be divided out.
+         */
+        private transient @NotNull Vector3f poseScale = UNIT_SCALE;
+
+        /**
+         * Constructs a bone standing at no clip displacement, which is every bone a mesh is loaded
+         * with - only a posed frame writes one.
+         *
+         * @param pivot the parent-relative anchor its rotation is applied about
+         * @param rotation its rotation about that anchor, in the parent's frame
+         * @param bindPoseRotation its static rest-pose rotation, reaching its own cubes alone
+         * @param scale the whole-mesh factor already flattened onto it
+         * @param cubes the cubes it owns, in declared order
+         * @param parent the parent bone's name, or {@code null} for a root bone
+         */
+        public Bone(
+            @NotNull Vector3f pivot, @NotNull EulerRotation rotation,
+            @NotNull EulerRotation bindPoseRotation, float scale,
+            @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
+
+            this(pivot, rotation, bindPoseRotation, scale, cubes, parent, UNIT_SCALE);
+        }
+
+        /**
+         * Whether a clip displaces this bone's scale at all.
+         *
+         * @return {@code true} when any axis stands away from one
+         */
+        public boolean isPoseScaled() {
+            return !UNIT_SCALE.equals(this.poseScale);
+        }
 
     }
 

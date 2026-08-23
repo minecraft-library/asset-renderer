@@ -13,6 +13,7 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -120,9 +121,15 @@ public final class PoseKit {
         if (mode == EntityOptions.PoseMode.BIND) return model;
         if (!pose.isReadable()) return model;
 
-        PoseEvaluator.ChannelWrites writes =
-            PoseEvaluator.evaluate(pose, model, frameAt(mode, pose, restingState, tick));
-        return writes.isEmpty() ? model : rebuild(model, writes);
+        PoseEvaluator.Frame frame = frameAt(mode, pose, restingState, tick);
+        PoseEvaluator.ChannelWrites writes = PoseEvaluator.evaluate(pose, model, frame);
+        // The clips a model plays are applied ON TOP of what its body assigned, because vanilla's
+        // three offset members all add to the value already there. So the two are resolved apart and
+        // composed here rather than merged into one write set, which is also what keeps the replace
+        // rule and the add rule from having to be told apart per channel further down.
+        Map<String, Map<PoseChannel, Float>> displaced = ClipKit.deltas(pose, model, frame);
+        if (writes.isEmpty() && displaced.isEmpty()) return model;
+        return rebuild(model, writes, displaced);
     }
 
     /**
@@ -236,10 +243,11 @@ public final class PoseKit {
 
     /** The mesh with every written channel applied, or the mesh itself when none of them moved it. */
     private static @NotNull EntityModelData rebuild(
-        @NotNull EntityModelData model, @NotNull PoseEvaluator.ChannelWrites writes) {
+        @NotNull EntityModelData model, @NotNull PoseEvaluator.ChannelWrites writes,
+        @NotNull Map<String, Map<PoseChannel, Float>> displaced) {
 
         Set<String> undrawn = hidden(model, writes.bones());
-        if (writes.container().isEmpty() && undrawn.isEmpty()
+        if (writes.container().isEmpty() && undrawn.isEmpty() && displaced.isEmpty()
             && writes.bones().values().stream().noneMatch(PoseKit::changesBone)) return model;
 
         // Collected into a LinkedHashMap rather than through Map.copyOf: the mesh's own bone order is
@@ -247,8 +255,9 @@ public final class PoseKit {
         LinkedHashMap<String, EntityModelData.Bone> bones = model.getBones().entrySet().stream()
             .filter(bone -> !undrawn.contains(bone.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey,
-                bone -> posedBone(bone.getValue(), bone.getKey(),
-                    writes.bones().getOrDefault(bone.getKey(), Map.of())),
+                bone -> displacedBone(bone.getValue(), bone.getKey(),
+                    writes.bones().getOrDefault(bone.getKey(), Map.of()),
+                    displaced.getOrDefault(bone.getKey(), Map.of())),
                 (first, second) -> first, LinkedHashMap::new));
         if (!writes.container().isEmpty()) seatUnderContainer(bones, writes.container());
         return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(),
@@ -325,6 +334,82 @@ public final class PoseKit {
     }
 
     /**
+     * One bone where the pose leaves it and its clips displace it from there.
+     *
+     * <p>The two compose in one direction: what the pose wrote is a place and what a clip carries is
+     * a displacement from it, so a channel both reach is the written value plus the delta, and a
+     * channel only a clip reaches is the mesh's own value plus the delta. That is vanilla's own
+     * order - a body assigns and then hands the part to {@code offsetPos} and its two siblings.
+     *
+     * <p>The scale axes are the exception and go somewhere else entirely. A pose's write folds onto
+     * the one uniform factor a bone holds, which is the whole-mesh scale already flattened across
+     * the mesh; a clip's displacement cannot, because it is per-axis and has to reach the bone's
+     * descendants. So it lands on the bone's own pose scale instead, which the chain composes.
+     */
+    private static @NotNull EntityModelData.Bone displacedBone(
+        @NotNull EntityModelData.Bone bone, @NotNull String name,
+        @NotNull Map<PoseChannel, Float> written, @NotNull Map<PoseChannel, Float> displaced) {
+
+        if (displaced.isEmpty()) return posedBone(bone, name, written);
+
+        Map<PoseChannel, Float> moved = new EnumMap<>(PoseChannel.class);
+        moved.putAll(written);
+        for (Map.Entry<PoseChannel, Float> delta : displaced.entrySet()) {
+            PoseChannel channel = delta.getKey();
+            if (channel.kind() == PoseChannel.Kind.SCALE) continue;
+            Float assigned = written.get(channel);
+            float base = assigned == null ? authored(bone, channel) : assigned;
+            moved.put(channel, base + delta.getValue());
+        }
+        return posedBone(posedScale(bone, name, written, displaced), name, moved);
+    }
+
+    /**
+     * The bone carrying what its clips scale it by, or the bone itself where none of them do.
+     *
+     * <p>Refuses rather than guesses where a pose and a clip both reach one bone's scale: vanilla
+     * holds one field there and adds the clip to what the body assigned, where these are two fields
+     * that multiply, and the two answers part company. No shipped model does both - the fifteen
+     * classes playing a scaling clip write no scale channel of their own - so this is a shape the
+     * corpus does not have rather than one being handled.
+     *
+     * @throws RendererException if a pose and a clip both scale one bone
+     */
+    private static @NotNull EntityModelData.Bone posedScale(
+        @NotNull EntityModelData.Bone bone, @NotNull String name,
+        @NotNull Map<PoseChannel, Float> written, @NotNull Map<PoseChannel, Float> displaced) {
+
+        float x = displaced.getOrDefault(PoseChannel.X_SCALE, 0f);
+        float y = displaced.getOrDefault(PoseChannel.Y_SCALE, 0f);
+        float z = displaced.getOrDefault(PoseChannel.Z_SCALE, 0f);
+        if (x == 0f && y == 0f && z == 0f) return bone;
+
+        if (written.containsKey(PoseChannel.X_SCALE) || written.containsKey(PoseChannel.Y_SCALE)
+            || written.containsKey(PoseChannel.Z_SCALE))
+            throw new RendererException(
+                "entity pose: bone '%s' is scaled by its model and by a clip, which one factor cannot hold",
+                name);
+
+        return new EntityModelData.Bone(bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
+            bone.getScale(), bone.getCubes(), bone.getParent(), new Vector3f(1f + x, 1f + y, 1f + z));
+    }
+
+    /** What a channel holds before anything is written to it - the mesh's own value. */
+    private static float authored(@NotNull EntityModelData.Bone bone, @NotNull PoseChannel channel) {
+        return switch (channel) {
+            case X -> bone.getPivot().x();
+            case Y -> bone.getPivot().y();
+            case Z -> bone.getPivot().z();
+            case X_ROT -> bone.getRotation().pitchRadians();
+            case Y_ROT -> bone.getRotation().yawRadians();
+            case Z_ROT -> bone.getRotation().rollRadians();
+            case X_SCALE, Y_SCALE, Z_SCALE -> bone.getScale();
+            case VISIBLE -> 1f;
+            case SKIP_DRAW -> 0f;
+        };
+    }
+
+    /**
      * One bone where the pose leaves it, or the bone itself when the pose writes it no geometry.
      *
      * <p>The rotation is assembled as the Euler triplet the bone already carries, one channel at a
@@ -352,7 +437,10 @@ public final class PoseKit {
             bone.getBindPoseRotation(),
             scale(written, name, bone.getScale()),
             skipsDraw(written) ? Concurrent.newList() : bone.getCubes(),
-            bone.getParent());
+            bone.getParent(),
+            // Carried rather than defaulted: what a clip scales the bone by was settled before this
+            // ran, and the six-argument form would put it back at rest.
+            bone.getPoseScale());
     }
 
     /**
