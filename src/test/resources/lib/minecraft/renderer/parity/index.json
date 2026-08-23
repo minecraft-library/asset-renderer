@@ -221,10 +221,10 @@
       "entries": 90,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 21475,
-      "promoted_at": "d1c6096e53a4f481f702eae3d1d19099f5ea66d9",
-      "sha256": "ac97dfdae96762b2c57b51578f1f8d24d219c0943dd79fc1e211adcb65f882e6",
-      "sum": "1039.8971"
+      "last_duration_ms": 18414,
+      "promoted_at": "850b475bec54cff647ebd34236f70b39112e8b96",
+      "sha256": "383ae7fa86513e40db47d8be980923f1ba54eae26fb7eeefeb53548b981f7ceb",
+      "sum": "10.0809"
     },
     "sweep.glint": {
       "baselined": true,
