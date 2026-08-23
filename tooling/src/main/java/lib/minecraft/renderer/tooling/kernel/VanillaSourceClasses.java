@@ -213,8 +213,11 @@ public final class VanillaSourceClasses {
         /** {@code LivingEntityRenderer} - the base declarer of {@code setupRotations}, below every override. */
         public static final @NotNull String LIVING_ENTITY_RENDERER = "net/minecraft/client/renderer/entity/LivingEntityRenderer";
 
+        /** The entity-renderer package root - every renderer that fills a state, and their layers. */
+        public static final @NotNull String ENTITY_RENDERER_PACKAGE = "net/minecraft/client/renderer/entity/";
+
         /** The render-state package root - the per-subject state classes a layer's {@code submit} reads through. */
-        public static final @NotNull String ENTITY_RENDER_STATE_PACKAGE = "net/minecraft/client/renderer/entity/state/";
+        public static final @NotNull String ENTITY_RENDER_STATE_PACKAGE = ENTITY_RENDERER_PACKAGE + "state/";
 
         /** {@code LivingEntityRenderState} - the parameter type on renderer state methods. */
         public static final @NotNull String LIVING_ENTITY_RENDER_STATE = ENTITY_RENDER_STATE_PACKAGE + "LivingEntityRenderState";

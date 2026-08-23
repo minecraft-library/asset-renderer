@@ -9,10 +9,12 @@ import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,6 +52,11 @@ import java.util.TreeSet;
  * and a numeric row holding zero says what its own absence says. An enum row has no such spelling -
  * every constant is a state, none of them is the absence of one - so every resolved constant is
  * emitted.
+ *
+ * <p><b>A seed no render ever sees is not one either.</b> A figure the renderer INTERPOLATES across
+ * the frame is a reading of the subject's motion, so it is overwritten on every extract and the
+ * state's own number stands for nothing. Those rest at zero with every other figure nobody models,
+ * because a subject that has never ticked has never started the motion being read.
  *
  * <p>Read off the CONSTRUCTOR rather than the field declaration, because a Java field initialiser
  * is compiled into one and there is nothing else to read. The whole package is scanned rather than
@@ -196,6 +203,7 @@ final class InputDefaultResolver {
         @NotNull ClassNodeCache cache, @NotNull Collection<String> named, @NotNull Diagnostics diagnostics) {
 
         Set<String> wanted = Set.copyOf(named);
+        Set<String> interpolated = interpolated(cache, wanted);
         Map<String, Float> out = new TreeMap<>();
         Map<String, String> declaredBy = new TreeMap<>();
 
@@ -214,6 +222,13 @@ final class InputDefaultResolver {
                     // value rather than the last constant some earlier statement happened to leave.
                     Float built = literal(AsmWalker.previousReal(put));
                     if (built == null || built == 0f) return;
+                    if (interpolated.contains(put.name)) {
+                        diagnostics.info(
+                            "'%s' is built at %s by %s and interpolated across the frame on every extract,"
+                                + " so the seed is not what it rests at",
+                            put.name, built, ClassKit.simpleName(owner));
+                        return;
+                    }
                     record(out, declaredBy, put, owner, built, diagnostics);
                 })
                 .run();
@@ -222,6 +237,57 @@ final class InputDefaultResolver {
         // this is written straight into the table, so a salted order is a file that does not
         // reproduce and a digest that fails its own determinism check.
         return Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * The figures a renderer interpolates ACROSS the frame it is drawing.
+     *
+     * <p>Such a figure is a reading of the subject's motion rather than a value its state settles,
+     * so its seed is a number no render ever sees - the renderer overwrites it on every extract with
+     * something it had to be handed a partial tick to compute. An axolotl's is the clearest: its
+     * state builds {@code inWaterFactor} at one, so a state nobody extracted into shows a swimming
+     * axolotl, while every render reads a smoothed animator that a subject which has never ticked
+     * has never started. Answering the seed there swims an axolotl vanilla holds still.
+     *
+     * <p>The partial tick is the whole of the test, and it is read off the method's own descriptor
+     * rather than named: {@code extractRenderState} takes the subject, its state and that tick, so
+     * the last parameter of a three-argument form IS the fraction. A statement is bounded by the
+     * load of the state it assigns to, which is where the operands of one begin.
+     *
+     * @param cache the open client jar
+     * @param wanted the render-state fields the walked poses read
+     * @return the fields whose value a renderer interpolates, in sorted order
+     */
+    private static @NotNull Set<String> interpolated(
+        @NotNull ClassNodeCache cache, @NotNull Set<String> wanted) {
+
+        Set<String> out = new TreeSet<>();
+        for (String entry : cache.list(VanillaSourceClasses.Types.ENTITY_RENDERER_PACKAGE, CLASS_SUFFIX)) {
+            String owner = entry.substring(0, entry.length() - CLASS_SUFFIX.length());
+            ClassNode renderer = cache.load(owner);
+            if (renderer == null) continue;
+            for (MethodNode method : renderer.methods) {
+                if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
+                if ((method.access & Opcodes.ACC_STATIC) != 0) continue;
+                Type[] args = ClassKit.argTypes(method.desc);
+                if (args.length != 3 || args[2].getSort() != Type.FLOAT) continue;
+                int state = 1 + args[0].getSize();
+                int fraction = state + args[1].getSize();
+
+                AsmWalker.over(method)
+                    .on(Insn.of(FieldInsnNode.class, put -> put.getOpcode() == Opcodes.PUTFIELD
+                        && wanted.contains(put.name)), put -> {
+                        if (AsmWalker.before(put).real()
+                            .until(Insn.of(VarInsnNode.class,
+                                load -> load.getOpcode() == Opcodes.ALOAD && load.var == state))
+                            .first(Insn.of(VarInsnNode.class,
+                                load -> load.getOpcode() == Opcodes.FLOAD && load.var == fraction)) != null)
+                            out.add(put.name);
+                    })
+                    .run();
+            }
+        }
+        return out;
     }
 
     /**
