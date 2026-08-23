@@ -12,6 +12,8 @@ import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PoseChannel;
+import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.option.AppearanceOptions;
@@ -87,6 +89,11 @@ import java.util.Set;
  *     class the {@link #model} coordinate is headed with. A model that poses nothing and one whose
  *     pose could not be read are both {@link EntityPose#isReadable() distinguishable} here, because
  *     they render identically and only one of them is right
+ * @param renderTransform the steps this entity's RENDERER puts above every mesh it submits, joined
+ *     from the renderer rather than from a model class - vanilla composes them onto the pose stack
+ *     before the body or any layer is drawn, so one sequence reaches the body, each overlay pass and
+ *     anything worn. Empty for a renderer that composes none, and for one whose own declaration
+ *     could not be read whole
  * @param restingState which constant each of this entity's enum render-state fields holds before
  *     anything has happened to it, keyed by the field's own name. A pose that turns on one of these
  *     is asking a question no default can answer - "not any constant" is a state no enum is in - and
@@ -108,17 +115,20 @@ public record Entity(
     @NotNull Layers layers,
     @NotNull List<String> members,
     @NotNull EntityPose pose,
+    @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform,
     @NotNull Map<String, String> restingState
 ) {
 
     /**
      * Normalises a never-set {@link #members} to an empty (singleton) list, a never-set
-     * {@link #pose} to the pose of a model that poses nothing, and a never-set
+     * {@link #pose} to the pose of a model that poses nothing, a never-set
+     * {@link #renderTransform} to a renderer that composes nothing, and a never-set
      * {@link #restingState} to nothing answered, so callers can omit any of them.
      */
     public Entity {
         members = members == null ? List.of() : members;
         pose = pose == null ? EntityPose.NONE : pose;
+        renderTransform = renderTransform == null ? List.of() : renderTransform;
         restingState = restingState == null ? Map.of() : restingState;
     }
 

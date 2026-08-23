@@ -44,6 +44,11 @@ import java.util.Set;
  * vintage resolves an adapter declared on a nested generic inconsistently, so a single adapter over
  * the whole subtree is both the only shape that fits and the only one that does not depend on that.
  *
+ * <p>The file's {@code renderers} member is read beside them - what each renderer puts above every
+ * mesh it submits, in the same step shape a pose's container carries and under the same
+ * {@code shared} interning, keyed by the renderer rather than by a model because one renderer
+ * answers for every mesh a subject draws.
+ *
  * <p><b>A model's {@code shared} table is read as the graph it is, never expanded.</b> Every
  * {@code {"ref": n}} resolves to the SAME record instance rather than to a fresh copy, which is what
  * keeps a pose the size the file says it is: a humanoid's arms name nine hundred sub-expressions and
@@ -51,11 +56,16 @@ import java.util.Set;
  * number the table exists not to write.
  *
  * @param poses the pose of each model class, by simple name
+ * @param renderTransforms the steps each renderer puts above every mesh it submits, by renderer
+ *     simple name, holding only the renderers that compose one and could be read
  */
 @JsonAdapter(RawEntityPosesFile.Adapter.class)
-public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
+public record RawEntityPosesFile(
+    @NotNull Map<String, EntityPose> poses,
+    @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms
+) {
 
-    /** Reads the {@code poses} subtree, ignoring everything the file carries beside it. */
+    /** Reads the {@code poses} and {@code renderers} subtrees, ignoring what the file carries beside them. */
     static final class Adapter implements JsonDeserializer<RawEntityPosesFile> {
 
         @Override
@@ -66,17 +76,57 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
             Map<String, Float> defaults = inputDefaults(root.getAsJsonObject().get("input_defaults"));
             JsonElement resting = root.getAsJsonObject().get("rest_defaults");
             Map<String, PoseClip> tables = clipTables(root.getAsJsonObject().get("clips"));
+            Map<String, List<Map<PoseChannel, PoseExpr>>> transforms =
+                renderTransforms(root.getAsJsonObject().get("renderers"));
             JsonElement poses = root.getAsJsonObject().get("poses");
-            if (poses == null) return new RawEntityPosesFile(Map.of());
+            if (poses == null) return new RawEntityPosesFile(Map.of(), transforms);
             if (!poses.isJsonObject()) throw new PipelineException("entity poses: 'poses' is not an object");
 
             Map<String, EntityPose> out = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> entry : poses.getAsJsonObject().entrySet())
                 out.put(entry.getKey(), pose(entry.getKey(), object(entry.getValue(), entry.getKey()),
                     defaults, restDefaults(resting, entry.getKey()), tables));
-            return new RawEntityPosesFile(Collections.unmodifiableMap(out));
+            return new RawEntityPosesFile(Collections.unmodifiableMap(out), transforms);
         }
 
+    }
+
+    /**
+     * What each renderer puts above every mesh it submits, by renderer simple name.
+     *
+     * <p>Read into the shape a pose's container already has, because that is what it is - a sequence
+     * of part poses above every bone a mesh names at top level. It is keyed by RENDERER rather than
+     * by model because that is whose fact it is: one renderer submits a body and a run of overlay
+     * passes through several model classes, and one transform reaches all of them.
+     *
+     * <p>A renderer whose own declaration could not be read whole carries a refusal instead of steps
+     * and is dropped here. Nothing downstream can act on it - a transform read in half would place
+     * the subject somewhere vanilla never puts it - so the row exists for a reader of the table
+     * rather than for this one.
+     */
+    private static @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms(
+        @Nullable JsonElement node) {
+
+        if (node == null) return Map.of();
+        if (!node.isJsonObject())
+            throw new PipelineException("entity poses: 'renderers' is not an object");
+
+        Map<String, List<Map<PoseChannel, PoseExpr>>> out = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : node.getAsJsonObject().entrySet()) {
+            String renderer = entry.getKey();
+            JsonObject declared = object(entry.getValue(), renderer);
+            if (declared.get("refused") != null) continue;
+
+            Shared shared = Shared.of(renderer, declared.get("shared"));
+            List<Map<PoseChannel, PoseExpr>> steps = new ArrayList<>();
+            JsonElement held = declared.get("container");
+            if (held != null)
+                for (JsonElement step : array(held, renderer))
+                    steps.add(channels(renderer, "container", object(step, renderer), shared));
+            shared.requireAllRead(renderer);
+            if (!steps.isEmpty()) out.put(renderer, List.copyOf(steps));
+        }
+        return Collections.unmodifiableMap(out);
     }
 
     /**

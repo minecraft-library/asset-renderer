@@ -201,6 +201,7 @@ class EntityIndexBuilderBabyOverlayTest {
      */
     private static RawModel villagerFamily() {
         return new RawModel(
+            null,                                      // renderer
             null,                                      // render
             null,                                      // rest
             null,                                      // bones
@@ -215,6 +216,7 @@ class EntityIndexBuilderBabyOverlayTest {
     /** The control family: a baby mesh and an overlay, but no age delta on it. */
     private static RawModel controlFamily() {
         return new RawModel(
+            null,                 // renderer
             null,                 // render
             null,                 // rest
             null,                 // bones
@@ -230,7 +232,7 @@ class EntityIndexBuilderBabyOverlayTest {
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, villagerFamily());
         models.put(CONTROL, controlFamily());
-        return EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), Map.of());
+        return EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), Map.of(), Map.of());
     }
 
     @Test
@@ -294,6 +296,7 @@ class EntityIndexBuilderBabyOverlayTest {
                 new Vector3f(0.2f, 0.2f, 0.2f)));                                        // grow (baby caparison)
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, new RawModel(
+            null,                                        // renderer
             null,                                        // render
             null,                                        // rest
             null,                                        // bones
@@ -303,7 +306,7 @@ class EntityIndexBuilderBabyOverlayTest {
             ageAxes("minecraft:textures/entity/llama/llama_creamy.png",
                 "minecraft:textures/entity/llama/llama_creamy_baby.png"),  // axes
             null));                                      // group_of
-        Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), Map.of()).get(ENTITY);
+        Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), Map.of(), Map.of()).get(ENTITY);
 
         assertThat("the adult decor inflates by its row grow",
             firstCubeGrow(llama.overlays().getFirst().model()), is(0.5f));

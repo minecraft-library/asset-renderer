@@ -82,15 +82,7 @@ public final class PoseJson {
         // the mesh names at top level hangs off, and the mesh names it nowhere. An ARRAY, because it
         // is a sequence: each element is a part pose, written outermost first, and within one the
         // channel order is the vocabulary's own the way a bone's is.
-        if (!program.container().isEmpty()) {
-            JsonTree steps = node.childArray(CONTAINER);
-            for (Map<PoseChannel, PoseExpr> step : program.container()) {
-                JsonTree held = JsonTree.object();
-                for (PoseChannel channel : PoseChannel.values())
-                    if (step.containsKey(channel)) held.put(channel.token(), shared.use(step.get(channel)));
-                steps.add(held);
-            }
-        }
+        container(node, program.container(), shared);
 
         JsonTree written = node.child("bones");
         // Sorted, and every channel of a bone written in the vocabulary's own order: a pose holds
@@ -108,6 +100,46 @@ public final class PoseJson {
             for (PoseClipSite site : program.clipSites()) plays.add(clipSite(site, shared));
         }
         return node;
+    }
+
+    /**
+     * What one renderer's own {@code setupRotations} composes, or the record of why it could not be
+     * read.
+     *
+     * <p>The steps are written the way a pose's container is, because that is what they are: a
+     * sequence of part poses above every bone a mesh names at top level. What differs is only where
+     * they come from and therefore what they are keyed by - a renderer rather than a model, one
+     * renderer answering for every mesh the subject submits.
+     *
+     * @param transform the transform to write
+     * @return the node to file under the renderer's name
+     */
+    static @NotNull JsonTree transform(@NotNull RenderTransform transform) {
+        if (!transform.isReadable())
+            return JsonTree.object().put(REFUSED, transform.refusal().orElseThrow());
+
+        Shared shared = Shared.of(transform.steps(), Map.of(), List.of());
+        JsonTree node = JsonTree.object();
+        if (!shared.table().isEmpty()) {
+            JsonTree declared = node.childArray(SHARED);
+            for (JsonTree entry : shared.table()) declared.add(entry);
+        }
+        container(node, transform.steps(), shared);
+        return node;
+    }
+
+    /** The step sequence, each step's channels in the vocabulary's own order, or nothing for none. */
+    private static void container(
+        @NotNull JsonTree node, @NotNull List<Map<PoseChannel, PoseExpr>> steps, @NotNull Shared shared) {
+
+        if (steps.isEmpty()) return;
+        JsonTree written = node.childArray(CONTAINER);
+        for (Map<PoseChannel, PoseExpr> step : steps) {
+            JsonTree held = JsonTree.object();
+            for (PoseChannel channel : PoseChannel.values())
+                if (step.containsKey(channel)) held.put(channel.token(), shared.use(step.get(channel)));
+            written.add(held);
+        }
     }
 
     /**
@@ -358,6 +390,13 @@ public final class PoseJson {
     static @NotNull Map<String, JsonTree> all(@NotNull Map<String, PoseOutcome> outcomes) {
         Map<String, JsonTree> out = new TreeMap<>();
         outcomes.forEach((model, outcome) -> out.put(model, of(outcome)));
+        return out;
+    }
+
+    /** Every renderer's transform, keyed by the renderer's own simple name. */
+    static @NotNull Map<String, JsonTree> allTransforms(@NotNull Map<String, RenderTransform> transforms) {
+        Map<String, JsonTree> out = new TreeMap<>();
+        transforms.forEach((renderer, transform) -> out.put(renderer, transform(transform)));
         return out;
     }
 

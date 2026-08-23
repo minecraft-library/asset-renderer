@@ -43,13 +43,17 @@ public final class ToolingEntityModels {
             Map<String, Set<String>> rootBones =
                 GeometryFlow.emit(session, manifest, session.resolve("entity_geometry.json"));
             // The classes the renderers pose with, which the geometry manifest does not name: a model
-            // reusing its parent's layer bakes no mesh, so nothing would have walked its pose.
+            // reusing its parent's layer bakes no mesh, so nothing would have walked its pose. The
+            // renderers themselves travel beside them, because what a renderer puts above the meshes
+            // it submits is its own fact and no model class carries it.
             Set<String> posing = new LinkedHashSet<>();
+            Set<String> renderers = new LinkedHashSet<>();
             for (EntitySubject subject : subjects) {
+                renderers.add(subject.rendererClass());
                 String model = EntityPoseClass.of(session.cache(), subject.rendererClass());
                 if (model != null) posing.add(model);
             }
-            PoseFlow.emit(session, manifest, rootBones, posing, session.resolve("entity_poses.json"));
+            PoseFlow.emit(session, manifest, rootBones, posing, renderers, session.resolve("entity_poses.json"));
             session.failOnStrictGate();
         }
     }

@@ -692,6 +692,44 @@ it.** Both halves are the same rule read at different sites, and both were wrong
   it, which is wider than a null parent: **a bone naming a parent its mesh does not declare hangs
   from the root too**, and the breeze ships two of them.
 
+**What a subject's RENDERER composes goes above every mesh it submits, and it is its own table keyed
+by the renderer.** Vanilla runs `setupRotations` on the pose stack before it submits the body or any
+layer, so `entity_poses.json`'s `renderers` member holds a step sequence per renderer and
+`PoseKit.posedSubject` puts it at the FRONT of every mesh's container - the body's, each overlay
+pass's, and the alternate a suppressed pass carries. A transform reaching the body alone swims a
+tropical fish out from under its own pattern overlays. It is keyed by renderer rather than by model
+because one renderer answers for several model classes, and `entity_models.json`'s `renderer` member
+is what a subject joins on.
+
+- **A world transform crosses a frame to reach the container.** `setupRotations` runs OUTSIDE
+  vanilla's own `scale(-1, -1, 1)` where a container sits inside it, so a step is
+  `M . <world step> . M` at `M = diag(-1, -1, 1)`: x and y negate and z is kept, for a translate and
+  for an Euler angle alike, `M` being a half turn about z rather than a reflection. A translate also
+  crosses units, a `PoseStack` moving in BLOCKS where a pivot is model pixels. Measured rather than
+  read off the algebra: the cod's yaw step took it 28.17 to 0.17 and the same step un-negated gives
+  57.56.
+- **The base delegation emits nothing and is still required.** At the frozen pose
+  `LivingEntityRenderer.setupRotations` is exactly one turn about y, which this renderer applies as
+  the subject's facing, so following it would apply it twice. A body that never runs it composes
+  around a different base and is refused rather than read against this one. A step emitted BEFORE the
+  delegation has to be about y alone, which is what makes its position in the sequence immaterial: a
+  turn about y and a translate along y both commute with the base's turn and nothing else does.
+- **A body is read whole or refused**, the grammar being the render state's own float and boolean
+  fields, float and double arithmetic, `Mth.sin` and `Mth.cos`, a translate, a `mulPose` of one of
+  the three positive axes turned by degrees, and the delegation. Nine of the fourteen renderers that
+  override refuse today and each refusal is a row, because a transform read in half places a subject
+  somewhere vanilla never puts it and renders as though it were deliberate.
+- The one branch shape is a forward jump over a contiguous block, so a step inside one writes each
+  channel as a select between its value and that channel's identity, and a local the block assigns is
+  reconciled at the block's end against what it held before. Reading a local off the block's own arm
+  gives every salmon its out-of-water amplitude.
+- **A `y_shift` and a transform are two spellings of one `setupRotations` and only one may answer.**
+  The shift is applied to the mesh at load because the bounds walk reads the mesh; the transform
+  composes above it at render, and both together move the subject twice. `EntityIndexBuilder` refuses
+  a subject carrying both. Every renderer the shift claims is one the walk declines - the squid's
+  turn is by a method parameter the grammar has no term for - which the guard keeps a fact rather
+  than a coincidence.
+
 **A bone the MESH does not declare is not evaluated.** A pose belongs to a model class where a mesh
 belongs to a subject, so the two part company wherever a bone rests undrawn and took its subtree with
 it: an illager resting with its arms crossed has no arm to hang, and vanilla's own `setupAnim` writes

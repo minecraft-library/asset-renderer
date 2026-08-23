@@ -5,7 +5,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.index.EntityIndexBuilder;
 import lib.minecraft.renderer.pipeline.index.RawEntityModelsFile;
@@ -21,8 +20,9 @@ import java.util.Optional;
  * The reader for entity model definitions, orchestrating three pure reads and one assembler:
  * {@code entity_geometry.json} decodes straight into the deduplicated bone/cube trees keyed by geometry
  * coordinate, {@code entity_models.json} decodes straight into the raw {@link RawEntityModelsFile} tree
- * (90 base-entity models), {@code entity_poses.json} decodes into the pose each model class takes,
- * and {@link EntityIndexBuilder} joins them into the {@link Entity} map the renderer consumes.
+ * (90 base-entity models), {@code entity_poses.json} decodes into the pose each model class takes and
+ * the transform each renderer composes above the meshes it submits, and {@link EntityIndexBuilder}
+ * joins them into the {@link Entity} map the renderer consumes.
  *
  * <p>The geometry file is keyed by the same manifest factory coordinate the model baseline names under
  * {@code axes.age.options.adult.geometry} (e.g. {@code AdultWolfModel#createBodyLayer},
@@ -55,7 +55,8 @@ public final class EntityModelLoader {
         RawEntityModelsFile raw = modelsDoc.get().as(RawEntityModelsFile.class);
         if (raw == null || raw.models() == null) return Concurrent.newMap();
 
-        return EntityIndexBuilder.assemble(geometries, raw, parsePoses());
+        RawEntityPosesFile posed = parsePoses();
+        return EntityIndexBuilder.assemble(geometries, raw, posed.poses(), posed.renderTransforms());
     }
 
     /**
@@ -67,12 +68,13 @@ public final class EntityModelLoader {
      * still rather than no entities at all. Joining this read to that disjunction would turn a
      * missing pose table into a renderer with no entities in it.
      *
-     * @return the pose of each model class, or empty when the resource is absent
+     * @return the pose of each model class and the transform of each renderer, or nothing answered
+     *     when the resource is absent
      */
-    private static @NotNull Map<String, EntityPose> parsePoses() {
+    private static @NotNull RawEntityPosesFile parsePoses() {
         return BundledResource.read(POSES_RESOURCE)
-            .map(document -> document.as(RawEntityPosesFile.class).poses())
-            .orElseGet(Map::of);
+            .map(document -> document.as(RawEntityPosesFile.class))
+            .orElseGet(() -> new RawEntityPosesFile(Map.of(), Map.of()));
     }
 
     /** Reads the {@code geometries} coordinate map straight into {@link EntityModelData} values. */

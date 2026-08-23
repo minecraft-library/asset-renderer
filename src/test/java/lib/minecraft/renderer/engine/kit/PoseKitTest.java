@@ -214,6 +214,60 @@ class PoseKitTest {
     }
 
     @Test
+    @DisplayName("the renderer's own transform is seated outermost, above the model's own container")
+    void theRenderTransformIsOutermost() {
+        // Vanilla composes setupRotations onto the pose stack before the model poses anything, so
+        // what the renderer carries has to sit ABOVE what the model's own container holds. The two
+        // are the same shape and compose in one direction only: swapping them turns the subject about
+        // the wrong origin, which renders and looks deliberate. No shipped subject carries both, so
+        // this is the only place the order is stated.
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", cubed(null));
+
+        EntityPose drops = new EntityPose(
+            List.of(Map.of(PoseChannel.Y, new PoseExpr.Const(-3d, PoseOperator.Width.FLOAT))),
+            Map.of(), List.of(), Map.of(), Map.of(), Optional.empty());
+        Entity subject = Entity.builder()
+            .id(ResourceId.parse("minecraft:test"))
+            .model(mesh)
+            .pose(drops)
+            .renderTransform(List.of(Map.of(PoseChannel.Y, new PoseExpr.Const(-7d, PoseOperator.Width.FLOAT))))
+            .build();
+
+        EntityModelData posed = PoseKit.posed(EntityOptions.PoseMode.IDLE, subject, 0);
+        List<String> bones = List.copyOf(posed.getBones().keySet());
+        assertEquals(3, bones.size(), "the mesh gains a bone per step and nothing else");
+        String outer = bones.get(1);
+        String inner = bones.get(2);
+        assertEquals(-7f, posed.getBones().get(outer).getPivot().y(), "the renderer's step is the outer one");
+        assertEquals(-3f, posed.getBones().get(inner).getPivot().y(), "the model's own is the inner one");
+        assertEquals(outer, posed.getBones().get(inner).getParent(), "and hangs off the renderer's");
+        assertEquals(inner, posed.getBones().get("body").getParent(), "with the mesh under both");
+    }
+
+    @Test
+    @DisplayName("the renderer's transform reaches every mesh the subject submits, not the body alone")
+    void theRenderTransformReachesEveryPass() {
+        // A tropical fish is a body and a run of pattern overlays, and vanilla turns the pose stack
+        // once for all of them. A transform that reached the body alone would swim the fish out from
+        // under its own markings - visible as the passes gaining fewer bones than the body did.
+        Entity fish = entities.get("minecraft:tropical_fish");
+        assertNotNull(fish, "the corpus carries a tropical fish");
+        int steps = fish.renderTransform().size();
+        assertTrue(steps > 0, "whose renderer composes a transform");
+        assertFalse(fish.overlays().isEmpty(), "and which draws overlay passes");
+
+        Entity posed = PoseKit.posedSubject(EntityOptions.PoseMode.IDLE, fish, 4);
+        assertEquals(fish.model().getBones().size() + steps, posed.model().getBones().size(),
+            "the body carries a bone per step");
+        for (int pass = 0; pass < fish.overlays().size(); pass++)
+            assertEquals(
+                fish.overlays().get(pass).model().getBones().size() + steps,
+                posed.overlays().get(pass).model().getBones().size(),
+                "pass " + pass + " carries the same steps the body does");
+    }
+
+    @Test
     @DisplayName("a subject is posed by the class its renderer hands the model, not the one that baked it")
     void theRenderersClassIsWhatPosesTheBody() {
         // A zombie's mesh is HumanoidModel#createMesh, because ZombieModel declares no layer of its

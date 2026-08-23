@@ -29,9 +29,12 @@ import java.util.Map;
 public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
 
 /**
- * One raw entity model (a family), 1:1 with a {@code models} member. The {@code renderer} class name and
- * every {@code source} / {@code layer_index} authoring hint are simply not declared, so Gson ignores them.
+ * One raw entity model (a family), 1:1 with a {@code models} member. Every {@code source} /
+ * {@code layer_index} authoring hint is simply not declared, so Gson ignores it.
  *
+ * @param renderer the vanilla renderer class's internal name, which is what the pose table keys its
+ *     {@code renderers} transforms by - the one member here that names a class rather than an asset,
+ *     because what a renderer composes above its meshes is its own fact and no model carries it
  * @param render the family render tuning ({@code scale} / {@code yaw_addend} / {@code tint}), or {@code null}
  * @param rest which constant each of the subject's enum render-state fields holds before anything
  *     has happened to it, or {@code null} when its renderer fills none from a readable accessor
@@ -43,6 +46,7 @@ public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
  * @param groupOf the base entity this sub-species groups under (mooshroom -&gt; cow), or {@code null}
  */
 record RawModel(
+    @Nullable String renderer,
     @Nullable RawRender render,
     @Nullable Map<String, String> rest,
     @Nullable RawBones bones,

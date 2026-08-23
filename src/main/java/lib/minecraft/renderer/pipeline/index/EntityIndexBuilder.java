@@ -25,6 +25,8 @@ import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PoseChannel;
+import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.engine.kit.PoseEvaluator;
 import lib.minecraft.renderer.engine.kit.PoseKit;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
@@ -81,20 +83,22 @@ public final class EntityIndexBuilder {
      * @param geometries the geometry coordinate to bone tree table
      * @param rawFile the raw model catalog
      * @param poses the pose of each model class, by the simple name a coordinate is headed with
+     * @param renderTransforms the steps each renderer composes above its meshes, by renderer simple name
      * @return definitions keyed by namespaced entity id, in file order
      * @throws PipelineException if an entity references a geometry coordinate absent from the geometry file
      */
     public static @NotNull ConcurrentMap<String, Entity> assemble(
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull RawEntityModelsFile rawFile,
-        @NotNull Map<String, EntityPose> poses
+        @NotNull Map<String, EntityPose> poses,
+        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms
     ) {
         Map<String, RawModel> models = rawFile.models();
         if (models == null) return Concurrent.newMap();
         LinkedHashMap<String, Entity> definitions = new LinkedHashMap<>();
         for (Map.Entry<String, RawModel> entry : models.entrySet()) {
             if (entry.getValue() == null) continue;
-            readDefinition(entry.getKey(), entry.getValue(), geometries, poses, definitions);
+            readDefinition(entry.getKey(), entry.getValue(), geometries, poses, renderTransforms, definitions);
         }
         attachGroupMembers(models, definitions);
         return Concurrent.adoptMap(definitions);
@@ -172,6 +176,7 @@ public final class EntityIndexBuilder {
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
+        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms,
         @NotNull Map<String, Entity> definitions
     ) {
         // The family baseline (primary geometry + adult texture) lives under the mandatory age axis'
@@ -189,6 +194,8 @@ public final class EntityIndexBuilder {
         RawAgeOption babyAge = ageBaby(family);
         float babyYShift = babyAge == null ? 0f : babyAge.yShift();
         int baseTint = render == null || render.tint() == null ? WHITE : ArgbHex.parse(render.tint());
+        List<Map<PoseChannel, PoseExpr>> renderTransform =
+            renderTransformOf(renderTransforms, family, familyId, adult.yShift(), babyYShift);
 
         Map<String, String> restingState = restingStateOf(family);
         RawBones bones = family.bones();
@@ -225,7 +232,7 @@ public final class EntityIndexBuilder {
         if (variant != null) {
             String defaultOption = variant.defaultOption();
             Map<String, RawVariantOption> options = variant.options();
-            VariantContext ctx = new VariantContext(baseCoord, poseClass, geometries, poses, restingState, hiddenBones, boneToggleSpecs, familyOverlays,
+            VariantContext ctx = new VariantContext(baseCoord, poseClass, geometries, poses, renderTransform, restingState, hiddenBones, boneToggleSpecs, familyOverlays,
                 blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyPose, babyOverlays, collarTexture, equipment, markings, humanoidArmor,
                 stateDefaultOf(family));
             // one base row minecraft:<id>, the coat resolved at render. Every option
@@ -266,6 +273,7 @@ public final class EntityIndexBuilder {
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .boneToggles(toggles)
             .pose(pose)
+            .renderTransform(renderTransform)
             .restingState(restingState)
             .axes(new Entity.Axes(stateTextures, babyModel, babyPose, babyOverlays,
                 buildLargeShape(family, geometries, poses, familyId),
@@ -288,6 +296,38 @@ public final class EntityIndexBuilder {
     private static @NotNull Map<String, String> restingStateOf(@NotNull RawModel family) {
         if (family.rest() == null || family.rest().isEmpty()) return Map.of();
         return Collections.unmodifiableMap(new LinkedHashMap<>(family.rest()));
+    }
+
+    /**
+     * The steps this subject's renderer composes above every mesh it submits.
+     *
+     * <p>Joined on the renderer's simple name, which the model table carries per subject and the
+     * pose table keys its transforms by. A subject whose renderer the walk refused, or which
+     * composes nothing at all, has no row and stands where its mesh puts it.
+     *
+     * <p><b>A transform and a {@code y_shift} are two spellings of one {@code setupRotations} and
+     * only one of them may answer.</b> The shift is applied to the mesh at load because the bounds
+     * walk reads the mesh; the transform composes above it at render. Both together would move the
+     * subject twice, so a subject carrying both is refused rather than silently doubled - the
+     * corpus has none, every renderer the shift claims being one the transform walk declines.
+     *
+     * @throws PipelineException if a subject carries both a render transform and an age shift
+     */
+    private static @NotNull List<Map<PoseChannel, PoseExpr>> renderTransformOf(
+        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> transforms, @NotNull RawModel family,
+        @NotNull String familyId, float adultYShift, float babyYShift) {
+
+        String renderer = family.renderer();
+        if (renderer == null) return List.of();
+        int member = renderer.lastIndexOf('/');
+        List<Map<PoseChannel, PoseExpr>> steps =
+            transforms.getOrDefault(member < 0 ? renderer : renderer.substring(member + 1), List.of());
+        if (!steps.isEmpty() && (adultYShift != 0f || babyYShift != 0f))
+            throw new PipelineException(
+                "entity index: '%s' carries both a render transform and a setupRotations y shift, "
+                    + "which would move it twice",
+                familyId);
+        return steps;
     }
 
     /**
@@ -317,6 +357,7 @@ public final class EntityIndexBuilder {
         @Nullable String poseClass,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
+        @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform,
         @NotNull Map<String, String> restingState,
         @Nullable List<String> hiddenBones,
         @Nullable Map<String, RawToggle> boneToggleSpecs,
@@ -367,6 +408,7 @@ public final class EntityIndexBuilder {
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
             .boneToggles(toggles)
             .pose(pose)
+            .renderTransform(ctx.renderTransform())
             .restingState(ctx.restingState())
             .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Optional.empty(),
                 Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))

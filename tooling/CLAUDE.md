@@ -85,6 +85,16 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   been posing off their mesh. A posing class bakes no mesh, so `PoseFlow` would never have walked it:
   its roster takes the posing classes beside the manifest's and reads each one's top-level bones off
   its nearest baking ancestor, that ancestor being the very class it reuses the layer of.
+- **A renderer's `setupRotations` is a self-refusing walk of its own, not an extension of
+  `PoseWalk`.** It reads ten statements against a closed grammar and refuses the whole body on
+  anything outside it, where the pose walk follows both arms of everything it cannot decide - so the
+  fork machinery and the one-`Held` rule are not involved and would not help. The one branch shape is
+  a forward jump over a contiguous block, which is structural rather than a fork: the block runs
+  unconditionally and each value it produces becomes a select, a step's channels against that
+  channel's identity and a local against what it held before the jump. It drives the same `Interp`
+  chassis every other walk here does, with the render state and the pose stack bound as the only two
+  references a member may be read of, so a read of the body rotation or the render scale arrives
+  unmodelled and refuses where it is used rather than resolving to a confident zero.
 - **A write to a flattened container is carried as the pose's own container, never pushed down onto
   the bones it held.** It is a parent transform above every bone the mesh names at top level, and
   `EntityPose.container` is where it lives on both sides. Only a translation could be pushed down at

@@ -41,17 +41,21 @@ public final class PoseFlow {
      * @param session the live session
      * @param manifest the registry the models walk populated, read for its factory classes
      * @param rootBones the bones each class's mesh names at top level, from the geometry flow
+     * @param posing the model classes the renderers pose with, which the manifest does not name
+     * @param renderers the subjects' renderer classes, read for what each composes above its meshes
      * @param out the output path
      */
     public static void emit(
         @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
-        @NotNull Map<String, Set<String>> rootBones, @NotNull Set<String> posing, @NotNull Path out) {
+        @NotNull Map<String, Set<String>> rootBones, @NotNull Set<String> posing,
+        @NotNull Set<String> renderers, @NotNull Path out) {
 
         Diagnostics diagnostics = session.diagnostics().child("pose");
         List<KeyframeClip> clips = KeyframeDefinitionParser.parseAll(session.cache(), diagnostics);
         Map<String, String> roster = rosterClasses(session, manifest, posing, diagnostics);
         Map<String, List<ClipBinding>> byModel = resolveModels(session, roster.keySet(), diagnostics);
         Map<String, PoseOutcome> poses = walkModels(session, roster, rootBones, diagnostics);
+        Map<String, RenderTransform> transforms = walkRenderers(session, renderers);
 
         JsonTree root = session.envelope("definitions-package listing order for clips; "
             + "model simple name for models and for poses, and bone name within a pose");
@@ -103,8 +107,20 @@ public final class PoseFlow {
         }
         if (!restingNode.isEmpty()) root.put("rest_defaults", restingNode);
 
+        // What each RENDERER puts above every mesh it submits, which is a fact about the renderer
+        // rather than about any one model: a subject draws its body and its overlay passes through
+        // several model classes and one transform reaches all of them. Keyed by renderer simple
+        // name, which is what the model table already carries per subject.
+        //
+        // Written last so nothing above it moves a byte.
+        if (!transforms.isEmpty()) {
+            JsonTree renderersNode = root.child("renderers");
+            PoseJson.allTransforms(transforms).forEach(renderersNode::put);
+        }
+
         reportDeadClips(clips, byModel, diagnostics);
         reportRefusedPoses(poses, diagnostics);
+        reportRefusedTransforms(transforms, diagnostics);
         root.write(out);
         diagnostics.info("wrote %s", out.toAbsolutePath());
     }
@@ -214,6 +230,37 @@ public final class PoseFlow {
                 session.cache(), model.getKey(),
                 rootBones.getOrDefault(model.getValue(), Set.of()), diagnostics));
         return out;
+    }
+
+    /**
+     * Reads what each subject's renderer composes above the meshes it submits.
+     *
+     * <p>Keyed by the renderer's own simple name, first answer winning, because several subjects
+     * share one renderer and it answers the same for all of them. A renderer that composes nothing
+     * beyond the base is absent rather than empty.
+     */
+    private static @NotNull Map<String, RenderTransform> walkRenderers(
+        @NotNull ToolingSession session, @NotNull Set<String> renderers) {
+
+        Map<String, RenderTransform> out = new TreeMap<>();
+        for (String renderer : renderers) {
+            RenderTransform transform = RenderTransformWalk.read(session.cache(), renderer);
+            if (transform != null) out.putIfAbsent(transform.renderer(), transform);
+        }
+        return out;
+    }
+
+    /**
+     * Names every renderer whose {@code setupRotations} could not be read whole, so a subject this
+     * places by nothing reads as a stated refusal rather than as a renderer that composes nothing.
+     */
+    private static void reportRefusedTransforms(
+        @NotNull Map<String, RenderTransform> transforms, @NotNull Diagnostics diagnostics) {
+
+        for (Map.Entry<String, RenderTransform> entry : transforms.entrySet())
+            if (!entry.getValue().isReadable())
+                diagnostics.info("%s.setupRotations %s - no transform",
+                    entry.getKey(), entry.getValue().refusal().orElseThrow());
     }
 
     /**

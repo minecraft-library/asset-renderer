@@ -6,6 +6,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
+import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -49,6 +50,12 @@ import java.util.stream.Collectors;
  * - posing the body alone leaves a sheep's wool where the sheep no longer is. The passes that redraw
  * the body's own mesh, the collar and the horse marking, are handed the posed body directly and move
  * with it for free.
+ *
+ * <p><b>What the subject's RENDERER composes goes outermost, above all of them.</b> Vanilla applies
+ * {@code setupRotations} to the pose stack before it submits the body or any layer, so
+ * {@link Entity#renderTransform()} goes at the front of every mesh's container rather than onto one
+ * of them - a tropical fish is a body and a run of pattern overlays, and a transform that reached
+ * only the body would swim the fish out from under its own markings.
  *
  * <p><b>The two flag channels are applied per frame, by the same rule the resting strip applies at
  * load</b> - a bone the pose hides takes its whole subtree with it, and one it skips loses its own
@@ -97,7 +104,10 @@ public final class PoseKit {
      */
     public static @NotNull EntityModelData posed(
         @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
-        return posed(mode, subject.pose(), subject.restingState(), subject.model(), tick);
+
+        if (mode == EntityOptions.PoseMode.BIND) return subject.model();
+        return posed(mode, under(subject.renderTransform(), subject.pose()),
+            subject.restingState(), subject.model(), tick);
     }
 
     /**
@@ -151,10 +161,37 @@ public final class PoseKit {
     public static @NotNull Entity posedSubject(
         @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
 
+        if (mode == EntityOptions.PoseMode.BIND) return subject;
         EntityModelData model = posed(mode, subject, tick);
         List<Entity.OverlayLayer> overlays = posedOverlays(mode, subject, tick);
         if (model == subject.model() && overlays == subject.overlays()) return subject;
         return subject.mutate().model(model).overlays(overlays).build();
+    }
+
+    /**
+     * One pose composed under the steps its renderer puts above every mesh it submits.
+     *
+     * <p>Vanilla applies {@code setupRotations} to the pose stack before the body or any layer is
+     * drawn, so what it composes is outermost: it goes at the FRONT of the container, and every mesh
+     * the subject draws gets the same sequence. A renderer that composes nothing hands back the pose
+     * itself, which is what keeps the authored path allocating nothing.
+     *
+     * <p>A pose that could not be read stays unreadable rather than becoming a container with no
+     * bones under it: a subject whose model nothing could walk is not one this can place, and
+     * placing it anyway would draw a mesh that is neither authored nor posed.
+     *
+     * @param steps what the subject's renderer composes above its meshes
+     * @param pose the pose belonging to one of those meshes
+     * @return the pose with the renderer's steps ahead of its own container
+     */
+    private static @NotNull EntityPose under(
+        @NotNull List<Map<PoseChannel, PoseExpr>> steps, @NotNull EntityPose pose) {
+
+        if (steps.isEmpty() || !pose.isReadable()) return pose;
+        List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>(steps);
+        container.addAll(pose.container());
+        return new EntityPose(List.copyOf(container), pose.bones(), pose.clips(),
+            pose.inputDefaults(), pose.restDefaults(), pose.refusal());
     }
 
     /** Each overlay pass where its own model leaves it, or the list itself when none of them moved. */
@@ -165,12 +202,12 @@ public final class PoseKit {
         List<Entity.OverlayLayer> out = new ArrayList<>(overlays.size());
         boolean moved = false;
         for (Entity.OverlayLayer overlay : overlays) {
-            EntityModelData mesh =
-                posed(mode, overlay.pose(), subject.restingState(), overlay.model(), tick);
+            EntityPose pose = under(subject.renderTransform(), overlay.pose());
+            EntityModelData mesh = posed(mode, pose, subject.restingState(), overlay.model(), tick);
             // The suppressed-pass alternate is the same mesh with a subtree emptied, so it takes the
             // same pose - a villager under a full-hat profession still moves the head it draws none of.
             Optional<EntityModelData> noHat = overlay.noHatModel()
-                .map(alternate -> posed(mode, overlay.pose(), subject.restingState(), alternate, tick));
+                .map(alternate -> posed(mode, pose, subject.restingState(), alternate, tick));
             moved |= mesh != overlay.model()
                 || !noHat.equals(overlay.noHatModel());
             out.add(new Entity.OverlayLayer(mesh, overlay.textureRef(), overlay.pass(),
