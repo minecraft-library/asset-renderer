@@ -80,12 +80,12 @@
     "manifest.references": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 2322,
+      "entries": 3042,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 138405,
-      "promoted_at": "b1778c95cf10c827862e269cb33a7e7ba24686b0",
-      "sha256": "c2764de7de1c9518b3427cf49dae8905dcb616f9307672cf43aa83203245c4ae"
+      "last_duration_ms": 140210,
+      "promoted_at": "091028cbeabde65a6e7f6f7a460b6042c45fc5ff",
+      "sha256": "b392e440e089405dc4d8352d89e1d26fd97059ef8a2ae48fa0cc4d06690e092a"
     },
     "manifest.tooling-tables": {
       "baselined": true,
@@ -216,9 +216,15 @@
       "sum": "59.4901"
     },
     "sweep.entity-animation": {
-      "baselined": false,
+      "baselined": true,
       "determinism_floor": 2,
-      "kind": "sweep-table"
+      "entries": 90,
+      "file": "sweeps/entity-animation.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 21544,
+      "promoted_at": "091028cbeabde65a6e7f6f7a460b6042c45fc5ff",
+      "sha256": "aab67a448c9d800cf54c5ab115f89d653f171b18068637497f9c1040337ebb3a",
+      "sum": "1160.2271"
     },
     "sweep.glint": {
       "baselined": true,

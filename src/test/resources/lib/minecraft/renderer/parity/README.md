@@ -24,7 +24,7 @@ Values this store holds, one file each.
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.references` | `manifests/references.json` | 2322 | 2322 entries | `b1778c95cf10c827862e269cb33a7e7ba24686b0` | yes |
+| `manifest.references` | `manifests/references.json` | 3042 | 3042 entries | `091028cbeabde65a6e7f6f7a460b6042c45fc5ff` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `b4706878fe9b369803f0aa7c4855294a671d902c` | yes |
 | `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `b1778c95cf10c827862e269cb33a7e7ba24686b0` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
@@ -39,7 +39,7 @@ Values this store holds, one file each.
 | `sweep.armor` | `sweeps/armor.json` | 7 | sum 18.2471 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
 | `sweep.block` | `sweeps/block.json` | 1055 | sum 131.5270 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
 | `sweep.entity` | `sweeps/entity.json` | 402 | sum 59.4901 | `b1778c95cf10c827862e269cb33a7e7ba24686b0` | yes |
-| `sweep.entity-animation` | - | - | - | - | **no** |
+| `sweep.entity-animation` | `sweeps/entity-animation.json` | 90 | sum 1160.2271 | `091028cbeabde65a6e7f6f7a460b6042c45fc5ff` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 528.0484 | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
 | `sweep.item` | `sweeps/item.json` | 479 | sum 128.9575 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
