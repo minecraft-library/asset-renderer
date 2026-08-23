@@ -5,6 +5,8 @@ import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.policy.AsmContext;
+import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,12 +17,16 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * Node {@code rest} - which constant each of a subject's enum render-state fields holds before
+ * Node {@code rest} - what each of a subject's enum and flag render-state fields holds before
  * anything has happened to it.
  *
  * <p>A model poses a bone on an enum ({@code arms.visible = armPose == CROSSED}), and answering
@@ -39,20 +45,31 @@ import java.util.TreeMap;
  * <p>Only a field the renderer fills from a plain accessor is answered. What a render state
  * computes for itself is a function of figures rather than of the entity, and belongs to whoever
  * supplies those.
+ *
+ * <p>A flag is answered the same way wherever the receiver it is asked of can be named, which is
+ * not always the entity: a dragon's is the phase instance its manager is holding, and
+ * {@link EntityRestPolicies} is where the class that answers is declared. What that class answers
+ * is still read from the jar.
  */
 final class EntityRestStateResolver {
 
     /** The render-state member a fish reads twice - for its wag amplitude and for lying on its side. */
     private static final @NotNull String IN_WATER = "isInWater";
 
+    /** The descriptor of the no-argument flag question every {@code rest} flag is filled from. */
+    private static final @NotNull String FLAG = "()Z";
+
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
     private final @NotNull Diagnostics diagnostics;
+    private final @NotNull AsmContext frame;
 
     EntityRestStateResolver(@NotNull EntityContext context) {
         this.cache = context.cache();
         this.subject = context.subject();
         this.diagnostics = context.diagnostics();
+        this.frame = new AsmContext(
+            context.session(), context.subject().entityId(), null, context.diagnostics());
     }
 
     /**
@@ -63,10 +80,13 @@ final class EntityRestStateResolver {
      */
     @Nullable JsonTree resolve() {
         Map<String, Assignment> assignments = new LinkedHashMap<>();
+        Map<String, MethodInsnNode> flags = new LinkedHashMap<>();
         ClassKit.walkSuperChain(this.cache, this.subject.rendererClass(), classNode -> {
             for (MethodNode method : classNode.methods)
-                if (VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name))
+                if (VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) {
                     collectEnumAssignments(method, assignments);
+                    collectFlagAssignments(method, flags);
+                }
         });
         // Sorted, because the walk visits the renderer chain leaf-first while a reader wants one
         // order whatever the depth a field happens to be filled at.
@@ -74,6 +94,11 @@ final class EntityRestStateResolver {
         assignments.forEach((field, assignment) -> {
             String constant = fallThroughConstant(assignment);
             if (constant != null) rest.put(field, constant);
+        });
+        Navigation.At declared = EntityRestPolicies.RESTING_PHASE_ANSWER.requireAt(this.frame);
+        flags.forEach((field, call) -> {
+            String answer = restingAnswer(declared, call);
+            if (answer != null) rest.put(field, answer);
         });
         if (inWater()) rest.put(IN_WATER, Boolean.TRUE.toString());
         if (rest.isEmpty()) return null;
@@ -85,26 +110,101 @@ final class EntityRestStateResolver {
     }
 
     /**
-     * Whether an offline render puts this subject in water.
+     * Whether an offline render puts this subject in water - whether its entity class descends from
+     * the base {@link EntityRestPolicies#IN_WATER_FAMILY} names.
      *
-     * <p>A fish renderer reads {@code isInWater} twice - once to scale the amplitude its body wags
-     * at, and once to decide whether to lay the subject on its side. The second is vanilla's
-     * flopping-on-land pose, right in a world and the wrong shape for a reference render, so the
-     * harness pins the field on and this side has to answer the same or the two draw different fish.
-     *
-     * <p><b>Scoped to {@code AbstractFish} exactly, because the harness's pin is.</b> A dolphin, an
-     * axolotl, a squid and a drowned each read the same field for something else, so widening it to
-     * everything aquatic would answer for four subjects that never asked the same question.
-     *
-     * @return whether the subject's entity class descends from the fish base
+     * @return whether the subject is one the harness's pin covers
      */
     private boolean inWater() {
         String current = this.subject.entityClass();
         for (int depth = 0; current != null && depth < 16; depth++) {
-            if (VanillaSourceClasses.Types.ABSTRACT_FISH.equals(current)) return true;
+            if (EntityRestPolicies.IN_WATER_FAMILY.stringValue().equals(current)) return true;
             ClassNode node = this.cache.load(current);
             if (node == null) return false;
             current = node.superName;
+        }
+        return false;
+    }
+
+    /**
+     * Collects every {@code PUTFIELD <state>.<field>:Z} in one method whose value came straight off
+     * a no-argument question. The instruction is kept whole rather than its parts, because what the
+     * question was asked OF is the half a walk cannot answer and a policy names. First assignment
+     * wins, as it does for an enum.
+     *
+     * @param method one {@code extractRenderState} in the renderer chain
+     * @param out the field-to-question map to fill
+     */
+    private static void collectFlagAssignments(
+        @NotNull MethodNode method, @NotNull Map<String, MethodInsnNode> out) {
+
+        AsmWalker.over(method)
+            .ofType(FieldInsnNode.class)
+            .where(put -> put.getOpcode() == Opcodes.PUTFIELD && "Z".equals(put.desc))
+            .forEach(put -> {
+                AbstractInsnNode source = AsmWalker.previousReal(put);
+                if (!(source instanceof MethodInsnNode call) || !FLAG.equals(call.desc)) return;
+                if (source.getOpcode() != Opcodes.INVOKEVIRTUAL
+                    && source.getOpcode() != Opcodes.INVOKEINTERFACE) return;
+                out.putIfAbsent(put.name, call);
+            });
+    }
+
+    /**
+     * The flag a question falls through to, read off the class the policy declares answers it.
+     *
+     * <p>Answered only where the declared class is the one the call site names or descends from it,
+     * so the link between the two is read from the jar rather than declared with them: a question
+     * put to anything else is one no policy speaks for, and stays unanswered the way it was before
+     * this existed.
+     *
+     * @param declared the coordinate naming the class a resting subject puts the question to
+     * @param call the question the renderer asked
+     * @return {@code "true"} or {@code "false"}, or {@code null} when nothing answers it
+     */
+    private @Nullable String restingAnswer(
+        Navigation.@NotNull At declared, @NotNull MethodInsnNode call) {
+
+        if (!declared.member().equals(call.name) || !answersFor(declared.owner(), call.owner))
+            return null;
+        MethodNode answer = ClassKit.findMethodInHierarchy(
+            this.cache, declared.owner(), declared.member(), FLAG);
+        if (answer == null) return null;
+
+        String[] last = {null};
+        AsmWalker.over(answer)
+            .where(node -> node.getOpcode() == Opcodes.IRETURN)
+            .forEach(exit -> {
+                AbstractInsnNode value = AsmWalker.previousReal(exit);
+                int opcode = value == null ? Opcodes.NOP : value.getOpcode();
+                last[0] = opcode == Opcodes.ICONST_1 ? Boolean.TRUE.toString()
+                    : opcode == Opcodes.ICONST_0 ? Boolean.FALSE.toString()
+                    : null;
+            });
+        return last[0];
+    }
+
+    /**
+     * Whether {@code candidate} is the type a call site names, or reaches it upward through a
+     * superclass or an interface. Bounded by a visiting set rather than a depth cap, an interface
+     * graph having no depth a class hierarchy's does not.
+     *
+     * @param candidate the class the policy declares answers the question
+     * @param callOwner the type the instruction names
+     * @return whether the candidate is one of that type
+     */
+    private boolean answersFor(@NotNull String candidate, @NotNull String callOwner) {
+        Deque<String> pending = new ArrayDeque<>();
+        Set<String> seen = new HashSet<>();
+        pending.add(candidate);
+        while (!pending.isEmpty()) {
+            String current = pending.poll();
+            if (callOwner.equals(current)) return true;
+            if (!seen.add(current)) continue;
+            ClassNode node = this.cache.load(current);
+            if (node == null) continue;
+            if (node.superName != null) pending.add(node.superName);
+            pending.addAll(node.interfaces);
         }
         return false;
     }

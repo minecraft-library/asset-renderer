@@ -157,6 +157,8 @@ class PolicyPurityTest {
         row("EntityOverlayPolicies", "FROZEN_FRAME", Navigation.Value.class),
         row("EntityOverlayPolicies", "PRESENCE_GATE_FIXED_WHEN_GUARDED", Navigation.Value.class),
         row("EntityOverlayPolicies", "EQUIPMENT_DEFAULT_MATERIALS", Navigation.Value.class),
+        row("EntityRestPolicies", "IN_WATER_FAMILY", Navigation.Value.class),
+        row("EntityRestPolicies", "RESTING_PHASE_ANSWER", Navigation.At.class),
         row("SnapshotShapePolicies", "TINT_DYNAMIC_SOURCE_DROPS", Navigation.Value.class),
         row("SnapshotShapePolicies", "TINT_MULTI_SOURCE_DROP", Navigation.Value.class),
         keylessRow("SnapshotShapePolicies", "TINT_CONSTANT_IN_HAND", Navigation.Dataflow.class));

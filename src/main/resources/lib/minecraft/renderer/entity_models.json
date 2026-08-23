@@ -1039,6 +1039,9 @@
     },
     "minecraft:ender_dragon": {
       "renderer": "net/minecraft/client/renderer/entity/EnderDragonRenderer",
+      "rest": {
+        "isSitting": "true"
+      },
       "axes": {
         "age": {
           "default": "adult",
