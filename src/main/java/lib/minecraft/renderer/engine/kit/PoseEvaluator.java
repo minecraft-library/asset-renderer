@@ -388,6 +388,12 @@ public final class PoseEvaluator {
      *
      * <p>A rotation is answered in RADIANS because that is the unit the table's arithmetic is in,
      * where the mesh stores degrees. A bone's scale is uniform, so all three axes read it.
+     *
+     * <p>A position is answered in the MODEL's own units, which a mesh flattened at
+     * {@link EntityModelData#getFlattenedScale() one factor} does not store it in: every pivot below
+     * the dissolved root arrived multiplied by that factor, and the number vanilla's own field holds
+     * is the one before it. So the read crosses back, and what a pose does with it crosses forward
+     * again where it is written.
      */
     private static double authored(@NotNull PoseExpr.BoneRead read, @NotNull EntityModelData model) {
         EntityModelData.Bone bone = model.getBones().get(read.bone());
@@ -395,10 +401,11 @@ public final class PoseEvaluator {
             throw new RendererException("entity pose: reads '%s' of bone '%s', which this mesh does not declare",
                 read.channel().token(), read.bone());
 
+        float flattened = model.getFlattenedScale();
         return switch (read.channel()) {
-            case X -> bone.getPivot().x();
-            case Y -> bone.getPivot().y();
-            case Z -> bone.getPivot().z();
+            case X -> bone.getPivot().x() / flattened;
+            case Y -> bone.getPivot().y() / flattened;
+            case Z -> bone.getPivot().z() / flattened;
             case X_ROT -> bone.getRotation().pitchRadians();
             case Y_ROT -> bone.getRotation().yawRadians();
             case Z_ROT -> bone.getRotation().rollRadians();

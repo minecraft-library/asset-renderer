@@ -250,6 +250,10 @@ public final class PoseKit {
         if (writes.container().isEmpty() && undrawn.isEmpty() && displaced.isEmpty()
             && writes.bones().values().stream().noneMatch(PoseKit::changesBone)) return model;
 
+        // Read from the mesh being posed rather than from the one being built: what a pose and a clip
+        // assign is in the model's own units, and this is the factor that puts one of those in this
+        // mesh - a fact about the mesh as the tooling flattened it.
+        float flattened = model.getFlattenedScale();
         // Collected into a LinkedHashMap rather than through Map.copyOf: the mesh's own bone order is
         // the tied-depth priority, and copyOf salts its iteration per JVM launch.
         LinkedHashMap<String, EntityModelData.Bone> bones = model.getBones().entrySet().stream()
@@ -257,9 +261,9 @@ public final class PoseKit {
             .collect(Collectors.toMap(Map.Entry::getKey,
                 bone -> displacedBone(bone.getValue(), bone.getKey(),
                     writes.bones().getOrDefault(bone.getKey(), Map.of()),
-                    displaced.getOrDefault(bone.getKey(), Map.of())),
+                    displaced.getOrDefault(bone.getKey(), Map.of()), flattened),
                 (first, second) -> first, LinkedHashMap::new));
-        if (!writes.container().isEmpty()) seatUnderContainer(bones, writes.container());
+        if (!writes.container().isEmpty()) seatUnderContainer(bones, writes.container(), flattened);
         return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(),
             Concurrent.adoptLinkedMap(bones), model.isCull());
     }
@@ -345,12 +349,17 @@ public final class PoseKit {
      * the one uniform factor a bone holds, which is the whole-mesh scale already flattened across
      * the mesh; a clip's displacement cannot, because it is per-axis and has to reach the bone's
      * descendants. So it lands on the bone's own pose scale instead, which the chain composes.
+     *
+     * <p>Both sides are read and summed in the MODEL's own units - a clip displaces the same field a
+     * body assigns - and the crossing into a flattened mesh's units happens once, where the value is
+     * finally placed.
      */
     private static @NotNull EntityModelData.Bone displacedBone(
         @NotNull EntityModelData.Bone bone, @NotNull String name,
-        @NotNull Map<PoseChannel, Float> written, @NotNull Map<PoseChannel, Float> displaced) {
+        @NotNull Map<PoseChannel, Float> written, @NotNull Map<PoseChannel, Float> displaced,
+        float flattened) {
 
-        if (displaced.isEmpty()) return posedBone(bone, name, written);
+        if (displaced.isEmpty()) return posedBone(bone, name, written, flattened);
 
         Map<PoseChannel, Float> moved = new EnumMap<>(PoseChannel.class);
         moved.putAll(written);
@@ -358,10 +367,10 @@ public final class PoseKit {
             PoseChannel channel = delta.getKey();
             if (channel.kind() == PoseChannel.Kind.SCALE) continue;
             Float assigned = written.get(channel);
-            float base = assigned == null ? authored(bone, channel) : assigned;
+            float base = assigned == null ? authored(bone, channel, flattened) : assigned;
             moved.put(channel, base + delta.getValue());
         }
-        return posedBone(posedScale(bone, name, written, displaced), name, moved);
+        return posedBone(posedScale(bone, name, written, displaced), name, moved, flattened);
     }
 
     /**
@@ -394,12 +403,17 @@ public final class PoseKit {
             bone.getScale(), bone.getCubes(), bone.getParent(), new Vector3f(1f + x, 1f + y, 1f + z));
     }
 
-    /** What a channel holds before anything is written to it - the mesh's own value. */
-    private static float authored(@NotNull EntityModelData.Bone bone, @NotNull PoseChannel channel) {
+    /**
+     * What a channel holds before anything is written to it, in the units a pose and a clip both
+     * speak - the mesh's own value, with a flattened mesh's factor taken back off a position.
+     */
+    private static float authored(
+        @NotNull EntityModelData.Bone bone, @NotNull PoseChannel channel, float flattened) {
+
         return switch (channel) {
-            case X -> bone.getPivot().x();
-            case Y -> bone.getPivot().y();
-            case Z -> bone.getPivot().z();
+            case X -> bone.getPivot().x() / flattened;
+            case Y -> bone.getPivot().y() / flattened;
+            case Z -> bone.getPivot().z() / flattened;
             case X_ROT -> bone.getRotation().pitchRadians();
             case Y_ROT -> bone.getRotation().yawRadians();
             case Z_ROT -> bone.getRotation().rollRadians();
@@ -416,20 +430,34 @@ public final class PoseKit {
      * time, because that triplet is what a chain composition finally reads - a rotation pre-composed
      * as a matrix and multiplied in reaches {@code rotationZYX} through different arithmetic and
      * parts from the authored pose at a delta of zero.
+     *
+     * <p><b>The mesh's root is where a flattened factor stops being one number.</b> The tooling
+     * pushes a whole-mesh scale onto the top-level bones as a translate as well as a factor, and a
+     * pose that places one of them would need both - so this refuses there rather than answering with
+     * half of it. No shipped model does it: the corpus's one mesh that is both flattened and placed
+     * by its pose is the elder guardian's, whose spikes and eye all hang off the head.
+     *
+     * @throws RendererException if a pose places the root of a flattened mesh
      */
     private static @NotNull EntityModelData.Bone posedBone(
         @NotNull EntityModelData.Bone bone, @NotNull String name,
-        @NotNull Map<PoseChannel, Float> written) {
+        @NotNull Map<PoseChannel, Float> written, float flattened) {
 
         if (!changesBone(written)) return bone;
 
         Vector3f pivot = bone.getPivot();
         EulerRotation rotation = bone.getRotation();
+        Vector3f placed = new Vector3f(
+            placed(written, PoseChannel.X, pivot.x(), flattened),
+            placed(written, PoseChannel.Y, pivot.y(), flattened),
+            placed(written, PoseChannel.Z, pivot.z(), flattened));
+        if (flattened != 1f && bone.getParent() == null && !placed.equals(pivot))
+            throw new RendererException(
+                "entity pose: bone '%s' is the root of a mesh flattened at '%s' and the pose places it, "
+                    + "which that factor alone does not answer",
+                name, flattened);
         return new EntityModelData.Bone(
-            new Vector3f(
-                held(written, PoseChannel.X, pivot.x()),
-                held(written, PoseChannel.Y, pivot.y()),
-                held(written, PoseChannel.Z, pivot.z())),
+            placed,
             new EulerRotation(
                 degrees(written, PoseChannel.X_ROT, rotation.pitch(), rotation.pitchRadians()),
                 degrees(written, PoseChannel.Y_ROT, rotation.yaw(), rotation.yawRadians()),
@@ -467,12 +495,37 @@ public final class PoseKit {
         return flagSet(written, PoseChannel.SKIP_DRAW);
     }
 
-    /** A pivot component the pose wrote, or the mesh's own where it wrote none. */
+    /** A channel the pose wrote, or the mesh's own where it wrote none. */
     private static float held(
         @NotNull Map<PoseChannel, Float> written, @NotNull PoseChannel channel, float authored) {
 
         Float value = written.get(channel);
         return value == null ? authored : value;
+    }
+
+    /**
+     * A pivot component the pose wrote, in the units the mesh stores it in, or the mesh's own where
+     * it wrote none.
+     *
+     * <p>A pose assigns the number vanilla's own part field holds, which is in the model's units. A
+     * mesh flattened at {@link EntityModelData#getFlattenedScale() one factor} does not store a pivot
+     * in those, every one below the dissolved root having arrived multiplied by it, so the written
+     * value crosses the same way - which is what places an elder guardian's spikes where a subject
+     * 2.35 times the size wears them rather than at a plain guardian's reach.
+     *
+     * <p>A value written back to what the mesh already held keeps the mesh's own number rather than
+     * the one a divide and a multiply land on, for the reason {@link #degrees} keeps the authored
+     * degrees.
+     */
+    private static float placed(
+        @NotNull Map<PoseChannel, Float> written, @NotNull PoseChannel channel,
+        float authored, float flattened) {
+
+        Float value = written.get(channel);
+        if (value == null) return authored;
+        if (flattened == 1f) return value;
+        if (value == authored / flattened) return authored;
+        return value * flattened;
     }
 
     /**
@@ -533,7 +586,7 @@ public final class PoseKit {
      */
     private static void seatUnderContainer(
         @NotNull LinkedHashMap<String, EntityModelData.Bone> bones,
-        @NotNull Map<PoseChannel, Float> written) {
+        @NotNull Map<PoseChannel, Float> written, float flattened) {
 
         for (PoseChannel channel : written.keySet())
             if (channel.isFlag() || channel.kind() == PoseChannel.Kind.SCALE)
@@ -542,7 +595,7 @@ public final class PoseKit {
                     channel.token());
 
         String name = containerName(bones.keySet());
-        EntityModelData.Bone container = posedBone(new EntityModelData.Bone(), name, written);
+        EntityModelData.Bone container = posedBone(new EntityModelData.Bone(), name, written, flattened);
         bones.replaceAll((bone, seated) -> !isTopLevel(bones, bone, seated) ? seated
             : new EntityModelData.Bone(seated.getPivot(), seated.getRotation(),
                 seated.getBindPoseRotation(), seated.getScale(), seated.getCubes(), name));

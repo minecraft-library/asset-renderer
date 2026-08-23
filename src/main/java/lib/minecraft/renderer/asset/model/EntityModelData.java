@@ -107,6 +107,34 @@ public class EntityModelData {
     }
 
     /**
+     * The one factor this whole mesh was flattened at, or {@code 1f} where its bones do not share one.
+     *
+     * <p>A {@code MeshTransformer.scaling(F)} rides vanilla's root, so every descendant is positioned
+     * and drawn through it. The tooling dissolves that root: each pivot below it arrives multiplied by
+     * {@code F} and each bone carries {@code F} for its own cubes, which reproduces the same geometry
+     * with nothing propagating. A value in the MODEL's own units therefore has to cross the factor to
+     * land in this mesh - which is what an elder guardian's pose places its spikes with, vanilla
+     * assigning a bone position of {@code 3.68} to a part its root then draws at 2.35 times the size.
+     *
+     * <p>Answered only where every bone agrees, which is what tells a flattened whole-mesh scale from
+     * a bone's own {@link Bone#getScale() scale}: the first reaches the entire tree and the second
+     * reaches one bone, whose pivot vanilla has already scaled itself. An aged-down mesh carries a
+     * factor per subtree rather than one and answers nothing here.
+     *
+     * @return the shared factor, or {@code 1f} where there is none
+     */
+    public float getFlattenedScale() {
+        float shared = 1f;
+        boolean first = true;
+        for (Bone bone : this.bones.values()) {
+            if (first) shared = bone.getScale();
+            else if (shared != bone.getScale()) return 1f;
+            first = false;
+        }
+        return shared;
+    }
+
+    /**
      * A single bone in an entity model, with a parent-relative pivot, rotation, and zero or more
      * cubes. Matching vanilla {@code ModelPart}, the {@link #pivot} is the bone's offset from its
      * {@link #parent} and the point about which {@link #rotation} is applied; cube origins are
