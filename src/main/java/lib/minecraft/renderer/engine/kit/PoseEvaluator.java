@@ -158,10 +158,13 @@ public final class PoseEvaluator {
      * <p>A caller that models something delegates to this for the rest, rather than answering the
      * whole surface itself.
      *
-     * <p>An enum member answers the same way, and cannot be answered from the pose at all: which
-     * constant a subject rests holding is the subject's own, where the pose belongs to a model
-     * several subjects may share. So the caller supplies it, and a member nothing named still
-     * answers false to every constant.
+     * <p><b>An enum member is answered twice over, and the subject's own answer wins.</b> Which
+     * constant a member rests holding is sometimes the subject's - one {@code IllagerModel} serves
+     * every illager and only the pillager hangs its arms - and otherwise its render state's, which
+     * builds the field at a constant in its own constructor. So the caller supplies what is the
+     * subject's and {@link EntityPose#restDefaults()} answers the rest. Answering neither is what
+     * has to be avoided: false to every constant is a state no enum is in, and the arm a switch ends
+     * at is not the arm a subject stands in.
      *
      * @param pose the pose whose named figures are being answered
      * @param restingState which constant each enum render-state member rests at, by member name
@@ -171,6 +174,7 @@ public final class PoseEvaluator {
         @NotNull EntityPose pose, @NotNull Map<String, String> restingState) {
 
         Map<String, Float> defaults = pose.inputDefaults();
+        Map<String, String> resting = pose.restDefaults();
         return new Frame() {
             @Override
             public float input(@NotNull String field) {
@@ -184,7 +188,8 @@ public final class PoseEvaluator {
 
             @Override
             public boolean is(@NotNull String member, @NotNull String constant) {
-                return constant.equals(restingState.get(member));
+                String held = restingState.get(member);
+                return constant.equals(held == null ? resting.get(member) : held);
             }
         };
     }

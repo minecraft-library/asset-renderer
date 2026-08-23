@@ -61,13 +61,15 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
 
             if (!root.isJsonObject()) throw new PipelineException("entity poses: the file is not an object");
             Map<String, Float> defaults = inputDefaults(root.getAsJsonObject().get("input_defaults"));
+            JsonElement resting = root.getAsJsonObject().get("rest_defaults");
             JsonElement poses = root.getAsJsonObject().get("poses");
             if (poses == null) return new RawEntityPosesFile(Map.of());
             if (!poses.isJsonObject()) throw new PipelineException("entity poses: 'poses' is not an object");
 
             Map<String, EntityPose> out = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> entry : poses.getAsJsonObject().entrySet())
-                out.put(entry.getKey(), pose(entry.getKey(), object(entry.getValue(), entry.getKey()), defaults));
+                out.put(entry.getKey(), pose(entry.getKey(), object(entry.getValue(), entry.getKey()),
+                    defaults, restDefaults(resting, entry.getKey())));
             return new RawEntityPosesFile(Collections.unmodifiableMap(out));
         }
 
@@ -91,13 +93,38 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         return Collections.unmodifiableMap(out);
     }
 
+    /**
+     * The constant each enum member this model reads rests holding.
+     *
+     * <p>Keyed by model rather than flat, because a bare field name spans more than one type: a
+     * parrot's {@code pose} is not the {@code pose} every other subject carries, and the model's own
+     * {@code setupAnim} is what says which of them a read names.
+     */
+    private static @NotNull Map<String, String> restDefaults(
+        @Nullable JsonElement node, @NotNull String model) {
+
+        if (node == null) return Map.of();
+        if (!node.isJsonObject())
+            throw new PipelineException("entity poses: 'rest_defaults' is not an object");
+
+        JsonElement held = node.getAsJsonObject().get(model);
+        if (held == null) return Map.of();
+
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : object(held, model).entrySet())
+            out.put(entry.getKey(), entry.getValue().getAsString());
+        return Collections.unmodifiableMap(out);
+    }
+
     /** One model's pose, or the record of why it has none. */
     private static @NotNull EntityPose pose(
-        @NotNull String model, @NotNull JsonObject node, @NotNull Map<String, Float> defaults) {
+        @NotNull String model, @NotNull JsonObject node, @NotNull Map<String, Float> defaults,
+        @NotNull Map<String, String> resting) {
 
         JsonElement refused = node.get("refused");
         if (refused != null)
-            return new EntityPose(Map.of(), Map.of(), List.of(), Map.of(), Optional.of(refused.getAsString()));
+            return new EntityPose(Map.of(), Map.of(), List.of(), Map.of(), Map.of(),
+                Optional.of(refused.getAsString()));
 
         Shared shared = Shared.of(model, node.get("shared"));
 
@@ -123,7 +150,7 @@ public record RawEntityPosesFile(@NotNull Map<String, EntityPose> poses) {
         // Nothing reads the order for meaning, but the parity dump digests this map, and a digest
         // over a map that flaps is a row that fails its own reproducibility check and nothing else.
         return new EntityPose(container, Collections.unmodifiableMap(bones),
-            List.copyOf(clips), defaults, Optional.empty());
+            List.copyOf(clips), defaults, resting, Optional.empty());
     }
 
     /**

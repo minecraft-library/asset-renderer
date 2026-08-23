@@ -2631,6 +2631,27 @@ public final class PoseWalk {
         };
     }
 
+    /**
+     * The render state this model's pose is read off.
+     *
+     * <p>Answered here rather than derived by the caller because it is the very method the walk
+     * itself resolves, and that resolution has a subtlety worth not owning twice: the erased
+     * override sits beside the typed one on every model, and taking it would name
+     * {@code EntityRenderState} for every subject in the corpus.
+     *
+     * @param cache the open client jar
+     * @param modelClass the leaf model's internal name
+     * @return the render state's internal name, or {@code null} where the chain poses nothing
+     */
+    public static @Nullable String renderStateOf(
+        @NotNull ClassNodeCache cache, @NotNull String modelClass) {
+
+        MethodNode body = findSetupAnim(cache, modelClass);
+        if (body == null) return null;
+        Type[] parameters = ClassKit.argTypes(body.desc);
+        return parameters.length == 0 ? null : parameters[0].getInternalName();
+    }
+
     /** The typed {@code setupAnim} nearest the leaf, skipping the erased override beside it. */
     private static @Nullable MethodNode findSetupAnim(@NotNull ClassNodeCache cache, @NotNull String modelClass) {
         String current = modelClass;

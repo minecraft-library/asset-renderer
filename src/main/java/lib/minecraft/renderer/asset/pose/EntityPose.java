@@ -35,11 +35,21 @@ import java.util.Optional;
  * carries what each named figure is built at, and is one table shared by every pose rather than a
  * fact of any single model.
  *
+ * <p><b>An unanswered enum member has no zero to fall back on at all.</b> Where a figure nobody
+ * models rests at nothing, a member matching no constant is in a state no enum is in - so a pose
+ * switching on one takes whichever arm the switch ends at rather than the arm the subject stands in,
+ * and a humanoid read that way swings an arm forty-four degrees forward while standing still.
+ * {@link #restDefaults} carries the constant each member's own render state builds it holding. It is
+ * per model rather than shared, because a bare field name spans more than one type: a parrot's
+ * {@code pose} and every other subject's are two fields, and the model's own {@code setupAnim} is
+ * what says which of them is being read. A subject whose answer is its own overrides this.
+ *
  * @param container the expression each written channel of the flattened container carries
  * @param bones the expression each bone channel is written with, by bone name
  * @param clips the authored clips this model plays, in the order it plays them
  * @param inputDefaults what each named figure reads as before anything has happened to the subject,
  *     holding only those built at something other than zero
+ * @param restDefaults the constant each named enum member's own render state builds it holding
  * @param refusal why there is no pose here, or empty when the rest is the whole answer
  */
 public record EntityPose(
@@ -47,12 +57,13 @@ public record EntityPose(
     @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
     @NotNull List<Clip> clips,
     @NotNull Map<String, Float> inputDefaults,
+    @NotNull Map<String, String> restDefaults,
     @NotNull Optional<String> refusal
 ) {
 
     /** The pose of a model that poses nothing, which is a real answer rather than a missing one. */
     public static final @NotNull EntityPose NONE =
-        new EntityPose(Map.of(), Map.of(), List.of(), Map.of(), Optional.empty());
+        new EntityPose(Map.of(), Map.of(), List.of(), Map.of(), Map.of(), Optional.empty());
 
     /**
      * One authored clip this model plays, and what it plays it at.

@@ -14,18 +14,20 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * What a render-state figure holds before anything has happened to the subject.
+ * What a render-state member holds before anything has happened to the subject.
  *
- * <p>A pose names the figures it could not derive so that a caller who models none of them still
+ * <p>A pose names the members it could not derive so that a caller who models none of them still
  * gets a frame vanilla draws. That rests on knowing what "none of them" IS, and the answer is not
  * always nothing: a render state constructs some of its own fields at something else.
  * {@code LivingEntityRenderState} builds {@code ageScale} at one and is the base every living
@@ -34,9 +36,20 @@ import java.util.TreeSet;
  * down. A caller answering zero to those gets a collapsed subject, a NaN and a wrong tail, none of
  * which vanilla ever draws.
  *
- * <p>Only the fields a pose actually names are resolved, and only where the value is not already
- * zero: a row for a figure nothing reads would declare an input nothing supplies, and a row holding
- * zero says what its own absence says.
+ * <p><b>An enum member is the same question and it has no zero to fall back on.</b> Answering no
+ * constant at all is a state no enum is in, so a pose switching on one takes whichever arm the
+ * switch ends at rather than the arm the subject stands in: {@code ArmedEntityRenderState} builds
+ * {@code rightArmPose} at {@code EMPTY} and both arms at {@code RIGHT}, and a humanoid that reads
+ * those as unset swings an arm forty-four degrees forward at rest. Which constant a subject rests
+ * holding can also be the SUBJECT's own fact rather than its render state's - an illager's crossed
+ * arms are - so this answers only what the state's own constructor settles, and a per-subject
+ * answer overrides it.
+ *
+ * <p>Only the members a pose actually names are resolved, and, for a figure, only where the value
+ * is not already zero: a row for something nothing reads would declare an input nothing supplies,
+ * and a numeric row holding zero says what its own absence says. An enum row has no such spelling -
+ * every constant is a state, none of them is the absence of one - so every resolved constant is
+ * emitted.
  *
  * <p>Read off the CONSTRUCTOR rather than the field declaration, because a Java field initialiser
  * is compiled into one and there is nothing else to read. The whole package is scanned rather than
@@ -112,6 +125,66 @@ final class InputDefaultResolver {
     }
 
     /**
+     * Every render-state member the walked poses compare against a declared constant.
+     *
+     * <p>Walked once per node, on the same terms and for the same reason {@link #namedBy} is: the
+     * two questions ride one graph, and a second walk that followed the paths would be the pass
+     * that could not afford to run on a humanoid.
+     *
+     * <p>A member reached through a call rather than held in a field is left out. It has no
+     * constructor to read - {@code getMainHandItemStack} is a method, and what it answers at rest is
+     * a fact about the subject's inventory rather than about the state's own construction.
+     *
+     * @param poses what the walk extracted, refusals included and ignored
+     * @return the bare member names, in sorted order
+     */
+    static @NotNull Set<String> constantsNamedBy(@NotNull Map<String, PoseOutcome> poses) {
+        Set<String> named = new TreeSet<>();
+        Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (PoseOutcome outcome : poses.values()) {
+            if (!(outcome instanceof PoseOutcome.Extracted extracted)) continue;
+            PoseProgram program = extracted.program();
+            program.container().values().forEach(expr -> tested(expr, named, walked));
+            program.bones().values().forEach(channels ->
+                channels.values().forEach(expr -> tested(expr, named, walked)));
+        }
+        named.removeIf(member -> member.indexOf('.') >= 0 || member.indexOf('(') >= 0);
+        return named;
+    }
+
+    /** Every member one expression's conditions test, reached through its arms. */
+    private static void tested(
+        @NotNull PoseExpr expr, @NotNull Set<String> named, @NotNull Set<Object> walked) {
+
+        if (!walked.add(expr)) return;
+        switch (expr) {
+            case PoseExpr.Op op -> op.operands().forEach(operand -> tested(operand, named, walked));
+            case PoseExpr.Select select -> {
+                tested(select.whenTrue(), named, walked);
+                tested(select.whenFalse(), named, walked);
+                tested(select.condition(), named, walked);
+            }
+            default -> { /* a leaf carries no condition */ }
+        }
+    }
+
+    /** Every member one condition tests, which is the same question a step lower. */
+    private static void tested(
+        @NotNull PosePredicate predicate, @NotNull Set<String> named, @NotNull Set<Object> walked) {
+
+        if (!walked.add(predicate)) return;
+        switch (predicate) {
+            case PosePredicate.EnumEq check -> named.add(check.field());
+            case PosePredicate.Compare compare -> {
+                tested(compare.left(), named, walked);
+                tested(compare.right(), named, walked);
+            }
+            case PosePredicate.Not not -> tested(not.operand(), named, walked);
+            default -> { /* a presence test or a decided constant names no member */ }
+        }
+    }
+
+    /**
      * The non-zero value each named figure is constructed with.
      *
      * @param cache the open client jar
@@ -149,6 +222,137 @@ final class InputDefaultResolver {
         // this is written straight into the table, so a salted order is a file that does not
         // reproduce and a digest that fails its own determinism check.
         return Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * The constant each named enum member is constructed holding.
+     *
+     * <p>The pushed value is a {@code getstatic} of the constant itself, so the constant's own name
+     * is read straight off the instruction - which is also what says the field is an enum one and
+     * not a reference to something built here.
+     *
+     * @param cache the open client jar
+     * @param named the render-state members the walked poses test
+     * @param diagnostics the scope findings are recorded against
+     * @return member name to the constant its own render state builds it holding
+     */
+    static @NotNull Map<String, String> resolveConstants(
+        @NotNull ClassNodeCache cache, @NotNull String renderState, @NotNull Collection<String> named) {
+
+        List<String> chain = chain(cache, renderState);
+        Map<String, String> fields = new TreeMap<>();
+
+        // Base first, so a state that re-builds an inherited member wins: a super constructor runs
+        // before the subclass's own field initialisers, and the later write is the one that stands.
+        // Every field is resolved rather than only the named ones, because a member named through an
+        // accessor is answered by fields the pose never names.
+        for (String owner : chain.reversed()) {
+            ClassNode declaring = cache.load(owner);
+            if (declaring == null) continue;
+            MethodNode constructor = ClassKit.findMethod(declaring, "<init>", "()V");
+            if (constructor == null) continue;
+
+            AsmWalker.over(constructor)
+                .on(Insn.of(FieldInsnNode.class, put -> put.getOpcode() == Opcodes.PUTFIELD), put -> {
+                    String held = constant(AsmWalker.previousReal(put), put);
+                    if (held != null) fields.put(put.name, held);
+                })
+                .run();
+        }
+
+        Map<String, String> out = new TreeMap<>();
+        for (String member : named) {
+            String held = fields.containsKey(member)
+                ? fields.get(member) : forwarded(cache, chain, member, fields);
+            if (held != null) out.put(member, held);
+        }
+        // Order-preserving rather than Map.copyOf, for the reason resolve's own return is.
+        return Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * What an accessor rests answering, read off the fields it forwards to.
+     *
+     * <p>A member the pose names through a call has no field of its own to rest in, and answering it
+     * nothing is the same wrong answer as answering any other member nothing.
+     * {@code getMainHandItemStack} picks between two stacks on which arm is the main one, and a
+     * subject holding nothing rests at the empty stack down either branch - so what makes this
+     * answerable is that every branch lands on the same constant, and what makes it honest is
+     * refusing when they do not.
+     *
+     * @param cache the open client jar
+     * @param chain the render state and every state it extends, leaf first
+     * @param member the accessor's own name
+     * @param fields what each field of the chain rests holding
+     * @return the constant every branch rests at, or {@code null} when they differ or one is unknown
+     */
+    private static @Nullable String forwarded(
+        @NotNull ClassNodeCache cache, @NotNull List<String> chain, @NotNull String member,
+        @NotNull Map<String, String> fields) {
+
+        for (String owner : chain) {
+            ClassNode declaring = cache.load(owner);
+            if (declaring == null) continue;
+            MethodNode accessor = declaring.methods.stream()
+                .filter(method -> method.name.equals(member) && method.desc.startsWith("()L"))
+                .findFirst().orElse(null);
+            if (accessor == null) continue;
+
+            Set<String> answers = new TreeSet<>();
+            AsmWalker.over(accessor)
+                .on(Insn.of(FieldInsnNode.class, read -> read.getOpcode() == Opcodes.GETFIELD
+                    && read.desc.equals(accessor.desc.substring(2))), read -> answers.add(read.name))
+                .run();
+            if (answers.isEmpty()) return null;
+
+            Set<String> held = new TreeSet<>();
+            for (String field : answers) {
+                String constant = fields.get(field);
+                if (constant == null) return null;
+                held.add(constant);
+            }
+            return held.size() == 1 ? held.iterator().next() : null;
+        }
+        return null;
+    }
+
+    /**
+     * One render state and every state it extends, leaf first.
+     *
+     * <p>Bounded by the render-state package rather than by a depth cap: the chain leaves it at
+     * {@code EntityRenderState}'s own superclass, which declares none of this.
+     */
+    private static @NotNull List<String> chain(@NotNull ClassNodeCache cache, @NotNull String leaf) {
+        List<String> out = new ArrayList<>();
+        String current = leaf;
+        while (current != null && current.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)) {
+            out.add(current);
+            ClassNode node = cache.load(current);
+            if (node == null) break;
+            current = node.superName;
+        }
+        return out;
+    }
+
+    /**
+     * One enum-constant push, as the constant's own name.
+     *
+     * <p><b>A constant of the field's OWN type is what makes this an enum member rather than a
+     * reference the state happens to hold.</b> An enum constant is declared by the enum, so its
+     * read names that type as owner and the field names it as descriptor; a static of any other
+     * type does not. Without that test two unrelated fields sharing a bare name read as one -
+     * {@code ArmorStandRenderState.rightArmPose} is a {@code Rotations} beside a humanoid's
+     * {@code ArmPose}, and nothing but the type tells them apart.
+     *
+     * @param node the instruction that pushed the value the field was built with
+     * @param put the store the push feeds, read for the field's declared type
+     * @return the constant's name, or {@code null} where the push is not a constant of that type
+     */
+    private static @Nullable String constant(
+        @Nullable AbstractInsnNode node, @NotNull FieldInsnNode put) {
+
+        if (!(node instanceof FieldInsnNode read) || read.getOpcode() != Opcodes.GETSTATIC) return null;
+        return ("L" + read.owner + ";").equals(put.desc) ? read.name : null;
     }
 
     /**

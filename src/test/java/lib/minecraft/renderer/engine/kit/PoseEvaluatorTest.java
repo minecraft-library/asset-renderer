@@ -159,7 +159,7 @@ class PoseEvaluatorTest {
 
         EntityPose reads = new EntityPose(Map.of(), Map.of("head",
             Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT))),
-            List.of(), Map.of(), Optional.empty());
+            List.of(), Map.of(), Map.of(), Optional.empty());
 
         assertEquals((float) Math.toRadians(90d),
             PoseEvaluator.evaluate(reads, mesh, PoseEvaluator.ZERO).bones().get("head").get(PoseChannel.X_ROT),

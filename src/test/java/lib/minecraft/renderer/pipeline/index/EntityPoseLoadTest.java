@@ -20,6 +20,8 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -231,6 +233,67 @@ class EntityPoseLoadTest {
         assertFalse(walked.isEmpty(), "a frog drives clips off its walk");
         walked.forEach(clip -> assertEquals(4, clip.arguments().size(),
             clip.coordinate() + " is driven by four arguments"));
+    }
+
+    @Test
+    @DisplayName("every enum member a pose switches on rests holding one of its own constants")
+    void noSwitchedMemberGoesUnanswered() {
+        // Answering false to every constant is a state no enum is in, so the switch lands on whichever
+        // arm it ends at rather than the arm the subject stands in - which is not a wrong number but a
+        // wrong pose. It cost the whole skeleton family, both piglins and the enderman a forty-four
+        // degree forward arm swing at rest, and the parrot the flight pose a never-ticked one is in.
+        Map<String, Set<String>> unanswered = new TreeMap<>();
+        for (Map.Entry<String, Entity> subject : entities.entrySet()) {
+            EntityPose pose = subject.getValue().pose();
+            if (!pose.isReadable()) continue;
+            Set<String> switched = new TreeSet<>();
+            pose.bones().values().forEach(channels ->
+                channels.values().forEach(expr -> switched(expr, switched, new IdentityHashMap<>())));
+            pose.container().values()
+                .forEach(expr -> switched(expr, switched, new IdentityHashMap<>()));
+            for (String member : switched) {
+                // A member reached through a call is not a field and has no constructor to rest in -
+                // what an item stack accessor answers is the subject's inventory, not its construction.
+                if (member.indexOf('(') >= 0 || member.indexOf('.') >= 0) continue;
+                if (subject.getValue().restingState().containsKey(member)) continue;
+                if (pose.restDefaults().containsKey(member)) continue;
+                unanswered.computeIfAbsent(subject.getKey(), key -> new TreeSet<>()).add(member);
+            }
+        }
+        assertEquals(Map.of(), unanswered,
+            "a member nothing answers puts the subject in a state no enum is in");
+    }
+
+    /** Every enum member one expression's conditions switch on, reached through both arms. */
+    private static void switched(
+        @NotNull PoseExpr expr, @NotNull Set<String> members, @NotNull Map<Object, Boolean> walked) {
+
+        if (walked.put(expr, Boolean.TRUE) != null) return;
+        switch (expr) {
+            case PoseExpr.Op op -> op.operands().forEach(operand -> switched(operand, members, walked));
+            case PoseExpr.Select select -> {
+                switched(select.whenTrue(), members, walked);
+                switched(select.whenFalse(), members, walked);
+                switched(select.condition(), members, walked);
+            }
+            default -> { /* a leaf carries no condition */ }
+        }
+    }
+
+    /** Every enum member one condition switches on, which is the same question a step lower. */
+    private static void switched(
+        @NotNull PosePredicate predicate, @NotNull Set<String> members, @NotNull Map<Object, Boolean> walked) {
+
+        if (walked.put(predicate, Boolean.TRUE) != null) return;
+        switch (predicate) {
+            case PosePredicate.Is check -> members.add(check.member());
+            case PosePredicate.Compare compare -> {
+                switched(compare.left(), members, walked);
+                switched(compare.right(), members, walked);
+            }
+            case PosePredicate.Not not -> switched(not.operand(), members, walked);
+            default -> { /* a presence test or a decided constant switches on no member */ }
+        }
     }
 
     // ------------------------------------------------------------------------------------

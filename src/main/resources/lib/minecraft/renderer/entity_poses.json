@@ -219841,5 +219841,477 @@
     "showBasePlate": 1.0,
     "speedValue": 1.0,
     "tailAngle": 0.62831855
+  },
+  "rest_defaults": {
+    "AllayModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK"
+    },
+    "AdultArmadilloModel": {
+      "pose": "STANDING"
+    },
+    "BabyArmadilloModel": {
+      "pose": "STANDING"
+    },
+    "ArmorStandModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "ArmorStandArmorModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "AdultAxolotlModel": {
+      "pose": "STANDING"
+    },
+    "BabyAxolotlModel": {
+      "pose": "STANDING"
+    },
+    "BatModel": {
+      "pose": "STANDING"
+    },
+    "AdultBeeModel": {
+      "pose": "STANDING"
+    },
+    "BabyBeeModel": {
+      "pose": "STANDING"
+    },
+    "BlazeModel": {
+      "pose": "STANDING"
+    },
+    "BoggedModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "HumanoidModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "BreezeModel": {
+      "pose": "STANDING"
+    },
+    "AdultCamelModel": {
+      "pose": "STANDING"
+    },
+    "BabyCamelModel": {
+      "pose": "STANDING"
+    },
+    "CamelSaddleModel": {
+      "pose": "STANDING"
+    },
+    "AdultFelineModel": {
+      "pose": "STANDING"
+    },
+    "BabyFelineModel": {
+      "pose": "STANDING"
+    },
+    "SpiderModel": {
+      "pose": "STANDING"
+    },
+    "AdultChickenModel": {
+      "pose": "STANDING"
+    },
+    "ColdChickenModel": {
+      "pose": "STANDING"
+    },
+    "BabyChickenModel": {
+      "pose": "STANDING"
+    },
+    "CodModel": {
+      "pose": "STANDING"
+    },
+    "CopperGolemModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK"
+    },
+    "CowModel": {
+      "pose": "STANDING"
+    },
+    "ColdCowModel": {
+      "pose": "STANDING"
+    },
+    "WarmCowModel": {
+      "pose": "STANDING"
+    },
+    "BabyCowModel": {
+      "pose": "STANDING"
+    },
+    "CreakingModel": {
+      "pose": "STANDING"
+    },
+    "CreeperModel": {
+      "pose": "STANDING"
+    },
+    "DolphinModel": {
+      "pose": "STANDING"
+    },
+    "BabyDolphinModel": {
+      "pose": "STANDING"
+    },
+    "DonkeyModel": {
+      "pose": "STANDING"
+    },
+    "BabyDonkeyModel": {
+      "pose": "STANDING"
+    },
+    "DrownedModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "BabyDrownedModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "GuardianModel": {
+      "pose": "STANDING"
+    },
+    "EndermanModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "IllagerModel": {
+      "armPose": "NEUTRAL",
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "AdultFoxModel": {
+      "pose": "STANDING"
+    },
+    "BabyFoxModel": {
+      "pose": "STANDING"
+    },
+    "FrogModel": {
+      "pose": "STANDING"
+    },
+    "GhastModel": {
+      "pose": "STANDING"
+    },
+    "HappyGhastModel": {
+      "pose": "STANDING"
+    },
+    "HappyGhastHarnessModel": {
+      "pose": "STANDING"
+    },
+    "SquidModel": {
+      "pose": "STANDING"
+    },
+    "BabySquidModel": {
+      "pose": "STANDING"
+    },
+    "GoatModel": {
+      "pose": "STANDING"
+    },
+    "BabyGoatModel": {
+      "pose": "STANDING"
+    },
+    "HoglinModel": {
+      "pose": "STANDING"
+    },
+    "BabyHoglinModel": {
+      "pose": "STANDING"
+    },
+    "AbstractEquineModel": {
+      "pose": "STANDING"
+    },
+    "BabyHorseModel": {
+      "pose": "STANDING"
+    },
+    "EquineSaddleModel": {
+      "pose": "STANDING"
+    },
+    "BabyZombieModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "IronGolemModel": {
+      "pose": "STANDING"
+    },
+    "LlamaModel": {
+      "pose": "STANDING"
+    },
+    "BabyLlamaModel": {
+      "pose": "STANDING"
+    },
+    "MagmaCubeModel": {
+      "pose": "STANDING"
+    },
+    "NautilusModel": {
+      "pose": "STANDING"
+    },
+    "NautilusArmorModel": {
+      "pose": "STANDING"
+    },
+    "NautilusSaddleModel": {
+      "pose": "STANDING"
+    },
+    "PandaModel": {
+      "pose": "STANDING"
+    },
+    "BabyPandaModel": {
+      "pose": "STANDING"
+    },
+    "SkeletonModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "ParrotModel": {
+      "pose": "FLYING"
+    },
+    "PhantomModel": {
+      "pose": "STANDING"
+    },
+    "PigModel": {
+      "pose": "STANDING"
+    },
+    "ColdPigModel": {
+      "pose": "STANDING"
+    },
+    "BabyPigModel": {
+      "pose": "STANDING"
+    },
+    "AdultPiglinModel": {
+      "armPose": "DEFAULT",
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "BabyPiglinModel": {
+      "armPose": "DEFAULT",
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "PolarBearModel": {
+      "pose": "STANDING"
+    },
+    "BabyPolarBearModel": {
+      "pose": "STANDING"
+    },
+    "AdultRabbitModel": {
+      "pose": "STANDING"
+    },
+    "BabyRabbitModel": {
+      "pose": "STANDING"
+    },
+    "RavagerModel": {
+      "pose": "STANDING"
+    },
+    "SalmonModel": {
+      "pose": "STANDING"
+    },
+    "SheepModel": {
+      "pose": "STANDING"
+    },
+    "SheepFurModel": {
+      "pose": "STANDING"
+    },
+    "BabySheepModel": {
+      "pose": "STANDING"
+    },
+    "ShulkerModel": {
+      "pose": "STANDING"
+    },
+    "SnifferModel": {
+      "pose": "STANDING"
+    },
+    "SniffletModel": {
+      "pose": "STANDING"
+    },
+    "SnowGolemModel": {
+      "pose": "STANDING"
+    },
+    "AdultStriderModel": {
+      "pose": "STANDING"
+    },
+    "BabyStriderModel": {
+      "pose": "STANDING"
+    },
+    "TadpoleModel": {
+      "pose": "STANDING"
+    },
+    "TropicalFishSmallModel": {
+      "pose": "STANDING"
+    },
+    "TropicalFishLargeModel": {
+      "pose": "STANDING"
+    },
+    "AdultTurtleModel": {
+      "pose": "STANDING"
+    },
+    "BabyTurtleModel": {
+      "pose": "STANDING"
+    },
+    "VexModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK"
+    },
+    "VillagerModel": {
+      "pose": "STANDING"
+    },
+    "BabyVillagerModel": {
+      "pose": "STANDING"
+    },
+    "WardenModel": {
+      "pose": "STANDING"
+    },
+    "WitchModel": {
+      "pose": "STANDING"
+    },
+    "WitherBossModel": {
+      "pose": "STANDING"
+    },
+    "AdultWolfModel": {
+      "pose": "STANDING"
+    },
+    "BabyWolfModel": {
+      "pose": "STANDING"
+    },
+    "ZombieNautilusCoralModel": {
+      "pose": "STANDING"
+    },
+    "ZombieVillagerModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "BabyZombieVillagerModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "AdultCatModel": {
+      "pose": "STANDING"
+    },
+    "GiantZombieModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "HorseModel": {
+      "pose": "STANDING"
+    },
+    "ZombieModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "AdultOcelotModel": {
+      "pose": "STANDING"
+    },
+    "AdultZombifiedPiglinModel": {
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    }
   }
 }

@@ -80,6 +80,29 @@ public final class PoseFlow {
             defaults.forEach(defaultsNode::put);
         }
 
+        // Which constant each enum member rests holding, for the members a pose switches on. Held
+        // apart from the figures because answering nothing is a real answer for one and no answer at
+        // all for the other: a figure nobody models rests at zero, where an enum member that matches
+        // no constant is in a state no enum is in.
+        //
+        // Keyed by MODEL rather than written flat, because the keyspace a bare field name spans is
+        // not one type. Two unrelated states declare a 'pose' and two more a 'rightArmPose', and a
+        // flat table cannot say which a subject reads - where the model can, its own setupAnim
+        // naming the state its members are read off.
+        JsonTree restingNode = JsonTree.object();
+        Set<String> switched = InputDefaultResolver.constantsNamedBy(poses);
+        for (Map.Entry<String, String> model : roster.entrySet()) {
+            String renderState = PoseWalk.renderStateOf(session.cache(), model.getKey());
+            if (renderState == null) continue;
+            Map<String, String> resting =
+                InputDefaultResolver.resolveConstants(session.cache(), renderState, switched);
+            if (resting.isEmpty()) continue;
+            JsonTree perModel = JsonTree.object();
+            resting.forEach(perModel::put);
+            restingNode.put(ClassKit.simpleName(model.getKey()), perModel);
+        }
+        if (!restingNode.isEmpty()) root.put("rest_defaults", restingNode);
+
         reportDeadClips(clips, byModel, diagnostics);
         reportRefusedPoses(poses, diagnostics);
         root.write(out);
