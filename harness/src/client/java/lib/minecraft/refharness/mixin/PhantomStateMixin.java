@@ -26,7 +26,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * portrait, and the same flat-wing pose vanilla actually shows when {@code ageInTicks}
  * happens to align with a flap-cycle zero crossing.
  *
- * <p>Same injection-point reasoning as {@code GuardianStateMixin} / {@code BeeStateMixin}:
+ * <p>Same injection-point reasoning as {@code GuardianStateMixin}:
  * {@code flapTime} is populated in the subclass override <em>after</em>
  * {@code super.extractRenderState(...)} runs, so {@code FreezeAnimationStateMixin} on the
  * base renderer fires before the subclass writes it. Inject at the subclass return point.

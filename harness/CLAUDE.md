@@ -116,7 +116,7 @@ Most BEs render raw - skull/chest/shulker_box/conduit/decorated_pot/beacon alrea
 >             └─ model.root.submit(...)
 > ```
 
-**Subclass ordering caveat.** Subclass `extractRenderState` calls `super.extractRenderState(...)` FIRST, then writes subclass-specific fields. A mixin on the BASE `LivingEntityRenderer` fires before the subclass writes and gets overwritten. **Pin subclass-specific fields in dedicated subclass-renderer mixins** (`BeeStateMixin` targets `BeeRenderer`, not `LivingEntityRenderer`).
+**Subclass ordering caveat.** Subclass `extractRenderState` calls `super.extractRenderState(...)` FIRST, then writes subclass-specific fields. A mixin on the BASE `LivingEntityRenderer` fires before the subclass writes and gets overwritten. **Pin subclass-specific fields in dedicated subclass-renderer mixins** (`GuardianStateMixin` targets `GuardianRenderer`, not `LivingEntityRenderer`).
 
 ### Entity state / pose freezes (pin set)
 
@@ -126,7 +126,9 @@ Full catalog + formulas in README's Mixins section. Quick reference:
 - `SuppressShakingMixin` (`LivingEntityRenderer.setupRotations`) - cancel the `isShaking` bodyRot wobble.
 - `SkipSetupAnimMixin` (every `setupAnim` callsite) - authored bind pose, not frame-0 animated pose. **Broadest freeze**, and the one `refharness.animated` lifts.
 - `WitchNoseMixin` (`WitchRenderer`) - `entityId = 0`. Vanilla bobs the nose at `0.01 * (entityId % 10)` so a crowd of witches does not bob in lockstep, and an id comes off a counter over every entity the client has built - so which of the ten frequencies a subject gets is a function of how many were built before it. Inert while `setupAnim` is frozen; without it the animated set does not reproduce.
-- `BeeStateMixin` (`BeeRenderer`) - `isOnGround = true` (flat wings, level body).
+- No bee pin. `BeeModel.setupAnim` skips the wing flap and the body bob when `isOnGround`, and a
+  never-ticked bee reports false - so forcing the landed pose was a state no subject here is in,
+  inert on every frozen sub-tree and worth 120 of animated delta on the one that reads it.
 - `EnderDragonModelMixin` / `WitherBossModelMixin` - cancel `setupAnim`; now redundant under `SkipSetupAnimMixin`, kept as model-specific docs.
 - `GuardianStateMixin` - `tailAnimation = 0`, `lookAt = null`; `spikesAnimation` deliberately unpinned.
 - `PhantomStateMixin` - `flapTime = 0`.
