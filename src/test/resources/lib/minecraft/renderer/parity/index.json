@@ -391,7 +391,7 @@
         "LEATHER_ARMOR_ITEMS = List.of("
       ],
       "cross_repo": true,
-      "lines": "108-116, 126-131",
+      "lines": "110-118, 128-133",
       "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
       "test_class": "lib.minecraft.renderer.visual.TestGlintParityVanilla"
     },
