@@ -7,7 +7,7 @@
   "provenance": {
     "artifact": "sweep.entity-animation",
     "asset_dirty": false,
-    "asset_sha": "091028cbeabde65a6e7f6f7a460b6042c45fc5ff",
+    "asset_sha": "d1c6096e53a4f481f702eae3d1d19099f5ea66d9",
     "counts": {
       "failed": 0,
       "rows": 90
@@ -18,7 +18,7 @@
     "mode": "ANIMATION,EVERY",
     "parity_class": "moving",
     "producer": "entityAnimationParityVanilla",
-    "reason": "First baseline of the animated sweep: 90 subjects x 8 frames at ticks 0..21, sum 1160.2271, 63 rows under 0.25. Measured against animation/, which two consecutive boots hashed identically at 720 frames; the table itself reproduced across two forks. The 27 rows above the bar are per-subject divergences the sweep exists to name, not a property of the mechanism - the zombie whose arms this effort fixed is at 0.0534 over the eight frames.",
+    "reason": "The bee's harness pin removed. isOnGround was forced true for the landed pose, which skips both the wing flap and the body bob; a never-ticked bee reports false and the asset side rests it there, so the pin was a state no subject is in. Inert on every frozen sub-tree - setupAnim is its only reader and that call is cancelled there - and worth the whole difference on the animated one: minecraft__bee 120.4415 -> 0.1115, its canvas agreeing at 256x275 where it had been 272x207, and its eight reference frames going from one repeated still to eight distinct ones. sweep.entity-animation 1160.2271 -> 1039.8971 over 90 rows; manifest.references 8 rows moved of 3042 and nothing else.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -27,10 +27,10 @@
       "items": 479,
       "players": 2
     },
-    "reference_manifest_digest": "6c2e3318b3c7001775e6f10d79ae94060cec30f19edfb2bd1cd3e97b193c98f7",
-    "timestamp": "2026-08-23T00:11:07Z",
+    "reference_manifest_digest": "3bf51cb1a7bb5faf0eba227f508e0015464ec888283bd7784d680bb53e964f48",
+    "timestamp": "2026-08-23T00:33:16Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 21544
+    "wall_time_ms": 21475
   },
   "rows": [
     {
@@ -99,17 +99,17 @@
       "worst_frame": "0"
     },
     {
-      "frame_spread": "52.4483",
+      "frame_spread": "0.1384",
       "frames": "8",
       "java_h": "275",
       "java_w": "256",
-      "mean_argb_delta": "120.4415",
+      "mean_argb_delta": "0.1115",
       "status": "ok",
       "subject": "minecraft__bee",
-      "vanilla_h": "207",
-      "vanilla_w": "272",
-      "worst_delta": "144.4537",
-      "worst_frame": "6"
+      "vanilla_h": "275",
+      "vanilla_w": "256",
+      "worst_delta": "0.2075",
+      "worst_frame": "5"
     },
     {
       "frame_spread": "0.0625",
@@ -1206,15 +1206,15 @@
   ],
   "summary": {
     "buckets": {
-      "<0.25": 63,
-      "<0.50": 67,
-      "<0.75": 68,
-      "<1.00": 68,
+      "<0.25": 64,
+      "<0.50": 68,
+      "<0.75": 69,
+      "<1.00": 69,
       "failed": 0,
       "total": 90
     },
     "failed": 0,
     "rows": 90,
-    "sum": "1160.2271"
+    "sum": "1039.8971"
   }
 }

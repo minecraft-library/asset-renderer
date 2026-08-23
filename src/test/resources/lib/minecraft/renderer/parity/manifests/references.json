@@ -164,35 +164,35 @@
     },
     {
       "path": "animation/minecraft__bee/frame_000.png",
-      "sha256": "bacda64c7a5758b1a4cee5af854ff1a94dac0078bbdee1a8270501b71768cf25"
+      "sha256": "83d567674dd201f406369cd6b2405dbdebcf590af42c5be4159e110b784e734d"
     },
     {
       "path": "animation/minecraft__bee/frame_001.png",
-      "sha256": "bacda64c7a5758b1a4cee5af854ff1a94dac0078bbdee1a8270501b71768cf25"
+      "sha256": "757282220862c2991aebec83400725ade27c5d7cad51de0b11c234007dda14e6"
     },
     {
       "path": "animation/minecraft__bee/frame_002.png",
-      "sha256": "bacda64c7a5758b1a4cee5af854ff1a94dac0078bbdee1a8270501b71768cf25"
+      "sha256": "0a27fad53b589677e5bdebc77ef559c8c8b53dab025f3b1048642bddf8061b83"
     },
     {
       "path": "animation/minecraft__bee/frame_003.png",
-      "sha256": "bacda64c7a5758b1a4cee5af854ff1a94dac0078bbdee1a8270501b71768cf25"
+      "sha256": "ef19c3962753bbf38fe46a6b1e0ba4dbfca9e6ebc162d37d5f905291477e5f38"
     },
     {
       "path": "animation/minecraft__bee/frame_004.png",
-      "sha256": "bacda64c7a5758b1a4cee5af854ff1a94dac0078bbdee1a8270501b71768cf25"
+      "sha256": "a416d9e7367db00cfede1a6d3659329882f409b6d0f39a416bd2c52de313e71e"
     },
     {
       "path": "animation/minecraft__bee/frame_005.png",
-      "sha256": "bacda64c7a5758b1a4cee5af854ff1a94dac0078bbdee1a8270501b71768cf25"
+      "sha256": "bbb0617ca624f5360bbbedf35876607aa76438887186538619a493c1abad9fa5"
     },
     {
       "path": "animation/minecraft__bee/frame_006.png",
-      "sha256": "bacda64c7a5758b1a4cee5af854ff1a94dac0078bbdee1a8270501b71768cf25"
+      "sha256": "d1e8d7da7f0baa2954bbd60f29bf4ca78a8719bc221161b0017818b09b74103a"
     },
     {
       "path": "animation/minecraft__bee/frame_007.png",
-      "sha256": "bacda64c7a5758b1a4cee5af854ff1a94dac0078bbdee1a8270501b71768cf25"
+      "sha256": "956ea2142be9769b9b75ad0b170cfa516d2f63bb9e4f20342f59f67437595b8d"
     },
     {
       "path": "animation/minecraft__blaze/frame_000.png",
@@ -12177,7 +12177,7 @@
   "provenance": {
     "artifact": "manifest.references",
     "asset_dirty": false,
-    "asset_sha": "091028cbeabde65a6e7f6f7a460b6042c45fc5ff",
+    "asset_sha": "d1c6096e53a4f481f702eae3d1d19099f5ea66d9",
     "counts": {
       "files": 3042
     },
@@ -12185,10 +12185,9 @@
     "flags": {},
     "mc_version": "26.1.2",
     "mode": "ANIMATION,EVERY",
-    "parity_class": "shaped",
-    "population_changed": true,
+    "parity_class": "moving",
     "producer": "renderVanillaAllReferences",
-    "reason": "The reference tree gains animation/: 720 frames over 90 subjects, written by a second boot of the client with the two setupAnim freezes off. Population 2322 -> 3042 with zero rows moved - every frozen sub-tree hashes exactly what it hashed before this effort, measured by re-rendering the whole tree and diffing per sub-tree.",
+    "reason": "The bee's harness pin removed. isOnGround was forced true for the landed pose, which skips both the wing flap and the body bob; a never-ticked bee reports false and the asset side rests it there, so the pin was a state no subject is in. Inert on every frozen sub-tree - setupAnim is its only reader and that call is cancelled there - and worth the whole difference on the animated one: minecraft__bee 120.4415 -> 0.1115, its canvas agreeing at 256x275 where it had been 272x207, and its eight reference frames going from one repeated still to eight distinct ones. sweep.entity-animation 1160.2271 -> 1039.8971 over 90 rows; manifest.references 8 rows moved of 3042 and nothing else.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -12198,8 +12197,8 @@
       "players": 2
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-08-23T00:11:00Z",
+    "timestamp": "2026-08-23T00:33:11Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 140210
+    "wall_time_ms": 138730
   }
 }

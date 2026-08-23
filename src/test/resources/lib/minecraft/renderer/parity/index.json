@@ -83,9 +83,9 @@
       "entries": 3042,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 140210,
-      "promoted_at": "091028cbeabde65a6e7f6f7a460b6042c45fc5ff",
-      "sha256": "b392e440e089405dc4d8352d89e1d26fd97059ef8a2ae48fa0cc4d06690e092a"
+      "last_duration_ms": 138730,
+      "promoted_at": "d1c6096e53a4f481f702eae3d1d19099f5ea66d9",
+      "sha256": "7dd530c1b614b93e8dcf08e5197834d130da0edc90a50db80609932baedc3abb"
     },
     "manifest.tooling-tables": {
       "baselined": true,
@@ -221,10 +221,10 @@
       "entries": 90,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 21544,
-      "promoted_at": "091028cbeabde65a6e7f6f7a460b6042c45fc5ff",
-      "sha256": "aab67a448c9d800cf54c5ab115f89d653f171b18068637497f9c1040337ebb3a",
-      "sum": "1160.2271"
+      "last_duration_ms": 21475,
+      "promoted_at": "d1c6096e53a4f481f702eae3d1d19099f5ea66d9",
+      "sha256": "ac97dfdae96762b2c57b51578f1f8d24d219c0943dd79fc1e211adcb65f882e6",
+      "sum": "1039.8971"
     },
     "sweep.glint": {
       "baselined": true,
