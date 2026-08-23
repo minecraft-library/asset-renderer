@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "e55cbf5a3ffbe335c8271d1034eb7e76da60978e1c181c6ae1c615e48030d341"
+      "sha256": "e01d2c1965359ff2b3c1a949ca5a24fb64fd8c8abe2afbf884d5436c914d9a2e"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "b4706878fe9b369803f0aa7c4855294a671d902c",
+    "asset_sha": "04be22d55e29ddec1262e360a9f9592e0a63b41c",
     "counts": {
       "digests": 11
     },
@@ -73,9 +73,9 @@
       "gson": "2.13.2"
     },
     "mc_version": "26.1.2",
-    "parity_class": "shaped",
+    "parity_class": "moving",
     "producer": "test",
-    "reason": "a subject is posed by the class its renderer hands the model, not the one that baked the mesh: 9 subjects and 3 equine body-armour rows gain bones.pose, the pose roster gains the 6 posing classes the geometry manifest never named, and every overlay pass now carries a pose of its own; every render sweep, CRC pin and manifest.visual at 0 movers",
+    "reason": "The pose table gained rest_defaults, which constant each enum render-state member rests holding, resolved per model off the state its own setupAnim names. Only entity_poses moved; the other ten tables are byte-identical. Measured on the animated sweep, the only gate that can see a pose table: 1039.8971 to 573.0354 over 90 rows, 64 rows under 0.25 to 73, nine rows moved and no other row moved at all - enderman 142.7294 to 0.0056 the largest.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-22T21:31:43Z",
+    "timestamp": "2026-08-23T01:57:41Z",
     "tool_version": "1.0.0"
   }
 }
