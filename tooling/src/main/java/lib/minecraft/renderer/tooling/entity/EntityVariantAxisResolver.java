@@ -38,8 +38,9 @@ import java.util.TreeSet;
  * <ul>
  *   <li><b>Data-driven tables</b> - the {@code data/minecraft/<stem>_variant/} JSONs already
  *       held by {@link VariantIndex} (cow / pig / chicken / frog / wolf / cat /
- *       zombie_nautilus). Per-option {@code spawn_conditions} are carried verbatim;
- *       {@code model}-discriminator options register their own {@code GeometryRequest} via
+ *       zombie_nautilus). Each option's spawn conditions decide the axis default and are read
+ *       from the retained table rather than emitted, nothing downstream selecting a coat by where
+ *       it spawns; {@code model}-discriminator options register their own {@code GeometryRequest} via
  *       the {@code ModelType}-to-{@code ModelLayers} bytecode pairing that beats naming
  *       (zombie_nautilus {@code WARM} resolves to {@code ZOMBIE_NAUTILUS_CORAL}).</li>
  *   <li><b>Enum-map {@code <clinit>} coats</b> - any renderer holding a static {@code Map}
@@ -115,8 +116,7 @@ final class EntityVariantAxisResolver {
             JsonTree option = JsonTree.object()
                 .put("textures", texturesNode(variant.textures()))
                 .putIf("baby_texture", fullPath(pickByStatePrecedence(variant.babyTextures())))
-                .putIf("geometry", resolveModelDiscriminator(variant, modelTypeLayers))
-                .putIf("spawn_conditions", variant.spawnConditions());
+                .putIf("geometry", resolveModelDiscriminator(variant, modelTypeLayers));
             options.put(variant.variantId(), option);
         }
         this.diagnostics.info("variant axis (data-driven): %d options, default '%s'", table.size(), dflt);

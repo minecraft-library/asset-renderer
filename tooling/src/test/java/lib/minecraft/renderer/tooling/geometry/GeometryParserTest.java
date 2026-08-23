@@ -126,12 +126,12 @@ class GeometryParserTest {
         for (String bone : referenceBones.keySet()) {
             JsonObject expected = referenceBones.getAsJsonObject(bone);
             JsonObject actual = parsedBones.getAsJsonObject(bone);
-            assertExactFloats(expected.getAsJsonArray("pivot"), actual.getAsJsonArray("pivot"), bone + ".pivot");
-            assertExactFloats(expected.getAsJsonArray("rotation"), actual.getAsJsonArray("rotation"), bone + ".rotation");
+            assertExactFloats(optTriple(expected, "pivot"), optTriple(actual, "pivot"), bone + ".pivot");
+            assertExactFloats(optTriple(expected, "rotation"), optTriple(actual, "rotation"), bone + ".rotation");
             assertEquals(optFloat(expected, "scale", 1f), optFloat(actual, "scale", 1f), bone + ".scale");
             assertEquals(optString(expected, "parent"), optString(actual, "parent"), bone + ".parent");
-            JsonArray expectedCubes = expected.getAsJsonArray("cubes");
-            JsonArray actualCubes = actual.getAsJsonArray("cubes");
+            JsonArray expectedCubes = optArray(expected, "cubes");
+            JsonArray actualCubes = optArray(actual, "cubes");
             assertEquals(expectedCubes.size(), actualCubes.size(), bone + ".cubes count");
             for (int i = 0; i < expectedCubes.size(); i++) {
                 JsonObject expectedCube = expectedCubes.get(i).getAsJsonObject();
@@ -169,6 +169,22 @@ class GeometryParserTest {
 
     private static float optFloat(@NotNull JsonObject node, @NotNull String key, float dflt) {
         return node.has(key) ? node.get(key).getAsFloat() : dflt;
+    }
+
+    /**
+     * A bone triple, or the origin where the member is absent - the same value the reading field
+     * holds either way, which is why the emitter omits it there.
+     */
+    private static @NotNull JsonArray optTriple(@NotNull JsonObject node, @NotNull String key) {
+        if (node.has(key)) return node.getAsJsonArray(key);
+        JsonArray origin = new JsonArray();
+        for (int component = 0; component < 3; component++) origin.add(0f);
+        return origin;
+    }
+
+    /** A cube list, or an empty one where the member is absent, on the same terms. */
+    private static @NotNull JsonArray optArray(@NotNull JsonObject node, @NotNull String key) {
+        return node.has(key) ? node.getAsJsonArray(key) : new JsonArray();
     }
 
     private static @Nullable String optString(@NotNull JsonObject node, @NotNull String key) {

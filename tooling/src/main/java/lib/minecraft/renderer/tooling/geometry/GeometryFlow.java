@@ -22,7 +22,7 @@ import java.util.Set;
  * discovery, so a manifest key and its geometry entry can never desync across tasks.
  *
  * <p>Per deduped request: parse, stamp the {@code source} twin + {@code texture_size} +
- * {@code y_axis} + {@code cull}, append under the minted factory-coordinate key. Emits an
+ * {@code cull}, append under the minted factory-coordinate key. Emits an
  * empty-but-valid envelope while the manifest is empty (the flow shell precedes the first
  * registering resolver). A failed parse is a Diagnostics ERROR and a skipped entry - never
  * a fallback literal; {@code GeometryRefClosureTest} then fails on the dangling reference,
@@ -88,7 +88,6 @@ public final class GeometryFlow {
             int texHeight = request.texHeightOverride() != null
                 ? request.texHeightOverride() : parsed.getInt("textureHeight", 64);
             node.putInts("texture_size", texWidth, texHeight);
-            node.put("y_axis", request.yAxis().name());
             if (GeometryCullResolver.usesCullRenderType(session.cache(), request.factoryClass()))
                 node.put("cull", true);
             node.putIf("bones", parsed.find("bones"));

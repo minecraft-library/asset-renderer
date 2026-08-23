@@ -424,7 +424,7 @@ class PoseWalkTest {
         // success. Two models applying one clip at different constants is the case that proves it.
         List<PoseClipSite> walkDriven = extracted.values().stream()
             .flatMap(program -> program.clipSites().stream())
-            .filter(site -> site.drive() == ClipBinding.Gate.WALK)
+            .filter(site -> site.drive() == PoseClipSite.Gate.WALK)
             .toList();
 
         assertTrue(!walkDriven.isEmpty(), "the corpus is expected to drive clips off the walk");
@@ -442,7 +442,7 @@ class PoseWalkTest {
     void stateDrivenClipsCarryOnlyTheTick() {
         List<PoseClipSite> stateDriven = extracted.values().stream()
             .flatMap(program -> program.clipSites().stream())
-            .filter(site -> site.drive() == ClipBinding.Gate.STATE)
+            .filter(site -> site.drive() == PoseClipSite.Gate.STATE)
             .toList();
 
         assertTrue(!stateDriven.isEmpty(), "the corpus is expected to gate clips behind animation states");

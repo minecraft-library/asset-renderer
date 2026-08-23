@@ -2308,7 +2308,7 @@ public final class PoseWalk {
      * clip is gated on is not a number, and the drive already says the clip sits behind one.
      */
     private static void clipSite(@NotNull MethodInsnNode call, @NotNull Context context) {
-        ClipBinding.Gate drive = driveOf(call.name);
+        PoseClipSite.Gate drive = driveOf(call.name);
         if (drive == null)
             throw new IllegalStateException("calls KeyframeAnimation." + call.name + ", which is not a way a clip is driven");
 
@@ -2331,10 +2331,10 @@ public final class PoseWalk {
     }
 
     /** Which of the three drives a play site names, matching what the clip table already records. */
-    private static @Nullable ClipBinding.Gate driveOf(@NotNull String method) {
-        if (VanillaSourceClasses.Methods.APPLY.equals(method)) return ClipBinding.Gate.STATE;
-        if (VanillaSourceClasses.Methods.APPLY_WALK.equals(method)) return ClipBinding.Gate.WALK;
-        if (VanillaSourceClasses.Methods.APPLY_STATIC.equals(method)) return ClipBinding.Gate.STATIC;
+    private static @Nullable PoseClipSite.Gate driveOf(@NotNull String method) {
+        if (VanillaSourceClasses.Methods.APPLY.equals(method)) return PoseClipSite.Gate.STATE;
+        if (VanillaSourceClasses.Methods.APPLY_WALK.equals(method)) return PoseClipSite.Gate.WALK;
+        if (VanillaSourceClasses.Methods.APPLY_STATIC.equals(method)) return PoseClipSite.Gate.STATIC;
         return null;
     }
 

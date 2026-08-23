@@ -206,6 +206,10 @@ public final class GeometryParser {
         applyClearedBonesFilter(state);
         applyMeshTransformerScaling(state);
         applyBabyMeshTransform(state);
+        // Last, because the two passes above rewrite a pivot through the member itself: a bone at
+        // the origin is one the feet anchor and the baby offset both move, and dropping its pivot
+        // any earlier leaves them nothing to read and the bone standing where it was authored.
+        omitDefaultedBoneMembers(state);
 
         if (state.bones.isEmpty()) return null;
 
@@ -349,6 +353,44 @@ public final class GeometryParser {
      *
      * @param state the parse state whose emitted bones are re-walked and scaled in place
      */
+    /**
+     * Drops every bone member that holds what the reading field already holds - a {@code pivot} at
+     * the origin, an unturned {@code rotation} and an empty {@code cubes} list.
+     *
+     * <p>An absent member and one written at the field's own initial value decode to the same
+     * object, which is the rule {@code scale}, {@code parent}, {@code grow} and {@code mirror} are
+     * already written under. It reaches the three members carrying most of the file's bytes because
+     * a mesh is mostly bones that hang somewhere without turning and joints that draw nothing.
+     *
+     * <p>Runs after every pass that rewrites a bone in place, and that ordering is the whole of what
+     * makes it safe: a pass reading the member back finds nothing where a default was dropped, and
+     * a pivot at the origin is exactly the one the feet anchor and the baby offset move.
+     *
+     * @param state the parse state whose emitted bones are re-walked and thinned in place
+     */
+    private static void omitDefaultedBoneMembers(@NotNull WalkState state) {
+        for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
+            JsonObject bone = entry.getValue().getAsJsonObject();
+            if (isOrigin(bone.getAsJsonArray("pivot"))) bone.remove("pivot");
+            if (isOrigin(bone.getAsJsonArray("rotation"))) bone.remove("rotation");
+            JsonArray cubes = bone.getAsJsonArray("cubes");
+            if (cubes != null && cubes.isEmpty()) bone.remove("cubes");
+        }
+    }
+
+    /**
+     * Whether a bone triple is three zeroes.
+     *
+     * @param triple the {@code pivot} or {@code rotation} array, or {@code null} where absent
+     * @return whether every component is zero, and {@code false} for an absent or malformed triple
+     */
+    private static boolean isOrigin(@Nullable JsonArray triple) {
+        if (triple == null || triple.size() != 3) return false;
+        for (JsonElement component : triple)
+            if (component.getAsFloat() != 0f) return false;
+        return true;
+    }
+
     private static void applyMeshTransformerScaling(@NotNull WalkState state) {
         float f = state.meshTransformerScale;
         if (f == 1f) return;
@@ -2698,6 +2740,10 @@ public final class GeometryParser {
      * {@code face_uv} field. A {@code scale} of exactly {@code 1f} and a {@code null}
      * {@code parent} are omitted. The bone schema is otherwise unchanged (parent-local pivot,
      * degrees, cumulative scale).
+     * <p>
+     * {@code pivot}, {@code rotation} and {@code cubes} are written whatever they hold, because two
+     * later passes rewrite a pivot in place and read the member to do it. What they hold at their
+     * defaults is dropped by {@link #omitDefaultedBoneMembers}, once every pass has run.
      * <p>
      * {@code pivot} / {@code rotation} are parent-local and {@code parent} names the owning bone
      * (or {@code null} for a root bone); the kit composes the ancestor chain at render.
