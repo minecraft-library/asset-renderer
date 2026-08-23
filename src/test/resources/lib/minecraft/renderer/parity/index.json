@@ -17,8 +17,8 @@
       "entries": 11,
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
-      "promoted_at": "7a91de585831adaf2cb7647f9765ba6ce67a098b",
-      "sha256": "106c684bcda4cc0af358f7c317e2ad64ae6494b49b35e6842ee358afa07a8c0b"
+      "promoted_at": "df47d2e319f0abe858463c4f112d42578423073b",
+      "sha256": "b6963afbcd925fee178479f9e95019736ec1dadd424c525c8444b83890df4924"
     },
     "manifest.dump.packs": {
       "baselined": true,
