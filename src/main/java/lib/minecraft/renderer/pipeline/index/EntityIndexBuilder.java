@@ -33,6 +33,7 @@ import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.pipeline.util.ArgbHex;
+import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -515,9 +516,31 @@ public final class EntityIndexBuilder {
                 : clearSubtreeCubes(materialised, entry.noHatRoot(), entityId);
             PassDeclaration pass = new PassDeclaration(emissive, blend, alpha, writesDepth, sorted);
             out.add(new OverlayLayer(materialised, overlayTexture, pass, overlayTint, skipBounds, tintBy,
-                textureBy, gate, noHatModel, overlayPose));
+                textureBy, gate, noHatModel, overlayPose, textureScroll(entry, entityId)));
         }
         return out;
+    }
+
+    /**
+     * The fraction of the sheet an overlay's render type translates its texture by each tick.
+     *
+     * <p>Refused when either axis is negative. The scroll is added to a UV before the fetch takes a
+     * texel index, and a negative offset would carry the sample point below the sheet - where the
+     * truncation the index is taken by rounds toward zero rather than down, so it would sample the
+     * wrong texel rather than wrap. No shipped row is negative, vanilla accumulating age forward.
+     *
+     * @throws PipelineException if a row declares a scroll along either axis in the negative
+     */
+    private static @NotNull Optional<Vector2f> textureScroll(
+        @NotNull RawOverlay entry, @NotNull String entityId) {
+
+        RawTextureScroll declared = entry.textureScroll();
+        if (declared == null) return Optional.empty();
+        if (declared.u() < 0f || declared.v() < 0f)
+            throw new PipelineException(
+                "entity index: '%s' scrolls a pass by (%s, %s), and a scroll runs forward",
+                entityId, declared.u(), declared.v());
+        return Optional.of(new Vector2f(declared.u(), declared.v()));
     }
 
     /**
@@ -566,7 +589,7 @@ public final class EntityIndexBuilder {
                 baby.geometry(),
                 baby.texture() == null ? entry.texture() : baby.texture(),
                 entry.retainBones(), baby.noHatRoot(), entry.tint(), entry.tintBy(), entry.textureBy(),
-                babyGrow, entry.pipeline(), entry.skipBounds(), entry.when(), null));
+                babyGrow, entry.pipeline(), entry.textureScroll(), entry.skipBounds(), entry.when(), null));
         }
         if (forms.isEmpty()) return List.of();
         // Rows declared a baby form but the mesh they would materialise against is missing - the same

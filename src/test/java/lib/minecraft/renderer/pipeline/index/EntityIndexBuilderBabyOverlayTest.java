@@ -103,6 +103,7 @@ class EntityIndexBuilderBabyOverlayTest {
             "type",                                                // texture_by
             null,                                                  // grow
             null,                                                  // pipeline
+            null,                                                  // texture_scroll
             false,                                                 // skip_bounds
             null,                                                  // when
             typeBabyDelta());                                      // baby
@@ -129,6 +130,7 @@ class EntityIndexBuilderBabyOverlayTest {
             "profession",  // texture_by
             null,          // grow
             null,          // pipeline
+            null,          // texture_scroll
             true,          // skip_bounds
             null,          // when
             null);         // baby
@@ -146,6 +148,7 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                              // texture_by
             null,                                              // grow
             null,                                              // pipeline
+            null,                                              // texture_scroll
             false,                                             // skip_bounds
             null,                                              // when
             null);                                             // baby
@@ -287,6 +290,7 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                                               // texture_by
             new Vector3f(0.5f, 0.5f, 0.5f),                                     // grow (adult caparison)
             null,                                                               // pipeline
+            null,                                                               // texture_scroll
             true,                                                               // skip_bounds
             null,                                                               // when
             new RawOverlayBaby(

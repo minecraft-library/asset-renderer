@@ -19,6 +19,7 @@ import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Vector2f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -609,6 +610,11 @@ public record Entity(
      *     mesh with its own model class rather than borrowing the wearer's, so a pass carries a pose of
      *     its own - and an overlay sharing the body's mesh shares the body's pose with it, or the two
      *     would part company on a subject that moves
+     * @param textureScroll the fraction of the sheet this pass's render type translates its texture by
+     *     each tick, or empty where it translates none. A property of the render TYPE rather than of
+     *     the mesh - vanilla builds it into the pipeline the layer submits through, so it moves the
+     *     sample point and never the geometry, which is why the breeze's silhouette holds still while
+     *     its wind turns
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,
@@ -620,8 +626,52 @@ public record Entity(
         @NotNull Optional<String> textureBy,
         @NotNull Optional<AppearanceGate> gate,
         @NotNull Optional<EntityModelData> noHatModel,
-        @NotNull EntityPose pose
-    ) {}
+        @NotNull EntityPose pose,
+        @NotNull Optional<Vector2f> textureScroll
+    ) {
+
+        /**
+         * A pass whose render type translates its texture by nothing, which is every pass but one.
+         *
+         * @param model the pass's mesh
+         * @param textureRef the pass's texture, or empty to reuse the body's
+         * @param pass the declared pipeline state
+         * @param tintArgb the pass's multiplicative tint
+         * @param skipBounds whether the pass is excluded from the canvas-sizing union
+         * @param tintBy the render-axis token overriding the tint, or empty
+         * @param textureBy the render-axis token overriding the texture, or empty
+         * @param gate the render condition, or empty when unconditional
+         * @param noHatModel the alternate mesh a suppressed pass draws, or empty
+         * @param pose the pose belonging to this pass's own mesh
+         */
+        public OverlayLayer(
+            @NotNull EntityModelData model, @NotNull Optional<String> textureRef,
+            @NotNull PassDeclaration pass, int tintArgb, boolean skipBounds,
+            @NotNull Optional<String> tintBy, @NotNull Optional<String> textureBy,
+            @NotNull Optional<AppearanceGate> gate, @NotNull Optional<EntityModelData> noHatModel,
+            @NotNull EntityPose pose
+        ) {
+            this(model, textureRef, pass, tintArgb, skipBounds, tintBy, textureBy, gate, noHatModel,
+                pose, Optional.empty());
+        }
+
+        /**
+         * Where this pass samples its texture from at one tick, in normalized sheet coordinates.
+         *
+         * <p>Vanilla builds the render type with the offset already wrapped -
+         * {@code (ageInTicks * k) % 1} - so the wrap is reproduced here rather than left to the
+         * fetch, which would wrap the sum of the offset and the authored coordinate instead and land
+         * a different texel where the two disagree about which whole turn they are on.
+         *
+         * @param tick the frame's sample tick
+         * @return the offset added to every UV this pass emits, or empty where it scrolls none
+         */
+        public @NotNull Optional<Vector2f> textureOffsetAt(int tick) {
+            return this.textureScroll.map(rate ->
+                new Vector2f(tick * rate.x() % 1f, tick * rate.y() % 1f));
+        }
+
+    }
 
     /**
      * One equipment overlay on an {@link Entity}: a saddle / body-armor mesh (its own baked geometry)

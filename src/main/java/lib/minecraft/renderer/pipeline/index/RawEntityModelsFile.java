@@ -234,6 +234,8 @@ record RawSizeOption(@Nullable String geometry, @Nullable Float scale) {}
  * @param textureBy the render-axis token overriding the texture at render, or {@code null}
  * @param grow the per-axis cube inflate (scalar broadcasts to all axes), or {@code null} when absent
  * @param pipeline the blend / alpha / emissive render pipeline, or {@code null}
+ * @param textureScroll the texels-per-tick the render type translates this pass's texture by, or
+ *     {@code null} when it translates none
  * @param skipBounds whether the overlay is excluded from the canvas-sizing bounds union
  * @param when the render condition, or {@code null} when unconditional
  * @param baby the age delta a baby render substitutes, or {@code null} when the overlay draws on an
@@ -249,10 +251,23 @@ record RawOverlay(
     @SerializedName("texture_by") @Nullable String textureBy,
     @JsonAdapter(EntityModelData.Cube.GrowAdapter.class) @Nullable Vector3f grow,
     @Nullable RawPipeline pipeline,
+    @SerializedName("texture_scroll") @Nullable RawTextureScroll textureScroll,
     @SerializedName("skip_bounds") boolean skipBounds,
     @Nullable RawOverlayWhen when,
     @Nullable RawOverlayBaby baby
 ) {}
+
+/**
+ * An overlay's {@code texture_scroll} - what its render type translates the texture by, per tick.
+ *
+ * <p>A rate rather than an expression, because the corpus's three sites are one shape: vanilla
+ * builds the render type with {@code (ageInTicks * k) % 1} on each axis, so the constant is the
+ * whole of what varies between them and the wrap is the type's own.
+ *
+ * @param u the fraction of the sheet's width the pass scrolls along u each tick
+ * @param v the fraction of its height the pass scrolls along v each tick
+ */
+record RawTextureScroll(float u, float v) {}
 
 /**
  * An overlay's {@code baby} age delta - the members a baby render substitutes, with everything else

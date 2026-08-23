@@ -85,6 +85,13 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   been posing off their mesh. A posing class bakes no mesh, so `PoseFlow` would never have walked it:
   its roster takes the posing classes beside the manifest's and reads each one's top-level bones off
   its nearest baking ancestor, that ancestor being the very class it reuses the layer of.
+- **A texture scroll is read as the RATE it is written as, never fitted from an evaluation.**
+  `EntityTextureScrollResolver` carries the age as a value of its own and only a multiply of that age
+  by a literal becomes a rate, so an offset that merely happens to be a number at every tick is
+  refused. The wither's armour is exactly that - `Mth.cos(age * 0.02) * 3` - and a reader that
+  evaluated at one tick would emit a rate for a pass that swings and animate it wrongly at every tick
+  but the first. The wrap the factory is handed carries a rate through unchanged, because it is the
+  same wrap the renderer applies at the offset rather than a second operation.
 - **A renderer's `setupRotations` is a self-refusing walk of its own, not an extension of
   `PoseWalk`.** It reads ten statements against a closed grammar and refuses the whole body on
   anything outside it, where the pose walk follows both arms of everything it cannot decide - so the

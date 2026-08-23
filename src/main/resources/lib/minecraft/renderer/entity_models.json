@@ -282,6 +282,10 @@
           "pipeline": {
             "emissive": true,
             "sorted": true
+          },
+          "texture_scroll": {
+            "u": 0.02,
+            "v": 0.0
           }
         },
         {
@@ -797,7 +801,11 @@
             "blend": "additive",
             "sorted": true
           },
-          "grow": 2.0
+          "grow": 2.0,
+          "texture_scroll": {
+            "u": 0.01,
+            "v": 0.01
+          }
         }
       ]
     },

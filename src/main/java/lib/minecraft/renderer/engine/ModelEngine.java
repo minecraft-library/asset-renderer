@@ -710,6 +710,7 @@ public class ModelEngine {
             PixelBuffer texture = t.source.texture();
             int lastTexelX = lastTexel(t.source.uv0().x(), t.source.uv1().x(), t.source.uv2().x(), texture.width());
             int lastTexelY = lastTexel(t.source.uv0().y(), t.source.uv1().y(), t.source.uv2().y(), texture.height());
+            boolean wrapsTexture = pass.wrapsTexture();
 
             // Pineda incremental edge functions. Hoist the edge value computation to the
             // bbox top-left, then walk by stepX per pixel in X and stepY per pixel in Y. Per-
@@ -772,8 +773,22 @@ public class ModelEngine {
                         v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
                     }
 
-                    int tx = Math.clamp((int) (u * texture.width()), 0, lastTexelX);
-                    int ty = Math.clamp((int) (v * texture.height()), 0, lastTexelY);
+                    // A scrolled pass samples where its render type translated it to, which the
+                    // authored rectangle does not name - so the face's own bound has nothing to say
+                    // and the sheet wraps instead, the way a repeating sampler does. Every other pass
+                    // is held inside its own rectangle exactly as before.
+                    //
+                    // Told apart by the PASS rather than by whether the coordinate ran past the
+                    // sheet, because a block's own geometry does that: the decorated pot's sherds and
+                    // one water flow frame author a rectangle whose upper corner rounds a texel
+                    // beyond, and wrapping those reads from the opposite edge - 0.7233 of block delta
+                    // over the pot alone.
+                    int tx = wrapsTexture
+                        ? Math.floorMod((int) (u * texture.width()), texture.width())
+                        : Math.clamp((int) (u * texture.width()), 0, lastTexelX);
+                    int ty = wrapsTexture
+                        ? Math.floorMod((int) (v * texture.height()), texture.height())
+                        : Math.clamp((int) (v * texture.height()), 0, lastTexelY);
                     int rawTexel = texture.getPixel(tx, ty);
                     if (ColorMath.alpha(rawTexel) == 0) {
                         RendererDebug.pixelSkipAlpha(px, py, depthVal, t.source.debugTag(), u, v, tx, ty, rawTexel);

@@ -477,7 +477,13 @@ rule: their kits bake `Lighting.inventory` at emit time and nothing relights the
   edge goes right. The mirrored reading is the bottom-right rule and hands a shared sample to the
   opposite face from the GPU.
 - A fetch may not step outside the face's own UV rectangle; `ModelEngine.lastTexel` bounds it via
-  `ceil(uMax * w) - 1`.
+  `ceil(uMax * w) - 1`. **A scrolled pass is the exception, and it is told apart by the PASS rather
+  than by the coordinate**: `PassDeclaration.wrapsTexture` turns the bound off and wraps into the
+  sheet instead. Inferring it from "the coordinate ran past `1`" is what does not work - a block's
+  own geometry does that, the decorated pot's sherds and one water flow frame authoring a rectangle
+  whose upper corner rounds a texel beyond, and wrapping those reads from the opposite edge for
+  `0.7233` of block delta over the pot alone. The wrap is worth 5.34 of the breeze's delta where it
+  does belong; a clamp at the sheet's edge smears its wind's last column instead.
 - The reference set's own depth range is part of the contract, and every harness `FrameRenderer` is
   at `1000` - the depth-quantum probe, which drives two ranges and refreshes no reference, is not one.
   A change emulating the reference's rounding cannot be evaluated against a coarser reference - fix
@@ -591,6 +597,18 @@ hands each renderer the one its subject wears. There is no armour file; the shel
 - An overlay's `blend` is a composition and `cutout` is the absence of one: `blendTokenOf` emits it
   when a resolved pipeline declares no blend function, and `parseBlend` maps it to
   `BlendMode.REPLACE`, which differs from `NORMAL` only at partial alpha.
+- **An overlay's `texture_scroll` moves where the pass SAMPLES and never where it stands.** Vanilla
+  builds the offset into the texture matrix of the render type the layer submits through, so it is a
+  property of the layer rather than of any mesh it draws, and the breeze's wind holds one silhouette
+  across every frame while turning. It is carried as a per-tick RATE because the corpus's three sites
+  are one shape - `(ageInTicks * k) % 1` on each axis - and the wrap is taken where vanilla takes it,
+  into the argument, rather than at the fetch: the two part company once the authored coordinate and
+  the offset are on different whole turns, which is exactly at the sheet's seam.
+- The rate is read out of the arithmetic and never fitted from an evaluation, which is what keeps the
+  wither's armour out: its offset is `Mth.cos(age * 0.02) * 3`, a swing that evaluates to a number at
+  every tick and is not a scroll, so `EntityTextureScrollResolver` refuses it. That leaves a charged
+  wither's swirl still - a stated gap, and one nothing renders, the animated corpus drawing it
+  uncharged.
 - A block an entity holds is tinted at the no-world-context point and never at a biome, the same
   point a block-item icon resolves at, so one constant serves both - `Biome.INVENTORY_DEFAULT`.
 - The carried-block path applies blockstate variant rotation and the icon path must not, because a

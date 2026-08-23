@@ -58,6 +58,7 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -556,9 +557,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                         // opacity multiplier, and the depth-write / quad-sort pair vanilla declares on
                         // the pass itself; every un-annotated overlay keeps the source-over full-opacity
                         // depth-writing default.
-                        sink.addAll(EntityGeometryKit.buildTriangles(overlayMesh, overlayTex.get(),
+                        // The pass's own texture offset, applied to the emitted UVs rather than to the
+                        // mesh: vanilla builds it into the render type's texture matrix, so it moves
+                        // where the pass samples and never where it stands.
+                        sink.addAll(scrolled(EntityGeometryKit.buildTriangles(overlayMesh, overlayTex.get(),
                             new EntityGeometryKit.EntityBuildParams(ctx.frame(), overlay.pass(), overlayTint)
-                        ).triangles());
+                        ).triangles(), overlay.textureOffsetAt(ctx.tick())));
                     });
                 }
             }
@@ -774,6 +778,50 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *     prepended to the villager profession-layer axes' prefix-relative sub-paths
      * @return the effective texture ref, or empty when the overlay's axis resolves to nothing
      */
+    /**
+     * One pass's triangles sampling where its render type says, or the list itself where it says
+     * nowhere.
+     *
+     * <p>Applied to the emitted UVs rather than to the mesh, and after the build rather than inside
+     * it, because that is what the offset IS: vanilla translates the texture matrix the pass is
+     * submitted through, which moves the sample point and leaves the geometry exactly where the
+     * layer put it. The breeze's wind is the corpus's one scrolling pass and its silhouette is
+     * identical across every frame on both sides, which is the same statement read off the pixels.
+     *
+     * <p>An offset carries a UV past the sheet's own edge, where the fetch wraps it back in. That is
+     * the one place a face samples outside its authored rectangle, and it is deliberate.
+     *
+     * @param triangles the pass's triangles as the kit built them
+     * @param offset what to add to every UV, or empty where the pass scrolls none
+     * @return the triangles sampling at the offset, or the given list where there is none
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> scrolled(
+        @NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull Optional<Vector2f> offset) {
+
+        if (offset.isEmpty()) return triangles;
+        Vector2f by = offset.get();
+        ConcurrentList<VisibleTriangle> out = Concurrent.newList();
+        for (VisibleTriangle triangle : triangles) {
+            SurfaceTraits traits = triangle.traits();
+            out.add(new VisibleTriangle(
+                triangle.position0(), triangle.position1(), triangle.position2(),
+                shifted(triangle.uv0(), by), shifted(triangle.uv1(), by), shifted(triangle.uv2(), by),
+                triangle.texture(), triangle.tintArgb(), triangle.normal(), triangle.shading(),
+                // Declared on the pass rather than inferred at the fetch: an offset carries a face
+                // off the sheet, and a face that merely ends a texel past it is a different thing
+                // the bound is right to hold.
+                new SurfaceTraits(traits.cullBackFaces(), traits.translucent(), traits.glinted(),
+                    traits.directionalLight(), traits.pass().withWrappedTexture(true)),
+                triangle.debugTag()));
+        }
+        return out;
+    }
+
+    /** One UV corner moved by the pass's offset. */
+    private static @NotNull Vector2f shifted(@NotNull Vector2f uv, @NotNull Vector2f by) {
+        return new Vector2f(uv.x() + by.x(), uv.y() + by.y());
+    }
+
     static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull Entity.OverlayLayer overlay, @NotNull AppearanceOptions appearance, @NotNull String texturePrefix) {
         if (overlay.textureBy().filter("pattern"::equals).isPresent())
             return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(overlay::textureRef);

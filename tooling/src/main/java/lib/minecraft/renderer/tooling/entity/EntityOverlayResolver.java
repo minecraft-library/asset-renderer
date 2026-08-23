@@ -138,7 +138,12 @@ final class EntityOverlayResolver {
             if (enumMap != null && EntityLayersResolver.isLayersRowToken(enumMap.token())) continue;
 
             List<JsonTree> emitted = resolveSite(site, cn, enumMap);
+            // What this layer's render type translates its texture by, which every pass the site
+            // emits carries: the offset is built into the pipeline the layer submits through, so it
+            // belongs to the layer rather than to any one mesh it draws.
+            JsonTree scroll = new EntityTextureScrollResolver(this.cache).resolve(site.layerClass());
             for (JsonTree row : emitted) {
+                if (scroll != null) row.put("texture_scroll", scroll);
                 rows.add(row);
                 JsonTree pipeline = row.find("pipeline").orElse(null);
                 if (pipeline != null && pipeline.getBoolean("emissive", false)
