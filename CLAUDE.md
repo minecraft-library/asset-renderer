@@ -615,6 +615,40 @@ hands each renderer the one its subject wears. There is no armour file; the shel
 `engine/kit/PoseKit.posed` is the one place that answers. It nests on `EntityOptions` beside
 `FitMode` because exactly one bag names it.
 
+**The roster is `BIND` / `IDLE` / `WALK`, and what separates the two moving presets is which figures
+stop answering their resting value.** A pose is a function of what the caller says about the subject,
+so naming a gait is naming the further figures that stop resting - it is not a second mechanism, and
+every preset goes through `PoseKit` the same way. `IDLE` stops resting elapsed time alone. `WALK`
+adds the two a stride is carried on, and they are one schedule rather than two inputs: vanilla
+accumulates the phase BY the amplitude once a tick rather than deriving it from the clock, so the
+phase is the tick times the amplitude and a caller setting one without the other has described no
+gait. The amplitude is the full one, vanilla clamping what it accumulates to one. The vocabulary is
+a caller's coinage rather than vanilla's - vanilla carries `walkAnimationPos` and
+`walkAnimationSpeed` and no `WALK` constant - so it stays in `option/` and moves no store reach.
+**`WALK` has no vanilla reference**: the animated set was drawn from a never-ticked subject, which
+walks at no speed, so it renders and is not gated until the harness drives a stride too.
+
+**A figure a pose names rests at what its own render state builds it at, and an enum member is the
+same question with no zero to fall back on.** Answering false to every constant is a state no enum is
+in, so a switch lands on whichever arm it ends at rather than the arm the subject stands in - a wrong
+pose rather than a wrong number. `entity_poses.json`'s `rest_defaults` carries the constant each
+member rests holding and `input_defaults` carries the numeric half, both read off the render state's
+own constructor; a per-subject `rest` still overrides, which is what keeps an evoker's arms crossed
+while a pillager's hang. **`rest_defaults` is keyed per MODEL, because a bare field name does not
+span one type** - an armour stand's `rightArmPose` is a `Rotations` beside a humanoid's `ArmPose`,
+and a parrot's `pose` is not the `Pose` every other subject carries. The model's own `setupAnim`
+names the state its members are read off, which is the only thing that tells those apart; a flat
+table reads all four as conflicts and drops them. What makes a push a constant OF a member is that
+its owner is the field's declared type, true of an enum constant and of `ItemStack.EMPTY` and false
+of a static the state merely holds. A member named through a call is answered by the fields it
+forwards to, and refuses where two branches disagree.
+
+**A question asked of a reference the render state holds still rests at nothing, and that is a known
+gap.** `input_fn` answers zero for everything but `isEmpty`, where `ArmorStandRenderState` builds six
+`Rotations` at non-zero - the legs at a degree of splay each way. It is the armour stand's whole
+remaining divergence and reaches no other subject, the arms a spawned stand does not draw being the
+only other reader.
+
 **`BIND` is the default and hands back the very instance it was given.** Identity, not equality: an
 equal copy is still a copy, and every float in it is one the authored path never computed. The same
 answer serves a subject whose model poses nothing, one whose pose could not be read, and one writing
@@ -817,6 +851,16 @@ and replicate it in the kit's transform chain.
 - Two byte-identical references name one appearance, so an axis you added is not being selected.
 - A `[PX]` dump agreeing with the reference to `0.001` px rules geometry out and points at coverage or
   the texel fetch.
+- **A transparent animated GIF needs `FrameDisposal.RESTORE_TO_BACKGROUND` per frame, and diagnose a
+  smeared strip there before believing it.** `ImageFrame.of(pixels, delayMs)` leaves the disposal at
+  `NONE`, which a decoder reads as "leave the previous frame standing" - right for an opaque strip and
+  wrong for every transparent one, because the subject is drawn on nothing and each frame shows
+  through to the one before. It accumulates: measured on the bee, the pixels a decoded frame covered
+  that its own PNG did not ran `0, 638, 2205, 4246, 6101, 7306, 7669, 7575` over eight frames. The
+  PNGs beside it are correct, so it survives a look at them and reads as the pose smearing. The
+  production path still carries the default - `FrameCompositor` and `Timeline` both build frames
+  through the two-argument form - so a caller writing an animated render as a transparent GIF gets
+  this, and the three GIFs the visual drivers produce and the store hashes come from there.
 
 ## Decisions that stay closed
 
