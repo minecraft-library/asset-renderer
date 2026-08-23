@@ -757,28 +757,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) { }
 
     /**
-     * The effective texture ref for a model overlay: the {@code texture_by} axis selection when the
-     * overlay is axis-driven and the appearance supplies it, else the overlay's baked
-     * {@link Entity.OverlayLayer#textureRef() default texture} (empty = reuse the base
-     * entity texture). Axes: {@code pattern} (tropical fish, baked default {@code KOB}),
-     * {@code crackiness} (iron golem, empty at {@code NONE} so the overlay is skipped),
-     * {@code weathering} (copper-golem eyes, always resolves to the state's eye texture), and the
-     * villager profession-layer trio {@code type} / {@code profession} / {@code profession_level}
-     * (prefix-relative sub-paths the {@code texturePrefix} qualifies; {@code profession} resolves
-     * empty at its {@code NONE} default so the overlay is skipped, and {@code profession_level}
-     * resolves empty only for a profession that draws no badge - vanilla has no badge-less job
-     * villager, so an unnamed tier resolves to the first rather than to nothing).
-     * The {@code type} axis resolves its biome under the pass' own robe directory, mirroring the layer's
-     * {@code isBaby ? "baby" : "type"} token swap.
-     * The default keeps an unselected overlay unchanged; a selection swaps in that axis' texture.
-     *
-     * @param overlay the overlay layer to resolve a texture ref for
-     * @param appearance the axis selections to resolve against
-     * @param texturePrefix the entity texture prefix ({@code villager} / {@code zombie_villager})
-     *     prepended to the villager profession-layer axes' prefix-relative sub-paths
-     * @return the effective texture ref, or empty when the overlay's axis resolves to nothing
-     */
-    /**
      * One pass's triangles sampling where its render type says, or the list itself where it says
      * nowhere.
      *
@@ -822,6 +800,28 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         return new Vector2f(uv.x() + by.x(), uv.y() + by.y());
     }
 
+    /**
+     * The effective texture ref for a model overlay: the {@code texture_by} axis selection when the
+     * overlay is axis-driven and the appearance supplies it, else the overlay's baked
+     * {@link Entity.OverlayLayer#textureRef() default texture} (empty = reuse the base
+     * entity texture). Axes: {@code pattern} (tropical fish, baked default {@code KOB}),
+     * {@code crackiness} (iron golem, empty at {@code NONE} so the overlay is skipped),
+     * {@code weathering} (copper-golem eyes, always resolves to the state's eye texture), and the
+     * villager profession-layer trio {@code type} / {@code profession} / {@code profession_level}
+     * (prefix-relative sub-paths the {@code texturePrefix} qualifies; {@code profession} resolves
+     * empty at its {@code NONE} default so the overlay is skipped, and {@code profession_level}
+     * resolves empty only for a profession that draws no badge - vanilla has no badge-less job
+     * villager, so an unnamed tier resolves to the first rather than to nothing).
+     * The {@code type} axis resolves its biome under the pass' own robe directory, mirroring the layer's
+     * {@code isBaby ? "baby" : "type"} token swap.
+     * The default keeps an unselected overlay unchanged; a selection swaps in that axis' texture.
+     *
+     * @param overlay the overlay layer to resolve a texture ref for
+     * @param appearance the axis selections to resolve against
+     * @param texturePrefix the entity texture prefix ({@code villager} / {@code zombie_villager})
+     *     prepended to the villager profession-layer axes' prefix-relative sub-paths
+     * @return the effective texture ref, or empty when the overlay's axis resolves to nothing
+     */
     static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull Entity.OverlayLayer overlay, @NotNull AppearanceOptions appearance, @NotNull String texturePrefix) {
         if (overlay.textureBy().filter("pattern"::equals).isPresent())
             return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(overlay::textureRef);
