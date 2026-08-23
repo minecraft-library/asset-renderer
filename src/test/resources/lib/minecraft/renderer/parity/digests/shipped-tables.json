@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "d871fef9ee44072eace75a562125669fa5b33bc9def945ac2227ef6544986253"
+      "sha256": "f459c459c9f1a1d3ae009a0493ac83abca951e1e0828b5cf1456df14aa05f3ee"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "dc3a894402d61ee094f49d4725a380ddeeeb851d",
+    "asset_sha": "0b4141bad391c900e6de4a4f7bdd7c1470e186fc",
     "counts": {
       "digests": 11
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "entity_poses.json gains the renderers member - the container steps each renderer's setupRotations composes above every mesh it submits - and the entityModels log gains the nine refusals; every render sweep and pin unmoved",
+    "reason": "entity_poses.json gains question_defaults - what each question rests answering, read off the record component its receiver was built at; every render sweep, pin and log digest unmoved",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-23T06:48:31Z",
+    "timestamp": "2026-08-23T07:20:20Z",
     "tool_version": "1.0.0"
   }
 }

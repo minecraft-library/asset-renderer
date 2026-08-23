@@ -36,7 +36,7 @@
     },
     {
       "path": "entity_poses.json",
-      "sha256": "d4a35a256aa851993ec40259a030315dab6a464c7e3711017004b08d425a41d8"
+      "sha256": "b7d5352249bf79cc41512afcc8c6645847a9c8425008246f274b21e017ab44d0"
     },
     {
       "path": "glint_items.json",
@@ -63,7 +63,7 @@
   "provenance": {
     "artifact": "manifest.tooling-tables",
     "asset_dirty": false,
-    "asset_sha": "dc3a894402d61ee094f49d4725a380ddeeeb851d",
+    "asset_sha": "0b4141bad391c900e6de4a4f7bdd7c1470e186fc",
     "counts": {
       "files": 11,
       "logs": 8
@@ -73,7 +73,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "entity_poses.json gains the renderers member - the container steps each renderer's setupRotations composes above every mesh it submits - and the entityModels log gains the nine refusals; every render sweep and pin unmoved",
+    "reason": "entity_poses.json gains question_defaults - what each question rests answering, read off the record component its receiver was built at; every render sweep, pin and log digest unmoved",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -83,8 +83,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-23T06:48:33Z",
+    "timestamp": "2026-08-23T07:20:22Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 46097
+    "wall_time_ms": 45241
   }
 }
