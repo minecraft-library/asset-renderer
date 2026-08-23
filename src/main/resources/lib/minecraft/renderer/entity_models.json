@@ -648,6 +648,9 @@
     },
     "minecraft:cod": {
       "renderer": "net/minecraft/client/renderer/entity/CodRenderer",
+      "rest": {
+        "isInWater": "true"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -2339,6 +2342,9 @@
     },
     "minecraft:pufferfish": {
       "renderer": "net/minecraft/client/renderer/entity/PufferfishRenderer",
+      "rest": {
+        "isInWater": "true"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -2441,6 +2447,9 @@
     },
     "minecraft:salmon": {
       "renderer": "net/minecraft/client/renderer/entity/SalmonRenderer",
+      "rest": {
+        "isInWater": "true"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -2878,6 +2887,9 @@
     },
     "minecraft:tadpole": {
       "renderer": "net/minecraft/client/renderer/entity/TadpoleRenderer",
+      "rest": {
+        "isInWater": "true"
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -3009,6 +3021,9 @@
       "renderer": "net/minecraft/client/renderer/entity/TropicalFishRenderer",
       "render": {
         "tint": "0xFFF9FFFE"
+      },
+      "rest": {
+        "isInWater": "true"
       },
       "axes": {
         "age": {

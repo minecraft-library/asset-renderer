@@ -142,6 +142,12 @@ public final class PoseEvaluator {
     /** The one question whose resting answer is not nothing - see {@link #restingIn}. */
     private static final @NotNull String IS_EMPTY = "isEmpty";
 
+    /** How a flag a subject rests holding is spelled where enum constants share the same map. */
+    private static final @NotNull String TRUE = "true";
+
+    /** Its opposite, read for the same reason - a spelling neither of these is falls through. */
+    private static final @NotNull String FALSE = "false";
+
     /**
      * The frame a subject is in before anything has happened to it.
      *
@@ -180,6 +186,18 @@ public final class PoseEvaluator {
         return new Frame() {
             @Override
             public float input(@NotNull String field) {
+                // The subject's own answer first, for the same reason it wins for an enum member:
+                // a figure whose resting value is a fact about the SUBJECT rather than about the
+                // render state it is carried on cannot be read off that state's constructor. Only a
+                // flag is answered this way today - a fish is in water where its state builds the
+                // field false, because a fish out of water lies on its side and no reference render
+                // draws one that way.
+                // Narrowed to the two boolean spellings rather than taken for anything the map
+                // holds: one keyspace carries both, and reading an enum member's constant as a
+                // boolean would answer a confident zero where falling through is right.
+                String held = restingState.get(field);
+                if (TRUE.equals(held)) return 1f;
+                if (FALSE.equals(held)) return 0f;
                 return defaults.getOrDefault(field, 0f);
             }
 

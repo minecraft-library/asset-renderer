@@ -12,6 +12,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.LinkedHashMap;
@@ -41,6 +42,9 @@ import java.util.TreeMap;
  */
 final class EntityRestStateResolver {
 
+    /** The render-state member a fish reads twice - for its wag amplitude and for lying on its side. */
+    private static final @NotNull String IN_WATER = "isInWater";
+
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
     private final @NotNull Diagnostics diagnostics;
@@ -64,8 +68,6 @@ final class EntityRestStateResolver {
                 if (VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name))
                     collectEnumAssignments(method, assignments);
         });
-        if (assignments.isEmpty()) return null;
-
         // Sorted, because the walk visits the renderer chain leaf-first while a reader wants one
         // order whatever the depth a field happens to be filled at.
         Map<String, String> rest = new TreeMap<>();
@@ -73,12 +75,38 @@ final class EntityRestStateResolver {
             String constant = fallThroughConstant(assignment);
             if (constant != null) rest.put(field, constant);
         });
+        if (inWater()) rest.put(IN_WATER, Boolean.TRUE.toString());
         if (rest.isEmpty()) return null;
 
         this.diagnostics.info("rest: %s", rest);
         JsonTree node = JsonTree.object();
         rest.forEach(node::put);
         return node;
+    }
+
+    /**
+     * Whether an offline render puts this subject in water.
+     *
+     * <p>A fish renderer reads {@code isInWater} twice - once to scale the amplitude its body wags
+     * at, and once to decide whether to lay the subject on its side. The second is vanilla's
+     * flopping-on-land pose, right in a world and the wrong shape for a reference render, so the
+     * harness pins the field on and this side has to answer the same or the two draw different fish.
+     *
+     * <p><b>Scoped to {@code AbstractFish} exactly, because the harness's pin is.</b> A dolphin, an
+     * axolotl, a squid and a drowned each read the same field for something else, so widening it to
+     * everything aquatic would answer for four subjects that never asked the same question.
+     *
+     * @return whether the subject's entity class descends from the fish base
+     */
+    private boolean inWater() {
+        String current = this.subject.entityClass();
+        for (int depth = 0; current != null && depth < 16; depth++) {
+            if (VanillaSourceClasses.Types.ABSTRACT_FISH.equals(current)) return true;
+            ClassNode node = this.cache.load(current);
+            if (node == null) return false;
+            current = node.superName;
+        }
+        return false;
     }
 
     /**

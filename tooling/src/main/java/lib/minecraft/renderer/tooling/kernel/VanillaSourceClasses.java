@@ -149,6 +149,12 @@ public final class VanillaSourceClasses {
         /** {@code LivingEntity} - the mob-discovery {@code extendsClass} predicate target. */
         public static final @NotNull String LIVING_ENTITY = "net/minecraft/world/entity/LivingEntity";
 
+        /**
+         * The base every fish extends, and the one entity family a reference render puts in water.
+         */
+        public static final @NotNull String ABSTRACT_FISH =
+            "net/minecraft/world/entity/animal/fish/AbstractFish";
+
         /** {@code EntityRenderers} - the entity-renderer registry class. */
         public static final @NotNull String ENTITY_RENDERERS = "net/minecraft/client/renderer/entity/EntityRenderers";
 
