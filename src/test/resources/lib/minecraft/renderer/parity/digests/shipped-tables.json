@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "c3297610dd3a219c8e0c4f4f5b352753756cc49aca8442b4b905d70cf15a5272"
+      "sha256": "d871fef9ee44072eace75a562125669fa5b33bc9def945ac2227ef6544986253"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "c1f543615c8682878fbabfe9d52ed0887d258741",
+    "asset_sha": "dc3a894402d61ee094f49d4725a380ddeeeb851d",
     "counts": {
       "digests": 11
     },
@@ -73,9 +73,9 @@
       "gson": "2.13.2"
     },
     "mc_version": "26.1.2",
-    "parity_class": "shaped",
+    "parity_class": "moving",
     "producer": "test",
-    "reason": "the container becomes an ordered list of part-pose steps, so a sequence a renderer composes is expressible where one triplet cannot hold a translate between two turns: entity_poses re-shapes the turtle's container and the dragon's into one-element arrays and the dump digests the pose it loaded, and the tooling-tables rows carry the entity_models and log drift accumulated since b4706878 besides. No render moved - every sweep, CRC pin, manifest.visual and manifest.player-* at 0, and both container subjects byte-identical at turtle 0.0571 and dragon 0.0780",
+    "reason": "entity_poses.json gains the renderers member - the container steps each renderer's setupRotations composes above every mesh it submits - and the entityModels log gains the nine refusals; every render sweep and pin unmoved",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-23T05:30:13Z",
+    "timestamp": "2026-08-23T06:48:31Z",
     "tool_version": "1.0.0"
   }
 }
