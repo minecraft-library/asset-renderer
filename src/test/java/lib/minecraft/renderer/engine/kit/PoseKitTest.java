@@ -10,10 +10,12 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -29,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -302,6 +305,34 @@ class PoseKitTest {
                 if (posed.overlays().get(pass).model() != entity.overlays().get(pass).model()) moved++;
         }
         assertTrue(moved > 0, "some overlay pass in the corpus is expected to move: " + moved);
+    }
+
+    @Test
+    @DisplayName("a posed overlay pass keeps the texture scroll its pass declares")
+    void aPosedOverlayKeepsItsTextureScroll() {
+        // The scroll is a property of the pass's render type rather than of the mesh it draws, so a
+        // pass whose mesh a pose moves must come back still carrying it. The rebuilt row is a new
+        // record, and one that answered the scroll with its default would hold the breeze's wind and
+        // the charged creeper's swirl still the day either subject's pass gains a moving pose.
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", cubed(null));
+        EntityPose turns = new EntityPose(List.of(), Map.of("body",
+            Map.of(PoseChannel.X_ROT, new PoseExpr.Const(0.5d, PoseOperator.Width.FLOAT))),
+            List.of(), Map.of(), Map.of(), Map.of(), Optional.empty());
+        Optional<Vector2f> scroll = Optional.of(new Vector2f(0.02f, 0.01f));
+        Entity subject = Entity.builder()
+            .id(ResourceId.parse("minecraft:test"))
+            .model(mesh)
+            .pose(turns)
+            .overlays(List.of(new Entity.OverlayLayer(mesh, Optional.empty(), PassDeclaration.DEFAULT,
+                0xFFFFFFFF, false, Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), turns, scroll)))
+            .build();
+
+        Entity posed = PoseKit.posedSubject(EntityOptions.PoseMode.IDLE, subject, 7);
+        assertNotSame(mesh, posed.overlays().getFirst().model(), "the pass's mesh is expected to move");
+        assertEquals(scroll, posed.overlays().getFirst().textureScroll(),
+            "the rebuilt pass carries the scroll the authored one declared");
     }
 
     @Test

@@ -212,7 +212,7 @@ public final class PoseKit {
                 || !noHat.equals(overlay.noHatModel());
             out.add(new Entity.OverlayLayer(mesh, overlay.textureRef(), overlay.pass(),
                 overlay.tintArgb(), overlay.skipBounds(), overlay.tintBy(), overlay.textureBy(),
-                overlay.gate(), noHat, overlay.pose()));
+                overlay.gate(), noHat, overlay.pose(), overlay.textureScroll()));
         }
         return moved ? List.copyOf(out) : overlays;
     }
