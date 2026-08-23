@@ -8,7 +8,7 @@
     },
     {
       "path": "block_geometry.json",
-      "sha256": "9b88fd63d04ebecb2a0e0a6f58e2ea9287298cc2ac87c190ee8b54a033292bd8"
+      "sha256": "398df79a1213b3357b2b4fd5a204169a87129909caa3c44f3adfd9832218da32"
     },
     {
       "path": "block_items.json",
@@ -28,15 +28,15 @@
     },
     {
       "path": "entity_geometry.json",
-      "sha256": "82507b71e6def3631e9d3fe77600fc0f4151ad9f6c6f377e5ef65df0193cc3e8"
+      "sha256": "3cad0266c9a8063f8d9e2a56366cef6f508058d1fb4413605a7288bdea8efc43"
     },
     {
       "path": "entity_models.json",
-      "sha256": "360db1bc0d2bb8ba2ef2aca3783e58174054fe5c858ddb5810c205d992fe5e08"
+      "sha256": "4c7fa5a3567e275fcc92f95c9c02273ed1fa0d6a90fbdf2017e6b9d9d2bff469"
     },
     {
       "path": "entity_poses.json",
-      "sha256": "b7d5352249bf79cc41512afcc8c6645847a9c8425008246f274b21e017ab44d0"
+      "sha256": "ded3a01d1f75318b6ad5f086198f51b5bc7e00fd9dde47ec9a3e26b49e50107a"
     },
     {
       "path": "glint_items.json",
@@ -63,7 +63,7 @@
   "provenance": {
     "artifact": "manifest.tooling-tables",
     "asset_dirty": false,
-    "asset_sha": "55e9a74cc2a6a278cca80ec94bbc82e5613ad262",
+    "asset_sha": "0bb41435768b461d628988cd4c81d614433730b7",
     "counts": {
       "files": 11,
       "logs": 8
@@ -71,9 +71,9 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "moving",
+    "parity_class": "shaped",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "entity_models.json gains texture_scroll on the breeze's wind pass and the creeper's charged swirl - the per-tick rate their render types translate the texture by; every render sweep, pin and manifest unmoved over the full bundle",
+    "reason": "four tables stopped writing members no reader declares - entity_poses' models, entity_models' spawn_conditions and age default, and both geometry tables' y_axis and every bone member at the reading field's own default; entity_poses 5722373 to 5713504, entity_models 115443 to 105357, entity_geometry 861975 to 750397, block_geometry 47211 to 40166, every other member byte-identical, all eight flows' diagnostics identical, both pipeline dumps and all seven render sweeps at zero movers",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -83,8 +83,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-23T20:06:43Z",
+    "timestamp": "2026-08-23T23:53:00Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 50054
+    "wall_time_ms": 43927
   }
 }

@@ -10,7 +10,7 @@
     "block_geometry": {
       "form": "table-canonical",
       "regen": "blockModels",
-      "sha256": "0d3f86ed4abbd21378dd984c6139a05c52212ef7415a41baa13926aa474cae84"
+      "sha256": "96ab28b3406eea5dc44e70f09ddbc01ba13b69174a8eb9436b22df75582af446"
     },
     "block_items": {
       "form": "table-canonical",
@@ -35,17 +35,17 @@
     "entity_geometry": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "9a31e5ff9c3183f2d806eb521e13a4689e100f9028d1f30be9df5dae617d3fdf"
+      "sha256": "5a46b5f7a0a5b9c6849eded9393fa118c90568029a3ecf3dd253418c65874bde"
     },
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "f1aeaa857e78512fa9aa7cf1e5da70f1d2ef8eb87fdcb66411aef8b97a65eb34"
+      "sha256": "6193d060a175c2820165206b7020c89d4cac6bb14c43895cbd16aa8c15bbb4c5"
     },
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "f459c459c9f1a1d3ae009a0493ac83abca951e1e0828b5cf1456df14aa05f3ee"
+      "sha256": "5791a31ac30b780aecee81699636ee3661f3e5d6d6ac61b5eed353e69d2a37b4"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "55e9a74cc2a6a278cca80ec94bbc82e5613ad262",
+    "asset_sha": "0bb41435768b461d628988cd4c81d614433730b7",
     "counts": {
       "digests": 11
     },
@@ -73,9 +73,9 @@
       "gson": "2.13.2"
     },
     "mc_version": "26.1.2",
-    "parity_class": "moving",
+    "parity_class": "shaped",
     "producer": "test",
-    "reason": "entity_models.json gains texture_scroll on the breeze's wind pass and the creeper's charged swirl - the per-tick rate their render types translate the texture by; every render sweep, pin and manifest unmoved over the full bundle",
+    "reason": "four tables stopped writing members no reader declares - entity_poses' models, entity_models' spawn_conditions and age default, and both geometry tables' y_axis and every bone member at the reading field's own default; entity_poses 5722373 to 5713504, entity_models 115443 to 105357, entity_geometry 861975 to 750397, block_geometry 47211 to 40166, every other member byte-identical, all eight flows' diagnostics identical, both pipeline dumps and all seven render sweeps at zero movers",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-23T20:06:41Z",
+    "timestamp": "2026-08-23T23:52:59Z",
     "tool_version": "1.0.0"
   }
 }
