@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.ToDoubleFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -63,7 +64,7 @@ class PoseEvaluatorTest {
             if (!pose.isReadable()) continue;
 
             PoseEvaluator.ChannelWrites written =
-                PoseEvaluator.evaluate(pose, meshFor(pose), PoseEvaluator.restingIn(pose, Map.of()));
+                PoseEvaluator.evaluate(pose, meshFor(pose), PoseEvaluator.AT_REST);
             written.container().forEach(step -> step.forEach((channel, value) ->
                 assertTrue(Float.isFinite(value),
                     "the container's " + channel.token() + " evaluates to a number")));
@@ -90,12 +91,9 @@ class PoseEvaluatorTest {
         assertFalse(zombie.bones().isEmpty(), "the zombie is expected to pose its bones");
 
         AtomicInteger asked = new AtomicInteger();
-        PoseEvaluator.Frame counting = new PoseEvaluator.Frame() {
-            @Override
-            public float input(@NotNull String field) {
-                asked.incrementAndGet();
-                return 0f;
-            }
+        ToDoubleFunction<String> counting = field -> {
+            asked.incrementAndGet();
+            return 0d;
         };
 
         PoseEvaluator.evaluate(zombie, meshFor(zombie), counting);
@@ -124,8 +122,8 @@ class PoseEvaluatorTest {
         // has run - the arms-out stance overwrites the swing. The legs it leaves alone.
         EntityPose zombie = poseOf("minecraft:zombie");
         EntityModelData mesh = meshFor(zombie);
-        for (PoseEvaluator.Frame frame :
-            List.of(PoseEvaluator.ZERO, PoseEvaluator.restingIn(zombie, Map.of())))
+        for (ToDoubleFunction<String> frame :
+            List.<ToDoubleFunction<String>>of(PoseEvaluator.AT_REST, field -> 1d))
             assertTrue(Float.isFinite(PoseEvaluator.evaluate(zombie, mesh, frame)
                     .bones().get("left_leg").get(PoseChannel.X_ROT)),
                 "a zombie stands on a leg that is a number, whatever it is asked");
@@ -146,22 +144,17 @@ class PoseEvaluatorTest {
 
         EntityPose carried = new EntityPose(
             List.of(Map.of(PoseChannel.Y, new PoseExpr.Select(
-                new PosePredicate.Compare(PosePredicate.Comparison.EQ,
+                new PosePredicate(PosePredicate.Comparison.EQ,
                     new PoseExpr.Input("hasEgg"), new PoseExpr.Const(0, PoseOperator.Width.INT)),
                 new PoseExpr.Const(0f, PoseOperator.Width.FLOAT),
                 new PoseExpr.Const(-1f, PoseOperator.Width.FLOAT)))),
-            Map.of(), List.of(), Map.of(), Map.of(), Map.of(), Optional.empty());
+            Map.of(), List.of(), Optional.empty());
 
-        assertEquals(0f, PoseEvaluator.evaluate(carried, mesh, PoseEvaluator.ZERO)
+        assertEquals(0f, PoseEvaluator.evaluate(carried, mesh, PoseEvaluator.AT_REST)
                 .container().getFirst().get(PoseChannel.Y),
             "answering nothing takes the arm the condition holds for");
 
-        PoseEvaluator.Frame carrying = new PoseEvaluator.Frame() {
-            @Override
-            public float input(@NotNull String field) {
-                return "hasEgg".equals(field) ? 1f : 0f;
-            }
-        };
+        ToDoubleFunction<String> carrying = field -> "hasEgg".equals(field) ? 1d : 0d;
         assertEquals(-1f, PoseEvaluator.evaluate(carried, mesh, carrying)
                 .container().getFirst().get(PoseChannel.Y),
             "and answering the figure takes the other");
@@ -175,15 +168,23 @@ class PoseEvaluatorTest {
         // A stand answering zero to every question stands with its legs together, and the two arms of
         // the splay are opposite - so a table that lost which leg it was answering would splay them
         // the same way and cost more than answering nothing does.
+        //
+        // Read off the SHIPPED row rather than off a frame: what a reference the render state holds
+        // rests at is a fact about a subject standing still, so the generator resolved it, and what
+        // is left to pin is that the number it resolved to is in the table and is the right way round
+        // on each leg.
         Entity stand = entities.get("minecraft:armor_stand");
         assertNotNull(stand, "the corpus carries an armour stand");
-        PoseEvaluator.Frame rest = PoseEvaluator.restingIn(stand.pose(), stand.restingState());
+        PoseEvaluator.ChannelWrites written =
+            PoseEvaluator.evaluate(stand.pose(), stand.model(), PoseEvaluator.AT_REST);
 
-        assertEquals(-1f, rest.question("leftLegPose", "x"), "the left leg turns one way");
-        assertEquals(1f, rest.question("rightLegPose", "x"), "and the right turns the other");
-        assertEquals(0f, rest.question("leftLegPose", "y"), "a component built at nothing rests there");
-        assertEquals(1f, rest.question("mainHandItem", "isEmpty"),
-            "and a stack nobody put anything in is still empty, which no table row says");
+        float degree = (float) Math.toRadians(1d);
+        assertEquals(-degree, written.bones().get("left_leg").get(PoseChannel.X_ROT),
+            "the left leg turns one way");
+        assertEquals(degree, written.bones().get("right_leg").get(PoseChannel.X_ROT),
+            "and the right turns the other");
+        assertEquals(0f, written.bones().get("left_leg").get(PoseChannel.Y_ROT),
+            "a component built at nothing rests there");
     }
 
     @Test
@@ -196,10 +197,10 @@ class PoseEvaluatorTest {
 
         EntityPose reads = new EntityPose(List.of(), Map.of("head",
             Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT))),
-            List.of(), Map.of(), Map.of(), Map.of(), Optional.empty());
+            List.of(), Optional.empty());
 
         assertEquals((float) Math.toRadians(90d),
-            PoseEvaluator.evaluate(reads, mesh, PoseEvaluator.ZERO).bones().get("head").get(PoseChannel.X_ROT),
+            PoseEvaluator.evaluate(reads, mesh, PoseEvaluator.AT_REST).bones().get("head").get(PoseChannel.X_ROT),
             "ninety degrees of authored pitch reads back as the radians the table computes in");
     }
 
@@ -218,8 +219,8 @@ class PoseEvaluatorTest {
         assertTrue(evoker.pose().bones().containsKey("left_arm"),
             "and its model poses that arm all the same");
 
-        PoseEvaluator.ChannelWrites written = PoseEvaluator.evaluate(evoker.pose(), evoker.model(),
-            PoseEvaluator.restingIn(evoker.pose(), evoker.restingState()));
+        PoseEvaluator.ChannelWrites written =
+            PoseEvaluator.evaluate(evoker.pose(), evoker.model(), PoseEvaluator.AT_REST);
         assertFalse(written.bones().containsKey("left_arm"), "so nothing is written for it");
         assertFalse(written.bones().isEmpty(), "while the bones the mesh does declare are posed");
     }
@@ -278,14 +279,8 @@ class PoseEvaluatorTest {
         @NotNull PosePredicate predicate, @NotNull EntityModelData mesh, @NotNull Set<Object> walked) {
 
         if (!walked.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.Compare compare -> {
-                declareRead(compare.left(), mesh, walked);
-                declareRead(compare.right(), mesh, walked);
-            }
-            case PosePredicate.Not not -> declareRead(not.operand(), mesh, walked);
-            default -> { /* an enum test, a presence test or a decided constant reads no bone */ }
-        }
+        declareRead(predicate.left(), mesh, walked);
+        declareRead(predicate.right(), mesh, walked);
     }
 
 }

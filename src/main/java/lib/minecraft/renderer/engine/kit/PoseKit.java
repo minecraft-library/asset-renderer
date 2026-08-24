@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -106,32 +107,29 @@ public final class PoseKit {
         @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
 
         if (mode == EntityOptions.PoseMode.BIND) return subject.model();
-        return posed(mode, under(subject.renderTransform(), subject.pose()),
-            subject.restingState(), subject.model(), tick);
+        return posed(mode, under(subject.renderTransform(), subject.pose()), subject.model(), tick);
     }
 
     /**
      * One mesh where the pose that belongs to it leaves it at one tick.
      *
      * <p>Held apart from the subject because a subject is more than one posed mesh: each overlay pass
-     * poses its own with its own model class, and what they share is the wearer's resting state
-     * rather than a pose.
+     * poses its own with its own model class, and a pose belongs to a mesh rather than to a subject.
      *
      * @param mode the authored pose, or the one its model evaluates at the tick under a gait
      * @param pose the pose belonging to this mesh
-     * @param restingState which constant each enum render-state member rests at, by member name
      * @param model the mesh to pose
      * @param tick the frame's sample tick
      * @return the posed mesh, or the given mesh itself where nothing poses it
      */
     public static @NotNull EntityModelData posed(
         @NotNull EntityOptions.PoseMode mode, @NotNull EntityPose pose,
-        @NotNull Map<String, String> restingState, @NotNull EntityModelData model, int tick) {
+        @NotNull EntityModelData model, int tick) {
 
         if (mode == EntityOptions.PoseMode.BIND) return model;
         if (!pose.isReadable()) return model;
 
-        PoseEvaluator.Frame frame = frameAt(mode, pose, restingState, tick);
+        ToDoubleFunction<String> frame = frameAt(mode, tick);
         PoseEvaluator.ChannelWrites writes = PoseEvaluator.evaluate(pose, model, frame);
         // The clips a model plays are applied ON TOP of what its body assigned, because vanilla's
         // three offset members all add to the value already there. So the two are resolved apart and
@@ -147,8 +145,9 @@ public final class PoseKit {
      * posed by the model class that pass belongs to.
      *
      * <p>An overlay carries geometry of its own and a pose of its own, so posing the body alone
-     * leaves a sheep's wool where the sheep no longer is. What they share is the resting state, the
-     * subject being one animal however many passes draw it.
+     * leaves a sheep's wool where the sheep no longer is. What they share is the sequence the
+     * subject's renderer composes above them, the subject being one animal however many passes
+     * draw it.
      *
      * <p>Answers the very definition it was given when nothing moved, which is what keeps the
      * authored pose from rebuilding a definition per frame and per measured bound.
@@ -190,8 +189,7 @@ public final class PoseKit {
         if (steps.isEmpty() || !pose.isReadable()) return pose;
         List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>(steps);
         container.addAll(pose.container());
-        return new EntityPose(List.copyOf(container), pose.bones(), pose.clips(),
-            pose.inputDefaults(), pose.restDefaults(), pose.questionDefaults(), pose.refusal());
+        return new EntityPose(List.copyOf(container), pose.bones(), pose.clips(), pose.refusal());
     }
 
     /** Each overlay pass where its own model leaves it, or the list itself when none of them moved. */
@@ -203,11 +201,11 @@ public final class PoseKit {
         boolean moved = false;
         for (Entity.OverlayLayer overlay : overlays) {
             EntityPose pose = under(subject.renderTransform(), overlay.pose());
-            EntityModelData mesh = posed(mode, pose, subject.restingState(), overlay.model(), tick);
+            EntityModelData mesh = posed(mode, pose, overlay.model(), tick);
             // The suppressed-pass alternate is the same mesh with a subtree emptied, so it takes the
             // same pose - a villager under a full-hat profession still moves the head it draws none of.
             Optional<EntityModelData> noHat = overlay.noHatModel()
-                .map(alternate -> posed(mode, pose, subject.restingState(), alternate, tick));
+                .map(alternate -> posed(mode, pose, alternate, tick));
             moved |= mesh != overlay.model()
                 || !noHat.equals(overlay.noHatModel());
             out.add(new Entity.OverlayLayer(mesh, overlay.textureRef(), overlay.pass(),
@@ -220,61 +218,29 @@ public final class PoseKit {
     // ------------------------------------------------------------------------------------
 
     /**
-     * What the subject answers about itself at one tick - what it rests at, with the figures this
-     * preset drives run forward.
+     * What the subject answers about itself at one tick - nothing, with the figures this preset
+     * drives run forward.
      *
-     * <p>A subject an offline render poses is standing where it is, so every figure but elapsed age
-     * is the figure it rests at: it is walking at no speed, swinging at nothing and holding nothing.
-     * Elapsed age is the exception and the reason a frame differs from its neighbour at all.
+     * <p>A subject an offline render poses is standing where it is, and a shipped pose names no
+     * figure but the ones the tick drives - everything else about a subject standing still was
+     * answered where the table was written. So elapsed age is the reason a frame differs from its
+     * neighbour at all, and the rest rests.
      *
      * <p>A gait names the further figures that stop resting, and nothing else about it differs.
      * {@link EntityOptions.PoseMode#WALK} answers the two a stride is carried on: vanilla steps the
      * phase by the amplitude once a tick rather than deriving it from the clock, so the phase is the
      * tick times the amplitude and the two are one schedule.
-     *
-     * <p>Delegating the rest to {@link PoseEvaluator#restingIn} rather than answering it here is
-     * what keeps a humanoid's arms off NaN - {@code speedValue} is divided by and is built at one.
      */
-    private static @NotNull PoseEvaluator.Frame frameAt(
-        @NotNull EntityOptions.PoseMode mode, @NotNull EntityPose pose,
-        @NotNull Map<String, String> restingState, int tick) {
+    private static @NotNull ToDoubleFunction<String> frameAt(
+        @NotNull EntityOptions.PoseMode mode, int tick) {
 
-        PoseEvaluator.Frame rest = PoseEvaluator.restingIn(pose, restingState);
         boolean walking = mode == EntityOptions.PoseMode.WALK;
-        return new PoseEvaluator.Frame() {
-            @Override
-            public float input(@NotNull String field) {
-                if (AGE_IN_TICKS.equals(field)) return tick;
-                if (!walking) return rest.input(field);
-                if (WALK_SPEED.equals(field)) return WALK_AMPLITUDE;
-                if (WALK_POSITION.equals(field)) return tick * WALK_AMPLITUDE;
-                return rest.input(field);
-            }
-
-            @Override
-            public float carried(@NotNull String field) {
-                return rest.carried(field);
-            }
-
-            @Override
-            public float question(@NotNull String receiver, @NotNull String question) {
-                return rest.question(receiver, question);
-            }
-
-            @Override
-            public float element(@NotNull String receiver, int index) {
-                return rest.element(receiver, index);
-            }
-
-            @Override
-            public boolean is(@NotNull String member, @NotNull String constant) {
-                return rest.is(member, constant);
-            }
-
-            @Override
-            public boolean has(@NotNull String member) {
-                return rest.has(member);
-            }
+        return field -> {
+            if (AGE_IN_TICKS.equals(field)) return tick;
+            if (!walking) return 0d;
+            if (WALK_SPEED.equals(field)) return WALK_AMPLITUDE;
+            if (WALK_POSITION.equals(field)) return tick * WALK_AMPLITUDE;
+            return 0d;
         };
     }
 

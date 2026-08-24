@@ -9,13 +9,18 @@ import java.util.OptionalDouble;
  * One value a shipped pose expression computes - the arithmetic vanilla runs to decide where a bone
  * goes, read back off the table rather than reproduced by hand.
  *
- * <p>Seven arms: a literal, the three ways the render state is read, a read of a channel the pose
- * has already written, an operation, and the join of a choice. Every operation is {@link Op},
- * ternaries included, so an arity is a property of the operator rather than of the arm carrying it.
+ * <p>Five arms: a literal, a field read off the render state, a read of a channel the pose has
+ * already written, an operation, and the join of a choice. Every operation is {@link Op}, ternaries
+ * included, so an arity is a property of the operator rather than of the arm carrying it.
  *
  * <p>There is no arm for a loop and none for a call. A bounded loop was unrolled and a helper was
  * inlined while the table was written, so both are gone by the time an expression exists here, and
  * what survives depends only on the inputs a caller supplies.
+ *
+ * <p>There is no arm for a figure a model keeps between poses, for a question asked of something the
+ * render state holds, or for an element of an array it holds. Each of those is a fact about a subject
+ * standing still, which the generator answers where it knows the subject rather than leaving to
+ * whoever draws it.
  */
 public sealed interface PoseExpr {
 
@@ -37,40 +42,6 @@ public sealed interface PoseExpr {
      * @param field the vanilla render-state field name
      */
     record Input(@NotNull String field) implements PoseExpr {}
-
-    /**
-     * A figure the model keeps between poses rather than reads off the render state.
-     *
-     * <p>Apart from {@link Input} because the two are answered from different places: an input is a
-     * field of the render state a caller is already building, and this is a field of the MODEL, whose
-     * value is how many times that model has been posed. A caller that has none to supply supplies
-     * nothing and gets the frame vanilla computes the first time it poses the model, because the only
-     * write the table can carry is a step added to whatever the figure already held.
-     *
-     * @param field the vanilla model field name
-     */
-    record Carried(@NotNull String field) implements PoseExpr {}
-
-    /**
-     * A question asked of a reference the render state holds - whether an animation is running,
-     * whether a hand is empty.
-     *
-     * <p>The reference asked is part of the identity as much as the question is: whether the right
-     * hand is empty and whether the left is are two inputs, and a caller answering one of them
-     * twice would pose both hands the same way.
-     *
-     * @param receiver the vanilla render-state member the question is asked of
-     * @param question the vanilla method name that asks it
-     */
-    record InputFn(@NotNull String receiver, @NotNull String question) implements PoseExpr {}
-
-    /**
-     * One element of an array the render state holds, pinned at the index that picked it.
-     *
-     * @param receiver the vanilla render-state member the array was read from
-     * @param index the index the pose reads
-     */
-    record InputElement(@NotNull String receiver, int index) implements PoseExpr {}
 
     /**
      * A read of a bone channel's current value.

@@ -36,55 +36,29 @@ import java.util.Optional;
  * A step naming one channel is exactly a single-axis {@code mulPose}, {@code rotationZYX} reducing to
  * it when the other two angles are zero.
  *
- * <p><b>An unanswered figure is not always zero.</b> A pose names the render-state figures it could
- * not derive so that a caller who models none of them still gets a frame vanilla draws - and that
- * only holds where the figure rests at nothing. Several do not: a living subject's {@code ageScale}
- * and a humanoid's {@code speedValue} are built at one, and a humanoid DIVIDES by the second, so
- * answering zero is a collapsed subject and a NaN rather than a still one. {@link #inputDefaults}
- * carries what each named figure is built at, and is one table shared by every pose rather than a
- * fact of any single model.
- *
- * <p><b>An unanswered enum member has no zero to fall back on at all.</b> Where a figure nobody
- * models rests at nothing, a member matching no constant is in a state no enum is in - so a pose
- * switching on one takes whichever arm the switch ends at rather than the arm the subject stands in,
- * and a humanoid read that way swings an arm forty-four degrees forward while standing still.
- * {@link #restDefaults} carries the constant each member's own render state builds it holding. It is
- * per model rather than shared, because a bare field name spans more than one type: a parrot's
- * {@code pose} and every other subject's are two fields, and the model's own {@code setupAnim} is
- * what says which of them is being read. A subject whose answer is its own overrides this.
- *
- * <p><b>A question rests at nothing only by accident.</b> Where a figure the state builds at zero
- * and one nobody models are the same number, a reference the state holds is a whole value and every
- * component of it is an answer a subject stands at - an armour stand's legs splay a degree each way
- * before anything happens to it. {@link #questionDefaults} carries what each named question rests
- * answering, keyed per model for the reason {@link #restDefaults} is: a bare receiver name spans
- * more than one type, and a stand's {@code rightArmPose} is a triple of angles beside a humanoid's
- * arm pose.
+ * <p><b>The only figures a shipped pose names are the ones the tick drives.</b> Everything a subject
+ * standing still answers about itself was answered where the table was written - the constant an
+ * enum member rests holding, what a question of something the render state holds rests at, what a
+ * figure its own render state builds it at - so a channel is either a number or a function of
+ * elapsed age and the stride, and a caller supplying none of those gets the frame vanilla draws
+ * before anything has happened to the subject.
  *
  * @param container the steps the container is composed of, outermost first, each carrying the
  *     expression its written channels hold
  * @param bones the expression each bone channel is written with, by bone name
  * @param clips the authored clips this model plays, in the order it plays them
- * @param inputDefaults what each named figure reads as before anything has happened to the subject,
- *     holding only those built at something other than zero
- * @param restDefaults the constant each named enum member's own render state builds it holding
- * @param questionDefaults what each named question rests answering, keyed
- *     {@code receiver.question} and holding only those answering something other than zero
  * @param refusal why there is no pose here, or empty when the rest is the whole answer
  */
 public record EntityPose(
     @NotNull List<Map<PoseChannel, PoseExpr>> container,
     @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
     @NotNull List<Clip> clips,
-    @NotNull Map<String, Float> inputDefaults,
-    @NotNull Map<String, String> restDefaults,
-    @NotNull Map<String, Float> questionDefaults,
     @NotNull Optional<String> refusal
 ) {
 
     /** The pose of a model that poses nothing, which is a real answer rather than a missing one. */
     public static final @NotNull EntityPose NONE =
-        new EntityPose(List.of(), Map.of(), List.of(), Map.of(), Map.of(), Map.of(), Optional.empty());
+        new EntityPose(List.of(), Map.of(), List.of(), Optional.empty());
 
     /**
      * One authored clip this model plays, and what it plays it at.

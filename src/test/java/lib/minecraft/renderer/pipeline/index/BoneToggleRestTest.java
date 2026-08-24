@@ -132,7 +132,7 @@ class BoneToggleRestTest {
         Entity bee = entities.get("minecraft:bee");
         assertNotNull(bee, "minecraft:bee is expected to load");
 
-        assertEquals(true, PoseEvaluator.drawsAtRest(bee.pose(), bee.model(), "stinger", bee.restingState()),
+        assertEquals(true, PoseEvaluator.drawsAtRest(bee.pose(), bee.model(), "stinger"),
             "the model draws the sting on a bee that has not stung");
         assertTrue(bee.model().getBones().containsKey("stinger"), "and the resting mesh carries it");
     }

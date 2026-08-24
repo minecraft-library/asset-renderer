@@ -95,11 +95,6 @@ import java.util.Set;
  *     before the body or any layer is drawn, so one sequence reaches the body, each overlay pass and
  *     anything worn. Empty for a renderer that composes none, and for one whose own declaration
  *     could not be read whole
- * @param restingState which constant each of this entity's enum render-state fields holds before
- *     anything has happened to it, keyed by the field's own name. A pose that turns on one of these
- *     is asking a question no default can answer - "not any constant" is a state no enum is in - and
- *     what the subject rests at is its own rather than its model's: one {@code IllagerModel} serves
- *     every illager, and the pillager is the one that hangs its arms
  */
 @ClassBuilder
 public record Entity(
@@ -116,21 +111,18 @@ public record Entity(
     @NotNull Layers layers,
     @NotNull List<String> members,
     @NotNull EntityPose pose,
-    @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform,
-    @NotNull Map<String, String> restingState
+    @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform
 ) {
 
     /**
      * Normalises a never-set {@link #members} to an empty (singleton) list, a never-set
-     * {@link #pose} to the pose of a model that poses nothing, a never-set
-     * {@link #renderTransform} to a renderer that composes nothing, and a never-set
-     * {@link #restingState} to nothing answered, so callers can omit any of them.
+     * {@link #pose} to the pose of a model that poses nothing, and a never-set
+     * {@link #renderTransform} to a renderer that composes nothing, so callers can omit any of them.
      */
     public Entity {
         members = members == null ? List.of() : members;
         pose = pose == null ? EntityPose.NONE : pose;
         renderTransform = renderTransform == null ? List.of() : renderTransform;
-        restingState = restingState == null ? Map.of() : restingState;
     }
 
     /**

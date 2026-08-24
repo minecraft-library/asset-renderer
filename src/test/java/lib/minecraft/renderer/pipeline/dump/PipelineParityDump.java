@@ -1372,11 +1372,6 @@ public final class PipelineParityDump {
                 case INT -> "iconst(" + (int) literal.value();
             }).append(')');
             case PoseExpr.Input input -> text.append("input(").append(input.field()).append(')');
-            case PoseExpr.Carried carried -> text.append("carried(").append(carried.field()).append(')');
-            case PoseExpr.InputFn question -> text.append("input_fn(")
-                .append(question.receiver()).append(',').append(question.question()).append(')');
-            case PoseExpr.InputElement element -> text.append("input_element(")
-                .append(element.receiver()).append(',').append(element.index()).append(')');
             case PoseExpr.BoneRead read -> text.append("bone(")
                 .append(read.bone()).append(',').append(read.channel().token()).append(')');
             case PoseExpr.Op operation -> {
@@ -1404,24 +1399,11 @@ public final class PipelineParityDump {
         @NotNull PosePredicate predicate, @NotNull Map<Object, Integer> written, @NotNull StringBuilder text) {
 
         if (alreadyWritten(predicate, written, text)) return;
-        switch (predicate) {
-            case PosePredicate.Constant decided -> text.append("always(").append(decided.value()).append(')');
-            case PosePredicate.Is test -> text.append("is(")
-                .append(test.member()).append(',').append(test.constant()).append(')');
-            case PosePredicate.Has present -> text.append("has(").append(present.member()).append(')');
-            case PosePredicate.Not not -> {
-                text.append("not(");
-                poseNode(not.operand(), written, text);
-                text.append(')');
-            }
-            case PosePredicate.Compare compare -> {
-                text.append(compare.comparison().token()).append('(');
-                poseNode(compare.left(), written, text);
-                text.append(',');
-                poseNode(compare.right(), written, text);
-                text.append(')');
-            }
-        }
+        text.append(predicate.comparison().token()).append('(');
+        poseNode(predicate.left(), written, text);
+        text.append(',');
+        poseNode(predicate.right(), written, text);
+        text.append(')');
     }
 
     /**

@@ -31,13 +31,12 @@ import java.util.Set;
  * The raw form of {@code entity_poses.json}'s {@code poses} member - one {@link EntityPose} per
  * model class simple name, which is what a geometry coordinate is headed with.
  *
- * <p>The file's {@code input_defaults} and {@code rest_defaults} are read with it and handed to each
- * pose - the first one keyspace across the whole table, the second keyed per model because a bare
- * field name spans more than one type. {@code clips} is read too, and each play site is resolved to
- * its table here rather than at render, so nothing downstream needs the file's global index and a
- * site naming a clip the file does not carry fails where the file is read. Only {@code models} is
- * left undeclared for Gson to drop: it restates which clips a model plays without the rate and
- * amplitude it plays them at, which are the facts {@code poses} carries in full.
+ * <p>{@code clips} is read with it, and each play site is resolved to its table here rather than at
+ * render, so nothing downstream needs the file's global index and a site naming a clip the file does
+ * not carry fails where the file is read. What the file carries beside those is left undeclared for
+ * Gson to drop: {@code models} restates which clips a model plays without the rate and amplitude it
+ * plays them at, and the three defaults tables answer questions a shipped pose no longer asks - every
+ * one of them was resolved where the table was written.
  *
  * <p><b>Walked by hand rather than mapped.</b> An expression node is an object with one member
  * named for what it does, which no field-mapped record shape can describe; and a Gson of this
@@ -73,9 +72,6 @@ public record RawEntityPosesFile(
             @NotNull JsonElement root, @NotNull Type type, @NotNull JsonDeserializationContext context) {
 
             if (!root.isJsonObject()) throw new PipelineException("entity poses: the file is not an object");
-            Map<String, Float> defaults = inputDefaults(root.getAsJsonObject().get("input_defaults"));
-            JsonElement resting = root.getAsJsonObject().get("rest_defaults");
-            JsonElement answers = root.getAsJsonObject().get("question_defaults");
             Map<String, PoseClip> tables = clipTables(root.getAsJsonObject().get("clips"));
             Map<String, List<Map<PoseChannel, PoseExpr>>> transforms =
                 renderTransforms(root.getAsJsonObject().get("renderers"));
@@ -85,9 +81,8 @@ public record RawEntityPosesFile(
 
             Map<String, EntityPose> out = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> entry : poses.getAsJsonObject().entrySet())
-                out.put(entry.getKey(), pose(entry.getKey(), object(entry.getValue(), entry.getKey()),
-                    defaults, restDefaults(resting, entry.getKey()),
-                    questionDefaults(answers, entry.getKey()), tables));
+                out.put(entry.getKey(),
+                    pose(entry.getKey(), object(entry.getValue(), entry.getKey()), tables));
             return new RawEntityPosesFile(Collections.unmodifiableMap(out), transforms);
         }
 
@@ -128,73 +123,6 @@ public record RawEntityPosesFile(
             shared.requireAllRead(renderer);
             if (!steps.isEmpty()) out.put(renderer, List.copyOf(steps));
         }
-        return Collections.unmodifiableMap(out);
-    }
-
-    /**
-     * What each named figure reads as before anything has happened to the subject.
-     *
-     * <p>Narrowed through {@code float} on the way in, on the same terms a literal is: the values
-     * are what a render state's own constructor built a float field at, and reading the decimal back
-     * as a double gives a number no float ever held.
-     */
-    private static @NotNull Map<String, Float> inputDefaults(@Nullable JsonElement node) {
-        if (node == null) return Map.of();
-        if (!node.isJsonObject())
-            throw new PipelineException("entity poses: 'input_defaults' is not an object");
-
-        Map<String, Float> out = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : node.getAsJsonObject().entrySet())
-            out.put(entry.getKey(), (float) entry.getValue().getAsDouble());
-        return Collections.unmodifiableMap(out);
-    }
-
-    /**
-     * The constant each enum member this model reads rests holding.
-     *
-     * <p>Keyed by model rather than flat, because a bare field name spans more than one type: a
-     * parrot's {@code pose} is not the {@code pose} every other subject carries, and the model's own
-     * {@code setupAnim} is what says which of them a read names.
-     */
-    private static @NotNull Map<String, String> restDefaults(
-        @Nullable JsonElement node, @NotNull String model) {
-
-        if (node == null) return Map.of();
-        if (!node.isJsonObject())
-            throw new PipelineException("entity poses: 'rest_defaults' is not an object");
-
-        JsonElement held = node.getAsJsonObject().get(model);
-        if (held == null) return Map.of();
-
-        Map<String, String> out = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : object(held, model).entrySet())
-            out.put(entry.getKey(), entry.getValue().getAsString());
-        return Collections.unmodifiableMap(out);
-    }
-
-    /**
-     * What each question this model asks rests answering, keyed {@code receiver.question}.
-     *
-     * <p>Keyed by model for the reason the enum constants are: a bare receiver name spans more than
-     * one type, and an armour stand's {@code rightArmPose} is a triple of angles beside a humanoid's
-     * arm pose.
-     *
-     * <p>Narrowed through {@code float} on the way in, on the same terms every other numeric read
-     * here is: the values are components a record's own initialiser built at float width.
-     */
-    private static @NotNull Map<String, Float> questionDefaults(
-        @Nullable JsonElement node, @NotNull String model) {
-
-        if (node == null) return Map.of();
-        if (!node.isJsonObject())
-            throw new PipelineException("entity poses: 'question_defaults' is not an object");
-
-        JsonElement held = node.getAsJsonObject().get(model);
-        if (held == null) return Map.of();
-
-        Map<String, Float> out = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : object(held, model).entrySet())
-            out.put(entry.getKey(), (float) entry.getValue().getAsDouble());
         return Collections.unmodifiableMap(out);
     }
 
@@ -292,14 +220,11 @@ public record RawEntityPosesFile(
 
     /** One model's pose, or the record of why it has none. */
     private static @NotNull EntityPose pose(
-        @NotNull String model, @NotNull JsonObject node, @NotNull Map<String, Float> defaults,
-        @NotNull Map<String, String> resting, @NotNull Map<String, Float> answers,
-        @NotNull Map<String, PoseClip> tables) {
+        @NotNull String model, @NotNull JsonObject node, @NotNull Map<String, PoseClip> tables) {
 
         JsonElement refused = node.get("refused");
         if (refused != null)
-            return new EntityPose(List.of(), Map.of(), List.of(), Map.of(), Map.of(), Map.of(),
-                Optional.of(refused.getAsString()));
+            return new EntityPose(List.of(), Map.of(), List.of(), Optional.of(refused.getAsString()));
 
         Shared shared = Shared.of(model, node.get("shared"));
 
@@ -330,7 +255,7 @@ public record RawEntityPosesFile(
         // Nothing reads the order for meaning, but the parity dump digests this map, and a digest
         // over a map that flaps is a row that fails its own reproducibility check and nothing else.
         return new EntityPose(List.copyOf(container), Collections.unmodifiableMap(bones),
-            List.copyOf(clips), defaults, resting, answers, Optional.empty());
+            List.copyOf(clips), Optional.empty());
     }
 
     /**
@@ -471,15 +396,6 @@ public record RawEntityPosesFile(
             case "dconst" -> new PoseExpr.Const(body.getAsDouble(), PoseOperator.Width.DOUBLE);
             case "iconst" -> new PoseExpr.Const(body.getAsInt(), PoseOperator.Width.INT);
             case "input" -> new PoseExpr.Input(body.getAsString());
-            case "carried" -> new PoseExpr.Carried(body.getAsString());
-            case "input_fn" -> {
-                JsonArray asked = array(body, model);
-                yield new PoseExpr.InputFn(asked.get(0).getAsString(), asked.get(1).getAsString());
-            }
-            case "input_element" -> {
-                JsonArray indexed = array(body, model);
-                yield new PoseExpr.InputElement(indexed.get(0).getAsString(), indexed.get(1).getAsInt());
-            }
             case "bone" -> {
                 JsonArray read = array(body, model);
                 String bone = read.get(0).getAsString();
@@ -509,25 +425,16 @@ public record RawEntityPosesFile(
         String token = only.getKey();
         JsonElement body = only.getValue();
 
-        PosePredicate.Comparison comparison = PosePredicate.Comparison.ofToken(token);
-        if (comparison != null) {
-            JsonArray operands = array(body, model);
-            return new PosePredicate.Compare(comparison,
-                expression(model, operands.get(0), shared), expression(model, operands.get(1), shared));
-        }
+        if ("ref".equals(token)) return shared.condition(model, body.getAsInt());
 
-        return switch (token) {
-            case "ref" -> shared.condition(model, body.getAsInt());
-            case "always" -> new PosePredicate.Constant(body.getAsBoolean());
-            case "is" -> {
-                JsonArray test = array(body, model);
-                yield new PosePredicate.Is(test.get(0).getAsString(), test.get(1).getAsString());
-            }
-            case "has" -> new PosePredicate.Has(body.getAsString());
-            case "not" -> new PosePredicate.Not(predicate(model, body, shared));
-            default -> throw new PipelineException(
+        PosePredicate.Comparison comparison = PosePredicate.Comparison.ofToken(token);
+        if (comparison == null)
+            throw new PipelineException(
                 "entity poses: %s turns on '%s', which this renderer does not know how to read", model, token);
-        };
+
+        JsonArray operands = array(body, model);
+        return new PosePredicate(comparison,
+            expression(model, operands.get(0), shared), expression(model, operands.get(1), shared));
     }
 
     private static @NotNull Map.Entry<String, JsonElement> single(

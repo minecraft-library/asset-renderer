@@ -573,7 +573,7 @@ hands each renderer the one its subject wears. There is no armour file; the shel
   unconditional `CROSSED`. Answering no constant at all is a state no enum is in, and it drew three
   illagers with the wrong pair of arms.
 - **A question about a reference nobody supplied rests at nothing, and `isEmpty` is the exception**:
-  a stack nothing was put in is empty, so `PoseEvaluator.restingIn` answers it true. Answering
+  a stack nothing was put in is empty, so `PoseFold` answers it true where it resolves one. Answering
   nothing says the opposite, and undressed a zombie nautilus of the corals it wears unarmoured.
 - **An equipment layer carries a `bones` node of its own, and `pose` is what names the class it is
   read against.** A layer poses its mesh with the model class the renderer hands it, which is not
@@ -775,9 +775,21 @@ throws on all four crossed-arm illagers and the armour stand. It still throws wh
 is real: a bone the mesh does have, reading one it does not.
 
 **What varies with the tick is elapsed age and nothing else.** An offline subject stands still, so
-`PoseKit`'s frame is `PoseEvaluator.restingIn` with `ageInTicks` answered as the tick - it walks at no
-speed, swings at nothing and holds nothing. Starting from `restingIn` rather than `ZERO` is what keeps
-a humanoid's arms off NaN.
+`PoseKit`'s frame answers `ageInTicks` as the tick and nothing to everything else - it walks at no
+speed, swings at nothing and holds nothing.
+
+**A shipped pose names no figure but the three the tick drives, and the reader answers nothing to
+anything else.** Everything a subject standing still says about itself is resolved where the table is
+written - which constant an enum member holds, what a question of a reference the state holds rests
+at, what a figure its own render state builds it at - so a channel is a number or a function of
+elapsed age and the stride, and there is nothing a caller can leave out and be wrong about. That is
+what `PoseEvaluator.AT_REST` is, and it is why the evaluator's arms are a literal, a figure, a bone
+read, an operation and a choice, and a choice turns on a numeric comparison alone.
+`EntityPoseLoadTest` pins it, because the failure mode is a silent zero: the arm a switch ends at is
+not the arm a subject stands in, and it cost the skeleton family a forty-four degree forward swing at
+rest before the fold reached it. **`entity_poses.json` still carries `input_defaults`,
+`rest_defaults` and `question_defaults`, and nothing reads them** - they are what the generator
+resolved against, kept in the table until the emitter stops writing them.
 
 **No flag channel in the corpus reads elapsed time**, so per-frame visibility agrees with the resting
 strip on every subject at every tick, and the strip is the only thing that applies one. That is
@@ -994,6 +1006,15 @@ Entity:
   `Villager.Profession.drawsBadge()` and `isBaby` are what suppress one.
 - Do not recover the armour frame from the wearer's `body` bone - it carries no rotation member, and
   a baby's body pivot is not a mesh transform.
+- Do not delete the `PoseOperator` constants no shipped row uses - thirty-three of the forty-nine
+  today. The roster is the WALK's vocabulary for vanilla's own method calls rather than dead API:
+  `Mth.sqrt`, `Mth.rotLerp`, `Easing.inCirc` and the rest are what a `setupAnim` body is read
+  THROUGH, so dropping one turns the next version's pose into a refusal for a subject that used to
+  be read. `PoseOperatorMirrorTest` compares the two copies character for character, so the
+  renderer's cannot shrink without the generator's, which is where that reach lives. It buys no
+  declared type either - an enum is one type whatever its constants are - and the only type behind it
+  is `VanillaEase`, the bit-exact reproduction of vanilla's easing, which has a test of its own on
+  each side.
 
 ## Developer scripts
 

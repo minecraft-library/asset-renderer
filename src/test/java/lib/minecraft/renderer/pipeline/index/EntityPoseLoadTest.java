@@ -198,14 +198,8 @@ class EntityPoseLoadTest {
 
     private static void edges(@NotNull PosePredicate predicate, @NotNull Map<Object, Integer> reached) {
         if (reached.merge(predicate, 1, Integer::sum) > 1) return;
-        switch (predicate) {
-            case PosePredicate.Not not -> edges(not.operand(), reached);
-            case PosePredicate.Compare compare -> {
-                edges(compare.left(), reached);
-                edges(compare.right(), reached);
-            }
-            default -> { /* a leaf reaches nothing */ }
-        }
+        edges(predicate.left(), reached);
+        edges(predicate.right(), reached);
     }
 
     @Test
@@ -233,32 +227,51 @@ class EntityPoseLoadTest {
     }
 
     @Test
-    @DisplayName("every enum member a pose switches on rests holding one of its own constants")
-    void noSwitchedMemberGoesUnanswered() {
-        // Answering false to every constant is a state no enum is in, so the switch lands on whichever
-        // arm it ends at rather than the arm the subject stands in - which is not a wrong number but a
-        // wrong pose. It cost the whole skeleton family, both piglins and the enderman a forty-four
-        // degree forward arm swing at rest, and the parrot the flight pose a never-ticked one is in.
-        Map<String, Set<String>> unanswered = new TreeMap<>();
+    @DisplayName("a shipped pose names no figure but the three the tick drives")
+    void nothingButTheTickIsLeftToAnswer() {
+        // What the reader rests on. Everything a subject standing still answers about itself - which
+        // constant an enum member holds, what a question of a reference the state holds rests at,
+        // what a figure its own render state builds it at - is resolved where the table is written,
+        // so a channel is either a number or a function of elapsed age and the stride. A row that
+        // named anything else would be a question nothing offline can answer, and it would answer
+        // zero in silence: the arm a switch ends at is not the arm a subject stands in, and it cost
+        // the skeleton family a forty-four degree forward swing at rest before it was resolved.
+        Set<String> driven = Set.of("ageInTicks", "walkAnimationPos", "walkAnimationSpeed");
+        Map<String, Set<String>> named = new TreeMap<>();
         for (Map.Entry<String, Entity> subject : entities.entrySet()) {
             EntityPose pose = subject.getValue().pose();
             if (!pose.isReadable()) continue;
-            Set<String> switched = new TreeSet<>();
+            Set<String> reads = new TreeSet<>();
+            Map<Object, Boolean> walked = new IdentityHashMap<>();
             pose.bones().values().forEach(channels ->
-                channels.values().forEach(expr -> switched(expr, switched, new IdentityHashMap<>())));
-            pose.container().forEach(step -> step.values()
-                .forEach(expr -> switched(expr, switched, new IdentityHashMap<>())));
-            for (String member : switched) {
-                // A member reached through a call is not a field and has no constructor to rest in -
-                // what an item stack accessor answers is the subject's inventory, not its construction.
-                if (member.indexOf('(') >= 0 || member.indexOf('.') >= 0) continue;
-                if (subject.getValue().restingState().containsKey(member)) continue;
-                if (pose.restDefaults().containsKey(member)) continue;
-                unanswered.computeIfAbsent(subject.getKey(), key -> new TreeSet<>()).add(member);
-            }
+                channels.values().forEach(expr -> figures(expr, reads, walked)));
+            pose.container().forEach(step -> step.values().forEach(expr -> figures(expr, reads, walked)));
+            pose.clips().forEach(clip -> clip.arguments().forEach(expr -> figures(expr, reads, walked)));
+            subject.getValue().renderTransform().forEach(step ->
+                step.values().forEach(expr -> figures(expr, reads, walked)));
+            reads.removeAll(driven);
+            if (!reads.isEmpty()) named.put(subject.getKey(), reads);
         }
-        assertEquals(Map.of(), unanswered,
-            "a member nothing answers puts the subject in a state no enum is in");
+        assertEquals(Map.of(), named,
+            "a figure the tick does not drive is one nothing offline answers, and it answers zero silently");
+    }
+
+    /** Every render-state figure one expression reads, walked once per node rather than once per path. */
+    private static void figures(
+        @NotNull PoseExpr expr, @NotNull Set<String> reads, @NotNull Map<Object, Boolean> walked) {
+
+        if (walked.put(expr, Boolean.TRUE) != null) return;
+        switch (expr) {
+            case PoseExpr.Input input -> reads.add(input.field());
+            case PoseExpr.Op op -> op.operands().forEach(operand -> figures(operand, reads, walked));
+            case PoseExpr.Select select -> {
+                figures(select.whenTrue(), reads, walked);
+                figures(select.whenFalse(), reads, walked);
+                figures(select.condition().left(), reads, walked);
+                figures(select.condition().right(), reads, walked);
+            }
+            default -> { /* a literal and a bone read name no figure */ }
+        }
     }
 
     @Test
@@ -275,38 +288,6 @@ class EntityPoseLoadTest {
         assertFalse(hanging.bones().isEmpty(), "and a pillager takes one too");
         assertNotEquals(crossed.bones().get("arms"), hanging.bones().get("arms"),
             "one illager's crossed arms are not written the way another's are");
-    }
-
-    /** Every enum member one expression's conditions switch on, reached through both arms. */
-    private static void switched(
-        @NotNull PoseExpr expr, @NotNull Set<String> members, @NotNull Map<Object, Boolean> walked) {
-
-        if (walked.put(expr, Boolean.TRUE) != null) return;
-        switch (expr) {
-            case PoseExpr.Op op -> op.operands().forEach(operand -> switched(operand, members, walked));
-            case PoseExpr.Select select -> {
-                switched(select.whenTrue(), members, walked);
-                switched(select.whenFalse(), members, walked);
-                switched(select.condition(), members, walked);
-            }
-            default -> { /* a leaf carries no condition */ }
-        }
-    }
-
-    /** Every enum member one condition switches on, which is the same question a step lower. */
-    private static void switched(
-        @NotNull PosePredicate predicate, @NotNull Set<String> members, @NotNull Map<Object, Boolean> walked) {
-
-        if (walked.put(predicate, Boolean.TRUE) != null) return;
-        switch (predicate) {
-            case PosePredicate.Is check -> members.add(check.member());
-            case PosePredicate.Compare compare -> {
-                switched(compare.left(), members, walked);
-                switched(compare.right(), members, walked);
-            }
-            case PosePredicate.Not not -> switched(not.operand(), members, walked);
-            default -> { /* a presence test or a decided constant switches on no member */ }
-        }
     }
 
     // ------------------------------------------------------------------------------------

@@ -10,8 +10,8 @@ import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import org.joml.Vector3f;
 import org.jetbrains.annotations.NotNull;
+import org.joml.Vector3f;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -85,8 +85,8 @@ class ClipKitTest {
         mesh.getBones().put("body", new EntityModelData.Bone());
         mesh.getBones().put("head", child("body"));
 
-        EntityModelData posed = PoseKit.posed(EntityOptions.PoseMode.IDLE,
-            scaling("body"), Map.of(), mesh, 0);
+        EntityModelData posed =
+            PoseKit.posed(EntityOptions.PoseMode.IDLE, scaling("body"), mesh, 0);
 
         assertTrue(posed.getBones().get("body").isPoseScaled(), "the bone the clip names is scaled");
         assertFalse(posed.getBones().get("head").isPoseScaled(),
@@ -158,10 +158,10 @@ class ClipKitTest {
         EntityPose pose = new EntityPose(List.of(), Map.of(), List.of(new EntityPose.Clip(
             "test", EntityPose.Gate.WALK,
             List.of(constant(at), constant(1f), constant(WALK_RATE), constant(1f)), clip)),
-            Map.of(), Map.of(), Map.of(), Optional.empty());
+            Optional.empty());
 
         Map<PoseChannel, Float> written =
-            ClipKit.deltas(pose, mesh, PoseEvaluator.ZERO).get("body");
+            ClipKit.deltas(pose, mesh, PoseEvaluator.AT_REST).get("body");
         assertNotNull(written, "the clip displaces the bone it names");
         return written.get(PoseChannel.X_ROT);
     }
@@ -173,7 +173,7 @@ class ClipKitTest {
                 new PoseClip.Keyframe(0f, 0f, 0f, 0.5f, PoseClip.Interpolation.LINEAR)))));
         return new EntityPose(List.of(), Map.of(), List.of(new EntityPose.Clip(
             "test", EntityPose.Gate.STATIC, List.of(), clip)),
-            Map.of(), Map.of(), Map.of(), Optional.empty());
+            Optional.empty());
     }
 
     private static @NotNull EntityModelData.Bone child(@NotNull String parent) {

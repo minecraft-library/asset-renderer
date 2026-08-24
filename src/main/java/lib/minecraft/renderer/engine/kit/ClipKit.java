@@ -12,6 +12,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToDoubleFunction;
 
 /**
  * The authored clips a model plays, evaluated at one instant into what they displace each bone by.
@@ -61,12 +62,12 @@ public final class ClipKit {
      *
      * @param pose the model's pose, read for the clips it plays
      * @param model the mesh being posed, which is what says a bone exists to displace
-     * @param frame what the caller answers about the subject
+     * @param frame what each render-state figure reads as
      * @return the displacement each written channel takes, by bone name, empty when nothing plays
      */
     public static @NotNull Map<String, Map<PoseChannel, Float>> deltas(
         @NotNull EntityPose pose, @NotNull EntityModelData model,
-        @NotNull PoseEvaluator.Frame frame) {
+        @NotNull ToDoubleFunction<String> frame) {
 
         if (pose.clips().isEmpty()) return Map.of();
 
@@ -98,7 +99,7 @@ public final class ClipKit {
      */
     private static Drive driveOf(
         @NotNull EntityPose.Clip site, @NotNull EntityModelData model,
-        @NotNull PoseEvaluator.Frame frame) {
+        @NotNull ToDoubleFunction<String> frame) {
 
         return switch (site.gate()) {
             // Held at its first instant, at the full amplitude - vanilla's own `apply(0L, 1.0f)`.
