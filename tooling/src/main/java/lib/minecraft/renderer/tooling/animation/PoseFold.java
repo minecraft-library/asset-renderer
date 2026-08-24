@@ -32,11 +32,11 @@ import java.util.Set;
  * answer nothing. Divergence here does not fail - it poses a subject somewhere vanilla never puts it
  * and renders as though it were deliberate.
  *
- * <p><b>Arithmetic is evaluated to decide a branch and never to rewrite a value.</b> A surviving
- * operation is rebuilt over folded operands rather than collapsed onto its result, so no float that
- * reaches a render is recomputed here and the residual's every number is one the walk already
- * produced. Deciding is safe on a different footing: no comparison in the corpus has operands close
- * enough for the width they are evaluated at to change which arm is taken.
+ * <p><b>An operation every operand of which is a literal collapses onto its result</b>, through the
+ * same builder the walk folds with - so what is written is what that operation would have answered
+ * had the walk been able to resolve it, operand for operand and narrowing at each operator's own
+ * width. Evaluating the chain in double and narrowing once at the end is the thing that would part
+ * from it, and it is not what happens here.
  *
  * <p><b>A bone read is never folded</b>, though not one of them is live. A channel written back to
  * what the mesh already held keeps the mesh's own degrees, and a literal standing in for that read
@@ -162,12 +162,16 @@ final class PoseFold {
             case PoseExpr.InputElement ignored -> PoseExpr.Const.of(0f);
             case PoseExpr.InputFn question ->
                 PoseExpr.Const.of(questionAtRest(question.receiver(), question.question()));
-            // Rebuilt rather than folded: an operation over literals is left standing, because
-            // collapsing it would recompute a float the walk already produced.
+            // Collapsed where every operand is a literal, through the SAME builder the walk itself
+            // folds with - so an operation resolved here answers the bits it would have answered had
+            // the walk been able to resolve it, rather than the bits some algebraically equal
+            // shortcut lands on. Each operator narrows at its own width on the way through, which is
+            // the whole of why this is done operand by operand and not by evaluating the chain in
+            // double and narrowing once at the end.
             case PoseExpr.Op operation -> {
                 List<PoseExpr> operands = new ArrayList<>(operation.operands().size());
                 for (PoseExpr operand : operation.operands()) operands.add(expression(operand));
-                yield new PoseExpr.Op(operation.operator(), List.copyOf(operands));
+                yield PoseExpr.Op.of(operation.operator(), List.copyOf(operands));
             }
             case PoseExpr.Select select -> {
                 PosePredicate condition = condition(select.condition());
