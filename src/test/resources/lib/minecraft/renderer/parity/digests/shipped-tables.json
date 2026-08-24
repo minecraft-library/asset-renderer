@@ -40,12 +40,12 @@
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "6193d060a175c2820165206b7020c89d4cac6bb14c43895cbd16aa8c15bbb4c5"
+      "sha256": "9ab5522ab190cb38e5a176a66e0e215c9ec25b6995f5842c1f674b1f22f2cb47"
     },
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "625e31090a35754e3162a07fa96fc36740707e2fbceff42107f81b22a8fe1658"
+      "sha256": "aa15156d4382c9888fe4cedfe3864b2aed26ad68ddf65ef7eafc68539dcddcb8"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "6980ee5a4c6cb0a771ff4632bffb288b108867e8",
+    "asset_sha": "f8bb3310be5ab6ef2ec32fc12678f155dc5818d3",
     "counts": {
       "digests": 11
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "test",
-    "reason": "folding a pose against the frame its row can tell apart rather than the raw resting map; AdultPiglinModel 1659->112, BabyPiglinModel 1659->112, HumanoidModel 1401->87, every render sweep at zero movers",
+    "reason": "IllagerModel split into a row per resting frame, each body naming the key it takes; 117 of 117 folded, graph 5523->5247, every render sweep at zero movers",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-24T01:54:51Z",
+    "timestamp": "2026-08-24T02:29:13Z",
     "tool_version": "1.0.0"
   }
 }

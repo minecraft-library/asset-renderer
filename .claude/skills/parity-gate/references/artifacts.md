@@ -45,12 +45,12 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 3042 | 138730 ms | yes |
 | `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | - | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | - | yes |
-| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 5 | 5 | 14 | 29060 ms | yes |
-| `manifest.dump.packs` | manifest | STORE | `parityDump` | 5 | 5 | 14 | 29060 ms | yes |
+| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 5 | 5 | 14 | 28083 ms | yes |
+| `manifest.dump.packs` | manifest | STORE | `parityDump` | 5 | 5 | 14 | 28083 ms | yes |
 | `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 17186 ms | yes |
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | - | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | - | yes |
-| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 44605 ms | yes |
+| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 43823 ms | yes |
 | `digest.shipped-tables` | digest-set | STORE | `test` | 1 | 1 | 11 | - | yes |
 | `digest.colormap-lut` | digest-set | STORE | `slowTest` | 1 | 2 | 3 | - | yes |
 | `digest.dump-sections` | - | EXTERNAL | - | - | - | - | - | - |
