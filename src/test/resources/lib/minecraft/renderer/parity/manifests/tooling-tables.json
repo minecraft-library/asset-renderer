@@ -32,11 +32,11 @@
     },
     {
       "path": "entity_models.json",
-      "sha256": "faf76e785906d0b94e4064266938da7671d064c7195b4534ddb3557e7ed042b7"
+      "sha256": "2dc34fd3cb7550959f907b094ea93adcbdbc4f286f48a604b0bb90eab2bd909b"
     },
     {
       "path": "entity_poses.json",
-      "sha256": "e63afc1cdeed141f68ca7490a864336cf51e24b17db1105098a4e52e80f3012d"
+      "sha256": "e8863033756fd8a58fc73ec5355b4798efda5dc702952a49a83beda1e6d76874"
     },
     {
       "path": "glint_items.json",
@@ -56,14 +56,14 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "9420e013174bac98081cee879e5e4336bac00715ac3fd99a42fb7c7791416ba8",
+    "entityModels": "8b6e3d9ce1d3576042be299a3fabef17bbf099087608d3f97401b88e789973ac",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
     "asset_dirty": false,
-    "asset_sha": "c698179d1bc12465dc8f374e80c1c4a16a22cf89",
+    "asset_sha": "91256539b48469a4412c43868d63f8446ab0b7cf",
     "counts": {
       "files": 11,
       "logs": 8
@@ -73,7 +73,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "P4 settlements: texture refs, members, single-member transforms, four decoration members, undrawn merge intact; render transform composed at load moved five subjects' dump pose digests; all render sweeps zero movers over 402+90+1055+479+7+11+2 rows",
+    "reason": "shulker setupRotations read whole: render node out of entity_models, folded renderers row into entity_poses, addend and refusal log lines gone; all sweeps and both dumps zero movers",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -83,8 +83,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-24T07:17:18Z",
+    "timestamp": "2026-08-24T23:34:30Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 44843
+    "wall_time_ms": 45049
   }
 }

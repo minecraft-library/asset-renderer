@@ -40,12 +40,12 @@
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "bf50eeb468a763f9d82eef387f4b85d3f3f9ba0a18acbccc16040df26ab303d9"
+      "sha256": "35998d75c2dc56c43fdbf7875aa5e249927563ac7ab0a86d114fe59496e63d8c"
     },
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "410719e584cfd69c2f93c5aebbf23af51c8f649dae4e2a07c4e299f01b3cb0ef"
+      "sha256": "9fe42c7322ab9b9d721015e9a386f98880fc6a16dffba1e92769bee5df2803d4"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "c698179d1bc12465dc8f374e80c1c4a16a22cf89",
+    "asset_sha": "91256539b48469a4412c43868d63f8446ab0b7cf",
     "counts": {
       "digests": 11
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "test",
-    "reason": "P4 settlements: texture refs, members, single-member transforms, four decoration members, undrawn merge intact; render transform composed at load moved five subjects' dump pose digests; all render sweeps zero movers over 402+90+1055+479+7+11+2 rows",
+    "reason": "shulker setupRotations read whole: render node out of entity_models, folded renderers row into entity_poses, addend and refusal log lines gone; all sweeps and both dumps zero movers",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-24T07:17:17Z",
+    "timestamp": "2026-08-24T23:34:30Z",
     "tool_version": "1.0.0"
   }
 }
