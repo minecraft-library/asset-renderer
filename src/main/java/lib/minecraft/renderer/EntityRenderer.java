@@ -778,19 +778,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         if (offset.isEmpty()) return triangles;
         Vector2f by = offset.get();
+        // The wrap already rides the pass, baked at index build, so a frame whose offset lands on a
+        // whole turn - tick zero among them - has nothing to move and keeps the built triangles.
+        if (by.x() == 0f && by.y() == 0f) return triangles;
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle triangle : triangles) {
-            SurfaceTraits traits = triangle.traits();
             out.add(new VisibleTriangle(
                 triangle.position0(), triangle.position1(), triangle.position2(),
                 shifted(triangle.uv0(), by), shifted(triangle.uv1(), by), shifted(triangle.uv2(), by),
                 triangle.texture(), triangle.tintArgb(), triangle.normal(), triangle.shading(),
-                // Declared on the pass rather than inferred at the fetch: an offset carries a face
-                // off the sheet, and a face that merely ends a texel past it is a different thing
-                // the bound is right to hold.
-                new SurfaceTraits(traits.cullBackFaces(), traits.translucent(), traits.glinted(),
-                    traits.directionalLight(), traits.pass().withWrappedTexture(true)),
-                triangle.debugTag()));
+                triangle.traits(), triangle.debugTag()));
         }
         return out;
     }
@@ -982,7 +979,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private static int resolveOverlayTint(@NotNull Entity.OverlayLayer overlay, @NotNull AppearanceOptions appearance) {
         return overlay.tintBy()
-            .flatMap(TintAxis::ofToken)
             .flatMap(axis -> appearance.tint(axis).map(axis::resolve))
             .orElse(overlay.tintArgb());
     }

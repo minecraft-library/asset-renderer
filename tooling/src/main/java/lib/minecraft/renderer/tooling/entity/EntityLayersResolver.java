@@ -28,25 +28,26 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Node {@code layers[]} - the option-gated conditional rows: collar, markings, equipment, armor.
- * One roster pass; row order is roster order.
+ * The four option-gated decoration members - {@code collar}, {@code markings}, {@code armor} and
+ * {@code equipment[]} - each named for what it is, presence being its own gate. One roster pass;
+ * the {@code equipment} rows keep roster order and every node carries its {@code source} /
+ * {@code layer_index} authoring hints.
  *
  * <ul>
  *   <li><b>Armor</b> - a {@code HumanoidArmorLayer} site, carrying the worn-armor mesh as a
- *       plain {@code overlay.geometry} reference plus the armor set's two deformations, and the
- *       same shape again under {@code overlay.alternate} for the wearers vanilla hands a second,
+ *       plain {@code geometry} reference plus the armor set's two deformations, and the
+ *       same shape again under {@code alternate} for the wearers vanilla hands a second,
  *       genuinely distinct shell. That node names the appearance selection that reaches it, since
  *       vanilla reaches both its second sets through one flag but two of this pipeline's axes.</li>
  *   <li><b>Collar</b> - structural detection (a null-gated {@code DyeColor} state read in
- *       the typed submit); the gate mirrors vanilla's actual
- *       {@code collarColor != null && !isInvisible} branch as
- *       {@code when: {collar_color: "set"}}, rather than approximating it from
+ *       the typed submit); the member's presence mirrors vanilla's actual
+ *       {@code collarColor != null && !isInvisible} branch rather than approximating it from
  *       {@code state=tame}.</li>
  *   <li><b>Markings</b> - the enum-map shape whose axis token is the markings axis; emits
  *       {@code texture_by} plus the full {@code textures_by_value} map so textures are
  *       re-derived from the value at render rather than from a presence flag.</li>
  *   <li><b>Equipment</b> - {@link EntityEquipmentResolver} rows from call-site windows and
- *       bespoke layers.</li>
+ *       bespoke layers, each flattened to {@code slot} plus its payload.</li>
  * </ul>
  */
 final class EntityLayersResolver {
@@ -98,12 +99,14 @@ final class EntityLayersResolver {
     }
 
     /**
-     * The {@code layers} array in roster order, or {@code null} to omit.
+     * The four decoration members as one carrier, or {@code null} to omit them all.
      *
-     * @return the rows, or {@code null} when no site emits
+     * @return a node holding {@code collar} / {@code markings} / {@code armor} / {@code equipment}
+     *     where the roster emits each, or {@code null} when no site emits
      */
     @Nullable JsonTree resolve() {
-        List<JsonTree> rows = new ArrayList<>();
+        JsonTree carrier = JsonTree.object();
+        JsonTree equipmentRows = JsonTree.array();
         Map<MethodNode, AbstractInsnNode> lastAddLayer = new HashMap<>();
         for (EntityRendererResolver.LayerSite site : this.roster) {
             // The call-site window opens at the previous same-method site's addLayer (else
@@ -111,34 +114,49 @@ final class EntityLayersResolver {
             AbstractInsnNode windowStart = lastAddLayer.getOrDefault(site.method(), site.method().instructions.getFirst());
             lastAddLayer.put(site.method(), site.addLayer());
 
-            // A HumanoidArmorLayer site emits the humanoid classification row here (in roster
-            // order), keyed by the same exact class match used to detect the armor layer type.
+            // A HumanoidArmorLayer site emits the humanoid classification node here, keyed by the
+            // same exact class match used to detect the armor layer type.
             if (VanillaSourceClasses.Types.HUMANOID_ARMOR_LAYER.equals(site.layerClass())) {
-                rows.add(armorRow(site));
+                carrier.put("armor", armorNode(site));
                 continue;
             }
 
             ClassNode cn = this.cache.load(site.layerClass());
             if (cn == null) continue;
             if (EntityOverlayResolver.isCollarShaped(cn)) {
-                JsonTree collar = resolveCollar(site, cn);
-                if (collar != null) rows.add(collar);
+                carrier.putIf("collar", resolveCollar(site, cn));
                 continue;
             }
             EntityOverlayResolver.EnumMapOverlay enumMap = EntityOverlayResolver.findEnumMapOverlay(this.cache, cn);
             if (enumMap != null && isLayersRowToken(enumMap.token())) {
-                rows.add(resolveMarkings(site, enumMap));
+                carrier.put(MARKINGS_TOKEN, resolveMarkings(site, enumMap));
                 continue;
             }
             if (EntityOverlayResolver.referencesEquipmentLayerType(cn)) {
                 JsonTree bespoke = this.equipment.resolveBespoke(site, cn);
-                if (bespoke != null) rows.add(bespoke);
+                if (bespoke != null) equipmentRows.add(flattenedEquipment(bespoke));
                 continue;
             }
             JsonTree callSite = this.equipment.resolveCallSite(site, windowStart);
-            if (callSite != null) rows.add(callSite);
+            if (callSite != null) equipmentRows.add(flattenedEquipment(callSite));
         }
-        return rows.isEmpty() ? null : JsonTree.arrayOf(rows);
+        if (!equipmentRows.isEmpty()) carrier.put("equipment", equipmentRows);
+        return carrier.isEmpty() ? null : carrier;
+    }
+
+    /**
+     * One equipment row flattened: the {@code when.equipment} gate becomes {@code slot} - the
+     * member's own home saying what gates it - and the overlay payload rises to the row.
+     */
+    private static @NotNull JsonTree flattenedEquipment(@NotNull JsonTree row) {
+        JsonTree flat = JsonTree.object();
+        row.findString("source").ifPresent(source -> flat.put("source", source));
+        row.findInt("layer_index").ifPresent(index -> flat.putInt("layer_index", index));
+        row.findPath("when", "equipment").flatMap(JsonTree::asString)
+            .ifPresent(slot -> flat.put("slot", slot));
+        row.find("overlay").ifPresent(overlay ->
+            overlay.members().forEach(flat::put));
+        return flat;
     }
 
     /**
@@ -166,8 +184,8 @@ final class EntityLayersResolver {
     }
 
     /**
-     * The collar row: the layer's clinit texture (adult) rides {@code overlay.texture}; the
-     * tint is render-supplied via {@code tint_by}; the gate mirrors vanilla's actual
+     * The collar node: the layer's clinit texture (adult) rides {@code texture}; the tint is
+     * render-supplied via {@code tint_by}; the member's presence mirrors vanilla's actual
      * {@code collarColor != null} check rather than {@code state=tame}.
      */
     private @Nullable JsonTree resolveCollar(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
@@ -181,15 +199,12 @@ final class EntityLayersResolver {
         return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
-            .put("id", "collar")
-            .put("when", JsonTree.object().put("collar_color", "set"))
-            .put("overlay", JsonTree.object()
-                .put("texture", VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + texture)
-                .put("tint_by", "collar_color"));
+            .put("texture", VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + texture)
+            .put("tint_by", "collar_color");
     }
 
     /**
-     * The markings row: the full value map travels with the row.
+     * The markings node: the full value map travels with it.
      */
     private @NotNull JsonTree resolveMarkings(
         @NotNull EntityRendererResolver.LayerSite site,
@@ -203,29 +218,25 @@ final class EntityLayersResolver {
         return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
-            .put("id", MARKINGS_TOKEN)
-            .put("when", JsonTree.object().put(MARKINGS_TOKEN, "selected"))
-            .put("overlay", JsonTree.object()
-                .put("texture_by", MARKINGS_TOKEN)
-                .put("textures_by_value", byValue));
+            .put("texture_by", MARKINGS_TOKEN)
+            .put("textures_by_value", byValue);
     }
 
     /**
-     * The armor row: worn armor is drawn by a vanilla {@code HumanoidArmorLayer}, so the row's
-     * presence is a layer-roster fact and its {@code id} identifies it. The mesh the wearer is dressed
-     * in rides a plain {@code geometry} reference in the row's {@code overlay} body, where every other
-     * row keeps its payload, with the armor set's two deformations alongside it - the shell is
-     * registered ungrown, so two wearers differing only in a deformation share one geometry entry.
+     * The armor node: worn armor is drawn by a vanilla {@code HumanoidArmorLayer}, so the node's
+     * presence is a layer-roster fact and its name identifies it. The mesh the wearer is dressed in
+     * rides a plain {@code geometry} reference with the armor set's two deformations alongside it -
+     * the shell is registered ungrown, so two wearers differing only in a deformation share one
+     * geometry entry.
      *
-     * <p>Being armored IS wearing a resolved shell. A row whose mesh could not be resolved carries no
-     * reference and is an ERROR, which drops the wearer off the roster loudly rather than dressing it
-     * in a fallback that hides the failure.
+     * <p>Being armored IS wearing a resolved shell. A node whose mesh could not be resolved carries
+     * no reference and is an ERROR, which drops the wearer off the roster loudly rather than
+     * dressing it in a fallback that hides the failure.
      */
-    private @NotNull JsonTree armorRow(@NotNull EntityRendererResolver.LayerSite site) {
+    private @NotNull JsonTree armorNode(@NotNull EntityRendererResolver.LayerSite site) {
         JsonTree row = JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
-            .putInt("layer_index", site.layerIndex())
-            .put("id", "armor");
+            .putInt("layer_index", site.layerIndex());
 
         List<String> named = resolveArmorMeshes();
         String name = named.isEmpty() ? null : named.getFirst();
@@ -236,7 +247,7 @@ final class EntityLayersResolver {
             return row;
         }
         this.diagnostics.info("armor row: set '%s'", name);
-        JsonTree overlay = shellNode(set);
+        row.putAll(shellNode(set));
 
         // A second set is a distinct shell only when it is a distinct shell. Vanilla hands the
         // layer one set twice to say a wearer has only the one, and the piglin brute passes the
@@ -254,12 +265,12 @@ final class EntityLayersResolver {
                     this.diagnostics.error("armor row's second set '%s' names no axis option against '%s' - wearer left in one shell",
                         alternateName, name);
                 else {
-                    overlay.put("alternate", alternateNode(alternate, axis, option));
+                    row.put("alternate", alternateNode(alternate, axis, option));
                     this.diagnostics.info("armor row: second set '%s' selected by %s=%s", alternateName, axis, option);
                 }
             }
         }
-        return row.put("overlay", overlay);
+        return row;
     }
 
     /**
@@ -311,8 +322,8 @@ final class EntityLayersResolver {
 
     /**
      * One shell's payload - its registered mesh, the two deformations the armor layers apply to it,
-     * and the whole-mesh scale it is registered through. The adult shell writes this into the row's
-     * {@code overlay} and a baby shell writes the same shape into that overlay's {@code baby}.
+     * and the whole-mesh scale it is registered through. The adult shell writes this into the armor
+     * node itself and a second shell writes the same shape under {@code alternate}.
      */
     private @NotNull JsonTree shellNode(@NotNull ArmorMeshIndex.Set set) {
         JsonTree node = JsonTree.object()

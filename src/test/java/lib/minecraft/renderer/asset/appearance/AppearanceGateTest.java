@@ -49,7 +49,7 @@ class AppearanceGateTest {
         new ArmCase(new AppearanceGate.ChargedGate(),
             AppearanceOptions.builder().charged(true).build(),
             AppearanceOptions.defaults()),
-        new ArmCase(new AppearanceGate.TintedGate("wool_color", UNDERCOAT_TINT),
+        new ArmCase(new AppearanceGate.TintedGate(Optional.of(TintAxis.WOOL), UNDERCOAT_TINT),
             AppearanceOptions.builder().tints(Map.of(TintAxis.WOOL, DyeColor.Vanilla.RED)).build(),
             AppearanceOptions.defaults()),
         new ArmCase(new AppearanceGate.EquipmentGate("saddle"),
@@ -93,7 +93,7 @@ class AppearanceGateTest {
         @Test
         @DisplayName("stays silent while the axis carries no dye at all")
         void staysSilentWithNoDye() {
-            AppearanceGate gate = new AppearanceGate.TintedGate("wool_color", UNDERCOAT_TINT);
+            AppearanceGate gate = new AppearanceGate.TintedGate(Optional.of(TintAxis.WOOL), UNDERCOAT_TINT);
             assertThat(gate.test(AppearanceOptions.defaults()), is(false));
         }
 
@@ -102,7 +102,7 @@ class AppearanceGateTest {
         void staysSilentForTheBakedTint() {
             // The one case a "fires whenever a dye is selected" reading would get wrong: white IS
             // selected, and the undercoat still must not draw, because white is what the row bakes.
-            AppearanceGate gate = new AppearanceGate.TintedGate("wool_color", UNDERCOAT_TINT);
+            AppearanceGate gate = new AppearanceGate.TintedGate(Optional.of(TintAxis.WOOL), UNDERCOAT_TINT);
             AppearanceOptions white = AppearanceOptions.builder()
                 .tints(Map.of(TintAxis.WOOL, DyeColor.Vanilla.WHITE))
                 .build();
@@ -112,7 +112,7 @@ class AppearanceGateTest {
         @Test
         @DisplayName("fires for a dye that resolves to anything else")
         void firesForADifferingDye() {
-            AppearanceGate gate = new AppearanceGate.TintedGate("wool_color", UNDERCOAT_TINT);
+            AppearanceGate gate = new AppearanceGate.TintedGate(Optional.of(TintAxis.WOOL), UNDERCOAT_TINT);
             for (DyeColor.Vanilla dye : DyeColor.Vanilla.values()) {
                 AppearanceOptions dyed = AppearanceOptions.builder().tints(Map.of(TintAxis.WOOL, dye)).build();
                 assertThat(dye + " draws the undercoat unless it resolves to the baked tint",
@@ -125,14 +125,14 @@ class AppearanceGateTest {
         void comparesTheAxisResolve() {
             // Wool alone routes through woolArgb, so a row baked at white's DYE colour is differed
             // from by white itself. Comparing dye.argb() would answer the opposite here.
-            AppearanceGate wool = new AppearanceGate.TintedGate("wool_color", DyeColor.Vanilla.WHITE.argb());
+            AppearanceGate wool = new AppearanceGate.TintedGate(Optional.of(TintAxis.WOOL), DyeColor.Vanilla.WHITE.argb());
             AppearanceOptions white = AppearanceOptions.builder()
                 .tints(Map.of(TintAxis.WOOL, DyeColor.Vanilla.WHITE))
                 .build();
             assertThat("wool resolves white to its wool colour, which differs from the dye colour baked here",
                 wool.test(white), is(true));
 
-            AppearanceGate collar = new AppearanceGate.TintedGate("collar_color", DyeColor.Vanilla.RED.argb());
+            AppearanceGate collar = new AppearanceGate.TintedGate(Optional.of(TintAxis.COLLAR), DyeColor.Vanilla.RED.argb());
             AppearanceOptions red = AppearanceOptions.builder()
                 .tints(Map.of(TintAxis.COLLAR, DyeColor.Vanilla.RED))
                 .build();
@@ -142,7 +142,7 @@ class AppearanceGateTest {
         @Test
         @DisplayName("reads only its own axis, not any dye the appearance carries")
         void readsOnlyItsOwnAxis() {
-            AppearanceGate gate = new AppearanceGate.TintedGate("wool_color", UNDERCOAT_TINT);
+            AppearanceGate gate = new AppearanceGate.TintedGate(Optional.of(TintAxis.WOOL), UNDERCOAT_TINT);
             AppearanceOptions elsewhere = AppearanceOptions.builder()
                 .tints(Map.of(TintAxis.COLLAR, DyeColor.Vanilla.LIME, TintAxis.BASE, DyeColor.Vanilla.CYAN))
                 .build();
@@ -152,7 +152,7 @@ class AppearanceGateTest {
         @Test
         @DisplayName("compares a custom dye by colour, so one matching the baked tint stays silent")
         void comparesACustomDyeByColour() {
-            AppearanceGate gate = new AppearanceGate.TintedGate("wool_color", UNDERCOAT_TINT);
+            AppearanceGate gate = new AppearanceGate.TintedGate(Optional.of(TintAxis.WOOL), UNDERCOAT_TINT);
             AppearanceOptions same = AppearanceOptions.builder()
                 .tints(Map.of(TintAxis.WOOL, DyeColor.of(0xE6E6E6)))
                 .build();
@@ -164,16 +164,15 @@ class AppearanceGateTest {
         }
 
         @Test
-        @DisplayName("never fires on a token no axis owns, the blank one an untargeted row carries included")
-        void neverFiresOnAnUnownedToken() {
-            // A tinted row that names no tint_by is built with a blank token, so the gate it gets is one
-            // no selection can satisfy - silent rather than unconditional.
+        @DisplayName("never fires with no axis, which is what a row naming an unowned token is built with")
+        void neverFiresWithNoAxis() {
+            // A tinted row whose tint_by resolves to no axis - blank, misspelled, or absent - is built
+            // holding empty, so the gate it gets is one no selection can satisfy - silent rather than
+            // unconditional.
             AppearanceOptions dyed = AppearanceOptions.builder()
                 .tints(Map.of(TintAxis.WOOL, DyeColor.Vanilla.RED, TintAxis.COLLAR, DyeColor.Vanilla.RED))
                 .build();
-            assertThat(new AppearanceGate.TintedGate("", UNDERCOAT_TINT).test(dyed), is(false));
-            assertThat(new AppearanceGate.TintedGate("wool", UNDERCOAT_TINT).test(dyed), is(false));
-            assertThat(new AppearanceGate.TintedGate("WOOL_COLOR", UNDERCOAT_TINT).test(dyed), is(false));
+            assertThat(new AppearanceGate.TintedGate(Optional.empty(), UNDERCOAT_TINT).test(dyed), is(false));
         }
 
     }

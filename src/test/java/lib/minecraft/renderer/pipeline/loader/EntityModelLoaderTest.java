@@ -4,6 +4,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -189,7 +190,7 @@ class EntityModelLoaderTest {
         assertThat("the baby wool binds the baby wool texture",
             sheep.axes().babyOverlays().getFirst().textureRef(), is(Optional.of("sheep/sheep_wool_baby")));
         assertThat("the baby wool keeps the row's dye axis",
-            sheep.axes().babyOverlays().getFirst().tintBy(), is(Optional.of("wool_color")));
+            sheep.axes().babyOverlays().getFirst().tintBy(), is(Optional.of(TintAxis.WOOL)));
 
         assertThat("a family with no baby mesh at all carries no baby list",
             defs.get("minecraft:wandering_trader").axes().babyOverlays(), is(empty()));

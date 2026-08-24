@@ -14,6 +14,7 @@ import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
@@ -1492,7 +1493,7 @@ public final class PipelineParityDump {
         root.addProperty("blend", overlay.pass().blend().name());
         root.add("alpha", CanonicalJson.number(overlay.pass().alpha()));
         CanonicalJson.put(root, "texture_ref", overlay.textureRef(), JsonPrimitive::new);
-        CanonicalJson.put(root, "tint_by", overlay.tintBy(), JsonPrimitive::new);
+        CanonicalJson.put(root, "tint_by", overlay.tintBy().map(TintAxis::token), JsonPrimitive::new);
         CanonicalJson.put(root, "texture_by", overlay.textureBy(), JsonPrimitive::new);
         CanonicalJson.put(root, "gate", overlay.gate(), PipelineParityDump::gate);
         return root;
@@ -1579,7 +1580,7 @@ public final class PipelineParityDump {
             case AppearanceGate.ChargedGate ignored -> root.addProperty("gate", "charged");
             case AppearanceGate.TintedGate tinted -> {
                 root.addProperty("gate", "tinted");
-                root.addProperty("tint_by", tinted.tintBy());
+                tinted.axis().ifPresent(axis -> root.addProperty("tint_by", axis.token()));
             }
             case AppearanceGate.EquipmentGate equipment -> {
                 root.addProperty("gate", "equipment");

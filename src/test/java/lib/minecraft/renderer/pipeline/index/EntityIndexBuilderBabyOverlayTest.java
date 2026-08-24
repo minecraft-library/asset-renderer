@@ -80,12 +80,12 @@ class EntityIndexBuilderBabyOverlayTest {
 
     /** The {@code age} axis both fixture families share - an adult baseline plus a distinct baby mesh. */
     private static RawAxes ageAxes(String texture, String babyTexture) {
-        Map<String, RawAgeOption> options = new LinkedHashMap<>();
-        options.put("adult", new RawAgeOption(ADULT_COORD, texture, 0f, null));    // geometry, texture, y_shift, undrawn
-        options.put("baby", new RawAgeOption(BABY_COORD, babyTexture, 0f, null));  // geometry, texture, y_shift, undrawn
+        Map<String, RawOption> options = new LinkedHashMap<>();
+        options.put("adult", new RawOption(ADULT_COORD, texture, 0f, null, null, null, null, null, null));    // geometry, texture, y_shift, undrawn
+        options.put("baby", new RawOption(BABY_COORD, babyTexture, 0f, null, null, null, null, null, null));  // geometry, texture, y_shift, undrawn
         return new RawAxes(
             null,                     // variant
-            new RawAgeAxis(options),  // age
+            new RawAxis(null, options),  // age
             null,                     // shape
             null,                     // size
             null);                    // state
@@ -95,7 +95,7 @@ class EntityIndexBuilderBabyOverlayTest {
     private static RawOverlay typePass() {
         return new RawOverlay(
             ADULT_COORD,                                           // geometry
-            "minecraft:textures/entity/villager/type/plains.png",  // texture
+            "villager/type/plains",  // texture
             null,                                                  // retain_bones
             "head",                                                // no_hat_root
             null,                                                  // tint
@@ -113,7 +113,7 @@ class EntityIndexBuilderBabyOverlayTest {
     private static RawOverlayBaby typeBabyDelta() {
         return new RawOverlayBaby(
             null,                                                  // geometry
-            "minecraft:textures/entity/villager/baby/plains.png",  // texture
+            "villager/baby/plains",  // texture
             "head",                                                // no_hat_root
             null);                                                 // grow
     }
@@ -140,7 +140,7 @@ class EntityIndexBuilderBabyOverlayTest {
     private static RawOverlay woolPass() {
         return new RawOverlay(
             ADULT_COORD,                                       // geometry
-            "minecraft:textures/entity/sheep/sheep_wool.png",  // texture
+            "sheep/sheep_wool",  // texture
             null,                                              // retain_bones
             null,                                              // no_hat_root
             null,                                              // tint
@@ -154,38 +154,22 @@ class EntityIndexBuilderBabyOverlayTest {
             null);                                             // baby
     }
 
-    /** The dyed-collar layer - one of the decorations a baby drops wholesale. */
-    private static RawLayer collarLayer() {
-        return new RawLayer(
-            "collar",  // id
-            null,      // when
-            new RawLayerOverlay(
-                "minecraft:textures/entity/villager/villager_collar.png",  // texture
-                null,                                                      // geometry
-                null,                                                      // bones
-                null,                                                      // grow
-                null,                                                      // scaled
-                null,                                                      // alternate
-                null,                                                      // layer_type
-                null,                                                      // material_assets
-                null));                                                    // default_material
+    /** The dyed-collar node - one of the decorations a baby drops wholesale. */
+    private static com.google.gson.JsonObject collarNode() {
+        com.google.gson.JsonObject collar = new com.google.gson.JsonObject();
+        collar.addProperty("texture", "villager/villager_collar");
+        return collar;
     }
 
-    /** The saddle equipment layer - the other decoration a baby drops wholesale. */
-    private static RawLayer equipmentLayer() {
-        return new RawLayer(
-            null,                        // id
-            new RawLayerWhen("saddle", null, null),  // when
-            new RawLayerOverlay(
-                null,                                  // texture
-                ADULT_COORD,                           // geometry
-                null,                                  // bones
-                null,                                  // grow
-                null,                                  // scaled
-                null,                                  // alternate
-                "pig_saddle",                          // layer_type
-                Map.of("saddle", "minecraft:saddle"),  // material_assets
-                "saddle"));                            // default_material
+    /** The saddle equipment row - the other decoration a baby drops wholesale. */
+    private static RawEquipmentRow equipmentRow() {
+        return new RawEquipmentRow(
+            "saddle",                              // slot
+            ADULT_COORD,                           // geometry
+            null,                                  // bones
+            "pig_saddle",                          // layer_type
+            Map.of("saddle", "minecraft:saddle"),  // material_assets
+            "saddle");                             // default_material
     }
 
     /** The block overlay a baby drops wholesale. */
@@ -210,10 +194,13 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                      // bones
             List.of(typePass(), professionPass()),     // overlays
             List.of(mushroomOverlay()),                // block_overlays
-            List.of(collarLayer(), equipmentLayer()),  // layers
-            ageAxes("minecraft:textures/entity/villager/villager.png",
-                "minecraft:textures/entity/villager/villager_baby.png"),  // axes
-            null);                                     // group_of
+            collarNode(),                              // collar
+            null,                                      // markings
+            null,                                      // armor
+            List.of(equipmentRow()),                   // equipment
+            ageAxes("villager/villager",
+                "villager/villager_baby"),  // axes
+            null);                                     // members
     }
 
     /** The control family: a baby mesh and an overlay, but no age delta on it. */
@@ -225,10 +212,13 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                 // bones
             List.of(woolPass()),  // overlays
             null,                 // block_overlays
-            null,                 // layers
-            ageAxes("minecraft:textures/entity/sheep/sheep.png",
-                "minecraft:textures/entity/sheep/sheep_baby.png"),  // axes
-            null);                // group_of
+            null,                 // collar
+            null,                 // markings
+            null,                 // armor
+            null,                 // equipment
+            ageAxes("sheep/sheep",
+                "sheep/sheep_baby"),  // axes
+            null);                // members
     }
 
     private static ConcurrentMap<String, Entity> assemble() {
@@ -282,22 +272,22 @@ class EntityIndexBuilderBabyOverlayTest {
         // still inherits (the villager robe), which the other cases here already cover.
         RawOverlay decor = new RawOverlay(
             ADULT_COORD,                                                        // geometry
-            "minecraft:textures/entity/equipment/llama_body/trader_llama.png",  // texture
+            "equipment/llama_body/trader_llama",  // texture
             null,                                                               // retain_bones
             null,                                                               // no_hat_root
             null,                                                               // tint
             null,                                                               // tint_by
             null,                                                               // texture_by
-            new Vector3f(0.5f, 0.5f, 0.5f),                                     // grow (adult caparison)
+            0.5f,                                                               // grow (adult caparison)
             null,                                                               // pipeline
             null,                                                               // texture_scroll
             true,                                                               // skip_bounds
             null,                                                               // when
             new RawOverlayBaby(
                 null,                                                                    // geometry
-                "minecraft:textures/entity/equipment/llama_body/trader_llama_baby.png",  // texture
+                "equipment/llama_body/trader_llama_baby",  // texture
                 null,                                                                    // no_hat_root
-                new Vector3f(0.2f, 0.2f, 0.2f)));                                        // grow (baby caparison)
+                0.2f));                                                                  // grow (baby caparison)
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, new RawModel(
             null,                                        // renderer
@@ -306,10 +296,13 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                        // bones
             List.of(decor),                              // overlays
             null,                                        // block_overlays
-            null,                                        // layers
-            ageAxes("minecraft:textures/entity/llama/llama_creamy.png",
-                "minecraft:textures/entity/llama/llama_creamy_baby.png"),  // axes
-            null));                                      // group_of
+            null,                                        // collar
+            null,                                        // markings
+            null,                                        // armor
+            null,                                        // equipment
+            ageAxes("llama/llama_creamy",
+                "llama/llama_creamy_baby"),  // axes
+            null));                                      // members
         Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), Map.of(), Map.of()).get(ENTITY);
 
         assertThat("the adult decor inflates by its row grow",

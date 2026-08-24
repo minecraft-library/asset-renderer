@@ -45,6 +45,12 @@ import org.jetbrains.annotations.NotNull;
  *     render type's {@code sortOnUpload}. Only meaningful alongside {@link #writesDepth}: it is the
  *     order that decides which of two overlapping fragments writes first, and vanilla's own order is
  *     a per-quad approximation, so a quad drawn later can still lose the test over part of its area
+ * @param wrapsTexture whether a fetch past the sheet's edge wraps back in rather than holding at the
+ *     last texel - {@code true} exactly when the pass declares a {@code texture_scroll}, decided at
+ *     index build. <b>The flag is what tells a scrolled face from one that merely reaches past the
+ *     sheet</b>: a block's own geometry does that (the decorated pot's sherds and one water flow
+ *     frame author a UV rectangle whose upper corner rounds a texel beyond), and wrapping those
+ *     reads from the opposite edge - measured at {@code 0.7233} of block delta over the pot alone
  */
 public record PassDeclaration(boolean emissive, @NotNull BlendMode blend, float alpha,
                               boolean writesDepth, boolean sorted, boolean wrapsTexture) {
@@ -71,26 +77,6 @@ public record PassDeclaration(boolean emissive, @NotNull BlendMode blend, float 
      */
     public static final @NotNull PassDeclaration DEFAULT =
         new PassDeclaration(false, BlendMode.NORMAL, 1f, true, false);
-
-    /**
-     * Returns this declaration with {@link #wrapsTexture()} set to the given value, or itself when it
-     * already matches.
-     *
-     * <p><b>The flag is what tells a scrolled face from one that merely reaches past the sheet.</b>
-     * A block's own geometry does that: the decorated pot's sherds and one water flow frame author a
-     * UV rectangle whose upper corner rounds a texel beyond the sheet, and the fetch has always held
-     * those at the last texel. Wrapping them instead reads from the opposite edge - measured at
-     * {@code 0.7233} of block delta over the pot alone - so a face samples off the sheet only when
-     * the render type it is drawn through says it does.
-     *
-     * @param value whether this pass's texture wraps
-     * @return this declaration when {@code value} already matches, else a copy carrying it
-     */
-    public @NotNull PassDeclaration withWrappedTexture(boolean value) {
-        return value == this.wrapsTexture
-            ? this
-            : new PassDeclaration(this.emissive, this.blend, this.alpha, this.writesDepth, this.sorted, value);
-    }
 
     /**
      * Returns this declaration with {@link #emissive()} set to the given value, or itself when the value

@@ -113,7 +113,7 @@ class EntityTextureScrollJoinTest {
             null,                                   // bones
             List.of(new RawOverlay(
                 null,                               // geometry
-                "minecraft:textures/entity/test.png",  // texture
+                "test",  // texture
                 null,                               // retain_bones
                 null,                               // no_hat_root
                 null,                               // tint
@@ -126,17 +126,20 @@ class EntityTextureScrollJoinTest {
                 null,                               // when
                 null)),                             // baby
             null,                                   // block_overlays
-            null,                                   // layers
+            null,                                   // collar
+            null,                                   // markings
+            null,                                   // armor
+            null,                                   // equipment
             ageAxis(),                              // axes
-            null));                                 // group_of
+            null));                                 // members
         return EntityIndexBuilder.assemble(
             Map.of(COORD, mesh()), new RawEntityModelsFile(models), Map.of(), Map.of()).get(ENTITY);
     }
 
     private static @NotNull RawAxes ageAxis() {
-        Map<String, RawAgeOption> options = new LinkedHashMap<>();
-        options.put("adult", new RawAgeOption(COORD, "minecraft:textures/entity/test.png", 0f, null));
-        return new RawAxes(null, new RawAgeAxis(options), null, null, null);
+        Map<String, RawOption> options = new LinkedHashMap<>();
+        options.put("adult", new RawOption(COORD, "test", 0f, null, null, null, null, null, null));
+        return new RawAxes(null, new RawAxis(null, options), null, null, null);
     }
 
     private static @NotNull EntityModelData mesh() {

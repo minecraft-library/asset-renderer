@@ -39,8 +39,11 @@ public final class EntityRegistryWalk {
             models.put(subject.entityId(), new EntityRendererResolver(
                 new EntityContext(session, indexes, subject, session.diagnostics().child(subject.entityId()))
             ).resolve());
-        // The group_of post-pass needs all rows.
+        // The grouping post-pass needs all rows.
         EntityGroupLinker.link(root, indexes.variants(), session.diagnostics().child("groupOf"));
+        // Settled after the walk because every resolver spells a texture the way the bytecode does -
+        // the full asset path - and the reader resolves the sub-path.
+        EntityTextureResolver.stripTexturePaths(models);
     }
 
 }

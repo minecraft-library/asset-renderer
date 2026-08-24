@@ -493,12 +493,12 @@ rule: their kits bake `Lighting.inventory` at emit time and nothing relights the
 
 Vanilla never derives worn armour from the wearer's own mesh - it builds a few `ArmorModelSet`s and
 hands each renderer the one its subject wears. There is no armour file; the shell rides the wearer's
-`layers[]` row, `overlay.geometry` pointing into `entity_geometry.json` like any other mesh.
+own `armor` node, its `geometry` pointing into `entity_geometry.json` like any other mesh.
 
 ```json
-{ "source": "HumanoidArmorLayer", "layer_index": 3, "id": "armor",
-  "overlay": { "geometry": "HumanoidModel#createBaseArmorMesh",
-               "grow": { "inner": 0.5, "outer": 1.0 } } }
+"armor": { "source": "HumanoidArmorLayer", "layer_index": 3,
+           "geometry": "HumanoidModel#createBaseArmorMesh",
+           "grow": { "inner": 0.5, "outer": 1.0 } }
 ```
 
 - Being armoured is carrying a resolved shell: one `Optional<Shell>` with no classification flag, so
@@ -526,7 +526,7 @@ hands each renderer the one its subject wears. There is no armour file; the shel
   `ArmorForm`; those three are the whole difference between a player and a worn shell, and the
   mapping is an argument rather than a branch because it alone is arithmetic.
 - `ArmorForm.covers` and `ShellWalk`'s pivot chain are bounded by a visiting set, not a depth cap.
-- A genuinely distinct second shell repeats the row's members under `overlay.alternate` with the
+- A genuinely distinct second shell repeats the node's members under `alternate` with the
   `when` that selects it and the `form` it keeps; `ArmorMeshIndex.Set.sameShellAs` decides
   distinctness by construction, never by name. `Shell.forAppearance` evaluates that gate once in
   `Entity.resolve`, outside the age fork, so one slot serves two axes.

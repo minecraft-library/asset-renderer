@@ -74,23 +74,28 @@ final class EntityRendererResolver {
         // top level: it moves the model baseline (base geometry + adult texture) into
         // the mandatory age axis' options.adult (EntityAgeAxisResolver).
         String baseGeometry = this.geometryRef.resolve();                               // -> manifest key
-        // Worn armor is not a top-level member: EntityLayersResolver emits it as a `layers`
-        // row derived off the same addLayer roster, carrying its own geometry reference.
+        // Worn armor is not a top-level member of its own resolution: EntityLayersResolver emits
+        // it as the `armor` node derived off the same addLayer roster, carrying its own geometry
+        // reference.
         JsonTree node = JsonTree.object()
             .put("renderer", this.subject.rendererClass());                             // provenance scalar (resolver-owned)
         String texturePath = this.axes.resolveVariant() == null ? this.texture.resolve() : null;
         JsonTree overlays = this.overlays.resolve();
-        return node
+        node
             .putIf("render", this.renderTraits.resolve())                               // {scale?, yaw_addend?, tint?}
             .putIf("rest", this.restState.resolve())                                    // enum state field -> constant
-            .putIf("bones", this.bones.resolve())                                       // {hidden?, toggles?}
+            .putIf("bones", this.bones.resolve())                                       // {undrawn?, toggles?}
             // The setupRotations Y shift is per-age, so it rides the age options rather than `render`.
             .put("axes", this.axes.resolve(baseGeometry, texturePath, overlays,
                 this.renderTraits.resolveSetupYShift()))                                // age mandatory -> always present
             .putIf("overlays", overlays)
-            .putIf("block_overlays", this.blockOverlays.resolve())
-            .putIf("layers", this.layers.resolve());
-    }   // group_of appended by the EntityGroupLinker post-pass
+            .putIf("block_overlays", this.blockOverlays.resolve());
+        // The four decoration members - collar, markings, armor, equipment - land side by side,
+        // each named for what it is.
+        JsonTree decorations = this.layers.resolve();
+        if (decorations != null) node.putAll(decorations);
+        return node;
+    }   // members appended by the EntityGroupLinker post-pass
 
     /**
      * One {@code addLayer(...)} call site in the renderer constructor chain.

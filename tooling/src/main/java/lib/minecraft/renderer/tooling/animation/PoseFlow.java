@@ -458,8 +458,8 @@ public final class PoseFlow {
 
         models.members().forEach((entity, row) -> {
             requirePose(poses, entity, namedPoser(row));
-            row.find("layers").ifPresent(list -> list.elements().toList().forEach(layer ->
-                requirePose(poses, entity, layer.find("overlay").map(PoseFlow::namedPoser).orElse(null))));
+            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
+                requirePose(poses, entity, namedPoser(item))));
         });
     }
 
@@ -531,17 +531,14 @@ public final class PoseFlow {
                         }
                     })));
 
-            row.find("layers").ifPresent(list -> list.elements().toList().forEach(layer -> {
-                if (layer.findPath("when", "equipment").isEmpty()) return;
-                layer.find("overlay").ifPresent(overlay ->
-                    overlay.findString(GEOMETRY).ifPresent(coordinate -> {
-                        String named = namedPoser(overlay);
-                        String key = named != null ? named : poseHead(coordinate);
-                        List<String> undrawn = merged(undrawnHeld(overlay.find("bones").orElse(null)),
-                            resting.getOrDefault(key, List.of()));
-                        if (writeUndrawn(overlay, undrawn, "layer_type")) sites[0]++;
-                    }));
-            }));
+            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
+                item.findString(GEOMETRY).ifPresent(coordinate -> {
+                    String named = namedPoser(item);
+                    String key = named != null ? named : poseHead(coordinate);
+                    List<String> undrawn = merged(undrawnHeld(item.find("bones").orElse(null)),
+                        resting.getOrDefault(key, List.of()));
+                    if (writeUndrawn(item, undrawn, "layer_type")) sites[0]++;
+                })));
         });
         diagnostics.info("resting-undrawn merged into %d site(s)", sites[0]);
     }
@@ -770,12 +767,13 @@ public final class PoseFlow {
                     reaches(keys, null, baby.findString(GEOMETRY).orElse(null)));
             }));
 
-            row.find("layers").ifPresent(list -> list.elements().toList().forEach(layer ->
-                layer.find("overlay").ifPresent(overlay -> {
-                    reaches(keys, namedPoser(overlay), overlay.findString(GEOMETRY).orElse(null));
-                    overlay.find("alternate").ifPresent(alternate ->
-                        reaches(keys, null, alternate.findString(GEOMETRY).orElse(null)));
-                })));
+            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
+                reaches(keys, namedPoser(item), item.findString(GEOMETRY).orElse(null))));
+            row.find("armor").ifPresent(armor -> {
+                reaches(keys, null, armor.findString(GEOMETRY).orElse(null));
+                armor.find("alternate").ifPresent(alternate ->
+                    reaches(keys, null, alternate.findString(GEOMETRY).orElse(null)));
+            });
             if (!keys.isEmpty()) out.put(entity, keys);
         });
         return out;

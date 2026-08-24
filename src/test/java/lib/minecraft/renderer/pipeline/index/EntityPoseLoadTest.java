@@ -247,8 +247,6 @@ class EntityPoseLoadTest {
                 channels.values().forEach(expr -> figures(expr, reads, walked)));
             pose.container().forEach(step -> step.values().forEach(expr -> figures(expr, reads, walked)));
             pose.clips().forEach(clip -> clip.arguments().forEach(expr -> figures(expr, reads, walked)));
-            subject.getValue().renderTransform().forEach(step ->
-                step.values().forEach(expr -> figures(expr, reads, walked)));
             reads.removeAll(driven);
             if (!reads.isEmpty()) named.put(subject.getKey(), reads);
         }
