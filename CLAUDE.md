@@ -557,8 +557,8 @@ hands each renderer the one its subject wears. There is no armour file; the shel
   not revive id-encoding as a convenience API - the keyspace is the vanilla entity registry, so a
   synthesised key and a declared one are indistinguishable. `variant_of` is in-memory only.
 - **A `bones.toggles` entry says which bones a toggle flips and never which way.** The side each
-  rests on is read off the model class's own pose at load, `PoseEvaluator.drawsAtRest` against the
-  figures a render state is built holding, so nothing declares it twice. `undrawn` carries the whole
+  rests on is read off membership in the site's own `undrawn` list at load - a toggle naming a bone
+  the list carries rests hidden - so nothing declares it twice. `undrawn` carries the whole
   of what a subject rests without - the never-drawn bones merged at generation with what its pose
   rests hidden - and it is per SUBJECT because the two halves key apart: a renderer can re-enable a
   bone its model class never draws, and the illusioner does, over the same `IllagerModel` row the
@@ -794,12 +794,16 @@ rest before the fold reached it. **`entity_poses.json` still carries `input_defa
 `rest_defaults` and `question_defaults`, and nothing reads them** - they are what the generator
 resolved against, kept in the table until the emitter stops writing them.
 
-**No flag channel in the corpus reads elapsed time**, so per-frame visibility agrees with the resting
-strip on every subject at every tick, and the strip is the only thing that applies one. That is
-measured rather than assumed, and it is why the guardian's eye and the fox's legs need neither a
-harness pin nor an asset answer: vanilla writes the eye `true` unconditionally, and calls the fox's
-`setWalkingPose` - which sets all four legs `true` - before any branch, leaving only `setSleepingPose`
-behind an `isSleeping` that rests false.
+**Nothing at render reads a flag channel.** Every flag in the corpus folds to a literal, so which
+bones a subject rests without is resolved at generation into the tables' `undrawn` lists and the
+load-time strip is the only thing that applies one; the loader passes the two channel tokens over,
+the emitter still writing them the way it does `input_defaults`. A flag the fold cannot settle to a
+literal - one reading a clock - and a resting `skip_draw` both refuse the flow at generation, which
+is the coverage the per-frame flag path used to hold, moved to where a version bump surfaces it
+loudly. It is why the guardian's eye and the fox's legs need neither a harness pin nor an asset
+answer: vanilla writes the eye `true` unconditionally, and calls the fox's `setWalkingPose` - which
+sets all four legs `true` - before any branch, leaving only `setSleepingPose` behind an `isSleeping`
+that rests false.
 
 **The ground truth for a posed subject is `animation/`, and it is a second reference set rather than
 a replacement.** `entityAnimationParityVanilla` renders each subject at `ANIMATED` over the same

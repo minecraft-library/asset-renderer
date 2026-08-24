@@ -327,6 +327,9 @@ public record RawEntityPosesFile(
 
         Map<PoseChannel, PoseExpr> out = new EnumMap<>(PoseChannel.class);
         for (Map.Entry<String, JsonElement> entry : node.entrySet()) {
+            // The emitter still writes the two flag channels; which bones a subject rests without is
+            // resolved at generation into the model table's undrawn lists, so nothing here reads one.
+            if ("visible".equals(entry.getKey()) || "skip_draw".equals(entry.getKey())) continue;
             PoseChannel channel = PoseChannel.ofToken(entry.getKey());
             if (channel == null)
                 throw new PipelineException("entity poses: %s.%s writes '%s', which is not a channel",

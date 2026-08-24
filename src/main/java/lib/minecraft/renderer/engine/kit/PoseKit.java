@@ -58,15 +58,9 @@ import java.util.stream.Collectors;
  * of them - a tropical fish is a body and a run of pattern overlays, and a transform that reached
  * only the body would swim the fish out from under its own markings.
  *
- * <p><b>The two flag channels are applied per frame, by the same rule the resting strip applies at
- * load</b> - a bone the pose hides takes its whole subtree with it, and one it skips loses its own
- * cubes while its descendants keep drawing. What the strip does at load this does at each instant,
- * so a model that hides a bone on a frame rather than at rest is drawn hidden on that frame.
- *
- * <p>No flag in the shipped corpus reads elapsed time, so today every frame agrees with the strip
- * and this changes no subject. That is measured rather than assumed, and it is what says the two
- * halves cannot disagree while it holds - a model that starts reading a clock for a flag is what
- * would part them.
+ * <p>Which bones a subject rests without is not decided here at all: the tables carry it resolved,
+ * on the {@code undrawn} lists the load-time strip reads, and a flag channel the generator cannot
+ * settle to a literal refuses the flow there rather than surfacing in a frame.
  */
 @UtilityClass
 public final class PoseKit {
@@ -249,9 +243,8 @@ public final class PoseKit {
         @NotNull EntityModelData model, @NotNull PoseEvaluator.ChannelWrites writes,
         @NotNull Map<String, Map<PoseChannel, Float>> displaced) {
 
-        Set<String> undrawn = hidden(model, writes.bones());
-        if (writes.container().isEmpty() && undrawn.isEmpty() && displaced.isEmpty()
-            && writes.bones().values().stream().noneMatch(PoseKit::changesBone)) return model;
+        if (writes.container().isEmpty() && displaced.isEmpty()
+            && writes.bones().values().stream().allMatch(Map::isEmpty)) return model;
 
         // Read from the mesh being posed rather than from the one being built: what a pose and a clip
         // assign is in the model's own units, and this is the factor that puts one of those in this
@@ -260,7 +253,6 @@ public final class PoseKit {
         // Collected into a LinkedHashMap rather than through Map.copyOf: the mesh's own bone order is
         // the tied-depth priority, and copyOf salts its iteration per JVM launch.
         LinkedHashMap<String, EntityModelData.Bone> bones = model.getBones().entrySet().stream()
-            .filter(bone -> !undrawn.contains(bone.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey,
                 bone -> displacedBone(bone.getValue(), bone.getKey(),
                     writes.bones().getOrDefault(bone.getKey(), Map.of()),
@@ -269,75 +261,6 @@ public final class PoseKit {
         if (!writes.container().isEmpty()) seatUnderContainer(bones, writes.container(), flattened);
         return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(),
             Concurrent.adoptLinkedMap(bones), model.isCull());
-    }
-
-    /**
-     * The bones this frame draws none of - each one the pose hides, and everything hanging below it.
-     *
-     * <p>Vanilla's {@code visible = false} skips the part and its descendants in one act, so removing
-     * the name alone re-parents each orphan onto the root and lands geometry that should have
-     * vanished somewhere the subject is not.
-     *
-     * <p>The channel carries a boolean in a float, so it is read against zero as a NUMBER rather than
-     * compared as a value - a negative zero is a bone that does not draw, and equality would call it
-     * a different number and draw it.
-     *
-     * @param model the mesh being posed
-     * @param written what each bone's channels evaluated to
-     * @return every bone name this frame draws nothing of
-     */
-    private static @NotNull Set<String> hidden(
-        @NotNull EntityModelData model, @NotNull Map<String, Map<PoseChannel, Float>> written) {
-
-        Set<String> undrawn = model.getBones().keySet().stream()
-            .filter(bone -> flagClear(written.getOrDefault(bone, Map.of()), PoseChannel.VISIBLE))
-            .collect(Collectors.toCollection(LinkedHashSet::new));
-        return undrawn.isEmpty() ? undrawn : withDescendants(model.getBones(), undrawn);
-    }
-
-    /** Whether a flag channel was written, and written to something other than zero. */
-    private static boolean flagSet(
-        @NotNull Map<PoseChannel, Float> written, @NotNull PoseChannel channel) {
-
-        Float value = written.get(channel);
-        return value != null && value != 0f;
-    }
-
-    /** Whether a flag channel was written, and written to zero. */
-    private static boolean flagClear(
-        @NotNull Map<PoseChannel, Float> written, @NotNull PoseChannel channel) {
-
-        Float value = written.get(channel);
-        return value != null && value == 0f;
-    }
-
-    /**
-     * Closes a set of bones downwards over the bone forest, so what it holds is whole subtrees.
-     *
-     * <p>A fixpoint rather than one pass, because a bone map is in the tooling's own
-     * {@code addOrReplaceChild} order and a child can precede its parent in it.
-     *
-     * @param bones the mesh's bones keyed by name
-     * @param seed the bones to close over, which is left untouched
-     * @return the seed and every bone reached from it through a parent chain
-     */
-    public static @NotNull Set<String> withDescendants(
-        @NotNull Map<String, EntityModelData.Bone> bones, @NotNull Set<String> seed) {
-
-        Set<String> closed = new LinkedHashSet<>(seed);
-        boolean grew = true;
-        while (grew) {
-            grew = false;
-            for (Map.Entry<String, EntityModelData.Bone> bone : bones.entrySet()) {
-                if (closed.contains(bone.getKey())) continue;
-                String parent = bone.getValue().getParent();
-                if (parent != null && closed.contains(parent)) {
-                    closed.add(bone.getKey());
-                    grew = true;
-                }
-            }
-        }
-        return closed;
     }
 
     /**
@@ -421,8 +344,6 @@ public final class PoseKit {
             case Y_ROT -> bone.getRotation().yawRadians();
             case Z_ROT -> bone.getRotation().rollRadians();
             case X_SCALE, Y_SCALE, Z_SCALE -> bone.getScale();
-            case VISIBLE -> 1f;
-            case SKIP_DRAW -> 0f;
         };
     }
 
@@ -446,7 +367,7 @@ public final class PoseKit {
         @NotNull EntityModelData.Bone bone, @NotNull String name,
         @NotNull Map<PoseChannel, Float> written, float flattened) {
 
-        if (!changesBone(written)) return bone;
+        if (written.isEmpty()) return bone;
 
         Vector3f pivot = bone.getPivot();
         EulerRotation rotation = bone.getRotation();
@@ -467,35 +388,11 @@ public final class PoseKit {
                 degrees(written, PoseChannel.Z_ROT, rotation.roll(), rotation.rollRadians())),
             bone.getBindPoseRotation(),
             scale(written, name, bone.getScale()),
-            skipsDraw(written) ? Concurrent.newList() : bone.getCubes(),
+            bone.getCubes(),
             bone.getParent(),
             // Carried rather than defaulted: what a clip scales the bone by was settled before this
             // ran, and the six-argument form would put it back at rest.
             bone.getPoseScale());
-    }
-
-    /**
-     * Whether anything here reaches the bone itself, so a bone the pose leaves alone - and one it
-     * only hides, which is answered by dropping it rather than by rewriting it - stays the instance
-     * it already was.
-     */
-    private static boolean changesBone(@NotNull Map<PoseChannel, Float> written) {
-        return movesGeometry(written) || skipsDraw(written);
-    }
-
-    /** Whether any channel here is one a bone's pivot, rotation or scale carries. */
-    private static boolean movesGeometry(@NotNull Map<PoseChannel, Float> written) {
-        return written.keySet().stream().anyMatch(channel -> !channel.isFlag());
-    }
-
-    /**
-     * Whether this frame draws the bone's own cubes.
-     *
-     * <p>The narrower of the two flags: where a hidden bone takes its subtree, a skipped one keeps
-     * every descendant drawing and loses only what it owns.
-     */
-    private static boolean skipsDraw(@NotNull Map<PoseChannel, Float> written) {
-        return flagSet(written, PoseChannel.SKIP_DRAW);
     }
 
     /** A channel the pose wrote, or the mesh's own where it wrote none. */
@@ -601,7 +498,7 @@ public final class PoseKit {
 
         for (Map<PoseChannel, Float> written : steps)
             for (PoseChannel channel : written.keySet())
-                if (channel.isFlag() || channel.kind() == PoseChannel.Kind.SCALE)
+                if (channel.kind() == PoseChannel.Kind.SCALE)
                     throw new RendererException(
                         "entity pose: the container writes '%s', which reaches no bone below it",
                         channel.token());

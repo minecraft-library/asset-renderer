@@ -5,7 +5,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.engine.kit.PoseEvaluator;
 import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import org.jetbrains.annotations.NotNull;
@@ -30,18 +29,19 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Which way a bone toggle points, read off the pose rather than off the member beside it.
+ * Which way a bone toggle points, derived rather than declared beside it.
  *
  * <p>A toggle names the state a subject is NOT resting in - a hornless goat, a turtle carrying an
  * egg - so which bones it shows and which it hides is decided by what the subject rests as. That is
- * something the model already says: a goat's horns draw because {@code hasLeftHorn} is what a goat's
- * render state is built holding. Reading it there rather than from a second declaration is what
- * keeps the two from drifting.
+ * something the {@code undrawn} list beside it already says, resolved at generation from the model's
+ * own pose: a donkey's chest is undrawn because {@code hasChest} is not what its render state is
+ * built holding. Reading it there rather than from a second declaration is what keeps the two from
+ * drifting.
  *
  * <p>They HAD drifted, on whether a bee rests with its sting, which is why only one of them is left:
  * the shipped table declares which bones a toggle flips and says nothing about which way, and the
- * {@code undrawn} list beside it carries the whole of what a subject rests without - the bones
- * nothing ever draws and the ones its pose rests hidden, merged at generation.
+ * {@code undrawn} list carries the whole of what a subject rests without - the bones nothing ever
+ * draws and the ones its pose rests hidden, merged at generation.
  */
 @DisplayName("a bone toggle's resting side")
 class BoneToggleRestTest {
@@ -148,8 +148,8 @@ class BoneToggleRestTest {
         Entity bee = entities.get("minecraft:bee");
         assertNotNull(bee, "minecraft:bee is expected to load");
 
-        assertEquals(true, PoseEvaluator.drawsAtRest(bee.pose(), bee.model(), "stinger"),
-            "the model draws the sting on a bee that has not stung");
+        assertEquals(List.of(), undrawnOf("minecraft:bee"),
+            "no list names the sting, the model drawing it on a bee that has not stung");
         assertTrue(bee.model().getBones().containsKey("stinger"), "and the resting mesh carries it");
     }
 

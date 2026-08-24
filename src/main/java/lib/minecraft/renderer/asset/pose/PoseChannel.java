@@ -4,13 +4,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The eleven bone members a pose writes, and the token each is spelled with in the shipped table.
+ * The nine bone members a pose writes, and the token each is spelled with in the shipped table.
  *
- * <p>Nine of them are the pivot offset, the rotation and the per-axis scale a bone already carries;
- * the other two decide whether the bone draws at all. What separates them here is {@link Kind},
- * which says what a channel accumulates and therefore what it rests at when nothing writes it - a
- * rotation resting at zero and a scale at one are the same statement said two ways, and reading
- * either from the wrong side collapses a limb.
+ * <p>They are the pivot offset, the rotation and the per-axis scale a bone already carries. What
+ * separates them here is {@link Kind}, which says what a channel accumulates and therefore what it
+ * rests at when nothing writes it - a rotation resting at zero and a scale at one are the same
+ * statement said two ways, and reading either from the wrong side collapses a limb.
  */
 public enum PoseChannel {
 
@@ -39,13 +38,7 @@ public enum PoseChannel {
     Y_SCALE("y_scale", Kind.SCALE),
 
     /** Multiplier on the bone's z extent, resting at one rather than at zero. */
-    Z_SCALE("z_scale", Kind.SCALE),
-
-    /** Whether the bone and its descendants draw at all. */
-    VISIBLE("visible", Kind.FLAG),
-
-    /** Whether the bone's own cubes are skipped while its descendants still draw. */
-    SKIP_DRAW("skip_draw", Kind.FLAG);
+    Z_SCALE("z_scale", Kind.SCALE);
 
     /** What a channel accumulates, which decides its rest value and how a clip composes onto it. */
     public enum Kind {
@@ -57,10 +50,7 @@ public enum PoseChannel {
         ROTATION,
 
         /** Multiplicative, resting at one. */
-        SCALE,
-
-        /** A boolean, only ever assigned. */
-        FLAG
+        SCALE
 
     }
 
@@ -88,15 +78,6 @@ public enum PoseChannel {
      */
     public @NotNull Kind kind() {
         return this.kind;
-    }
-
-    /**
-     * Whether this channel carries a boolean rather than a number.
-     *
-     * @return {@code true} for the two flag channels
-     */
-    public boolean isFlag() {
-        return this.kind == Kind.FLAG;
     }
 
     /**

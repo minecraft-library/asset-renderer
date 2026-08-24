@@ -159,29 +159,6 @@ public final class PoseEvaluator {
         return Collections.unmodifiableList(out);
     }
 
-    /**
-     * Whether a bone draws when nothing has happened to the subject.
-     *
-     * <p>The one question about a pose that is worth asking before there is a frame to ask it in: it
-     * is what a mesh looks like at rest, and therefore which of a model's bones a caller is choosing
-     * BETWEEN when it names an appearance. A goat rests with its horns and a donkey rests without
-     * its chest, and both of those are read here rather than declared anywhere.
-     *
-     * <p>A bone the model never writes a visibility for is one it never hides, so it draws.
-     *
-     * @param pose the model's pose
-     * @param model the mesh being posed
-     * @param bone the bone to ask about
-     * @return whether it draws before anything has happened
-     */
-    public static boolean drawsAtRest(
-        @NotNull EntityPose pose, @NotNull EntityModelData model, @NotNull String bone) {
-
-        PoseExpr written = pose.bones().getOrDefault(bone, Map.of()).get(PoseChannel.VISIBLE);
-        if (written == null) return true;
-        return value(written, model, AT_REST, new IdentityHashMap<>()) != 0d;
-    }
-
     // ------------------------------------------------------------------------------------
 
     /** One bone's channels, narrowed to the width a channel is finally stored at. */
@@ -255,10 +232,6 @@ public final class PoseEvaluator {
             case Y_ROT -> bone.getRotation().yawRadians();
             case Z_ROT -> bone.getRotation().rollRadians();
             case X_SCALE, Y_SCALE, Z_SCALE -> bone.getScale();
-            // A part draws, and skips none of its own cubes, until something writes otherwise; the
-            // mesh carries neither, so what a read of one answers is what ModelPart holds at rest.
-            case VISIBLE -> 1d;
-            case SKIP_DRAW -> 0d;
         };
     }
 
