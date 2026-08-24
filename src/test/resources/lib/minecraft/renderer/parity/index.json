@@ -17,8 +17,8 @@
       "entries": 11,
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
-      "promoted_at": "fc24e8c8e463ac34f51765a8931962c26824da58",
-      "sha256": "c2dcb6280ccf519343674467ce273d248e5ff10fbf714586fd320438bd31feed"
+      "promoted_at": "6980ee5a4c6cb0a771ff4632bffb288b108867e8",
+      "sha256": "492adb1ffe70f52002cc363a6dc8b8f490077880ad84a65cb911cb65e4cddb3f"
     },
     "manifest.dump.packs": {
       "baselined": true,
@@ -26,9 +26,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 28564,
-      "promoted_at": "fc24e8c8e463ac34f51765a8931962c26824da58",
-      "sha256": "0b7de89353951e379dfb1a89a68ac5bc73633523242a275ac27b388fd1e59016"
+      "last_duration_ms": 29060,
+      "promoted_at": "6980ee5a4c6cb0a771ff4632bffb288b108867e8",
+      "sha256": "4ba7b7f5ee6a892c3dd962ecee07e9f8fd53658c97fa14af8e51ee73ce8681a9"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
@@ -36,9 +36,9 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 28564,
-      "promoted_at": "fc24e8c8e463ac34f51765a8931962c26824da58",
-      "sha256": "d163b8f56c9b940afb144a15c9b98e5f7c0017375a73ad3897281423bc11828f"
+      "last_duration_ms": 29060,
+      "promoted_at": "6980ee5a4c6cb0a771ff4632bffb288b108867e8",
+      "sha256": "f35231713b4142b238bb71fe8a827ee1b1765993dfc075145399e318ee317385"
     },
     "manifest.fluid": {
       "baselined": true,
@@ -93,9 +93,9 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 45320,
-      "promoted_at": "fc24e8c8e463ac34f51765a8931962c26824da58",
-      "sha256": "72a2ec700ac9a1bdaf1f6aaf270e1ab74a0687fe13b7e662953f8a8267bf26ba"
+      "last_duration_ms": 44605,
+      "promoted_at": "6980ee5a4c6cb0a771ff4632bffb288b108867e8",
+      "sha256": "180f6f699fbf678393294c7a2f6629811136f542cb036589a2d12eac7fc20e1e"
     },
     "manifest.visual": {
       "baselined": true,

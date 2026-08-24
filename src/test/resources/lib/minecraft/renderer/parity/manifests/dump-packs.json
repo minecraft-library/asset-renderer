@@ -16,7 +16,7 @@
     },
     {
       "path": "entities.json",
-      "sha256": "a62e80d7c315e758250df4a7ca9d3f1519dc8556c933518b6945db95b10dd757"
+      "sha256": "f175f6831131dd1934c2ffb497d5b07e6bf1229abad979dbf4b2af2266c1d99c"
     },
     {
       "path": "item-models.json",
@@ -65,7 +65,7 @@
   "provenance": {
     "artifact": "manifest.dump.packs",
     "asset_dirty": false,
-    "asset_sha": "fc24e8c8e463ac34f51765a8931962c26824da58",
+    "asset_sha": "6980ee5a4c6cb0a771ff4632bffb288b108867e8",
     "counts": {
       "files": 14
     },
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "parityDump",
-    "reason": "all-constant subtrees in the folded pose collapsed through the walk's own builder, operand for operand at each operator's declared width; entity_poses 2597883 to 2468529 bytes and the pose graph 11022 to 9931 nodes, with every render sweep at zero movers row by row and that flow's diagnostics unmoved",
+    "reason": "folding a pose against the frame its row can tell apart rather than the raw resting map; AdultPiglinModel 1659->112, BabyPiglinModel 1659->112, HumanoidModel 1401->87, every render sweep at zero movers",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,8 +84,8 @@
       "players": 2
     },
     "root": "cache/parity-dump/head/packs",
-    "timestamp": "2026-08-24T01:14:34Z",
+    "timestamp": "2026-08-24T01:54:51Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 28564
+    "wall_time_ms": 29060
   }
 }
