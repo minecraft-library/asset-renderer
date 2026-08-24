@@ -257,6 +257,37 @@ final class InputDefaultResolver {
     }
 
     /**
+     * Every render-state member ONE pose consults, whether as a figure or as an enum test.
+     *
+     * <p>The two are separate tables and one question here, because what is being asked is what a
+     * fold will read out of a subject's resting state rather than what any table should hold - and a
+     * fold reads a member by name whichever of the two ways the pose names it.
+     *
+     * <p>The clip arguments are walked beside the channels, which the corpus-wide collectors have no
+     * call to do and this one does: an argument is folded like any other expression, so a member
+     * named only there is still one a subject answers, and a frame blind to it would merge two
+     * subjects the pose tells apart.
+     *
+     * @param program one walked pose
+     * @return the member names, in sorted order
+     */
+    static @NotNull Set<String> membersNamedBy(@NotNull PoseProgram program) {
+        List<PoseExpr> written = new ArrayList<>();
+        program.container().forEach(step -> written.addAll(step.values()));
+        program.bones().values().forEach(channels -> written.addAll(channels.values()));
+        program.clipSites().forEach(site -> written.addAll(site.arguments()));
+
+        Set<String> named = new TreeSet<>();
+        Set<Object> figures = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<Object> tests = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (PoseExpr expr : written) {
+            collect(expr, named, figures);
+            tested(expr, named, tests);
+        }
+        return named;
+    }
+
+    /**
      * What each named question rests answering, read off the value its receiver is built holding.
      *
      * <p><b>A question is not a figure and rests at nothing only by accident.</b> Where a figure the

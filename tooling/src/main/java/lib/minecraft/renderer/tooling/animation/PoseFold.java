@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Resolves a walked pose against the frame an offline subject stands in, leaving only what the tick
@@ -129,6 +130,40 @@ final class PoseFold {
 
         return new PoseProgram(program.model(), List.copyOf(container),
             Map.copyOf(bones), List.copyOf(clips));
+    }
+
+    /**
+     * What a subject's resting state answers, as far as one pose can tell.
+     *
+     * <p>A pose reads that state through two questions - which constant a member holds, and what
+     * number it reads as - and asks them only of the members it names. So two subjects stand in the
+     * same frame for a row whenever this answers the same for both, however far apart the rest of
+     * their resting states are, and folding against either of them lands on one residual. Comparing
+     * the raw maps instead over-counts by a wide margin: eleven of the thirteen humanoids name no
+     * constant at all, and the two that do name one their model's pose never reads.
+     *
+     * <p>A member the subject is silent on answers what its model rests at, which is the fallback the
+     * constant question already takes. The numeric question does not take that fallback - it honours
+     * the subject's own two boolean spellings and otherwise reads the input table - and the two agree
+     * here because a model's resting answer is a constant of the member's own declared enum type,
+     * which {@code true} and {@code false} are not.
+     *
+     * @param program the walked pose, read for the members it names
+     * @param subjectRest which constant each enum member this subject rests holding
+     * @param restDefaults the same for the model, read where the subject names no constant
+     * @return each named member's resting answer, sorted, omitting the members nothing answers
+     */
+    static @NotNull Map<String, String> frameOf(
+        @NotNull PoseProgram program, @NotNull Map<String, String> subjectRest,
+        @NotNull Map<String, String> restDefaults) {
+
+        Map<String, String> out = new TreeMap<>();
+        for (String member : InputDefaultResolver.membersNamedBy(program)) {
+            String held = subjectRest.get(member);
+            String answer = held == null ? restDefaults.get(member) : held;
+            if (answer != null) out.put(member, answer);
+        }
+        return out;
     }
 
     /** One channel map with every expression in it folded, in the vocabulary's own order. */

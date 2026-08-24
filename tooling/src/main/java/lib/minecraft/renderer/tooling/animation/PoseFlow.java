@@ -157,11 +157,16 @@ public final class PoseFlow {
      * Resolves every walked pose against the frame the subjects reaching it stand in.
      *
      * <p>A row is folded against ONE frame, which is what keeps the result a graph: a node reached
-     * down six paths has one binding and folds to one residual. So a class two subjects reach with
-     * different resting maps has no single frame, and this <b>refuses to fold it</b> rather than
-     * picking one - folding an illager against another illager's arms draws a subject vanilla never
-     * draws, and renders as though it were deliberate. A refused row is emitted exactly as walked and
-     * keeps reading the tables at render, so refusing costs bytes and never correctness.
+     * down six paths has one binding and folds to one residual. So a class two subjects reach at two
+     * frames has no single one, and this <b>refuses to fold it</b> rather than picking one - folding
+     * an illager against another illager's arms draws a subject vanilla never draws, and renders as
+     * though it were deliberate. A refused row is emitted exactly as walked and keeps reading the
+     * tables at render, so refusing costs bytes and never correctness.
+     *
+     * <p><b>A frame is what the row can tell apart, not the resting map a subject carries.</b> Two
+     * subjects whose states differ only where this pose never looks stand in one frame and fold to
+     * one residual, which is the difference between three of the corpus's crowded classes folding
+     * and none of them doing.
      *
      * <p>A row nothing reaches is folded against its model's own defaults, there being no subject to
      * answer for it.
@@ -190,21 +195,30 @@ public final class PoseFlow {
                 continue;
             }
 
+            Map<String, String> modelRest = restingByModel.getOrDefault(model, Map.of());
+            // Grouped by the frame the row can TELL APART rather than by the raw resting maps. A
+            // pose asks two questions of a resting state and asks them only of the members it names,
+            // so two subjects disagreeing anywhere else are one frame - which is most of them.
             Map<Map<String, String>, Set<String>> reaching = frames.getOrDefault(model, Map.of());
-            if (reaching.size() > 1) {
+            Map<Map<String, String>, Set<String>> distinct = new LinkedHashMap<>();
+            reaching.forEach((rest, subjects) ->
+                distinct.computeIfAbsent(PoseFold.frameOf(extracted.program(), rest, modelRest),
+                    frame -> new TreeSet<>()).addAll(subjects));
+            if (distinct.size() > 1) {
                 List<String> spelled = new ArrayList<>();
-                reaching.forEach((rest, subjects) -> spelled.add(rest + " <- " + new TreeSet<>(subjects)));
-                diagnostics.info("%s is reached at %d resting states and is emitted unfolded: %s",
-                    model, reaching.size(), String.join("; ", spelled));
+                distinct.forEach((frame, subjects) -> spelled.add(frame + " <- " + subjects));
+                diagnostics.info("%s is reached at %d resting frames and is emitted unfolded: %s",
+                    model, distinct.size(), String.join("; ", spelled));
                 out.put(model, entry.getValue());
                 continue;
             }
 
+            // Any of the raw maps behind the one frame folds to the same residual, every member the
+            // pose names answering the same in all of them, so the first is taken as it stands.
             Map<String, String> subjectRest =
                 reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
             out.put(model, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(), subjectRest,
-                restingByModel.getOrDefault(model, Map.of()),
-                questionsByModel.getOrDefault(model, Map.of()), inputDefaults, DRIVEN)));
+                modelRest, questionsByModel.getOrDefault(model, Map.of()), inputDefaults, DRIVEN)));
             folded++;
         }
         diagnostics.info("folded %d of %d walked pose(s) against the frame their subjects rest in",

@@ -54,6 +54,17 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   the very tree this exists to avoid; and `RawEntityPosesFile` resolves every reference to ONE record
   instance, a reader that rebuilt one per reference being a reader that puts the twenty-two million
   back.
+- **A pose is folded against the frame its subjects rest in, and a frame is what the ROW can tell
+  apart.** `PoseFold` takes every branch an offline subject already decides, so what ships is the
+  residual the tick can still move rather than a program over the whole render state. One row folds
+  against ONE frame, which is what keeps the result a graph - a node reached down six paths has one
+  binding and there is nothing to specialise it to - so a class reached at two frames is emitted
+  unfolded and named in the log rather than folded against one of them, which would draw a subject
+  vanilla never draws. What makes a frame is the two questions a fold asks a resting state, which
+  constant a member holds and what number it reads as, asked only of the members that row NAMES:
+  comparing the raw resting maps instead refuses three of the corpus's crowded classes over members
+  their poses never look at. Any of the raw maps behind one frame folds to one residual, measured by
+  regenerating the whole table against the first of them and against the last.
 - **A pose the walk restores has to be copied, not handed over.** `PoseWalk.replace` takes a fresh
   channel map per bone; sharing the snapshot's own map means the next write lands in the snapshot,
   and then a fork's second arm - or an enum split's third - starts from what the one before it wrote.
