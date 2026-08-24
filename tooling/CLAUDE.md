@@ -103,7 +103,7 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   answers it as the first `EntityModel` a renderer's constructor chain allocates: a body's model is
   built into the `super` call's arguments, evaluated before any `addLayer`, and a renderer allocating
   none delegates to the one it extends. `EntityBoneResolver` emits the member wherever that class and
-  the mesh's factory disagree - **including when the class declares no hidden bone and no toggle**,
+  the mesh's factory disagree - **including when the class declares no undrawn bone and no toggle**,
   which is what the early return used to swallow, and which is why three equine body-armour rows had
   been posing off their mesh. A posing class bakes no mesh, so `PoseFlow` would never have walked it:
   its roster takes the posing classes beside the manifest's and reads each one's top-level bones off

@@ -117,6 +117,7 @@ public final class PoseFlow {
         Map<String, PoseOutcome> poses =
             foldAll(walked, models, restingByModel, questionsByModel, defaults, diagnostics);
         requirePosersResolve(models, poses);
+        mergeRestingUndrawn(models, poses, diagnostics);
         transforms = foldTransforms(transforms, models, defaults, diagnostics);
 
         JsonTree root = session.envelope("definitions-package listing order for clips; "
@@ -471,6 +472,205 @@ public final class PoseFlow {
     }
 
     /**
+     * Merges what each site's pose rests not drawing into the model table's strip lists.
+     *
+     * <p>Which bones a subject rests without is a fact the fold already settled - every flag channel
+     * in the corpus folds to a literal - so it is resolved here and shipped on the {@code undrawn}
+     * lists rather than left as arithmetic for a render to evaluate. A site's list is its never-drawn
+     * bones joined with what the pose its mesh takes rests hidden, and the join is per site because
+     * the two halves key differently: a never-drawn bone is the subject's own fact - the illusioner
+     * re-enables the hat the other illagers never draw - where a resting flag is the pose row's.
+     *
+     * <p>The sites carrying one are exactly the sites the reader strips: the family's bones node,
+     * serving the body and every coat; an equipment layer's, over its own mesh; the baby age option,
+     * which takes its own class's rest alone; and each size option naming a mesh, which joins the
+     * family's never-drawn bones with its own class's rest.
+     *
+     * @param models the model table, rewritten in place ahead of being written
+     * @param poses the rows the pose table carries
+     * @param diagnostics the scope the merge is recorded against
+     * @throws ToolingException if one family's bodies rest apart on the members their class names
+     */
+    private static void mergeRestingUndrawn(
+        @NotNull JsonTree models, @NotNull Map<String, PoseOutcome> poses,
+        @NotNull Diagnostics diagnostics) {
+
+        Map<String, List<String>> resting = restingUndrawn(poses);
+        int[] sites = {0};
+        models.members().forEach((entity, row) -> {
+            List<String> never = undrawnHeld(row.find("bones").orElse(null));
+
+            // One family list serves the body and every coat, so two bodies resting apart on the
+            // members their shared class names is a shape the table cannot carry.
+            Set<List<String>> bodySeeds = new LinkedHashSet<>();
+            for (String key : bodyKeys(row)) bodySeeds.add(resting.getOrDefault(key, List.of()));
+            if (bodySeeds.size() > 1)
+                throw new ToolingException(
+                    "'%s' bodies rest apart (%s), which one family undrawn list cannot say",
+                    entity, bodySeeds);
+            List<String> bodySeed = bodySeeds.isEmpty() ? List.of() : bodySeeds.iterator().next();
+            if (writeUndrawn(row, merged(never, bodySeed), OVERLAYS, "axes")) sites[0]++;
+
+            row.findPath("axes", AGE, OPTIONS, "baby").ifPresent(baby ->
+                baby.findString(GEOMETRY).ifPresent(coordinate -> {
+                    List<String> seed = resting.getOrDefault(poseHead(coordinate), List.of());
+                    if (!seed.isEmpty()) {
+                        baby.putStrings("undrawn", seed.toArray(String[]::new));
+                        sites[0]++;
+                    }
+                }));
+
+            row.findPath("axes", "size", OPTIONS).ifPresent(options ->
+                options.members().forEach((option, chosen) ->
+                    chosen.findString(GEOMETRY).ifPresent(coordinate -> {
+                        List<String> undrawn =
+                            merged(never, resting.getOrDefault(poseHead(coordinate), List.of()));
+                        if (!undrawn.isEmpty()) {
+                            chosen.putStrings("undrawn", undrawn.toArray(String[]::new));
+                            sites[0]++;
+                        }
+                    })));
+
+            row.find("layers").ifPresent(list -> list.elements().toList().forEach(layer -> {
+                if (layer.findPath("when", "equipment").isEmpty()) return;
+                layer.find("overlay").ifPresent(overlay ->
+                    overlay.findString(GEOMETRY).ifPresent(coordinate -> {
+                        String named = namedPoser(overlay);
+                        String key = named != null ? named : poseHead(coordinate);
+                        List<String> undrawn = merged(undrawnHeld(overlay.find("bones").orElse(null)),
+                            resting.getOrDefault(key, List.of()));
+                        if (writeUndrawn(overlay, undrawn, "layer_type")) sites[0]++;
+                    }));
+            }));
+        });
+        diagnostics.info("resting-undrawn merged into %d site(s)", sites[0]);
+    }
+
+    /**
+     * The bones each row's pose rests not drawing, refusing what the resolved form cannot carry.
+     *
+     * <p>Nothing at render reads a flag channel - the undrawn lists are the whole answer - so a flag
+     * the fold could not settle to a literal has nowhere to surface but a wrong render, and a resting
+     * {@code skip_draw} states a shape the lists cannot say: cubes skipped while the bone's children
+     * still draw. Both refuse the flow instead, which is where a version bump that grows either shape
+     * gets caught.
+     *
+     * @param poses the rows the pose table carries
+     * @return row key to the bone names it rests not drawing, sorted, rows resting whole omitted
+     * @throws ToolingException if a flag channel is not a literal, a container step writes one, or a
+     *     row rests skipping a bone's cubes
+     */
+    private static @NotNull Map<String, List<String>> restingUndrawn(
+        @NotNull Map<String, PoseOutcome> poses) {
+
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        for (Map.Entry<String, PoseOutcome> entry : poses.entrySet()) {
+            if (!(entry.getValue() instanceof PoseOutcome.Extracted extracted)) continue;
+            String row = entry.getKey();
+            for (Map<PoseChannel, PoseExpr> step : extracted.program().container())
+                for (PoseChannel channel : step.keySet())
+                    if (channel.isFlag())
+                        throw new ToolingException(
+                            "'%s' writes '%s' on its container, which reaches no bone below it",
+                            row, channel.token());
+            Set<String> undrawn = new TreeSet<>();
+            extracted.program().bones().forEach((bone, channels) -> {
+                PoseExpr visible = channels.get(PoseChannel.VISIBLE);
+                if (visible != null && restingFlag(row, bone, PoseChannel.VISIBLE, visible) == 0d)
+                    undrawn.add(bone);
+                PoseExpr skips = channels.get(PoseChannel.SKIP_DRAW);
+                if (skips != null && restingFlag(row, bone, PoseChannel.SKIP_DRAW, skips) != 0d)
+                    throw new ToolingException(
+                        "'%s' rests '%s' skipping its own cubes, which an undrawn list cannot say",
+                        row, bone);
+            });
+            if (!undrawn.isEmpty()) out.put(row, List.copyOf(undrawn));
+        }
+        return out;
+    }
+
+    /** A flag channel's one resting value, which is a literal or a refusal. */
+    private static double restingFlag(
+        @NotNull String row, @NotNull String bone, @NotNull PoseChannel channel,
+        @NotNull PoseExpr expression) {
+
+        return expression.constantValue().orElseThrow(() -> new ToolingException(
+            "'%s' poses '%s.%s' by more than a literal, and nothing at render reads a flag",
+            row, bone, channel.token()));
+    }
+
+    /** The undrawn list a bones node already carries, empty where there is no node or no member. */
+    private static @NotNull List<String> undrawnHeld(@Nullable JsonTree bones) {
+        if (bones == null) return List.of();
+        JsonTree held = bones.find("undrawn").orElse(null);
+        if (held == null) return List.of();
+        List<String> out = new ArrayList<>();
+        held.elements().toList().forEach(entry -> entry.asString().ifPresent(out::add));
+        return out;
+    }
+
+    /** One list, the never-drawn bones first and the resting seed after, each name once. */
+    private static @NotNull List<String> merged(
+        @NotNull List<String> never, @NotNull List<String> seed) {
+
+        if (seed.isEmpty()) return never;
+        LinkedHashSet<String> out = new LinkedHashSet<>(never);
+        out.addAll(seed);
+        return List.copyOf(out);
+    }
+
+    /**
+     * Writes one site's {@code undrawn} list into its {@code bones} node, opening the node where the
+     * resolver left none.
+     *
+     * <p>The node is rebuilt rather than added to, for the reason {@link #namePoser} rebuilds it: the
+     * member order a node carries is the resolver's own put chain, and {@code undrawn} sits between
+     * {@code pose} and {@code toggles}. A node opened here anchors where the resolver would have put
+     * one, so a table reads the same whichever of the two wrote the member.
+     *
+     * @param holder the family row or equipment overlay carrying the node
+     * @param undrawn the bones the site rests not drawing
+     * @param anchors the members a created node is placed ahead of, first present winning
+     * @return whether anything was written
+     */
+    private static boolean writeUndrawn(
+        @NotNull JsonTree holder, @NotNull List<String> undrawn, @NotNull String... anchors) {
+
+        if (undrawn.isEmpty()) return false;
+        JsonTree held = holder.find("bones").orElse(null);
+        JsonTree rebuilt = JsonTree.object();
+        if (held != null) held.findString("pose").ifPresent(pose -> rebuilt.put("pose", pose));
+        rebuilt.putStrings("undrawn", undrawn.toArray(String[]::new));
+        if (held != null) held.members().forEach((member, value) -> {
+            if (!"pose".equals(member) && !"undrawn".equals(member)) rebuilt.put(member, value);
+        });
+        if (held != null) holder.put("bones", rebuilt);
+        else insertMember(holder, "bones", rebuilt, anchors);
+        return true;
+    }
+
+    /** Places a new member ahead of the first anchor the holder carries, appending past them all. */
+    private static void insertMember(
+        @NotNull JsonTree holder, @NotNull String key, @NotNull JsonTree value,
+        @NotNull String... anchors) {
+
+        List<String> held = holder.keys().toList();
+        Map<String, JsonTree> members = new LinkedHashMap<>();
+        for (String member : held) members.put(member, holder.find(member).orElseThrow());
+        Set<String> before = Set.of(anchors);
+        holder.clear();
+        boolean placed = false;
+        for (String member : held) {
+            if (!placed && before.contains(member)) {
+                holder.put(key, value);
+                placed = true;
+            }
+            holder.put(member, members.get(member));
+        }
+        if (!placed) holder.put(key, value);
+    }
+
+    /**
      * Which subjects reach which pose, and what each of them answers about itself at rest.
      *
      * @param models the model table, keyed by entity id
@@ -523,16 +723,22 @@ public final class PoseFlow {
     private static @NotNull Map<String, Set<String>> bodyKeysOf(@NotNull JsonTree models) {
         Map<String, Set<String>> out = new LinkedHashMap<>();
         models.members().forEach((entity, row) -> {
-            String named = namedPoser(row);
-            Set<String> keys = new LinkedHashSet<>();
-            reaches(keys, named, row.findPath("axes", AGE, OPTIONS, ADULT)
-                .flatMap(adult -> adult.findString(GEOMETRY)).orElse(null));
-            row.findPath("axes", VARIANT, OPTIONS).ifPresent(options ->
-                options.members().forEach((coat, chosen) ->
-                    reaches(keys, named, chosen.findString(GEOMETRY).orElse(null))));
+            Set<String> keys = bodyKeys(row);
             if (!keys.isEmpty()) out.put(entity, keys);
         });
         return out;
+    }
+
+    /** The pose keys one subject's body resolves, by the rule {@link #bodyKeysOf} states. */
+    private static @NotNull Set<String> bodyKeys(@NotNull JsonTree row) {
+        String named = namedPoser(row);
+        Set<String> keys = new LinkedHashSet<>();
+        reaches(keys, named, row.findPath("axes", AGE, OPTIONS, ADULT)
+            .flatMap(adult -> adult.findString(GEOMETRY)).orElse(null));
+        row.findPath("axes", VARIANT, OPTIONS).ifPresent(options ->
+            options.members().forEach((coat, chosen) ->
+                reaches(keys, named, chosen.findString(GEOMETRY).orElse(null))));
+        return keys;
     }
 
     /**

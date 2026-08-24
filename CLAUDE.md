@@ -506,7 +506,7 @@ hands each renderer the one its subject wears. There is no armour file; the shel
 - The mesh is registered ungrown and unscaled; both layer deformations and any whole-mesh scale ride
   the row, and `ShellWalk.of` sums a cube's deformation with the row's at index time in the parser's
   operand order. `Shell.meshOffset()` derives the feet anchor as `24.016f * (1f - meshScale)`.
-- `EntityIndexBuilder.humanoidArmorOf` joins the geometry raw - no hidden-bone strip, no part subset,
+- `EntityIndexBuilder.humanoidArmorOf` joins the geometry raw - no undrawn strip, no part subset,
   no clearance bump.
 - The shell is built two-sided by `SurfaceTraits.WORN_SHELL`, vanilla submitting it through a no-cull
   cutout pipeline. Armour geometry differs from block geometry by those two bits and not by a code
@@ -558,8 +558,11 @@ hands each renderer the one its subject wears. There is no armour file; the shel
   synthesised key and a declared one are indistinguishable. `variant_of` is in-memory only.
 - **A `bones.toggles` entry says which bones a toggle flips and never which way.** The side each
   rests on is read off the model class's own pose at load, `PoseEvaluator.drawsAtRest` against the
-  figures a render state is built holding, so nothing declares it twice. `hidden` keeps only the
-  bones nothing ever draws, which no pose speaks for at all.
+  figures a render state is built holding, so nothing declares it twice. `undrawn` carries the whole
+  of what a subject rests without - the never-drawn bones merged at generation with what its pose
+  rests hidden - and it is per SUBJECT because the two halves key apart: a renderer can re-enable a
+  bone its model class never draws, and the illusioner does, over the same `IllagerModel` row the
+  other three illagers hide their hat on.
 - **A bone that rests undrawn takes its subtree with it.** Vanilla's `visible = false` skips the part
   and everything under it; removing the name alone re-parents each orphan to the root, so geometry
   that should have vanished lands somewhere the subject is not - four sprigs of coral floating clear

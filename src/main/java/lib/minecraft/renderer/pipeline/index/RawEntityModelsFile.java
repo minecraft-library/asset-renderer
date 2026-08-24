@@ -38,7 +38,7 @@ public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
  * @param render the family render tuning ({@code scale} / {@code yaw_addend} / {@code tint}), or {@code null}
  * @param rest which constant each of the subject's enum render-state fields holds before anything
  *     has happened to it, or {@code null} when its renderer fills none from a readable accessor
- * @param bones the {@code hidden} strip and {@code toggles} specs, or {@code null} when the family has none
+ * @param bones the {@code undrawn} strip and {@code toggles} specs, or {@code null} when the family has none
  * @param overlays the body overlay layers in declared order, or {@code null} when absent
  * @param blockOverlays the vanilla-block-shaped overlays, or {@code null} when absent
  * @param layers the conditional decoration layers (collar / equipment / markings / armor), or {@code null}
@@ -77,12 +77,13 @@ record RawRender(
  *     or {@code null} when the mesh's own geometry coordinate already names it. Written only
  *     where the two disagree, which is a saddle: vanilla declares a saddle's mesh factory on
  *     the wearer's model class and hands the layer a different class to pose it with
- * @param hidden the bone names stripped from the default mesh, or {@code null} when none
+ * @param undrawn the bone names the subject rests not drawing - the never-drawn merged with what
+ *     its pose rests hidden, resolved at generation - or {@code null} when it rests whole
  * @param toggles the named visibility toggles keyed by toggle name, or {@code null} when none
  */
 record RawBones(
     @Nullable String pose,
-    @Nullable List<String> hidden,
+    @Nullable List<String> undrawn,
     @Nullable Map<String, RawToggle> toggles
 ) {}
 
@@ -174,11 +175,14 @@ record RawAgeAxis(@NotNull Map<String, RawAgeOption> options) {}
  *     drawing it, {@code 0f} when absent. It sits on the option rather than on {@code render}
  *     because vanilla brackets its rotations with translates the age selects between - the squid
  *     lifts an adult by a different pair than a baby
+ * @param undrawn the bone names this age's mesh rests not drawing, read off its own model class's
+ *     pose at generation, or {@code null} when it rests whole
  */
 record RawAgeOption(
     @Nullable String geometry,
     @Nullable String texture,
-    @SerializedName("y_shift") float yShift
+    @SerializedName("y_shift") float yShift,
+    @Nullable List<String> undrawn
 ) {}
 
 /**
@@ -218,8 +222,14 @@ record RawSizeAxis(
  *
  * @param geometry the size's distinct mesh coordinate, or {@code null} for a scale-only option
  * @param scale the size's render-scale factor, boxed so a mesh-only option leaves it absent
+ * @param undrawn the bone names this size's mesh rests not drawing - the family's never-drawn
+ *     merged with its own class's rest - or {@code null} when it rests whole
  */
-record RawSizeOption(@Nullable String geometry, @Nullable Float scale) {}
+record RawSizeOption(
+    @Nullable String geometry,
+    @Nullable Float scale,
+    @Nullable List<String> undrawn
+) {}
 
 /**
  * One body {@code overlays} entry.
@@ -412,7 +422,7 @@ record RawLayerWhen(@Nullable String equipment, @Nullable String age, @Nullable 
  *
  * @param texture the collar overlay texture path, or {@code null}
  * @param geometry the equipment or armor overlay geometry coordinate, or {@code null}
- * @param bones the {@code hidden} strip and {@code toggles} specs the layer's own model class
+ * @param bones the {@code undrawn} strip and {@code toggles} specs the layer's own model class
  *     declares over that geometry, or {@code null} when it declares none
  * @param grow the armor row's two layer deformations, or {@code null} for every other row
  * @param scaled the whole-mesh scale the armor set is registered through, or {@code null} at the

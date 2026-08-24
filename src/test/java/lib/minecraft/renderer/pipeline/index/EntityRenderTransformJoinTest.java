@@ -97,7 +97,7 @@ class EntityRenderTransformJoinTest {
 
     private static @NotNull RawAxes ageAxis(float adultYShift) {
         Map<String, RawAgeOption> options = new LinkedHashMap<>();
-        options.put("adult", new RawAgeOption(COORD, "minecraft:textures/entity/test.png", adultYShift));
+        options.put("adult", new RawAgeOption(COORD, "minecraft:textures/entity/test.png", adultYShift, null));
         return new RawAxes(null, new RawAgeAxis(options), null, null, null);
     }
 

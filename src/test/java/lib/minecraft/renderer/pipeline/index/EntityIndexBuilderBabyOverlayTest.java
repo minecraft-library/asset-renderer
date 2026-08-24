@@ -81,8 +81,8 @@ class EntityIndexBuilderBabyOverlayTest {
     /** The {@code age} axis both fixture families share - an adult baseline plus a distinct baby mesh. */
     private static RawAxes ageAxes(String texture, String babyTexture) {
         Map<String, RawAgeOption> options = new LinkedHashMap<>();
-        options.put("adult", new RawAgeOption(ADULT_COORD, texture, 0f));    // geometry, texture, y_shift
-        options.put("baby", new RawAgeOption(BABY_COORD, babyTexture, 0f));  // geometry, texture, y_shift
+        options.put("adult", new RawAgeOption(ADULT_COORD, texture, 0f, null));    // geometry, texture, y_shift, undrawn
+        options.put("baby", new RawAgeOption(BABY_COORD, babyTexture, 0f, null));  // geometry, texture, y_shift, undrawn
         return new RawAxes(
             null,                     // variant
             new RawAgeAxis(options),  // age

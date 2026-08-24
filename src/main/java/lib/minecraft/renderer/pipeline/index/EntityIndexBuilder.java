@@ -50,7 +50,7 @@ import java.util.Set;
 
 /**
  * Assembles the runtime entity index from the two pure reads: joins each {@link RawModel}'s geometry
- * coordinate against the geometry table, runs the mesh surgery (hidden-bone strip, {@code retainExactParts}
+ * coordinate against the geometry table, runs the mesh surgery (undrawn strip, {@code retainExactParts}
  * subset, {@code grow} inflate plus the auto-emitted depth-clearance bump), pivots the option axes into
  * {@link Entity.Axes}, folds each variant option into a sub-{@link Entity}, and stamps cross-entity
  * canvas-group membership. The leaf decodes (hex tint, {@code blend} token, texture strip, transform ops)
@@ -199,7 +199,7 @@ public final class EntityIndexBuilder {
             renderTransformOf(renderTransforms, family, familyId, adult.yShift(), babyYShift);
 
         RawBones bones = family.bones();
-        List<String> hiddenBones = bones == null ? null : bones.hidden();
+        List<String> undrawnBones = bones == null ? null : bones.undrawn();
         Map<String, RawToggle> boneToggleSpecs = bones == null ? null : bones.toggles();
         // The class the body's pose is read against, which is the renderer's own and not always the
         // one that baked the mesh - a model reusing its parent's layer is headed with the parent
@@ -218,13 +218,15 @@ public final class EntityIndexBuilder {
         // Beside the baby MESH rather than derived from it: a baby is its own model class, and two of
         // the families that pose at all are posed through that class alone.
         Optional<EntityPose> babyPose = babyCoord == null ? Optional.empty() : Optional.of(poseOf(poses, babyCoord));
-        // A baby takes the resting strip its own pose says, the way the body and every size mesh do -
-        // a baby armadillo rests walking rather than curled, and its shell is one bone of the mesh
-        // either way. Not the family's `hidden` list, though: that is read off the ADULT's model class,
-        // where the strip below is read off the baby's own.
+        // A baby takes the strip its own option carries, the way the body and every size mesh do - a
+        // baby armadillo rests walking rather than curled, and its shell is one bone of the mesh
+        // either way. Not the family's list, though: that is read off the ADULT's model class, where
+        // the baby option's is read off the baby's own.
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
             : Optional.ofNullable(geometries.get(babyCoord))
-                .map(baby -> shiftModel(applyRestingVisibility(baby, babyPose.orElse(EntityPose.NONE)), babyYShift));
+                .map(baby -> shiftModel(applyRestingVisibility(
+                    applyUndrawn(baby, babyAge == null ? null : babyAge.undrawn(), familyId),
+                    babyPose.orElse(EntityPose.NONE)), babyYShift));
         List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
             babyPose.orElse(EntityPose.NONE), babyCoord, babyModel, familyId);
 
@@ -232,7 +234,7 @@ public final class EntityIndexBuilder {
         if (variant != null) {
             String defaultOption = variant.defaultOption();
             Map<String, RawVariantOption> options = variant.options();
-            VariantContext ctx = new VariantContext(baseCoord, poseClass, geometries, poses, renderTransform, hiddenBones, boneToggleSpecs, familyOverlays,
+            VariantContext ctx = new VariantContext(baseCoord, poseClass, geometries, poses, renderTransform, undrawnBones, boneToggleSpecs, familyOverlays,
                 blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyPose, babyOverlays, collarTexture, equipment, markings, humanoidArmor,
                 stateDefaultOf(family));
             // one base row minecraft:<id>, the coat resolved at render. Every option
@@ -254,7 +256,7 @@ public final class EntityIndexBuilder {
         EntityModelData model = resolveModel(geometries, baseCoord, familyId);
         EntityPose pose = poseOf(poses, poseClass == null ? baseCoord : poseClass);
         Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, pose, familyId);
-        model = applyRestingVisibility(applyHiddenBones(model, hiddenBones, familyId), pose);
+        model = applyRestingVisibility(applyUndrawn(model, undrawnBones, familyId), pose);
         // Ahead of the overlay load so a same-geometry pass is materialised on the shifted mesh and
         // travels with it; a pass on a mesh of its OWN would not, which the shift warns about.
         model = shiftModel(model, adult.yShift());
@@ -276,7 +278,7 @@ public final class EntityIndexBuilder {
             .renderTransform(renderTransform)
             .axes(new Entity.Axes(stateTextures, babyModel, babyPose, babyOverlays,
                 buildLargeShape(family, geometries, poses, familyId),
-                buildSizeModels(family, geometries, poses, hiddenBones, familyId),
+                buildSizeModels(family, geometries, poses, familyId),
                 buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
             .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
             .build());
@@ -342,7 +344,7 @@ public final class EntityIndexBuilder {
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
         @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform,
-        @Nullable List<String> hiddenBones,
+        @Nullable List<String> undrawnBones,
         @Nullable Map<String, RawToggle> boneToggleSpecs,
         @NotNull List<RawOverlay> familyOverlays,
         @NotNull List<BlockOverlayLayer> blockOverlays,
@@ -380,7 +382,7 @@ public final class EntityIndexBuilder {
         // family's whatever geometry this option names.
         EntityPose pose = poseOf(ctx.poses(), ctx.poseClass() == null ? rowCoord : ctx.poseClass());
         Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, pose, rowId);
-        model = applyRestingVisibility(applyHiddenBones(model, ctx.hiddenBones(), rowId), pose);
+        model = applyRestingVisibility(applyUndrawn(model, ctx.undrawnBones(), rowId), pose);
         List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(), pose, rowCoord, model, rowId);
         Map<String, String> stateTextures = variantStateTextures(optionObj);
         Optional<String> textureRef = variantWildTexture(optionObj);
@@ -757,7 +759,7 @@ public final class EntityIndexBuilder {
      * wearer rather than dressing it in a guess. An absent {@code scaled} is the identity, which is what
      * the eleven wearers vanilla registers unscaled omit.
      *
-     * <p>The mesh arrives RAW - none of the entity mesh surgery (the hidden-bone strip, the
+     * <p>The mesh arrives RAW - none of the entity mesh surgery (the undrawn strip, the
      * {@code retainExactParts} subset, the auto-emitted depth-clearance bump) touches it. Worn armor is
      * a shared set vanilla hands the wearer, not a derivative of the wearer's own mesh, so anything done
      * to the body must not follow it onto the shell.
@@ -925,7 +927,7 @@ public final class EntityIndexBuilder {
             Map<String, BoneToggle> toggles = loadBoneToggles(
                 bones == null ? null : bones.toggles(), model, pose, entityId);
             model = applyRestingVisibility(
-                applyHiddenBones(model, bones == null ? null : bones.hidden(), entityId), pose);
+                applyUndrawn(model, bones == null ? null : bones.undrawn(), entityId), pose);
             Map<String, ResourceId> materialAssets = new LinkedHashMap<>();
             overlay.materialAssets().forEach((material, assetId) -> materialAssets.put(material, ResourceId.parse(assetId)));
             out.add(new EquipmentOverlay(layer.when().equipment(), model, layerType.get(),
@@ -964,16 +966,15 @@ public final class EntityIndexBuilder {
      * {@code geometry}) are skipped; the default size is the base mesh and never appears here.
      *
      * <p>A size mesh is the same subject's body at another size, so it takes the same surgery the
-     * base body does - the hidden-bone strip and the age's Y shift. Reaching for the raw mesh instead
-     * drew the armor stand's arms on its small form and not on its full one, off one mesh the strip
-     * had run over and one it had not. The two fish carry an empty hidden list and no shift, so both
-     * passes are the identity on every subject that had a size axis before.
+     * base body does - its option's undrawn strip and the age's Y shift. Reaching for the raw mesh
+     * instead drew the armor stand's arms on its small form and not on its full one, off one mesh the
+     * strip had run over and one it had not. The two fish carry no list and no shift, so both passes
+     * are the identity on every subject that had a size axis before.
      */
     private static @NotNull Map<Size, EntityModelData> buildSizeModels(
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
-        @Nullable List<String> hiddenBones,
         @NotNull String entityId
     ) {
         Map<String, RawSizeOption> options = sizeOptions(family);
@@ -988,7 +989,7 @@ public final class EntityIndexBuilder {
             // Its own size's pose, because a size option names its own geometry and therefore its
             // own model class - an armour stand's small form among them.
             mesh = applyRestingVisibility(
-                applyHiddenBones(mesh, hiddenBones, entityId), poseOf(poses, body.geometry()));
+                applyUndrawn(mesh, body.undrawn(), entityId), poseOf(poses, body.geometry()));
             mesh = shiftModel(mesh, yShift);
             out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
         }
@@ -1062,7 +1063,7 @@ public final class EntityIndexBuilder {
 
     /**
      * Resolves a {@code bones.toggles} object into {@code toggle -> }{@link BoneToggle}, pulling each named
-     * bone's {@link EntityModelData.Bone} from the FULL geometry BEFORE the {@code hidden} strip - so a
+     * bone's {@link EntityModelData.Bone} from the FULL geometry BEFORE the {@code undrawn} strip - so a
      * default-hidden toggle's bones are still present for the resolver to re-add (donkey / mule / llama
      * chest). A named bone absent from the geometry warns and drops; a toggle left with no resolvable bones
      * is omitted.
@@ -1123,28 +1124,14 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * Returns a copy of {@code model} with the {@code hidden} bones stripped, or {@code model} verbatim when
-     * there are none. The Java geometries pack every optional render target into one tree and gate them by
-     * entity state at render; the static renderer hides the unwanted ones through this list. A named bone
-     * absent from the geometry warns.
-     */
-    /**
      * Drops every bone the model's own pose says is not drawn before anything happens to the subject.
      *
-     * <p>What the {@code hidden} list used to carry for a state-gated bone, read off the pose
-     * instead: a donkey rests without its chest because {@code hasChest} is not what a donkey's
-     * render state is built holding, and a goat rests horned because {@code hasLeftHorn} is. The
-     * list keeps only the bones nothing ever draws, which no pose speaks for.
+     * <p>A state-gated bone rests the way the pose writes it: a donkey rests without its chest
+     * because {@code hasChest} is not what a donkey's render state is built holding, and a goat
+     * rests horned because {@code hasLeftHorn} is.
      *
      * <p>Applied where the strip already happened rather than at render, so a resting mesh is the
      * same object it always was and the canvas it sizes is measured off the same bones.
-     *
-     * <p><b>A bone that does not draw takes its subtree with it.</b> Vanilla's {@code visible = false}
-     * skips the part and everything hanging off it, and a name-only removal does something else
-     * entirely: an orphan's parent lookup misses, so {@link lib.minecraft.renderer.engine.kit.BoneKit
-     * BoneKit} anchors it at the root instead, and geometry that should have vanished lands somewhere
-     * the subject is not. A zombie nautilus is what that looks like - its {@code corals} group left,
-     * and four sprigs of coral floating clear of the shell.
      */
     private static @NotNull EntityModelData applyRestingVisibility(
         @NotNull EntityModelData model, @NotNull EntityPose pose) {
@@ -1155,27 +1142,36 @@ public final class EntityIndexBuilder {
         for (String bone : bones.keySet())
             if (!PoseEvaluator.drawsAtRest(pose, model, bone)) undrawn.add(bone);
         if (undrawn.isEmpty()) return model;
-        // Closed downwards by the runtime's own walk, so the strip and a posed frame cannot come to
-        // disagree about what a hidden bone takes with it.
         bones.keySet().removeAll(PoseKit.withDescendants(bones, undrawn));
         return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(),
             Concurrent.adoptLinkedMap(bones), model.isCull());
     }
 
-    private static @NotNull EntityModelData applyHiddenBones(
+    /**
+     * Strips the bones a site's {@code undrawn} list names, or returns {@code model} verbatim when
+     * it names none the mesh has. The list carries what the subject rests not drawing, resolved at
+     * generation; a toggle re-adds its bones from the pre-strip mesh where a selection flips them.
+     *
+     * <p><b>A bone that does not draw takes its subtree with it.</b> Vanilla's {@code visible = false}
+     * skips the part and everything hanging off it, and a name-only removal does something else
+     * entirely: an orphan's parent lookup misses, so {@link lib.minecraft.renderer.engine.kit.BoneKit
+     * BoneKit} anchors it at the root instead, and geometry that should have vanished lands somewhere
+     * the subject is not. A zombie nautilus is what that looks like - its {@code corals} group left,
+     * and four sprigs of coral floating clear of the shell. The closure runs here, per mesh, because
+     * one family list serves the body and every coat and a subtree is each mesh's own.
+     */
+    private static @NotNull EntityModelData applyUndrawn(
         @NotNull EntityModelData model,
-        @Nullable List<String> hiddenBones,
+        @Nullable List<String> undrawn,
         @NotNull String entityId
     ) {
-        if (hiddenBones == null) return model;
+        if (undrawn == null || undrawn.isEmpty()) return model;
         LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(model.getBones());
-        for (String name : hiddenBones) {
-            if (name == null) continue;
-            // TODO: restore pipeline diagnostics
-            // if (bones.remove(name) == null)
-            //     diagnostics.warn("entity '%s' hidden_bones names bone '%s' which is not on the geometry", entityId, name);
-            bones.remove(name);
-        }
+        Set<String> named = new LinkedHashSet<>();
+        for (String name : undrawn)
+            if (name != null && bones.containsKey(name)) named.add(name);
+        if (named.isEmpty()) return model;
+        bones.keySet().removeAll(PoseKit.withDescendants(bones, named));
         return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(), Concurrent.adoptLinkedMap(bones), model.isCull());
     }
 

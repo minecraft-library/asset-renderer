@@ -135,7 +135,7 @@ class EntityTextureScrollJoinTest {
 
     private static @NotNull RawAxes ageAxis() {
         Map<String, RawAgeOption> options = new LinkedHashMap<>();
-        options.put("adult", new RawAgeOption(COORD, "minecraft:textures/entity/test.png", 0f));
+        options.put("adult", new RawAgeOption(COORD, "minecraft:textures/entity/test.png", 0f, null));
         return new RawAxes(null, new RawAgeAxis(options), null, null, null);
     }
 

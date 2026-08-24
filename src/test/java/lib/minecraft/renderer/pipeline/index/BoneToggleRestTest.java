@@ -18,6 +18,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -38,7 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>They HAD drifted, on whether a bee rests with its sting, which is why only one of them is left:
  * the shipped table declares which bones a toggle flips and says nothing about which way, and the
- * {@code hidden} list beside it keeps only the bones nothing ever draws.
+ * {@code undrawn} list beside it carries the whole of what a subject rests without - the bones
+ * nothing ever draws and the ones its pose rests hidden, merged at generation.
  */
 @DisplayName("a bone toggle's resting side")
 class BoneToggleRestTest {
@@ -79,20 +82,33 @@ class BoneToggleRestTest {
     }
 
     @Test
-    @DisplayName("leaves the hidden list holding only bones no pose ever draws")
-    void theHiddenListKeepsOnlyWhatNothingDraws() {
-        // The other half of having one answer: a bone a state gates is not hidden here, because the
-        // pose says whether it rests drawn. What is left is the bones nothing speaks for at all.
-        Map<String, String> hidden = new TreeMap<>();
-        for (Map.Entry<String, JsonElement> entry : models.entrySet()) {
-            JsonObject bones = entry.getValue().getAsJsonObject().getAsJsonObject("bones");
-            JsonElement list = bones == null ? null : bones.get("hidden");
-            if (list == null) continue;
-            for (JsonElement bone : list.getAsJsonArray())
-                hidden.merge(bone.getAsString(), entry.getKey(), (a, b) -> a + ", " + b);
-        }
-        assertEquals(Set.of("hat"), hidden.keySet(),
-            "every remaining hidden bone is one nothing ever draws: " + hidden);
+    @DisplayName("carries the whole of what a subject rests without, per subject rather than per class")
+    void theUndrawnListCarriesWhatRestsUndrawn() {
+        // Both halves of the merge, and the fact that makes it per subject: the never-drawn hat is
+        // the subject's own - the illusioner re-enables the one the other three illagers never draw,
+        // over the same IllagerModel row - where the resting half is the pose's.
+        assertEquals(List.of("hat", "left_arm", "right_arm"), undrawnOf("minecraft:armor_stand"),
+            "a stand rests armless beside the hat nothing ever draws");
+        assertEquals(List.of("hat", "left_arm", "right_arm"), undrawnOf("minecraft:evoker"),
+            "an evoker rests with its arms crossed, so the pair it hangs is undrawn");
+        assertEquals(List.of("hat", "arms"), undrawnOf("minecraft:pillager"),
+            "a pillager rests with its arms hanging, so the crossed pair is undrawn");
+        assertEquals(List.of("left_arm", "right_arm"), undrawnOf("minecraft:illusioner"),
+            "the illusioner re-enables the hat the other illagers never draw");
+        assertEquals(List.of("croaking_body"), undrawnOf("minecraft:frog"),
+            "a frog at rest is not mid-croak");
+        assertEquals(List.of(), undrawnOf("minecraft:goat"),
+            "a goat rests with everything its toggles flip");
+    }
+
+    /** The {@code bones.undrawn} list one family's row carries, empty where it carries none. */
+    private static @NotNull List<String> undrawnOf(@NotNull String id) {
+        JsonObject bones = models.getAsJsonObject(id).getAsJsonObject("bones");
+        JsonElement list = bones == null ? null : bones.get("undrawn");
+        if (list == null) return List.of();
+        List<String> out = new ArrayList<>();
+        for (JsonElement bone : list.getAsJsonArray()) out.add(bone.getAsString());
+        return out;
     }
 
     @Test

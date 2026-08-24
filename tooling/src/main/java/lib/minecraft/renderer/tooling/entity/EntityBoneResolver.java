@@ -31,25 +31,21 @@ import java.util.Map;
 
 /**
  * Node {@code bones} - bone-visibility deltas from a single model-hierarchy walk:
- * {@code hidden} (the unconditional ctor {@code visible = false} writes nothing ever re-enables,
+ * {@code undrawn} (the unconditional ctor {@code visible = false} writes nothing ever re-enables,
  * minus the renderer's own re-enables - the Illusioner pattern) and {@code toggles} (state-gated
- * reveals / hides: chest, horns, mushrooms, base plate, reins).
+ * reveals / hides: chest, horns, mushrooms, base plate, reins). What this writes into
+ * {@code undrawn} is the never-drawn half alone; the pose flow joins what each site's pose rests
+ * hidden onto the same member, so the shipped list is the whole of what a subject rests without.
  *
  * <p>Resolved for a body mesh and again for each equipment overlay, because a layer poses its own
  * mesh with its own model class and gates its own bones - a saddle's reins draw only while
  * something is riding. The walk is one and the same; what differs is the class it starts at and the
  * mesh the toggles are filtered against, which is why both arrive as arguments.
  *
- * <p>Which state-gated bones are hidden by default is asked of
- * {@link EntitySpawnFlagResolver} rather than assumed, because a flag packed into a synched byte
- * is free to store the negative and so read {@code true} on a spawned entity.
- *
- * <p>The {@code hasChest} literal gate generalises to any render-state boolean with a
- * zero-state-false default; gate detection relies on the {@code :Z} descriptor to type the
- * flag rather than a {@code has} / {@code is} name-prefix test (the prefixes survive only in
- * toggle NAMING, where {@code hasChest} strips to {@code chest}). Toggle subtrees are
- * expanded against the parsed geometry of the mesh the toggles belong to, not re-read
- * emitted JSON.
+ * <p>Gate detection relies on the {@code :Z} descriptor to type the flag rather than a
+ * {@code has} / {@code is} name-prefix test (the prefixes survive only in toggle NAMING, where
+ * {@code hasChest} strips to {@code chest}). Toggle subtrees are expanded against the parsed
+ * geometry of the mesh the toggles belong to, not re-read emitted JSON.
  */
 final class EntityBoneResolver {
 
@@ -57,7 +53,6 @@ final class EntityBoneResolver {
     private final @NotNull EntitySubject subject;
     private final @Nullable EntityGeometryRefResolver geometryRef;
     private final @NotNull Diagnostics diagnostics;
-    private final @NotNull EntitySpawnFlagResolver spawnFlags;
 
     EntityBoneResolver(@NotNull EntityContext context) {
         this(context, null);
@@ -68,11 +63,10 @@ final class EntityBoneResolver {
         this.subject = context.subject();
         this.geometryRef = geometryRef;
         this.diagnostics = context.diagnostics();
-        this.spawnFlags = new EntitySpawnFlagResolver(context);
     }
 
     /**
-     * The body mesh's {@code bones} node ({@code hidden} / {@code toggles}), or {@code null} when
+     * The body mesh's {@code bones} node ({@code undrawn} / {@code toggles}), or {@code null} when
      * the model declares neither (or no model resolved).
      *
      * @return the node, or {@code null} to omit
@@ -101,42 +95,41 @@ final class EntityBoneResolver {
     @Nullable JsonTree resolve(@NotNull String modelClass, @Nullable GeometryRequest request) {
         HierarchyScan scan = scanModelHierarchy(modelClass);
 
-        // hidden = unconditional only, minus the renderer's own ctor re-enables; model fields
+        // undrawn = unconditional only, minus the renderer's own ctor re-enables; model fields
         // translate to geometry bone names via the ctor getChild map.
         //
-        // A state-gated bone is NOT hidden here even where its zero state draws nothing. Which way
-        // a gate points is something the model's own pose says - the expression it writes the bone's
-        // visibility with, read at the figures a render state is built holding - and saying it twice
-        // is how the two came to disagree about whether a bee rests with its sting. What is left is
-        // the bones nothing ever draws, which no pose speaks for at all.
-        LinkedHashSet<String> hiddenFields = new LinkedHashSet<>(scan.unconditionalHidden());
+        // A state-gated bone is NOT listed here even where its zero state draws nothing. Which way
+        // a gate points is something the model's own pose says, and the pose flow is what joins
+        // that half onto this member - saying it twice here is how the two came to disagree about
+        // whether a bee rests with its sting. What this half holds is the bones nothing ever
+        // draws, which no pose speaks for at all.
+        LinkedHashSet<String> undrawnFields = new LinkedHashSet<>(scan.unconditionalHidden());
         LinkedHashSet<String> reEnabled = collectReEnabledBones();
-        hiddenFields.removeAll(reEnabled);
-        LinkedHashSet<String> hidden = new LinkedHashSet<>();
-        for (String field : hiddenFields) hidden.add(boneName(scan, field));
+        undrawnFields.removeAll(reEnabled);
+        LinkedHashSet<String> undrawn = new LinkedHashSet<>();
+        for (String field : undrawnFields) undrawn.add(boneName(scan, field));
 
         // toggles: field-gated reveal (chest - hidden by default), array-element gate (the equine
         // saddle's reins - one write covering every element of a ModelPart[]), inline-gated hide
         // (goat horns - left/right pairs group under a shared stem), negated-branch gate (bogged
-        // mushrooms - default follows branch polarity).
-        Map<String, Toggle> toggles = new LinkedHashMap<>();
+        // mushrooms).
+        Map<String, List<String>> toggles = new LinkedHashMap<>();
         for (Map.Entry<String, LinkedHashSet<String>> gate : scan.stateGatedByFlag().entrySet()) {
             List<String> bones = new ArrayList<>();
             for (String field : gate.getValue()) bones.add(boneName(scan, field));
-            toggles.put(flagToToggleName(gate.getKey()), new Toggle(bones, visibleAtZeroState(gate.getKey())));
+            toggles.put(flagToToggleName(gate.getKey()), bones);
         }
         for (Map.Entry<String, LinkedHashSet<String>> gate : arrayGatedBones(modelClass, scan).entrySet())
-            toggles.putIfAbsent(flagToToggleName(gate.getKey()),
-                new Toggle(new ArrayList<>(gate.getValue()), visibleAtZeroState(gate.getKey())));
+            toggles.putIfAbsent(flagToToggleName(gate.getKey()), new ArrayList<>(gate.getValue()));
         Map<String, List<String>> inlineGroups = new LinkedHashMap<>();
         for (String bone : scan.inlineGatedBones())
             inlineGroups.computeIfAbsent(stripLeftRight(bone), key -> new ArrayList<>()).add(bone);
         for (Map.Entry<String, List<String>> group : inlineGroups.entrySet())
-            toggles.putIfAbsent(group.getKey(), new Toggle(group.getValue(), true));
-        for (Map.Entry<String, NegatedGate> gate : scan.negatedGatedByFlag().entrySet()) {
+            toggles.putIfAbsent(group.getKey(), group.getValue());
+        for (Map.Entry<String, LinkedHashSet<String>> gate : scan.negatedGatedByFlag().entrySet()) {
             List<String> bones = new ArrayList<>();
-            for (String field : gate.getValue().fields()) bones.add(boneName(scan, field));
-            toggles.putIfAbsent(flagToToggleName(gate.getKey()), new Toggle(bones, gate.getValue().defaultVisible()));
+            for (String field : gate.getValue()) bones.add(boneName(scan, field));
+            toggles.putIfAbsent(flagToToggleName(gate.getKey()), bones);
         }
 
         if (!toggles.isEmpty()) expandToggleSubtrees(toggles, request);
@@ -150,42 +143,24 @@ final class EntityBoneResolver {
         boolean namesItsPoser = request != null
             && !posedBy.equals(ClassKit.simpleName(request.factoryClass()));
         // A pose the coordinate cannot reach is a reason to emit the node on its own. Falling through
-        // here because the class declares no hidden bone and no toggle would drop the one member
+        // here because the class declares no undrawn bone and no toggle would drop the one member
         // saying which class to read the pose off, and the reader would key it off the mesh again.
-        if (hidden.isEmpty() && toggles.isEmpty() && !namesItsPoser) return null;
+        if (undrawn.isEmpty() && toggles.isEmpty() && !namesItsPoser) return null;
 
         JsonTree node = JsonTree.object();
         if (namesItsPoser) node.put("pose", posedBy);
-        if (!hidden.isEmpty()) node.putStrings("hidden", hidden.toArray(String[]::new));
+        if (!undrawn.isEmpty()) node.putStrings("undrawn", undrawn.toArray(String[]::new));
         if (!toggles.isEmpty()) {
             JsonTree togglesNode = node.child("toggles");
             // Which bones, and nothing about which way. A toggle names the state its subject is not
-            // resting in, and what it rests in is read off the pose rather than declared here.
-            for (Map.Entry<String, Toggle> toggle : toggles.entrySet())
+            // resting in, and what it rests in is derived rather than declared here.
+            for (Map.Entry<String, List<String>> toggle : toggles.entrySet())
                 togglesNode.put(toggle.getKey(), JsonTree.object()
-                    .putStrings("bones", toggle.getValue().bones().toArray(String[]::new)));
+                    .putStrings("bones", toggle.getValue().toArray(String[]::new)));
         }
-        this.diagnostics.info("bones: hidden=%s toggles=%s", hidden, toggles.keySet());
+        this.diagnostics.info("bones: undrawn=%s toggles=%s", undrawn, toggles.keySet());
         return node;
     }
-
-    /**
-     * A named visibility toggle: the bones it flips and their default visibility
-     * ({@code false} = the toggle reveals, chest; {@code true} = the toggle hides, horns).
-     *
-     * @param bones the geometry bone names the toggle flips
-     * @param defaultVisible whether the bones render by default
-     */
-    private record Toggle(@NotNull List<String> bones, boolean defaultVisible) {}
-
-    /**
-     * A negated-branch gate's fields plus the default visibility read off the branch
-     * polarity.
-     *
-     * @param fields the model bone fields the gate writes
-     * @param defaultVisible the value written at the flag's zero state
-     */
-    private record NegatedGate(@NotNull LinkedHashSet<String> fields, boolean defaultVisible) {}
 
     /**
      * Everything ONE walk up the model hierarchy yields: the ctor-built field-to-bone map,
@@ -204,7 +179,7 @@ final class EntityBoneResolver {
         @NotNull Map<String, LinkedHashSet<String>> stateGatedByFlag,
         @NotNull Map<String, LinkedHashSet<String>> arrayGatedByFlag,
         @NotNull LinkedHashSet<String> inlineGatedBones,
-        @NotNull Map<String, NegatedGate> negatedGatedByFlag
+        @NotNull Map<String, LinkedHashSet<String>> negatedGatedByFlag
     ) {}
 
     // ------------------------------------------------------------------------------------
@@ -319,16 +294,14 @@ final class EntityBoneResolver {
                     return;
                 }
 
-                // Negated-branch gate on a this.<bone> field; the default visibility is the
-                // value written at the flag's zero state (the decoder folds the branch polarity).
+                // Negated-branch gate on a this.<bone> field - the flag still groups the bones it
+                // flips, and which way they rest is derived downstream like every other gate's.
                 if (write.targetInsn() instanceof FieldInsnNode get
                     && get.getOpcode() == Opcodes.GETFIELD
-                    && owner.name.equals(get.owner)) {
-                    boolean defaultVisible = flag.valueAtFieldFalse();
+                    && owner.name.equals(get.owner))
                     scan.negatedGatedByFlag()
-                        .computeIfAbsent(flagGet.name, key -> new NegatedGate(new LinkedHashSet<>(), defaultVisible))
-                        .fields().add(get.name);
-                }
+                        .computeIfAbsent(flagGet.name, key -> new LinkedHashSet<>())
+                        .add(get.name);
             });
     }
 
@@ -474,7 +447,7 @@ final class EntityBoneResolver {
      * the request, never re-read emitted JSON; leaf toggle bones root no subtree and pass through
      * unchanged.
      */
-    private void expandToggleSubtrees(@NotNull Map<String, Toggle> toggles, @Nullable GeometryRequest request) {
+    private void expandToggleSubtrees(@NotNull Map<String, List<String>> toggles, @Nullable GeometryRequest request) {
         if (request == null) return;
         JsonTree parsed = GeometryParser.parse(this.cache, request, this.diagnostics.child("toggle-expansion"));
         JsonTree bones = parsed == null ? null : parsed.find("bones").orElse(null);
@@ -485,10 +458,10 @@ final class EntityBoneResolver {
         bones.members().forEach((name, bone) ->
             parents.put(name, bone.findString("parent").orElse(null)));
 
-        Iterator<Map.Entry<String, Toggle>> entries = toggles.entrySet().iterator();
+        Iterator<Map.Entry<String, List<String>>> entries = toggles.entrySet().iterator();
         while (entries.hasNext()) {
-            Map.Entry<String, Toggle> entry = entries.next();
-            LinkedHashSet<String> members = new LinkedHashSet<>(entry.getValue().bones());
+            Map.Entry<String, List<String>> entry = entries.next();
+            LinkedHashSet<String> members = new LinkedHashSet<>(entry.getValue());
             // Fixpoint so a subtree of any depth closes regardless of parent-before-child
             // ordering in the parsed tree.
             boolean grew = true;
@@ -504,20 +477,8 @@ final class EntityBoneResolver {
             }
             members.retainAll(parents.keySet());
             if (members.isEmpty()) entries.remove();
-            else entry.setValue(new Toggle(new ArrayList<>(members), entry.getValue().defaultVisible()));
+            else entry.setValue(new ArrayList<>(members));
         }
-    }
-
-    /**
-     * Whether a positive-gated flag's bones render on a freshly spawned entity - which is what
-     * the flag itself reads there, since the write is {@code bone.visible = state.<flag>}.
-     *
-     * <p>Not always {@code false}: vanilla packs several flags into one synched byte and a packed
-     * flag may store the negative, so a zero byte can read {@code true}. An armor stand's base
-     * plate is the corpus's one such bone.
-     */
-    private boolean visibleAtZeroState(@NotNull String flag) {
-        return this.spawnFlags.spawnValue(flag);
     }
 
     /**

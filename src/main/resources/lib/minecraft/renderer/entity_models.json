@@ -18,6 +18,11 @@
     },
     "minecraft:armadillo": {
       "renderer": "net/minecraft/client/renderer/entity/ArmadilloRenderer",
+      "bones": {
+        "undrawn": [
+          "cube"
+        ]
+      },
       "axes": {
         "age": {
           "options": {
@@ -27,7 +32,10 @@
             },
             "baby": {
               "geometry": "BabyArmadilloModel#createBodyLayer",
-              "texture": "minecraft:textures/entity/armadillo/armadillo_baby.png"
+              "texture": "minecraft:textures/entity/armadillo/armadillo_baby.png",
+              "undrawn": [
+                "cube"
+              ]
             }
           }
         }
@@ -36,8 +44,10 @@
     "minecraft:armor_stand": {
       "renderer": "net/minecraft/client/renderer/entity/ArmorStandRenderer",
       "bones": {
-        "hidden": [
-          "hat"
+        "undrawn": [
+          "hat",
+          "left_arm",
+          "right_arm"
         ],
         "toggles": {
           "arms": {
@@ -66,7 +76,12 @@
           "default": "large",
           "options": {
             "small": {
-              "geometry": "ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER"
+              "geometry": "ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER",
+              "undrawn": [
+                "hat",
+                "left_arm",
+                "right_arm"
+              ]
             }
           }
         }
@@ -319,6 +334,9 @@
           "overlay": {
             "geometry": "CamelSaddleModel#createSaddleLayer",
             "bones": {
+              "undrawn": [
+                "reins"
+              ],
               "toggles": {
                 "ridden": {
                   "bones": [
@@ -359,6 +377,9 @@
           "overlay": {
             "geometry": "CamelSaddleModel#createSaddleLayer",
             "bones": {
+              "undrawn": [
+                "reins"
+              ],
               "toggles": {
                 "ridden": {
                   "bones": [
@@ -696,6 +717,10 @@
     "minecraft:donkey": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
       "bones": {
+        "undrawn": [
+          "left_chest",
+          "right_chest"
+        ],
         "toggles": {
           "chest": {
             "bones": [
@@ -714,7 +739,11 @@
             },
             "baby": {
               "geometry": "BabyDonkeyModel#createBabyLayer",
-              "texture": "minecraft:textures/entity/horse/donkey_baby.png"
+              "texture": "minecraft:textures/entity/horse/donkey_baby.png",
+              "undrawn": [
+                "left_chest",
+                "right_chest"
+              ]
             }
           }
         }
@@ -731,6 +760,10 @@
             "geometry": "DonkeyModel#createSaddleLayer@fparam=0.87",
             "bones": {
               "pose": "EquineSaddleModel",
+              "undrawn": [
+                "left_saddle_line",
+                "right_saddle_line"
+              ],
               "toggles": {
                 "ridden": {
                   "bones": [
@@ -942,8 +975,10 @@
       },
       "bones": {
         "pose": "IllagerModel@armPose=CROSSED",
-        "hidden": [
-          "hat"
+        "undrawn": [
+          "hat",
+          "left_arm",
+          "right_arm"
         ]
       },
       "axes": {
@@ -976,6 +1011,11 @@
     },
     "minecraft:frog": {
       "renderer": "net/minecraft/client/renderer/entity/FrogRenderer",
+      "bones": {
+        "undrawn": [
+          "croaking_body"
+        ]
+      },
       "axes": {
         "variant": {
           "default": "temperate",
@@ -1294,6 +1334,10 @@
           "overlay": {
             "geometry": "EquineSaddleModel#createSaddleLayer@scaled=1.1",
             "bones": {
+              "undrawn": [
+                "left_saddle_line",
+                "right_saddle_line"
+              ],
               "toggles": {
                 "ridden": {
                   "bones": [
@@ -1383,7 +1427,11 @@
         }
       },
       "bones": {
-        "pose": "IllagerModel@armPose=CROSSED"
+        "pose": "IllagerModel@armPose=CROSSED",
+        "undrawn": [
+          "left_arm",
+          "right_arm"
+        ]
       }
     },
     "minecraft:iron_golem": {
@@ -1455,6 +1503,10 @@
     "minecraft:llama": {
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
       "bones": {
+        "undrawn": [
+          "left_chest",
+          "right_chest"
+        ],
         "toggles": {
           "chest": {
             "bones": [
@@ -1500,7 +1552,11 @@
               "geometry": "LlamaModel#createBodyLayer"
             },
             "baby": {
-              "geometry": "BabyLlamaModel#createBodyLayer"
+              "geometry": "BabyLlamaModel#createBodyLayer",
+              "undrawn": [
+                "left_chest",
+                "right_chest"
+              ]
             }
           }
         }
@@ -1516,6 +1572,10 @@
           "overlay": {
             "geometry": "LlamaModel#createBodyLayer@grow=0.5",
             "bones": {
+              "undrawn": [
+                "left_chest",
+                "right_chest"
+              ],
               "toggles": {
                 "chest": {
                   "bones": [
@@ -1712,6 +1772,10 @@
     "minecraft:mule": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
       "bones": {
+        "undrawn": [
+          "left_chest",
+          "right_chest"
+        ],
         "toggles": {
           "chest": {
             "bones": [
@@ -1730,7 +1794,11 @@
             },
             "baby": {
               "geometry": "BabyDonkeyModel#createBabyLayer",
-              "texture": "minecraft:textures/entity/horse/mule_baby.png"
+              "texture": "minecraft:textures/entity/horse/mule_baby.png",
+              "undrawn": [
+                "left_chest",
+                "right_chest"
+              ]
             }
           }
         }
@@ -1747,6 +1815,10 @@
             "geometry": "DonkeyModel#createSaddleLayer@fparam=0.92",
             "bones": {
               "pose": "EquineSaddleModel",
+              "undrawn": [
+                "left_saddle_line",
+                "right_saddle_line"
+              ],
               "toggles": {
                 "ridden": {
                   "bones": [
@@ -2109,8 +2181,9 @@
       },
       "bones": {
         "pose": "IllagerModel@armPose=NEUTRAL",
-        "hidden": [
-          "hat"
+        "undrawn": [
+          "hat",
+          "arms"
         ]
       },
       "axes": {
@@ -2432,6 +2505,10 @@
           "overlay": {
             "geometry": "EquineSaddleModel#createSaddleLayer",
             "bones": {
+              "undrawn": [
+                "left_saddle_line",
+                "right_saddle_line"
+              ],
               "toggles": {
                 "ridden": {
                   "bones": [
@@ -2689,6 +2766,10 @@
     "minecraft:trader_llama": {
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
       "bones": {
+        "undrawn": [
+          "left_chest",
+          "right_chest"
+        ],
         "toggles": {
           "chest": {
             "bones": [
@@ -2734,7 +2815,11 @@
               "geometry": "LlamaModel#createBodyLayer"
             },
             "baby": {
-              "geometry": "BabyLlamaModel#createBodyLayer"
+              "geometry": "BabyLlamaModel#createBodyLayer",
+              "undrawn": [
+                "left_chest",
+                "right_chest"
+              ]
             }
           }
         }
@@ -2764,6 +2849,10 @@
           "overlay": {
             "geometry": "LlamaModel#createBodyLayer@grow=0.5",
             "bones": {
+              "undrawn": [
+                "left_chest",
+                "right_chest"
+              ],
               "toggles": {
                 "chest": {
                   "bones": [
@@ -2861,6 +2950,9 @@
     "minecraft:turtle": {
       "renderer": "net/minecraft/client/renderer/entity/TurtleRenderer",
       "bones": {
+        "undrawn": [
+          "egg_belly"
+        ],
         "toggles": {
           "egg": {
             "bones": [
@@ -2950,8 +3042,10 @@
       },
       "bones": {
         "pose": "IllagerModel@armPose=CROSSED",
-        "hidden": [
-          "hat"
+        "undrawn": [
+          "hat",
+          "left_arm",
+          "right_arm"
         ]
       },
       "axes": {
@@ -3357,6 +3451,10 @@
           "overlay": {
             "geometry": "EquineSaddleModel#createSaddleLayer",
             "bones": {
+              "undrawn": [
+                "left_saddle_line",
+                "right_saddle_line"
+              ],
               "toggles": {
                 "ridden": {
                   "bones": [
