@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
+import lib.minecraft.renderer.asset.pose.PoseOperator;
 import lib.minecraft.renderer.asset.pose.PosePredicate;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -106,40 +107,54 @@ class PoseEvaluatorTest {
     }
 
     @Test
-    @DisplayName("a figure its render state builds non-zero is answered as built, not as nothing")
+    @DisplayName("a figure its render state builds non-zero was answered as built before it shipped")
     void aRestingFrameAnswersWhatTheRenderStateBuilds() {
-        // The shipped defaults are load-bearing rather than tidy, and a humanoid is where it shows:
-        // HumanoidRenderState builds speedValue at one and every humanoid DIVIDES a limb swing by
-        // it, so the blanket zero is a division by zero and the limb is NaN. Both sides are asserted
-        // because only the pair says the table is doing anything.
+        // What the render state builds is load-bearing rather than tidy, and a humanoid is where it
+        // shows: HumanoidRenderState builds speedValue at one and every humanoid DIVIDES a limb swing
+        // by it, so a subject answered nothing there is a division by zero and the limb is NaN.
+        //
+        // The shipped row is resolved against that value before it is written, so the division is
+        // gone rather than merely survivable - and the assertion is the stronger one the fold earns:
+        // the leg is a number whatever a caller answers, there being no figure left in the channel
+        // for a caller to answer wrongly. A row that started reading one again would fail here on
+        // the zero frame exactly as it used to.
         //
         // Read at the LEG rather than the arm. A zombie is posed by its own class and not by the one
         // that baked its mesh, and that class assigns the arm outright after the humanoid arithmetic
-        // has run - the arms-out stance overwrites the swing, NaN and all. The legs it leaves alone.
+        // has run - the arms-out stance overwrites the swing. The legs it leaves alone.
         EntityPose zombie = poseOf("minecraft:zombie");
-        assertEquals(1f, zombie.inputDefaults().get("speedValue"),
-            "the table carries what a humanoid's speed is built at");
-
         EntityModelData mesh = meshFor(zombie);
-        assertTrue(Float.isNaN(PoseEvaluator.evaluate(zombie, mesh, PoseEvaluator.ZERO)
-                .bones().get("left_leg").get(PoseChannel.X_ROT)),
-            "answering nothing to a figure vanilla divides by is a division by zero");
-        assertTrue(Float.isFinite(PoseEvaluator.evaluate(zombie, mesh, PoseEvaluator.restingIn(zombie, Map.of()))
-                .bones().get("left_leg").get(PoseChannel.X_ROT)),
-            "and answering what it rests at is a still leg");
+        for (PoseEvaluator.Frame frame :
+            List.of(PoseEvaluator.ZERO, PoseEvaluator.restingIn(zombie, Map.of())))
+            assertTrue(Float.isFinite(PoseEvaluator.evaluate(zombie, mesh, frame)
+                    .bones().get("left_leg").get(PoseChannel.X_ROT)),
+                "a zombie stands on a leg that is a number, whatever it is asked");
     }
 
     @Test
-    @DisplayName("a turtle's container drops by one exactly when it is carrying an egg")
+    @DisplayName("a conditional channel takes the arm its condition chooses, each way round")
     void aConditionalChannelTakesTheArmItsConditionChooses() {
-        // Select over Compare over Input, which is the commonest shape in the corpus, evaluated both
-        // ways round. The zero frame answers nothing to every question, so it takes the no-egg arm.
-        EntityPose turtle = poseOf("minecraft:turtle");
-        EntityModelData mesh = meshFor(turtle);
+        // Select over Compare over Input, which is the shape a body's every branch decomposes into.
+        // Built here rather than taken from the corpus: a shipped row is resolved against the frame
+        // its subject rests in before it is written, so every branch a subject could reach is already
+        // decided and none of them is left to exercise this. The mechanism outlives the rows that
+        // happened to use it - a caller driving the tick still reaches it - so it is pinned on a pose
+        // this test owns and cannot be quietly emptied by what the generator resolves next.
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", new EntityModelData.Bone(Vector3f.ZERO, EulerRotation.NONE,
+            EulerRotation.NONE, 1f, Concurrent.newList(), null));
 
-        assertEquals(0f, PoseEvaluator.evaluate(turtle, mesh, PoseEvaluator.ZERO)
-            .container().getFirst().get(PoseChannel.Y),
-            "a turtle at rest carries no egg and holds where it is");
+        EntityPose carried = new EntityPose(
+            List.of(Map.of(PoseChannel.Y, new PoseExpr.Select(
+                new PosePredicate.Compare(PosePredicate.Comparison.EQ,
+                    new PoseExpr.Input("hasEgg"), new PoseExpr.Const(0, PoseOperator.Width.INT)),
+                new PoseExpr.Const(0f, PoseOperator.Width.FLOAT),
+                new PoseExpr.Const(-1f, PoseOperator.Width.FLOAT)))),
+            Map.of(), List.of(), Map.of(), Map.of(), Map.of(), Optional.empty());
+
+        assertEquals(0f, PoseEvaluator.evaluate(carried, mesh, PoseEvaluator.ZERO)
+                .container().getFirst().get(PoseChannel.Y),
+            "answering nothing takes the arm the condition holds for");
 
         PoseEvaluator.Frame carrying = new PoseEvaluator.Frame() {
             @Override
@@ -147,8 +162,9 @@ class PoseEvaluatorTest {
                 return "hasEgg".equals(field) ? 1f : 0f;
             }
         };
-        assertEquals(-1f, PoseEvaluator.evaluate(turtle, mesh, carrying).container().getFirst().get(PoseChannel.Y),
-            "and drops by one when it is");
+        assertEquals(-1f, PoseEvaluator.evaluate(carried, mesh, carrying)
+                .container().getFirst().get(PoseChannel.Y),
+            "and answering the figure takes the other");
     }
 
     @Test

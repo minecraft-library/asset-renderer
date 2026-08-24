@@ -11,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -36,6 +37,17 @@ import java.util.TreeSet;
 public final class PoseFlow {
 
     /**
+     * The render-state figures the tick drives, which stay symbolic through the fold.
+     *
+     * <p>Elapsed age is what makes one frame differ from its neighbour at all; the stride pair is
+     * what a gait adds, and vanilla steps the phase BY the amplitude once a tick rather than deriving
+     * it from the clock, so the two are one schedule and a caller naming one without the other has
+     * described no gait. Everything else an offline subject answers at rest.
+     */
+    private static final @NotNull Set<String> DRIVEN =
+        Set.of("ageInTicks", "walkAnimationPos", "walkAnimationSpeed");
+
+    /**
      * Parses every clip and every binding, then writes the pose table.
      *
      * @param session the live session
@@ -48,13 +60,36 @@ public final class PoseFlow {
     public static void emit(
         @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
         @NotNull Map<String, Set<String>> rootBones, @NotNull Set<String> posing,
-        @NotNull Set<String> renderers, @NotNull Path out) {
+        @NotNull Set<String> renderers, @NotNull JsonTree models, @NotNull Path out) {
 
         Diagnostics diagnostics = session.diagnostics().child("pose");
         List<KeyframeClip> clips = KeyframeDefinitionParser.parseAll(session.cache(), diagnostics);
         Map<String, String> roster = rosterClasses(session, manifest, posing, diagnostics);
-        Map<String, PoseOutcome> poses = walkModels(session, roster, rootBones, diagnostics);
+        Map<String, PoseOutcome> walked = walkModels(session, roster, rootBones, diagnostics);
         Map<String, RenderTransform> transforms = walkRenderers(session, renderers);
+
+        // Resolved before anything is written, because the fold reads all three: what the walk left
+        // is a program over the render state, and these are what that state answers at rest.
+        Map<String, Float> defaults =
+            InputDefaultResolver.resolve(session.cache(), InputDefaultResolver.namedBy(walked), diagnostics);
+        Map<String, Map<String, String>> restingByModel = new LinkedHashMap<>();
+        Map<String, Map<String, Float>> questionsByModel = new LinkedHashMap<>();
+        Set<String> switched = InputDefaultResolver.constantsNamedBy(walked);
+        Set<String> asked = InputDefaultResolver.questionsNamedBy(walked);
+        for (Map.Entry<String, String> model : roster.entrySet()) {
+            String renderState = PoseWalk.renderStateOf(session.cache(), model.getKey());
+            if (renderState == null) continue;
+            String name = ClassKit.simpleName(model.getKey());
+            Map<String, String> resting =
+                InputDefaultResolver.resolveConstants(session.cache(), renderState, switched);
+            if (!resting.isEmpty()) restingByModel.put(name, resting);
+            Map<String, Float> answers =
+                InputDefaultResolver.resolveQuestions(session.cache(), renderState, asked);
+            if (!answers.isEmpty()) questionsByModel.put(name, answers);
+        }
+
+        Map<String, PoseOutcome> poses =
+            foldAll(walked, framesOf(models), restingByModel, questionsByModel, defaults, diagnostics);
 
         JsonTree root = session.envelope("definitions-package listing order for clips; "
             + "model simple name for poses, and bone name within a pose");
@@ -67,8 +102,6 @@ public final class PoseFlow {
         // What a figure reads as before anything has happened to the subject, for the figures whose
         // own render state builds them at something other than nothing. Written at the root because
         // a figure is named by its bare field name, which is one keyspace across every model.
-        Map<String, Float> defaults =
-            InputDefaultResolver.resolve(session.cache(), InputDefaultResolver.namedBy(poses), diagnostics);
         if (!defaults.isEmpty()) {
             JsonTree defaultsNode = root.child("input_defaults");
             defaults.forEach(defaultsNode::put);
@@ -88,27 +121,17 @@ public final class PoseFlow {
         // chain, because it is the same question about a different kind of member: a reference the
         // state holds is a whole value, and every component of it is an answer a subject stands at.
         JsonTree restingNode = JsonTree.object();
+        restingByModel.forEach((model, resting) -> {
+            JsonTree perModel = JsonTree.object();
+            resting.forEach(perModel::put);
+            restingNode.put(model, perModel);
+        });
         JsonTree questionsNode = JsonTree.object();
-        Set<String> switched = InputDefaultResolver.constantsNamedBy(poses);
-        Set<String> asked = InputDefaultResolver.questionsNamedBy(poses);
-        for (Map.Entry<String, String> model : roster.entrySet()) {
-            String renderState = PoseWalk.renderStateOf(session.cache(), model.getKey());
-            if (renderState == null) continue;
-            String name = ClassKit.simpleName(model.getKey());
-            Map<String, String> resting =
-                InputDefaultResolver.resolveConstants(session.cache(), renderState, switched);
-            if (!resting.isEmpty()) {
-                JsonTree perModel = JsonTree.object();
-                resting.forEach(perModel::put);
-                restingNode.put(name, perModel);
-            }
-            Map<String, Float> answers =
-                InputDefaultResolver.resolveQuestions(session.cache(), renderState, asked);
-            if (answers.isEmpty()) continue;
-            JsonTree perModelQuestions = JsonTree.object();
-            answers.forEach(perModelQuestions::put);
-            questionsNode.put(name, perModelQuestions);
-        }
+        questionsByModel.forEach((model, answers) -> {
+            JsonTree perModel = JsonTree.object();
+            answers.forEach(perModel::put);
+            questionsNode.put(model, perModel);
+        });
         if (!restingNode.isEmpty()) root.put("rest_defaults", restingNode);
         if (!questionsNode.isEmpty()) root.put("question_defaults", questionsNode);
 
@@ -128,6 +151,166 @@ public final class PoseFlow {
         reportRefusedTransforms(transforms, diagnostics);
         root.write(out);
         diagnostics.info("wrote %s", out.toAbsolutePath());
+    }
+
+    /**
+     * Resolves every walked pose against the frame the subjects reaching it stand in.
+     *
+     * <p>A row is folded against ONE frame, which is what keeps the result a graph: a node reached
+     * down six paths has one binding and folds to one residual. So a class two subjects reach with
+     * different resting maps has no single frame, and this <b>refuses to fold it</b> rather than
+     * picking one - folding an illager against another illager's arms draws a subject vanilla never
+     * draws, and renders as though it were deliberate. A refused row is emitted exactly as walked and
+     * keeps reading the tables at render, so refusing costs bytes and never correctness.
+     *
+     * <p>A row nothing reaches is folded against its model's own defaults, there being no subject to
+     * answer for it.
+     *
+     * @param walked every model's pose as the walk left it
+     * @param frames which resting maps reach each pose class, by class
+     * @param restingByModel which constant each enum member rests holding, per model
+     * @param questionsByModel what a question rests answering, per model
+     * @param inputDefaults what each figure rests at, one keyspace across every model
+     * @param diagnostics the scope a refusal is recorded against
+     * @return the residual per model, in the order the walk produced them
+     */
+    private static @NotNull Map<String, PoseOutcome> foldAll(
+        @NotNull Map<String, PoseOutcome> walked,
+        @NotNull Map<String, Map<Map<String, String>, Set<String>>> frames,
+        @NotNull Map<String, Map<String, String>> restingByModel,
+        @NotNull Map<String, Map<String, Float>> questionsByModel,
+        @NotNull Map<String, Float> inputDefaults, @NotNull Diagnostics diagnostics) {
+
+        Map<String, PoseOutcome> out = new TreeMap<>();
+        int folded = 0;
+        for (Map.Entry<String, PoseOutcome> entry : walked.entrySet()) {
+            String model = entry.getKey();
+            if (!(entry.getValue() instanceof PoseOutcome.Extracted extracted)) {
+                out.put(model, entry.getValue());
+                continue;
+            }
+
+            Map<Map<String, String>, Set<String>> reaching = frames.getOrDefault(model, Map.of());
+            if (reaching.size() > 1) {
+                List<String> spelled = new ArrayList<>();
+                reaching.forEach((rest, subjects) -> spelled.add(rest + " <- " + new TreeSet<>(subjects)));
+                diagnostics.info("%s is reached at %d resting states and is emitted unfolded: %s",
+                    model, reaching.size(), String.join("; ", spelled));
+                out.put(model, entry.getValue());
+                continue;
+            }
+
+            Map<String, String> subjectRest =
+                reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
+            out.put(model, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(), subjectRest,
+                restingByModel.getOrDefault(model, Map.of()),
+                questionsByModel.getOrDefault(model, Map.of()), inputDefaults, DRIVEN)));
+            folded++;
+        }
+        diagnostics.info("folded %d of %d walked pose(s) against the frame their subjects rest in",
+            folded, walked.size());
+        return out;
+    }
+
+    /**
+     * Which subjects reach which pose, and what each of them answers about itself at rest.
+     *
+     * <p>Read off the model table this same session just built, because that table is the statement
+     * of record: it is what the reader will join on, so deriving the join from anything else would
+     * be a second account of it that can drift. The rules are the reader's own - a site names its
+     * poser outright or takes the head of the coordinate it draws, and nothing else resolves one.
+     *
+     * @param models the model table, keyed by entity id
+     * @return pose class simple name to each distinct resting map reaching it, and the subjects
+     *     carrying that map
+     */
+    private static @NotNull Map<String, Map<Map<String, String>, Set<String>>> framesOf(
+        @NotNull JsonTree models) {
+
+        Map<String, Map<Map<String, String>, Set<String>>> out = new LinkedHashMap<>();
+        models.members().forEach((entity, row) -> {
+            Map<String, String> rest = restOf(row);
+            for (String poseClass : posedBy(row))
+                out.computeIfAbsent(poseClass, key -> new LinkedHashMap<>())
+                    .computeIfAbsent(rest, key -> new LinkedHashSet<>())
+                    .add(entity);
+        });
+        return out;
+    }
+
+    /** Which constant each enum member this subject rests holding, empty where it names none. */
+    private static @NotNull Map<String, String> restOf(@NotNull JsonTree row) {
+        JsonTree rest = row.find("rest").orElse(null);
+        if (rest == null) return Map.of();
+        Map<String, String> out = new LinkedHashMap<>();
+        rest.members().forEach((member, held) ->
+            held.asString().ifPresent(value -> out.put(member, value)));
+        return Map.copyOf(out);
+    }
+
+    /**
+     * Every pose class this subject's meshes are posed by.
+     *
+     * <p>A body and an equipment layer may name their poser outright; everything else is posed by
+     * the class heading the coordinate it draws.
+     */
+    private static @NotNull Set<String> posedBy(@NotNull JsonTree row) {
+        Set<String> out = new LinkedHashSet<>();
+        JsonTree bones = row.find("bones").orElse(null);
+        String named = bones == null ? null : bones.findString("pose").orElse(null);
+
+        JsonTree axes = row.find("axes").orElse(null);
+        String body = null;
+        if (axes != null) {
+            JsonTree age = axes.find("age").orElse(null);
+            JsonTree options = age == null ? null : age.find("options").orElse(null);
+            if (options != null) {
+                List<String> geometries = new ArrayList<>();
+                options.members().forEach((option, held) ->
+                    held.findString("geometry").ifPresent(geometries::add));
+                if (!geometries.isEmpty()) body = geometries.getFirst();
+            }
+        }
+        posedBy(out, named == null ? poseHead(body) : named);
+
+        if (axes != null)
+            axes.members().forEach((axis, held) -> {
+                JsonTree options = held.find("options").orElse(null);
+                if (options == null) return;
+                options.members().forEach((option, chosen) -> {
+                    posedBy(out, poseHead(chosen.findString("geometry").orElse(null)));
+                    chosen.find("overlays").ifPresent(list -> list.elements().toList().forEach(
+                        overlay -> posedBy(out, poseHead(overlay.findString("geometry").orElse(null)))));
+                });
+            });
+
+        row.find("overlays").ifPresent(list -> list.elements().toList().forEach(overlay -> {
+            posedBy(out, poseHead(overlay.findString("geometry").orElse(null)));
+            overlay.find("baby").ifPresent(baby ->
+                posedBy(out, poseHead(baby.findString("geometry").orElse(null))));
+        }));
+
+        row.find("layers").ifPresent(list -> list.elements().toList().forEach(layer -> {
+            JsonTree overlay = layer.find("overlay").orElse(null);
+            if (overlay == null) return;
+            JsonTree layerBones = overlay.find("bones").orElse(null);
+            String poser = layerBones == null ? null : layerBones.findString("pose").orElse(null);
+            posedBy(out, poser == null ? poseHead(overlay.findString("geometry").orElse(null)) : poser);
+            overlay.find("alternate").ifPresent(alternate ->
+                posedBy(out, poseHead(alternate.findString("geometry").orElse(null))));
+        }));
+        return out;
+    }
+
+    private static void posedBy(@NotNull Set<String> out, @Nullable String poseClass) {
+        if (poseClass != null && !poseClass.isEmpty()) out.add(poseClass);
+    }
+
+    /** The class a geometry coordinate is headed with, which is what the reader keys a pose by. */
+    private static @Nullable String poseHead(@Nullable String coordinate) {
+        if (coordinate == null) return null;
+        int member = coordinate.indexOf('#');
+        return member < 0 ? coordinate : coordinate.substring(0, member);
     }
 
     /** One clip's length, looping flag and channels, in declaration order. */

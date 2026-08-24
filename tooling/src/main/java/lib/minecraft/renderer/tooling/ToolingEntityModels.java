@@ -53,7 +53,11 @@ public final class ToolingEntityModels {
                 String model = EntityPoseClass.of(session.cache(), subject.rendererClass());
                 if (model != null) posing.add(model);
             }
-            PoseFlow.emit(session, manifest, rootBones, posing, renderers, session.resolve("entity_poses.json"));
+            // The model table travels into the pose flow because the fold needs what each subject
+            // rests at, and that table is the statement of record for it - it is what the reader
+            // joins on, so deriving the join from anything else would be a second account of it.
+            PoseFlow.emit(session, manifest, rootBones, posing, renderers,
+                root.child("models"), session.resolve("entity_poses.json"));
             session.failOnStrictGate();
         }
     }

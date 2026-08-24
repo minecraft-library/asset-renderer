@@ -25,6 +25,7 @@ import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -109,19 +110,19 @@ class EntityPoseLoadTest {
         assertFalse(dragon.bones().containsKey("<mesh root>"),
             "and the container is nowhere among the bones, under that spelling or any other");
 
-        // A turtle drops the container it hangs off by one while it is carrying an egg. What the
-        // channel holds is a number rather than a read of a bone, because a flattened container has
-        // no authored pose left to read - the mesh put whatever it held into the bones below it.
+        // A turtle moves the container it hangs off, and what the channel holds is a number rather
+        // than a read of a bone: a flattened container has no authored pose left to read, the mesh
+        // having put whatever it held into the bones below it.
+        //
+        // The number is where the turtle rests. It drops by one while carrying an egg, and an
+        // offline turtle carries none - so the branch that would have said so is resolved before the
+        // row ships and what arrives is the arm a turtle standing there takes.
         EntityPose turtle = pose("minecraft:turtle");
         assertEquals(1, turtle.container().size(), "and the turtle's is one step too");
         assertEquals(Set.of(PoseChannel.Y), turtle.container().getFirst().keySet(),
             "the turtle moves its container once");
-        assertEquals(new PoseExpr.Select(
-                new PosePredicate.Compare(PosePredicate.Comparison.EQ,
-                    new PoseExpr.Input("hasEgg"), new PoseExpr.Const(0, PoseOperator.Width.INT)),
-                constant(0f), constant(-1f)),
-            turtle.container().getFirst().get(PoseChannel.Y),
-            "and it rests at zero when there is no egg to carry");
+        assertEquals(constant(0f), turtle.container().getFirst().get(PoseChannel.Y),
+            "and it rests at zero, there being no egg to carry");
     }
 
     @Test
@@ -143,28 +144,20 @@ class EntityPoseLoadTest {
             "the baby has no such bone and poses none");
 
         // Both donkeys pose, so their direction is read off what they pose WITH. A foal assigns its
-        // own head pitch and reads that back, where the adult reads the pitch the render state
+        // own head pitch and reads that back, where the adult takes the pitch the render state
         // carries - so a foal handed the adult's pose would look wherever the animal is looking.
-        assertTrue(pose("minecraft:donkey").isReadable(), "the adult donkey has a readable pose");
-        assertTrue(babyPose("minecraft:donkey").isReadable(), "and so does the foal");
-        assertTrue(reads(pose("minecraft:donkey"), "xRot"),
-            "the adult donkey's head follows the pitch it is handed");
-        assertFalse(reads(babyPose("minecraft:donkey"), "xRot"),
-            "the foal's does not - it holds the angle it assigned itself");
-    }
-
-    /**
-     * Whether any channel of a pose reads a named render-state field.
-     *
-     * @param pose the pose to search
-     * @param field the vanilla render-state field name
-     * @return whether the field is read anywhere inside it
-     */
-    private static boolean reads(@NotNull EntityPose pose, @NotNull String field) {
-        Map<Object, Integer> reached = new IdentityHashMap<>();
-        pose.bones().values().forEach(channels -> channels.values().forEach(expr -> edges(expr, reached)));
-        return reached.keySet().stream()
-            .anyMatch(node -> node instanceof PoseExpr.Input input && input.field().equals(field));
+        //
+        // Asserted as the two heads holding different expressions rather than by naming the figure
+        // the adult reads. An offline subject looks straight ahead, so the pitch it is handed is
+        // resolved into the row before it ships and the adult's head arrives as the angle that pitch
+        // works out to; the foal's arrives as the read of its own bone, which nothing resolves. What
+        // survives either spelling is that the two are not the same pose, which is the whole claim.
+        EntityPose donkey = pose("minecraft:donkey");
+        EntityPose foal = babyPose("minecraft:donkey");
+        assertTrue(donkey.isReadable(), "the adult donkey has a readable pose");
+        assertTrue(foal.isReadable(), "and so does the foal");
+        assertNotEquals(donkey.bones().get("head_parts"), foal.bones().get("head_parts"),
+            "and the two heads are posed differently, each by its own mesh's model");
     }
 
     @Test
