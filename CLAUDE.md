@@ -697,6 +697,14 @@ it.** Both halves are the same rule read at different sites, and both were wrong
   which is evaluated before any `addLayer`, and a renderer allocating none delegates to the one it
   extends. `bones.pose` names it, written only where the two disagree: nine subjects, and the three
   equine body-armour rows the equipment site had been suppressing for want of a toggle.
+- **`bones.pose` names a pose KEY, which is a class name until one class poses more than one way.**
+  A body reached at two resting frames is split into a row each and each body names the one it takes,
+  spelled `Class@member=CONSTANT` over the members the frames disagree on - the four illagers are the
+  corpus's one split, on `armPose`. `EntityIndexBuilder.poseOf` splits a coordinate at its first `#`
+  and keys on what is left, so a suffix arrives verbatim and the reader needs nothing for it. **A key
+  the table does not carry is SILENT** - `poses.getOrDefault(key, EntityPose.NONE)` and `NONE`'s
+  refusal is empty, so `isReadable()` answers true and the mesh draws unposed and unstripped - so the
+  emitter refuses a declared poser with no row rather than leaving it to be noticed in a render.
 - **Every overlay pass poses its own mesh with its own class**, so `Entity.OverlayLayer` carries a
   pose and `PoseKit.posedSubject` poses the body and every pass together. Posing the body alone
   leaves a sheep's wool where the sheep no longer is. A pass drawing the body's own mesh takes the

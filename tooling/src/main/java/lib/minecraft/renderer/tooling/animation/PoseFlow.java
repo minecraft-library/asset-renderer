@@ -6,12 +6,14 @@ import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -46,6 +48,30 @@ public final class PoseFlow {
      */
     private static final @NotNull Set<String> DRIVEN =
         Set.of("ageInTicks", "walkAnimationPos", "walkAnimationSpeed");
+
+    /**
+     * What separates a pose key from the frame it stands for, where one class poses more than one
+     * way.
+     *
+     * <p>The reader splits a coordinate at its first {@code #} and keys the pose on what is left, so
+     * a suffix written here arrives verbatim and needs nothing of the reader at all. It is the
+     * character a derived mesh's own suffixes are spelled with for the same reason - it appears in
+     * no Java identifier, so nothing it separates can be mistaken for part of a name.
+     */
+    private static final char SPLIT = '@';
+
+    /** The members of the model table this reads, which are the reader's join and not this flow's. */
+    private static final @NotNull String AGE = "age";
+
+    private static final @NotNull String VARIANT = "variant";
+
+    private static final @NotNull String OPTIONS = "options";
+
+    private static final @NotNull String ADULT = "adult";
+
+    private static final @NotNull String GEOMETRY = "geometry";
+
+    private static final @NotNull String OVERLAYS = "overlays";
 
     /**
      * Parses every clip and every binding, then writes the pose table.
@@ -89,7 +115,8 @@ public final class PoseFlow {
         }
 
         Map<String, PoseOutcome> poses =
-            foldAll(walked, framesOf(models), restingByModel, questionsByModel, defaults, diagnostics);
+            foldAll(walked, models, restingByModel, questionsByModel, defaults, diagnostics);
+        requirePosersResolve(models, poses);
 
         JsonTree root = session.envelope("definitions-package listing order for clips; "
             + "model simple name for poses, and bone name within a pose");
@@ -120,17 +147,25 @@ public final class PoseFlow {
         // What a QUESTION rests answering rides the same keying and the same walk of the state
         // chain, because it is the same question about a different kind of member: a reference the
         // state holds is a whole value, and every component of it is an answer a subject stands at.
+        //
+        // Written under the ROW's key rather than the class's, which are the same string until a
+        // class poses more than one way: the reader looks a default up by the key it read the row
+        // under, so a class that split would otherwise leave its answers under a name no row carries.
         JsonTree restingNode = JsonTree.object();
         restingByModel.forEach((model, resting) -> {
-            JsonTree perModel = JsonTree.object();
-            resting.forEach(perModel::put);
-            restingNode.put(model, perModel);
+            for (String key : rowsOf(poses, model)) {
+                JsonTree perRow = JsonTree.object();
+                resting.forEach(perRow::put);
+                restingNode.put(key, perRow);
+            }
         });
         JsonTree questionsNode = JsonTree.object();
         questionsByModel.forEach((model, answers) -> {
-            JsonTree perModel = JsonTree.object();
-            answers.forEach(perModel::put);
-            questionsNode.put(model, perModel);
+            for (String key : rowsOf(poses, model)) {
+                JsonTree perRow = JsonTree.object();
+                answers.forEach(perRow::put);
+                questionsNode.put(key, perRow);
+            }
         });
         if (!restingNode.isEmpty()) root.put("rest_defaults", restingNode);
         if (!questionsNode.isEmpty()) root.put("question_defaults", questionsNode);
@@ -158,33 +193,42 @@ public final class PoseFlow {
      *
      * <p>A row is folded against ONE frame, which is what keeps the result a graph: a node reached
      * down six paths has one binding and folds to one residual. So a class two subjects reach at two
-     * frames has no single one, and this <b>refuses to fold it</b> rather than picking one - folding
-     * an illager against another illager's arms draws a subject vanilla never draws, and renders as
-     * though it were deliberate. A refused row is emitted exactly as walked and keeps reading the
-     * tables at render, so refusing costs bytes and never correctness.
+     * frames has no single one, and it is either SPLIT - each body naming the key it takes, one row
+     * per frame - or emitted exactly as walked and named in the log. Folding an illager against
+     * another illager's arms draws a subject vanilla never draws and renders as though it were
+     * deliberate; an unfolded row keeps reading the tables at render, so refusing costs bytes and
+     * never correctness.
      *
      * <p><b>A frame is what the row can tell apart, not the resting map a subject carries.</b> Two
      * subjects whose states differ only where this pose never looks stand in one frame and fold to
      * one residual, which is the difference between three of the corpus's crowded classes folding
      * and none of them doing.
      *
+     * <p><b>A split is available only where every site reaching the class is a body.</b> A body is
+     * the one site a subject can name the poser of, so a class an overlay or an equipment layer also
+     * reaches would want a key those sites have nowhere to carry - and a body naming several classes
+     * at once cannot name a different key for one of them.
+     *
      * <p>A row nothing reaches is folded against its model's own defaults, there being no subject to
      * answer for it.
      *
      * @param walked every model's pose as the walk left it
-     * @param frames which resting maps reach each pose class, by class
+     * @param models the model table, read for what reaches each pose and written where one splits
      * @param restingByModel which constant each enum member rests holding, per model
      * @param questionsByModel what a question rests answering, per model
      * @param inputDefaults what each figure rests at, one keyspace across every model
      * @param diagnostics the scope a refusal is recorded against
-     * @return the residual per model, in the order the walk produced them
+     * @return the residual per row key, a split class answering under each key it was given
      */
     private static @NotNull Map<String, PoseOutcome> foldAll(
-        @NotNull Map<String, PoseOutcome> walked,
-        @NotNull Map<String, Map<Map<String, String>, Set<String>>> frames,
+        @NotNull Map<String, PoseOutcome> walked, @NotNull JsonTree models,
         @NotNull Map<String, Map<String, String>> restingByModel,
         @NotNull Map<String, Map<String, Float>> questionsByModel,
         @NotNull Map<String, Float> inputDefaults, @NotNull Diagnostics diagnostics) {
+
+        Map<String, Set<String>> bodies = bodyKeysOf(models);
+        Map<String, Set<String>> elsewhere = otherKeysOf(models);
+        Map<String, Map<Map<String, String>, Set<String>>> frames = framesOf(models, bodies, elsewhere);
 
         Map<String, PoseOutcome> out = new TreeMap<>();
         int folded = 0;
@@ -196,20 +240,38 @@ public final class PoseFlow {
             }
 
             Map<String, String> modelRest = restingByModel.getOrDefault(model, Map.of());
+            Map<String, Float> modelAnswers = questionsByModel.getOrDefault(model, Map.of());
             // Grouped by the frame the row can TELL APART rather than by the raw resting maps. A
             // pose asks two questions of a resting state and asks them only of the members it names,
             // so two subjects disagreeing anywhere else are one frame - which is most of them.
             Map<Map<String, String>, Set<String>> reaching = frames.getOrDefault(model, Map.of());
             Map<Map<String, String>, Set<String>> distinct = new LinkedHashMap<>();
-            reaching.forEach((rest, subjects) ->
-                distinct.computeIfAbsent(PoseFold.frameOf(extracted.program(), rest, modelRest),
-                    frame -> new TreeSet<>()).addAll(subjects));
+            Map<Map<String, String>, Map<String, String>> standIn = new LinkedHashMap<>();
+            reaching.forEach((rest, subjects) -> {
+                Map<String, String> frame = PoseFold.frameOf(extracted.program(), rest, modelRest);
+                distinct.computeIfAbsent(frame, key -> new TreeSet<>()).addAll(subjects);
+                standIn.putIfAbsent(frame, rest);
+            });
+
             if (distinct.size() > 1) {
-                List<String> spelled = new ArrayList<>();
-                distinct.forEach((frame, subjects) -> spelled.add(frame + " <- " + subjects));
-                diagnostics.info("%s is reached at %d resting frames and is emitted unfolded: %s",
-                    model, distinct.size(), String.join("; ", spelled));
-                out.put(model, entry.getValue());
+                Map<Map<String, String>, String> split =
+                    splitKeys(model, distinct.keySet(), bodies, elsewhere);
+                if (split.isEmpty()) {
+                    List<String> spelled = new ArrayList<>();
+                    distinct.forEach((frame, subjects) -> spelled.add(frame + " <- " + subjects));
+                    diagnostics.info("%s is reached at %d resting frames and is emitted unfolded: %s",
+                        model, distinct.size(), String.join("; ", spelled));
+                    out.put(model, entry.getValue());
+                    continue;
+                }
+                split.forEach((frame, key) -> {
+                    distinct.get(frame).forEach(subject -> namePoser(models, subject, key));
+                    out.put(key, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(),
+                        standIn.get(frame), modelRest, modelAnswers, inputDefaults, DRIVEN)));
+                });
+                diagnostics.info("%s poses %d ways and each body names the one it takes: %s",
+                    model, split.size(), new TreeSet<>(split.values()));
+                folded++;
                 continue;
             }
 
@@ -218,7 +280,7 @@ public final class PoseFlow {
             Map<String, String> subjectRest =
                 reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
             out.put(model, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(), subjectRest,
-                modelRest, questionsByModel.getOrDefault(model, Map.of()), inputDefaults, DRIVEN)));
+                modelRest, modelAnswers, inputDefaults, DRIVEN)));
             folded++;
         }
         diagnostics.info("folded %d of %d walked pose(s) against the frame their subjects rest in",
@@ -227,26 +289,143 @@ public final class PoseFlow {
     }
 
     /**
+     * The key each frame's row is written under, or empty where the class cannot be split.
+     *
+     * <p>The suffix names the members the frames DISAGREE on and nothing else, so a key says what
+     * makes its row a different pose rather than restating everything the subject rests at. A frame
+     * answering none of them keeps the bare class name, which is what a subject with no {@code rest}
+     * already resolves - so nothing is written into its row at all.
+     *
+     * @param model the pose class the frames reach
+     * @param frames the distinct frames it is reached at
+     * @param bodies each subject's body keys, read for whether a body can name this one alone
+     * @param elsewhere each subject's other keys, read for whether anything else reaches it
+     * @return frame to the key its row takes, empty when no split is available or none tells the
+     *     frames apart
+     */
+    private static @NotNull Map<Map<String, String>, String> splitKeys(
+        @NotNull String model, @NotNull Set<Map<String, String>> frames,
+        @NotNull Map<String, Set<String>> bodies, @NotNull Map<String, Set<String>> elsewhere) {
+
+        for (Set<String> keys : elsewhere.values())
+            if (keys.contains(model)) return Map.of();
+        for (Set<String> keys : bodies.values())
+            if (keys.contains(model) && keys.size() > 1) return Map.of();
+
+        Set<String> differing = disagreeing(frames);
+        Map<Map<String, String>, String> out = new LinkedHashMap<>();
+        for (Map<String, String> frame : frames) {
+            StringBuilder suffix = new StringBuilder();
+            for (String member : differing) {
+                String held = frame.get(member);
+                if (held == null) continue;
+                if (!suffix.isEmpty()) suffix.append(',');
+                suffix.append(member).append('=').append(held);
+            }
+            out.put(frame, suffix.isEmpty() ? model : model + SPLIT + suffix);
+        }
+        // A key that does not tell the frames apart is not a split: two rows under one name would
+        // leave whichever was written second standing for both, silently.
+        return Set.copyOf(out.values()).size() == frames.size() ? out : Map.of();
+    }
+
+    /**
+     * The rows one model class answers for - its own where it poses one way, and the keys a split
+     * gave it where it does not.
+     *
+     * @param poses the rows the table carries
+     * @param model the model class's simple name
+     * @return the keys, in the order the table carries them
+     */
+    private static @NotNull List<String> rowsOf(
+        @NotNull Map<String, PoseOutcome> poses, @NotNull String model) {
+
+        if (poses.containsKey(model)) return List.of(model);
+        List<String> out = new ArrayList<>();
+        for (String key : poses.keySet())
+            if (key.startsWith(model + SPLIT)) out.add(key);
+        return out;
+    }
+
+    /** The members the frames do not agree on, which is what a key has to name to tell them apart. */
+    private static @NotNull Set<String> disagreeing(@NotNull Set<Map<String, String>> frames) {
+        Set<String> named = new TreeSet<>();
+        for (Map<String, String> frame : frames) named.addAll(frame.keySet());
+        named.removeIf(member -> {
+            Set<String> held = new HashSet<>();
+            for (Map<String, String> frame : frames) held.add(frame.get(member));
+            return held.size() == 1;
+        });
+        return named;
+    }
+
+    /**
+     * Writes into one subject's row the pose key its body takes.
+     *
+     * <p>The bones node is rebuilt rather than added to, because the member order a row carries is
+     * the resolver's own put chain and {@code pose} opens that node there.
+     */
+    private static void namePoser(
+        @NotNull JsonTree models, @NotNull String subject, @NotNull String key) {
+
+        JsonTree row = models.child(subject);
+        JsonTree named = JsonTree.object().put("pose", key);
+        row.find("bones").ifPresent(bones -> bones.members().forEach((member, held) -> {
+            if (!"pose".equals(member)) named.put(member, held);
+        }));
+        row.put("bones", named);
+    }
+
+    /**
+     * Refuses a subject that names a poser the table does not carry.
+     *
+     * <p>A missing key is SILENT at render: the reader answers the empty pose, whose refusal is
+     * empty, so the mesh draws unposed and unstripped with nothing said. A coordinate the walk never
+     * looked at is entitled to answer nothing - a worn shell, a saddle, a mesh derived under a
+     * suffix - but a name a row DECLARES is a statement that there is a pose there.
+     *
+     * @param models the model table as it will be written
+     * @param poses the rows the table carries
+     * @throws ToolingException if a declared poser resolves to no row
+     */
+    private static void requirePosersResolve(
+        @NotNull JsonTree models, @NotNull Map<String, PoseOutcome> poses) {
+
+        models.members().forEach((entity, row) -> {
+            requirePose(poses, entity, namedPoser(row));
+            row.find("layers").ifPresent(list -> list.elements().toList().forEach(layer ->
+                requirePose(poses, entity, layer.find("overlay").map(PoseFlow::namedPoser).orElse(null))));
+        });
+    }
+
+    private static void requirePose(
+        @NotNull Map<String, PoseOutcome> poses, @NotNull String entity, @Nullable String named) {
+
+        if (named != null && !poses.containsKey(named))
+            throw new ToolingException(
+                "'%s' names pose '%s', which the pose table does not carry", entity, named);
+    }
+
+    /**
      * Which subjects reach which pose, and what each of them answers about itself at rest.
      *
-     * <p>Read off the model table this same session just built, because that table is the statement
-     * of record: it is what the reader will join on, so deriving the join from anything else would
-     * be a second account of it that can drift. The rules are the reader's own - a site names its
-     * poser outright or takes the head of the coordinate it draws, and nothing else resolves one.
-     *
      * @param models the model table, keyed by entity id
-     * @return pose class simple name to each distinct resting map reaching it, and the subjects
-     *     carrying that map
+     * @param bodies each subject's body keys
+     * @param elsewhere each subject's keys nothing of its own overrides
+     * @return pose key to each distinct resting map reaching it, and the subjects carrying that map
      */
     private static @NotNull Map<String, Map<Map<String, String>, Set<String>>> framesOf(
-        @NotNull JsonTree models) {
+        @NotNull JsonTree models, @NotNull Map<String, Set<String>> bodies,
+        @NotNull Map<String, Set<String>> elsewhere) {
 
         Map<String, Map<Map<String, String>, Set<String>>> out = new LinkedHashMap<>();
         models.members().forEach((entity, row) -> {
             Map<String, String> rest = restOf(row);
-            for (String poseClass : posedBy(row))
-                out.computeIfAbsent(poseClass, key -> new LinkedHashMap<>())
-                    .computeIfAbsent(rest, key -> new LinkedHashSet<>())
+            Set<String> reached = new LinkedHashSet<>(bodies.getOrDefault(entity, Set.of()));
+            reached.addAll(elsewhere.getOrDefault(entity, Set.of()));
+            for (String key : reached)
+                out.computeIfAbsent(key, name -> new LinkedHashMap<>())
+                    .computeIfAbsent(rest, name -> new LinkedHashSet<>())
                     .add(entity);
         });
         return out;
@@ -263,61 +442,97 @@ public final class PoseFlow {
     }
 
     /**
-     * Every pose class this subject's meshes are posed by.
+     * The pose keys each subject's BODY resolves - the sites the subject's own {@code bones.pose}
+     * governs, and the only ones it can name a key for.
      *
-     * <p>A body and an equipment layer may name their poser outright; everything else is posed by
-     * the class heading the coordinate it draws.
+     * <p>A body is the adult age option and, for a family with coats, each coat: those are what
+     * {@code EntityIndexBuilder} resolves through the family's poser where it names one, and
+     * everything else keys off the coordinate it draws. Reading the coordinate's head beside the
+     * name instead credits a class the subject does not pose through at all - it had a zombified
+     * piglin standing for {@code AdultPiglinModel} while its body poses as
+     * {@code AdultZombifiedPiglinModel}, and that phantom is enough to make a class look reached at
+     * two frames.
+     *
+     * @param models the model table, keyed by entity id
+     * @return entity id to the keys its body takes, omitting a subject whose body resolves none
      */
-    private static @NotNull Set<String> posedBy(@NotNull JsonTree row) {
-        Set<String> out = new LinkedHashSet<>();
-        JsonTree bones = row.find("bones").orElse(null);
-        String named = bones == null ? null : bones.findString("pose").orElse(null);
-
-        JsonTree axes = row.find("axes").orElse(null);
-        String body = null;
-        if (axes != null) {
-            JsonTree age = axes.find("age").orElse(null);
-            JsonTree options = age == null ? null : age.find("options").orElse(null);
-            if (options != null) {
-                List<String> geometries = new ArrayList<>();
-                options.members().forEach((option, held) ->
-                    held.findString("geometry").ifPresent(geometries::add));
-                if (!geometries.isEmpty()) body = geometries.getFirst();
-            }
-        }
-        posedBy(out, named == null ? poseHead(body) : named);
-
-        if (axes != null)
-            axes.members().forEach((axis, held) -> {
-                JsonTree options = held.find("options").orElse(null);
-                if (options == null) return;
-                options.members().forEach((option, chosen) -> {
-                    posedBy(out, poseHead(chosen.findString("geometry").orElse(null)));
-                    chosen.find("overlays").ifPresent(list -> list.elements().toList().forEach(
-                        overlay -> posedBy(out, poseHead(overlay.findString("geometry").orElse(null)))));
-                });
-            });
-
-        row.find("overlays").ifPresent(list -> list.elements().toList().forEach(overlay -> {
-            posedBy(out, poseHead(overlay.findString("geometry").orElse(null)));
-            overlay.find("baby").ifPresent(baby ->
-                posedBy(out, poseHead(baby.findString("geometry").orElse(null))));
-        }));
-
-        row.find("layers").ifPresent(list -> list.elements().toList().forEach(layer -> {
-            JsonTree overlay = layer.find("overlay").orElse(null);
-            if (overlay == null) return;
-            JsonTree layerBones = overlay.find("bones").orElse(null);
-            String poser = layerBones == null ? null : layerBones.findString("pose").orElse(null);
-            posedBy(out, poser == null ? poseHead(overlay.findString("geometry").orElse(null)) : poser);
-            overlay.find("alternate").ifPresent(alternate ->
-                posedBy(out, poseHead(alternate.findString("geometry").orElse(null))));
-        }));
+    private static @NotNull Map<String, Set<String>> bodyKeysOf(@NotNull JsonTree models) {
+        Map<String, Set<String>> out = new LinkedHashMap<>();
+        models.members().forEach((entity, row) -> {
+            String named = namedPoser(row);
+            Set<String> keys = new LinkedHashSet<>();
+            reaches(keys, named, row.findPath("axes", AGE, OPTIONS, ADULT)
+                .flatMap(adult -> adult.findString(GEOMETRY)).orElse(null));
+            row.findPath("axes", VARIANT, OPTIONS).ifPresent(options ->
+                options.members().forEach((coat, chosen) ->
+                    reaches(keys, named, chosen.findString(GEOMETRY).orElse(null))));
+            if (!keys.isEmpty()) out.put(entity, keys);
+        });
         return out;
     }
 
-    private static void posedBy(@NotNull Set<String> out, @Nullable String poseClass) {
-        if (poseClass != null && !poseClass.isEmpty()) out.add(poseClass);
+    /**
+     * The pose keys each subject reaches that nothing of its own can override - its baby mesh, its
+     * size and shape alternatives, every overlay pass and every equipment layer.
+     *
+     * <p>An equipment layer names its own poser and is here all the same: what it names is a key of
+     * ITS mesh, and a split writes the body's key, so a class a layer reaches is one a body cannot
+     * rename without leaving that layer resolving the old name.
+     *
+     * @param models the model table, keyed by entity id
+     * @return entity id to the keys its other meshes take, omitting a subject that reaches none
+     */
+    private static @NotNull Map<String, Set<String>> otherKeysOf(@NotNull JsonTree models) {
+        Map<String, Set<String>> out = new LinkedHashMap<>();
+        models.members().forEach((entity, row) -> {
+            Set<String> keys = new LinkedHashSet<>();
+            row.find("axes").ifPresent(axes -> axes.members().forEach((axis, held) ->
+                held.find(OPTIONS).ifPresent(options -> options.members().forEach((option, chosen) -> {
+                    if (!isBody(axis, option))
+                        reaches(keys, null, chosen.findString(GEOMETRY).orElse(null));
+                    chosen.find(OVERLAYS).ifPresent(list -> list.elements().toList().forEach(
+                        overlay -> reaches(keys, null, overlay.findString(GEOMETRY).orElse(null))));
+                }))));
+
+            row.find(OVERLAYS).ifPresent(list -> list.elements().toList().forEach(overlay -> {
+                reaches(keys, null, overlay.findString(GEOMETRY).orElse(null));
+                overlay.find("baby").ifPresent(baby ->
+                    reaches(keys, null, baby.findString(GEOMETRY).orElse(null)));
+            }));
+
+            row.find("layers").ifPresent(list -> list.elements().toList().forEach(layer ->
+                layer.find("overlay").ifPresent(overlay -> {
+                    reaches(keys, namedPoser(overlay), overlay.findString(GEOMETRY).orElse(null));
+                    overlay.find("alternate").ifPresent(alternate ->
+                        reaches(keys, null, alternate.findString(GEOMETRY).orElse(null)));
+                })));
+            if (!keys.isEmpty()) out.put(entity, keys);
+        });
+        return out;
+    }
+
+    /** Whether an axis option is the subject's body, which is the site a poser is named for. */
+    private static boolean isBody(@NotNull String axis, @NotNull String option) {
+        return VARIANT.equals(axis) || (AGE.equals(axis) && ADULT.equals(option));
+    }
+
+    /** The poser a row or an equipment overlay names, or {@code null} where it names none. */
+    private static @Nullable String namedPoser(@NotNull JsonTree node) {
+        return node.find("bones").flatMap(bones -> bones.findString("pose")).orElse(null);
+    }
+
+    /**
+     * One site's key - the poser named for it, or the class heading the coordinate it draws.
+     *
+     * <p>A site is a mesh, so a coordinate is what says there is one: a row naming a poser for a
+     * mesh it does not carry names a pose nothing takes, and the reader passes over it the same way.
+     */
+    private static void reaches(
+        @NotNull Set<String> keys, @Nullable String named, @Nullable String coordinate) {
+
+        if (coordinate == null) return;
+        String key = named != null ? named : poseHead(coordinate);
+        if (key != null && !key.isEmpty()) keys.add(key);
     }
 
     /** The class a geometry coordinate is headed with, which is what the reader keys a pose by. */

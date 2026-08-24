@@ -941,6 +941,7 @@
         "mainArm": "RIGHT"
       },
       "bones": {
+        "pose": "IllagerModel@armPose=CROSSED",
         "hidden": [
           "hat"
         ]
@@ -1380,6 +1381,9 @@
             }
           }
         }
+      },
+      "bones": {
+        "pose": "IllagerModel@armPose=CROSSED"
       }
     },
     "minecraft:iron_golem": {
@@ -2104,6 +2108,7 @@
         "mainArm": "RIGHT"
       },
       "bones": {
+        "pose": "IllagerModel@armPose=NEUTRAL",
         "hidden": [
           "hat"
         ]
@@ -2944,6 +2949,7 @@
         "mainArm": "RIGHT"
       },
       "bones": {
+        "pose": "IllagerModel@armPose=CROSSED",
         "hidden": [
           "hat"
         ]

@@ -261,6 +261,22 @@ class EntityPoseLoadTest {
             "a member nothing answers puts the subject in a state no enum is in");
     }
 
+    @Test
+    @DisplayName("a body naming a pose key of its own resolves it, and two frames are two poses")
+    void aBodyNamingItsOwnPoseKeyResolvesIt() {
+        // A key a row declares and the table does not carry answers the empty pose in SILENCE: its
+        // refusal is empty, so it reads as readable, and the mesh draws unposed and unstripped with
+        // nothing said. So the one class posing two ways is pinned on both halves - each key is
+        // there, and the two are not one pose. An evoker rests with its arms crossed where a
+        // pillager's hang, which is the crossed-arms bone drawing for one and not for the other.
+        EntityPose crossed = pose("minecraft:evoker");
+        EntityPose hanging = pose("minecraft:pillager");
+        assertFalse(crossed.bones().isEmpty(), "an evoker takes a pose");
+        assertFalse(hanging.bones().isEmpty(), "and a pillager takes one too");
+        assertNotEquals(crossed.bones().get("arms"), hanging.bones().get("arms"),
+            "one illager's crossed arms are not written the way another's are");
+    }
+
     /** Every enum member one expression's conditions switch on, reached through both arms. */
     private static void switched(
         @NotNull PoseExpr expr, @NotNull Set<String> members, @NotNull Map<Object, Boolean> walked) {

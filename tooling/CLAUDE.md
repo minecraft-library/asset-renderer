@@ -65,6 +65,18 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   comparing the raw resting maps instead refuses three of the corpus's crowded classes over members
   their poses never look at. Any of the raw maps behind one frame folds to one residual, measured by
   regenerating the whole table against the first of them and against the last.
+- **A class reached at two frames is SPLIT where every site reaching it is a body, and the body names
+  the key it takes.** A body - the adult age option, and each coat of a family with them - is the one
+  site `EntityIndexBuilder` resolves through the subject's own `bones.pose`, so a class an overlay,
+  a size mesh or an equipment layer also reaches has nowhere to carry a second key and stays
+  unfolded. The suffix names the members the frames DISAGREE on and nothing else, and a frame
+  answering none of them keeps the bare class name. This is why the model table is written AFTER the
+  pose flow rather than before it: the pose flow owns the keyspace that table joins on, and a
+  `bones.pose` naming a row nothing wrote is silent at render, so the flow refuses one instead.
+- **A body key is the poser a subject names, never that key BESIDE the coordinate's own head.**
+  Reading both credits a class the subject does not pose through - a zombified piglin stood for
+  `AdultPiglinModel` while its body poses as `AdultZombifiedPiglinModel` - and one phantom is enough
+  to make a class look reached at two frames and refuse a fold that had nothing to choose between.
 - **A pose the walk restores has to be copied, not handed over.** `PoseWalk.replace` takes a fresh
   channel map per bone; sharing the snapshot's own map means the next write lands in the snapshot,
   and then a fork's second arm - or an enum split's third - starts from what the one before it wrote.

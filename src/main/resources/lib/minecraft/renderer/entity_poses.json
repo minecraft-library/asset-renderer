@@ -70071,104 +70071,8 @@
         }
       }
     },
-    "IllagerModel": {
+    "IllagerModel@armPose=CROSSED": {
       "shared": [
-        {
-          "select": [
-            {
-              "not": {
-                "is": [
-                  "armPose",
-                  "CROSSED"
-                ]
-              }
-            },
-            {
-              "iconst": 0
-            },
-            {
-              "iconst": 1
-            }
-          ]
-        },
-        {
-          "mul": [
-            {
-              "input": "xRot"
-            },
-            {
-              "const": 0.017453292
-            }
-          ]
-        },
-        {
-          "mul": [
-            {
-              "input": "yRot"
-            },
-            {
-              "const": 0.017453292
-            }
-          ]
-        },
-        {
-          "not": {
-            "is": [
-              "armPose",
-              "ATTACKING"
-            ]
-          }
-        },
-        {
-          "not": {
-            "is": [
-              "armPose",
-              "SPELLCASTING"
-            ]
-          }
-        },
-        {
-          "not": {
-            "is": [
-              "armPose",
-              "BOW_AND_ARROW"
-            ]
-          }
-        },
-        {
-          "not": {
-            "is": [
-              "armPose",
-              "CROSSBOW_HOLD"
-            ]
-          }
-        },
-        {
-          "not": {
-            "is": [
-              "armPose",
-              "CROSSBOW_CHARGE"
-            ]
-          }
-        },
-        {
-          "not": {
-            "is": [
-              "armPose",
-              "CELEBRATING"
-            ]
-          }
-        },
-        {
-          "eq": [
-            {
-              "input": "isRiding"
-            },
-            {
-              "iconst": 0
-            }
-          ]
-        },
         {
           "mul": [
             {
@@ -70184,565 +70088,9 @@
             {
               "f2d": [
                 {
-                  "ref": 10
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "select": [
-            {
-              "ref": 9
-            },
-            {
-              "mul": [
-                {
-                  "mul": [
-                    {
-                      "mul": [
-                        {
-                          "ref": 11
-                        },
-                        {
-                          "const": 2.0
-                        }
-                      ]
-                    },
-                    {
-                      "input": "walkAnimationSpeed"
-                    }
-                  ]
-                },
-                {
-                  "const": 0.5
-                }
-              ]
-            },
-            {
-              "const": -0.62831855
-            }
-          ]
-        },
-        {
-          "mth_cos": [
-            {
-              "f2d": [
-                {
-                  "mul": [
-                    {
-                      "input": "ageInTicks"
-                    },
-                    {
-                      "const": 0.6662
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "mul": [
-            {
-              "ref": 13
-            },
-            {
-              "const": 0.05
-            }
-          ]
-        },
-        {
-          "i2f": [
-            {
-              "input": "maxCrossbowChargeDuration"
-            }
-          ]
-        },
-        {
-          "div": [
-            {
-              "clamp": [
-                {
-                  "input": "ticksUsingItem"
-                },
-                {
-                  "const": 0.0
-                },
-                {
-                  "ref": 15
-                }
-              ]
-            },
-            {
-              "ref": 15
-            }
-          ]
-        },
-        {
-          "mul": [
-            {
-              "ref": 13
-            },
-            {
-              "const": 0.25
-            }
-          ]
-        },
-        {
-          "eq": [
-            {
-              "input_fn": [
-                "getMainHandItemState",
-                "isEmpty"
-              ]
-            },
-            {
-              "iconst": 0
-            }
-          ]
-        },
-        {
-          "not": {
-            "is": [
-              "mainArm",
-              "RIGHT"
-            ]
-          }
-        },
-        {
-          "mth_cos": [
-            {
-              "f2d": [
-                {
-                  "mul": [
-                    {
-                      "input": "ageInTicks"
-                    },
-                    {
-                      "const": 0.09
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "mth_sin": [
-            {
-              "f2d": [
-                {
-                  "mul": [
-                    {
-                      "input": "attackAnim"
-                    },
-                    {
-                      "const": 3.1415927
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "sub": [
-            {
-              "const": 1.0
-            },
-            {
-              "input": "attackAnim"
-            }
-          ]
-        },
-        {
-          "mul": [
-            {
-              "mth_sin": [
-                {
-                  "f2d": [
-                    {
-                      "mul": [
-                        {
-                          "sub": [
-                            {
-                              "const": 1.0
-                            },
-                            {
-                              "mul": [
-                                {
-                                  "ref": 22
-                                },
-                                {
-                                  "ref": 22
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "const": 3.1415927
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "const": 0.4
-            }
-          ]
-        },
-        {
-          "add": [
-            {
-              "add": [
-                {
-                  "const": -1.8849558
-                },
-                {
-                  "mul": [
-                    {
-                      "ref": 20
-                    },
-                    {
-                      "const": 0.15
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "sub": [
-                {
-                  "mul": [
-                    {
-                      "ref": 21
-                    },
-                    {
-                      "const": 2.2
-                    }
-                  ]
-                },
-                {
-                  "ref": 23
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "add": [
-            {
-              "add": [
-                {
-                  "const": -0.0
-                },
-                {
-                  "mul": [
-                    {
-                      "mth_cos": [
-                        {
-                          "f2d": [
-                            {
-                              "mul": [
-                                {
-                                  "input": "ageInTicks"
-                                },
-                                {
-                                  "const": 0.19
-                                }
-                              ]
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "const": 0.5
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "sub": [
-                {
-                  "mul": [
-                    {
-                      "ref": 21
-                    },
-                    {
-                      "const": 1.2
-                    }
-                  ]
-                },
-                {
-                  "ref": 23
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "mul": [
-            {
-              "mth_sin": [
-                {
-                  "f2d": [
-                    {
-                      "mul": [
-                        {
-                          "input": "ageInTicks"
-                        },
-                        {
-                          "const": 0.067
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "const": 0.05
-            }
-          ]
-        },
-        {
-          "mul": [
-            {
-              "const": -1.0
-            },
-            {
-              "ref": 26
-            }
-          ]
-        },
-        {
-          "eq": [
-            {
-              "input": "isBaby"
-            },
-            {
-              "iconst": 0
-            }
-          ]
-        },
-        {
-          "eq": [
-            {
-              "select": [
-                {
-                  "is": [
-                    "swingAnimationType",
-                    "STAB"
-                  ]
-                },
-                {
-                  "iconst": 0
-                },
-                {
-                  "iconst": 1
-                }
-              ]
-            },
-            {
-              "iconst": 0
-            }
-          ]
-        },
-        {
-          "mth_sin": [
-            {
-              "f2d": [
-                {
-                  "mul": [
-                    {
-                      "input": "attackTime"
-                    },
-                    {
-                      "const": 3.1415927
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "sub": [
-            {
-              "const": 1.0
-            },
-            {
-              "input": "attackTime"
-            }
-          ]
-        },
-        {
-          "add": [
-            {
-              "const": -2.0943952
-            },
-            {
-              "sub": [
-                {
-                  "mul": [
-                    {
-                      "ref": 30
-                    },
-                    {
-                      "const": 1.2
-                    }
-                  ]
-                },
-                {
-                  "mul": [
-                    {
-                      "mth_sin": [
-                        {
-                          "f2d": [
-                            {
-                              "mul": [
-                                {
-                                  "sub": [
-                                    {
-                                      "const": 1.0
-                                    },
-                                    {
-                                      "mul": [
-                                        {
-                                          "ref": 31
-                                        },
-                                        {
-                                          "ref": 31
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                },
-                                {
-                                  "const": 3.1415927
-                                }
-                              ]
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "const": 0.4
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "add": [
-            {
-              "select": [
-                {
-                  "ref": 29
-                },
-                {
-                  "ref": 12
-                },
-                {
-                  "ref": 32
-                }
-              ]
-            },
-            {
-              "ref": 27
-            }
-          ]
-        },
-        {
-          "sub": [
-            {
-              "const": 0.1
-            },
-            {
-              "mul": [
-                {
-                  "ref": 30
-                },
-                {
-                  "const": 0.6
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "select": [
-            {
-              "ref": 29
-            },
-            {
-              "const": 0.0
-            },
-            {
-              "ref": 34
-            }
-          ]
-        },
-        {
-          "add": [
-            {
-              "mul": [
-                {
-                  "ref": 20
-                },
-                {
-                  "const": 0.05
-                }
-              ]
-            },
-            {
-              "const": 0.05
-            }
-          ]
-        },
-        {
-          "add": [
-            {
-              "const": 0.0
-            },
-            {
-              "mul": [
-                {
-                  "const": -1.0
-                },
-                {
-                  "ref": 36
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "select": [
-            {
-              "ne": [
-                {
                   "ref": 0
-                },
-                {
-                  "iconst": 0
                 }
               ]
-            },
-            {
-              "iconst": 0
-            },
-            {
-              "iconst": 1
             }
           ]
         },
@@ -70753,7 +70101,7 @@
                 {
                   "add": [
                     {
-                      "ref": 10
+                      "ref": 0
                     },
                     {
                       "const": 3.1415927
@@ -70763,110 +70111,218 @@
               ]
             }
           ]
+        }
+      ],
+      "bones": {
+        "arms": {
+          "visible": {
+            "iconst": 1
+          }
         },
-        {
-          "select": [
-            {
-              "ref": 9
-            },
-            {
-              "mul": [
-                {
-                  "mul": [
-                    {
-                      "mul": [
-                        {
-                          "ref": 39
-                        },
-                        {
-                          "const": 2.0
-                        }
-                      ]
-                    },
-                    {
-                      "input": "walkAnimationSpeed"
-                    }
-                  ]
-                },
-                {
-                  "const": 0.5
-                }
-              ]
-            },
-            {
-              "const": -0.62831855
-            }
-          ]
+        "head": {
+          "x_rot": {
+            "const": 0.0
+          },
+          "y_rot": {
+            "const": 0.0
+          }
         },
-        {
-          "add": [
-            {
-              "const": -1.5707964
-            },
-            {
-              "ref": 1
-            }
-          ]
+        "left_arm": {
+          "x": {
+            "bone": [
+              "left_arm",
+              "x"
+            ]
+          },
+          "z": {
+            "bone": [
+              "left_arm",
+              "z"
+            ]
+          },
+          "x_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "ref": 1
+                      },
+                      {
+                        "const": 2.0
+                      }
+                    ]
+                  },
+                  {
+                    "input": "walkAnimationSpeed"
+                  }
+                ]
+              },
+              {
+                "const": 0.5
+              }
+            ]
+          },
+          "y_rot": {
+            "const": 0.0
+          },
+          "z_rot": {
+            "const": 0.0
+          },
+          "visible": {
+            "iconst": 0
+          }
         },
+        "left_leg": {
+          "x_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "const": 1.4
+                      }
+                    ]
+                  },
+                  {
+                    "input": "walkAnimationSpeed"
+                  }
+                ]
+              },
+              {
+                "const": 0.5
+              }
+            ]
+          },
+          "y_rot": {
+            "const": 0.0
+          },
+          "z_rot": {
+            "const": 0.0
+          }
+        },
+        "right_arm": {
+          "x": {
+            "bone": [
+              "right_arm",
+              "x"
+            ]
+          },
+          "z": {
+            "bone": [
+              "right_arm",
+              "z"
+            ]
+          },
+          "x_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "ref": 2
+                      },
+                      {
+                        "const": 2.0
+                      }
+                    ]
+                  },
+                  {
+                    "input": "walkAnimationSpeed"
+                  }
+                ]
+              },
+              {
+                "const": 0.5
+              }
+            ]
+          },
+          "y_rot": {
+            "const": 0.0
+          },
+          "z_rot": {
+            "const": 0.0
+          },
+          "visible": {
+            "iconst": 0
+          }
+        },
+        "right_leg": {
+          "x_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "ref": 1
+                      },
+                      {
+                        "const": 1.4
+                      }
+                    ]
+                  },
+                  {
+                    "input": "walkAnimationSpeed"
+                  }
+                ]
+              },
+              {
+                "const": 0.5
+              }
+            ]
+          },
+          "y_rot": {
+            "const": 0.0
+          },
+          "z_rot": {
+            "const": 0.0
+          }
+        }
+      }
+    },
+    "IllagerModel@armPose=NEUTRAL": {
+      "shared": [
         {
           "mul": [
             {
-              "const": 1.0
+              "input": "walkAnimationPos"
             },
             {
-              "ref": 26
+              "const": 0.6662
             }
           ]
         },
         {
-          "add": [
+          "mth_cos": [
             {
-              "select": [
+              "f2d": [
                 {
-                  "ref": 29
-                },
-                {
-                  "ref": 40
-                },
-                {
-                  "ref": 32
-                }
-              ]
-            },
-            {
-              "ref": 42
-            }
-          ]
-        },
-        {
-          "select": [
-            {
-              "ref": 29
-            },
-            {
-              "const": 0.0
-            },
-            {
-              "neg": [
-                {
-                  "ref": 34
+                  "ref": 0
                 }
               ]
             }
           ]
         },
         {
-          "add": [
+          "mth_cos": [
             {
-              "const": 0.0
-            },
-            {
-              "mul": [
+              "f2d": [
                 {
-                  "const": 1.0
-                },
-                {
-                  "ref": 36
+                  "add": [
+                    {
+                      "ref": 0
+                    },
+                    {
+                      "const": 3.1415927
+                    }
+                  ]
                 }
               ]
             }
@@ -70876,1127 +70332,173 @@
       "bones": {
         "arms": {
           "visible": {
-            "ref": 0
+            "iconst": 0
           }
         },
         "head": {
           "x_rot": {
-            "ref": 1
+            "const": 0.0
           },
           "y_rot": {
-            "ref": 2
+            "const": 0.0
           }
         },
         "left_arm": {
           "x": {
-            "select": [
-              {
-                "ref": 3
-              },
-              {
-                "select": [
-                  {
-                    "ref": 4
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 5
-                      },
-                      {
-                        "select": [
-                          {
-                            "ref": 6
-                          },
-                          {
-                            "select": [
-                              {
-                                "ref": 7
-                              },
-                              {
-                                "select": [
-                                  {
-                                    "ref": 8
-                                  },
-                                  {
-                                    "bone": [
-                                      "left_arm",
-                                      "x"
-                                    ]
-                                  },
-                                  {
-                                    "const": 5.0
-                                  }
-                                ]
-                              },
-                              {
-                                "bone": [
-                                  "left_arm",
-                                  "x"
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "bone": [
-                              "left_arm",
-                              "x"
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "bone": [
-                          "left_arm",
-                          "x"
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "const": 5.0
-                  }
-                ]
-              },
-              {
-                "bone": [
-                  "left_arm",
-                  "x"
-                ]
-              }
+            "bone": [
+              "left_arm",
+              "x"
             ]
           },
           "z": {
-            "select": [
-              {
-                "ref": 3
-              },
-              {
-                "select": [
-                  {
-                    "ref": 4
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 5
-                      },
-                      {
-                        "select": [
-                          {
-                            "ref": 6
-                          },
-                          {
-                            "select": [
-                              {
-                                "ref": 7
-                              },
-                              {
-                                "select": [
-                                  {
-                                    "ref": 8
-                                  },
-                                  {
-                                    "bone": [
-                                      "left_arm",
-                                      "z"
-                                    ]
-                                  },
-                                  {
-                                    "const": 0.0
-                                  }
-                                ]
-                              },
-                              {
-                                "bone": [
-                                  "left_arm",
-                                  "z"
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "bone": [
-                              "left_arm",
-                              "z"
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "bone": [
-                          "left_arm",
-                          "z"
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "const": 0.0
-                  }
-                ]
-              },
-              {
-                "bone": [
-                  "left_arm",
-                  "z"
-                ]
-              }
+            "bone": [
+              "left_arm",
+              "z"
             ]
           },
           "x_rot": {
-            "select": [
+            "mul": [
               {
-                "ref": 3
-              },
-              {
-                "select": [
+                "mul": [
                   {
-                    "ref": 4
-                  },
-                  {
-                    "select": [
+                    "mul": [
                       {
-                        "ref": 5
+                        "ref": 1
                       },
                       {
-                        "select": [
-                          {
-                            "ref": 6
-                          },
-                          {
-                            "select": [
-                              {
-                                "ref": 7
-                              },
-                              {
-                                "select": [
-                                  {
-                                    "ref": 8
-                                  },
-                                  {
-                                    "ref": 12
-                                  },
-                                  {
-                                    "ref": 14
-                                  }
-                                ]
-                              },
-                              {
-                                "lerp": [
-                                  {
-                                    "ref": 16
-                                  },
-                                  {
-                                    "const": -0.97079635
-                                  },
-                                  {
-                                    "const": -1.5707964
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "add": [
-                              {
-                                "const": -1.5
-                              },
-                              {
-                                "ref": 1
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "add": [
-                          {
-                            "const": -0.9424779
-                          },
-                          {
-                            "ref": 1
-                          }
-                        ]
+                        "const": 2.0
                       }
                     ]
                   },
                   {
-                    "ref": 17
+                    "input": "walkAnimationSpeed"
                   }
                 ]
               },
               {
-                "select": [
-                  {
-                    "ref": 18
-                  },
-                  {
-                    "add": [
-                      {
-                        "select": [
-                          {
-                            "ref": 19
-                          },
-                          {
-                            "ref": 24
-                          },
-                          {
-                            "ref": 25
-                          }
-                        ]
-                      },
-                      {
-                        "ref": 27
-                      }
-                    ]
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 28
-                      },
-                      {
-                        "ref": 33
-                      },
-                      {
-                        "select": [
-                          {
-                            "is": [
-                              "getMainHandItemStack",
-                              "EMPTY"
-                            ]
-                          },
-                          {
-                            "ref": 33
-                          },
-                          {
-                            "ref": 12
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
+                "const": 0.5
               }
             ]
           },
           "y_rot": {
-            "select": [
-              {
-                "ref": 3
-              },
-              {
-                "select": [
-                  {
-                    "ref": 4
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 5
-                      },
-                      {
-                        "select": [
-                          {
-                            "ref": 6
-                          },
-                          {
-                            "select": [
-                              {
-                                "ref": 7
-                              },
-                              {
-                                "const": 0.0
-                              },
-                              {
-                                "mul": [
-                                  {
-                                    "lerp": [
-                                      {
-                                        "ref": 16
-                                      },
-                                      {
-                                        "const": 0.4
-                                      },
-                                      {
-                                        "const": 0.85
-                                      }
-                                    ]
-                                  },
-                                  {
-                                    "const": 1.0
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "add": [
-                              {
-                                "const": 0.6
-                              },
-                              {
-                                "ref": 2
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "sub": [
-                          {
-                            "ref": 2
-                          },
-                          {
-                            "const": 0.4
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "const": 0.0
-                  }
-                ]
-              },
-              {
-                "select": [
-                  {
-                    "ref": 18
-                  },
-                  {
-                    "const": -0.15707964
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 28
-                      },
-                      {
-                        "ref": 35
-                      },
-                      {
-                        "select": [
-                          {
-                            "is": [
-                              "getMainHandItemStack",
-                              "EMPTY"
-                            ]
-                          },
-                          {
-                            "ref": 35
-                          },
-                          {
-                            "const": 0.0
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
+            "const": 0.0
           },
           "z_rot": {
-            "select": [
-              {
-                "ref": 3
-              },
-              {
-                "select": [
-                  {
-                    "ref": 4
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 5
-                      },
-                      {
-                        "select": [
-                          {
-                            "ref": 6
-                          },
-                          {
-                            "select": [
-                              {
-                                "ref": 7
-                              },
-                              {
-                                "select": [
-                                  {
-                                    "ref": 8
-                                  },
-                                  {
-                                    "const": 0.0
-                                  },
-                                  {
-                                    "const": -2.3561945
-                                  }
-                                ]
-                              },
-                              {
-                                "const": 0.0
-                              }
-                            ]
-                          },
-                          {
-                            "const": 0.0
-                          }
-                        ]
-                      },
-                      {
-                        "const": 1.5707964
-                      }
-                    ]
-                  },
-                  {
-                    "const": -2.3561945
-                  }
-                ]
-              },
-              {
-                "select": [
-                  {
-                    "ref": 18
-                  },
-                  {
-                    "ref": 37
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 28
-                      },
-                      {
-                        "ref": 37
-                      },
-                      {
-                        "select": [
-                          {
-                            "is": [
-                              "getMainHandItemStack",
-                              "EMPTY"
-                            ]
-                          },
-                          {
-                            "ref": 37
-                          },
-                          {
-                            "const": 0.0
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
+            "const": 0.0
           },
           "visible": {
-            "ref": 38
+            "iconst": 1
           }
         },
         "left_leg": {
           "x_rot": {
-            "select": [
-              {
-                "ref": 9
-              },
+            "mul": [
               {
                 "mul": [
                   {
                     "mul": [
                       {
-                        "mul": [
-                          {
-                            "ref": 39
-                          },
-                          {
-                            "const": 1.4
-                          }
-                        ]
+                        "ref": 2
                       },
                       {
-                        "input": "walkAnimationSpeed"
+                        "const": 1.4
                       }
                     ]
                   },
                   {
-                    "const": 0.5
+                    "input": "walkAnimationSpeed"
                   }
                 ]
               },
               {
-                "const": -1.4137167
+                "const": 0.5
               }
             ]
           },
           "y_rot": {
-            "select": [
-              {
-                "ref": 9
-              },
-              {
-                "const": 0.0
-              },
-              {
-                "const": -0.31415927
-              }
-            ]
+            "const": 0.0
           },
           "z_rot": {
-            "select": [
-              {
-                "ref": 9
-              },
-              {
-                "const": 0.0
-              },
-              {
-                "const": -0.07853982
-              }
-            ]
+            "const": 0.0
           }
         },
         "right_arm": {
           "x": {
-            "select": [
-              {
-                "ref": 3
-              },
-              {
-                "select": [
-                  {
-                    "ref": 4
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 5
-                      },
-                      {
-                        "select": [
-                          {
-                            "ref": 6
-                          },
-                          {
-                            "select": [
-                              {
-                                "ref": 7
-                              },
-                              {
-                                "select": [
-                                  {
-                                    "ref": 8
-                                  },
-                                  {
-                                    "bone": [
-                                      "right_arm",
-                                      "x"
-                                    ]
-                                  },
-                                  {
-                                    "const": -5.0
-                                  }
-                                ]
-                              },
-                              {
-                                "bone": [
-                                  "right_arm",
-                                  "x"
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "bone": [
-                              "right_arm",
-                              "x"
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "bone": [
-                          "right_arm",
-                          "x"
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "const": -5.0
-                  }
-                ]
-              },
-              {
-                "bone": [
-                  "right_arm",
-                  "x"
-                ]
-              }
+            "bone": [
+              "right_arm",
+              "x"
             ]
           },
           "z": {
-            "select": [
-              {
-                "ref": 3
-              },
-              {
-                "select": [
-                  {
-                    "ref": 4
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 5
-                      },
-                      {
-                        "select": [
-                          {
-                            "ref": 6
-                          },
-                          {
-                            "select": [
-                              {
-                                "ref": 7
-                              },
-                              {
-                                "select": [
-                                  {
-                                    "ref": 8
-                                  },
-                                  {
-                                    "bone": [
-                                      "right_arm",
-                                      "z"
-                                    ]
-                                  },
-                                  {
-                                    "const": 0.0
-                                  }
-                                ]
-                              },
-                              {
-                                "bone": [
-                                  "right_arm",
-                                  "z"
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "bone": [
-                              "right_arm",
-                              "z"
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "bone": [
-                          "right_arm",
-                          "z"
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "const": 0.0
-                  }
-                ]
-              },
-              {
-                "bone": [
-                  "right_arm",
-                  "z"
-                ]
-              }
+            "bone": [
+              "right_arm",
+              "z"
             ]
           },
           "x_rot": {
-            "select": [
-              {
-                "ref": 3
-              },
-              {
-                "select": [
-                  {
-                    "ref": 4
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 5
-                      },
-                      {
-                        "select": [
-                          {
-                            "ref": 6
-                          },
-                          {
-                            "select": [
-                              {
-                                "ref": 7
-                              },
-                              {
-                                "select": [
-                                  {
-                                    "ref": 8
-                                  },
-                                  {
-                                    "ref": 40
-                                  },
-                                  {
-                                    "ref": 14
-                                  }
-                                ]
-                              },
-                              {
-                                "const": -0.97079635
-                              }
-                            ]
-                          },
-                          {
-                            "add": [
-                              {
-                                "ref": 41
-                              },
-                              {
-                                "const": 0.1
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "ref": 41
-                      }
-                    ]
-                  },
-                  {
-                    "ref": 17
-                  }
-                ]
-              },
-              {
-                "select": [
-                  {
-                    "ref": 18
-                  },
-                  {
-                    "add": [
-                      {
-                        "select": [
-                          {
-                            "ref": 19
-                          },
-                          {
-                            "ref": 25
-                          },
-                          {
-                            "ref": 24
-                          }
-                        ]
-                      },
-                      {
-                        "ref": 42
-                      }
-                    ]
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 28
-                      },
-                      {
-                        "ref": 43
-                      },
-                      {
-                        "select": [
-                          {
-                            "is": [
-                              "getMainHandItemStack",
-                              "EMPTY"
-                            ]
-                          },
-                          {
-                            "ref": 43
-                          },
-                          {
-                            "ref": 40
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          },
-          "y_rot": {
-            "select": [
-              {
-                "ref": 3
-              },
-              {
-                "select": [
-                  {
-                    "ref": 4
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 5
-                      },
-                      {
-                        "select": [
-                          {
-                            "ref": 6
-                          },
-                          {
-                            "select": [
-                              {
-                                "ref": 7
-                              },
-                              {
-                                "const": 0.0
-                              },
-                              {
-                                "const": -0.8
-                              }
-                            ]
-                          },
-                          {
-                            "add": [
-                              {
-                                "const": -0.3
-                              },
-                              {
-                                "ref": 2
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "add": [
-                          {
-                            "const": -0.1
-                          },
-                          {
-                            "ref": 2
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "const": 0.0
-                  }
-                ]
-              },
-              {
-                "select": [
-                  {
-                    "ref": 18
-                  },
-                  {
-                    "const": 0.15707964
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 28
-                      },
-                      {
-                        "ref": 44
-                      },
-                      {
-                        "select": [
-                          {
-                            "is": [
-                              "getMainHandItemStack",
-                              "EMPTY"
-                            ]
-                          },
-                          {
-                            "ref": 44
-                          },
-                          {
-                            "const": 0.0
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          },
-          "z_rot": {
-            "select": [
-              {
-                "ref": 3
-              },
-              {
-                "select": [
-                  {
-                    "ref": 4
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 5
-                      },
-                      {
-                        "select": [
-                          {
-                            "ref": 6
-                          },
-                          {
-                            "select": [
-                              {
-                                "ref": 7
-                              },
-                              {
-                                "select": [
-                                  {
-                                    "ref": 8
-                                  },
-                                  {
-                                    "const": 0.0
-                                  },
-                                  {
-                                    "const": 2.670354
-                                  }
-                                ]
-                              },
-                              {
-                                "const": 0.0
-                              }
-                            ]
-                          },
-                          {
-                            "const": 0.0
-                          }
-                        ]
-                      },
-                      {
-                        "const": 0.0
-                      }
-                    ]
-                  },
-                  {
-                    "const": 2.3561945
-                  }
-                ]
-              },
-              {
-                "select": [
-                  {
-                    "ref": 18
-                  },
-                  {
-                    "ref": 45
-                  },
-                  {
-                    "select": [
-                      {
-                        "ref": 28
-                      },
-                      {
-                        "ref": 45
-                      },
-                      {
-                        "select": [
-                          {
-                            "is": [
-                              "getMainHandItemStack",
-                              "EMPTY"
-                            ]
-                          },
-                          {
-                            "ref": 45
-                          },
-                          {
-                            "const": 0.0
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          },
-          "visible": {
-            "ref": 38
-          }
-        },
-        "right_leg": {
-          "x_rot": {
-            "select": [
-              {
-                "ref": 9
-              },
+            "mul": [
               {
                 "mul": [
                   {
                     "mul": [
                       {
-                        "mul": [
-                          {
-                            "ref": 11
-                          },
-                          {
-                            "const": 1.4
-                          }
-                        ]
+                        "ref": 2
                       },
                       {
-                        "input": "walkAnimationSpeed"
+                        "const": 2.0
                       }
                     ]
                   },
                   {
-                    "const": 0.5
+                    "input": "walkAnimationSpeed"
                   }
                 ]
               },
               {
-                "const": -1.4137167
+                "const": 0.5
               }
             ]
           },
           "y_rot": {
-            "select": [
+            "const": 0.0
+          },
+          "z_rot": {
+            "const": 0.0
+          },
+          "visible": {
+            "iconst": 1
+          }
+        },
+        "right_leg": {
+          "x_rot": {
+            "mul": [
               {
-                "ref": 9
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "ref": 1
+                      },
+                      {
+                        "const": 1.4
+                      }
+                    ]
+                  },
+                  {
+                    "input": "walkAnimationSpeed"
+                  }
+                ]
               },
               {
-                "const": 0.0
-              },
-              {
-                "const": 0.31415927
+                "const": 0.5
               }
             ]
           },
+          "y_rot": {
+            "const": 0.0
+          },
           "z_rot": {
-            "select": [
-              {
-                "ref": 9
-              },
-              {
-                "const": 0.0
-              },
-              {
-                "const": 0.07853982
-              }
-            ]
+            "const": 0.0
           }
         }
       }
@@ -77668,7 +76170,18 @@
       "swingAnimationType": "WHACK",
       "useItemHand": "MAIN_HAND"
     },
-    "IllagerModel": {
+    "IllagerModel@armPose=CROSSED": {
+      "armPose": "NEUTRAL",
+      "attackArm": "RIGHT",
+      "getMainHandItemStack": "EMPTY",
+      "leftArmPose": "EMPTY",
+      "mainArm": "RIGHT",
+      "pose": "STANDING",
+      "rightArmPose": "EMPTY",
+      "swingAnimationType": "WHACK",
+      "useItemHand": "MAIN_HAND"
+    },
+    "IllagerModel@armPose=NEUTRAL": {
       "armPose": "NEUTRAL",
       "attackArm": "RIGHT",
       "getMainHandItemStack": "EMPTY",

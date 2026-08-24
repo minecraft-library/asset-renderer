@@ -39,7 +39,6 @@ public final class ToolingEntityModels {
                 "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain");
             GeometryManifest manifest = new GeometryManifest();
             EntityRegistryWalk.run(session, subjects, manifest, root);
-            session.write(root, "entity_models.json");
             Map<String, Set<String>> rootBones =
                 GeometryFlow.emit(session, manifest, session.resolve("entity_geometry.json"));
             // The classes the renderers pose with, which the geometry manifest does not name: a model
@@ -56,8 +55,14 @@ public final class ToolingEntityModels {
             // The model table travels into the pose flow because the fold needs what each subject
             // rests at, and that table is the statement of record for it - it is what the reader
             // joins on, so deriving the join from anything else would be a second account of it.
+            //
+            // It travels there before it is WRITTEN because the pose flow owns the keyspace it joins
+            // on: a class two subjects pose two ways splits into a row each, and the body that takes
+            // one names it in its own row. So the models table is written after, holding the join
+            // the pose table actually carries.
             PoseFlow.emit(session, manifest, rootBones, posing, renderers,
                 root.child("models"), session.resolve("entity_poses.json"));
+            session.write(root, "entity_models.json");
             session.failOnStrictGate();
         }
     }
