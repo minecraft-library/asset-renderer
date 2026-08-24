@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -92,7 +93,7 @@ public final class PoseFlow {
         List<KeyframeClip> clips = KeyframeDefinitionParser.parseAll(session.cache(), diagnostics);
         Map<String, String> roster = rosterClasses(session, manifest, posing, diagnostics);
         Map<String, PoseOutcome> walked = walkModels(session, roster, rootBones, diagnostics);
-        Map<String, RenderTransform> transforms = walkRenderers(session, renderers);
+        Map<String, RenderTransform> transforms = walkRenderers(session, renderers, models);
 
         // Resolved before anything is written, because the fold reads all three: what the walk left
         // is a program over the render state, and these are what that state answers at rest.
@@ -301,9 +302,11 @@ public final class PoseFlow {
      * onto its side.
      *
      * <p>The subject's own resting map is the whole frame here. A renderer has no model class and so
-     * no resting defaults of its own, and it needs none: the grammar a {@code setupRotations} walk
-     * reads is the render state's float and boolean fields, so nothing in a transform can ask which
-     * constant an enum member holds.
+     * no resting defaults of its own, and the fold needs none: the one constant question a
+     * {@code setupRotations} body asks - which direction the subjects it draws rest attached at -
+     * is settled at the walk, because what it decides is which steps exist rather than what a
+     * channel holds, so what reaches this fold is a program over the state's float and boolean
+     * fields alone.
      *
      * @param transforms what each renderer composes, refusals included and passed through
      * @param models the model table, read for which subjects each renderer draws and what they rest at
@@ -906,14 +909,46 @@ public final class PoseFlow {
      * beyond the base is absent rather than empty.
      */
     private static @NotNull Map<String, RenderTransform> walkRenderers(
-        @NotNull ToolingSession session, @NotNull Set<String> renderers) {
+        @NotNull ToolingSession session, @NotNull Set<String> renderers, @NotNull JsonTree models) {
 
         Map<String, RenderTransform> out = new TreeMap<>();
         for (String renderer : renderers) {
-            RenderTransform transform = RenderTransformWalk.read(session.cache(), renderer);
+            String name = ClassKit.simpleName(renderer);
+            RenderTransform transform = RenderTransformWalk.read(session.cache(), renderer,
+                (state, member) -> restingConstant(session, models, name, state, member));
             if (transform != null) out.putIfAbsent(transform.renderer(), transform);
         }
         return out;
+    }
+
+    /**
+     * Which constant a render-state member rests holding, for the subjects one renderer draws.
+     *
+     * <p>The subject's own resting map answers first and the state's constructor answers the rest,
+     * the precedence the pose fold takes - and every subject the renderer draws must land on one
+     * constant, because the row answers for all of them. A disagreement, or a member neither
+     * names, answers nothing and the walk refuses.
+     *
+     * @param session the live session
+     * @param models the model table, read for which subjects the renderer draws and their rests
+     * @param renderer the renderer's simple name, which the model table keys a subject's row by
+     * @param state the render-state class the walked body reads its members of, by internal name
+     * @param member the enum member being read
+     * @return the one constant every drawn subject rests holding, or empty
+     */
+    private static @NotNull Optional<String> restingConstant(
+        @NotNull ToolingSession session, @NotNull JsonTree models, @NotNull String renderer,
+        @NotNull String state, @NotNull String member) {
+
+        String constructed = InputDefaultResolver
+            .resolveConstants(session.cache(), state, Set.of(member)).get(member);
+        Set<String> answers = new LinkedHashSet<>();
+        models.members().forEach((entity, row) -> row.findString("renderer").ifPresent(named -> {
+            if (ClassKit.simpleName(named).equals(renderer))
+                answers.add(restOf(row).getOrDefault(member, constructed));
+        }));
+        if (answers.isEmpty()) return Optional.ofNullable(constructed);
+        return answers.size() == 1 ? Optional.ofNullable(answers.iterator().next()) : Optional.empty();
     }
 
     /**

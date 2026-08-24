@@ -76683,7 +76683,13 @@
       ]
     },
     "ShulkerRenderer": {
-      "refused": "reads 'attachFace', which is a 'Lnet/minecraft/core/Direction;' rather than a number"
+      "container": [
+        {
+          "y_rot": {
+            "const": -3.1415927
+          }
+        }
+      ]
     },
     "SquidRenderer": {
       "refused": "branches with a half-built value on the stack"

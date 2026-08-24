@@ -36,7 +36,7 @@ public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
  * @param renderer the vanilla renderer class's internal name, which is what the pose table keys its
  *     {@code renderers} transforms by - the one member here that names a class rather than an asset,
  *     because what a renderer composes above its meshes is its own fact and no model carries it
- * @param render the family render tuning ({@code scale} / {@code yaw_addend} / {@code tint}), or {@code null}
+ * @param render the family render tuning ({@code scale} / {@code tint}), or {@code null}
  * @param rest which constant each of the subject's enum render-state fields holds before anything
  *     has happened to it, or {@code null} when its renderer fills none from a readable accessor
  * @param bones the {@code undrawn} strip and {@code toggles} specs, or {@code null} when the family has none
@@ -71,12 +71,10 @@ record RawModel(
  * The family {@code render} tuning.
  *
  * @param scale the render-time scale, boxed so an absent member falls to {@code 1f} not {@code 0f}
- * @param yawAddend the {@code setupRotations} yaw addend in degrees, {@code 0f} when absent
  * @param tint the per-entity base tint as a hex string, or {@code null} for white
  */
 record RawRender(
     @Nullable Float scale,
-    @SerializedName("yaw_addend") float yawAddend,
     @Nullable String tint
 ) {}
 

@@ -756,9 +756,18 @@ is what a subject joins on.
   turn about y and a translate along y both commute with the base's turn and nothing else does.
 - **A body is read whole or refused**, the grammar being the render state's own float and boolean
   fields, float and double arithmetic, `Mth.sin` and `Mth.cos`, a translate, a `mulPose` of one of
-  the three positive axes turned by degrees, and the delegation. Nine of the fourteen renderers that
-  override refuse today and each refusal is a row, because a transform read in half places a subject
-  somewhere vanilla never puts it and renders as though it were deliberate.
+  the three positive axes turned by degrees, the delegation carrying at most a literal addend folded
+  into its body rotation, and a `rotateAround` about the direction the subjects rest attached at -
+  an enum member the walk settles at generation, because what it decides is which steps exist rather
+  than what a channel holds, and the identity rotation folds the whole call away. Eight of the
+  fourteen renderers that override refuse today and each refusal is a row, because a transform read
+  in half places a subject somewhere vanilla never puts it and renders as though it were deliberate.
+- **A leading constant turn about y is facing, not container.** It is the addend a renderer folds
+  into the delegation's own body rotation - the shulker's `+ 180f` - and the base applies the body
+  rotation as the subject's facing, so the index consumes it into `Entity.setupYawAddend`, which
+  reaches every render mode through the facing sum where a container step never reaches BIND. The
+  division that crosses the shipped radians back to degrees is exact for what ships, and the walk
+  refuses an addend it would move rather than shipping it an ulp wrong.
 - The one branch shape is a forward jump over a contiguous block, so a step inside one writes each
   channel as a select between its value and that channel's identity, and a local the block assigns is
   reconciled at the block's end against what it held before. Reading a local off the block's own arm

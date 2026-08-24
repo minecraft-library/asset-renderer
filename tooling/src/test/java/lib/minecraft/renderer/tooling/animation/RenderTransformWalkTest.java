@@ -23,6 +23,8 @@ import org.objectweb.asm.tree.VarInsnNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -36,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * each {@code setupRotations} shape the corpus carries, verified against {@code javap -c -p} of the
  * extracted client classes.
  *
- * <p>The three accepted shapes are pinned as the exact bytes they emit, because what the walk
+ * <p>The accepted shapes are pinned as the exact bytes they emit, because what the walk
  * produces is a shipped table and every arm of the frame crossing is a sign the arithmetic cannot
  * tell right from wrong: hand-writing the cod's yaw un-negated renders a fish and renders it wrong.
  * So the negation of x and y, the untouched z, the degrees factor and the sixteen model pixels a
@@ -62,9 +64,24 @@ class RenderTransformWalkTest {
     private static final @NotNull String SETUP = "(L" + STATE + ";L" + POSE_STACK + ";FF)V";
     private static final @NotNull String BASE = "net/minecraft/client/renderer/entity/MobRenderer";
 
+    private static final @NotNull String DIRECTION = "net/minecraft/core/Direction";
+    private static final @NotNull String DIRECTION_DESC = "L" + DIRECTION + ";";
+    private static final @NotNull String OPPOSITE = "()" + DIRECTION_DESC;
+    private static final @NotNull String ROTATION = "()Lorg/joml/Quaternionf;";
+    private static final @NotNull String ROTATE_AROUND = "(Lorg/joml/Quaternionfc;FFF)V";
+
     /** The slot the render state arrives in, and the one the pose stack does. */
     private static final int STATE_SLOT = 1;
     private static final int STACK_SLOT = 2;
+
+    /** A frame answering no resting constant at all, which every numeric fixture walks under. */
+    private static final @NotNull BiFunction<String, String, Optional<String>> NO_CONSTANTS =
+        (state, member) -> Optional.empty();
+
+    /** The shulker's frame: {@code attachFace} rests {@code DOWN}, read of the state the body takes. */
+    private static final @NotNull BiFunction<String, String, Optional<String>> ATTACHED_DOWN =
+        (state, member) -> STATE.equals(state) && "attachFace".equals(member)
+            ? Optional.of("DOWN") : Optional.empty();
 
     @TempDir
     Path tempDir;
@@ -78,7 +95,8 @@ class RenderTransformWalkTest {
             for (ClassNode fixture : new ClassNode[]{
                 fishRenderer(), pufferRenderer(), amplitudeRenderer(), tiltRenderer(),
                 bareRenderer(), foreignRenderer(), negativeAxisRenderer(), nestedRenderer(),
-                plainRenderer()}) {
+                plainRenderer(), shulkerRenderer(), inputAddendRenderer(),
+                unrecoverableAddendRenderer(), pivotTurnRenderer()}) {
                 zip.putNextEntry(new ZipEntry(fixture.name + ".class"));
                 ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
                 fixture.accept(writer);
@@ -146,6 +164,55 @@ class RenderTransformWalkTest {
     // ------------------------------------------------------------------------------------
 
     @Test
+    @DisplayName("a shulker's addend is one turn about y, and its attach turn folds away at rest")
+    void shulkerShape() {
+        // The shipped ShulkerRenderer row byte for byte. The 180 rides the delegation's own body
+        // rotation, so it is the same turn about y a mulPose before the base would be - crossed
+        // into the model frame and taken to radians. The rotateAround settles at generation:
+        // attachFace rests DOWN, DOWN's opposite is UP, and UP's rotation is the identity, which
+        // turns nothing whatever the pivot.
+        assertEquals("{\"container\":[{\"y_rot\":{\"const\":-3.1415927}}]}",
+            emitted("fx/ShulkerRenderer", ATTACHED_DOWN));
+    }
+
+    @Test
+    @DisplayName("a direction no constant answers refuses rather than guessing an attach face")
+    void unresolvedDirectionRefuses() {
+        assertRefused("fx/ShulkerRenderer", NO_CONSTANTS,
+            "reads 'attachFace', which rests at no constant this can answer");
+    }
+
+    @Test
+    @DisplayName("a resolved rotation that is not the identity refuses rather than spelling a turn nothing measures")
+    void nonIdentityRotationRefuses() {
+        BiFunction<String, String, Optional<String>> attachedUp =
+            (state, member) -> Optional.of("UP");
+        assertRefused("fx/ShulkerRenderer", attachedUp,
+            "turns about the 'DOWN' rotation, which does not rest at the identity");
+    }
+
+    @Test
+    @DisplayName("a body rotation carrying anything but a literal addend refuses the body")
+    void inputAddendRefuses() {
+        assertRefused("fx/InputAddendRenderer", "delegates a body rotation it could not read");
+    }
+
+    @Test
+    @DisplayName("an addend the reader's division cannot recover refuses where the degrees are still known")
+    void unrecoverableAddendRefuses() {
+        // 0.031f is a float whose multiply by the degrees factor is not inverted by the division
+        // the reader takes back out - the recovery lands one ulp away.
+        assertRefused("fx/UnrecoverableAddendRenderer",
+            "folds '0.031' into the body rotation, which the reader cannot recover");
+    }
+
+    @Test
+    @DisplayName("a pivoted turn by anything but a settled direction refuses")
+    void pivotTurnRefuses() {
+        assertRefused("fx/PivotTurnRenderer", "turns about a pivot by a rotation it could not read");
+    }
+
+    @Test
     @DisplayName("a translate off the y axis before the base turn refuses rather than being placed after it")
     void offAxisBeforeTheBaseRefuses() {
         // A step before the delegation is composed OUTSIDE the base's turn about y, and only a
@@ -182,30 +249,45 @@ class RenderTransformWalkTest {
     @Test
     @DisplayName("a renderer that composes nothing beyond the base gets no row at all")
     void plainRendererAnswersNothing() {
-        assertNull(RenderTransformWalk.read(this.cache, "fx/PlainRenderer"),
+        assertNull(RenderTransformWalk.read(this.cache, "fx/PlainRenderer", NO_CONSTANTS),
             "a body that only delegates composes no transform");
     }
 
     @Test
     @DisplayName("a renderer declaring no setupRotations answers nothing rather than an empty transform")
     void undeclaredAnswersNothing() {
-        assertNull(RenderTransformWalk.read(this.cache, "fx/Missing"),
+        assertNull(RenderTransformWalk.read(this.cache, "fx/Missing", NO_CONSTANTS),
             "a class the jar does not hold declares nothing to walk");
     }
 
     // ------------------------------------------------------------------------------------
 
-    /** The shipped bytes one fixture's transform writes. */
+    /** The shipped bytes one fixture's transform writes, walked under no resting constants. */
     private @NotNull String emitted(@NotNull String renderer) {
-        RenderTransform read = RenderTransformWalk.read(this.cache, renderer);
+        return emitted(renderer, NO_CONSTANTS);
+    }
+
+    /** The shipped bytes one fixture's transform writes. */
+    private @NotNull String emitted(
+        @NotNull String renderer, @NotNull BiFunction<String, String, Optional<String>> resting) {
+
+        RenderTransform read = RenderTransformWalk.read(this.cache, renderer, resting);
         assertNotNull(read, renderer + " composed no transform");
         assertTrue(read.isReadable(), renderer + " refused: " + read.refusal().orElse(""));
         return PoseJson.transform(read).toGson().toString();
     }
 
-    /** Asserts one fixture refuses, and refuses for the stated reason. */
+    /** Asserts one fixture refuses under no resting constants, and refuses for the stated reason. */
     private void assertRefused(@NotNull String renderer, @NotNull String reason) {
-        RenderTransform read = RenderTransformWalk.read(this.cache, renderer);
+        assertRefused(renderer, NO_CONSTANTS, reason);
+    }
+
+    /** Asserts one fixture refuses, and refuses for the stated reason. */
+    private void assertRefused(
+        @NotNull String renderer, @NotNull BiFunction<String, String, Optional<String>> resting,
+        @NotNull String reason) {
+
+        RenderTransform read = RenderTransformWalk.read(this.cache, renderer, resting);
         assertNotNull(read, renderer + " answered nothing where a refusal is owed");
         assertEquals(reason, read.refusal().orElse("<read>"), renderer + " refusal");
     }
@@ -365,6 +447,64 @@ class RenderTransformWalkTest {
         return renderer("fx/PlainRenderer", body);
     }
 
+    /** The shulker's own body: the 180 addend on the delegation, then the attach-face pivot turn. */
+    private static @NotNull ClassNode shulkerRenderer() {
+        MethodNode body = setupRotations();
+        InsnList code = body.instructions;
+        delegate(code, 180f);
+        code.add(new VarInsnNode(Opcodes.ALOAD, STACK_SLOT));
+        input(code, "attachFace", DIRECTION_DESC);
+        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, DIRECTION, "getOpposite", OPPOSITE, false));
+        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, DIRECTION, "getRotation", ROTATION, false));
+        code.add(new InsnNode(Opcodes.FCONST_0));
+        code.add(new LdcInsnNode(0.5f));
+        code.add(new InsnNode(Opcodes.FCONST_0));
+        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, POSE_STACK, "rotateAround", ROTATE_AROUND, false));
+        code.add(new InsnNode(Opcodes.RETURN));
+        return renderer("fx/ShulkerRenderer", body);
+    }
+
+    /** A delegation folding a render-state figure into the body rotation, which no literal covers. */
+    private static @NotNull ClassNode inputAddendRenderer() {
+        MethodNode body = setupRotations();
+        InsnList code = body.instructions;
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new VarInsnNode(Opcodes.ALOAD, STATE_SLOT));
+        code.add(new VarInsnNode(Opcodes.ALOAD, STACK_SLOT));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 3));
+        input(code, "ageInTicks", "F");
+        code.add(new InsnNode(Opcodes.FADD));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 4));
+        code.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, BASE, "setupRotations", SETUP, false));
+        code.add(new InsnNode(Opcodes.RETURN));
+        return renderer("fx/InputAddendRenderer", body);
+    }
+
+    /** The shulker's shape with an addend whose degrees the reader's division moves by an ulp. */
+    private static @NotNull ClassNode unrecoverableAddendRenderer() {
+        MethodNode body = setupRotations();
+        delegate(body.instructions, 0.031f);
+        body.instructions.add(new InsnNode(Opcodes.RETURN));
+        return renderer("fx/UnrecoverableAddendRenderer", body);
+    }
+
+    /** The drowned's shape: a pivoted turn by a built quaternion rather than a settled direction. */
+    private static @NotNull ClassNode pivotTurnRenderer() {
+        MethodNode body = setupRotations();
+        InsnList code = body.instructions;
+        delegate(code);
+        code.add(new VarInsnNode(Opcodes.ALOAD, STACK_SLOT));
+        code.add(new FieldInsnNode(Opcodes.GETSTATIC, AXIS, "XP", AXIS_DESC));
+        code.add(new LdcInsnNode(10f));
+        code.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, AXIS, "rotationDegrees", QUATERNION, true));
+        code.add(new InsnNode(Opcodes.FCONST_0));
+        code.add(new LdcInsnNode(0.9f));
+        code.add(new InsnNode(Opcodes.FCONST_0));
+        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, POSE_STACK, "rotateAround", ROTATE_AROUND, false));
+        code.add(new InsnNode(Opcodes.RETURN));
+        return renderer("fx/PivotTurnRenderer", body);
+    }
+
     // ------------------------------------------------------------------------------------
 
     /** {@code super.setupRotations(state, poseStack, bodyRot, scale)}. */
@@ -373,6 +513,18 @@ class RenderTransformWalkTest {
         code.add(new VarInsnNode(Opcodes.ALOAD, STATE_SLOT));
         code.add(new VarInsnNode(Opcodes.ALOAD, STACK_SLOT));
         code.add(new VarInsnNode(Opcodes.FLOAD, 3));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 4));
+        code.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, BASE, "setupRotations", SETUP, false));
+    }
+
+    /** {@code super.setupRotations(state, poseStack, bodyRot + addend, scale)}. */
+    private static void delegate(@NotNull InsnList code, float addend) {
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new VarInsnNode(Opcodes.ALOAD, STATE_SLOT));
+        code.add(new VarInsnNode(Opcodes.ALOAD, STACK_SLOT));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 3));
+        code.add(new LdcInsnNode(addend));
+        code.add(new InsnNode(Opcodes.FADD));
         code.add(new VarInsnNode(Opcodes.FLOAD, 4));
         code.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, BASE, "setupRotations", SETUP, false));
     }

@@ -22,6 +22,8 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.BiFunction;
 
 /**
  * Reads a renderer's own {@code setupRotations} into the container steps it puts every mesh it
@@ -31,9 +33,19 @@ import java.util.Objects;
  * all: every instruction has to fall inside a closed grammar - the render state's own float and
  * boolean fields, float and double arithmetic, {@code Mth.sin} and {@code Mth.cos}, a
  * {@code PoseStack} translate, a {@code mulPose} of one of the three positive axes turned by
- * degrees, and the delegation to the base - and anything else refuses the renderer rather than
- * emitting the part that was understood. A transform read in half is a subject placed somewhere
- * vanilla never puts it, which renders and looks deliberate.
+ * degrees, the delegation to the base carrying at most a literal addend folded into its body
+ * rotation, and a {@code rotateAround} about the direction a resting subject attaches at - and
+ * anything else refuses the renderer rather than emitting the part that was understood. A
+ * transform read in half is a subject placed somewhere vanilla never puts it, which renders and
+ * looks deliberate.
+ *
+ * <p><b>An enum member a body reads is settled here, never shipped.</b> The shipped vocabulary
+ * answers every constant question where the generator knows the subject, so a {@code Direction}
+ * field resolves at the read to the constant the subjects drawn by this renderer rest holding,
+ * and what that decides is which steps exist rather than what a channel holds: the identity
+ * rotation turns nothing whatever the pivot, so the shulker's whole {@code rotateAround} folds
+ * away at rest. A member no constant answers, or one whose resolved rotation is not the
+ * identity, refuses the body instead of guessing.
  *
  * <p><b>The world transform crosses a frame to reach the container.</b> Vanilla runs
  * {@code setupRotations} OUTSIDE its own {@code scale(-1, -1, 1)}, where a container sits inside
@@ -80,14 +92,46 @@ final class RenderTransformWalk {
     /** {@code PoseStack.mulPose}, which is the only way a turn reaches the stack here. */
     private static final @NotNull String MUL_POSE = "mulPose";
 
+    /** The {@code PoseStack.rotateAround} overload a pivoted turn arrives through. */
+    private static final @NotNull String ROTATE_AROUND_DESC = "(Lorg/joml/Quaternionfc;FFF)V";
+
+    /** {@code PoseStack.rotateAround}, the one pivoted turn the grammar covers. */
+    private static final @NotNull String ROTATE_AROUND = "rotateAround";
+
+    /** {@code Direction.getOpposite}, mapped through the enum's own opposing pairs. */
+    private static final @NotNull String GET_OPPOSITE = "getOpposite";
+
+    /** {@code Direction.getRotation}, which marks a resolved direction rather than building a value. */
+    private static final @NotNull String GET_ROTATION = "getRotation";
+
+    /** The descriptor a {@code Direction} render-state field carries. */
+    private static final @NotNull String DIRECTION_DESC =
+        "L" + VanillaSourceClasses.Types.DIRECTION + ";";
+
     /** The descriptor a boolean render-state field carries. */
     private static final @NotNull String BOOLEAN_DESC = "Z";
 
     /** The descriptor a float render-state field carries. */
     private static final @NotNull String FLOAT_DESC = "F";
 
+    /**
+     * Each {@code Direction} constant's opposite - the three opposing pairs the enum declares,
+     * the same pairing {@code getOpposite} resolves through its 3D data index.
+     */
+    private static final @NotNull Map<String, String> OPPOSITE = Map.of(
+        "DOWN", "UP", "UP", "DOWN", "NORTH", "SOUTH", "SOUTH", "NORTH", "WEST", "EAST", "EAST", "WEST");
+
+    /**
+     * The one constant whose {@code getRotation} is the identity quaternion - the UP arm builds a
+     * bare {@code Quaternionf} where every other arm turns it.
+     */
+    private static final @NotNull String IDENTITY_ROTATION = "UP";
+
     /** The one reference the walk names, standing for what an unmodelled value would be. */
     private static final @NotNull Object UNKNOWN = new Object();
+
+    /** The body-rotation argument, bound so an addend folded into the delegation can be read. */
+    private static final @NotNull Object BODY_ROT = new Object();
 
     /** The two references the body is handed, which nothing but their own members may be read of. */
     private enum Ref { STATE, STACK }
@@ -97,6 +141,12 @@ final class RenderTransformWalk {
 
     /** A turn built and not yet applied, in the radians the axis was turned by. */
     private record QuatRef(@NotNull PoseChannel channel, @NotNull PoseExpr radians) {}
+
+    /**
+     * A direction the render state rests holding, already settled to its constant; {@code rotation}
+     * once {@code getRotation} has marked it.
+     */
+    private record DirectionRef(@NotNull String constant, boolean rotation) {}
 
     /**
      * A conditional block being walked - what decides it, where it ends, and what the machine held
@@ -110,6 +160,8 @@ final class RenderTransformWalk {
 
     private final @NotNull String renderer;
     private final @NotNull MethodNode body;
+    private final @NotNull String stateType;
+    private final @NotNull BiFunction<String, String, Optional<String>> resting;
     private final @NotNull List<Map<PoseChannel, PoseExpr>> steps = new ArrayList<>();
     private final @NotNull Interp<Object> machine =
         Interp.of(new Domain(), Interp.OnUnknown.SILENT, Interp.Width.FLOAT_AS_FLOAT);
@@ -120,9 +172,16 @@ final class RenderTransformWalk {
     private @Nullable AbstractInsnNode lastReal;
     private boolean delegated;
 
-    private RenderTransformWalk(@NotNull String renderer, @NotNull MethodNode body) {
+    private RenderTransformWalk(
+        @NotNull String renderer, @NotNull MethodNode body,
+        @NotNull BiFunction<String, String, Optional<String>> resting) {
+
         this.renderer = renderer;
         this.body = body;
+        // The state class the body reads its members of, which is what a resting constant is
+        // resolved against - the typed override names the renderer's own, the bridge the base's.
+        this.stateType = ClassKit.argTypes(body.desc)[0].getInternalName();
+        this.resting = resting;
     }
 
     /**
@@ -135,16 +194,20 @@ final class RenderTransformWalk {
      *
      * @param cache the class source
      * @param renderer the subject's renderer class, by internal name
+     * @param resting which constant a render-state member rests holding, by state class and member
      * @return the transform, or {@code null} when the renderer composes none at all
      */
-    static @Nullable RenderTransform read(@NotNull ClassNodeCache cache, @NotNull String renderer) {
+    static @Nullable RenderTransform read(
+        @NotNull ClassNodeCache cache, @NotNull String renderer,
+        @NotNull BiFunction<String, String, Optional<String>> resting) {
+
         ClassNode declaring = declarer(cache, renderer);
         if (declaring == null) return null;
         MethodNode body = primary(declaring);
         if (body == null) return null;
 
         String name = ClassKit.simpleName(renderer);
-        RenderTransform read = new RenderTransformWalk(name, body).walk();
+        RenderTransform read = new RenderTransformWalk(name, body, resting).walk();
         // A body that composes nothing beyond the base is a renderer with no transform rather than
         // one whose transform is empty, so it gets no row at all and reads as the subject's default.
         return read.isReadable() && read.steps().isEmpty() ? null : read;
@@ -197,11 +260,14 @@ final class RenderTransformWalk {
 
     /** Runs the body through the machine and answers what it composed. */
     private @NotNull RenderTransform walk() {
-        // The two references the body is handed. Everything else - this, the body rotation, the
-        // render scale - is left unbound, so a read of one arrives as the unmodelled value and
-        // refuses wherever it is used rather than resolving to a confident zero.
+        // The two references the body is handed, and the body rotation, bound so an addend folded
+        // into the delegation can be read off it. Everything else - this, the render scale - is
+        // left unbound, so a read of one arrives as the unmodelled value and refuses wherever it
+        // is used rather than resolving to a confident zero. The slots are fixed by the shape
+        // primary() accepts: (state, stack, bodyRot, scale) on an instance method.
         this.machine.store(1, Ref.STATE);
         this.machine.store(2, Ref.STACK);
+        this.machine.store(3, BODY_ROT);
         AsmWalker.over(this.body).drive(this.machine)
             .on(Insn.of(AbstractInsnNode.class, node -> true), this::visit)
             .run();
@@ -284,6 +350,14 @@ final class RenderTransformWalk {
             refuse("reads '%s' of something other than the render state", field.name);
             return;
         }
+        // An enum member is settled to the constant the subjects rest holding, never shipped - the
+        // shipped vocabulary answers every constant question where the generator knows the subject.
+        if (DIRECTION_DESC.equals(field.desc)) {
+            Optional<String> constant = this.resting.apply(this.stateType, field.name);
+            if (constant.isEmpty()) refuse("reads '%s', which rests at no constant this can answer", field.name);
+            else this.machine.push(new DirectionRef(constant.get(), false));
+            return;
+        }
         if (!FLOAT_DESC.equals(field.desc) && !BOOLEAN_DESC.equals(field.desc)) {
             refuse("reads '%s', which is a '%s' rather than a number", field.name, field.desc);
             return;
@@ -315,12 +389,65 @@ final class RenderTransformWalk {
             trigonometry("sin".equals(invoke.name) ? PoseOperator.MTH_SIN : PoseOperator.MTH_COS);
             return;
         }
+        if (VanillaSourceClasses.Types.DIRECTION.equals(invoke.owner) && GET_OPPOSITE.equals(invoke.name)) {
+            opposite();
+            return;
+        }
+        if (VanillaSourceClasses.Types.DIRECTION.equals(invoke.owner) && GET_ROTATION.equals(invoke.name)) {
+            rotation();
+            return;
+        }
+        if (VanillaSourceClasses.Types.POSE_STACK.equals(invoke.owner)
+            && ROTATE_AROUND.equals(invoke.name) && ROTATE_AROUND_DESC.equals(invoke.desc)) {
+            rotateAround();
+            return;
+        }
         if (invoke.getOpcode() == Opcodes.INVOKESPECIAL
             && VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(invoke.name)) {
             delegate(invoke);
             return;
         }
         refuse("calls '%s.%s'", ClassKit.simpleName(invoke.owner), invoke.name);
+    }
+
+    /** {@code Direction.getOpposite}, mapped through the enum's own opposing pairs. */
+    private void opposite() {
+        Object direction = this.machine.pop();
+        String opposed = direction instanceof DirectionRef held && !held.rotation()
+            ? OPPOSITE.get(held.constant()) : null;
+        if (opposed == null) refuse("takes the opposite of a direction it could not read");
+        else this.machine.push(new DirectionRef(opposed, false));
+    }
+
+    /** {@code Direction.getRotation}, which marks the settled direction rather than building a value. */
+    private void rotation() {
+        Object direction = this.machine.pop();
+        if (!(direction instanceof DirectionRef held) || held.rotation())
+            refuse("builds a rotation from a direction it could not read");
+        else this.machine.push(new DirectionRef(held.constant(), true));
+    }
+
+    /**
+     * {@code PoseStack.rotateAround}, which the corpus reaches only about the direction a resting
+     * subject attaches at.
+     *
+     * <p>The identity rotation turns nothing whatever the pivot, so the whole call folds away; any
+     * other resolved rotation is refused rather than spelled, no subject in the corpus resting at
+     * one - a table of turns nothing consults would be asserted rather than measured.
+     */
+    private void rotateAround() {
+        Object z = this.machine.pop();
+        Object y = this.machine.pop();
+        Object x = this.machine.pop();
+        Object quaternion = this.machine.pop();
+        if (this.machine.pop() != Ref.STACK
+            || !(quaternion instanceof DirectionRef held) || !held.rotation()
+            || !(x instanceof PoseExpr) || !(y instanceof PoseExpr) || !(z instanceof PoseExpr)) {
+            refuse("turns about a pivot by a rotation it could not read");
+            return;
+        }
+        if (!IDENTITY_ROTATION.equals(held.constant()))
+            refuse("turns about the '%s' rotation, which does not rest at the identity", held.constant());
     }
 
     /** {@code Axis.rotationDegrees}, which is where an angle stops being degrees. */
@@ -383,11 +510,13 @@ final class RenderTransformWalk {
     }
 
     /**
-     * The base declaration, which emits nothing and bounds what may precede it.
+     * The base declaration, which bounds what may precede it and carries at most an addend.
      *
-     * <p>The arguments are popped without being read: what a renderer folds into the body rotation
-     * before delegating is a separate fact the model table already carries, and it leaves the base a
-     * turn about y either way.
+     * <p>The base turns about y by the body rotation it is handed, in degrees, and applies it as
+     * the subject's facing - so an addend folded into that argument is the same turn a
+     * {@code mulPose} about y before the delegation would be, and it is emitted as that step. The
+     * shulker's {@code + 180f} is the corpus's one instance. A body rotation that is neither
+     * passed through nor a literal addend refuses the body.
      */
     private void delegate(@NotNull MethodInsnNode invoke) {
         if (this.delegated) {
@@ -401,7 +530,20 @@ final class RenderTransformWalk {
                         channel.token());
                     return;
                 }
-        for (int argument = ClassKit.argTypes(invoke.desc).length; argument >= 0; argument--) this.machine.pop();
+        // The arguments in reverse push order: scale, the body rotation, the stack, the state, this.
+        this.machine.pop();
+        Object body = this.machine.pop();
+        this.machine.pop();
+        this.machine.pop();
+        this.machine.pop();
+        if (body instanceof QuatRef addend) {
+            Map<PoseChannel, PoseExpr> step = new EnumMap<>(PoseChannel.class);
+            step.put(addend.channel(), crossed(addend.channel(), addend.radians()));
+            emit(step);
+        } else if (body != BODY_ROT) {
+            refuse("delegates a body rotation it could not read");
+            return;
+        }
         this.delegated = true;
     }
 
@@ -509,8 +651,12 @@ final class RenderTransformWalk {
     /**
      * What the machine's values mean here - a literal at the width it was pushed, the arithmetic
      * that survives, and one reference for everything else.
+     *
+     * <p>An inner class rather than a static one so the addend arm can refuse: the reader recovers
+     * a folded addend's degrees by division, and only here are the degrees still known to check
+     * that against.
      */
-    private static final class Domain implements Interp.Domain<Object> {
+    private final class Domain implements Interp.Domain<Object> {
 
         @Override
         public @Nullable Object decode(@NotNull AbstractInsnNode node) {
@@ -534,6 +680,25 @@ final class RenderTransformWalk {
 
         @Override
         public @Nullable Object binary(int opcode, @NotNull Object left, @NotNull Object right) {
+            // An addend folded into the body rotation - vanilla writes bodyRot + 180f - is the
+            // turn about y the base applies as the subject's facing, in the degrees it takes, so
+            // it becomes the built-and-unapplied turn the delegation emits as a step. The reader
+            // recovers the degrees by dividing the folded radians back out, and float division
+            // does not invert every float multiply, so a value the round trip moves is refused
+            // here, where the degrees are still known, rather than shipped an ulp wrong.
+            if (opcode == Opcodes.FADD && (left == BODY_ROT || right == BODY_ROT)) {
+                Object other = left == BODY_ROT ? right : left;
+                if (!(other instanceof PoseExpr.Const literal)) return null;
+                float degrees = (float) literal.value();
+                PoseExpr radians = PoseExpr.Op.of(PoseOperator.MUL,
+                    literal, PoseExpr.Const.of(DEGREES_TO_RADIANS));
+                double folded = radians.constantValue().orElse(Double.NaN);
+                if ((float) folded / DEGREES_TO_RADIANS != degrees) {
+                    refuse("folds '%s' into the body rotation, which the reader cannot recover", degrees);
+                    return null;
+                }
+                return new QuatRef(PoseChannel.Y_ROT, radians);
+            }
             PoseOperator operator = switch (opcode) {
                 case Opcodes.FADD -> PoseOperator.ADD;
                 case Opcodes.FSUB -> PoseOperator.SUB;

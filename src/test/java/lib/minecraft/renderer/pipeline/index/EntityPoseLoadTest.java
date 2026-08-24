@@ -126,6 +126,22 @@ class EntityPoseLoadTest {
     }
 
     @Test
+    @DisplayName("a shulker's 180 arrives as facing rather than as a container step")
+    void aFacingYawArrivesAsFacing() {
+        // The renderers row carries the addend the shulker's setupRotations folds into the
+        // delegation's own body rotation, as one constant turn about y. The base applies the body
+        // rotation as the subject's facing, so the index consumes the step into the definition's
+        // yaw - which reaches every render mode, BIND included, where a container step never
+        // could - and seats none of it in the pose container. Exactly 180: the division that
+        // crosses the shipped radians back to degrees is checked at generation.
+        Entity shulker = entities.get("minecraft:shulker");
+        assertNotNull(shulker, "the corpus ships a shulker");
+        assertEquals(180f, shulker.setupYawAddend(), "the delegation's addend, recovered exactly");
+        assertEquals(List.of(), shulker.pose().container(),
+            "the row's one step was the facing, so nothing reaches the container");
+    }
+
+    @Test
     @DisplayName("the pose follows the mesh across the age fork, in both directions")
     void thePoseSwapsWithTheBabyMesh() {
         // The two directions are the whole point. Both ages of both animals pose, and each poses

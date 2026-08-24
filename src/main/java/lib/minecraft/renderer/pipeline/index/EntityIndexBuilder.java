@@ -123,7 +123,6 @@ public final class EntityIndexBuilder {
 
         RawRender render = family.render();
         float rendererScale = render == null || render.scale() == null ? 1f : render.scale();
-        float setupYawAddend = render == null ? 0f : render.yawAddend();
         // The setupRotations translate is per-age, so it rides the age options rather than `render`,
         // and it is applied to the mesh here with the rest of the surgery rather than carried to render
         // time: the renderer and the bounds walk both read the mesh, so moving it is what keeps the two
@@ -131,8 +130,10 @@ public final class EntityIndexBuilder {
         RawOption babyAge = ageBaby(family);
         float babyYShift = babyAge == null ? 0f : babyAge.yShift();
         int baseTint = render == null || render.tint() == null ? WHITE : ColorTypeAdapter.parse(render.tint()).getRGB();
-        List<Map<PoseChannel, PoseExpr>> renderTransform =
+        List<Map<PoseChannel, PoseExpr>> composed =
             renderTransformOf(renderTransforms, family, familyId, adult.yShift(), babyYShift);
+        float setupYawAddend = facingYawOf(composed);
+        List<Map<PoseChannel, PoseExpr>> renderTransform = afterFacingYaw(composed);
 
         RawBones bones = family.bones();
         List<String> undrawnBones = bones == null ? null : bones.undrawn();
@@ -254,6 +255,54 @@ public final class EntityIndexBuilder {
                     + "which would move it twice",
                 familyId);
         return steps;
+    }
+
+    /**
+     * Vanilla's own degrees-to-radians factor, which the pose table's steps are written through and
+     * a facing yaw is divided back out by. Refused at generation where the division would not
+     * recover the degrees the renderer wrote.
+     */
+    private static final float DEGREES_TO_RADIANS = (float) (Math.PI / 180d);
+
+    /**
+     * The facing yaw a row's leading steps carry, in the degrees the facing sum takes.
+     *
+     * <p>A leading constant turn about y is the addend a renderer folds into the delegation's own
+     * body rotation - the shulker's {@code + 180f} - and the base applies the body rotation as the
+     * subject's facing. So it reaches every render mode through the facing rather than through the
+     * pose container, which a BIND render never reads, and it is crossed back out of the container
+     * frame here: the container holds the negated radians.
+     *
+     * @param steps the renderer's composed steps, outermost first
+     * @return the summed facing degrees of the leading constant y turns, {@code 0f} for none
+     */
+    private static float facingYawOf(@NotNull List<Map<PoseChannel, PoseExpr>> steps) {
+        float degrees = 0f;
+        for (Map<PoseChannel, PoseExpr> step : steps) {
+            if (!isFacingYaw(step)) break;
+            degrees += -((float) step.get(PoseChannel.Y_ROT).constantValue().orElseThrow()) / DEGREES_TO_RADIANS;
+        }
+        return degrees;
+    }
+
+    /**
+     * The same steps with the facing prefix removed, which is what the pose container seats.
+     *
+     * @param steps the renderer's composed steps, outermost first
+     * @return the steps after the leading constant y turns
+     */
+    private static @NotNull List<Map<PoseChannel, PoseExpr>> afterFacingYaw(
+        @NotNull List<Map<PoseChannel, PoseExpr>> steps) {
+
+        int from = 0;
+        while (from < steps.size() && isFacingYaw(steps.get(from))) from++;
+        return from == 0 ? steps : List.copyOf(steps.subList(from, steps.size()));
+    }
+
+    /** Whether one step is a constant turn about y alone, which is a facing fact rather than a pose one. */
+    private static boolean isFacingYaw(@NotNull Map<PoseChannel, PoseExpr> step) {
+        PoseExpr turn = step.get(PoseChannel.Y_ROT);
+        return step.size() == 1 && turn != null && turn.constantValue().isPresent();
     }
 
     /**

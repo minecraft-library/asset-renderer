@@ -82,7 +82,7 @@ final class EntityRendererResolver {
         String texturePath = this.axes.resolveVariant() == null ? this.texture.resolve() : null;
         JsonTree overlays = this.overlays.resolve();
         node
-            .putIf("render", this.renderTraits.resolve())                               // {scale?, yaw_addend?, tint?}
+            .putIf("render", this.renderTraits.resolve())                               // {scale?, tint?}
             .putIf("rest", this.restState.resolve())                                    // enum state field -> constant
             .putIf("bones", this.bones.resolve())                                       // {undrawn?, toggles?}
             // The setupRotations Y shift is per-age, so it rides the age options rather than `render`.

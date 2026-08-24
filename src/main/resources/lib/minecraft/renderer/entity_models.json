@@ -2319,9 +2319,6 @@
     },
     "minecraft:shulker": {
       "renderer": "net/minecraft/client/renderer/entity/ShulkerRenderer",
-      "render": {
-        "yaw_addend": 180.0
-      },
       "axes": {
         "age": {
           "options": {

@@ -30,14 +30,13 @@ import java.util.Map;
 /**
  * Node {@code render} - the render-time residues that survive the frozen-state harness,
  * grouped under one node: {@code scale} (renderer {@code scale()} uniform
- * product, slime 0.999 / wither 2.0), {@code yaw_addend} ({@code setupRotations} addend,
- * shulker +180), and {@code tint} (per-entity multiplicative base tint, tropical_fish
- * {@code 0xFFF9FFFE}). Omitted when all three are identity.
+ * product, slime 0.999 / wither 2.0) and {@code tint} (per-entity multiplicative base tint,
+ * tropical_fish {@code 0xFFF9FFFE}). Omitted when both are identity. What a renderer's own
+ * {@code setupRotations} composes - an addend folded into the delegation's body rotation
+ * included - is the transform walk's, carried by the pose table's {@code renderers} rows.
  *
- * <p>The {@code bodyRot} / {@code entityScale} local slots are computed from the
- * {@code setupRotations} descriptor rather than hardcoded literal slot numbers; the
- * DyeColor-WHITE extraction anchors the texture-diffuse int on the constructor descriptor's
- * int-before-{@code MapColor} position rather than literal-count position coding.
+ * <p>The DyeColor-WHITE extraction anchors the texture-diffuse int on the constructor
+ * descriptor's int-before-{@code MapColor} position rather than literal-count position coding.
  */
 final class EntityRenderTraitsResolver {
 
@@ -91,8 +90,7 @@ final class EntityRenderTraitsResolver {
     }
 
     /**
-     * The {@code render} node, or {@code null} when scale, yaw addend, and tint are all
-     * identity.
+     * The {@code render} node, or {@code null} when scale and tint are both identity.
      *
      * @return the node, or {@code null} to omit
      */
@@ -101,66 +99,13 @@ final class EntityRenderTraitsResolver {
         if (cn == null) return null;
 
         Float scale = resolveRendererScale(cn);
-        float yawAddend = resolveSetupYawAddend(cn);
         int tint = resolveBaseTint(cn);
 
-        if (scale == null && yawAddend == 0f && tint == NO_TINT) return null;
+        if (scale == null && tint == NO_TINT) return null;
         JsonTree node = JsonTree.object();
         if (scale != null) node.put("scale", (float) scale);
-        if (yawAddend != 0f) node.put("yaw_addend", yawAddend);
         if (tint != NO_TINT) node.putHex("tint", tint);
         return node;
-    }
-
-    // ------------------------------------------------------------------------------------
-    // setupRotations yaw addend
-    // ------------------------------------------------------------------------------------
-
-    /**
-     * The literal degrees the renderer's own {@code setupRotations} folds into
-     * {@code bodyRot} before delegating ({@code super.setupRotations(state, ps, bodyRot +
-     * 180f, entityScale)}); {@code 0f} for absent / pass-through / non-literal overrides.
-     */
-    private float resolveSetupYawAddend(@NotNull ClassNode cn) {
-        MethodNode setupRotations = null;
-        for (MethodNode m : cn.methods) {
-            if (!VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(m.name)) continue;
-            if (m.desc != null && m.desc.endsWith("FF)V")) {
-                setupRotations = m;
-                break;
-            }
-        }
-        if (setupRotations == null) return 0f;
-
-        // Slots computed from the descriptor: the first float arg is bodyRot, the
-        // second entityScale (instance method - slots start at 1).
-        int bodyRotSlot = floatArgSlot(setupRotations.desc, 0);
-        int scaleSlot = floatArgSlot(setupRotations.desc, 1);
-        if (bodyRotSlot < 0 || scaleSlot < 0) return 0f;
-
-        Float resolved = AsmWalker.over(setupRotations)
-            .opcode(Opcodes.INVOKESPECIAL)
-            .ofType(MethodInsnNode.class)
-            .where(mi -> VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(mi.name))
-            .firstNotNull(mi -> {
-                AbstractInsnNode scaleLoad = AsmWalker.previousReal(mi);
-                if (!isFloadOf(scaleLoad, scaleSlot)) return 0f;
-                AbstractInsnNode beforeScale = AsmWalker.previousReal(scaleLoad);
-                // Pass-through shape: FLOAD bodyRot; FLOAD scale; INVOKESPECIAL super.
-                if (isFloadOf(beforeScale, bodyRotSlot)) return 0f;
-                // Addend shape: FLOAD bodyRot; LDC C; FADD; FLOAD scale; INVOKESPECIAL super.
-                if (beforeScale != null && beforeScale.getOpcode() == Opcodes.FADD) {
-                    AbstractInsnNode constInsn = AsmWalker.previousReal(beforeScale);
-                    Float addend = constInsn == null ? null : AsmWalker.floatLiteral(constInsn);
-                    AbstractInsnNode bodyRotLoad = constInsn == null ? null : AsmWalker.previousReal(constInsn);
-                    if (addend != null && isFloadOf(bodyRotLoad, bodyRotSlot)) {
-                        this.diagnostics.info("yaw addend %.1f from setupRotations override", addend);
-                        return addend;
-                    }
-                }
-                return 0f;
-            });
-        return resolved == null ? 0f : resolved;
     }
 
     // ------------------------------------------------------------------------------------
@@ -339,33 +284,6 @@ final class EntityRenderTraitsResolver {
                 Float literal = angle == null ? null : AsmWalker.floatLiteral(angle);
                 return literal != null && literal != 0f;
             });
-    }
-
-    /**
-     * The local-variable slot of the instance method's Nth {@code float} argument (0-based
-     * among the floats), or {@code -1} when absent.
-     */
-    private static int floatArgSlot(@NotNull String desc, int floatIndex) {
-        int slot = 1;   // slot 0 = this
-        int seen = 0;
-        for (Type arg : ClassKit.argTypes(desc)) {
-            if (arg.getSort() == Type.FLOAT) {
-                if (seen == floatIndex) return slot;
-                seen++;
-            }
-            slot += arg.getSize();
-        }
-        return -1;
-    }
-
-    /**
-     * Reports whether {@code in} is an {@code FLOAD} of the given slot.
-     */
-    private static boolean isFloadOf(@Nullable AbstractInsnNode in, int slot) {
-        return in != null
-            && in.getOpcode() == Opcodes.FLOAD
-            && in instanceof VarInsnNode load
-            && load.var == slot;
     }
 
     // ------------------------------------------------------------------------------------
