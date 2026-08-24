@@ -18,8 +18,8 @@ Values this store holds, one file each.
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
 | `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `3da6b60a1d34773293ff450c01aa9cd63b1abf7d` | yes |
-| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `f8bb3310be5ab6ef2ec32fc12678f155dc5818d3` | yes |
-| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `f8bb3310be5ab6ef2ec32fc12678f155dc5818d3` | yes |
+| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `49bebe7d23282e12a1a4da9d05d73fae99a4af58` | yes |
+| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `49bebe7d23282e12a1a4da9d05d73fae99a4af58` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |

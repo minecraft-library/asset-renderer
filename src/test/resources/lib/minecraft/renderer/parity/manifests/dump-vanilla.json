@@ -16,7 +16,7 @@
     },
     {
       "path": "entities.json",
-      "sha256": "8ce185981c09d120836dd6317b922e2e058355cbc5f058d1bcbffece138953ad"
+      "sha256": "741c5b0a5e3591c7c5d919e7b2dc3dc5c69d5e70dfef22c8380f1f1ffa4f7dd1"
     },
     {
       "path": "item-models.json",
@@ -65,7 +65,7 @@
   "provenance": {
     "artifact": "manifest.dump.vanilla",
     "asset_dirty": false,
-    "asset_sha": "f8bb3310be5ab6ef2ec32fc12678f155dc5818d3",
+    "asset_sha": "49bebe7d23282e12a1a4da9d05d73fae99a4af58",
     "counts": {
       "files": 14
     },
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "parityDump",
-    "reason": "IllagerModel split into a row per resting frame, each body naming the key it takes; 117 of 117 folded, graph 5523->5247, every render sweep at zero movers",
+    "reason": "P3 runtime half: loader skips the two flag channel tokens, so every flag-carrying row's loaded-pose digest moves - 31 pose digests over 20 subjects, all render sweeps zero movers, the four illagers collapsing to one loaded pose",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,8 +84,8 @@
       "players": 2
     },
     "root": "cache/parity-dump/head/vanilla",
-    "timestamp": "2026-08-24T02:29:13Z",
+    "timestamp": "2026-08-24T05:08:31Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 28083
+    "wall_time_ms": 28505
   }
 }
