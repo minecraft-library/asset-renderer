@@ -36,7 +36,7 @@
     },
     {
       "path": "entity_poses.json",
-      "sha256": "88ea4d7ad0a86bda55fd91cad8711ce4df97f7664940ed9390f9eb62a10407cb"
+      "sha256": "e63afc1cdeed141f68ca7490a864336cf51e24b17db1105098a4e52e80f3012d"
     },
     {
       "path": "glint_items.json",
@@ -63,7 +63,7 @@
   "provenance": {
     "artifact": "manifest.tooling-tables",
     "asset_dirty": false,
-    "asset_sha": "f8bb3310be5ab6ef2ec32fc12678f155dc5818d3",
+    "asset_sha": "18d910c109d1faec356825d6bb1bf1b19e44ac30",
     "counts": {
       "files": 11,
       "logs": 8
@@ -73,7 +73,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "IllagerModel split into a row per resting frame, each body naming the key it takes; 117 of 117 folded, graph 5523->5247, every render sweep at zero movers",
+    "reason": "render transforms folded against the frame their subjects rest in; 4 of 14 renderer rows, no pose row moved, every render sweep at zero movers",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -83,8 +83,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-24T02:29:14Z",
+    "timestamp": "2026-08-24T03:02:30Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 43823
+    "wall_time_ms": 44909
   }
 }
