@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "5791a31ac30b780aecee81699636ee3661f3e5d6d6ac61b5eed353e69d2a37b4"
+      "sha256": "6f7557d3b0933aa62cab153eff61bdd75f385b1cc807d2dd6870b0dd119493f5"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,18 +64,18 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "0bb41435768b461d628988cd4c81d614433730b7",
+    "asset_sha": "775135b8754d5b23b146cc6592cbdbb87fb8e7c4",
     "counts": {
       "digests": 11
     },
-    "determinism_runs": 1,
+    "determinism_runs": 5,
     "flags": {
       "gson": "2.13.2"
     },
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "test",
-    "reason": "four tables stopped writing members no reader declares - entity_poses' models, entity_models' spawn_conditions and age default, and both geometry tables' y_axis and every bone member at the reading field's own default; entity_poses 5722373 to 5713504, entity_models 115443 to 105357, entity_geometry 861975 to 750397, block_geometry 47211 to 40166, every other member byte-identical, all eight flows' diagnostics identical, both pipeline dumps and all seven render sweeps at zero movers",
+    "reason": "entity_poses folded against the resting frame at bake: 113 of 117 rows resolved, 5713504 to 2597883 bytes and 30595 to 11022 graph nodes, four rows refused for holding two resting states and emitted as walked; clips and the three defaults tables byte-identical; sweep.entity-animation holds at 10.0809 over 90 rows and every other sweep at zero movers; both dump sections reproduced across two JVM launches",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-23T23:52:59Z",
+    "timestamp": "2026-08-24T00:45:29Z",
     "tool_version": "1.0.0"
   }
 }
