@@ -40,7 +40,7 @@
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "9ab5522ab190cb38e5a176a66e0e215c9ec25b6995f5842c1f674b1f22f2cb47"
+      "sha256": "830c993e7957294485e07c5e74add722062a64c0164bad804a8b913c4a885841"
     },
     "entity_poses": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "18d910c109d1faec356825d6bb1bf1b19e44ac30",
+    "asset_sha": "3da6b60a1d34773293ff450c01aa9cd63b1abf7d",
     "counts": {
       "digests": 11
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "test",
-    "reason": "render transforms folded against the frame their subjects rest in; 4 of 14 renderer rows, no pose row moved, every render sweep at zero movers",
+    "reason": "P3 emitter half: resting flags resolved into per-site undrawn lists at generation; hidden renamed undrawn across 27 sites; EntitySpawnFlagResolver deleted; every render sweep zero movers over 402+90+1055+479+7+11+2 rows",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-24T03:02:30Z",
+    "timestamp": "2026-08-24T04:20:56Z",
     "tool_version": "1.0.0"
   }
 }
