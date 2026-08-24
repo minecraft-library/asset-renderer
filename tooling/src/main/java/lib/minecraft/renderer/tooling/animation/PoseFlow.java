@@ -117,6 +117,7 @@ public final class PoseFlow {
         Map<String, PoseOutcome> poses =
             foldAll(walked, models, restingByModel, questionsByModel, defaults, diagnostics);
         requirePosersResolve(models, poses);
+        transforms = foldTransforms(transforms, models, defaults, diagnostics);
 
         JsonTree root = session.envelope("definitions-package listing order for clips; "
             + "model simple name for poses, and bone name within a pose");
@@ -285,6 +286,69 @@ public final class PoseFlow {
         }
         diagnostics.info("folded %d of %d walked pose(s) against the frame their subjects rest in",
             folded, walked.size());
+        return out;
+    }
+
+    /**
+     * Resolves every renderer's steps against the frame the subjects it draws stand in.
+     *
+     * <p>A transform is a program over the render state exactly as a pose is - vanilla's
+     * {@code setupRotations} reads the same fields - so it folds by the same rule and through the
+     * same fold, the steps travelling as a program with no bones. Leaving it unfolded where the
+     * poses are folded is what would part the two: three fish read {@code isInWater}, which is a fact
+     * about a subject holding still, and a reader that answered it nothing would swim each of them
+     * onto its side.
+     *
+     * <p>The subject's own resting map is the whole frame here. A renderer has no model class and so
+     * no resting defaults of its own, and it needs none: the grammar a {@code setupRotations} walk
+     * reads is the render state's float and boolean fields, so nothing in a transform can ask which
+     * constant an enum member holds.
+     *
+     * @param transforms what each renderer composes, refusals included and passed through
+     * @param models the model table, read for which subjects each renderer draws and what they rest at
+     * @param inputDefaults what each figure rests at, one keyspace across every model
+     * @param diagnostics the scope a refusal is recorded against
+     * @return the residual per renderer, in the order the walk produced them
+     */
+    private static @NotNull Map<String, RenderTransform> foldTransforms(
+        @NotNull Map<String, RenderTransform> transforms, @NotNull JsonTree models,
+        @NotNull Map<String, Float> inputDefaults, @NotNull Diagnostics diagnostics) {
+
+        Map<String, Map<Map<String, String>, Set<String>>> drawn = new LinkedHashMap<>();
+        models.members().forEach((entity, row) -> row.findString("renderer").ifPresent(renderer ->
+            drawn.computeIfAbsent(ClassKit.simpleName(renderer), name -> new LinkedHashMap<>())
+                .computeIfAbsent(restOf(row), name -> new LinkedHashSet<>()).add(entity)));
+
+        Map<String, RenderTransform> out = new TreeMap<>();
+        for (Map.Entry<String, RenderTransform> entry : transforms.entrySet()) {
+            String renderer = entry.getKey();
+            RenderTransform transform = entry.getValue();
+            if (!transform.isReadable()) {
+                out.put(renderer, transform);
+                continue;
+            }
+
+            PoseProgram program = new PoseProgram(renderer, transform.steps(), Map.of(), List.of());
+            Map<Map<String, String>, Set<String>> reaching = drawn.getOrDefault(renderer, Map.of());
+            Map<Map<String, String>, Set<String>> distinct = new LinkedHashMap<>();
+            reaching.forEach((rest, subjects) ->
+                distinct.computeIfAbsent(PoseFold.frameOf(program, rest, Map.of()),
+                    frame -> new TreeSet<>()).addAll(subjects));
+            if (distinct.size() > 1) {
+                List<String> spelled = new ArrayList<>();
+                distinct.forEach((frame, subjects) -> spelled.add(frame + " <- " + subjects));
+                diagnostics.info(
+                    "%s.setupRotations draws %d resting frames and is emitted unfolded: %s",
+                    renderer, distinct.size(), String.join("; ", spelled));
+                out.put(renderer, transform);
+                continue;
+            }
+
+            Map<String, String> subjectRest =
+                reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
+            out.put(renderer, RenderTransform.of(renderer, PoseFold.fold(
+                program, subjectRest, Map.of(), Map.of(), inputDefaults, DRIVEN).container()));
+        }
         return out;
     }
 
