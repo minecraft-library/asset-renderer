@@ -36,7 +36,7 @@
     },
     {
       "path": "entity_poses.json",
-      "sha256": "2ea546adce39d3ad80802296746dd7c17bd217abbc42d4372e3f768101b719a7"
+      "sha256": "763c26e5546499ec2e5d362c54d9df2ffc812955632de7006e346cfc3efd3f1c"
     },
     {
       "path": "glint_items.json",
@@ -63,7 +63,7 @@
   "provenance": {
     "artifact": "manifest.tooling-tables",
     "asset_dirty": false,
-    "asset_sha": "775135b8754d5b23b146cc6592cbdbb87fb8e7c4",
+    "asset_sha": "fc24e8c8e463ac34f51765a8931962c26824da58",
     "counts": {
       "files": 11,
       "logs": 8
@@ -73,7 +73,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "entity_poses folded against the resting frame at bake: 113 of 117 rows resolved, 5713504 to 2597883 bytes and 30595 to 11022 graph nodes, four rows refused for holding two resting states and emitted as walked; clips and the three defaults tables byte-identical; sweep.entity-animation holds at 10.0809 over 90 rows and every other sweep at zero movers; both dump sections reproduced across two JVM launches",
+    "reason": "all-constant subtrees in the folded pose collapsed through the walk's own builder, operand for operand at each operator's declared width; entity_poses 2597883 to 2468529 bytes and the pose graph 11022 to 9931 nodes, with every render sweep at zero movers row by row and that flow's diagnostics unmoved",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -83,8 +83,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-24T00:45:30Z",
+    "timestamp": "2026-08-24T01:14:34Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 44937
+    "wall_time_ms": 45320
   }
 }

@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "6f7557d3b0933aa62cab153eff61bdd75f385b1cc807d2dd6870b0dd119493f5"
+      "sha256": "a0b4ca6d32e8bb1ee511aec7872af5f7e783490520304c63722b83ba43a4b0a6"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "775135b8754d5b23b146cc6592cbdbb87fb8e7c4",
+    "asset_sha": "fc24e8c8e463ac34f51765a8931962c26824da58",
     "counts": {
       "digests": 11
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "test",
-    "reason": "entity_poses folded against the resting frame at bake: 113 of 117 rows resolved, 5713504 to 2597883 bytes and 30595 to 11022 graph nodes, four rows refused for holding two resting states and emitted as walked; clips and the three defaults tables byte-identical; sweep.entity-animation holds at 10.0809 over 90 rows and every other sweep at zero movers; both dump sections reproduced across two JVM launches",
+    "reason": "all-constant subtrees in the folded pose collapsed through the walk's own builder, operand for operand at each operator's declared width; entity_poses 2597883 to 2468529 bytes and the pose graph 11022 to 9931 nodes, with every render sweep at zero movers row by row and that flow's diagnostics unmoved",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-24T00:45:29Z",
+    "timestamp": "2026-08-24T01:14:33Z",
     "tool_version": "1.0.0"
   }
 }
