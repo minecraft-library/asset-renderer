@@ -2,6 +2,7 @@ package lib.minecraft.renderer.face;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.GeometryKit;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -47,7 +48,7 @@ public sealed interface Unwrap permits Unwrap.Element, Unwrap.Atlas {
      * Every face samples the full {@code [0, 16]} rectangle projected onto its cross-section of the
      * element's bounds, with U or V read as {@code 16 - value} on the faces that invert. Callers compose
      * {@link Vector4f#toUvCorners(float, float, int, boolean)} with
-     * {@link BlockGeometryKit#VANILLA_PIXEL_UNITS_PER_BLOCK} on the result to obtain normalized
+     * {@link GeometryKit#VANILLA_PIXEL_UNITS_PER_BLOCK} on the result to obtain normalized
      * per-vertex corners.
      *
      * @param bounds the element bounds in 0-16 space
@@ -62,10 +63,10 @@ public sealed interface Unwrap permits Unwrap.Element, Unwrap.Atlas {
             float toU = axisComponent(this.bounds, uAxis, true);
             float fromV = axisComponent(this.bounds, vAxis, false);
             float toV = axisComponent(this.bounds, vAxis, true);
-            float u0 = face.elementUInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toU : fromU;
-            float u1 = face.elementUInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
-            float v0 = face.elementVInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
-            float v1 = face.elementVInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
+            float u0 = face.elementUInverted() ? GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toU : fromU;
+            float u1 = face.elementUInverted() ? GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
+            float v0 = face.elementVInverted() ? GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
+            float v1 = face.elementVInverted() ? GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
             return new Vector4f(u0, v0, u1, v1);
         }
 

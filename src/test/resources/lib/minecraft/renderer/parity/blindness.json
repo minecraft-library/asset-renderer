@@ -240,7 +240,7 @@
       ],
       "source": "measured by perturbing BlockGeometryKit.java: 4 of 6 declared sees moved, and 2 declared blind held; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java"
+        "src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java"
       ]
     },
     {

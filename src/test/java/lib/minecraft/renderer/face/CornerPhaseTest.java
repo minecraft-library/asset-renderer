@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.face;
 
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.GeometryKit;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -176,8 +177,8 @@ class CornerPhaseTest {
             Face face = Face.CACHED_VALUES[i];
             Vector4f rect = new Unwrap.Element(BOX).rect(face);
             Vector2f[] uv = CornerPhase.BAKERY.permuteUv(face, rect.toUvCorners(
-                BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK, 0, false));
+                GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK, 0, false));
             assertPairing("BAKERY." + face, CornerPhase.BAKERY.corners(face, BOX), uv,
                 face.widthAxis(), face.heightAxis(), signs[i]);
         }

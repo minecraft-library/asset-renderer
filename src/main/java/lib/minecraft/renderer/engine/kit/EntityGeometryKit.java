@@ -246,7 +246,7 @@ public class EntityGeometryKit {
                     Vector2f[] effUv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
 
                     // Natural CCW emission - the shared {@code (0, 1, 2)} / {@code (0, 2, 3)} fan in
-                    // {@link BlockGeometryKit#addQuad}, so an entity cube's coplanar seams split on
+                    // {@link GeometryKit#addQuad}, so an entity cube's coplanar seams split on
                     // the same diagonal every other quad in the renderer does. The kit itself
                     // is det=+1 (emit-order cross AGREES with the stored normal); the chirality
                     // reflection re-enters downstream via the renderer's Placement Y-flip. Total
@@ -254,7 +254,7 @@ public class EntityGeometryKit {
                     // projection's -y (det -1) = det -1. Model CCW → screen CW → rasterizer's
                     // {@code signedArea < 0} check correctly classifies these as front-facing.
                     String debugTag = boneName + ":" + face.direction();
-                    BlockGeometryKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, Shading.UNLIT,
+                    GeometryKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, Shading.UNLIT,
                         new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass), debugTag);
                 }
             }

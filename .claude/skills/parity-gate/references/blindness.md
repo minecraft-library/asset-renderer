@@ -158,7 +158,7 @@ The player byte pin is the three CRC32 values PlayerRendererFittedGoldenTest rea
 ## B10 - BlockRenderer never calls buildBox, and both item buildBox call sites are FaceTextures.uniform
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java`
 - **sees** `sweep.entity`, `sweep.armor`, `pin.player-crc`, `manifest.player-sheets`, `manifest.portal`, `manifest.player-raw`, `sweep.entity-animation`
 - **blind** `sweep.block`, `sweep.item`
 - **source** measured by perturbing BlockGeometryKit.java: 4 of 6 declared sees moved, and 2 declared blind held; the per-gate reach sentence moved out of CLAUDE.md and this map is its home

@@ -10,6 +10,7 @@ import lib.minecraft.renderer.asset.equipment.ArmorPiece;
 import lib.minecraft.renderer.asset.equipment.ArmorSlot;
 import lib.minecraft.renderer.asset.equipment.ArmorTrim;
 import lib.minecraft.renderer.asset.equipment.LayerType;
+import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.equipment.ShellPart;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
@@ -32,12 +33,11 @@ import java.util.function.UnaryOperator;
  * What both wearers of armour share: the walk from a list of rows to textured triangles, and the
  * texture resolution under it.
  * <p>
- * The two wearers are {@link EntityArmorKit}, which starts from the
- * {@link lib.minecraft.renderer.asset.equipment.Shell Shell} an entity is dressed in, and
- * {@link PlayerArmorKit}, which holds no shell and dresses the player's own body boxes. They differ
- * in exactly three arguments at {@link #buildArmor3D}, and nothing below that call branches on which
- * of the two it is serving - which is why this is a kit of its own rather than a pair of arms inside
- * either.
+ * The two wearers are {@link EntityArmorKit}, which starts from the {@link Shell} an entity is
+ * dressed in, and {@link PlayerArmorKit}, which holds no shell and dresses its own body boxes. They
+ * differ in exactly three arguments at {@link #buildArmor3D}, and nothing below that call branches on
+ * which of the two it is serving - which is why this is a kit of its own rather than a pair of arms
+ * inside either.
  * <p>
  * Two texture layers correspond to the vanilla equipment paths:
  * <ul>
@@ -173,7 +173,7 @@ public class ArmorKit {
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildBox3D(
         @NotNull SlotBox box, @NotNull PixelBuffer texture) {
-        return BlockGeometryKit.buildBox(
+        return GeometryKit.buildBox(
             box.bounds(), box.row().textures(texture), ColorMath.WHITE,
             SurfaceTraits.WORN_SHELL,
             RendererDebug.tracingPixels() ? box.row().trace() : null);

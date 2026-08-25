@@ -35,6 +35,7 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.kit.BannerKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.GeometryKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.kit.ItemStackKit;
 import lib.minecraft.renderer.engine.kit.ShieldKit;
@@ -434,7 +435,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         PixelBuffer composite = BannerKit.composite2D(engine.context(), baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
 
-        return BlockGeometryKit.buildBox(
+        return GeometryKit.buildBox(
             FLAT_ITEM_SLAB,
             FaceTextures.uniform(composite),
             ColorMath.WHITE
@@ -824,7 +825,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint, tint, forceRefs);
             }
             PixelBuffer texture = composeTintedLayers(this.context, engine, item, options, cit, tick);
-            return BlockGeometryKit.buildBox(
+            return GeometryKit.buildBox(
                 FLAT_ITEM_SLAB,
                 FaceTextures.uniform(texture),
                 ColorMath.WHITE
@@ -872,9 +873,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 .scale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ())
                 .rotate(Quaternionf.rotationXYZ(angles.pitchRadians(), angles.yawRadians(), angles.rollRadians()))
                 .translate(
-                    transform.getTranslationX() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                    transform.getTranslationY() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                    transform.getTranslationZ() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK
+                    transform.getTranslationX() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                    transform.getTranslationY() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                    transform.getTranslationZ() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK
                 );
         }
 

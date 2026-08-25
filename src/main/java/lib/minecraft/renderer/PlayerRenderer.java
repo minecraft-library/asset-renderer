@@ -27,10 +27,11 @@ import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
-import lib.minecraft.renderer.engine.kit.PlayerArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.ElytraKit;
+import lib.minecraft.renderer.engine.kit.GeometryKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
+import lib.minecraft.renderer.engine.kit.PlayerArmorKit;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -370,7 +371,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         Box cape = new Box(cx - capeW / 2f, capeTop - capeH, capeBack - capeD, cx + capeW / 2f, capeTop, capeBack);
 
-        triangles.addAll(BlockGeometryKit.buildBox(cape, capeTextures(capeTexture), ColorMath.WHITE));
+        triangles.addAll(GeometryKit.buildBox(cape, capeTextures(capeTexture), ColorMath.WHITE));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -496,9 +497,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             // hasOverlay rejects; unifying the two would delete the hat layer on every such skin.
             Box head = PlayerOptions.Type.SKULL.boxOf(HumanoidPart.HEAD);
             stack.append(PlayerSlot3D.BODY, sink -> {
-                sink.addAll(BlockGeometryKit.buildBox(head, HumanoidPart.HEAD.textures(skin, false), ColorMath.WHITE));
+                sink.addAll(GeometryKit.buildBox(head, HumanoidPart.HEAD.textures(skin, false), ColorMath.WHITE));
                 if (options.getSkin().isRenderOverlay() && hasHatOverlay(skin))
-                    sink.addAll(BlockGeometryKit.buildBox(
+                    sink.addAll(GeometryKit.buildBox(
                         head.expand(SKULL_OVERLAY_INFLATE),
                         HumanoidPart.HEAD.textures(skin, true), ColorMath.WHITE));
             });
@@ -583,7 +584,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * Re-shades an assembled player stack under the lighting entry vanilla binds for a humanoid drawn in
-     * a GUI, replacing the cardinal bucket {@link BlockGeometryKit#buildBox} bakes at emit time. Every 3D
+     * a GUI, replacing the cardinal bucket {@link GeometryKit#buildBox} bakes at emit time. Every 3D
      * scope goes through this after its stack is folded, so body, overlay, cape, wings and armour are lit
      * as one draw, the way the one {@code setupFor} vanilla issues per GUI entity lights them.
      * <p>
@@ -679,9 +680,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull Box box,
         @NotNull PlayerOptions options
     ) {
-        triangles.addAll(BlockGeometryKit.buildBox(box, part.textures(skin, false), ColorMath.WHITE));
+        triangles.addAll(GeometryKit.buildBox(box, part.textures(skin, false), ColorMath.WHITE));
         if (options.getSkin().isRenderOverlay() && hasOverlay(skin))
-            triangles.addAll(BlockGeometryKit.buildBox(
+            triangles.addAll(GeometryKit.buildBox(
                 box.expand(OVERLAY_INFLATE), part.textures(skin, true), ColorMath.WHITE));
     }
 

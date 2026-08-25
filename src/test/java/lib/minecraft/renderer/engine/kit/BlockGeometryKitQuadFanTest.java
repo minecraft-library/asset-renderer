@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.sameInstance;
  * corner-0 / corner-2 diagonal. Two coplanar quads split on opposite diagonals fight along the seam
  * they share - an equal depth passes ({@code GL_LEQUAL}, last-drawn-wins) and the winner falls to
  * emission order - so the diagonal decides a tied contest rather than being a matter of taste.
- * {@link BlockGeometryKit#addQuad} is the one place it is chosen, and these tests hold the four
+ * {@link GeometryKit#addQuad} is the one place it is chosen, and these tests hold the four
  * subjects that reach it to the same answer.
  * <p>
  * The invariant is checkable on a finished triangle list without knowing which face is which: for each
@@ -55,7 +55,7 @@ class BlockGeometryKitQuadFanTest {
         };
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
 
-        BlockGeometryKit.addQuad(out, corners, uv, texture1x1(), TINT_ARGB,
+        GeometryKit.addQuad(out, corners, uv, texture1x1(), TINT_ARGB,
             Face.SOUTH.normal(), 0.75f, SurfaceTraits.OPAQUE_BODY, "quad:south");
 
         assertThat(out.size(), equalTo(2));
@@ -84,7 +84,7 @@ class BlockGeometryKitQuadFanTest {
         SurfaceTraits traits = SurfaceTraits.WORN_SHELL;
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
 
-        BlockGeometryKit.addQuad(out, unitQuadCorners(), unitQuadUv(), texture1x1(), TINT_ARGB,
+        GeometryKit.addQuad(out, unitQuadCorners(), unitQuadUv(), texture1x1(), TINT_ARGB,
             normal, 0.5f, traits, null);
 
         for (VisibleTriangle triangle : out) {
@@ -97,7 +97,7 @@ class BlockGeometryKitQuadFanTest {
     @Test
     @DisplayName("every box quad takes that diagonal")
     void buildBox_takesTheSharedDiagonal() {
-        ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildBox(
+        ConcurrentList<VisibleTriangle> triangles = GeometryKit.buildBox(
             new Box(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f),
             FaceTextures.uniform(texture1x1()),
             TINT_ARGB);

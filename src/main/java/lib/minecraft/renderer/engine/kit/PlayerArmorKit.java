@@ -8,6 +8,7 @@ import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.ArmorPiece;
 import lib.minecraft.renderer.asset.equipment.ArmorSlot;
+import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.equipment.ShellPart;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -30,10 +31,10 @@ import java.util.function.UnaryOperator;
 /**
  * Dresses a player in armour, in three dimensions over its own body boxes and in two over a canvas.
  * <p>
- * The player holds no {@link lib.minecraft.renderer.asset.equipment.Shell Shell}. Its rows are its
- * own body boxes in the render scope's frame - the frame they are drawn in - so nothing crosses a
- * frame on the way, and it is always dressed in {@link ArmorForm#ADULT}. {@link EntityArmorKit} is
- * the other wearer and starts from a shell instead; what the two share is in {@link ArmorKit}.
+ * The player holds no {@link Shell}. Its rows are its own body boxes in the render scope's frame -
+ * the frame they are drawn in - so nothing crosses a frame on the way, and it is always dressed in
+ * {@link ArmorForm#ADULT}. {@link EntityArmorKit} is the other wearer and starts from a shell
+ * instead; what the two share is in {@link ArmorKit}.
  * <p>
  * The armor texture is a 64x32 atlas whose UV layout matches the top half of the vanilla 64x64
  * player skin - the base layer plus the head's overlay, which the helmet's second box really does read

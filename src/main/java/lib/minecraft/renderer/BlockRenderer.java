@@ -24,6 +24,7 @@ import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.GeometryKit;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
@@ -565,9 +566,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // Apply the part's offset to every vertex. Offset is in model units (0..16);
                 // triangle vertex positions are in block units (0..1) post-GeometryKit, so
                 // divide by 16.
-                float dx = part.offset()[0] / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
-                float dy = part.offset()[1] / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
-                float dz = part.offset()[2] / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dx = part.offset()[0] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dy = part.offset()[1] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dz = part.offset()[2] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
                 if (dx != 0f || dy != 0f || dz != 0f) {
                     ConcurrentList<VisibleTriangle> shifted = Concurrent.newList();
                     for (VisibleTriangle t : partTriangles) {

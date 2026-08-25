@@ -142,7 +142,7 @@ public class ShieldKit {
         float sx, float sy, float sz,
         float texU, float texV
     ) {
-        float units = BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+        float units = GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
         // scale(1, -1, -1) negates Y and Z (flipping the min/max on those axes), then /16 lands the
         // bounds in the block-model frame. X passes through unchanged.
         float x0 = mx / units;
@@ -167,7 +167,7 @@ public class ShieldKit {
             // Baked here for the rasterizer's contract; relightForItems3d recomputes it from the
             // ITEMS_3D lights, so the value only needs to be a valid placeholder.
             float shading = Lighting.inventory(normal);
-            BlockGeometryKit.addQuad(out, corners, uv,
+            GeometryKit.addQuad(out, corners, uv,
                 texture, ColorMath.WHITE, normal, shading, SurfaceTraits.OPAQUE_BODY, null);
         }
     }
