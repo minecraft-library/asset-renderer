@@ -147,6 +147,46 @@ class OncePerInvocation(unittest.TestCase):
         self.assertEqual([entry["path"] for entry in recorded["files"]], ["manifests/fluid.json"])
 
 
+class Unproduced(unittest.TestCase):
+    """What a capture step records when the producer it finalizes failed."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp()) / "run"
+        capture.begin(self.root)
+
+    def test_a_failed_producer_is_recorded_with_what_it_said(self):
+        capture.unproduced(self.root, "sweep.entity",
+                           [(":entityParityVanilla", "finished with non-zero exit value 1")])
+        rows = capture.unproduced_rows(self.root)
+        self.assertEqual([row["artifact"] for row in rows], ["sweep.entity"])
+        self.assertEqual(rows[0]["producers"],
+                         [{"failure": "finished with non-zero exit value 1",
+                           "task": ":entityParityVanilla"}])
+
+    def test_a_row_lands_outside_the_capture_the_index_walks(self):
+        """Under `_run/`, so it is a fact ABOUT the capture rather than a row inside it."""
+        capture.unproduced(self.root, "sweep.entity", [(":t", "boom")])
+        capture.index(self.root)
+        recorded = read_json(self.root / store.RUN_DIR / "_capture.json")
+        self.assertEqual(recorded["files"], [])
+
+    def test_each_row_is_its_own_file(self):
+        """A capture step is one process per row, so an append is two processes racing."""
+        capture.unproduced(self.root, "sweep.entity", [(":a", "boom")])
+        capture.unproduced(self.root, "sweep.block", [(":b", "boom")])
+        self.assertEqual([row["artifact"] for row in capture.unproduced_rows(self.root)],
+                         ["sweep.block", "sweep.entity"])
+
+    def test_a_root_that_recorded_none_answers_an_empty_list(self):
+        self.assertEqual(capture.unproduced_rows(self.root), [])
+
+    def test_the_next_invocation_erases_what_this_one_recorded(self):
+        """A failure is a fact about one capture; carried over it would be reported against the next."""
+        capture.unproduced(self.root, "sweep.entity", [(":a", "boom")])
+        capture.begin(self.root)
+        self.assertEqual(capture.unproduced_rows(self.root), [])
+
+
 class Normalize(unittest.TestCase):
 
     def setUp(self):

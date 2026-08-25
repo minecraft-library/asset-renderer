@@ -260,6 +260,31 @@ def _strip_json(path: str) -> str:
     return path[:-len(".json")] if path.endswith(".json") else path
 
 
+def registered_unproduced(expected: dict | None) -> dict[str, str]:
+    """The artifacts a registration licenses to go unproduced, each with the reason given.
+
+    A row is registered by artifact alone, where a mover is registered by key AND the value it lands
+    on. There is no second half to name: an unproduced row has no value, which is the whole of what
+    is wrong with it, so what a registration can be held to is that somebody wrote down why.
+
+    :param expected: the expected-diff manifest, or None when none was written
+    :return: the reason by artifact
+    :raises Refused: if a registration names no artifact or no reason
+    """
+    if not expected:
+        return {}
+    out: dict[str, str] = {}
+    for row in expected.get("unproduced", []):
+        artifact, reason = row.get("artifact"), row.get("reason")
+        if not artifact or not reason:
+            raise Refused(
+                f"the expected-diff registers an unproduced row with artifact={artifact!r} "
+                f"reason={reason!r}: a producer nobody expected to fail is the finding, so a "
+                "registration that does not say which row and why licenses every failure there is")
+        out[str(artifact)] = str(reason)
+    return out
+
+
 def _registered(expected: dict | None, artifact: str) -> dict[str, set[str]]:
     """The movers registered for this artifact, each with the values it is expected to move TO.
 
@@ -368,11 +393,17 @@ def load_expected(path: Path | None) -> dict | None:
 
 def empty_expected() -> dict:
     """``expect --empty`` writes this, which is what makes the gate ``diff == manifest`` rather
-    than ``diff == empty`` even when the manifest is empty."""
+    than ``diff == empty`` even when the manifest is empty.
+
+    Two lists, because a capture has two things a phase can intend: a row whose value moves, and a row
+    that has no value because its producer failed. Both are registered ahead of the run and asserted
+    against, and neither is a tolerance - an unregistered one of either kind fails.
+    """
     return {
         "//": "parity.report.expected-diff · regen: python parity/scripts/parity expect --empty",
         "artifact": "report.expected-diff",
         "format": 1,
         "kind": "expected-diff",
         "movers": [],
+        "unproduced": [],
     }

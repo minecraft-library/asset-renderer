@@ -503,6 +503,18 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     not_captured = _not_captured_in(root.root)
     if not_captured:
         payload["not_captured"] = not_captured
+    # A row whose producer failed, which is a THIRD outcome beside moved and unchanged and was
+    # reported as neither: the capture step is a finalizer, so it ran, wrote nothing, and the compare
+    # drew its artifact list from what the root holds - so the row simply was not mentioned and a
+    # bundle missing its most interesting member read as a clean pass.
+    unproduced = capture_mod.unproduced_rows(root.root)
+    licensed = compare_mod.registered_unproduced(expected)
+    for row in unproduced:
+        row["expected"] = row["artifact"] in licensed
+        if row["expected"]:
+            row["reason"] = licensed[row["artifact"]]
+    if unproduced:
+        payload["unproduced"] = unproduced
     agreement = _shipped_tables_agreement(args, root)
     payload["checks"] = {compare_mod.AGREEMENT_CHECK: agreement}
     if args.bootstrap:
@@ -527,6 +539,10 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     text = report_mod.render_diff(payload)
     if missing:
         text += f"\n\n**MISSING_BASELINE**: {', '.join(missing)}"
+    for row in unproduced:
+        tasks = ", ".join(f"{one['task']} - {one['failure']}" for one in row["producers"])
+        mark = f"expected: {row['reason']}" if row["expected"] else "UNEXPECTED"
+        text += f"\n\n**UNPRODUCED** {row['artifact']} [{mark}]: {tasks}"
     if not_captured:
         text += (f"\n\n**not captured by this run** (in the root, stamped by no capture step): "
                  f"{', '.join(not_captured)}")
@@ -537,6 +553,17 @@ def _cmd_compare(args: argparse.Namespace) -> int:
         raise ComparisonFailed(
             f"MISSING_BASELINE for {', '.join(missing)}: nothing to compare against. "
             "The first capture of an artifact is compared with --bootstrap")
+    # Before the mover gate for MISSING_BASELINE's reason and one of its own: a row with no value is
+    # not a row that held, so a verdict drawn from the rest of the bundle is answering about a
+    # narrower set than the one that was planned. `--bootstrap` does not excuse it - a first capture
+    # of a row is still a row somebody has to produce.
+    unexpected = [row["artifact"] for row in unproduced if not row["expected"]]
+    if unexpected:
+        raise ComparisonFailed(
+            f"UNPRODUCED for {', '.join(unexpected)}: the producer failed, so the row has no value "
+            "and the rest of this bundle is a verdict about a narrower set than was planned. Fix the "
+            "producer, or register the failure with "
+            "`./gradlew parityExpect -Partifact=<id> -Punproduced -Preason=<why>`")
     # Before the mover gate, because it is a POPULATION check like MISSING_BASELINE rather than a
     # value one: if the two artifacts disagree about which tables exist, the per-row comparison over
     # them is answering a question about a covered set that is already wrong.
@@ -599,20 +626,52 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
     # Conditional: a step is one process per artifact, so erasing here unconditionally leaves only
     # whichever row ran last. `capture-begin` is what erases when an invocation names several.
     capture_mod.join_or_begin(root)
+    failed = _failed_producers(args.failed or ())
     written = []
+    unproduced = []
     for position, artifact in enumerate(args.artifact):
         source = Path(sources[0] if len(sources) == 1 else sources[position])
         _progress(args, f"capture {position + 1}/{len(args.artifact)} {artifact}")
-        target = capture_mod.normalize(artifact, source, root, repo, producer=args.producer or "",
-                                       mode=args.mode, flags=args.flag or (), runs=args.runs,
-                                       logs=Path(args.logs) if args.logs else None,
-                                       reference_tree=(Path(args.reference_tree)
-                                                       if args.reference_tree else None),
-                                       wall_time_ms=args.wall_time, store=args.store)
+        try:
+            target = capture_mod.normalize(
+                artifact, source, root, repo, producer=args.producer or "",
+                mode=args.mode, flags=args.flag or (), runs=args.runs,
+                logs=Path(args.logs) if args.logs else None,
+                reference_tree=(Path(args.reference_tree) if args.reference_tree else None),
+                wall_time_ms=args.wall_time, store=args.store)
+        except MissingInput:
+            # A producer that failed is a RESULT to record, and only where it left nothing to read.
+            # The order matters: a self-capturing row's writer writes before it asserts, so a suite
+            # that went red over the very value being re-based has still produced a capturable file -
+            # and pre-empting the read on the task's outcome would discard it, which un-circles
+            # nothing. An absent file with no failure to explain it stays a refusal, because that is
+            # what a filtered test run looks like.
+            if not failed:
+                raise
+            unproduced.append(
+                {"artifact": artifact, "path": str(capture_mod.unproduced(root, artifact, failed))})
+            continue
         written.append({"artifact": artifact, "path": str(target)})
-    _emit(args, "\n".join(f"captured {row['artifact']} -> {row['path']}" for row in written),
-          {"captured": written})
+    lines = [f"captured {row['artifact']} -> {row['path']}" for row in written]
+    lines += [f"UNPRODUCED {row['artifact']}: {', '.join(task for task, _ in failed)} failed and "
+              f"wrote nothing -> {row['path']}" for row in unproduced]
+    _emit(args, "\n".join(lines), {"captured": written, "unproduced": unproduced})
     return OK
+
+
+def _failed_producers(entries: Sequence[str]) -> list[tuple[str, str]]:
+    """The failing producers a capture step was told about, each as its task and what it said.
+
+    :param entries: ``task=message`` pairs
+    :raises Refused: if an entry names no task
+    """
+    out = []
+    for entry in entries:
+        task, _, message = entry.partition("=")
+        if not task:
+            raise Refused(f"--failed {entry!r} names no task")
+        out.append((task, message))
+    return out
 
 
 def _cmd_capture_index(args: argparse.Namespace) -> int:
@@ -1075,20 +1134,36 @@ def _cmd_expect(args: argparse.Namespace) -> int:
     # and the one that would be dropped here is the registration - so a command that named a row and
     # a value would report "0 mover(s) registered" and exit 0.
     named = [flag for flag, value in (("--artifact", args.artifact), ("--key", args.key),
-                                      ("--to", args.to), ("--reason", args.reason)) if value]
+                                      ("--to", args.to), ("--reason", args.reason),
+                                      ("--unproduced", args.unproduced)) if value]
     if args.empty and named:
         raise Refused(f"expect was given --empty and {', '.join(named)} together: a clear and a "
                       "registration are two different orders, and one of them would be silently "
                       "dropped. Clear first, then register")
     payload = compare_mod.load_expected(target) or compare_mod.empty_expected() \
         if not args.empty else compare_mod.empty_expected()
-    if not args.empty:
+    if args.unproduced:
+        # A row and a reason, and no key or value to name: what is wrong with an unproduced row is
+        # that it HAS no value. Given one anyway, the registration would read as a mover's and cover
+        # nothing, so the two spellings are refused together rather than one quietly winning.
+        if args.key or args.to:
+            raise Refused(
+                "expect was given --unproduced with --key or --to: an unproduced row carries no "
+                "value, so there is no key to name and nothing for it to land on. Register the "
+                "artifact and the reason, or drop --unproduced and register the mover")
+        if not (args.artifact and args.reason):
+            raise Refused("expect --unproduced needs --artifact and --reason")
+        payload.setdefault("unproduced", []).append(
+            {"artifact": args.artifact, "reason": args.reason})
+    elif not args.empty:
         if not (args.artifact and args.key and args.to and args.reason):
             raise Refused("expect needs --artifact, --key, --to and --reason, or --empty")
         payload["movers"].append({"artifact": args.artifact, "key": args.key,
                                   "reason": args.reason, "to": args.to})
     write_json(target, payload)
-    _emit(args, f"{len(payload['movers'])} mover(s) registered -> {target}", payload)
+    _emit(args, f"{len(payload['movers'])} mover(s) and "
+                f"{len(payload.get('unproduced', []))} unproduced row(s) registered -> {target}",
+          payload)
     return OK
 
 
@@ -1387,6 +1462,9 @@ def _register(subparsers: Any) -> dict[str, Command]:
     cap.add_argument("--artifact", action="append", required=True)
     cap.add_argument("--source", action="append", required=True, metavar="PATH")
     cap.add_argument("--producer", default=None, help="one comma list of producing task names")
+    cap.add_argument("--failed", action="append", default=None, metavar="TASK=MESSAGE",
+                     help="a producer of this row that failed, so an absent source is recorded as "
+                          "UNPRODUCED rather than refused")
     cap.add_argument("--flag", action="append", default=None, metavar="k=v")
     cap.add_argument("--runs", type=int, default=None,
                      help="how many runs AGREED, a measurement; absent means the artifact's "
@@ -1427,6 +1505,8 @@ def _register(subparsers: Any) -> dict[str, Command]:
     exp.add_argument("--key", default=None, help="keyed the way that artifact's envelope key names")
     exp.add_argument("--to", default=None)
     exp.add_argument("--reason", default=None)
+    exp.add_argument("--unproduced", action="store_true",
+                     help="register a row whose producer is expected to fail, rather than a mover")
     table["expect"] = _cmd_expect
 
     prov = subparsers.add_parser("provenance", help="gather a run-provenance record")

@@ -93,6 +93,20 @@ A registration is per-row and additive; `-PexpectEmpty` is what starts a fresh o
 cannot be given in one invocation - a clear and a registration are two orders and one would be
 dropped. A registration with no `-Pto` is refused rather than accepted as "this row may move".
 
+**A row whose producer is expected to FAIL is registered the other way**, by artifact and reason and
+with no key or value:
+
+```bash
+./gradlew parityExpect -Partifact=digest.shipped-tables -Punproduced \
+    -Preason="its writer asserts on the value being re-based"
+```
+
+A capture step is a finalizer, so it runs after a producer that failed; where one did, it records
+that instead of reading output nothing wrote, and the compare reports the row as **UNPRODUCED** and
+fails unless it was registered. `-Punproduced` cannot be given `-Pkey` or `-Pto` - what is wrong with
+such a row is that it has no value - and it needs `-Preason`, because a producer nobody expected to
+fail is the finding rather than a state to wave through.
+
 **`-Pkey` is the row's key exactly as the stored artifact spells it**, and nothing checks that it is
 one. A registration whose key matches no moved row is written, counted in the `N mover(s)
 registered` line and then never consulted, so a near miss reads as success and the row it meant
@@ -194,6 +208,8 @@ whole cost. In the first two states, read the producer list instead.
   resource tree, so a redirected run would leave the shipped bytes unregenerated and the gate green
   over nothing.
 - `-Preason=<text>` - mandatory on `parityPromote`, and on a `parityExpect` that registers a row.
+- `-Punproduced` on `parityExpect` - registers a row whose producer is expected to fail, rather than
+  a mover. Takes `-Partifact` and `-Preason` and refuses `-Pkey` or `-Pto`.
 - `-PpythonExe=<path>` - which interpreter runs the toolkit, when the one this build resolves off
   `PATH` is the wrong one. `PARITY_PYTHON` in the environment does the same. Not a gate knob: it is
   the escape for a machine where the toolkit will not start at all.
@@ -209,6 +225,7 @@ owns `--dry-run` for itself.
 | Movers == the registered expected-diff, every moved column of every row on a value registered for that row | GREEN. Commit; promote in the same commit. |
 | A registered row moved in a column no registration of its names | RED. A `-Pto` is what one column must land on, never a licence for the row. Register the second value too, or fix the second move. |
 | Movers != expected-diff | RED. Report per-row before/after. Do not re-baseline to make it pass. |
+| A planned row is UNPRODUCED and no registration names it | RED. The producer failed, so the row has no value and the rest of the bundle is a verdict about a narrower set than was planned. Fix the producer, or register it with `-Punproduced`. |
 | A mover on an artifact a rule called BLIND | RED, escalated separately. The map is wrong or the change is wider than its paths. Fix the rule; never register it as expected. **Unless the plan printed that line as `claimed blind, selected by <rule>`** - reach resolves one changed path at a time, so a `blind` list subtracts only on the paths its own rule triggers on and a `select` rule's subtracts on none at all. The named rule's `sees` put the artifact in the bundle regardless, whether it fired on the same path or on another in the change set, and the claiming rule's `mode` does not change that. The mover is ordinary; judge it by the rows above. |
 | Sum unchanged but `moved > 0` | RED. A sum can hold while rows cancel. |
 | COVERED non-empty | Nothing owed. The capture that writes each container writes that value with it, and the compare joins that node, so a move in it is already a mover on the container. |

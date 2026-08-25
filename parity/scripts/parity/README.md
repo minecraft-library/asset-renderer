@@ -111,6 +111,12 @@ The build invokes `selftest`, `capture-begin`, `capture-normalize`, `capture-ind
 `expect`, `promote-apply` and `plan`; the pre-commit hook invokes `plan`. The rest are for a human
 at a terminal.
 
+A capture step is a finalizer, so it runs whether or not the producer it follows succeeded, and the
+build tells it which producers failed with `capture-normalize --failed`. It reads the producer's
+output first either way - a self-capturing row's writer writes before it asserts, so a red suite has
+still produced a capturable file - and records the row as **UNPRODUCED** only where there was nothing
+to read. `compare` reports one and fails unless `expect --unproduced` registered it.
+
 ## Layout
 
 Every module in the package. `lab/` has a README of its own naming its six.

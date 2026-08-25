@@ -87,6 +87,13 @@ OPEN = "OPEN"
 
 CAPTURE_INDEX = "_capture.json"
 
+#: Where a row whose producer failed is recorded, inside ``_run/`` and therefore outside the capture.
+#:
+#: One file per artifact rather than one list every step appends to, because a capture step is one
+#: process per row: an append is two processes racing for a file neither locks, and the loser's row is
+#: the one nobody ever finds out about. The directory is what ``compare`` enumerates.
+UNPRODUCED_DIR = "unproduced"
+
 
 def wipe(root: Path) -> None:
     """Erase everything under the root except the exempt files."""
@@ -267,6 +274,45 @@ def _self_captured(artifact: str, source: Path, root: Path, target: Path) -> dic
     if isinstance(entries, (dict, list)):
         payload["_counts"] = {member: len(entries)}
     return payload
+
+
+def unproduced(root: Path, artifact: str, failures: Sequence[tuple[str, str]]) -> Path:
+    """Record that this row's producers failed, so the capture carries the fact rather than a gap.
+
+    A capture step is a FINALIZER, so it runs whether or not the producer it follows succeeded. Read
+    off the producer's own output it would fail on an absent file and say nothing about why - which
+    left the row simply missing from the root, and a compare drawn from what the root holds reported
+    the rows that succeeded and never mentioned the one that did not.
+
+    What is recorded is what the build actually knows: which task failed and what it said. That
+    message carries the exit value for a process and the report path for a suite, which is why it is
+    kept verbatim rather than parsed into a number the two would spell differently.
+
+    :param root: the working root
+    :param artifact: the row whose producers failed
+    :param failures: the failing tasks, each with the message it failed with
+    :return: the file written
+    """
+    target = root / store_mod.RUN_DIR / UNPRODUCED_DIR / f"{artifact}.json"
+    write_json(target, {
+        "//": f"parity.unproduced.{artifact} · written by the capture step of a failed producer",
+        "artifact": artifact,
+        "format": 1,
+        "kind": "producer-failed",
+        "producers": [{"failure": message, "task": task} for task, message in failures],
+    })
+    return target
+
+
+def unproduced_rows(root: Path) -> list[dict]:
+    """Every row this capture recorded as unproduced, in artifact order.
+
+    :param root: the working root
+    """
+    home = root / store_mod.RUN_DIR / UNPRODUCED_DIR
+    if not home.is_dir():
+        return []
+    return [read_json(path) for path in sorted(home.glob("*.json"))]
 
 
 def index(root: Path) -> Path:

@@ -766,6 +766,32 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     val step = register<Exec>(parityCaptureTaskName(spec.artifact)) {
         // No group: these are finalizers, not an entry point. The group = "parity" tasks are.
         description = "Captures ${spec.artifact} from ${spec.source} into the parity working root."
+        // Which of this row's producers FAILED, appended where the answer exists: an outcome is not
+        // known while the graph is being configured. A step is a finalizer, so it runs whether or not
+        // the producer it follows succeeded - and read off a failed producer's output it refuses on
+        // an absent file and says nothing about why, leaving the row simply missing from the root,
+        // which a compare drawn from what the root holds reports as no row at all rather than as the
+        // finding it is.
+        //
+        // It is told rather than pre-empted, and that is the load-bearing half: a self-capturing
+        // row's writer writes BEFORE it asserts, so a suite that went red over the very value being
+        // re-based has still produced a capturable file. Skipping the read on the task's outcome
+        // would discard it and re-circle the one run a capture exists for. So the toolkit reads
+        // first and falls back to recording the failure only where there was nothing to read.
+        //
+        // What is forwarded is what the build knows. `state.failure` is a Throwable rather than an
+        // exit value, and its message is the honest form of both: for a process it carries the exit
+        // value, for a suite the path to the report. Parsing either into a number would give the two
+        // one spelling and lose the half that is not one.
+        doFirst {
+            spec.producers.forEach { name ->
+                val failure = project.tasks.findByName(name)?.state?.failure ?: return@forEach
+                val message = (failure.message ?: failure.toString()).replace('\n', ' ').trim()
+                logger.lifecycle("parity: $name failed, so ${spec.artifact} is captured if its " +
+                    "producer wrote it and recorded UNPRODUCED if it did not.")
+                args("--failed", "$name=$message")
+            }
+        }
         parityToolkit(*buildList {
             add("capture-normalize")
             add("--artifact"); add(spec.artifact)
@@ -1175,11 +1201,13 @@ tasks {
     register<Exec>("parityExpect") {
         description = "Registers the movers this change intends into the working root's expected-diff, which is what " +
             "makes the gate diff == expected rather than diff == empty. The manifest survives the capture wipe, so a " +
-            "previous change's registration stands until this clears it. -PexpectEmpty | -Partifact= -Pkey= -Pto= -Preason="
+            "previous change's registration stands until this clears it. -PexpectEmpty | -Partifact= -Pkey= -Pto= " +
+            "-Preason= | -Partifact= -Punproduced -Preason="
         group = "parity"
         dependsOn("paritySelfTest")
         requireParityRootUnderCache()
         val empty = parityFlag("expectEmpty")
+        val unproduced = parityFlag("unproduced")
         val artifact = parityProperty("artifact")
         val key = parityProperty("key")
         val to = parityProperty("to")
@@ -1187,23 +1215,39 @@ tasks {
         val members = listOf("artifact" to artifact, "key" to key, "to" to to, "reason" to reason)
         val given = members.filter { (_, value) -> value != null }.map { (name, _) -> name }
         val registers = given.size == members.size
-        // Two refusals, and the second is the one the task exists for. -Pto has no default: a
+        // A row whose producer failed is registered by artifact and reason alone. What is wrong with
+        // it is that it HAS no value, so there is no key to name and nothing for it to land on - and
+        // a registration given either would read as a mover's and cover nothing.
+        val registersUnproduced = artifact != null && reason != null
+        // Three refusals, and the second is the one the task exists for. -Pto has no default: a
         // registration that names no value licenses any value the row takes, which is the tolerance
         // this gate is built without. And a clear given alongside a registration is two orders in one
         // invocation - taking either silently discards the other, so neither is taken.
         //
         // Raised off the resolved graph, because configuration runs for `gradle tasks` too and the
         // typed tokens cannot say which of them named this task. The argv below carries whatever was
-        // given rather than falling back to a clear: the toolkit raises both of these refusals too,
+        // given rather than falling back to a clear: the toolkit raises all of these refusals too,
         // so an argv that reached it under-specified would be refused there rather than erasing the
         // registration a previous invocation left - which is what a fallback to --empty does.
         refuseWhenScheduled {
-            if (empty && given.isNotEmpty())
+            if (empty && (given.isNotEmpty() || unproduced))
                 throw GradleException(
-                    "parityExpect was given -PexpectEmpty and ${given.joinToString { "-P$it" }} " +
-                        "together: a clear and a registration are two different orders, and one of " +
-                        "them would be silently dropped. Clear first, then register.")
-            if (!empty && !registers)
+                    "parityExpect was given -PexpectEmpty and " +
+                        "${(given + listOfNotNull("unproduced".takeIf { unproduced }))
+                            .joinToString { "-P$it" }} together: a clear and a registration are two " +
+                        "different orders, and one of them would be silently dropped. Clear first, " +
+                        "then register.")
+            if (unproduced && (key != null || to != null))
+                throw GradleException(
+                    "parityExpect was given -Punproduced with " +
+                        "${listOfNotNull("key".takeIf { key != null }, "to".takeIf { to != null })
+                            .joinToString { "-P$it" }}: an unproduced row carries no value, so there " +
+                        "is no key to name and nothing for it to land on. Register -Partifact and " +
+                        "-Preason, or drop -Punproduced and register the mover.")
+            if (unproduced && !registersUnproduced)
+                throw GradleException(
+                    "parityExpect -Punproduced needs -Partifact=<id> and -Preason=<why>")
+            if (!empty && !unproduced && !registers)
                 throw GradleException(
                     "parityExpect needs -PexpectEmpty to clear the manifest, or all four of " +
                         "-Partifact=<id> -Pkey=<row key> -Pto=<the value it must land on> -Preason=<why>")
@@ -1212,6 +1256,7 @@ tasks {
             add("expect")
             add("--root"); add(parityWorkingRoot)
             if (empty) add("--empty")
+            if (unproduced) add("--unproduced")
             artifact?.let { add("--artifact"); add(it) }
             key?.let { add("--key"); add(it) }
             to?.let { add("--to"); add(it) }

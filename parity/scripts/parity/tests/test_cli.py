@@ -800,6 +800,76 @@ class CompareRefusesAMixedVintageRoot(unittest.TestCase):
         self.assertNotEqual(self._report()["capture_digest"], first)
 
 
+class AnUnproducedRowIsReportedAndNeverPasses(unittest.TestCase):
+    """A row whose producer failed, which is a third outcome beside moved and unchanged.
+
+    The capture step is a finalizer, so it ran; it read nothing, so the row is not in the root; and a
+    compare drawing its artifact list from what the root holds never mentioned it. A bundle missing
+    its most interesting member then read as a clean pass.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        self.store = self.repo / "store"
+        register(self.store, "sweep.entity", "manifest.fluid", floor=2)
+        capture.begin(self.root)
+        payload = {"artifact": "sweep.entity", "format": 1, "key": "subject", "kind": "sweep-table",
+                   "provenance": {"asset_dirty": False, "counts": {"failed": 0, "rows": 1},
+                                  "determinism_runs": 2},
+                   "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "1.0000"}]}
+        write_json(self.store / "sweeps" / "entity.json", payload)
+        write_json(self.root / "sweeps" / "entity.json", payload)
+        capture.unproduced(self.root, "manifest.fluid",
+                           [(":fluidRenderer", "finished with non-zero exit value 1")])
+        capture.index(self.root)
+
+    def _run(self, *argv: str) -> tuple[int, str]:
+        code, out, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                              "--store", str(self.store), *argv])
+        return code, out + err
+
+    def _report(self) -> dict:
+        return json.loads((self.root / store.RUN_DIR / "compare.json").read_text(encoding="utf-8"))
+
+    def test_an_unregistered_failure_fails_the_compare(self):
+        code, text = self._run("compare")
+        self.assertEqual(code, cli.DIFFERENCES)
+        self.assertIn("UNPRODUCED for manifest.fluid", text)
+
+    def test_the_row_that_did_produce_is_still_joined(self):
+        """The rest of the bundle is measured and reported; what fails is the verdict over it."""
+        self._run("compare")
+        self.assertEqual([row["artifact"] for row in self._report()["artifacts"]], ["sweep.entity"])
+
+    def test_the_report_carries_the_task_and_what_it_said(self):
+        self._run("compare")
+        row = self._report()["unproduced"][0]
+        self.assertEqual(row["artifact"], "manifest.fluid")
+        self.assertEqual(row["producers"],
+                         [{"failure": "finished with non-zero exit value 1", "task": ":fluidRenderer"}])
+        self.assertFalse(row["expected"])
+
+    def test_a_registered_failure_passes_and_carries_its_reason(self):
+        """Which is what un-circles re-baselining a pin whose own producer is licensed red."""
+        write_json(self.root / store.RUN_DIR / "expected-diff.json",
+                   {"movers": [], "unproduced": [{"artifact": "manifest.fluid",
+                                                  "reason": "its writer asserts on the new value"}]})
+        code, text = self._run("compare")
+        self.assertEqual(code, cli.OK, text)
+        self.assertTrue(self._report()["unproduced"][0]["expected"])
+        self.assertIn("its writer asserts on the new value", text)
+
+    def test_bootstrap_does_not_excuse_one(self):
+        """A first capture of a row is still a row somebody has to produce."""
+        self.assertEqual(self._run("compare", "--bootstrap")[0], cli.DIFFERENCES)
+
+    def test_a_registration_naming_no_reason_is_refused(self):
+        write_json(self.root / store.RUN_DIR / "expected-diff.json",
+                   {"movers": [], "unproduced": [{"artifact": "manifest.fluid"}]})
+        self.assertEqual(self._run("compare")[0], cli.REFUSED)
+
+
 class AFirstPromotionReadsTheRefusalThatFits(unittest.TestCase):
     """The compare-coverage refusal must not shadow the one that names `--bootstrap`.
 
@@ -1751,6 +1821,38 @@ class ExpectRegistration(unittest.TestCase):
         self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1", "--reason", "r")
         self._expect("--empty")
         self.assertEqual(read_json(self.manifest)["movers"], [])
+
+    def test_an_unproduced_registration_names_the_row_and_the_reason(self):
+        """A producer expected to fail, which is a second thing a phase can intend."""
+        self.assertEqual(self._expect("--artifact", "sweep.entity", "--unproduced",
+                                      "--reason", "its writer asserts on the value being re-based"),
+                         cli.OK)
+        self.assertEqual(read_json(self.manifest)["unproduced"],
+                         [{"artifact": "sweep.entity",
+                           "reason": "its writer asserts on the value being re-based"}])
+
+    def test_an_unproduced_registration_given_a_value_is_refused(self):
+        """An unproduced row HAS no value, so a key or a `to` would cover a mover and not it."""
+        for member, value in (("--key", "minecraft__cow"), ("--to", "0.2")):
+            with self.subTest(member=member):
+                self.assertEqual(
+                    self._expect("--artifact", "sweep.entity", "--unproduced", "--reason", "r",
+                                 member, value), cli.REFUSED)
+
+    def test_an_unproduced_registration_naming_no_reason_is_refused(self):
+        self.assertEqual(self._expect("--artifact", "sweep.entity", "--unproduced"), cli.REFUSED)
+
+    def test_a_clear_and_an_unproduced_registration_together_are_refused(self):
+        self.assertEqual(self._expect("--empty", "--artifact", "sweep.entity", "--unproduced",
+                                      "--reason", "r"), cli.REFUSED)
+
+    def test_the_two_registrations_land_in_their_own_lists(self):
+        """One manifest, two kinds of intent, and neither reads as the other."""
+        self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1", "--reason", "r")
+        self._expect("--artifact", "sweep.block", "--unproduced", "--reason", "r")
+        payload = read_json(self.manifest)
+        self.assertEqual([row["artifact"] for row in payload["movers"]], ["sweep.entity"])
+        self.assertEqual([row["artifact"] for row in payload["unproduced"]], ["sweep.block"])
 
     def test_a_command_naming_nothing_at_all_is_refused_rather_than_read_as_a_clear(self):
         """The backstop under `parityExpect`, which forwards what it was given and nothing else.
