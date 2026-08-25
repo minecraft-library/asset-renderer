@@ -56,7 +56,7 @@ answers both ways over one change set:
   to B37's list and the union carries it: ``sees`` holds all of it and each blind row reads
   ``selected_by=['B37']``.
 * A ``select`` rule's claim resolves by the same arithmetic from the other side. On
-  ``BlockGeometryKit.java``, B10 claims ``sweep.block`` blind while B19 selects it on that path, so it
+  ``GeometryKit.java``, B10 claims ``sweep.block`` blind while B19 selects it on that path, so it
   is in ``sees`` and its row reads ``selected_by=['B19']``; on ``PlayerRenderer.java``, B9 claims
   ``sweep.player`` and no fired rule selects it, so it is absent from ``sees`` and its row carries an
   empty ``selected_by``.

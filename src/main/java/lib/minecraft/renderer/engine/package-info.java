@@ -82,10 +82,11 @@
  * workaround for hardware-specific GPU coverage that cannot be bit-reproduced in software at
  * any reasonable cost.
  *
- * <p><b>Parity.</b> Everything here is a render, so a change reaches the five sweeps, the four
- * render CRC pins and the manifests taken beside them. The pipeline dump is the exception in both
- * directions - it serialises what a read layer loaded and never calls a renderer, so an identical
- * dump says nothing about a change made here.
+ * <p><b>Parity.</b> Everything here is a render, and which render is answered per file: a pose kit
+ * is an entity render where a model engine is every render, and the difference is the whole reason a
+ * change to the former no longer costs a fluid manifest. The pipeline dump is the exception in both
+ * directions and is what this claim answers for the whole subtree - it serialises what a read layer
+ * loaded and never calls a renderer, so an identical dump says nothing about a change made here.
  *
  * @see lib.minecraft.renderer.engine.ModelEngine
  * @see lib.minecraft.renderer.engine.RendererContext

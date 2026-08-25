@@ -43,7 +43,7 @@ file beside `SelfCapture.java` fires B39 on the first path alone, the second
 path resolves to B37's list, and the union carries it - SEES holds all of it
 and each blind row reads "claimed blind, selected by B37". A `select`
 rule's claim resolves by the same arithmetic from the other side: on
-`BlockGeometryKit.java` B10 claims `sweep.block` blind while B19 selects it on
+`GeometryKit.java` B10 claims `sweep.block` blind while B19 selects it on
 that path, so it is in SEES and its row names B19; on `PlayerRenderer.java` B9
 claims `sweep.player` and no fired rule selects it, so it is absent from SEES and
 its row names nobody.
@@ -262,11 +262,11 @@ The fabric:overlays plus catharsis:pack half of pack resolution has no dump sect
 
 - **mode** demote
 - **triggers** `src/main/java/lib/minecraft/renderer/*`, `src/main/java/lib/minecraft/renderer/engine/**`
-- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `manifest.fluid`, `manifest.portal`, `manifest.player-sheets`, `manifest.player-raw`, `manifest.visual`, `sweep.entity-animation`
+- **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** measured by perturbing ModelEngine.java: 12 of 14 declared sees moved, and 2 declared blind held
+- **source** measured by perturbing ModelEngine.java: nearly all of what was then authored moved and both declared blind held, so the demotion is what that measurement establishes and the selection is what it never could - one file was perturbed and the list spoke for the whole engine
 
-An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders. Everything this glob reaches is a render, which is why the three render CRC pins are on the list beside the manifests they were taken over, and why the glint sweep and manifest.visual are too: the glint is an engine-composited overlay, and manifest.visual hashes what the visual mains draw.
+An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders, so it is demoted for everything this glob reaches - that is the claim, and it is a statement about the artifact rather than about any file here. What each file reaches is the other half and is answered per file: everything under this glob is a render, and a pose kit is an entity render where a model engine is every render. The glob answering for whichever file in it reaches furthest is what made a pose change cost a fluid manifest.
 
 *Probe:* PipelineParityDump serialises loaded data and never calls BlockRenderer.resolveVariant; grep the dump for any renderer entry point
 

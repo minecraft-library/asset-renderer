@@ -126,6 +126,13 @@ final class BlindnessMapTest {
      * rule's {@code sees}. Being overruled by a sibling rule is what kept the bundle honest while the
      * declaration was false, which is why the plan prints such a pair instead of trusting it.
      *
+     * <p>B23's two moved together and for one reason. The trim kit is reached by the player sweep -
+     * {@code TestPlayerParityVanilla -> PlayerRenderer -> PlayerArmorKit -> ArmorKit -> TrimKit} -
+     * and by no block sweep at all, where the rule that used to speak for its whole subtree selected
+     * both. The claim is right either way: the throw-probe that measured it says the player sweep
+     * reaches the kit and never permutes a palette in it, which is a declared reach rather than an
+     * exercised one and exactly what a printed pair is for.
+     *
      * <p>Every claimant here is a {@code select} rule by construction rather than by choice: the
      * resolution below applies the demote pass, so a rule whose {@code blind} list subtracts on its
      * own triggers can never be overruled on one of them. A {@code demote} or {@code suppress} claim
@@ -144,8 +151,9 @@ final class BlindnessMapTest {
         "B2 -> manifest.dump.vanilla",
         "B21 -> sweep.item",
         "B22 -> manifest.dump.packs", "B22 -> manifest.dump.vanilla",
-        "B23 -> manifest.player-raw", "B23 -> sweep.armor", "B23 -> sweep.block",
-        "B23 -> sweep.entity", "B23 -> sweep.entity-animation", "B23 -> sweep.glint", "B23 -> sweep.item",
+        "B23 -> manifest.player-raw", "B23 -> sweep.armor", "B23 -> sweep.entity",
+        "B23 -> sweep.entity-animation", "B23 -> sweep.glint", "B23 -> sweep.item",
+        "B23 -> sweep.player",
         "B24 -> manifest.dump.packs", "B24 -> manifest.dump.vanilla");
 
     /**
@@ -1325,12 +1333,15 @@ final class BlindnessMapTest {
     @Test
     @DisplayName("the worked example resolves the way the corpus records it")
     void theBoxBuilderExampleResolves() {
-        // B10's own gates, which is what the map has to keep answering for that path.
-        assertThat(seesFor("src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java")
+        // B10's own gates, which is what the map has to keep answering for the path it claims. The
+        // box builder is where the declaration is, and the declaration moved when the box and the
+        // quad were lifted out of the block kit - so the example is the file carrying the claim
+        // rather than the file it used to sit in.
+        assertThat(seesFor("src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java")
                 .containsAll(List.of("sweep.entity", "sweep.armor", "pin.player-crc", "manifest.player-sheets")),
             is(true));
         // And the dump is demoted for it, because B19 fires on engine/** and the dump never renders.
-        assertThat(seesFor("src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java")
+        assertThat(seesFor("src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java")
                 .stream().noneMatch(id -> id.startsWith("manifest.dump.")),
             is(true));
     }

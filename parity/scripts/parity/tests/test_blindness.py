@@ -344,8 +344,16 @@ class TheShippedMap(unittest.TestCase):
     """Against the real map, so the resolver and the file are checked together."""
 
     def setUp(self):
-        from parity import store
-        self.rules, self.no_reach = blindness.load(store.repo_root() / store.PRODUCTION)
+        import json
+        from parity import reach, store
+        root = store.repo_root()
+        self.rules, self.no_reach = blindness.load(root / store.PRODUCTION)
+        graph = json.loads((root / "parity" / reach.STORED).read_text(encoding="utf-8"))
+        self.derived = lambda path: reach.answered_by(graph, path)
+
+    def _reach(self, changed):
+        """The shipped map and the committed graph, which is the pair the planner resolves through."""
+        return blindness.resolve(changed, self.rules, self.no_reach, self.derived)
 
     def test_every_mode_is_known(self):
         self.assertEqual({r.mode for r in self.rules} - {"select", "demote", "suppress"}, set())
@@ -359,23 +367,18 @@ class TheShippedMap(unittest.TestCase):
         self.assertEqual(named, {"B15": ()})
 
     def test_the_box_builder_selects_the_armour_and_player_gates(self):
-        reach = blindness.resolve(
-            ["src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java"],
-            self.rules, self.no_reach)
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java"])
         for artifact in ("sweep.entity", "sweep.armor", "pin.player-crc", "manifest.player-sheets"):
             self.assertIn(artifact, reach.sees)
 
     def test_a_tooling_change_empties_every_sweep(self):
-        reach = blindness.resolve(
-            ["tooling/src/main/java/lib/minecraft/renderer/tooling/entity/EntityBoneResolver.java"],
-            self.rules, self.no_reach)
+        reach = self._reach(
+            ["tooling/src/main/java/lib/minecraft/renderer/tooling/entity/EntityBoneResolver.java"])
         self.assertEqual([a for a in reach.sees if a.startswith("sweep.")], [])
         self.assertIn("manifest.tooling-tables", reach.sees)
 
     def test_an_engine_change_demotes_both_dump_manifests(self):
-        reach = blindness.resolve(
-            ["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"],
-            self.rules, self.no_reach)
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"])
         self.assertEqual([a for a in reach.sees if a.startswith("manifest.dump.")], [])
 
     def test_an_engine_change_reaches_the_renders_only_the_engine_produces(self):
@@ -384,31 +387,28 @@ class TheShippedMap(unittest.TestCase):
         Both were unreachable from every rule governing render code, so an engine edit answered that
         nothing rendered saw it.
         """
-        reach = blindness.resolve(
-            ["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"],
-            self.rules, self.no_reach)
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"])
         for artifact in ("sweep.glint", "manifest.visual", "pin.block-crc", "pin.fluid-crc",
                          "pin.portal-crc"):
             self.assertIn(artifact, reach.sees)
 
     def test_a_markdown_file_under_the_harness_reaches_nothing(self):
         """B29 costs a whole-client re-render, and prose cannot move a reference byte."""
-        reach = blindness.resolve(["harness/CLAUDE.md"], self.rules, self.no_reach)
+        reach = self._reach(["harness/CLAUDE.md"])
         self.assertEqual(reach.sees, [])
         self.assertEqual(reach.no_reach, ["harness/CLAUDE.md"])
 
     def test_a_harness_renderer_still_reaches_the_reference_tree(self):
         """A path that EXISTS, because the trigger it has to match is derived from the tree."""
-        reach = blindness.resolve(
-            ["harness/src/client/java/lib/minecraft/refharness/frame/EntityFrameRenderer.java"],
-            self.rules, self.no_reach)
+        reach = self._reach(
+            ["harness/src/client/java/lib/minecraft/refharness/frame/EntityFrameRenderer.java"])
         self.assertIn("manifest.references", reach.sees)
 
     def test_the_self_capture_writers_are_not_resolved_as_emitting_nothing(self):
         """B33's claim - the test tree asserts rather than emits - is false for these two."""
         for path in ("src/test/java/lib/minecraft/renderer/parity/SelfCapture.java",
                      "src/test/java/lib/minecraft/renderer/pipeline/dump/PipelineParityDump.java"):
-            reach = blindness.resolve([path], self.rules, self.no_reach)
+            reach = self._reach([path])
             self.assertIn("manifest.dump.vanilla", reach.sees, path)
             self.assertIn("digest.shipped-tables", reach.sees, path)
 
@@ -420,7 +420,7 @@ class TheShippedMap(unittest.TestCase):
         """
         for path in ("src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java",
                      "src/test/java/lib/minecraft/renderer/parity/ParityViews.java"):
-            self.assertEqual(blindness.resolve([path], self.rules, self.no_reach).sees, [], path)
+            self.assertEqual(self._reach([path]).sees, [], path)
 
     def test_a_reader_committed_beside_a_writer_does_not_cancel_the_writer(self):
         """The shape a single-path case cannot see, and the shape this effort's own phases commit in.
@@ -431,10 +431,10 @@ class TheShippedMap(unittest.TestCase):
         """
         writer = "src/test/java/lib/minecraft/renderer/parity/PinSet.java"
         reader = "src/test/java/lib/minecraft/renderer/parity/ParityReferences.java"
-        alone = blindness.resolve([writer], self.rules, self.no_reach).sees
+        alone = self._reach([writer]).sees
         self.assertIn("pin.player-crc", alone)
-        self.assertEqual(blindness.resolve([reader], self.rules, self.no_reach).sees, [])
-        together = blindness.resolve([writer, reader], self.rules, self.no_reach)
+        self.assertEqual(self._reach([reader]).sees, [])
+        together = self._reach([writer, reader])
         self.assertEqual(together.sees, alone)
         self.assertEqual([e["selected_by"] for e in together.blind if e["artifact"] == "pin.player-crc"],
                          [["B37"]])
@@ -451,7 +451,7 @@ class TheShippedMap(unittest.TestCase):
         # and the store's own self-captured rows are the list it has to have found.
         self.assertEqual({artifact for _, artifact in declarations}, self._self_captured_rows())
         for path, artifact in sorted(declarations):
-            reach = blindness.resolve([path], self.rules, self.no_reach)
+            reach = self._reach([path])
             self.assertIn(artifact, reach.sees, path)
 
     @staticmethod

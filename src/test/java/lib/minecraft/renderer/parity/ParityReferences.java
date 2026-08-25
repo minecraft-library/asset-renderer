@@ -209,7 +209,7 @@ public final class ParityReferences {
         out.add("path resolves to B37's list, and the union carries it - SEES holds all of it");
         out.add("and each blind row reads \"claimed blind, selected by B37\". A `select`");
         out.add("rule's claim resolves by the same arithmetic from the other side: on");
-        out.add("`BlockGeometryKit.java` B10 claims `sweep.block` blind while B19 selects it on");
+        out.add("`GeometryKit.java` B10 claims `sweep.block` blind while B19 selects it on");
         out.add("that path, so it is in SEES and its row names B19; on `PlayerRenderer.java` B9");
         out.add("claims `sweep.player` and no fired rule selects it, so it is absent from SEES and");
         out.add("its row names nobody.");

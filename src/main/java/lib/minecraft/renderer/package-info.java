@@ -70,11 +70,13 @@
  * {@code FluidOptions}, {@code PortalOptions}) composes that one frame, so a caller building with
  * all defaults gets a consistent tile dimension across renderers.
  *
- * <p><b>Parity.</b> Every renderer is a direct member of this package, so a change to one reaches
- * the five sweeps, the four render CRC pins and the manifests taken beside them, and the pipeline
- * dump is blind to all of it. The scope stops here rather than descending: the packages below
- * carry their own claims, and a subtraction that reached them would strip both dump manifests
- * from every file that reads a pipeline.
+ * <p><b>Parity.</b> Every renderer is a direct member of this package, and what each one reaches is
+ * answered per file - a block renderer is under five pipelines because an entity draws a carried
+ * block through it, and a portal renderer is under one. What is answered for the package is the
+ * subtraction: the pipeline dump serialises what a read layer loaded and never renders, so it is
+ * blind to a change here whatever else selects it. The scope stops at this package rather than
+ * descending: the packages below carry their own claims, and a subtraction that reached them would
+ * strip both dump manifests from every file that reads a pipeline.
  *
  * @see lib.minecraft.renderer.Renderer
  * @see lib.minecraft.renderer.option
