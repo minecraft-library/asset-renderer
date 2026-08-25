@@ -12,7 +12,10 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.Flag;
+import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -87,6 +90,7 @@ import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
@@ -1557,9 +1561,12 @@ public final class PipelineParityDump {
     }
 
     /**
-     * Returns an appearance gate as a tagged record. All nine cases are handled although the entity
-     * reader can only produce five - the switch is exhaustive over the sealed interface, so a new case
-     * is a compile error here rather than a silent hole in the dump.
+     * Returns an appearance gate as a tagged record. Both switches are exhaustive over a sealed
+     * interface, so a new gate arm or a new gateable axis is a compile error here rather than a
+     * silent hole in the dump. A {@link AppearanceGate.Selected} is projected back into the table's
+     * own {@code when} spelling per axis kind - {@code charged} for the creeper's flag row,
+     * {@code flag} with the token and polarity for any other, {@code age} / {@code size} for the
+     * shell alternates - so the stored bytes hold across the gate roster.
      *
      * @param gate the gate to emit
      * @return the gate object
@@ -1567,32 +1574,30 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject gate(@NotNull AppearanceGate gate) {
         JsonObject root = new JsonObject();
         switch (gate) {
-            case AppearanceGate.StateGate state -> {
-                root.addProperty("gate", "state");
-                root.addProperty("value", state.value());
+            case AppearanceGate.Selected selected -> {
+                switch (selected.option()) {
+                    case Age age -> {
+                        root.addProperty("gate", "age");
+                        root.addProperty("value", age.name());
+                    }
+                    case Size size -> {
+                        root.addProperty("gate", "size");
+                        root.addProperty("value", size.name());
+                    }
+                    case Flag flag -> {
+                        if (flag == Flag.CHARGED && selected.expected())
+                            root.addProperty("gate", "charged");
+                        else {
+                            root.addProperty("gate", "flag");
+                            root.addProperty("flag", flag.name().toLowerCase(Locale.ROOT));
+                            root.addProperty("value", selected.expected());
+                        }
+                    }
+                }
             }
-            case AppearanceGate.FlagGate flag -> {
-                root.addProperty("gate", "flag");
-                root.addProperty("flag", flag.flag());
-                root.addProperty("value", flag.value());
-            }
-            case AppearanceGate.ChargedGate ignored -> root.addProperty("gate", "charged");
             case AppearanceGate.TintedGate tinted -> {
                 root.addProperty("gate", "tinted");
                 tinted.axis().ifPresent(axis -> root.addProperty("tint_by", axis.token()));
-            }
-            case AppearanceGate.EquipmentGate equipment -> {
-                root.addProperty("gate", "equipment");
-                root.addProperty("slot", equipment.slot());
-            }
-            case AppearanceGate.CollarColorGate ignored -> root.addProperty("gate", "collar_color");
-            case AppearanceGate.AgeGate age -> {
-                root.addProperty("gate", "age");
-                root.addProperty("value", age.value().name());
-            }
-            case AppearanceGate.SizeGate size -> {
-                root.addProperty("gate", "size");
-                root.addProperty("value", size.value().name());
             }
         }
         return root;

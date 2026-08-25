@@ -48,12 +48,3 @@ whatever commit sheds the clips. And `EntityPoseLoadTest` pins the turtle's egg-
 a channel map the flag shed empties, so its pins move with the emitter. Closing it is either the
 harness stride (WALK gets a reference, the thirteen become measurable, and the genuinely dead rest
 shed behind them) or an owner ruling that the offline renderer never plays a state-driven clip.
-
-## The gate roster is eight records where one axis interface was licensed
-
-`AppearanceGate` seals over eight arms - state, flag, charged, tinted, equipment, collar, age,
-size - and the surface-reduction work licensed exactly one new type for the whole programme:
-an axis interface collapsing that roster, on the ground that collapsing N types into one is the
-reduction worth a type where a carrier is not. The programme closed without scheduling it and the
-design lives nowhere tracked. An earlier pass at unifying the appearance axes was parked with the
-owner rather than decided, so this is a design conversation before it is a phase.

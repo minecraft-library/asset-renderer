@@ -5,6 +5,7 @@ import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
 import lib.minecraft.renderer.asset.appearance.CopperWeathering;
+import lib.minecraft.renderer.asset.appearance.Flag;
 import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
@@ -250,7 +251,10 @@ public record Entity(
      */
     private static @NotNull List<OverlayLayer> gatedOverlays(@NotNull List<OverlayLayer> overlays, @NotNull AppearanceOptions appearance) {
         boolean hasCharged = overlays.stream()
-            .anyMatch(overlay -> overlay.gate().filter(AppearanceGate.ChargedGate.class::isInstance).isPresent());
+            .anyMatch(overlay -> overlay.gate()
+                .filter(gate -> gate instanceof AppearanceGate.Selected selected
+                    && selected.option() == Flag.CHARGED)
+                .isPresent());
         if (!appearance.isSheared() && !hasCharged) return overlays;
         return overlays.stream().filter(overlay -> rendersAtResolve(overlay, appearance)).toList();
     }

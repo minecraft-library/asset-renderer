@@ -19,14 +19,16 @@ import static org.hamcrest.Matchers.is;
 /**
  * Every sealed arm of {@link AppearanceGate} against the {@link AppearanceOptions} selection that fires
  * it and the selection that leaves it silent. A gate arm decides whether a shipped overlay or layer
- * row draws at all, so an arm answering the wrong way drops or adds a whole pass, and nine one-line
- * {@code test} bodies read alike enough that the differences between them are the part worth pinning:
- * {@link AppearanceGate.TintedGate} compares a resolved colour rather than asking whether a dye was
- * chosen, {@link AppearanceGate.FlagGate} answers a hard-coded token and treats every other one as
- * unset, {@link AppearanceGate.CollarColorGate} reads tameness as well as the dye, and
- * {@link AppearanceGate.AgeGate} fires unselected where {@link AppearanceGate.SizeGate} never does.
+ * row draws at all, so an arm answering the wrong way drops or adds a whole pass. The two arms split
+ * on what they compare: {@link AppearanceGate.Selected} asks the named {@link Axis} option whether it
+ * is selected and matches the row's expected polarity - the sheep's un-sheared body layer is the one
+ * {@code false} row - while {@link AppearanceGate.TintedGate} compares a resolved colour rather than
+ * asking whether a dye was chosen. Among the options, an {@link Age} fires unselected (the axis rests
+ * {@code ADULT}) where a {@link Size} never does, and a {@code when} naming a token no {@link Flag}
+ * constant owns is a load-time concern - the parse resolves it to no gate at all, so no arm here can
+ * hold one.
  *
- * <p>The arm table below is checked against {@code getPermittedSubclasses()}, so a ninth arm fails
+ * <p>The arm table below is checked against {@code getPermittedSubclasses()}, so a third arm fails
  * this class rather than slipping through with no coverage.
  */
 @DisplayName("AppearanceGate sealed arms")
@@ -40,29 +42,11 @@ class AppearanceGateTest {
 
     /** One sample per sealed arm, each paired with a firing and a non-firing appearance. */
     private static final List<ArmCase> ARMS = List.of(
-        new ArmCase(new AppearanceGate.StateGate("tame"),
-            AppearanceOptions.builder().state(Optional.of("tame")).build(),
-            AppearanceOptions.defaults()),
-        new ArmCase(new AppearanceGate.FlagGate("sheared", true),
-            AppearanceOptions.builder().sheared(true).build(),
-            AppearanceOptions.defaults()),
-        new ArmCase(new AppearanceGate.ChargedGate(),
-            AppearanceOptions.builder().charged(true).build(),
+        new ArmCase(new AppearanceGate.Selected(Age.BABY, true),
+            AppearanceOptions.builder().age(Age.BABY).build(),
             AppearanceOptions.defaults()),
         new ArmCase(new AppearanceGate.TintedGate(Optional.of(TintAxis.WOOL), UNDERCOAT_TINT),
             AppearanceOptions.builder().tints(Map.of(TintAxis.WOOL, DyeColor.Vanilla.RED)).build(),
-            AppearanceOptions.defaults()),
-        new ArmCase(new AppearanceGate.EquipmentGate("saddle"),
-            AppearanceOptions.builder().equipment(Map.of("saddle", "")).build(),
-            AppearanceOptions.defaults()),
-        new ArmCase(new AppearanceGate.CollarColorGate(),
-            AppearanceOptions.builder().state(Optional.of("tame")).build(),
-            AppearanceOptions.defaults()),
-        new ArmCase(new AppearanceGate.AgeGate(Age.BABY),
-            AppearanceOptions.builder().age(Age.BABY).build(),
-            AppearanceOptions.defaults()),
-        new ArmCase(new AppearanceGate.SizeGate(Size.SMALL),
-            AppearanceOptions.builder().size(Optional.of(Size.SMALL)).build(),
             AppearanceOptions.defaults()));
 
     @Test
@@ -81,6 +65,51 @@ class AppearanceGateTest {
             assertThat(arm.gate() + " fires for its selection", arm.gate().test(arm.fires()), is(true));
             assertThat(arm.gate() + " stays silent for the default", arm.gate().test(arm.silent()), is(false));
         }
+    }
+
+    @Nested
+    @DisplayName("Selected")
+    class SelectedArm {
+
+        @Test
+        @DisplayName("every axis option answers its own selection and rests silent unselected")
+        void everyOptionAnswersItsOwnSelection() {
+            record OptionCase(Axis option, AppearanceOptions selecting) {}
+            List<OptionCase> options = List.of(
+                new OptionCase(Age.BABY, AppearanceOptions.builder().age(Age.BABY).build()),
+                new OptionCase(Size.SMALL, AppearanceOptions.builder().size(Optional.of(Size.SMALL)).build()),
+                new OptionCase(Size.LARGE, AppearanceOptions.builder().size(Optional.of(Size.LARGE)).build()),
+                new OptionCase(Flag.SHEARED, AppearanceOptions.builder().sheared(true).build()),
+                new OptionCase(Flag.CHARGED, AppearanceOptions.builder().charged(true).build()));
+            for (OptionCase option : options) {
+                AppearanceGate gate = new AppearanceGate.Selected(option.option(), true);
+                assertThat(option.option() + " fires for its selection", gate.test(option.selecting()), is(true));
+                assertThat(option.option() + " rests silent unselected",
+                    gate.test(AppearanceOptions.defaults()), is(false));
+            }
+        }
+
+        @Test
+        @DisplayName("the expected polarity flips the answer, which is what expresses the sheep's value:false row")
+        void thePolarityFlipsTheAnswer() {
+            AppearanceOptions woolly = AppearanceOptions.defaults();
+            AppearanceOptions shorn = AppearanceOptions.builder().sheared(true).build();
+            assertThat(new AppearanceGate.Selected(Flag.SHEARED, false).test(woolly), is(true));
+            assertThat(new AppearanceGate.Selected(Flag.SHEARED, false).test(shorn), is(false));
+            assertThat(new AppearanceGate.Selected(Flag.SHEARED, true).test(woolly), is(false));
+            assertThat(new AppearanceGate.Selected(Flag.SHEARED, true).test(shorn), is(true));
+        }
+
+        @Test
+        @DisplayName("an age option answers for the resting appearance where a size option never does")
+        void ageRestsSelectedWhereSizeRestsUnset() {
+            // The age axis rests ADULT, so that option is selected before anything happens; a size
+            // axis rests unset because each entity declares its own default mesh, which is a
+            // per-entity fact the option cannot see.
+            assertThat(new AppearanceGate.Selected(Age.ADULT, true).test(AppearanceOptions.defaults()), is(true));
+            assertThat(new AppearanceGate.Selected(Size.LARGE, true).test(AppearanceOptions.defaults()), is(false));
+        }
+
     }
 
     @Nested
@@ -170,46 +199,6 @@ class AppearanceGateTest {
                 .tints(Map.of(TintAxis.WOOL, DyeColor.Vanilla.RED, TintAxis.COLLAR, DyeColor.Vanilla.RED))
                 .build();
             assertThat(new AppearanceGate.TintedGate(Optional.empty(), UNDERCOAT_TINT).test(dyed), is(false));
-        }
-
-    }
-
-    @Nested
-    @DisplayName("FlagGate")
-    class Flag {
-
-        @Test
-        @DisplayName("answers the sheared flag both ways round")
-        void answersTheShearedFlag() {
-            AppearanceOptions woolly = AppearanceOptions.defaults();
-            AppearanceOptions shorn = AppearanceOptions.builder().sheared(true).build();
-            assertThat(new AppearanceGate.FlagGate("sheared", false).test(woolly), is(true));
-            assertThat(new AppearanceGate.FlagGate("sheared", false).test(shorn), is(false));
-            assertThat(new AppearanceGate.FlagGate("sheared", true).test(woolly), is(false));
-            assertThat(new AppearanceGate.FlagGate("sheared", true).test(shorn), is(true));
-        }
-
-        @Test
-        @DisplayName("reads an unknown token as false rather than as unsatisfiable")
-        void readsAnUnknownTokenAsFalse() {
-            // Only "sheared" is wired, and every other token collapses to a constant false state. A row
-            // gated on a token that is misspelt, renamed or newly emitted therefore does not go dark -
-            // it draws unconditionally when it asks for false and never when it asks for true.
-            AppearanceOptions shorn = AppearanceOptions.builder().sheared(true).build();
-            assertThat("an unknown token asked for false renders whatever the appearance holds",
-                new AppearanceGate.FlagGate("glowing", false).test(AppearanceOptions.defaults()), is(true));
-            assertThat(new AppearanceGate.FlagGate("glowing", false).test(shorn), is(true));
-            assertThat("an unknown token asked for true never renders",
-                new AppearanceGate.FlagGate("glowing", true).test(AppearanceOptions.defaults()), is(false));
-            assertThat(new AppearanceGate.FlagGate("glowing", true).test(shorn), is(false));
-        }
-
-        @Test
-        @DisplayName("matches its token exactly, so a differently cased spelling is an unknown one")
-        void matchesItsTokenExactly() {
-            AppearanceOptions shorn = AppearanceOptions.builder().sheared(true).build();
-            assertThat(new AppearanceGate.FlagGate("Sheared", true).test(shorn), is(false));
-            assertThat(new AppearanceGate.FlagGate(" sheared", true).test(shorn), is(false));
         }
 
     }

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.asset;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.Flag;
 import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import org.jetbrains.annotations.NotNull;
@@ -57,11 +58,11 @@ class EntityResolveTest {
     @Test
     @DisplayName("gate arms evaluate their vanilla branch")
     void gateArms() {
-        assertThat(new AppearanceGate.ChargedGate().test(AppearanceOptions.builder().charged(true).build()), is(true));
-        assertThat(new AppearanceGate.ChargedGate().test(AppearanceOptions.builder().build()), is(false));
+        assertThat(new AppearanceGate.Selected(Flag.CHARGED, true).test(AppearanceOptions.builder().charged(true).build()), is(true));
+        assertThat(new AppearanceGate.Selected(Flag.CHARGED, true).test(AppearanceOptions.builder().build()), is(false));
         assertThat("sheared flag false renders while un-sheared",
-            new AppearanceGate.FlagGate("sheared", false).test(AppearanceOptions.builder().build()), is(true));
+            new AppearanceGate.Selected(Flag.SHEARED, false).test(AppearanceOptions.builder().build()), is(true));
         assertThat("sheared flag false is gated off once sheared",
-            new AppearanceGate.FlagGate("sheared", false).test(AppearanceOptions.builder().sheared(true).build()), is(false));
+            new AppearanceGate.Selected(Flag.SHEARED, false).test(AppearanceOptions.builder().sheared(true).build()), is(false));
     }
 }

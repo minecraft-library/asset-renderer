@@ -17,7 +17,10 @@
  * {@link lib.minecraft.renderer.asset.appearance.Villager Villager}).
  * {@link lib.minecraft.renderer.asset.appearance.AppearanceGate AppearanceGate} is the parsed
  * {@code when} object that tests a selection, so it sits with what it reads rather than with the
- * bag the caller fills.
+ * bag the caller fills; it names its option through
+ * {@link lib.minecraft.renderer.asset.appearance.Axis Axis}, the face the gateable enums
+ * ({@code Age}, {@code Size}, {@code Flag}) share, so the comparison lives on the option rather
+ * than on a per-axis arm.
  *
  * <p><b>Parity.</b> Each of these is named by an options bag and read by
  * {@link lib.minecraft.renderer.asset.Entity#resolve Entity.resolve}, so a value here reaches both

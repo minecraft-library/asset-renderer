@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.dump;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.asset.appearance.Flag;
 import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
@@ -101,10 +102,12 @@ final class DumpEnumNameTest {
             List.of("DOWN", "UP", "NORTH", "SOUTH", "WEST", "EAST")),
         new ValueSite("root.addProperty(\"blend\", overlay.pass().blend().name());", BlendMode.class,
             List.of("NORMAL", "REPLACE", "ADD", "MULTIPLY", "OVERLAY", "QUADRATIC_ADD")),
-        new ValueSite("root.addProperty(\"value\", age.value().name());", Age.class,
+        new ValueSite("root.addProperty(\"value\", age.name());", Age.class,
             List.of("ADULT", "BABY")),
-        new ValueSite("root.addProperty(\"value\", size.value().name());", Size.class,
-            List.of("SMALL", "MEDIUM", "LARGE")));
+        new ValueSite("root.addProperty(\"value\", size.name());", Size.class,
+            List.of("SMALL", "MEDIUM", "LARGE")),
+        new ValueSite("root.addProperty(\"flag\", flag.name().toLowerCase(Locale.ROOT));", Flag.class,
+            List.of("SHEARED", "CHARGED")));
 
     /** The dump writer, which is the file every site below is counted in. */
     private static final Path DUMP =

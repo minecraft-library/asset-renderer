@@ -20,6 +20,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.Flag;
 import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
@@ -611,11 +612,12 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * Parses an overlay's {@code when} object into a typed {@link AppearanceGate}: {@code flag} maps to
-     * {@link AppearanceGate.FlagGate}, {@code charged} to {@link AppearanceGate.ChargedGate}, and
-     * {@code tinted} to {@link AppearanceGate.TintedGate} (carrying the overlay's tint axis token and
-     * its baked tint, so the gate is self-contained). Absent or unrecognised yields empty
-     * (unconditional).
+     * Parses an overlay's {@code when} object into a typed {@link AppearanceGate}: {@code flag} maps
+     * to a {@link AppearanceGate.Selected} on the named {@link Flag} carrying the row's own polarity,
+     * {@code charged} to one on {@link Flag#CHARGED}, and {@code tinted} to
+     * {@link AppearanceGate.TintedGate} (carrying the overlay's tint axis token and its baked tint,
+     * so the gate is self-contained). Absent or unrecognised - a shape no arm reads, or a flag token
+     * no {@link Flag} constant owns - yields empty (unconditional).
      *
      * @param when the overlay's {@code when} object, or {@code null} when absent
      * @param tintBy the overlay's tint axis, used to seed a {@link AppearanceGate.TintedGate}
@@ -630,9 +632,9 @@ public final class EntityIndexBuilder {
     ) {
         if (when == null) return Optional.empty();
         if (when.flag() != null)
-            return Optional.of(new AppearanceGate.FlagGate(when.flag(), when.value()));
+            return enumOf(Flag.class, when.flag()).map(flag -> new AppearanceGate.Selected(flag, when.value()));
         if (when.charged())
-            return Optional.of(new AppearanceGate.ChargedGate());
+            return Optional.of(new AppearanceGate.Selected(Flag.CHARGED, true));
         if (when.tinted())
             return Optional.of(new AppearanceGate.TintedGate(tintBy, tintArgb));
         return Optional.empty();
@@ -841,16 +843,16 @@ public final class EntityIndexBuilder {
 
     /**
      * Parses an alternate shell's {@code when} object into the typed selection that swaps to it -
-     * {@code age} to an {@link AppearanceGate.AgeGate} and {@code size} to an
-     * {@link AppearanceGate.SizeGate}. Empty for an absent or unreadable option, which is a shell
-     * nothing could ever select rather than one that always applies.
+     * {@code age} and {@code size} each to a {@link AppearanceGate.Selected} on the named option.
+     * Empty for an absent or unreadable option, which is a shell nothing could ever select rather
+     * than one that always applies.
      */
     private static @NotNull Optional<AppearanceGate> parseAlternateGate(@Nullable RawLayerWhen when) {
         if (when == null) return Optional.empty();
         if (when.age() != null)
-            return enumOf(Age.class, when.age()).map(AppearanceGate.AgeGate::new);
+            return enumOf(Age.class, when.age()).map(age -> new AppearanceGate.Selected(age, true));
         if (when.size() != null)
-            return enumOf(Size.class, when.size()).map(AppearanceGate.SizeGate::new);
+            return enumOf(Size.class, when.size()).map(size -> new AppearanceGate.Selected(size, true));
         return Optional.empty();
     }
 
