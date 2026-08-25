@@ -40,7 +40,7 @@
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "35998d75c2dc56c43fdbf7875aa5e249927563ac7ab0a86d114fe59496e63d8c"
+      "sha256": "245c2d072c8d76b3d21d0c19dbb1b0098f34ed28ff592da6542851d2229f47fd"
     },
     "entity_poses": {
       "form": "table-canonical",
@@ -64,7 +64,7 @@
   "provenance": {
     "artifact": "digest.shipped-tables",
     "asset_dirty": false,
-    "asset_sha": "91256539b48469a4412c43868d63f8446ab0b7cf",
+    "asset_sha": "461817e369d5cb18271767b33680e9904a44bd40",
     "counts": {
       "digests": 11
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "test",
-    "reason": "shulker setupRotations read whole: render node out of entity_models, folded renderers row into entity_poses, addend and refusal log lines gone; all sweeps and both dumps zero movers",
+    "reason": "the horse marking folds into the overlay mechanism: its markings node becomes an overlays row carrying the body's own geometry coordinate, and the enum-map walk reads the adult/baby pair vanilla binds each marking to instead of the first literal alone, so the row ships a baby node. 5 movers, all of them tables this change rewrites; every sweep held at zero, including sweep.entity's four marked horse rows, and the baby marking was measured by hand at 10 byte-identical horse renders",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +84,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-24T23:34:30Z",
+    "timestamp": "2026-08-25T15:56:51Z",
     "tool_version": "1.0.0"
   }
 }

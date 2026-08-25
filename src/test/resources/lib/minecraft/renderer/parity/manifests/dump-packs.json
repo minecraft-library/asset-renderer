@@ -16,7 +16,7 @@
     },
     {
       "path": "entities.json",
-      "sha256": "b88747b0792691cde01bff648baf2ccfc727a59821566dbf0dc8851120350161"
+      "sha256": "d8cac5a804f90aec87770451161b04dcaac08269b9e7e8f3db1996c91eb1e94c"
     },
     {
       "path": "item-models.json",
@@ -65,7 +65,7 @@
   "provenance": {
     "artifact": "manifest.dump.packs",
     "asset_dirty": false,
-    "asset_sha": "c698179d1bc12465dc8f374e80c1c4a16a22cf89",
+    "asset_sha": "461817e369d5cb18271767b33680e9904a44bd40",
     "counts": {
       "files": 14
     },
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "parityDump",
-    "reason": "P4 settlements: texture refs, members, single-member transforms, four decoration members, undrawn merge intact; render transform composed at load moved five subjects' dump pose digests; all render sweeps zero movers over 402+90+1055+479+7+11+2 rows",
+    "reason": "the horse marking folds into the overlay mechanism: its markings node becomes an overlays row carrying the body's own geometry coordinate, and the enum-map walk reads the adult/baby pair vanilla binds each marking to instead of the first literal alone, so the row ships a baby node. 5 movers, all of them tables this change rewrites; every sweep held at zero, including sweep.entity's four marked horse rows, and the baby marking was measured by hand at 10 byte-identical horse renders",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,8 +84,8 @@
       "players": 2
     },
     "root": "cache/parity-dump/head/packs",
-    "timestamp": "2026-08-24T07:17:17Z",
+    "timestamp": "2026-08-25T15:56:52Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 28467
+    "wall_time_ms": 24752
   }
 }

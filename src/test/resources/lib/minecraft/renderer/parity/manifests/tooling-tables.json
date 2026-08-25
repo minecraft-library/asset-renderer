@@ -32,7 +32,7 @@
     },
     {
       "path": "entity_models.json",
-      "sha256": "2dc34fd3cb7550959f907b094ea93adcbdbc4f286f48a604b0bb90eab2bd909b"
+      "sha256": "fe2add823bd2d434f2630bc4ddad4093295ed3c5f7a62d2e57b229365a4f6fdb"
     },
     {
       "path": "entity_poses.json",
@@ -56,14 +56,14 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "8b6e3d9ce1d3576042be299a3fabef17bbf099087608d3f97401b88e789973ac",
+    "entityModels": "8a44b99576342ab50261fab3faf02c104994c8b0c56c0a95ef031e4c9b5e6d67",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
     "asset_dirty": false,
-    "asset_sha": "91256539b48469a4412c43868d63f8446ab0b7cf",
+    "asset_sha": "461817e369d5cb18271767b33680e9904a44bd40",
     "counts": {
       "files": 11,
       "logs": 8
@@ -73,7 +73,7 @@
     "mc_version": "26.1.2",
     "parity_class": "shaped",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "shulker setupRotations read whole: render node out of entity_models, folded renderers row into entity_poses, addend and refusal log lines gone; all sweeps and both dumps zero movers",
+    "reason": "the horse marking folds into the overlay mechanism: its markings node becomes an overlays row carrying the body's own geometry coordinate, and the enum-map walk reads the adult/baby pair vanilla binds each marking to instead of the first literal alone, so the row ships a baby node. 5 movers, all of them tables this change rewrites; every sweep held at zero, including sweep.entity's four marked horse rows, and the baby marking was measured by hand at 10 byte-identical horse renders",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -83,8 +83,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-24T23:34:30Z",
+    "timestamp": "2026-08-25T15:56:52Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 45049
+    "wall_time_ms": 43435
   }
 }
