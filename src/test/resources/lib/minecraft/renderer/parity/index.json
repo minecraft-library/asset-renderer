@@ -22,7 +22,7 @@
     },
     "manifest.dump.packs": {
       "baselined": true,
-      "determinism_floor": 5,
+      "determinism_floor": 2,
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
@@ -32,7 +32,7 @@
     },
     "manifest.dump.vanilla": {
       "baselined": true,
-      "determinism_floor": 5,
+      "determinism_floor": 2,
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",

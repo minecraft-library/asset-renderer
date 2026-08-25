@@ -115,15 +115,22 @@ public final class ParityArtifacts {
         Registration.store("sweep.entity-animation", 2, "entityAnimationParityVanilla"),
 
         // --- render-manifest. Two-run reproducibility is the precondition that makes a digest
-        // comparison admissible at all; the dump pair carries 5 because that is what was measured.
+        // comparison admissible at all.
         Registration.store("manifest.references", 2, "renderVanillaAllReferences"),
         Registration.store("manifest.visual", 2, "visualSweepSet"),
         // The raw halves of the two sweeps that rescale before diffing. Its producer is an aggregator
         // over both of them rather than either one, because a manifest captured after a single sweep
         // would hash one fresh member beside one stale one and compare clean.
         Registration.store("manifest.player-raw", 2, "playerRawSweepSet"),
-        Registration.store("manifest.dump.vanilla", 5, "parityDump"),
-        Registration.store("manifest.dump.packs", 5, "parityDump"),
+        // The dump pair carried 5 while the hazard it guarded was live: `capabilities` is a
+        // `Set.copyOf` whose iteration order is salted per JVM launch, and several launches are what
+        // catches a salt that only sometimes flips. PipelineParityDump now re-sorts that set and
+        // `namespaces` AT EMIT, so no field's runtime iteration order reaches the bytes, and five
+        // launches produce one digest for each of the two - measured twice over, once on the
+        // pipeline-phase captures and once fresh. A floor is how many runs prove reproducibility, and
+        // two is what proves it once the emit is order-free.
+        Registration.store("manifest.dump.vanilla", 2, "parityDump"),
+        Registration.store("manifest.dump.packs", 2, "parityDump"),
         Registration.store("manifest.player-sheets", 2, "playerRender"),
         Registration.store("manifest.fluid", 2, "fluidRenderer"),
         Registration.store("manifest.portal", 2, "portalRenderer"),
