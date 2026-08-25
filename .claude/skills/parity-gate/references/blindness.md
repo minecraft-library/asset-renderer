@@ -22,6 +22,13 @@ different rule selected on this same path along with its own contribution.
 **Suppress**: each fired `suppress` rule removes its `sees` and its `blind`
 together, the pass that outranks the other two.
 
+A rule marked **derived** authors no `sees`. Its selection is what the committed
+reference graph answers for the changed file, so one glob over a package says
+something different about each class under it - and a rule whose region really is
+engine-wide goes on costing an engine-wide run. It keeps everything else it has:
+`blind`, `reason` and `probe` state what an artifact OBSERVES, which is a different
+question from which code a change touches and one no graph can answer.
+
 Neither removal pass reads a `select` rule's `blind` list, so that list subtracts
 nothing and is a statement the plan prints - B10 and B23 below each carry one
 naming artifacts outside their own `sees`. What a claim comes to therefore
@@ -327,11 +334,11 @@ Every renderer entry point takes a RenderOptions, so a default or a resolution r
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/asset/**`
-- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `digest.colormap-lut`, `manifest.dump.vanilla`, `manifest.dump.packs`, `manifest.player-raw`, `manifest.visual`, `sweep.entity-animation`
+- **sees** derived per file from the reference graph
 - **blind** -
-- **source** measured by perturbing ModelElement.java: 4 of 10 declared sees moved
+- **source** measured by perturbing ModelElement.java: most of what was then authored held, which is the shape that put the selection on the graph - the list was wide because the package is, and what moved is what that one record reaches
 
-asset.** holds the records the pipeline builds and the renderers consume, and the dump's 14 sections are a projection of exactly those records. A change here is visible on both sides, which is why it is the one package family with no blindness to claim. ColorMap is one of those records and its pixel buffer is the exact form the colormap digests are taken over, so they move with it.
+asset.** holds the records the pipeline builds and the renderers consume, and the dump's 14 sections are a projection of exactly those records. A change here is visible on both sides, which is why it is the one package family with no blindness to claim. What it is visible to is a property of the RECORD and not of the family: a colormap's pixel buffer is the exact form the colormap digests are taken over and moves them, an entity record reaches no colormap at all, and a block record is under the fluid renderer and both of its CRC pins. So the selection is the reference graph's answer for the changed file, and the whole of this package no longer answers for whichever record in it reaches furthest.
 
 *Probe:* add a field to a dumped record and confirm both the dump and a sweep move
 

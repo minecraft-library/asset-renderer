@@ -188,6 +188,13 @@ public final class ParityReferences {
         out.add("**Suppress**: each fired `suppress` rule removes its `sees` and its `blind`");
         out.add("together, the pass that outranks the other two.");
         out.add("");
+        out.add("A rule marked **derived** authors no `sees`. Its selection is what the committed");
+        out.add("reference graph answers for the changed file, so one glob over a package says");
+        out.add("something different about each class under it - and a rule whose region really is");
+        out.add("engine-wide goes on costing an engine-wide run. It keeps everything else it has:");
+        out.add("`blind`, `reason` and `probe` state what an artifact OBSERVES, which is a different");
+        out.add("question from which code a change touches and one no graph can answer.");
+        out.add("");
         out.add("Neither removal pass reads a `select` rule's `blind` list, so that list subtracts");
         out.add("nothing and is a statement the plan prints - B10 and B23 below each carry one");
         out.add("naming artifacts outside their own `sees`. What a claim comes to therefore");
@@ -232,7 +239,12 @@ public final class ParityReferences {
             out.add("");
             out.add("- **mode** " + rule.get("mode").getAsString());
             out.add("- **triggers** " + codeList(rule.getAsJsonArray("trigger_paths")));
-            out.add("- **sees** " + codeList(rule.getAsJsonArray("sees")));
+            // A derived rule's empty list would render as "sees nothing", which is the opposite of
+            // what it says: the graph answers per file, and this rendering is what a human reads when
+            // a rule is being questioned.
+            out.add("- **sees** " + (rule.has("derived") && rule.get("derived").getAsBoolean()
+                ? "derived per file from the reference graph"
+                : codeList(rule.getAsJsonArray("sees"))));
             out.add("- **blind** " + codeList(rule.getAsJsonArray("blind")));
             out.add("- **source** " + rule.get("source").getAsString());
             out.add("");
