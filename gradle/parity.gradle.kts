@@ -1116,33 +1116,24 @@ tasks {
     // this task as the gate instead. `harnessClasses` is the only task here that compiles the
     // harness at all, and off this edge it runs only when it is asked for by name, so a harness edit
     // that does not compile waits minutes for a client boot rather than the seconds this costs.
-    // Derives every type's reach from the COMPILED constant pool and writes parity/reach.json. An
-    // import is not evidence: the javadoc convention requires importing a {@link} target rather than
-    // inlining an FQN, so documenting a type makes an import that is not a dependency - 104 of them
-    // here - and a same-package or nested reference needs no import at all, which loses 360. A class
-    // file carries neither error. The roots are producers rather than renderers, ninety types being
-    // referenced by no renderer at all because a producer is what calls them.
-    register<ParityToolkitTask>("parityReach") {
-        description = "Regenerates parity/reach.json - which artifacts each Java type can move, off " +
-            "the compiled constant pool. --check answers what would move."
-        group = "parity"
-        dependsOn("compileJava", "compileTestJava")
-        pythonExe.set(parityPythonExe)
-        argv.set(listOf("reach", if (parityFlag("check")) "check" else "build"))
-        outputs.upToDateWhen { false }
-    }
-
-    // The reach check joins the trigger check beside it: a class whose reach moved fails here, at the
-    // cost of two compiles, rather than mis-scheduling a gate an hour later.
+    // A type whose derived reach differs from the committed graph fails here, at the cost of two
+    // compiles, rather than mis-scheduling a gate an hour later. Ungrouped and paired with a python
+    // regenerator rather than a second task, exactly as `triggers` is: the parity GROUP is the five
+    // entry points the skill's runbook names, and a maintenance command is not one of them.
+    //
+    // Regenerate with `python parity/scripts/parity reach build`, which refuses on an uncompiled
+    // tree rather than deriving from stale class files.
     register<ParityToolkitTask>("parityReachCheck") {
-        description = "Fails when a type's derived reach differs from the committed graph."
+        description = "Fails when a Java type's derived parity reach differs from parity/reach.json."
         dependsOn("compileJava", "compileTestJava")
         pythonExe.set(parityPythonExe)
         argv.set(listOf("reach", "check"))
         outputs.upToDateWhen { false }
     }
 
-    named("check") { dependsOn("paritySelfTest", "harnessClasses", "toolingTest", "parityReachCheck") }
+    named("check") {
+        dependsOn("paritySelfTest", "harnessClasses", "toolingTest", "parityReachCheck")
+    }
 
     register<Exec>(parityCaptureBeginTask) {
         // No group: it is parityCapture's first act rather than an entry point. It exists as a task

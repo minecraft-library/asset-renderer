@@ -1862,6 +1862,43 @@ class GateExit(unittest.TestCase):
         if at_ns is not None:
             os.utime(target, ns=(at_ns, at_ns))
 
+    def _plain_plan(self, *changed: str, root: str = "cache/parity/current") -> tuple[int, str]:
+        """A plan with no --gate-exit, which is what a person and the Gradle task both run."""
+        argv = ["--repo-root", str(self.repo), "--root", root,
+                "--store", str(self.store), "--quiet", "plan"]
+        for path in changed:
+            argv += ["--changed", path]
+        code, out, _err = run(argv)
+        return code, out
+
+    def test_a_plain_plan_says_so_when_a_verdict_already_covers_the_tree(self):
+        """The line that stops the re-run.
+
+        A capture was cheaper to re-run than to reason about whether the last one still stood, so it
+        got re-run. Whoever reads a plan is about to spend the budget it prints.
+        """
+        self._record_verdict(["sweep.entity"])
+        code, out = self._plain_plan("src/Main.java")
+        self.assertEqual(code, cli.OK)
+        self.assertIn("VERDICT already gated", out)
+
+    def test_a_plain_plan_stays_silent_when_nothing_has_gated_the_tree(self):
+        code, out = self._plain_plan("src/Main.java")
+        self.assertEqual(code, cli.OK)
+        self.assertNotIn("VERDICT", out)
+
+    def test_a_plain_plan_never_fails_the_build_over_a_verdict(self):
+        """`parityPlan` is a Gradle Exec, so a non-zero exit fails it. Reporting is the whole point."""
+        self._record_verdict(["sweep.entity"])
+        self.assertEqual(self._plain_plan("src/Main.java")[0], cli.OK)
+        self.assertEqual(self._plain_plan("docs/readme.md")[0], cli.OK)
+
+    def test_the_reported_state_is_the_hooks_own_predicate(self):
+        """One predicate, two readers - a verdict that failed is not a gating for either."""
+        self._record_verdict(["sweep.entity"], unexpected=2)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+        self.assertNotIn("VERDICT already gated", self._plain_plan("src/Main.java")[1])
+
     def test_0_when_nothing_sees_the_change(self):
         self.assertEqual(self._plan("docs/readme.md"), cli.OK)
 

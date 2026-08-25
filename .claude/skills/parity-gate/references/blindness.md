@@ -386,7 +386,7 @@ The harness produces the reference tree, so a change to a frame renderer or the 
 ## B30 - A toolkit change alters how every artifact is COMPUTED and how none of them is produced
 
 - **mode** select
-- **triggers** `parity/scripts/parity/**`
+- **triggers** `parity/reach.json`, `parity/scripts/parity/**`
 - **sees** -
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead; the toolkit is the one producer of every stored byte

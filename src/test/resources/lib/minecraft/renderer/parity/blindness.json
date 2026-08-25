@@ -728,6 +728,7 @@
     },
     {
       "authored_paths": [
+        "parity/reach.json",
         "parity/scripts/parity/**"
       ],
       "blind": [],
@@ -739,6 +740,7 @@
       "sees": [],
       "source": "declares no store artifact, so its reason names the gate that answers instead; the toolkit is the one producer of every stored byte",
       "trigger_paths": [
+        "parity/reach.json",
         "parity/scripts/parity/**"
       ]
     },

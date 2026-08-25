@@ -277,9 +277,10 @@ final class ParityTaskWiringTest {
         STALE_REFERENCES_CONDITION,
         "| SEES empty, and one of the fired rules declares `sees: []` |");
 
-    /** The edge that puts this build's two cheap gates on a default verification run. */
+    /** The edge that puts this build's cheap gates on a default verification run. */
     private static final String CHECK_SCHEDULES_THE_CHEAP_GATES =
-        "named(\"check\") { dependsOn(\"paritySelfTest\", \"harnessClasses\", \"toolingTest\") }";
+        "named(\"check\") { dependsOn(\"paritySelfTest\", \"harnessClasses\", \"toolingTest\", "
+            + "\"parityReachCheck\") }";
 
     /** That edge's operand list, for reading back which tasks it actually names. */
     private static final Pattern CHECK_SCHEDULES =

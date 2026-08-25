@@ -715,6 +715,20 @@ def _cmd_plan(args: argparse.Namespace) -> int:
             where = f" {entry['where']}" if entry["where"] else ""
             lines.append(f"  {entry['artifact']} [{entry['home']}]{where} - {act}")
     lines.append(f"BUDGET {budget} ms{_budget_caveat(len(measured), len(plan))}")
+    # The standing verdict, on every plan rather than only under --gate-exit. The predicate is the
+    # hook's own, so the two cannot drift; what differs is that this one REPORTS. A plan is a Gradle
+    # Exec and a non-zero exit fails the build, so answering "already gated" in the exit code would
+    # fail every plan of an ungated change - which is why the hook's flag exists at all.
+    #
+    # It is printed because the alternative is what the cost was: a capture is cheaper to re-run than
+    # to reason about whether the last one still stands, so it got re-run. Whoever reads a plan is
+    # about to spend the budget on the line above it, and this is the line that says they need not.
+    gated = _gate_exit(args, base, root, reach, plan) if reach.sees else OK
+    payload["already_gated"] = gated == GATE_ALREADY_GATED
+    if gated == GATE_ALREADY_GATED:
+        lines.append("VERDICT already gated - a passing compare covers this exact tree state and "
+                     "this whole plan. Nothing here needs running; quote _run/compare.md. Editing "
+                     "any tracked file re-arms it.")
     _emit(args, "\n".join(lines), payload)
     return _gate_exit(args, base, root, reach, plan) if args.gate_exit else OK
 
