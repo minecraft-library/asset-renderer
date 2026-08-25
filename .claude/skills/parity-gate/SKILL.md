@@ -135,7 +135,9 @@ cannot resolve (34 recorded failures).
 If the plan's budget exceeds **110s**, run `parityCapture` in the background; the default shell
 budget is 120s and a full bundle exceeds it. The budget is the sum of what each planned artifact's
 producers took the last time that artifact was **promoted**, so a row promoted before the build
-started measuring wall time contributes nothing.
+started measuring wall time contributes nothing. It is a scheduling fact and not a question to put to
+the operator: the plan is the cheapest sufficient bundle by construction, so the answer to a large
+budget is a narrower CHANGE, never a narrower gate.
 
 **Read the parenthetical before the number.** The line says which of three states the bundle is in,
 and only one of them is a cost. `BUDGET 0 ms  (no artifact in this plan has a recorded duration)`
@@ -242,10 +244,13 @@ owns `--dry-run` for itself.
 | Promote what this capture's compare did not cover | Refuse (R8). `parityPromote` requires `_run/compare.json` stamped with this capture's digest and naming every artifact it would write, so run `parityCompare` between the capture and the promotion and widen its `-Partifacts` to match. `-Pbootstrap=true` is the one exemption - a first baseline has nothing to be diffed against - and it exempts the whole invocation, so narrow that promotion with `-Partifacts`. |
 | Promote a capture holding a different number of rows than its baseline | Refuse (R9). A population that moved is a different covered set, and the tree hashes cleanly either way, so nothing else catches it. Say the new set is intended with `-Ppopulation=changed`, which records the exception; a row with no baseline has nothing to have moved from and is passed over. |
 
-**A phase that promotes is two commits, not one.** The migration lands first, because a capture that
-gets promoted must run committed code or its provenance records `asset_dirty: true` and the baseline
-is not re-derivable from any commit - which `parityPromote` refuses rather than leaves to procedure.
-A phase that promotes nothing is one commit.
+**Gate the dirty tree, then commit, then promote.** A promoted capture must be re-derivable from a
+commit, and what makes it so is that the CONTENT it ran over is the content that landed - not that
+the capture happened after the commit. `parityCapture` records a digest over what a producer could
+read, and `parityPromote` compares that against the clean tree it is promoting into: equal is the
+whole requirement, so a capture taken before the commit and a capture taken after it satisfy it
+alike, and one taken over content that was then edited satisfies neither. So a phase that promotes is
+one commit, and the gate runs where it belongs - before it, on the tree being judged.
 
 **Scope a promotion with `-Partifacts`.** A capture root often holds more than the artifact a phase
 declared, because a producer finalizes its own capture step wherever it runs; a bare `parityPromote`

@@ -7,8 +7,9 @@ changed path that no rule and no ``no_reach`` glob covers, which means the map h
 a bundle built from it could not be sufficient.
 
 A rule carrying ``derived`` authors no ``sees``. Its selection is the reference graph's answer for
-the path that fired it, so one glob over a package answers per CLASS rather than per directory: the
-whole of ``engine/**`` no longer reaches every render because one file in it does. The rule keeps
+the path that fired it, so one glob over a package answers per CLASS rather than per directory: under
+``engine/**`` a pose kit reaches the entity sweeps where a model engine reaches every render, and the
+glob decides neither. The rule keeps
 everything else it has - its ``blind`` list, its ``reason``, its ``probe`` - because those state what
 an artifact OBSERVES, which is a different question from which code a change touches and one no
 reference graph can answer. That is why a ``demote`` rule can be derived on one half and authored on

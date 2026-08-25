@@ -88,6 +88,36 @@ scanned: the renderer's, `parity`'s, both of `tooling`'s, `client`'s and the har
 **`Scope.PACKAGE` is legal on the renderer's library root alone** and refused everywhere else - a leaf
 package answers for its tree, so a package added below one inherits what its parent claims.
 
+**A rule carrying `derived` authors no `sees`; the reference graph answers it per FILE.** Five do -
+`engine-renders`, `option-surface`, `asset-layer`, `tensor-math`, `face-vocabulary` - which is why a
+pose kit plans five artifacts where the engine it sits in plans seventeen, and why moving a type
+between two derived regions carries its reach with it. The graph is `parity/reach.json`, derived from
+the **compiled constant pool** and committed: an import is not evidence, the javadoc convention
+requiring a `{@link}` target be imported, and a same-package call needs no import at all. It is
+regenerated with `python parity/scripts/parity reach build` over a compiled tree and held to the tree
+by `parityReachCheck` on `check`; `plan` reads the committed file, so a stale graph is a loud
+difference rather than a quiet mis-schedule, and a `.java` path it has never heard of is a refusal.
+
+A rule keeps its `blind` list either way. That says what an artifact OBSERVES, which no reference
+graph can answer: the dump reaches a face and a vector because both are serialised, and perturbing
+either leaves every dump file byte-identical - so `face-vocabulary` and `tensor-math` subtract it as
+`engine-renders` always has. A derived claim's demotion subtracts from its OWN selection, which is
+what makes it legal with no sibling claim on the path.
+
+**A wiring seam is cut by what it is.** `@Parity(ignored = true)` stops reach composing THROUGH a
+type, and an INTERFACE is cut by its declaration alone - its members' descriptors name every type
+they mention whether or not anything calls them, which is the collapse - while what its DEFAULT
+BODIES call is kept, those having no implementor to carry a change. A CLASS is cut whole: every
+reference it holds is one it makes. Measured - cutting the concrete pipeline context by declaration
+instead takes the tree from 29 engine-wide types to 151.
+
+**A library type that reaches nothing declares what it reaches.** Two different things answer the
+empty set - a renderer this store holds no artifact for, and a type reached across a seam or built by
+a service loader out of a file no constant pool mentions - and `reach check` refuses one that says
+neither. Nineteen carry `@Parity(subject = {...})` with no claim, which is its own declaration shape:
+a subject written beside a claim decorates that claim, so only the claimless form answers for a type,
+and reading a claim's decoration as one would explain an orphan nobody had looked at.
+
 **Coining an artifact is an edit to the roster and to the index, and the index row goes in first.** A
 registration in `ParityArtifacts.ALL` owes an `index.json` row carrying the `determinism_floor` -
 `parityCapture` refuses without one, because how many runs prove the thing reproducible is otherwise
@@ -95,10 +125,16 @@ unanswerable - and that row carries **no `file` member** until a promotion write
 name. A `file` naming a path nothing has written yet fails `ParityIndexTest`'s citation walk instead,
 so the two spellings of "declared but not yet baselined" are not interchangeable.
 
-**`test` and `slowTest` are producers, so nothing captures while the fast suite is red.**
-`-Partifacts` narrows which capture steps write, never which producers run, and `-x test` moves the
-failure rather than removing it. A change that leaves the suite red cannot be gated at all - which is
-what makes the index row above the first edit of a new artifact rather than the last.
+**A failed producer is a result the capture records, not a run it ends.** A capture is driven with
+`--continue` by decision - `settings.gradle.kts` sets it for any invocation naming a `parityCapture`
+task, because nowhere later works - and a capture step is a finalizer, so it runs after a producer
+that failed. It is TOLD which of its producers failed and reads their output anyway: a self-captured
+row's writer writes before it asserts, so a suite that went red over the very value being re-based
+has still produced a capturable file. Only where there was nothing to read does the row become
+**UNPRODUCED**, which `parityCompare` reports and fails on unless `parityExpect -Punproduced`
+registered it. So a red suite gates: what it cannot do is let a row whose producer wrote nothing pass
+unnoticed. The index row is the first edit of a new artifact rather than the last for the same
+reason - a row the store does not carry has no floor, and `parityCapture` refuses without one.
 
 **A test class's own name and path are store state.** `index.json` homes fourteen rows at a
 `sources[*].test_class` or `external[*].home` FQN and `ParityIndexTest` resolves each against the
@@ -208,10 +244,10 @@ is the older instance of the same shape and the precedent for all of them.
 - `AppearanceOptions` is the one caller bag whose readers are all asset-side: `Entity.resolve` and
   every `AppearanceGate` arm take one, so `asset -> option` survives there by design. That edge is
   known and open; do not "fix" it by moving the bag out of `option`.
-- **Moving a type between `option/**` and `asset/**` moves what the parity store says it reaches.**
-  B24 (`option-surface`) sees four CRC pins and three manifests that B25 (`asset-layer`) does not, so
-  a relocated type carries `@Parity(claim = "option-surface")` to keep them - a declaration, never a
-  hand-edited `trigger_paths` array. `python parity/scripts/parity triggers` regenerates.
+- **A type moved between `option/**` and `asset/**` carries its own reach with it.** Both claims over
+  those trees are `derived`, so each answers the reference graph for the changed FILE and where the
+  file sits decides nothing. What the move owes is the regeneration: the claim on its new package
+  derives a different trigger path, and `python parity/scripts/parity triggers` writes it.
 
 ## The pack filter
 

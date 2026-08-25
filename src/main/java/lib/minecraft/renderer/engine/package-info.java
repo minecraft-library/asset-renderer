@@ -83,8 +83,8 @@
  * any reasonable cost.
  *
  * <p><b>Parity.</b> Everything here is a render, and which render is answered per file: a pose kit
- * is an entity render where a model engine is every render, and the difference is the whole reason a
- * change to the former no longer costs a fluid manifest. The pipeline dump is the exception in both
+ * is an entity render where a model engine is every render, so a change to the former costs the
+ * entity sweeps and not a fluid manifest. The pipeline dump is the exception in both
  * directions and is what this claim answers for the whole subtree - it serialises what a read layer
  * loaded and never calls a renderer, so an identical dump says nothing about a change made here.
  *

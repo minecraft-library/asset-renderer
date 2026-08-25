@@ -264,7 +264,7 @@ The fabric:overlays plus catharsis:pack half of pack resolution has no dump sect
 - **triggers** `src/main/java/lib/minecraft/renderer/*`, `src/main/java/lib/minecraft/renderer/engine/**`
 - **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** measured by perturbing ModelEngine.java: nearly all of what was then authored moved and both declared blind held, so the demotion is what that measurement establishes and the selection is what it never could - one file was perturbed and the list spoke for the whole engine
+- **source** measured by perturbing ModelEngine.java: 12 of its declared sees moved and both declared blind held. One file is what a perturbation reaches, so that is evidence for the demotion and the graph answers the selection.
 
 An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders, so it is demoted for everything this glob reaches - that is the claim, and it is a statement about the artifact rather than about any file here. What each file reaches is the other half and is answered per file: everything under this glob is a render, and a pose kit is an entity render where a model engine is every render. The glob answering for whichever file in it reaches furthest is what made a pose change cost a fluid manifest.
 
@@ -324,7 +324,7 @@ A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the ite
 - **triggers** `src/main/java/lib/minecraft/renderer/asset/BannerLayer.java`, `src/main/java/lib/minecraft/renderer/asset/DyeColor.java`, `src/main/java/lib/minecraft/renderer/asset/appearance/**`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorMaterial.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorPiece.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorSlot.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorTrim.java`, `src/main/java/lib/minecraft/renderer/asset/pack/item/ItemModelContext.java`, `src/main/java/lib/minecraft/renderer/asset/pack/item/SunAngle.java`, `src/main/java/lib/minecraft/renderer/option/**`
 - **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** measured by perturbing OutputOptions.java: most of what was then authored moved and both declared blind held, and the list was one answer for a surface whose bags each name a different renderer
+- **source** measured by perturbing OutputOptions.java: 11 of its declared sees moved and both declared blind held. An output bag is under every renderer that writes a file, which is the widest any of them is; the graph answers each bag for itself.
 
 Every renderer entry point takes a RenderOptions, so a default or a resolution rule here reaches whatever that renderer draws - and WHICH renderer takes a given bag is what the bag itself says. An entity bag reaches the entity sweeps and no fluid; an output bag reaches every renderer that writes a file. So the selection is the reference graph's answer for the changed bag rather than one list over the whole surface. The dump stays a claim rather than a subtraction, and deliberately: it is blind to an options bag, which is what the claim was measured on, and it is not blind to the vanilla vocabulary those bags name - that lives under asset, the dump serialises it, and the sibling claim there selects it on the same paths.
 
@@ -336,9 +336,9 @@ Every renderer entry point takes a RenderOptions, so a default or a resolution r
 - **triggers** `src/main/java/lib/minecraft/renderer/asset/**`
 - **sees** derived per file from the reference graph
 - **blind** -
-- **source** measured by perturbing ModelElement.java: most of what was then authored held, which is the shape that put the selection on the graph - the list was wide because the package is, and what moved is what that one record reaches
+- **source** measured by perturbing ModelElement.java: 4 of its declared sees moved. A model element is one record of the family, and which renderers read a given record is what the graph answers.
 
-asset.** holds the records the pipeline builds and the renderers consume, and the dump's 14 sections are a projection of exactly those records. A change here is visible on both sides, which is why it is the one package family with no blindness to claim. What it is visible to is a property of the RECORD and not of the family: a colormap's pixel buffer is the exact form the colormap digests are taken over and moves them, an entity record reaches no colormap at all, and a block record is under the fluid renderer and both of its CRC pins. So the selection is the reference graph's answer for the changed file, and the whole of this package no longer answers for whichever record in it reaches furthest.
+asset.** holds the records the pipeline builds and the renderers consume, and the dump's 14 sections are a projection of exactly those records. A change here is visible on both sides, which is why it is the one package family with no blindness to claim. What it is visible to is a property of the RECORD and not of the family: a colormap's pixel buffer is the exact form the colormap digests are taken over and moves them, an entity record reaches no colormap at all, and a block record is under the fluid renderer and both of its CRC pins. So the selection is the reference graph's answer for the changed file, so what one record reaches decides its own gate rather than the family's.
 
 *Probe:* add a field to a dumped record and confirm both the dump and a sweep move
 
@@ -348,7 +348,7 @@ asset.** holds the records the pipeline builds and the renderers consume, and th
 - **triggers** `src/main/java/lib/minecraft/renderer/tensor/**`
 - **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** measured by perturbing Matrix4f.java: most of what was then authored moved and both declared blind held, so the selection went to the graph and the blindness became a demotion - the graph reaches a dump through a serialised vector and the perturbation says it does not move
+- **source** measured by perturbing Matrix4f.java: 10 of its declared sees moved and both declared blind held. The dump holds serialised vectors, so the graph reaches it from here and the perturbation says it does not move, which is what the demotion carries.
 
 Matrix4f and Vector3f are on the path of every vertex the engine projects, and the two golden pins hold exact floats through that math - so an arithmetic change fails them before any sum moves. Being under every projected vertex is what makes this the one region where the graph's answer is genuinely engine-wide, and nothing here tries to talk that down. What the graph cannot answer is the dump: it holds serialised vectors, so a reference to one exists and composes, while the dump never projects a vertex and a perturbation of that math leaves every one of its files byte-identical. That is a statement about what the artifact observes, so it subtracts here rather than being left to a claim nothing enforces.
 
@@ -360,9 +360,9 @@ Matrix4f and Vector3f are on the path of every vertex the engine projects, and t
 - **triggers** `src/main/java/lib/minecraft/renderer/face/**`
 - **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** measured by perturbing CornerPhase.java: most of what was then authored moved and both declared blind held, so the selection went to the graph and the blindness became a demotion - the graph reaches a dump through a serialised face and the perturbation says it does not move
+- **source** measured by perturbing CornerPhase.java: 11 of its declared sees moved and both declared blind held. A face is named in serialised model data, so the graph reaches a dump from here and flipping the table leaves every dump file byte-identical, which is what the demotion carries.
 
-CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. Every 3D render goes through them, which is what the graph answers for the vocabulary itself; what it answers for the rest of the package is narrower, and that is the difference this rule stopped flattening. The dump is the one artifact the graph gets wrong here - a face is named in serialised model data, so a reference exists and composes, while flipping the table leaves every dump file byte-identical. That is a statement about what the artifact observes, so it subtracts here rather than being left to a claim nothing enforces.
+CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. Every 3D render goes through them, which is what the graph answers for the vocabulary itself; what it answers for the rest of the package is narrower, and what it answers for the rest of the package is narrower - the corner phase is under the fluid and the portal, the unwrap is not. The dump is the one artifact the graph gets wrong here - a face is named in serialised model data, so a reference exists and composes, while flipping the table leaves every dump file byte-identical. That is a statement about what the artifact observes, so it subtracts here rather than being left to a claim nothing enforces.
 
 *Probe:* flip one CornerPhase index array and confirm CornerPhaseTest fails while all 30 dump files are byte-identical
 

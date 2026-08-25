@@ -414,9 +414,9 @@ def build(base: Path) -> Graph:
     # that - they are code, with no implementor to carry a change, so what they call is kept. A CLASS
     # has no such split: every reference it holds is one it makes, so it is cut whole.
     #
-    # Measured. Cutting the interfaces by declaration alone moves two types and no others, both of
-    # them reached from a default body and both previously answering that nothing sees them; cutting
-    # the concrete context that way instead re-collapses the graph, from 29 engine-wide types to 151.
+    # Measured. Cutting the interfaces by declaration alone moves two types and no others, each of
+    # them reached from a default body; cutting the concrete context that way instead collapses the
+    # graph, from 29 engine-wide types to 151.
     edges = {name: (targets - surfaces.get(name, frozenset()) if name in interfaces
                     else frozenset()) if name in ignored else targets
              for name, targets in edges.items()}
