@@ -322,11 +322,11 @@ A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the ite
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/asset/BannerLayer.java`, `src/main/java/lib/minecraft/renderer/asset/DyeColor.java`, `src/main/java/lib/minecraft/renderer/asset/appearance/**`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorMaterial.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorPiece.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorSlot.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorTrim.java`, `src/main/java/lib/minecraft/renderer/asset/pack/item/ItemModelContext.java`, `src/main/java/lib/minecraft/renderer/asset/pack/item/SunAngle.java`, `src/main/java/lib/minecraft/renderer/option/**`
-- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `manifest.player-sheets`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`, `manifest.visual`, `sweep.entity-animation`
+- **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** measured by perturbing OutputOptions.java: 11 of 14 declared sees moved, and 2 declared blind held
+- **source** measured by perturbing OutputOptions.java: most of what was then authored moved and both declared blind held, and the list was one answer for a surface whose bags each name a different renderer
 
-Every renderer entry point takes a RenderOptions, so a default or a resolution rule here reaches whatever that renderer draws. That is the same population B19 reaches and the list is the same: the three render CRC pins beside their manifests, the glint sweep, and the cache/visual producers. The dump is blind to all of it for B19's reason: it serialises loaded pipeline data and never constructs an options record.
+Every renderer entry point takes a RenderOptions, so a default or a resolution rule here reaches whatever that renderer draws - and WHICH renderer takes a given bag is what the bag itself says. An entity bag reaches the entity sweeps and no fluid; an output bag reaches every renderer that writes a file. So the selection is the reference graph's answer for the changed bag rather than one list over the whole surface. The dump stays a claim rather than a subtraction, and deliberately: it is blind to an options bag, which is what the claim was measured on, and it is not blind to the vanilla vocabulary those bags name - that lives under asset, the dump serialises it, and the sibling claim there selects it on the same paths.
 
 *Probe:* change a default on an option record and confirm the five sweeps move while all 30 dump files are byte-identical
 

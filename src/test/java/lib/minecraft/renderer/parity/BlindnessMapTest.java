@@ -115,9 +115,10 @@ final class BlindnessMapTest {
      * <p>B24 is the one that reads the other way round: it is the wide claim and the exception is a
      * subset of its own triggers. The dump really is blind to an options bag, which is what the claim
      * was measured on; it is not blind to the vanilla vocabulary those bags name, because that lives
-     * under {@code asset} and the dump serialises it. Narrowing B24 off those paths would drop the
-     * four CRC pins and three manifests only it reaches, so the claim stays wide and the pair is
-     * recorded.
+     * under {@code asset} and the dump serialises it. Both claims over those paths are derived, so
+     * both select whatever the graph answers for the file and the claim is overruled on exactly the
+     * vocabulary types that reach a dump - which is the pair being recorded rather than a reason to
+     * make the claim subtract.
      *
      * <p>Four pairs left this set by being <b>measured false</b> rather than by being reclassified.
      * Perturbing a file each claimant triggers on moved the artifact it called blind, so the claim was
