@@ -326,7 +326,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Per-frame geometry build: the base body plus its model-overlay /
         // block-overlay / armor feature layers, with every entity / overlay / carried-block texture
         // resolved at the frame's tick. Emission order is load-bearing (depth tie-break, translucent
-        // sort, emissive depth-skip), so the slot order stays base -> overlays -> collar -> block
+        // sort, emissive depth-skip), so the slot order stays base -> overlays -> block
         // overlays -> armor; the base body (built imperatively here) is always first and produces the
         // bone bounds the armor layer consumes. Callers splice their own layers via
         // EntityOptions.layerDecorator. All layers are built fit-neutral and fitted together by the
@@ -452,9 +452,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * The entity's geometry contributors, each constant packing its target {@link EntitySlot
      * slot}, its self-gating policy, and its geometry contribution in one place - the entity analogue of
      * the self-contained {@link Projection} / engine kits. Declaration order IS emission order: model
-     * overlays, then the dyed collar (both in the {@code MODEL_OVERLAY} slot, where the insertion-order
-     * tie-break lets the collar band win the coplanar depth tie over the overlays), then block overlays,
-     * then worn armor. The base body is built imperatively in {@link #renderEntity} and is always emitted
+     * overlays, then block overlays, then worn armor. The base body is built imperatively in
+     * {@link #renderEntity} and is always emitted
      * first. Each constant self-gates on the resolved {@link FeatureContext#definition() definition} +
      * the {@link AppearanceOptions}, so growing the appearance is one new constant here - never a new gate
      * in {@link #renderEntity}.
@@ -511,33 +510,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                         ).triangles(), overlay.textureOffsetAt(ctx.tick())));
                     });
                 }
-            }
-        },
-
-        /**
-         * The collar (wolf, cat): a body-geometry cutout tinted by the collar colour, drawn on top of
-         * the base body when the appearance {@link AppearanceOptions#collarTint() wears one} and the
-         * resolved definition carries a collar texture (empty for a baby). A tamed subject wears one
-         * whether or not a dye is named, which is what vanilla's renderers express by filling the
-         * collar colour for a tamed subject alone. The collar texture is transparent except the neck
-         * band, so the tinted band wins the coplanar depth tie (last-drawn LEQUAL) over the body
-         * beneath it.
-         */
-        COLLAR(EntitySlot.MODEL_OVERLAY) {
-            @Override
-            void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                Optional<DyeColor> collar = ctx.options().getAppearance().collarTint();
-                Optional<String> collarRef = ctx.definition().layers().collar();
-                if (collar.isEmpty() || collarRef.isEmpty()) return;
-                EntityModelData model = ctx.model();
-                int collarTint = TintAxis.COLLAR.resolve(collar.get());
-                String ref = collarRef.get();
-                stack.append(this.slot, sink -> {
-                    Optional<PixelBuffer> collarTex = resolveEntityTextureAtTick(ctx.context(), ref, ctx.tick());
-                    if (collarTex.isEmpty()) return;
-                    sink.addAll(EntityGeometryKit.buildTriangles(model, collarTex.get(),
-                        new EntityGeometryKit.EntityBuildParams(ctx.frame(), PassDeclaration.DEFAULT, collarTint)).triangles());
-                });
             }
         },
 
@@ -777,15 +749,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
      * The effective multiplicative tint for a model overlay: the {@code tint_by} axis colour when the
-     * overlay is dye-driven ({@code wool_color} sheep wool, {@code pattern_color} tropical fish) and
-     * the appearance supplies that {@link TintAxis axis}' dye, else the overlay's baked
-     * {@link Entity.OverlayLayer#tintArgb() default tint}. The default keeps an unselected overlay
-     * unchanged; a selected dye multiplies the overlay by whatever colour that axis draws the dye as
-     * ({@link TintAxis#resolve}), mirroring vanilla's {@code coloredCutoutModelRender} colour arg.
+     * overlay is dye-driven ({@code wool_color} sheep wool, {@code collar_color} the collar band) and
+     * that {@link TintAxis axis}' {@link TintAxis#selectionIn selection} resolves a dye, else the
+     * overlay's baked {@link Entity.OverlayLayer#tintArgb() default tint}. The default keeps an
+     * unselected overlay unchanged; a selected dye multiplies the overlay by whatever colour that
+     * axis draws the dye as ({@link TintAxis#resolve}), mirroring vanilla's
+     * {@code coloredCutoutModelRender} colour arg.
      */
     private static int resolveOverlayTint(@NotNull Entity.OverlayLayer overlay, @NotNull AppearanceOptions appearance) {
         return overlay.tintBy()
-            .flatMap(axis -> appearance.tint(axis).map(axis::resolve))
+            .flatMap(axis -> axis.selectionIn(appearance).map(axis::resolve))
             .orElse(overlay.tintArgb());
     }
 

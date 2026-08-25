@@ -40,11 +40,12 @@ import java.util.Set;
 
 /**
  * Node {@code overlays[]} - the generic overlay engine. The per-entity handling dissolves
- * into structural arms: the enum-map detector (crackiness), the composite gate's superclass
- * walk plus ADDITIVE probe (creeper, wither), the emissive-provider arm with retain-subset
- * detection (warden, creaking, copper golem), the villager multi-pass arm, the
- * parameterized binding (stray, bogged), and the bespoke-equipment default-decor arm
- * (trader llama, via constant-boolean predicate evaluation on the subject's entity class).
+ * into structural arms: the collar arm (wolf, cat), the enum-map detector (crackiness), the
+ * composite gate's superclass walk plus ADDITIVE probe (creeper, wither), the
+ * emissive-provider arm with retain-subset detection (warden, creaking, copper golem), the
+ * villager multi-pass arm, the parameterized binding (stray, bogged), and the
+ * bespoke-equipment default-decor arm (trader llama, via constant-boolean predicate
+ * evaluation on the subject's entity class).
  * Eyes classify by the clinit texture-to-{@code RenderTypes}-factory shape, the factory vanilla
  * names an eye overlay for, and the pipeline traits it declares - never by a layer class name.
  *
@@ -56,8 +57,8 @@ import java.util.Set;
  * <p>Geometry: a row whose mesh entry shares the FAMILY's factory coordinate emits the
  * family key plus a row-level {@code grow} (the real CubeDeformation - creeper 2.0, fish
  * pattern 0.008, llama decor 0.5; the 0.001 depth clearance is never data); a distinct
- * factory registers its own {@link GeometryRequest} with the grow baked. Collar / markings /
- * equipment / block-decoration sites are handled elsewhere and are skipped here.
+ * factory registers its own {@link GeometryRequest} with the grow baked. Equipment and
+ * block-decoration sites are handled elsewhere and are skipped here.
  */
 final class EntityOverlayResolver {
 
@@ -123,9 +124,8 @@ final class EntityOverlayResolver {
         for (EntityRendererResolver.LayerSite site : this.roster) {
             ClassNode cn = this.cache.load(site.layerClass());
             if (cn == null) continue;
-            // Collar, equipment (call-site LayerType consumers) and block-decoration layers are
+            // Equipment (call-site LayerType consumers) and block-decoration layers are
             // handled by other resolvers and never emit here.
-            if (isCollarShaped(cn)) continue;
             if (readsBlockModelRenderState(cn)) continue;
             if (EntityLayersResolver.consumesEquipmentLayerType(site)) continue;
             if (referencesEquipmentLayerType(cn)) {
@@ -165,6 +165,13 @@ final class EntityOverlayResolver {
         @NotNull ClassNode cn,
         @Nullable EnumMapOverlay enumMap
     ) {
+        // The collar claims first: its layer bakes a ModelLayers field and cutout-submits, so
+        // the composite arm would otherwise claim the site and paint a coloured collar at the
+        // zero state vanilla draws none for.
+        if (isCollarShaped(cn)) {
+            JsonTree collar = resolveCollarRow(site, cn);
+            return collar == null ? List.of() : List.of(collar);
+        }
         List<JsonTree> emissive = resolveEmissiveProviderSite(site, cn);
         if (emissive != null) return emissive;
         JsonTree eyes = resolveEyesBinding(site.layerClass(), site.layerIndex(), cn);
@@ -448,6 +455,31 @@ final class EntityOverlayResolver {
      */
     private static @NotNull String namespaced(@NotNull String rawPath) {
         return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + rawPath;
+    }
+
+    // ------------------------------------------------------------------------------------
+    // collar arm
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * The collar row (wolf, cat): the wearer's own mesh under the layer's clinit texture, tinted
+     * at render from {@code collar_color}. The {@code when} is the transcription of the null-gated
+     * {@code DyeColor} state read {@link #isCollarShaped} detects - vanilla draws no collar at a
+     * null collar colour, so the row renders only while a collar is worn.
+     */
+    private @Nullable JsonTree resolveCollarRow(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
+        String texture = findFirstNonBabyTextureLiteral(cn);
+        if (texture == null) {
+            this.diagnostics.warn("collar layer '%s' has no clinit texture - row dropped",
+                simpleName(site.layerClass()));
+            return null;
+        }
+        this.diagnostics.info("collar row via null-gated DyeColor read");
+        return row(site.layerClass(), site.layerIndex())
+            .put("when", JsonTree.object().put("flag", "collared").put("value", true))
+            .putIf("geometry", this.geometryRef.primaryKey())
+            .put("texture", namespaced(texture))
+            .put("tint_by", "collar_color");
     }
 
     // ------------------------------------------------------------------------------------

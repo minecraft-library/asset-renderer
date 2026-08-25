@@ -80,7 +80,10 @@ class AppearanceGateTest {
                 new OptionCase(Size.SMALL, AppearanceOptions.builder().size(Optional.of(Size.SMALL)).build()),
                 new OptionCase(Size.LARGE, AppearanceOptions.builder().size(Optional.of(Size.LARGE)).build()),
                 new OptionCase(Flag.SHEARED, AppearanceOptions.builder().sheared(true).build()),
-                new OptionCase(Flag.CHARGED, AppearanceOptions.builder().charged(true).build()));
+                new OptionCase(Flag.CHARGED, AppearanceOptions.builder().charged(true).build()),
+                // The collar axis reads tameness as well as the dye: a tamed subject wears the
+                // default red collar with no dye named.
+                new OptionCase(Flag.COLLARED, AppearanceOptions.builder().state(Optional.of("tame")).build()));
             for (OptionCase option : options) {
                 AppearanceGate gate = new AppearanceGate.Selected(option.option(), true);
                 assertThat(option.option() + " fires for its selection", gate.test(option.selecting()), is(true));

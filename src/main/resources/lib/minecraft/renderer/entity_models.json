@@ -473,12 +473,19 @@
           }
         }
       },
-      "collar": {
-        "source": "CatCollarLayer",
-        "layer_index": 0,
-        "texture": "cat/cat_collar",
-        "tint_by": "collar_color"
-      }
+      "overlays": [
+        {
+          "source": "CatCollarLayer",
+          "layer_index": 0,
+          "when": {
+            "flag": "collared",
+            "value": true
+          },
+          "geometry": "AdultFelineModel#createBodyMesh@scaled=0.8",
+          "texture": "cat/cat_collar",
+          "tint_by": "collar_color"
+        }
+      ]
     },
     "minecraft:cave_spider": {
       "renderer": "net/minecraft/client/renderer/entity/CaveSpiderRenderer",
@@ -3210,12 +3217,19 @@
           }
         }
       },
-      "collar": {
-        "source": "WolfCollarLayer",
-        "layer_index": 1,
-        "texture": "wolf/wolf_collar",
-        "tint_by": "collar_color"
-      },
+      "overlays": [
+        {
+          "source": "WolfCollarLayer",
+          "layer_index": 1,
+          "when": {
+            "flag": "collared",
+            "value": true
+          },
+          "geometry": "AdultWolfModel#createBodyLayer",
+          "texture": "wolf/wolf_collar",
+          "tint_by": "collar_color"
+        }
+      ],
       "equipment": [
         {
           "source": "WolfArmorLayer",

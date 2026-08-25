@@ -1477,7 +1477,6 @@ public final class PipelineParityDump {
                 assetId -> new JsonPrimitive(assetId.id())));
             return entry;
         }));
-        CanonicalJson.put(root, "collar", layers.collar(), JsonPrimitive::new);
         return root;
     }
 

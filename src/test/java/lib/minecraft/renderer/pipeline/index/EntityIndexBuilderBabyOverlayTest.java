@@ -155,13 +155,6 @@ class EntityIndexBuilderBabyOverlayTest {
             null);                                             // baby
     }
 
-    /** The dyed-collar node - one of the decorations a baby drops wholesale. */
-    private static com.google.gson.JsonObject collarNode() {
-        com.google.gson.JsonObject collar = new com.google.gson.JsonObject();
-        collar.addProperty("texture", "villager/villager_collar");
-        return collar;
-    }
-
     /** The saddle equipment row - the other decoration a baby drops wholesale. */
     private static RawEquipmentRow equipmentRow() {
         return new RawEquipmentRow(
@@ -184,8 +177,8 @@ class EntityIndexBuilderBabyOverlayTest {
 
     /**
      * The villager-shaped family: a {@code type} pass carrying a baby delta, a {@code profession} pass
-     * carrying none, plus the decorations a baby drops wholesale (a block overlay, a dyed collar, an
-     * equipment layer).
+     * carrying none, plus the decorations a baby drops wholesale (a block overlay, an equipment
+     * layer).
      */
     private static RawModel villagerFamily() {
         return new RawModel(
@@ -195,7 +188,6 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                      // bones
             List.of(typePass(), professionPass()),     // overlays
             List.of(mushroomOverlay()),                // block_overlays
-            collarNode(),                              // collar
             null,                                      // armor
             List.of(equipmentRow()),                   // equipment
             ageAxes("villager/villager",
@@ -212,7 +204,6 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                 // bones
             List.of(woolPass()),  // overlays
             null,                 // block_overlays
-            null,                 // collar
             null,                 // armor
             null,                 // equipment
             ageAxes("sheep/sheep",
@@ -295,7 +286,6 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                        // bones
             List.of(decor),                              // overlays
             null,                                        // block_overlays
-            null,                                        // collar
             null,                                        // armor
             null,                                        // equipment
             ageAxes("llama/llama_creamy",
@@ -334,20 +324,18 @@ class EntityIndexBuilderBabyOverlayTest {
     }
 
     @Test
-    @DisplayName("resolve on a baby substitutes the baby overlays and still drops block overlays / collar / equipment")
+    @DisplayName("resolve on a baby substitutes the baby overlays and still drops block overlays / equipment")
     void babyResolveSubstitutesTheBabyOverlays() {
         ConcurrentMap<String, Entity> defs = assemble();
         Entity resolved = defs.get(ENTITY).resolve(AppearanceOptions.builder().age(Age.BABY).build());
         assertThat("the baby renders the baby mesh", resolved.model(), sameInstance(defs.get(ENTITY).axes().babyModel().orElseThrow()));
         assertThat("the baby draws the baby overlay list", resolved.overlays(), is(defs.get(ENTITY).axes().babyOverlays()));
         assertThat("the baby still drops block overlays", resolved.blockOverlays(), is(empty()));
-        assertThat("the baby still drops the collar", resolved.layers().collar().isPresent(), is(false));
         assertThat("the baby still drops equipment", resolved.layers().equipment(), is(empty()));
 
         Entity adult = defs.get(ENTITY).resolve(AppearanceOptions.builder().build());
         assertThat("the adult list is untouched by the substitution", adult.overlays().size(), is(2));
         assertThat("the adult still draws its block overlay", adult.blockOverlays().size(), is(1));
-        assertThat("the adult still carries its collar", adult.layers().collar().isPresent(), is(true));
         assertThat("the adult still carries its equipment", adult.layers().equipment().size(), is(1));
         assertThat("the adult and baby overlay lists differ", adult.overlays(), not(is(resolved.overlays())));
     }

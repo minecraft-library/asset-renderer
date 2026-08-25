@@ -149,7 +149,6 @@ public final class EntityIndexBuilder {
         List<RawOverlay> familyOverlays = nullToEmpty(family.overlays());
         List<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null ? List.of() : loadBlockOverlays(family.blockOverlays());
 
-        Optional<String> collarTexture = collarTextureOf(family);
         List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId);
         Optional<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId);
         String babyCoord = babyGeometryOf(family);
@@ -174,7 +173,7 @@ public final class EntityIndexBuilder {
             String defaultOption = variant.defaultOption();
             Map<String, RawOption> options = variant.options();
             VariantContext ctx = new VariantContext(baseCoord, poseClass, geometries, poses, renderTransform, undrawnBones, boneToggleSpecs, familyOverlays,
-                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyPose, babyOverlays, collarTexture, equipment, humanoidArmor,
+                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyPose, babyOverlays, equipment, humanoidArmor,
                 stateDefaultOf(family));
             // one base row minecraft:<id>, the coat resolved at render. Every option
             // is built into a sub-definition; the base row IS the default coat carrying the full option map.
@@ -221,7 +220,7 @@ public final class EntityIndexBuilder {
                 buildLargeShape(family, geometries, poses, renderTransform, familyId),
                 buildSizeModels(family, geometries, familyId),
                 buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
-            .layers(new Entity.Layers(collarTexture, equipment, humanoidArmor))
+            .layers(new Entity.Layers(equipment, humanoidArmor))
             .build());
     }
 
@@ -369,7 +368,6 @@ public final class EntityIndexBuilder {
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull Optional<EntityPose> babyPose,
         @NotNull List<OverlayLayer> babyOverlays,
-        @NotNull Optional<String> collarTexture,
         @NotNull List<EquipmentOverlay> equipment,
         @NotNull Optional<Shell> humanoidArmor,
         @NotNull Optional<String> stateDefault
@@ -411,7 +409,7 @@ public final class EntityIndexBuilder {
             .pose(pose)
             .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Optional.empty(),
                 Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))
-            .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.humanoidArmor()))
+            .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()))
             .build();
     }
 
@@ -763,13 +761,6 @@ public final class EntityIndexBuilder {
     private static @Nullable String babyTextureOf(@NotNull RawModel family) {
         RawOption baby = ageBaby(family);
         return baby == null ? null : baby.texture();
-    }
-
-    /** Returns the dyed-collar node's texture ref, or empty when the family has no collar. */
-    private static @NotNull Optional<String> collarTextureOf(@NotNull RawModel family) {
-        if (family.collar() == null) return Optional.empty();
-        return Optional.ofNullable(family.collar().get("texture"))
-            .map(com.google.gson.JsonElement::getAsString);
     }
 
     /**

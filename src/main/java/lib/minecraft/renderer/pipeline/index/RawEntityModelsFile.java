@@ -42,8 +42,6 @@ public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
  * @param bones the {@code undrawn} strip and {@code toggles} specs, or {@code null} when the family has none
  * @param overlays the body overlay layers in declared order, or {@code null} when absent
  * @param blockOverlays the vanilla-block-shaped overlays, or {@code null} when absent
- * @param collar the dyed-collar node (its {@code texture} is read; the rest are authoring hints),
- *     or {@code null} - presence is the gate, mirroring vanilla's {@code collarColor != null} branch
  * @param armor the worn-armor shell node, or {@code null} for a subject vanilla never armors
  * @param equipment the equipment rows in roster order, or {@code null} when the subject wears none
  * @param axes the mandatory option-axis block ({@code age} plus optional {@code variant} / {@code shape} / {@code size})
@@ -57,7 +55,6 @@ record RawModel(
     @Nullable RawBones bones,
     @Nullable List<RawOverlay> overlays,
     @SerializedName("block_overlays") @Nullable List<RawBlockOverlay> blockOverlays,
-    @Nullable com.google.gson.JsonObject collar,
     @Nullable RawArmor armor,
     @Nullable List<RawEquipmentRow> equipment,
     @NotNull RawAxes axes,

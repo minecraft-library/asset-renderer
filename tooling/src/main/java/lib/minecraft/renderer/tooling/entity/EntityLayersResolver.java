@@ -28,10 +28,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The three option-gated decoration members - {@code collar}, {@code armor} and
- * {@code equipment[]} - each named for what it is, presence being its own gate. One roster pass;
- * the {@code equipment} rows keep roster order and every node carries its {@code source} /
- * {@code layer_index} authoring hints.
+ * The two option-gated decoration members - {@code armor} and {@code equipment[]} - each named
+ * for what it is, presence being its own gate. One roster pass; the {@code equipment} rows keep
+ * roster order and every node carries its {@code source} / {@code layer_index} authoring hints.
  *
  * <ul>
  *   <li><b>Armor</b> - a {@code HumanoidArmorLayer} site, carrying the worn-armor mesh as a
@@ -39,17 +38,13 @@ import java.util.Map;
  *       same shape again under {@code alternate} for the wearers vanilla hands a second,
  *       genuinely distinct shell. That node names the appearance selection that reaches it, since
  *       vanilla reaches both its second sets through one flag but two of this pipeline's axes.</li>
- *   <li><b>Collar</b> - structural detection (a null-gated {@code DyeColor} state read in
- *       the typed submit); the member's presence mirrors vanilla's actual
- *       {@code collarColor != null && !isInvisible} branch rather than approximating it from
- *       {@code state=tame}.</li>
  *   <li><b>Equipment</b> - {@link EntityEquipmentResolver} rows from call-site windows and
  *       bespoke layers, each flattened to {@code slot} plus its payload.</li>
  * </ul>
  *
- * <p>An enum-map layer is not one of these: it draws the wearer's own mesh under a
- * {@code texture_by} axis, which is what an overlay row is, so
- * {@link EntityOverlayResolver} emits it and this pass skips the site.
+ * <p>An enum-map layer and a collar layer are neither of these: each draws the wearer's own mesh -
+ * under a {@code texture_by} axis, or under a fixed collar texture and dye - which is what an
+ * overlay row is, so {@link EntityOverlayResolver} emits them and this pass skips the sites.
  */
 final class EntityLayersResolver {
 
@@ -95,10 +90,10 @@ final class EntityLayersResolver {
     }
 
     /**
-     * The three decoration members as one carrier, or {@code null} to omit them all.
+     * The two decoration members as one carrier, or {@code null} to omit them both.
      *
-     * @return a node holding {@code collar} / {@code armor} / {@code equipment} where the roster
-     *     emits each, or {@code null} when no site emits
+     * @return a node holding {@code armor} / {@code equipment} where the roster emits each, or
+     *     {@code null} when no site emits
      */
     @Nullable JsonTree resolve() {
         JsonTree carrier = JsonTree.object();
@@ -119,12 +114,10 @@ final class EntityLayersResolver {
 
             ClassNode cn = this.cache.load(site.layerClass());
             if (cn == null) continue;
-            if (EntityOverlayResolver.isCollarShaped(cn)) {
-                carrier.putIf("collar", resolveCollar(site, cn));
-                continue;
-            }
-            // An enum-map layer is an overlay row - it draws the wearer's own mesh under a
-            // texture_by axis, which is what the overlay engine is - so it never emits here.
+            // A collar layer and an enum-map layer are overlay rows - each draws the wearer's own
+            // mesh, under a fixed collar texture and dye or under a texture_by axis, which is what
+            // the overlay engine is - so neither ever emits here.
+            if (EntityOverlayResolver.isCollarShaped(cn)) continue;
             if (EntityOverlayResolver.findEnumMapOverlay(this.cache, cn) != null) continue;
             if (EntityOverlayResolver.referencesEquipmentLayerType(cn)) {
                 JsonTree bespoke = this.equipment.resolveBespoke(site, cn);
@@ -168,26 +161,6 @@ final class EntityLayersResolver {
                 cursor -> !(cursor.getOpcode() == Opcodes.INVOKEVIRTUAL
                     && cursor instanceof MethodInsnNode mi
                     && VanillaSourceClasses.Methods.ADD_LAYER.equals(mi.name))) != null;
-    }
-
-    /**
-     * The collar node: the layer's clinit texture (adult) rides {@code texture}; the tint is
-     * render-supplied via {@code tint_by}; the member's presence mirrors vanilla's actual
-     * {@code collarColor != null} check rather than {@code state=tame}.
-     */
-    private @Nullable JsonTree resolveCollar(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
-        String texture = EntityOverlayResolver.findFirstNonBabyTextureLiteral(cn);
-        if (texture == null) {
-            this.diagnostics.warn("collar layer '%s' has no clinit texture - row dropped",
-                EntityOverlayResolver.simpleName(site.layerClass()));
-            return null;
-        }
-        this.diagnostics.info("collar row via null-gated DyeColor read");
-        return JsonTree.object()
-            .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
-            .putInt("layer_index", site.layerIndex())
-            .put("texture", VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + texture)
-            .put("tint_by", "collar_color");
     }
 
     /**

@@ -107,7 +107,7 @@ final class DumpEnumNameTest {
         new ValueSite("root.addProperty(\"value\", size.name());", Size.class,
             List.of("SMALL", "MEDIUM", "LARGE")),
         new ValueSite("root.addProperty(\"flag\", flag.name().toLowerCase(Locale.ROOT));", Flag.class,
-            List.of("SHEARED", "CHARGED")));
+            List.of("SHEARED", "CHARGED", "COLLARED")));
 
     /** The dump writer, which is the file every site below is counted in. */
     private static final Path DUMP =

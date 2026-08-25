@@ -90,8 +90,8 @@ final class EntityRendererResolver {
                 this.renderTraits.resolveSetupYShift()))                                // age mandatory -> always present
             .putIf("overlays", overlays)
             .putIf("block_overlays", this.blockOverlays.resolve());
-        // The four decoration members - collar, markings, armor, equipment - land side by side,
-        // each named for what it is.
+        // The two decoration members - armor and equipment - land side by side, each named for
+        // what it is.
         JsonTree decorations = this.layers.resolve();
         if (decorations != null) node.putAll(decorations);
         return node;

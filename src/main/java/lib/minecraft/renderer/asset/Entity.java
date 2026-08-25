@@ -5,7 +5,6 @@ import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
 import lib.minecraft.renderer.asset.appearance.CopperWeathering;
-import lib.minecraft.renderer.asset.appearance.Flag;
 import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
@@ -81,7 +80,7 @@ import java.util.Set;
  *     with no toggleable bones
  * @param axes the option-axis mesh / texture selections a render appearance chooses among (state
  *     textures, baby mesh, large shape, size meshes / scales) - see {@link Axes}
- * @param layers the conditional decoration layers drawn over the base body (collar, equipment), each
+ * @param layers the conditional decoration layers drawn over the base body (equipment, worn armor), each
  *     gated at render on its appearance axis - see {@link Layers}
  * @param members the self-inclusive canvas-group membership - every entity id that shares this
  *     entity's group-union fit window ({@code EntityOptions.FitMode.GROUP_BOUNDS}), the SAME list on
@@ -150,12 +149,12 @@ public record Entity(
      *
      * <p>The nine axis semantics apply in a fixed short-circuit order: (1) a baby swaps in the baby mesh,
      * substitutes the {@link Axes#babyOverlays() baby overlay list} for the adult one, and DROPS block
-     * overlays / collar / equipment - each carries adult geometry that would render adult-sized around
+     * overlays / equipment - each carries adult geometry that would render adult-sized around
      * the smaller baby body, which is exactly why the overlay passes are a distinct list rather than the
      * adult one, and the substituted list is empty unless an overlay declares a baby form, so a pass with
      * none drops out structurally - and the whole non-baby branch is skipped bar the overlay gate filter
-     * (2), which runs over whichever list is in play; else (2) sheared drops the wool overlay and charged
-     * gates the swirl; (3) the sheared axis additionally
+     * (2), which runs over whichever list is in play; else (2) sheared drops the wool overlay, charged
+     * gates the swirl and an unworn collar drops its row; (3) the sheared axis additionally
      * activates a {@code "sheared"} bone toggle (bogged); (4) selected bone toggles flip their bones'
      * visibility (donkey / mule / llama chest reveal, goat horns hide); (5) block overlays resolve against
      * the carried selection; (6) the shape axis swaps to the tropical-fish large body; (7) the size axis
@@ -190,7 +189,7 @@ public record Entity(
                 .pose(definition.axes().babyPose().orElse(EntityPose.NONE))
                 .overlays(gatedOverlays(definition.axes().babyOverlays(), appearance))
                 .blockOverlays(List.of())
-                .layers(new Layers(Optional.empty(), List.of(), armor));
+                .layers(new Layers(List.of(), armor));
         } else {
             builder.overlays(gatedOverlays(definition.overlays(), appearance));
             // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
@@ -228,7 +227,7 @@ public record Entity(
                 .ifPresent(scale -> builder.rendererScale(definition.rendererScale() * scale));
             // A layer's own toggles ride the same selection the wearer's do, so an equipped saddle
             // draws its reins for a ridden subject and its chest panniers for a chested one.
-            builder.layers(new Layers(definition.layers().collar(),
+            builder.layers(new Layers(
                 toggledEquipment(definition.layers().equipment(), selectedToggles), armor));
         }
         // The base_color axis (tropical fish) overrides the model base_tint with the selected dye; absent
@@ -238,11 +237,10 @@ public record Entity(
     }
 
     /**
-     * Drops the overlays an appearance does not activate: shearable overlays (the sheep wool) when
-     * sheared - both the rendered geometry and its canvas-bounds contribution - and charged-only overlays
-     * (the creeper energy swirl) unless the charged axis is set. A charged overlay renders only for a
-     * lightning-struck entity. The list is only rebuilt when there is something to drop, so a list with no
-     * shearable / charged overlay is returned as-is. Applied to the adult and the baby list alike, so a
+     * Drops the overlays an appearance does not activate - the sheep wool once sheared, the creeper
+     * swirl unless charged, the collar while none is worn - both the rendered geometry and its
+     * canvas-bounds contribution. The list is only rebuilt when a resolve-stage gate is present, so
+     * a list carrying none is returned as-is. Applied to the adult and the baby list alike, so a
      * gated pass that gains a baby form is gated on a baby too rather than drawing unconditionally.
      *
      * @param overlays the overlay list to gate
@@ -250,12 +248,11 @@ public record Entity(
      * @return the surviving overlays, or the given list itself when nothing drops
      */
     private static @NotNull List<OverlayLayer> gatedOverlays(@NotNull List<OverlayLayer> overlays, @NotNull AppearanceOptions appearance) {
-        boolean hasCharged = overlays.stream()
+        boolean gated = overlays.stream()
             .anyMatch(overlay -> overlay.gate()
-                .filter(gate -> gate instanceof AppearanceGate.Selected selected
-                    && selected.option() == Flag.CHARGED)
+                .filter(gate -> !(gate instanceof AppearanceGate.TintedGate))
                 .isPresent());
-        if (!appearance.isSheared() && !hasCharged) return overlays;
+        if (!gated) return overlays;
         return overlays.stream().filter(overlay -> rendersAtResolve(overlay, appearance)).toList();
     }
 
@@ -403,11 +400,9 @@ public record Entity(
     ) {}
 
     /**
-     * The conditional decoration layers drawn over the base body ({@code collar},
-     * {@code equipment}), each gated at render on its appearance axis.
+     * The conditional decoration layers drawn over the base body ({@code equipment}, worn armor),
+     * each gated at render on its appearance axis.
      *
-     * @param collar the dyed-collar texture drawn on the body geometry and tinted by the collar colour
-     *     (wolf, cat); empty for non-collar entities
      * @param equipment the saddle / body-armor overlays rendered when the {@code equipment} axis selects
      *     their slot; empty for entities with no equipment layer
      * @param humanoidArmor the worn-armor shell this entity is dressed in (skeletons, zombies, piglins),
@@ -416,7 +411,6 @@ public record Entity(
      *     wearer whose mesh failed to resolve drops off the roster loudly rather than rendering a guess
      */
     public record Layers(
-        @NotNull Optional<String> collar,
         @NotNull List<EquipmentOverlay> equipment,
         @NotNull Optional<Shell> humanoidArmor
     ) {}

@@ -4,6 +4,8 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.Flag;
 import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.equipment.LayerType;
@@ -71,18 +73,33 @@ class EntityModelLoaderTest {
     }
 
     @Test
-    @DisplayName("dyed-collar texture is carried for wolf + cat, absent elsewhere")
+    @DisplayName("the dyed-collar overlay row is carried for wolf + cat, absent elsewhere")
     void collarPresence() {
-        // The collar renders only when a collar colour is supplied (the truthful collar_color gate); the
-        // load contract pins the collar texture presence that gate resolves against. A bare wolf / cat
-        // with no collar colour therefore renders no collar band.
+        // The collar renders only while a collar colour resolves - the row's collared gate - and the
+        // load contract pins the row that gate rides: the wearer's own mesh under the collar texture,
+        // tinted from collar_color. A bare wolf / cat resolves no collar tint, so the gate drops the
+        // row at resolve and no collar band draws.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
-        assertThat(coat(defs, "minecraft:wolf", "pale").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
-        assertThat("every wolf variant shares the family collar",
-            coat(defs, "minecraft:wolf", "ashen").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
-        assertThat(coat(defs, "minecraft:cat", "black").layers().collar(), equalTo(Optional.of("cat/cat_collar")));
+        OverlayLayer wolf = collarRow(coat(defs, "minecraft:wolf", "pale"));
+        assertThat(wolf.textureRef(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat("the band tints from the collar axis", wolf.tintBy(), equalTo(Optional.of(TintAxis.COLLAR)));
+        assertThat("every wolf variant shares the family collar row",
+            collarRow(coat(defs, "minecraft:wolf", "ashen")).textureRef(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat(collarRow(coat(defs, "minecraft:cat", "black")).textureRef(), equalTo(Optional.of("cat/cat_collar")));
         assertThat("a non-collar entity has none",
-            defs.get("minecraft:cow").layers().collar().isPresent(), is(false));
+            defs.get("minecraft:cow").overlays().stream().anyMatch(EntityModelLoaderTest::isCollarRow), is(false));
+    }
+
+    /** The overlay pass gated on {@link Flag#COLLARED} - the dyed-collar row. */
+    private static OverlayLayer collarRow(Entity entity) {
+        return entity.overlays().stream().filter(EntityModelLoaderTest::isCollarRow).findFirst()
+            .orElseThrow(() -> new AssertionError("entity '" + entity.id() + "' has no collar row"));
+    }
+
+    /** Whether an overlay pass is the dyed-collar row. */
+    private static boolean isCollarRow(OverlayLayer overlay) {
+        return overlay.gate().filter(gate -> gate instanceof AppearanceGate.Selected selected
+            && selected.option() == Flag.COLLARED).isPresent();
     }
 
     @Test
