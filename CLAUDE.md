@@ -1031,6 +1031,15 @@ Entity:
   declared type either - an enum is one type whatever its constants are - and the only type behind it
   is `VanillaEase`, the bit-exact reproduction of vanilla's easing, which has a test of its own on
   each side.
+- Do not delete the pose walk's fork machinery or `EnumConstantTable` - they are the frame fold's
+  input, not its residue. The fold projects a frame from what a walked program names, and tells a
+  two-frame class apart over ONE frame-free walk, so a walk that resolved its environment inline
+  would re-earn both from scratch as read-set tracking and per-rest-map walks; a resolved constant
+  still needs the ordinal and `$SwitchMap` decode to pick a switch arm, so the table survives the
+  rewrite it was priced with; the unfolded-row arm - a two-frame class no split key can carry,
+  shipped as the frame-free program - would become a refusal; and the `shared` numbering follows
+  walk order, so both pose tables' bytes move at identical arithmetic. What it buys is tooling
+  lines alone, and renders nothing.
 
 ## Developer scripts
 
