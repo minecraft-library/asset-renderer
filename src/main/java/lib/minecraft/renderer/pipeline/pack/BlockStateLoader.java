@@ -21,6 +21,7 @@ import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -59,12 +60,18 @@ import java.util.Optional;
  * the same id - matching the vanilla client's per-file topmost-pack-wins semantics. A vanilla-only
  * stack scans exactly {@code assets/minecraft/blockstates}.
  *
+ *
+ * <p><b>Parity.</b> Reached only across the pipeline context, which is wiring, so no producer root
+ * reaches it. Every variant a block draws is resolved from what it loads, and that reaches a block
+ * item's icon, an entity's carried block and a menu's cells with it.
+ *
  * @see Block.Variant
  * @see Block.Multipart
  */
 @Parity(claim = "loader-intermediates")
 @Parity(claim = "blockstate-multipart")
 @UtilityClass
+@Parity(subject = {Subject.BLOCK, Subject.ENTITY, Subject.ITEM, Subject.MENU})
 public class BlockStateLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();

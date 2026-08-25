@@ -11,6 +11,8 @@ import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.GridSlot;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.UnaryOperator;
@@ -24,11 +26,15 @@ import java.util.function.UnaryOperator;
  * whole output to animated and synchronises tile frames via
  * {@link FrameCompositor FrameCompositor}.
  *
+ *
+ * <p><b>Parity.</b> Reaches the grid alone, which this store holds no artifact for.
+ *
  * @see lib.minecraft.renderer.GridRenderer
  * @see lib.minecraft.renderer.engine.compose.FrameCompositor
  */
 @Getter
 @ClassBuilder
+@Parity(subject = Subject.GRID)
 public class GridOptions implements RenderOptions {
 
     /**

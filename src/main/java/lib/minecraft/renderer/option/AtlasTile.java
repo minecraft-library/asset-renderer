@@ -8,6 +8,7 @@ import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import org.jetbrains.annotations.NotNull;
 
@@ -26,6 +27,9 @@ import java.util.stream.Collectors;
  * been laid out, and the composed atlas image is what holds the pixels. The x/y-vs-col/row
  * redundancy is kept because external consumers walk it.
  *
+ *
+ * <p><b>Parity.</b> Reaches the atlas alone, which this store holds no artifact for.
+ *
  * @param id the namespaced block or item id the tile was rendered from
  * @param kind whether the tile holds a block or an item
  * @param source the pipeline path that produced the tile
@@ -37,6 +41,7 @@ import java.util.stream.Collectors;
  * @param height the tile's pixel height
  */
 @Parity(as = AtlasRenderer.class, mode = Mode.SUPPRESS)
+@Parity(subject = Subject.ATLAS)
 public record AtlasTile(
     @NotNull String id,
     @NotNull Kind kind,

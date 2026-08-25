@@ -44,7 +44,16 @@ public @interface Parity {
     /** How far below a package the claim reaches, read on a package declaration alone. */
     Scope scope() default Scope.SUBTREE;
 
-    /** Renderers the claim is about, empty where no single one owns it. */
+    /**
+     * Renderers this reaches, empty where no single one owns it.
+     * <p>
+     * Beside a claim it says which renderers that claim is about. Alone on a TYPE it is the whole
+     * declaration and says what the type reaches, written where the reference graph cannot derive
+     * it: a type reached only across a seam, or one a service file registers, is reachable from no
+     * producer root and answers nothing at all - as does a renderer this store holds no artifact
+     * for. Those two look identical from outside and only one is correct, so {@code reach check}
+     * refuses a library type that reaches nothing and says nothing.
+     */
     Subject[] subject() default {};
 
     /**
@@ -82,4 +91,5 @@ public @interface Parity {
         /** The declarations, in the order they are written. */
         Parity[] value();
     }
+
 }

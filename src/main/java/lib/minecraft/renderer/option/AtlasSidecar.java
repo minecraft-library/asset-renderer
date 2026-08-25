@@ -4,6 +4,7 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -19,12 +20,16 @@ import java.util.Optional;
  * consumers walk JSON + PNG in lockstep. The {@code build/atlas/} output stays scratch - never a
  * bundled resource.
  *
+ *
+ * <p><b>Parity.</b> Reaches the atlas alone, which this store holds no artifact for.
+ *
  * @param tileSize the per-tile edge length in pixels
  * @param columns the grid column count
  * @param count the tile count (== {@code tiles.size()})
  * @param tiles the tiles in grid order
  */
 @Parity(as = AtlasRenderer.class, mode = Mode.SUPPRESS)
+@Parity(subject = Subject.ATLAS)
 public record AtlasSidecar(int tileSize, int columns, int count, @NotNull List<AtlasTile> tiles) {
 
     /**

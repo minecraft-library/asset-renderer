@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.item.ItemModelContext;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
@@ -40,9 +41,14 @@ import java.util.Set;
  * so the renderer multiplies the dye / potion / firework colour into the matching layer, plus an
  * {@code alwaysGlinted} flag from the glint-item set (parsed from the vanilla
  * {@code Items} registry) that drives the automatic enchantment foil on intrinsically-foil items.
+ *
+ * <p><b>Parity.</b> Reached only across the pipeline context, which is wiring, so no producer root
+ * reaches it. It materialises the item index out of the item tables and the block-entity geometry,
+ * so it is under every render that draws an item and under the block icons baked from one.
  */
 @Parity(claim = "index-resolution")
 @UtilityClass
+@Parity(subject = {Subject.BLOCK, Subject.ENTITY, Subject.ITEM, Subject.MENU})
 public class ItemIndexBuilder {
 
     /**

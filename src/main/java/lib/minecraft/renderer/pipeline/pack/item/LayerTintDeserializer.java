@@ -5,6 +5,8 @@ import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Type;
@@ -14,7 +16,11 @@ import java.lang.reflect.Type;
  * dispatching on the (namespace-stripped) {@code type}. Source types this renderer cannot resolve
  * dynamically ({@code grass}, {@code map_color}, {@code custom_model_data}, ...) - and any non-object
  * entry - become a white {@link LayerTint.Constant}, rendered untinted rather than guessing.
+ *
+ * <p><b>Parity.</b> Registered by a service file and reached only through the contributor that
+ * names it, so no constant pool carries an edge to it. It parses the tint a drawn layer takes.
  */
+@Parity(subject = {Subject.BLOCK, Subject.ENTITY, Subject.ITEM, Subject.MENU})
 public final class LayerTintDeserializer implements JsonDeserializer<LayerTint> {
 
     @Override

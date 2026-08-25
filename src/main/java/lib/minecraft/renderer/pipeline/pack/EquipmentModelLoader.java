@@ -12,6 +12,8 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -40,8 +42,12 @@ import java.util.TreeMap;
  * is simply absent; turning that absence into {@link EquipmentModel#MISSING} is
  * {@code RendererContext.resolveEquipmentLayers}' job, at the one seam that serves the index. So the
  * map is ordered for determinism rather than for lookup, and iteration order never reaches a render.
+ *
+ * <p><b>Parity.</b> Reached only across the pipeline context, which is wiring, so no producer root
+ * reaches it. It loads the worn-equipment models, which only a wearer draws.
  */
 @UtilityClass
+@Parity(subject = {Subject.ENTITY, Subject.PLAYER})
 public class EquipmentModelLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();

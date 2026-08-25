@@ -44,8 +44,12 @@ import java.util.stream.IntStream;
  * pack stack does not provide, etc.) are skipped with a warning printed to stderr - one
  * misbehaving model never aborts the run. Both per-tile failure warnings and per-100-tile
  * progress logs are gated on {@link AtlasOptions#isProgressLogging()}.
+ *
+ * <p><b>Parity.</b> Reaches the atlas alone, which this store holds no artifact for. What measured
+ * that is the claim above rather than this paragraph, so the two cannot come to disagree.
  */
 @Parity(claim = "atlas-unhashable", mode = Mode.SUPPRESS, subject = Subject.ATLAS)
+@Parity(subject = Subject.ATLAS)
 public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**

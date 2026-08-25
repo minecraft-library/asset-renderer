@@ -19,6 +19,7 @@ import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.ApplyDto;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.BlockStates;
@@ -53,11 +54,17 @@ import java.util.stream.Collectors;
  * Concrete variant models that DO render ({@code block/acacia_slab_top}, {@code block/redstone_dust_side},
  * door halves, growth stages) are kept. {@link #INVISIBLE_BLOCK_NAMES} is the one explicit
  * exception: those ids carry a real texture but vanilla renders them invisible, so they are dropped too.
+ *
+ * <p><b>Parity.</b> Reached only across the pipeline context, which is wiring, so no producer root
+ * reaches it. It materialises the block index, which a block draws from, a block item's icon is
+ * baked out of, an entity reads to draw a carried block, and a menu reads through the items in its
+ * cells.
  */
 @Parity(claim = "block-icon-selection")
 @Parity(claim = "block-index-item-blind")
 @Parity(claim = "index-resolution")
 @UtilityClass
+@Parity(subject = {Subject.BLOCK, Subject.ENTITY, Subject.ITEM, Subject.MENU})
 public class BlockIndexBuilder {
 
     /**

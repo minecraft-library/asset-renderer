@@ -88,6 +88,29 @@ class TheTokenPrecheck(unittest.TestCase):
         self.assertEqual([one.claim for one in found], ["a-claim"])
 
 
+class TheReachShape(unittest.TestCase):
+    """The third shape: a subject and no claim, which is what a type says about its own reach.
+
+    It exists because a type reachable from no producer root answers nothing, and two very different
+    things look like that - a renderer this store holds no artifact for, and a type reached by an edge
+    the graph cannot see. Only the type can say which.
+    """
+
+    def test_a_subject_and_no_claim_is_a_declaration(self):
+        found = scan("reach-only").declarations
+        reach = next(one for one in found if one.path.endswith("Reached.java"))
+        self.assertEqual((reach.claim, reach.joins, reach.subject), ("", "", ("BLOCK", "ITEM")))
+
+    def test_a_reach_declares_no_claim_for_the_map_to_carry(self):
+        """Filed under a claim spelled '', it would hand its path to every rule with no claim_key."""
+        self.assertEqual(sorted(scan("reach-only").by_claim()), ["a-claim"])
+
+    def test_a_package_may_not_declare_a_reach(self):
+        """A reach is one TYPE's answer about itself; a package says what its files claim."""
+        exception = refusal(self, "reach-on-package")
+        self.assertIn("declares a reach and no claim", exception.shape)
+
+
 class Vocabularies(unittest.TestCase):
     """The closed vocabularies are read off the enums rather than transcribed."""
 
@@ -97,11 +120,18 @@ class Vocabularies(unittest.TestCase):
         self.assertIn("MENU", VOCABULARY["Subject"])
 
     def test_the_subject_roster_is_every_renderer(self):
+        """Minus the constants that name no renderer, which is what the roster is read out against.
+
+        `ENGINE` is what a type says when it is under every render and the reference graph cannot see
+        the edge, and there is no `EngineRenderer` for the walk to find. Named here rather than
+        filtered by a rule, so a second one is a decision somebody makes.
+        """
         shipped = sorted(
             path.name[: -len("Renderer.java")].upper()
             for path in (REPO / declarations.SOURCE_ROOTS[0] / declarations.LIBRARY_ROOT).glob("*Renderer.java")
             if path.name != "Renderer.java")
-        self.assertEqual(sorted(VOCABULARY["Subject"]), shipped)
+        self.assertEqual(sorted(set(VOCABULARY["Subject"]) - {"ENGINE"}), shipped)
+        self.assertIn("ENGINE", VOCABULARY["Subject"])
 
 
 class ProseIsReportedAndNotCounted(unittest.TestCase):

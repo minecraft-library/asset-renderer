@@ -321,6 +321,31 @@ class OverTheRealTree(unittest.TestCase):
         """The collapse itself: a declared entity lookup is not an exercised one."""
         self.assertNotIn("sweep.menu", self._artifacts("Entity"))
 
+    def test_no_library_type_reaches_nothing_without_saying_so(self):
+        """The live guarantee, and the whole of what a reach declaration is for.
+
+        Two very different things answer the empty set - a renderer this store holds no artifact for,
+        and a type reached by an edge the graph cannot see, across a wiring seam or out of a service
+        file. The first is correct and the second is a gate quietly not running.
+        """
+        self.assertEqual(reach.unexplained(REPO, self.graph), [])
+
+    def test_a_reach_declaration_is_what_explains_one(self):
+        """And the population, so the case above is not vacuously true of a tree with no orphans."""
+        explained = reach.declared_reach(REPO, self.graph.declared)
+        orphans = {name for name in reach.orphans(self.graph)}
+        named = sorted(n.rsplit("/", 1)[1] for n in explained if n in orphans)
+        self.assertIn("LayoutRenderer", named)
+        self.assertIn("PipelineGsonContributor", named)
+
+    def test_a_subject_beside_a_claim_is_not_a_reach(self):
+        """It says which renderers that CLAIM is about, which is a different statement.
+
+        Read as a reach, a claim's own decoration would explain an orphan nobody had looked at.
+        """
+        menu = next(n for n in self.graph.declared if n.rsplit("/", 1)[1] == "MenuRenderer")
+        self.assertNotIn(menu, reach.declared_reach(REPO, self.graph.declared))
+
     def test_a_seam_that_is_a_CLASS_is_cut_whole(self):
         """It has no split to make - every reference a class holds is one it makes.
 

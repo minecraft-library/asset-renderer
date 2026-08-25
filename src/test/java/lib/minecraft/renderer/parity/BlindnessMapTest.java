@@ -290,6 +290,18 @@ final class BlindnessMapTest {
     /** The suffix a renderer's file name ends in, which is what the roster is walked by. */
     private static final String RENDERER_SUFFIX = "Renderer.java";
 
+    /**
+     * The subjects that name no renderer, and are read out before the roster is compared.
+     *
+     * <p>One today. {@code ENGINE} is what a type says when it is under every render and the
+     * reference graph cannot see the edge, and there is no {@code EngineRenderer} for the walk below
+     * to find - so leaving it in would fail the comparison for a constant that is correct.
+     *
+     * <p>In enum order, and written down rather than derived from the enum, because deriving it
+     * would make the comparison agree with whatever the enum says. A second one is a decision.
+     */
+    private static final List<String> NOT_A_RENDERER = List.of("ENGINE");
+
     /** The annotation token a derived trigger path stands for, as it is written in source. */
     private static final String DECLARATION = "@Parity";
 
@@ -1479,8 +1491,17 @@ final class BlindnessMapTest {
             .map(stem -> stem.toUpperCase(Locale.ROOT))
             .sorted()
             .toList();
-        List<String> subjects = Stream.of(Subject.values()).map(Enum::name).sorted().toList();
+        List<String> subjects = Stream.of(Subject.values()).map(Enum::name)
+            .filter(name -> !NOT_A_RENDERER.contains(name))
+            .sorted()
+            .toList();
 
+        assertThat("the constants that are not a renderer, against the roster they are read out of. "
+            + "Derived from nothing: each is a decision to add a constant no file under the library "
+            + "root can ever be named for, so a third arriving is a decision somebody makes here "
+            + "rather than a name quietly excused from the comparison below",
+            Stream.of(Subject.values()).map(Enum::name).filter(NOT_A_RENDERER::contains).toList(),
+            equalTo(List.copyOf(NOT_A_RENDERER)));
         assertThat("renderers directly under the library root, which is the walk the roster is "
             + "defined from. An empty list is a walk that has stopped finding anything - a moved "
             + "source root, or a suffix nothing ends in any more - and the comparison below would "

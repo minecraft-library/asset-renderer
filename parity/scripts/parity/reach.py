@@ -489,6 +489,49 @@ def orphans(graph: Graph) -> list[str]:
     return sorted(name for name in graph.declared if not graph.artifacts.get(name))
 
 
+def declared_reach(base: Path, declared: frozenset[str]) -> dict[str, tuple[str, ...]]:
+    """Each type's own declared reach, read from source as every declaration is.
+
+    A reach is a declaration of its OWN, naming a subject and no claim. A subject written beside a
+    claim decorates that claim - it says which renderers the claim is about - and reading one as a
+    reach would take a statement about a blindness rule for a statement about a type. A type
+    carrying both writes both, which is two facts rather than one overloaded member.
+
+    :param base the repository root
+    :param declared the types that may be answered
+    """
+    out: dict[str, tuple[str, ...]] = {}
+    for declaration in declarations_mod.scan(base).declarations:
+        if declaration.on == "package" or declaration.claim or declaration.joins:
+            continue
+        binary = to_binary(declaration.path)
+        if declaration.subject and binary in declared:
+            out[binary] = declaration.subject
+    return out
+
+
+def unexplained(base: Path, graph: Graph) -> list[str]:
+    """Every LIBRARY type that reaches nothing and says nothing about it.
+
+    A type no producer root reaches answers the empty set, and two very different things look like
+    that: a renderer the store holds no artifact for by decision, and a type the graph cannot see an
+    edge to - reached only across a wiring seam, or built by a service loader out of a file no
+    constant pool mentions. The first is correct and the second is a gate quietly not running, and
+    nothing derived can tell them apart, so the type says which and this refuses one that does not.
+
+    Scoped to the library's own source root. A test class is reached by a producer root only when it
+    IS one, so every other test in the tree answers nothing by construction, and asking each of them
+    to say so would be asking for a declaration per assertion.
+
+    :param base the repository root
+    :param graph a derived graph
+    """
+    explained = declared_reach(base, graph.declared)
+    root = base / SOURCE_ROOTS[0]
+    return sorted(name for name in orphans(graph)
+                  if name not in explained and (root / f"{name}.java").is_file())
+
+
 def to_payload(graph: Graph) -> dict:
     """The stored form of a graph, for the committed reach file.
 

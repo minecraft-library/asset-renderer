@@ -8,6 +8,8 @@ import com.google.gson.JsonObject;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
 import lib.minecraft.renderer.asset.pack.item.SpecialTransform;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Type;
@@ -26,7 +28,12 @@ import java.util.Map;
  * .class)} read and every recursive {@code context.deserialize} child resolve through this one adapter.
  * The tree depth is bounded by the loader's own JSON parse (which rejects pathologically nested files
  * before this runs), so no explicit depth cap is carried here.
+ *
+ * <p><b>Parity.</b> Registered by a service file and reached only through the contributor that
+ * names it, so no constant pool carries an edge to it. It parses the item model tree, which a block
+ * icon is baked from as much as an item is drawn from.
  */
+@Parity(subject = {Subject.BLOCK, Subject.ENTITY, Subject.ITEM, Subject.MENU})
 public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemModelNode> {
 
     @Override

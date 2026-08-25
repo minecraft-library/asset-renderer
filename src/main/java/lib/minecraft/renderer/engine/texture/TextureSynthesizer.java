@@ -6,6 +6,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
@@ -27,8 +28,13 @@ import java.util.function.Function;
  * a higher pack adds permutations without dropping the vanilla trim set. A vanilla-only stack ships
  * only the trim atlas, and every vanilla trim reference is served by the item renderer's explicit
  * {@link TrimKit} branch before resolution, so this synthesiser never fires there - inert on vanilla.
+ *
+ * <p><b>Parity.</b> Reached only across the pipeline context, which is wiring, so no producer root
+ * reaches it. It sits behind a texture miss and its first client is the armour-trim item overlay,
+ * so what it can move is what an item draws.
  */
 @Parity(claim = "texture-synthesis")
+@Parity(subject = Subject.ITEM)
 public final class TextureSynthesizer {
 
     /** The empty synthesiser - no sources, never synthesises (test / stub contexts). */

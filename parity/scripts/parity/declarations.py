@@ -151,14 +151,15 @@ class Scan:
     def by_claim(self) -> dict[str, list[Declaration]]:
         """The declarations of each claim, keyed by slug, in the order the tree was walked.
 
-        A seam declaration is not among them. It carries no claim by construction - it says reach does
-        not compose through this type, which is a statement about the graph and not about the store -
-        so grouping it here would file every one of them under a claim spelled '' and have the map
-        asked to carry a row for it.
+        The two shapes that make no claim are not among them, and for one reason: a declaration
+        carrying no slug would be filed under a claim spelled '' and the map asked to carry a row for
+        it - which is every rule whose own ``claim_key`` is empty inheriting all of their paths. A
+        seam says reach does not compose through this type and a reach says what a type reaches, and
+        both are statements about the graph rather than about the store.
         """
         out: dict[str, list[Declaration]] = {}
         for declaration in self.declarations:
-            if declaration.ignored:
+            if declaration.ignored or not declaration.claim:
                 continue
             out.setdefault(declaration.claim, []).append(declaration)
         return out
@@ -455,11 +456,25 @@ def parse(path: str, source: str, vocabulary: dict[str, tuple[str, ...]],
             raise DeclarationError(
                 path, line, f"the declaration is {SEAM_MEMBER} and also names a subject",
                 "a subject says which pipelines a type reaches and this says not to ask - drop one")
-        if not seam and bool(claim) == bool(joins):
+        # The third shape, and the second that names no claim: a REACH, which is what a type says
+        # where the reference graph cannot derive one. A type reached only across a seam, or built by
+        # a service loader from a file no constant pool mentions, is reachable from no producer root
+        # and answers nothing - so it writes what it reaches here and `reach check` refuses one that
+        # writes neither. It is not a claim about an artifact, so giving it a slug would file it
+        # under one it does not make.
+        subjects = tuple(spelled.get("subject", ()))
+        reach_only = bool(subjects) and not (claim or joins)
+        if reach_only and on == "package":
+            raise DeclarationError(
+                path, line, "a package declares a reach and no claim",
+                "a reach is what one TYPE the graph cannot derive says about itself; a package says "
+                "what its files claim - write a claim, or move the reach onto the type")
+        if not seam and not reach_only and bool(claim) == bool(joins):
             shape = "names both a claim and an as" if claim else "names neither a claim nor an as"
             raise DeclarationError(path, line, f"the declaration {shape}",
-                                   'write exactly one of claim = "<slug>" or as = <Type>.class, or '
-                                   f"{SEAM_MEMBER} = true for a wiring type")
+                                   'write exactly one of claim = "<slug>" or as = <Type>.class, '
+                                   f"{SEAM_MEMBER} = true for a wiring type, or subject = {{...}} "
+                                   "for a reach the graph cannot derive")
         if "scope" in spelled and on != "package":
             raise DeclarationError(path, line, "'scope' is written on a type",
                                    "scope is read on a package declaration alone - drop it")

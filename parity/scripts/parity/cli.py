@@ -239,14 +239,37 @@ def _cmd_reach(args: argparse.Namespace) -> int:
         if not target.is_file():
             raise MissingInput(f"no committed reach graph at {target} - run 'parity reach build'")
         moved = reach_mod.differences(read_json(target), derived)
-        verb = "would move" if moved else "agrees with the tree"
-        _emit(args, f"reach: {verb}" + (f" {len(moved)} type(s)\n" + "\n".join(moved) if moved else ""),
-              {"moved": moved})
-        return DIFFERENCES if moved else OK
+        # And the second half, which the comparison above cannot see: a library type that reaches
+        # nothing and says nothing about it. Both halves of `check`, because both are the same
+        # failure - a gate that has quietly stopped being consulted - and a run that reported the
+        # first and passed over the second would say "agrees with the tree" about a tree it agrees
+        # with and cannot answer for.
+        unexplained = reach_mod.unexplained(base, graph)
+        lines = []
+        if moved:
+            lines.append(f"reach: would move {len(moved)} type(s)")
+            lines += moved
+        if unexplained:
+            lines.append(
+                f"reach: {len(unexplained)} library type(s) reach nothing and declare nothing. A "
+                "type no producer root reaches is either a renderer this store holds no artifact "
+                "for, or one reached by an edge this graph cannot see, and only the type can say "
+                "which - write @Parity(subject = {...}) naming what it reaches")
+            lines += unexplained
+        if not lines:
+            lines.append("reach: agrees with the tree")
+        _emit(args, "\n".join(lines), {"moved": moved, "unexplained": unexplained})
+        return DIFFERENCES if moved or unexplained else OK
     if args.reach_command == "orphans":
         found = reach_mod.orphans(graph)
-        _emit(args, f"reach: {len(found)} type(s) no producer root reaches\n" + "\n".join(found),
-              {"orphans": found})
+        explained = reach_mod.declared_reach(base, graph.declared)
+        lines = [f"{name}"
+                 + (f" - declares {', '.join(explained[name])}" if name in explained else "")
+                 for name in found]
+        _emit(args, f"reach: {len(found)} type(s) no producer root reaches, "
+                    f"{len(reach_mod.unexplained(base, graph))} of them undeclared library types\n"
+                    + "\n".join(lines),
+              {"orphans": found, "unexplained": reach_mod.unexplained(base, graph)})
         return OK
     if args.reach_command == "why":
         binary = reach_mod.to_binary(args.path)
