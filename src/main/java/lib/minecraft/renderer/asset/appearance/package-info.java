@@ -7,7 +7,9 @@
  * typed {@link lib.minecraft.renderer.asset.appearance.Age Age} and
  * {@link lib.minecraft.renderer.asset.appearance.Size Size} meshes, the dye
  * {@link lib.minecraft.renderer.asset.appearance.TintAxis TintAxis} an overlay names its
- * {@code tint_by} target with, and the per-subject texture families
+ * {@code tint_by} target with, the sheet-selecting
+ * {@link lib.minecraft.renderer.asset.appearance.TextureAxis TextureAxis} it names its
+ * {@code texture_by} source with, and the per-subject texture families
  * ({@link lib.minecraft.renderer.asset.appearance.HorseMarking HorseMarking},
  * {@link lib.minecraft.renderer.asset.appearance.IronGolemCrackiness IronGolemCrackiness},
  * {@link lib.minecraft.renderer.asset.appearance.CopperWeathering CopperWeathering},

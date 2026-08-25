@@ -5,8 +5,8 @@ import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
 import lib.minecraft.renderer.asset.appearance.CopperWeathering;
-import lib.minecraft.renderer.asset.appearance.HorseMarking;
 import lib.minecraft.renderer.asset.appearance.Size;
+import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.appearance.TropicalFishPattern;
 import lib.minecraft.renderer.asset.appearance.Villager;
@@ -596,7 +596,7 @@ public record Entity(
     public @NotNull Optional<String> weatheringBaseRef(@NotNull AppearanceOptions appearance) {
         if (appearance.getWeathering() == CopperWeathering.UNAFFECTED) return Optional.empty();
         boolean supportsWeathering = this.overlays.stream()
-            .anyMatch(o -> o.textureBy().filter("weathering"::equals).isPresent());
+            .anyMatch(o -> o.textureBy().filter(TextureAxis.WEATHERING::equals).isPresent());
         return supportsWeathering ? Optional.of(appearance.getWeathering().baseTexture()) : Optional.empty();
     }
 
@@ -636,10 +636,10 @@ public record Entity(
      *     resolved from the row's {@code tint_by} token at load
      *     (e.g. {@code "wool_color"} for the sheep wool, tinted by {@code AppearanceOptions.woolColor}), or
      *     empty when the tint is fixed at {@link #tintArgb}
-     * @param textureBy the render-axis token whose selection overrides {@link #textureRef} at render
-     *     (e.g. {@code "pattern"} for the tropical-fish pattern, sourced from
-     *     {@code AppearanceOptions.pattern}), or empty when the overlay texture is fixed at
-     *     {@link #textureRef}
+     * @param textureBy the texture axis whose selection overrides {@link #textureRef} at render
+     *     ({@link TextureAxis#PATTERN} for the tropical-fish pattern, sourced from
+     *     {@code AppearanceOptions.pattern}), resolved from the row's {@code texture_by} token at
+     *     load, or empty when the overlay texture is fixed at {@link #textureRef}
      * @param gate the render condition parsed from the overlay's {@code when} object (the sheep wool
      *     {@code sheared} flag, the wool undercoat {@code tinted} axis, the creeper {@code charged} axis),
      *     or empty when the overlay renders unconditionally
@@ -663,7 +663,7 @@ public record Entity(
         int tintArgb,
         boolean skipBounds,
         @NotNull Optional<TintAxis> tintBy,
-        @NotNull Optional<String> textureBy,
+        @NotNull Optional<TextureAxis> textureBy,
         @NotNull Optional<AppearanceGate> gate,
         @NotNull Optional<EntityModelData> noHatModel,
         @NotNull EntityPose pose,
@@ -678,8 +678,8 @@ public record Entity(
          * @param pass the declared pipeline state
          * @param tintArgb the pass's multiplicative tint
          * @param skipBounds whether the pass is excluded from the canvas-sizing union
-         * @param tintBy the render-axis token overriding the tint, or empty
-         * @param textureBy the render-axis token overriding the texture, or empty
+         * @param tintBy the tint axis overriding the tint, or empty
+         * @param textureBy the texture axis overriding the texture, or empty
          * @param gate the render condition, or empty when unconditional
          * @param noHatModel the alternate mesh a suppressed pass draws, or empty
          * @param pose the pose belonging to this pass's own mesh
@@ -687,16 +687,13 @@ public record Entity(
         public OverlayLayer(
             @NotNull EntityModelData model, @NotNull Optional<String> textureRef,
             @NotNull PassDeclaration pass, int tintArgb, boolean skipBounds,
-            @NotNull Optional<TintAxis> tintBy, @NotNull Optional<String> textureBy,
+            @NotNull Optional<TintAxis> tintBy, @NotNull Optional<TextureAxis> textureBy,
             @NotNull Optional<AppearanceGate> gate, @NotNull Optional<EntityModelData> noHatModel,
             @NotNull EntityPose pose
         ) {
             this(model, textureRef, pass, tintArgb, skipBounds, tintBy, textureBy, gate, noHatModel,
                 pose, Optional.empty());
         }
-
-        /** The path segment marking a baby robe directory, which a type pass' baked ref carries. */
-        private static final @NotNull String BABY_ROBE_SEGMENT = "/baby/";
 
         /**
          * Where this pass samples its texture from at one tick, in normalized sheet coordinates.
@@ -712,61 +709,6 @@ public record Entity(
         public @NotNull Optional<Vector2f> textureOffsetAt(int tick) {
             return this.textureScroll.map(rate ->
                 new Vector2f(tick * rate.x() % 1f, tick * rate.y() % 1f));
-        }
-
-        /**
-         * The effective texture ref this pass draws at an appearance: the {@code texture_by} axis
-         * selection when the pass is axis-driven and the appearance supplies it, else the baked
-         * {@link #textureRef} (empty = reuse the base entity texture). Axes: {@code pattern}
-         * (tropical fish, baked default {@code KOB}), {@code crackiness} (iron golem, empty at
-         * {@code NONE} so the pass is skipped), {@code weathering} (copper-golem eyes, always
-         * resolving to the state's eye texture), and the villager profession-layer trio
-         * {@code type} / {@code profession} / {@code profession_level} (prefix-relative sub-paths
-         * the {@code texturePrefix} qualifies; {@code profession} resolves empty at its
-         * {@code NONE} default so the pass is skipped, and {@code profession_level} resolves empty
-         * only for a profession that draws no badge - vanilla has no badge-less job villager, so an
-         * unnamed tier resolves to the first rather than to nothing). The {@code type} axis
-         * resolves its biome under the pass' own robe directory, mirroring the layer's
-         * {@code isBaby ? "baby" : "type"} token swap. The default keeps an unselected pass
-         * unchanged; a selection swaps in that axis' texture.
-         * <p>
-         * {@code markings} (the horse coat marking) is the one axis answering off the age as well as
-         * off the selection, because vanilla binds each {@link HorseMarking} to a PAIR of sheets and
-         * picks between them on the render state's own {@code isBaby}. It is safe here where the villager robe's
-         * directory swap is not: a baby draws the baby overlay list and an adult the adult one, both
-         * forked on this same flag, so the sheet and the mesh cannot disagree. It resolves empty at
-         * the {@code NONE} default, so the pass is skipped and an unmarked horse draws nothing.
-         *
-         * @param appearance the axis selections to resolve against
-         * @param texturePrefix the entity texture prefix ({@code villager} / {@code zombie_villager})
-         *     prepended to the villager profession-layer axes' prefix-relative sub-paths
-         * @return the effective texture ref, or empty when the pass' axis resolves to nothing
-         */
-        public @NotNull Optional<String> textureFor(
-            @NotNull AppearanceOptions appearance, @NotNull String texturePrefix) {
-
-            if (this.textureBy.filter("pattern"::equals).isPresent())
-                return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(this::textureRef);
-            if (this.textureBy.filter("crackiness"::equals).isPresent())
-                return appearance.getCrackiness().overlayTexture().or(this::textureRef);
-            if (this.textureBy.filter("markings"::equals).isPresent())
-                return appearance.isBaby()
-                    ? appearance.getMarkings().babyOverlayTexture()
-                    : appearance.getMarkings().overlayTexture();
-            if (this.textureBy.filter("weathering"::equals).isPresent())
-                return Optional.of(appearance.getWeathering().eyeTexture());
-            if (this.textureBy.filter("type"::equals).isPresent()) {
-                Villager.Type type = appearance.getVillagerType();
-                return Optional.of(texturePrefix + "/" + (drawsBabyRobe() ? type.babyOverlaySubPath() : type.overlaySubPath()));
-            }
-            if (this.textureBy.filter("profession"::equals).isPresent())
-                return appearance.getVillagerProfession().textureRef(texturePrefix);
-            if (this.textureBy.filter("profession_level"::equals).isPresent())
-                return appearance.getVillagerProfession().drawsBadge()
-                    ? Optional.of(texturePrefix + "/"
-                        + appearance.getVillagerLevel().orElseGet(Villager.Level::minimum).overlaySubPath())
-                    : Optional.empty();
-            return this.textureRef;
         }
 
         /**
@@ -788,24 +730,8 @@ public record Entity(
             @NotNull AppearanceOptions appearance, @NotNull String texturePrefix,
             @NotNull Optional<String> resolved) {
 
-            if (this.textureBy.filter("type"::equals).isEmpty()) return resolved;
+            if (this.textureBy.filter(TextureAxis.TYPE::equals).isEmpty()) return resolved;
             return Optional.of(texturePrefix + "/" + appearance.getVillagerType().overlaySubPath());
-        }
-
-        /**
-         * Whether a {@code type} pass draws the baby robe directory rather than the adult
-         * {@code type/} one, read off the pass' OWN baked texture ref - the baby overlay list bakes
-         * {@code <prefix>/baby/<biome>} and the adult one {@code <prefix>/type/<biome>}. Keyed on
-         * the pass rather than on the appearance's age so the directory swap and the baby-mesh swap
-         * can never disagree: the baby robe's UV layout belongs to the baby mesh, so binding it
-         * over the adult mesh would garble its texels. A pass whose baby form probed no texture of
-         * its own inherits the adult ref and so keeps the adult directory, which is what the jar
-         * actually ships.
-         *
-         * @return {@code true} when the pass bakes the baby robe directory
-         */
-        private boolean drawsBabyRobe() {
-            return this.textureRef.filter(ref -> ref.contains(BABY_ROBE_SEGMENT)).isPresent();
         }
 
     }

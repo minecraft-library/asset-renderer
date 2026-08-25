@@ -4,6 +4,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
@@ -275,7 +276,7 @@ class EntityModelLoaderTest {
         List<OverlayLayer> babyPasses = entity.axes().babyOverlays();
         assertThat(entityId + " ships exactly one baby overlay pass", babyPasses.size(), is(1));
         assertThat(entityId + " the baby pass is the type pass",
-            babyPasses.stream().map(OverlayLayer::textureBy).toList(), contains(Optional.of("type")));
+            babyPasses.stream().map(OverlayLayer::textureBy).toList(), contains(Optional.of(TextureAxis.TYPE)));
 
         OverlayLayer robe = babyPasses.getFirst();
         assertThat(entityId + " the baby pass binds the baby robe texture",
@@ -527,12 +528,12 @@ class EntityModelLoaderTest {
             .orElseThrow(() -> new AssertionError("entity '" + entityId + "' has no '" + slot + "' equipment layer"));
     }
 
-    /** The overlay pass of an entity whose texture axis is {@code textureBy}. */
+    /** The overlay pass of an entity whose texture axis token is {@code textureBy}. */
     private static OverlayLayer categoryPass(ConcurrentMap<String, Entity> defs, String entityId, String textureBy) {
         return defs.get(entityId)
             .overlays()
             .stream()
-            .filter(overlay -> overlay.textureBy().filter(textureBy::equals).isPresent())
+            .filter(overlay -> overlay.textureBy().map(TextureAxis::token).filter(textureBy::equals).isPresent())
             .findFirst()
             .orElseThrow(() -> new AssertionError("entity '" + entityId + "' has no '" + textureBy + "' category pass"));
     }

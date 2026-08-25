@@ -21,6 +21,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
 import lib.minecraft.renderer.asset.appearance.Size;
+import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
@@ -495,7 +496,7 @@ public final class EntityIndexBuilder {
             // Resolved here rather than re-parsed per frame: the token is the table's spelling and
             // the axis is what every reader asks.
             Optional<TintAxis> tintBy = TintAxis.ofToken(entry.tintBy());
-            Optional<String> textureBy = Optional.ofNullable(entry.textureBy());
+            Optional<TextureAxis> textureBy = TextureAxis.ofToken(entry.textureBy());
             // The overlay's render condition, parsed straight from its `when` object into the typed
             // AppearanceGate (flag/charged/tinted). Absent -> unconditional.
             Optional<AppearanceGate> gate = parseOverlayGate(entry.when(), tintBy, overlayTint);

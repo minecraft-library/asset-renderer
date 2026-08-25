@@ -482,7 +482,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     if (overlay.gate().filter(AppearanceGate.TintedGate.class::isInstance)
                         .filter(gate -> !gate.test(appearance)).isPresent()) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
-                    Optional<String> overlayRef = overlay.textureFor(appearance, texturePrefix);
+                    Optional<String> overlayRef = overlay.textureBy()
+                        .map(axis -> axis.resolve(appearance, texturePrefix, overlay.textureRef()))
+                        .orElse(overlay.textureRef());
                     // A texture_by overlay whose axis resolves to no texture draws nothing - the base /
                     // "none" state (iron golem Crackiness.NONE) - so skip it, keeping the default
                     // (unselected) render unchanged. Overlays with a baked default (tropical fish
@@ -851,8 +853,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Empty for every block whose default state authors a single variant, which is all but 34 of
         // the 971 and every block any entity currently carries bar grass_block.
         Optional<Block.Variant> drawn = carriedVariant(block.get());
-        ModelData blockModel = drawn.isPresent() && drawn.get().geometry() instanceof Block.ElementGeometry element
-            ? element.model()
+        ModelData blockModel = drawn.isPresent() && drawn.get().geometry() instanceof Block.ElementGeometry(ModelData model1)
+            ? model1
             : block.get().model();
 
         // Pre-load each face's texture by dereferencing #variable bindings against the model's

@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.option.AppearanceOptions;
@@ -240,7 +241,7 @@ class EntityIndexBuilderBabyOverlayTest {
         OverlayLayer robe = baby.getFirst();
         assertThat("the baby pass keeps its bounds skip", robe.skipBounds(), is(true));
         assertThat("the baby pass substitutes the baby texture", robe.textureRef(), is(Optional.of("villager/baby/plains")));
-        assertThat("the baby pass inherits the row's texture axis", robe.textureBy(), is(Optional.of("type")));
+        assertThat("the baby pass inherits the row's texture axis", robe.textureBy(), is(Optional.of(TextureAxis.TYPE)));
         assertThat("the baby pass materialises on the baby mesh",
             robe.model().getBones().keySet(), hasItems("bb_main"));
         assertThat("the baby pass never touches the adult mesh",
@@ -324,10 +325,10 @@ class EntityIndexBuilderBabyOverlayTest {
         ConcurrentMap<String, Entity> defs = assemble();
         assertThat("the adult list still carries both passes", defs.get(ENTITY).overlays().size(), is(2));
         assertThat("the profession pass is on the adult list",
-            defs.get(ENTITY).overlays().getLast().textureBy(), is(Optional.of("profession")));
+            defs.get(ENTITY).overlays().getLast().textureBy(), is(Optional.of(TextureAxis.PROFESSION)));
         assertThat("the baby list carries the type pass alone",
             defs.get(ENTITY).axes().babyOverlays().stream().map(OverlayLayer::textureBy).toList(),
-            contains(Optional.of("type")));
+            contains(Optional.of(TextureAxis.TYPE)));
         assertThat("a family whose overlays declare no age delta has an empty baby list",
             defs.get(CONTROL).axes().babyOverlays(), is(empty()));
     }
