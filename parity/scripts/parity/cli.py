@@ -16,7 +16,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from parity import VERSION
 from parity import blindness as blindness_mod
@@ -622,6 +622,23 @@ def _cmd_capture_index(args: argparse.Namespace) -> int:
     return OK
 
 
+def _derived_reach(base: Path, rules: Sequence[blindness_mod.Rule]) \
+        -> blindness_mod.DerivedReach | None:
+    """What answers a derived rule's selection, or nothing when the map has no derived rule.
+
+    The committed graph, read once. Loading it only when some rule wants it is what keeps a map with
+    none of them resolvable on a tree that has never run ``reach build`` - the file is a guarded
+    artifact rather than a precondition of planning at all.
+
+    :param base: the repository root
+    :param rules: the map's rules, live triggers already folded in
+    """
+    if not any(rule.derived for rule in rules):
+        return None
+    payload = read_json(base / "parity" / reach_mod.STORED)
+    return lambda path: reach_mod.answered_by(payload, path)
+
+
 def _cmd_plan(args: argparse.Namespace) -> int:
     """Resolve what the working tree's change can be seen by. Measures nothing.
 
@@ -646,7 +663,7 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     changed = list(args.changed or [])
     if not changed or args.changed_from_git:
         changed = sorted(set(changed) | set(_changed_from_git(base)))
-    reach = blindness_mod.resolve(changed, rules, no_reach)
+    reach = blindness_mod.resolve(changed, rules, no_reach, _derived_reach(base, rules))
     if reach.unknown:
         raise Refused(str(blindness_mod.UnknownReach(reach.unknown)))
 

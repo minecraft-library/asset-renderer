@@ -3,6 +3,7 @@ package lib.minecraft.renderer.parity;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import lib.minecraft.renderer.support.BuildScripts;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -342,6 +343,25 @@ final class BlindnessMapTest {
 
     /** The repository's own rules, whose headings the map's {@code source} column cites by name. */
     private static final Path CLAUDE_MD = Path.of("CLAUDE.md");
+
+    /**
+     * The committed reference graph, which is what a rule declaring {@code derived} selects through.
+     *
+     * <p>Read here for the same reason the map itself is: the mirror below has to resolve what the
+     * planner resolves, and a derived rule's selection is a property of the changed FILE rather than
+     * of the glob that caught it. Resolving one against its own empty {@code sees} would answer that
+     * every path under {@code engine/**} reaches nothing, which is the opposite of the narrowing the
+     * mechanism performs and would take every check reading this resolver with it.
+     *
+     * <p>The committed file and never a fresh walk of {@code build/classes}: what those class files
+     * hold is whatever was last compiled, and the whole value of the graph being an artifact is that
+     * a stale one is a loud difference rather than a quiet mis-schedule. {@code parityReachCheck} is
+     * where that difference is reported.
+     */
+    private static final Path REACH_GRAPH = Path.of("parity/reach.json");
+
+    /** The source roots the graph derives a type from, which is where it can answer a path at all. */
+    private static final List<String> GRAPH_SOURCE_ROOTS = List.of("src/main/java", "src/test/java");
 
     /** One heading of a markdown file, at any level. */
     private static final Pattern MARKDOWN_HEADING = Pattern.compile("(?m)^#{1,6} (.+)$");
@@ -890,6 +910,36 @@ final class BlindnessMapTest {
 
         assertThat("artifact ids no roster registers; a typo or a retired artifact leaves a rule "
             + "pointing at nothing", unknown, is(empty()));
+    }
+
+    @Test
+    @DisplayName("a derived rule authors no sees, and every path it fires on the graph answers")
+    void aDerivedRuleAuthorsNothingItCanBeAskedFor() {
+        List<JsonObject> rules = rules();
+        List<String> authoring = rules.stream()
+            .filter(rule -> rule.has("derived") && rule.get("derived").getAsBoolean())
+            .filter(rule -> !rule.getAsJsonArray("sees").isEmpty())
+            .map(rule -> rule.get("id").getAsString())
+            .toList();
+        List<String> derived = rules.stream()
+            .filter(rule -> rule.has("derived") && rule.get("derived").getAsBoolean())
+            .map(rule -> rule.get("id").getAsString())
+            .toList();
+        // Resolving every tracked file the derived rules trigger on, which is what would throw if the
+        // graph could not answer one. The count is what says the loop had something to answer for.
+        List<String> answered = derived.isEmpty() ? List.of() : trackedFiles().stream()
+            .filter(path -> firedOn(path, rules).stream()
+                .anyMatch(rule -> rule.has("derived") && rule.get("derived").getAsBoolean()))
+            .peek(BlindnessMapTest::seesFor)
+            .toList();
+
+        assertThat("derived rules that also author a sees. The graph answers a derived rule's "
+            + "selection, so an authored list beside it is a second statement of what the rule "
+            + "reaches - and whichever one the resolver takes, the other goes on being read as the "
+            + "map's answer. The toolkit refuses the same shape when it loads the file",
+            authoring, is(empty()));
+        System.out.printf("%d derived rule(s) answer for %d tracked file(s)%n",
+            derived.size(), answered.size());
     }
 
     @Test
@@ -1556,26 +1606,89 @@ final class BlindnessMapTest {
      * @return the artifacts that can see it
      */
     private static Set<String> seesFor(String path, List<JsonObject> rules) {
-        List<JsonObject> fired = rules.stream()
-            .filter(rule -> {
-                for (JsonElement glob : rule.getAsJsonArray("trigger_paths"))
-                    if (compileGlob(glob.getAsString()).matcher(path).matches()) return true;
-                return false;
-            })
-            .toList();
+        List<JsonObject> fired = firedOn(path, rules);
 
         Set<String> sees = new LinkedHashSet<>();
-        fired.forEach(rule -> sees.addAll(strings(rule.getAsJsonArray("sees"))));
+        fired.forEach(rule -> sees.addAll(selectionOf(rule, path)));
         // The two post-union passes, in the toolkit's order: a demotion removes what a different rule
         // selected, and a suppression outranks both by removing its own sees as well.
         fired.stream().filter(rule -> rule.get("mode").getAsString().equals("demote"))
             .forEach(rule -> sees.removeAll(strings(rule.getAsJsonArray("blind"))));
         fired.stream().filter(rule -> rule.get("mode").getAsString().equals("suppress"))
             .forEach(rule -> {
-                sees.removeAll(strings(rule.getAsJsonArray("sees")));
+                sees.removeAll(selectionOf(rule, path));
                 sees.removeAll(strings(rule.getAsJsonArray("blind")));
             });
         return sees;
+    }
+
+    /**
+     * What one rule puts in the bundle on one path.
+     *
+     * <p>A rule declaring {@code derived} authors no {@code sees}: the reference graph answers it,
+     * per file, which is what makes one glob over a package say something different about each class
+     * under it. Every other rule answers with the list it wrote down.
+     *
+     * @param rule the rule that fired
+     * @param path the path it fired on
+     * @return the artifacts it selects there
+     */
+    private static Set<String> selectionOf(JsonObject rule, String path) {
+        if (!rule.has("derived") || !rule.get("derived").getAsBoolean())
+            return strings(rule.getAsJsonArray("sees"));
+        Set<String> answered = reachOf(path);
+        // Never an empty selection where the graph declines to answer. A path it cannot speak for is
+        // either a source file the committed graph predates or one carrying no Java at all, and both
+        // read exactly like a class that really reaches nothing - which is a narrowing nobody wrote
+        // down. The toolkit refuses the same case, and this side is where the map is held to it.
+        if (answered == null)
+            throw new AssertionError(rule.get("id").getAsString() + " is derived and fires on '"
+                + path + "', which " + REACH_GRAPH + " does not answer for. Regenerate it with "
+                + "'python parity/scripts/parity reach build' over a compiled tree, or give the rule "
+                + "an authored sees if the path carries no Java");
+        return answered;
+    }
+
+    /**
+     * What the committed reference graph says one path reaches, or nothing when it cannot answer.
+     *
+     * <p>A {@code package-info.java} answers an empty set rather than nothing. It declares no type,
+     * so no class file carries its edges, and what it does carry - a package's own {@code @Parity}
+     * declaration - moves this map's trigger paths rather than any render.
+     *
+     * @param path the repo-relative path
+     * @return the artifacts, or {@code null} when the graph has no entry for the path
+     */
+    private static Set<String> reachOf(String path) {
+        boolean scanned = GRAPH_SOURCE_ROOTS.stream().anyMatch(root -> path.startsWith(root + "/"));
+        if (!scanned || !path.endsWith(".java")) return null;
+        if (path.endsWith("/" + PACKAGE_DECLARATION)) return Set.of();
+        String root = GRAPH_SOURCE_ROOTS.stream().filter(each -> path.startsWith(each + "/"))
+            .findFirst().orElseThrow();
+        String binary = path.substring(root.length() + 1, path.length() - ".java".length());
+        return DERIVED_REACH.get(binary);
+    }
+
+    /**
+     * Each type's derived reach, by binary name, read once.
+     *
+     * <p>Held rather than re-parsed, because the resolver above runs per rule per tracked file and
+     * the graph is one entry for every type in two source trees.
+     */
+    private static final Map<String, Set<String>> DERIVED_REACH = derivedReach();
+
+    /**
+     * Reads the committed reference graph.
+     *
+     * @return each type's artifacts, by binary name
+     */
+    private static Map<String, Set<String>> derivedReach() {
+        Map<String, Set<String>> out = new LinkedHashMap<>();
+        JsonObject types = JsonParser.parseString(text(REACH_GRAPH)).getAsJsonObject()
+            .getAsJsonObject("types");
+        for (String name : types.keySet())
+            out.put(name, strings(types.getAsJsonObject(name).getAsJsonArray("artifacts")));
+        return out;
     }
 
     /**
@@ -1596,13 +1709,27 @@ final class BlindnessMapTest {
     }
 
     /**
-     * Every artifact id some rule's {@code sees} names, which is the universe a plan is drawn from.
+     * Every artifact id some rule can select, which is the universe a plan is drawn from.
+     *
+     * <p>A derived rule names none of its own, so its contribution is what the graph answers for the
+     * tracked files it triggers on. Reading the authored lists alone would shrink this universe by
+     * exactly the rows a derived rule is the only selector of, and the two checks over it would then
+     * vouch for a capture table that has no row for them.
      *
      * @return the ids, in the order the rules name them
      */
     private static Set<String> reach() {
         Set<String> out = new LinkedHashSet<>();
-        for (JsonObject rule : rules()) out.addAll(strings(rule.getAsJsonArray("sees")));
+        List<String> tracked = null;
+        for (JsonObject rule : rules()) {
+            if (!rule.has("derived") || !rule.get("derived").getAsBoolean()) {
+                out.addAll(strings(rule.getAsJsonArray("sees")));
+                continue;
+            }
+            if (tracked == null) tracked = trackedFiles();
+            tracked.stream().filter(path -> !firedOn(path, List.of(rule)).isEmpty())
+                .forEach(path -> out.addAll(selectionOf(rule, path)));
+        }
         return out;
     }
 

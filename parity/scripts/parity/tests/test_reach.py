@@ -95,6 +95,40 @@ class SourcePaths(unittest.TestCase):
         self.assertIsNone(reach.to_binary("gradle/parity.gradle.kts"))
 
 
+class AnsweringOnePath(unittest.TestCase):
+    """What a derived blindness rule resolves through, and where it declines to answer at all."""
+
+    PAYLOAD = {"types": {"lib/minecraft/renderer/Foo": {"artifacts": ["sweep.entity"]},
+                         "lib/minecraft/renderer/Bare": {"artifacts": []}}}
+
+    def test_a_declared_type_answers_its_artifacts(self):
+        self.assertEqual(
+            reach.answered_by(self.PAYLOAD, "src/main/java/lib/minecraft/renderer/Foo.java"),
+            ["sweep.entity"])
+
+    def test_a_type_no_root_reaches_answers_an_empty_list(self):
+        """Empty and answered, which is a different thing from unanswerable: the graph walked it."""
+        self.assertEqual(
+            reach.answered_by(self.PAYLOAD, "src/main/java/lib/minecraft/renderer/Bare.java"), [])
+
+    def test_a_type_the_committed_graph_predates_answers_nothing(self):
+        """The refusal a new source file has to produce, rather than a silent empty plan."""
+        self.assertIsNone(
+            reach.answered_by(self.PAYLOAD, "src/main/java/lib/minecraft/renderer/New.java"))
+
+    def test_a_package_declaration_answers_an_empty_list(self):
+        """It declares no type, and what it does carry moves trigger paths rather than a render."""
+        self.assertEqual(
+            reach.answered_by(self.PAYLOAD,
+                              "src/main/java/lib/minecraft/renderer/engine/package-info.java"), [])
+
+    def test_a_package_declaration_outside_a_scanned_root_answers_nothing(self):
+        self.assertIsNone(reach.answered_by(self.PAYLOAD, "tooling/src/main/java/package-info.java"))
+
+    def test_a_path_carrying_no_java_answers_nothing(self):
+        self.assertIsNone(reach.answered_by(self.PAYLOAD, "gradle/parity.gradle.kts"))
+
+
 class Differences(unittest.TestCase):
 
     @staticmethod

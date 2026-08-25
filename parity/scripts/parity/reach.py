@@ -337,6 +337,32 @@ def of(graph: Graph, paths: list[str]) -> dict[str, list[str]]:
     return out
 
 
+def answered_by(payload: dict, path: str) -> list[str] | None:
+    """What a committed graph says one repo-relative path reaches, or nothing when it cannot answer.
+
+    The reader a derived blindness rule resolves through, and it answers off the COMMITTED file
+    rather than off a freshly walked tree. A graph derived at plan time is whatever was last
+    compiled, which is the one way this scheduling can be quietly wrong rather than loudly stale;
+    ``reach check`` on a verification run is what holds the committed file to the tree instead.
+
+    A ``package-info.java`` answers the empty list rather than nothing. It declares no type, so the
+    walk above never names it and no class file carries its edges - and what it does carry, a
+    package's own declaration, moves this map's trigger paths rather than any render.
+
+    :param payload: a committed graph, as :func:`to_payload` writes one
+    :param path: a repo-relative path in either separator
+    """
+    text = path.replace("\\", "/")
+    if text.endswith("/package-info.java") and any(text.startswith(f"{root}/")
+                                                   for root in SOURCE_ROOTS):
+        return []
+    binary = to_binary(text)
+    if binary is None:
+        return None
+    row = (payload.get("types") or {}).get(binary)
+    return None if row is None else list(row.get("artifacts", ()))
+
+
 def orphans(graph: Graph) -> list[str]:
     """Every declared type no producer root reaches, which is what a declaration has to answer for.
 

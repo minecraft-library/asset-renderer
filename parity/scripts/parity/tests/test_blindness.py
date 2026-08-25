@@ -9,9 +9,10 @@ from parity import blindness
 from parity.norm import MissingInput, write_json
 
 
-def rule(rid, triggers, sees=(), blind=(), mode="select"):
+def rule(rid, triggers, sees=(), blind=(), mode="select", derived=False):
     return blindness.Rule(id=rid, claim="c", trigger_paths=tuple(triggers), sees=tuple(sees),
-                          blind=tuple(blind), reason="r", mode=mode, probe="p", source="s")
+                          blind=tuple(blind), reason="r", mode=mode, probe="p", source="s",
+                          derived=derived)
 
 
 class GlobGrammar(unittest.TestCase):
@@ -209,6 +210,95 @@ class PostUnionPasses(unittest.TestCase):
         ])
         self.assertEqual(reach.sees, ["sweep.block"])
         self.assertEqual([(e["rule"], e["selected_by"]) for e in reach.blind], [("DEM", ["KEPT"])])
+
+
+class DerivedSelection(unittest.TestCase):
+    """A rule whose selection the reference graph answers, per path rather than per glob."""
+
+    #: What a graph answers for two files under one glob, which is the whole point of deriving: the
+    #: directory they share stops being what decides either answer.
+    GRAPH = {"a/wide.java": ["sweep.block", "sweep.item"], "a/narrow.java": ["sweep.item"]}
+
+    def answer(self, path):
+        return self.GRAPH.get(path)
+
+    def test_a_derived_rule_selects_what_the_graph_answers(self):
+        reach = blindness.resolve(["a/wide.java"], [rule("A", ["a/**"], derived=True)],
+                                  derived=self.answer)
+        self.assertEqual(reach.sees, ["sweep.block", "sweep.item"])
+
+    def test_two_files_under_one_glob_answer_separately(self):
+        """The mechanism, stated as a difference: an authored `sees` cannot tell these two apart."""
+        rules = [rule("A", ["a/**"], derived=True)]
+        self.assertEqual(blindness.resolve(["a/narrow.java"], rules, derived=self.answer).sees,
+                         ["sweep.item"])
+        self.assertEqual(blindness.resolve(["a/wide.java", "a/narrow.java"], rules,
+                                           derived=self.answer).sees,
+                         ["sweep.block", "sweep.item"])
+
+    def test_a_derived_rule_keeps_demoting_its_own_blind_list(self):
+        """The half no graph can answer: what an artifact OBSERVES, rather than what code moved.
+
+        The shipped case is the dump pair falling off an engine change - a byte-identical dump proves
+        the render inputs are identical and says nothing about a render, which is a claim about the
+        artifact and not about the reference graph.
+        """
+        reach = blindness.resolve(["a/wide.java"], [
+            rule("A", ["a/**"], blind=["sweep.block"], mode="demote", derived=True),
+        ], derived=self.answer)
+        self.assertEqual(reach.sees, ["sweep.item"])
+        self.assertEqual([entry["artifact"] for entry in reach.blind], ["sweep.block"])
+
+    def test_the_selector_named_is_the_derived_rule_that_answered(self):
+        """A contradiction has to name the rule that really put the artifact in the bundle.
+
+        Read the authored list to decide who selected what and a derived rule never appears, so the
+        plan prints "claimed blind, selected by" nothing at all over a bundle that carries it.
+        """
+        reach = blindness.resolve(["a/wide.java"], [
+            rule("A", ["a/**"], derived=True),
+            rule("B", ["a/**"], blind=["sweep.block"]),
+        ], derived=self.answer)
+        self.assertEqual([(e["rule"], e["selected_by"]) for e in reach.blind],
+                         [("B", ["A"])])
+
+    def test_a_path_the_graph_cannot_answer_is_refused(self):
+        """Never an empty selection: it is indistinguishable from a class that reaches nothing."""
+        with self.assertRaises(MissingInput):
+            blindness.resolve(["a/unknown.java"], [rule("A", ["a/**"], derived=True)],
+                              derived=self.answer)
+
+    def test_a_derived_rule_with_no_graph_at_all_is_refused(self):
+        """A caller that forgot the graph would otherwise plan every derived rule as empty."""
+        with self.assertRaises(MissingInput):
+            blindness.resolve(["a/wide.java"], [rule("A", ["a/**"], derived=True)])
+
+    def test_an_authored_rule_needs_no_graph(self):
+        """The map is resolvable without one until some rule asks, which is what keeps it optional."""
+        reach = blindness.resolve(["a/wide.java"], [rule("A", ["a/**"], sees=["sweep.block"])])
+        self.assertEqual(reach.sees, ["sweep.block"])
+
+
+class DerivedShape(unittest.TestCase):
+    """The two spellings of a selection are exclusive, and the loader is where that is held."""
+
+    def _load(self, row):
+        root = Path(tempfile.mkdtemp())
+        write_json(root / blindness.BLINDNESS_FILE, {"rules": [row], "no_reach": []})
+        return blindness.load(root)
+
+    def test_a_derived_rule_authoring_a_sees_is_refused(self):
+        with self.assertRaises(MissingInput):
+            self._load({"id": "A", "trigger_paths": ["a/**"], "sees": ["sweep.block"],
+                        "derived": True})
+
+    def test_a_derived_rule_carries_an_empty_sees(self):
+        rules, _ = self._load({"id": "A", "trigger_paths": ["a/**"], "sees": [], "derived": True})
+        self.assertEqual((rules[0].derived, rules[0].sees), (True, ()))
+
+    def test_a_rule_declaring_nothing_is_not_derived(self):
+        rules, _ = self._load({"id": "A", "trigger_paths": ["a/**"], "sees": ["sweep.block"]})
+        self.assertFalse(rules[0].derived)
 
 
 class Coverage(unittest.TestCase):
