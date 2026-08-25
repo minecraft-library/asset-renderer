@@ -17,14 +17,19 @@ from parity.norm import MissingInput
 REPO = Path(__file__).resolve().parents[4]
 
 
-def _pool(*entries: bytes) -> bytes:
-    """A class file carrying the given constant-pool entries and nothing else worth reading."""
+def _pool_bytes(*entries: bytes) -> bytes:
+    """The magic, the version and a constant pool holding the given entries."""
     count = 1
     body = b""
     for entry in entries:
         body += entry
         count += 2 if entry[:1] in (b"\x05", b"\x06") else 1
     return b"\xca\xfe\xba\xbe" + b"\x00\x00\x00\x45" + struct.pack(">H", count) + body
+
+
+def _pool(*entries: bytes) -> bytes:
+    """A class file carrying the given constant-pool entries and nothing else worth reading."""
+    return _pool_bytes(*entries)
 
 
 def _utf8(text: str) -> bytes:
@@ -60,6 +65,62 @@ class ConstantPool(unittest.TestCase):
     def test_an_unknown_tag_refuses_rather_than_guessing_a_width(self):
         with self.assertRaises(MissingInput):
             reach.utf8_entries(_pool(b"\x63\x00"))
+
+
+class TheDeclarationSurface(unittest.TestCase):
+    """What a class file declares, as against what it merely mentions in a body.
+
+    Driven over hand-built class files because the distinction is a byte layout rather than a
+    property of this tree: a header read at the wrong offset still yields plausible strings.
+    """
+
+    @staticmethod
+    def _file(*, interface: bool, descriptor: str, mentioned: str) -> bytes:
+        """A class file declaring one field of the given descriptor and mentioning the other name.
+
+        The mentioned string is an ordinary pool entry outside every declaration, which is where a
+        method body's references land.
+        """
+        pool = [_utf8("Self"), _utf8(descriptor), _utf8(mentioned), _utf8("f"),
+                b"\x07" + struct.pack(">H", 1)]                       # CONSTANT_Class -> "Self"
+        body = (struct.pack(">H", 0x0200 if interface else 0x0021)    # access_flags
+                + struct.pack(">H", 5)                                # this_class -> the class entry
+                + struct.pack(">H", 0)                                # super_class, absent
+                + struct.pack(">H", 0)                                # interfaces_count
+                + struct.pack(">H", 1)                                # fields_count
+                + struct.pack(">H", 0) + struct.pack(">H", 4)         # access_flags, name -> "f"
+                + struct.pack(">H", 2) + struct.pack(">H", 0)         # descriptor, attributes_count
+                + struct.pack(">H", 0)                                # methods_count
+                + struct.pack(">H", 0))                               # attributes_count
+        return _pool_bytes(*pool) + body
+
+    def test_a_field_descriptor_is_part_of_the_declaration(self):
+        surface = reach.signature_surface(
+            self._file(interface=False, descriptor="Ldeclared;", mentioned="called"))
+        self.assertIn("Ldeclared;", surface.types)
+
+    def test_a_name_outside_every_declaration_is_not(self):
+        """Which is where a body's references sit, and the whole of what the split buys."""
+        surface = reach.signature_surface(
+            self._file(interface=False, descriptor="Ldeclared;", mentioned="called"))
+        self.assertNotIn("called", surface.types)
+
+    def test_the_class_and_its_supertypes_are_part_of_it(self):
+        surface = reach.signature_surface(
+            self._file(interface=False, descriptor="Ldeclared;", mentioned="called"))
+        self.assertIn("Self", surface.types)
+
+    def test_an_interface_says_so(self):
+        for interface in (True, False):
+            with self.subTest(interface=interface):
+                self.assertEqual(
+                    reach.signature_surface(
+                        self._file(interface=interface, descriptor="Lx;", mentioned="y")
+                    ).is_interface, interface)
+
+    def test_bytes_that_are_not_a_class_file_declare_nothing(self):
+        surface = reach.signature_surface(b"not a class file")
+        self.assertEqual((surface.types, surface.is_interface), (frozenset(), False))
 
 
 class Folding(unittest.TestCase):
@@ -243,6 +304,33 @@ class OverTheRealTree(unittest.TestCase):
         found = self._artifacts("RendererContext")
         self.assertIn("sweep.entity", found)
         self.assertIn("sweep.menu", found)
+
+    def test_what_a_seam_INTERFACE_calls_survives_its_cut(self):
+        """The other half of that sentence, one level down.
+
+        `RendererContext` resolves a redstone tint and a flipbook in DEFAULT bodies, so those two
+        types are reached from code with no implementor to carry a change to them - and cutting the
+        interface whole answered that nothing at all sees either.
+        """
+        for simple in ("RedstoneTint", "AnimationKit"):
+            found = self._artifacts(simple)
+            self.assertIn("sweep.block", found, simple)
+            self.assertIn("sweep.entity", found, simple)
+
+    def test_what_a_seam_INTERFACE_declares_does_not(self):
+        """The collapse itself: a declared entity lookup is not an exercised one."""
+        self.assertNotIn("sweep.menu", self._artifacts("Entity"))
+
+    def test_a_seam_that_is_a_CLASS_is_cut_whole(self):
+        """It has no split to make - every reference a class holds is one it makes.
+
+        Measured rather than assumed: cutting the concrete context by its declaration instead takes
+        the tree from 29 engine-wide types to 151, which is the collapse the seam exists against.
+        """
+        name = next(n for n in self.graph.declared
+                    if n.rsplit("/", 1)[1] == "PipelineRendererContext")
+        self.assertIn(name, self.graph.ignored)
+        self.assertEqual(self.graph.edges.get(name, frozenset()), frozenset())
 
 
 if __name__ == "__main__":

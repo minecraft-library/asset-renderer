@@ -98,6 +98,9 @@ _FIXED_WIDTH = {7: 2, 8: 2, 16: 2, 19: 2, 20: 2, 15: 3,
 #: The two tags that consume a second constant-pool slot, per JVMS 4.4.5.
 _TWO_SLOT = (5, 6)
 
+#: ``ACC_INTERFACE``, which is what tells a declaration of capability from a body that calls.
+_ACC_INTERFACE = 0x0200
+
 
 @dataclass(frozen=True)
 class Graph:
@@ -117,25 +120,31 @@ class Graph:
     compiled_digest: str
 
 
-def utf8_entries(data: bytes) -> list[str]:
-    """Every ``CONSTANT_Utf8`` entry of a class file, which is where every type name is spelled.
+def _pool(data: bytes) -> tuple[list[object], int]:
+    """The constant pool, indexed as the class file indexes it, and where the body starts.
+
+    A ``CONSTANT_Class`` is kept as its own name index rather than resolved here, because the header
+    below reads its own class, its superclass and its interfaces through exactly that indirection.
 
     :param data the class file's bytes
-    :returns the pool's string entries, empty when the bytes are not a class file
+    :returns the pool and the offset of ``access_flags``, or an empty pool when it is not a class file
     :throws MissingInput if the pool carries a tag this reader has no width for
     """
     if data[:4] != b"\xca\xfe\xba\xbe":
-        return []
+        return [], 0
     count = struct.unpack(">H", data[8:10])[0]
-    out: list[str] = []
+    entries: list[object] = [None] * (count + 1)
     offset, index = 10, 1
     while index < count:
         tag = data[offset]
         offset += 1
         if tag == 1:
             length = struct.unpack(">H", data[offset:offset + 2])[0]
-            out.append(data[offset + 2:offset + 2 + length].decode("utf-8", "replace"))
+            entries[index] = data[offset + 2:offset + 2 + length].decode("utf-8", "replace")
             offset += 2 + length
+        elif tag == 7:
+            entries[index] = ("class", struct.unpack(">H", data[offset:offset + 2])[0])
+            offset += 2
         elif tag in _FIXED_WIDTH:
             offset += _FIXED_WIDTH[tag]
         elif tag in _TWO_SLOT:
@@ -144,7 +153,82 @@ def utf8_entries(data: bytes) -> list[str]:
         else:
             raise MissingInput(f"unknown constant-pool tag '{tag}' at offset '{offset}'")
         index += 1
-    return out
+    return entries, offset
+
+
+def utf8_entries(data: bytes) -> list[str]:
+    """Every ``CONSTANT_Utf8`` entry of a class file, which is where every type name is spelled.
+
+    :param data the class file's bytes
+    :returns the pool's string entries, empty when the bytes are not a class file
+    :throws MissingInput if the pool carries a tag this reader has no width for
+    """
+    entries, _ = _pool(data)
+    return [entry for entry in entries if isinstance(entry, str)]
+
+
+@dataclass(frozen=True)
+class Surface:
+    """What a class file DECLARES, as against what it merely mentions somewhere in its pool.
+
+    The declaration is its own name, its supertypes and every field and method descriptor and generic
+    signature - the shape a caller compiles against. Everything else a class file names it names in a
+    method BODY, and the difference is what tells a declared capability from an exercised one.
+    """
+
+    #: The types the declaration mentions, as they are spelled in the pool.
+    types: frozenset[str]
+    #: Whether the file declares an interface, whose members are capabilities rather than calls.
+    is_interface: bool
+
+
+def signature_surface(data: bytes) -> Surface:
+    """Read one class file's declaration surface.
+
+    :param data the class file's bytes
+    """
+    entries, offset = _pool(data)
+    if not entries:
+        return Surface(types=frozenset(), is_interface=False)
+
+    def utf8(index: int) -> str:
+        entry = entries[index] if 0 < index < len(entries) else None
+        return entry if isinstance(entry, str) else ""
+
+    def class_name(index: int) -> str:
+        entry = entries[index] if 0 < index < len(entries) else None
+        return utf8(entry[1]) if isinstance(entry, tuple) else ""
+
+    flags = struct.unpack(">H", data[offset:offset + 2])[0]
+    found = {class_name(struct.unpack(">H", data[offset + 2:offset + 4])[0]),
+             class_name(struct.unpack(">H", data[offset + 4:offset + 6])[0])}
+    total = struct.unpack(">H", data[offset + 6:offset + 8])[0]
+    position = offset + 8
+    for _ in range(total):
+        found.add(class_name(struct.unpack(">H", data[position:position + 2])[0]))
+        position += 2
+
+    # fields[] then methods[], which share a shape: access_flags, name, descriptor, attributes.
+    for _ in range(2):
+        members = struct.unpack(">H", data[position:position + 2])[0]
+        position += 2
+        for _ in range(members):
+            found.add(utf8(struct.unpack(">H", data[position + 4:position + 6])[0]))
+            attributes = struct.unpack(">H", data[position + 6:position + 8])[0]
+            position += 8
+            for _ in range(attributes):
+                name = utf8(struct.unpack(">H", data[position:position + 2])[0])
+                length = struct.unpack(">I", data[position + 2:position + 6])[0]
+                if name == "Signature":
+                    found.add(utf8(struct.unpack(">H", data[position + 6:position + 8])[0]))
+                elif name == "Exceptions":
+                    thrown = struct.unpack(">H", data[position + 6:position + 8])[0]
+                    for slot in range(thrown):
+                        found.add(class_name(struct.unpack(
+                            ">H", data[position + 8 + 2 * slot:position + 10 + 2 * slot])[0]))
+                position += 6 + length
+    return Surface(types=frozenset(text for text in found if text),
+                   is_interface=bool(flags & _ACC_INTERFACE))
 
 
 def declared_types(base: Path) -> frozenset[str]:
@@ -205,9 +289,18 @@ def _resolve_roots(declared: frozenset[str]) -> dict[str, tuple[str, ...]]:
     return out
 
 
-def _edges(base: Path, declared: frozenset[str]) -> tuple[dict[str, frozenset[str]], str]:
-    """The reference graph and a digest of the class files it was derived from."""
+def _edges(base: Path, declared: frozenset[str]) \
+        -> tuple[dict[str, frozenset[str]], dict[str, frozenset[str]], frozenset[str], str]:
+    """The reference graph, each type's declaration surface, the interfaces, and a tree digest.
+
+    The surface is accumulated over every class file folded onto a type, nested ones included, since
+    a nested type's own descriptors are as much a declaration as its outer's. The interface flag is
+    read from the TOP-LEVEL file alone: a nested class inside an interface is still a class, and it
+    is the outer type that a seam declaration names.
+    """
     building: dict[str, set[str]] = defaultdict(set)
+    surfaces: dict[str, set[str]] = defaultdict(set)
+    interfaces: set[str] = set()
     digest = hashlib.sha256()
     seen = 0
     for class_root in CLASS_ROOTS:
@@ -223,14 +316,24 @@ def _edges(base: Path, declared: frozenset[str]) -> tuple[dict[str, frozenset[st
             data = path.read_bytes()
             digest.update(relative.encode())
             digest.update(hashlib.sha256(data).digest())
+            surface = signature_surface(data)
+            if relative == owner and surface.is_interface:
+                interfaces.add(owner)
             for entry in utf8_entries(data):
                 for reference in _REFERENCE.findall(entry):
                     target = owning_type(reference, declared)
                     if target is not None and target != owner:
                         building[owner].add(target)
+            for entry in surface.types:
+                for reference in _REFERENCE.findall(entry):
+                    target = owning_type(reference, declared)
+                    if target is not None and target != owner:
+                        surfaces[owner].add(target)
     if not seen:
         raise MissingInput("no class files found - run './gradlew compileJava compileTestJava'")
-    return {name: frozenset(targets) for name, targets in building.items()}, digest.hexdigest()
+    return ({name: frozenset(targets) for name, targets in building.items()},
+            {name: frozenset(targets) for name, targets in surfaces.items()},
+            frozenset(interfaces), digest.hexdigest())
 
 
 def forward(start: str, edges: dict[str, frozenset[str]]) -> set[str]:
@@ -299,11 +402,23 @@ def build(base: Path) -> Graph:
     :throws MissingInput if the tree is not compiled, or a declared root is missing
     """
     declared = declared_types(base)
-    edges, digest = _edges(base, declared)
+    edges, surfaces, interfaces, digest = _edges(base, declared)
     ignored = ignored_types(base, declared)
     # Outgoing edges only. Reach stops composing THROUGH a wiring type, and a change TO one is still
     # seen by everything that reaches it - which is what keeps a defaulted interface member honest.
-    edges = {name: (frozenset() if name in ignored else targets)
+    #
+    # What is cut depends on what the seam IS, and the two answers are the same sentence read at two
+    # kinds of type. An INTERFACE declares capabilities: its members' descriptors put every type they
+    # mention in the pool whether or not anything calls them, which is the collapse, and an abstract
+    # member cannot change alone because every implementor moves with it. Its default BODIES are not
+    # that - they are code, with no implementor to carry a change, so what they call is kept. A CLASS
+    # has no such split: every reference it holds is one it makes, so it is cut whole.
+    #
+    # Measured. Cutting the interfaces by declaration alone moves two types and no others, both of
+    # them reached from a default body and both previously answering that nothing sees them; cutting
+    # the concrete context that way instead re-collapses the graph, from 29 engine-wide types to 151.
+    edges = {name: (targets - surfaces.get(name, frozenset()) if name in interfaces
+                    else frozenset()) if name in ignored else targets
              for name, targets in edges.items()}
     roots = _resolve_roots(declared)
     artifacts: dict[str, set[str]] = defaultdict(set)

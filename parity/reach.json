@@ -2138,8 +2138,23 @@
     },
     "lib/minecraft/renderer/engine/kit/AnimationKit": {
       "artifacts": [
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
         "manifest.visual",
-        "sweep.menu"
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -2703,7 +2718,25 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/texture/RedstoneTint": {
-      "artifacts": [],
+      "artifacts": [
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/texture/RedstoneTintTest": {
