@@ -26,6 +26,7 @@ from parity import declarations as declarations_mod
 from parity import ids as ids_mod
 from parity import promote as promote_mod
 from parity import provenance as provenance_mod
+from parity import reach as reach_mod
 from parity import jsondiff as jsondiff_mod
 from parity import manifest as manifest_mod
 from parity import render as render_mod
@@ -213,6 +214,58 @@ def _cmd_triggers(args: argparse.Namespace) -> int:
             + (" - " + ", ".join(moved) if moved else ""))
     _emit(args, text, {"moved": moved, "checked": bool(args.check)})
     return DIFFERENCES if moved and args.check else OK
+
+
+def _cmd_reach(args: argparse.Namespace) -> int:
+    """Answer which artifacts a changed Java type can move, off the compiled constant pool.
+
+    Four questions over one derived graph: ``of`` is what a plan asks, ``why`` prints the reference
+    chain behind an answer so a wide one can be argued with rather than worked around, ``orphans``
+    names the types no producer root reaches - the ones a declaration has to answer for - and
+    ``build`` writes the graph for the committed file.
+    """
+    base = _bases(args)
+    graph = reach_mod.build(base)
+    if args.reach_command in ("build", "check"):
+        target = base / "parity" / reach_mod.STORED
+        if args.reach_command == "build" and getattr(args, "target", None):
+            target = Path(args.target)
+        derived = reach_mod.to_payload(graph)
+        if args.reach_command == "build":
+            write_json(target, derived)
+            _emit(args, f"reach: wrote {target} - {len(graph.declared)} types",
+                  {"types": len(graph.declared)})
+            return OK
+        if not target.is_file():
+            raise MissingInput(f"no committed reach graph at {target} - run 'parity reach build'")
+        moved = reach_mod.differences(read_json(target), derived)
+        verb = "would move" if moved else "agrees with the tree"
+        _emit(args, f"reach: {verb}" + (f" {len(moved)} type(s)\n" + "\n".join(moved) if moved else ""),
+              {"moved": moved})
+        return DIFFERENCES if moved else OK
+    if args.reach_command == "orphans":
+        found = reach_mod.orphans(graph)
+        _emit(args, f"reach: {len(found)} type(s) no producer root reaches\n" + "\n".join(found),
+              {"orphans": found})
+        return OK
+    if args.reach_command == "why":
+        binary = reach_mod.to_binary(args.path)
+        if binary is None or binary not in graph.declared:
+            raise MissingInput(f"'{args.path}' is not a scanned Java source path")
+        if args.artifact not in graph.roots:
+            raise MissingInput(f"'{args.artifact}' has no producer root in the reach table")
+        for entry in graph.roots[args.artifact]:
+            found = reach_mod.chain(entry, binary, graph.edges)
+            if found:
+                names = [part.rsplit("/", 1)[1] for part in found]
+                _emit(args, " -> ".join(names), {"chain": found})
+                return OK
+        raise MissingInput(f"no reference chain from '{args.artifact}' to '{args.path}'")
+    answers = reach_mod.of(graph, args.path)
+    lines = [f"{path}: {', '.join(found) if found else '(none derived)'}"
+             for path, found in answers.items()]
+    _emit(args, "\n".join(lines) or "reach: no scanned Java source path given", answers)
+    return OK
 
 
 def _cmd_selftest(args: argparse.Namespace) -> int:
@@ -1208,6 +1261,20 @@ def _register(subparsers: Any) -> dict[str, Command]:
     triggers_parser.add_argument("--check", action="store_true",
                                  help="answer what would move and write nothing")
     table["triggers"] = _cmd_triggers
+
+    reach_parser = subparsers.add_parser(
+        "reach", help="which artifacts a changed Java type can move, off the constant pool")
+    reach_sub = reach_parser.add_subparsers(dest="reach_command", required=True)
+    reach_of = reach_sub.add_parser("of", help="the artifacts the given paths reach")
+    reach_of.add_argument("path", nargs="+")
+    reach_why = reach_sub.add_parser("why", help="the reference chain behind one answer")
+    reach_why.add_argument("path")
+    reach_why.add_argument("artifact")
+    reach_sub.add_parser("orphans", help="types no producer root reaches")
+    reach_sub.add_parser("check", help="what would move in the committed graph; writes nothing")
+    reach_build = reach_sub.add_parser("build", help="write the derived graph")
+    reach_build.add_argument("target", nargs="?", default=None)
+    table["reach"] = _cmd_reach
 
     selftest_parser = subparsers.add_parser("selftest", help="run the toolkit's own unittest suite")
     selftest_parser.add_argument("-k", dest="pattern", default=None, metavar="PATTERN")
