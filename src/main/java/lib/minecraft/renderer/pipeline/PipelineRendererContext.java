@@ -19,6 +19,7 @@ import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
@@ -149,7 +150,7 @@ public final class PipelineRendererContext implements RendererContext {
             itemTrees,
             models.items()
         );
-        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(blockTables, blockStates, blockTags);
+        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
         ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(
             itemTints, glintItems, models.items(), itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
@@ -248,6 +249,17 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
         return this.findMeta(textureId).flatMap(MCMeta::animation);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Resolved once per texture and memoised on the pack stack, beside the decoded pixels it is a
+     * function of.
+     */
+    @Override
+    public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+        return this.stack.flipbook(ResourceId.parse(textureId));
     }
 
     /**

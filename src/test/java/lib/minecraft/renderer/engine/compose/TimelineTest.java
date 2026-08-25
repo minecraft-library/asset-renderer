@@ -7,6 +7,7 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.AnimationOptions;
@@ -320,28 +321,28 @@ class TimelineTest {
     @Test
     @DisplayName("derive fire: 32 bare frames -> 32 frames at cadence 1")
     void deriveFire() {
-        assertTickLoop(Timeline.deriveTickStrip(List.of(new Timeline.Source(32, fire())), 0),
+        assertTickLoop(Timeline.deriveTickStrip(List.of(flipbook(32, fire())), 0),
             0, 32, 1, 50);
     }
 
     @Test
     @DisplayName("derive water_still: frametime 2 -> 32 frames at cadence 2")
     void deriveWater() {
-        assertTickLoop(Timeline.deriveTickStrip(List.of(new Timeline.Source(32, waterStill())), 0),
+        assertTickLoop(Timeline.deriveTickStrip(List.of(flipbook(32, waterStill())), 0),
             0, 32, 2, 100);
     }
 
     @Test
     @DisplayName("derive magma: interpolate clamps cadence to 1 (loop 24 -> 24 frames)")
     void deriveMagma() {
-        assertTickLoop(Timeline.deriveTickStrip(List.of(new Timeline.Source(3, magma())), 0),
+        assertTickLoop(Timeline.deriveTickStrip(List.of(flipbook(3, magma())), 0),
             0, 24, 1, 50);
     }
 
     @Test
     @DisplayName("derive prismarine: 6600-tick loop capped at 200 ticks (cadence 1 -> 200 frames)")
     void derivePrismarine() {
-        assertTickLoop(Timeline.deriveTickStrip(List.of(new Timeline.Source(4, prismarine())), 0),
+        assertTickLoop(Timeline.deriveTickStrip(List.of(flipbook(4, prismarine())), 0),
             0, Timeline.MAX_LOOP_TICKS, 1, 50);
     }
 
@@ -349,8 +350,8 @@ class TimelineTest {
     @DisplayName("derive multi-texture: LCM loop over GCD cadence (lcm 24, gcd 2 -> 12 frames)")
     void deriveMultiTexture() {
         assertTickLoop(Timeline.deriveTickStrip(List.of(
-            new Timeline.Source(4, implicit(2)),
-            new Timeline.Source(3, implicit(4))), 0), 0, 12, 2, 100);
+            flipbook(4, implicit(2)),
+            flipbook(3, implicit(4))), 0), 0, 12, 2, 100);
     }
 
     // ---- terminals -----------------------------------------------------------------------------
@@ -464,6 +465,14 @@ class TimelineTest {
             });
         timeline.bake(pass);
         return ticks;
+    }
+
+    /**
+     * Resolves an animation over a one-pixel-wide strip of the given frame count - the frame height
+     * falls back to the strip's width, so a strip {@code frameCount} tall holds exactly that many.
+     */
+    private static @NotNull Flipbook flipbook(int frameCount, @NotNull MCMeta.Animation animation) {
+        return Flipbook.of(PixelBuffer.create(1, frameCount), animation).orElseThrow();
     }
 
     /** fire_0.png.mcmeta: 32 bare frame indices [16..31, 0..15], default frametime (1 tick each). */

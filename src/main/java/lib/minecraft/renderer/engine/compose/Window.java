@@ -258,8 +258,8 @@ public interface Window {
             PixelBuffer buffer = context.resolveTexture(id.id())
                 .orElseThrow(() -> new RenderException("Window chrome sprite '%s' does not resolve", id));
 
-            return context.findAnimation(id.id())
-                .map(animation -> AnimationKit.sampleFrame(buffer, animation, 0))
+            return context.findFlipbook(id.id())
+                .map(flipbook -> AnimationKit.sampleFrame(buffer, flipbook, 0))
                 .orElse(buffer);
         }
 

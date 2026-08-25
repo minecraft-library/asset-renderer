@@ -9,6 +9,7 @@ import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
@@ -73,6 +74,13 @@ import java.util.Optional;
  *     identity model state, so it carries neither a blockstate variant's rotation nor a multipart
  *     assembly; a false here means vanilla's icon is a sprite (doors, wall torches, comparators) or a
  *     block-entity renderer's mesh, and the 3D render is this pipeline's own stand-in
+ * @param flipbooks the distinct {@link Flipbook playback tables} of every animated face texture this
+ *     block can draw - its block-entity mesh texture, its own model, and every blockstate-variant and
+ *     multipart-apply model. Over-inclusive across variants by design (a per-variant animated face
+ *     counts even where that variant is not the effective one), which only ever lengthens a derived
+ *     loop; empty for a fully static block. It is the cadence a caller asking for a derived timeline
+ *     gets a schedule from, resolved once at index build because the sidecars and the strips it reads
+ *     are pack state a render cannot narrow
  */
 public record Block(
     @NotNull ResourceId id,
@@ -87,7 +95,8 @@ public record Block(
     @NotNull ConcurrentMap<String, String> defaultState,
     @NotNull ResourceId itemBlockId,
     @NotNull Optional<ModelTransform> iconGui,
-    boolean modelIcon
+    boolean modelIcon,
+    @NotNull ConcurrentList<Flipbook> flipbooks
 ) {
 
     /**

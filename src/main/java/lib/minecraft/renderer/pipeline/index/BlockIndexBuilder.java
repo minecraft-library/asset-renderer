@@ -7,11 +7,13 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.BlockTag;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.item.ItemModelContext;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
@@ -130,14 +132,16 @@ public class BlockIndexBuilder {
      * @param tables the loaded asset tables
      * @param blockStates the raw blockstate variant applies and multipart parts, baked here
      * @param blockTags the block-tag membership descriptors keyed by tag id, inverted here
+     * @param stack the pack stack every face texture's animation sidecar and strip resolve through
      * @return the finished block index, keyed by stripped block id, unmodifiable
      */
     public static @NotNull ConcurrentMap<String, Block> load(
         @NotNull BlockTables tables,
         @NotNull BlockStates blockStates,
-        @NotNull ConcurrentMap<String, BlockTag> blockTags
+        @NotNull ConcurrentMap<String, BlockTag> blockTags,
+        @NotNull PackStack stack
     ) {
-        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(tables, blockStates, blockTags);
+        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(tables, blockStates, blockTags, stack);
 
         int before = blockIndex.size();
         blockIndex.entrySet().removeIf(entry -> {
@@ -163,12 +167,14 @@ public class BlockIndexBuilder {
      * @param tables the loaded asset tables
      * @param blockStates the raw blockstate variant applies and multipart parts, baked here
      * @param blockTags the block-tag membership descriptors keyed by tag id, inverted here
+     * @param stack the pack stack every face texture's animation sidecar and strip resolve through
      * @return the unfiltered block index, mutable
      */
     static @NotNull ConcurrentMap<String, Block> buildUnfiltered(
         @NotNull BlockTables tables,
         @NotNull BlockStates blockStates,
-        @NotNull ConcurrentMap<String, BlockTag> blockTags
+        @NotNull ConcurrentMap<String, BlockTag> blockTags,
+        @NotNull PackStack stack
     ) {
         // Bake the raw blockstate applies into resolved Block.Variant / Block.Multipart here, where the
         // resolved model set (blockModels) lives, so BlockStateLoader stays a pure read plus pack merge.
@@ -176,9 +182,9 @@ public class BlockIndexBuilder {
             bakeVariants(blockStates.variants(), tables.blockModels()),
             bakeMultiparts(blockStates.multiparts(), tables.blockModels()),
             buildReverseTagIndex(blockTags));
-        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(tables, baked);
-        attachOrphanBlockEntities(blockIndex, tables, baked);
-        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, tables, baked);
+        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(tables, baked, stack);
+        attachOrphanBlockEntities(blockIndex, tables, baked, stack);
+        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, tables, baked, stack);
         System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
         return blockIndex;
     }
@@ -416,11 +422,13 @@ public class BlockIndexBuilder {
      *
      * @param tables the loaded asset tables
      * @param baked the blockstate applies and tag membership as baked by {@link #buildUnfiltered}
+     * @param stack the pack stack every face texture's animation sidecar and strip resolve through
      * @return a fresh map keyed by stripped block id
      */
     private static @NotNull ConcurrentMap<String, Block> buildPrimaryBlockIndex(
         @NotNull BlockTables tables,
-        @NotNull BakedTables baked
+        @NotNull BakedTables baked,
+        @NotNull PackStack stack
     ) {
         HashMap<String, Block> blockIndex = new HashMap<>();
         for (Map.Entry<String, ModelData> blockEntry : tables.blockModels().entrySet()) {
@@ -482,7 +490,8 @@ public class BlockIndexBuilder {
                 defaultStateFor(tables.blockDefaultStates(), blockId),
                 itemBlockId,
                 iconGuiFor(itemBlockId, modelToUse, tables.itemTrees(), tables.itemModels()),
-                modelIcon
+                modelIcon,
+                flipbooksOf(stack, modelToUse, variants, multipart, entity)
             ));
         }
 
@@ -501,11 +510,13 @@ public class BlockIndexBuilder {
      * @param blockIndex the primary index produced by {@link #buildPrimaryBlockIndex}; mutated in place
      * @param tables the loaded asset tables
      * @param baked the blockstate applies and tag membership as baked by {@link #buildUnfiltered}
+     * @param stack the pack stack every face texture's animation sidecar and strip resolve through
      */
     private static void attachOrphanBlockEntities(
         @NotNull ConcurrentMap<String, Block> blockIndex,
         @NotNull BlockTables tables,
-        @NotNull BakedTables baked
+        @NotNull BakedTables baked,
+        @NotNull PackStack stack
     ) {
         for (Map.Entry<String, Block.Entity> entry : tables.blockEntities().entrySet()) {
             String blockId = entry.getKey();
@@ -532,7 +543,8 @@ public class BlockIndexBuilder {
                 defaultStateFor(tables.blockDefaultStates(), blockId),
                 itemBlockId,
                 iconGuiFor(itemBlockId, model, tables.itemTrees(), tables.itemModels()),
-                false
+                false,
+                flipbooksOf(stack, model, variants, multipart, be)
             ));
         }
     }
@@ -575,13 +587,15 @@ public class BlockIndexBuilder {
      *     {@link #attachOrphanBlockEntities}; mutated in place
      * @param tables the loaded asset tables
      * @param baked the blockstate applies and tag membership as baked by {@link #buildUnfiltered}
+     * @param stack the pack stack every face texture's animation sidecar and strip resolve through
      * @return the set of ids registered through this fallback path (kept by the caller for the
      *     diagnostic count line)
      */
     private static @NotNull Set<String> attachBlockstateOnlyBlocks(
         @NotNull ConcurrentMap<String, Block> blockIndex,
         @NotNull BlockTables tables,
-        @NotNull BakedTables baked
+        @NotNull BakedTables baked,
+        @NotNull PackStack stack
     ) {
         Set<String> blockstateOnlyIds = new HashSet<>();
         Set<String> candidateBlockstateIds = new LinkedHashSet<>();
@@ -623,10 +637,76 @@ public class BlockIndexBuilder {
                 iconGuiFor(itemBlockId, modelToUse, tables.itemTrees(), tables.itemModels()),
                 // The resolver tries the item def first, so the model is vanilla's icon exactly when
                 // that is where it came from; a first-variant fallback is this pipeline's stand-in.
-                hit.modelId().equals(tables.itemDefinitions().get(blockId))));
+                hit.modelId().equals(tables.itemDefinitions().get(blockId)),
+                flipbooksOf(stack, modelToUse, variants, multipart, attachedEntity.orElse(null))));
             blockstateOnlyIds.add(blockId);
         }
         return blockstateOnlyIds;
+    }
+
+    /**
+     * Resolves the distinct {@link Flipbook}s of every animated face texture a block can draw - the
+     * block-entity mesh texture, the primary element model, and every blockstate-variant and
+     * multipart-apply element model. Over-inclusive across variants (a per-variant animated face is
+     * folded even where that variant is not the effective one), which only ever lengthens a derived
+     * loop and is correct for a timeline union. A texture with no animation sidecar contributes
+     * nothing, so a fully static block resolves an empty list.
+     *
+     * @param stack the pack stack each texture id resolves through
+     * @param model the block's primary element model
+     * @param variants the block's resolved blockstate variants
+     * @param multipart the block's multipart definition, if any
+     * @param entity the block's block-entity mapping, or {@code null} for a plain block
+     * @return the distinct playback tables in discovery order, unmodifiable
+     */
+    private static @NotNull ConcurrentList<Flipbook> flipbooksOf(
+        @NotNull PackStack stack,
+        @NotNull ModelData model,
+        @NotNull ConcurrentMap<String, Block.Variant> variants,
+        @NotNull Optional<Block.Multipart> multipart,
+        @Nullable Block.Entity entity
+    ) {
+        Set<String> seen = new LinkedHashSet<>();
+        ArrayList<Flipbook> flipbooks = new ArrayList<>();
+        if (entity != null) addFlipbook(stack, entity.textureId(), seen, flipbooks);
+        addModelFlipbooks(stack, model, seen, flipbooks);
+        for (Block.Variant variant : variants.values())
+            if (variant.geometry() instanceof Block.ElementGeometry(ModelData variantModel))
+                addModelFlipbooks(stack, variantModel, seen, flipbooks);
+        multipart.ifPresent(parts -> {
+            for (Block.Multipart.Part part : parts.parts())
+                if (part.apply().geometry() instanceof Block.ElementGeometry(ModelData partModel))
+                    addModelFlipbooks(stack, partModel, seen, flipbooks);
+        });
+        return Concurrent.adoptList(flipbooks).toUnmodifiable();
+    }
+
+    /** Adds every distinct concrete animated face-texture id of a model to {@code flipbooks}. */
+    private static void addModelFlipbooks(
+        @NotNull PackStack stack,
+        @NotNull ModelData model,
+        @NotNull Set<String> seen,
+        @NotNull ArrayList<Flipbook> flipbooks
+    ) {
+        for (ModelElement element : model.getElements())
+            for (ModelFace face : element.getFaces().values()) {
+                String ref = face.getTexture();
+                if (ref.isBlank()) continue;
+                String id = model.resolveTextureReference(ref);
+                if (id.startsWith("#")) continue;
+                addFlipbook(stack, id, seen, flipbooks);
+            }
+    }
+
+    /** Resolves one not-yet-seen texture id, adding its playback table when it carries one. */
+    private static void addFlipbook(
+        @NotNull PackStack stack,
+        @NotNull String id,
+        @NotNull Set<String> seen,
+        @NotNull ArrayList<Flipbook> flipbooks
+    ) {
+        if (!seen.add(id)) return;
+        stack.flipbook(ResourceId.parse(id)).ifPresent(flipbooks::add);
     }
 
     /**

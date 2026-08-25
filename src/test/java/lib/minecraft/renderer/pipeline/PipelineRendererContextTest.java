@@ -216,7 +216,7 @@ class PipelineRendererContextTest {
             blockModels, blockTints, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             blockEntities, beResult.variants(), itemTrees, itemModels);
         ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(
-            blockTables, new BlockStates(Concurrent.newMap(), Concurrent.newMap()), blockTags);
+            blockTables, new BlockStates(Concurrent.newMap(), Concurrent.newMap()), blockTags, stack);
         ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));

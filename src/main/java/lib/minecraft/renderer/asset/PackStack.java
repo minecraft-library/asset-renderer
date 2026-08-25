@@ -9,6 +9,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
@@ -80,6 +81,14 @@ public final class PackStack {
      * texture, so a stack-wide and a pack-restricted lookup that land on the same file share one buffer.
      */
     private final @NotNull ConcurrentMap<PixelKey, PixelBuffer> pixelCache = Concurrent.newMap();
+
+    /**
+     * Per-stack memoisation cache of resolved {@link Flipbook}s on the same
+     * {@code (PackId, ResourceId)} key the decoded pixels take, populated lazily on the first
+     * {@link #flipbook(ResourceId)} of each texture. A texture with no sidecar caches its own absence,
+     * so a static id costs one map hit per lookup rather than a repeated miss.
+     */
+    private final @NotNull ConcurrentMap<PixelKey, Optional<Flipbook>> flipbookCache = Concurrent.newMap();
 
     /**
      * Builds a stack from packs in ascending-priority order; the first must be the vanilla pack. The
@@ -228,6 +237,32 @@ public final class PackStack {
             if (cached != null) return Optional.of(cached);
         }
         return decode(resolve(id));
+    }
+
+    /**
+     * Resolves a texture id to the {@link Flipbook} its {@code .mcmeta} sidecar plays over its decoded
+     * strip, memoising on the same {@code (PackId, ResourceId)} key the pixels take.
+     * <p>
+     * Gated on the index row rather than on the dispatch, the way the sidecar lookup is: a prefix that
+     * names a pack rather than a namespace answers no sidecar, so it plays no animation either.
+     *
+     * @param id the namespaced texture id
+     * @return the resolved playback table, or empty when the texture ships no animation sidecar,
+     *     does not resolve, or holds no whole frame
+     */
+    public @NotNull Optional<Flipbook> flipbook(@NotNull ResourceId id) {
+        Optional<ResolvedTexture> indexed = indexed(id);
+        if (indexed.isEmpty()) return Optional.empty();
+
+        PixelKey key = new PixelKey(indexed.get().pack(), id);
+        Optional<Flipbook> cached = this.flipbookCache.get(key);
+        if (cached != null) return cached;
+
+        Optional<Flipbook> resolved = indexed.get().meta()
+            .flatMap(MCMeta::animation)
+            .flatMap(animation -> pixels(id).flatMap(strip -> Flipbook.of(strip, animation)));
+        this.flipbookCache.put(key, resolved);
+        return resolved;
     }
 
     /** Decodes a resolved texture, memoising on the resolved {@code (PackId, ResourceId)} key. */

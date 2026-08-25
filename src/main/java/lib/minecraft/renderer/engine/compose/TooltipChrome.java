@@ -277,7 +277,7 @@ public interface TooltipChrome {
          * sprite with no animation sidecar is returned unchanged (byte-neutral - vanilla ships none).
          */
         private static @NotNull PixelBuffer flattenAnimated(@NotNull RendererContext context, @NotNull ResourceId id, @NotNull PixelBuffer buffer) {
-            return context.findAnimation(id.id()).map(anim -> AnimationKit.sampleFrame(buffer, anim, 0)).orElse(buffer);
+            return context.findFlipbook(id.id()).map(flipbook -> AnimationKit.sampleFrame(buffer, flipbook, 0)).orElse(buffer);
         }
 
         /**

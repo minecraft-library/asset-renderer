@@ -7,8 +7,8 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.AnimationOptions;
 import org.jetbrains.annotations.NotNull;
@@ -232,31 +232,27 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
 
     /**
      * Derives a tick-strip schedule from resolved animated textures: the cadence is the GCD of every
-     * entry duration (forced to 1 when any source interpolates, so every distinct tick is sampled);
-     * the loop length is the LCM of every source's total ticks, capped at {@link #MAX_LOOP_TICKS}; the
+     * entry duration (forced to 1 when any flipbook interpolates, so every distinct tick is sampled);
+     * the loop length is the LCM of every flipbook's cycle, capped at {@link #MAX_LOOP_TICKS}; the
      * frame count is {@code ceil(loopTicks / ticksPerFrame)}. Returns a {@link Static} at the start
-     * tick when no source is playable.
+     * tick when nothing is playable.
      *
-     * @param sources the subject's resolved animated textures
+     * @param flipbooks the subject's resolved animated textures
      * @param startTick the absolute sample tick of frame 0
      * @return the derived schedule
      */
-    static @NotNull TickTimeline deriveTickStrip(@NotNull List<Source> sources, int startTick) {
-        List<int[]> durationsPerSource = new ArrayList<>();
+    static @NotNull TickTimeline deriveTickStrip(@NotNull List<Flipbook> flipbooks, int startTick) {
+        List<Flipbook> playable = new ArrayList<>();
         boolean anyInterpolate = false;
-        for (Source source : sources) {
-            int[] durations = AnimationKit.entryDurations(source.frameCount(), source.animation());
-            if (durations.length == 0) continue;
-            long total = 0;
-            for (int d : durations) total += d;
-            if (total <= 0) continue;
-            durationsPerSource.add(durations);
-            if (source.animation().interpolate()) anyInterpolate = true;
+        for (Flipbook flipbook : flipbooks) {
+            if (flipbook.totalTicks() <= 0) continue;
+            playable.add(flipbook);
+            if (flipbook.interpolate()) anyInterpolate = true;
         }
-        if (durationsPerSource.isEmpty()) return new Static(startTick);
+        if (playable.isEmpty()) return new Static(startTick);
 
-        int ticksPerFrame = anyInterpolate ? 1 : gcdCadence(durationsPerSource);
-        int loopTicks = cappedLoopTicks(durationsPerSource);
+        int ticksPerFrame = anyInterpolate ? 1 : gcdCadence(playable);
+        int loopTicks = cappedLoopTicks(playable);
         if (loopTicks <= 0) return new Static(startTick);
 
         int frameCount = Math.max(1, (int) Math.ceil(loopTicks / (double) ticksPerFrame));
@@ -296,20 +292,19 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
         return Math.abs(a);
     }
 
-    /** GCD of every entry duration across all sources, floored at 1. */
-    private static int gcdCadence(@NotNull List<int[]> durationsPerSource) {
+    /** GCD of every entry duration across all flipbooks, floored at 1. */
+    private static int gcdCadence(@NotNull List<Flipbook> flipbooks) {
         long g = 0;
-        for (int[] durations : durationsPerSource)
-            for (int d : durations) g = gcd(g, d);
+        for (Flipbook flipbook : flipbooks)
+            for (MCMeta.Frame entry : flipbook.entries()) g = gcd(g, entry.time());
         return (int) Math.max(1, g);
     }
 
-    /** LCM of every source's total loop ticks, capped at {@link #MAX_LOOP_TICKS}. */
-    private static int cappedLoopTicks(@NotNull List<int[]> durationsPerSource) {
+    /** LCM of every flipbook's cycle length, capped at {@link #MAX_LOOP_TICKS}. */
+    private static int cappedLoopTicks(@NotNull List<Flipbook> flipbooks) {
         long loop = 0;
-        for (int[] durations : durationsPerSource) {
-            long total = 0;
-            for (int d : durations) total += d;
+        for (Flipbook flipbook : flipbooks) {
+            long total = flipbook.totalTicks();
             loop = loop == 0 ? total : lcm(loop, total);
             if (loop >= MAX_LOOP_TICKS) return MAX_LOOP_TICKS;
         }
@@ -529,25 +524,4 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
         }
     }
 
-    /**
-     * One resolved animated texture feeding schedule derivation.
-     *
-     * @param frameCount the texture strip's implicit frame count (strip height / frame height), used
-     *        only when the animation declares no explicit {@code frames} list
-     * @param animation the parsed {@code .mcmeta} metadata
-     */
-    record Source(int frameCount, @NotNull MCMeta.Animation animation) {
-
-        /**
-         * Builds a source from a texture strip, deriving the implicit frame count from the strip's
-         * height and the animation's frame height.
-         *
-         * @param strip the vertical texture strip
-         * @param animation the parsed {@code .mcmeta} metadata
-         * @return the derivation source
-         */
-        public static @NotNull Source of(@NotNull PixelBuffer strip, @NotNull MCMeta.Animation animation) {
-            return new Source(strip.height() / AnimationKit.frameHeight(strip, animation), animation);
-        }
-    }
 }

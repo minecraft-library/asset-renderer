@@ -70,14 +70,3 @@ an axis interface collapsing that roster, on the ground that collapsing N types 
 reduction worth a type where a carrier is not. The programme closed without scheduling it and the
 design lives nowhere tracked. An earlier pass at unifying the appearance axes was parked with the
 owner rather than decided, so this is a design conversation before it is a phase.
-
-## The block flipbook's cadence is re-derived at render, and baking it was left to the owner unasked
-
-A block render resolves its texture's animation sidecar and re-derives the timeline from it at
-render, every time; baking the cadence onto a component of `Block` would delete several
-members across `BlockRenderer` and `Timeline` at the cost of that one carrier
-component. The question was left to the owner and never put. Two facts weigh on it: the rebuild was
-benched at under one percent of a render, so the value is shape rather than speed, and the owner's
-stated criterion judges by where the fact lives in vanilla and the JSON's utility to the runtime,
-never by the cost of the carrier - under which the question is closer than the carrier rule alone
-suggests.
