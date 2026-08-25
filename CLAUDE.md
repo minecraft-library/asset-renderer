@@ -618,6 +618,12 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
 - Every `<init>` feeds the field-to-bone map, not the first, because a model offering both a `(root)`
   and a `(root, Function)` form builds its parts in the wider one. A miss falls back to
   `StringUtil.toSnakeCase`; a raw Java field name is never a bone name.
+- **A `texture_by` axis answers for itself on an overlay pass, and the horse marking is one.** Its row
+  draws the wearer's own mesh - `geometry` equal to the body's coordinate, which is what routes the
+  body's pose to the pass and derives its bounds skip - and `Entity.OverlayLayer.textureFor` reads the
+  selection off `HorseMarking`, whose two columns mirror the adult and baby sheets vanilla binds each
+  marking to as a record pair. It needs no gate of its own: an axis-carrying row whose ref resolves
+  empty is already skipped, and the axis answers empty at `NONE`.
 - A `tint_by` axis decides what colour a dye draws as, through `TintAxis.resolve`, and is not a
   multiply by the selected dye. `WOOL` takes vanilla's three-quarter floor with WHITE replaced
   outright, and a non-identity axis is a `resolve` override rather than a branch in the renderer.
@@ -741,7 +747,7 @@ it.** Both halves are the same rule read at different sites, and both were wrong
   body's pose rather than its coordinate's, or the two part company on a subject that moves.
 - The insertion is one line at the top of `EntityRenderer.renderEntity`'s `buildAtTick` lambda - the
   posed *definition* goes into `FeatureContext`, so a feature reading `ctx.definition()` gets posed
-  passes without a gate of its own, and the collar and the horse marking redraw the posed body.
+  passes without a gate of its own, and the collar redraws the posed body.
 - The rebuild preserves the mesh's **own bone order**, that order being the tied-depth priority. A
   `LinkedHashMap`, never `Map.copyOf`, whose iteration is salted per JVM launch.
 - Composition is channel-wise on the Euler triplet `BoneKit.applyBoneRotation` feeds to

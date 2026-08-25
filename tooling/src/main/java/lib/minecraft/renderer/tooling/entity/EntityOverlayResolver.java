@@ -14,6 +14,7 @@ import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
 import lib.minecraft.renderer.tooling.walk.Insn;
 import lib.minecraft.renderer.tooling.walk.Interp;
+import lib.minecraft.renderer.tooling.walk.Match;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -122,8 +123,8 @@ final class EntityOverlayResolver {
         for (EntityRendererResolver.LayerSite site : this.roster) {
             ClassNode cn = this.cache.load(site.layerClass());
             if (cn == null) continue;
-            // Collar, markings-token enum maps, equipment (call-site LayerType consumers),
-            // and block-decoration layers are handled by other resolvers and never emit here.
+            // Collar, equipment (call-site LayerType consumers) and block-decoration layers are
+            // handled by other resolvers and never emit here.
             if (isCollarShaped(cn)) continue;
             if (readsBlockModelRenderState(cn)) continue;
             if (EntityLayersResolver.consumesEquipmentLayerType(site)) continue;
@@ -135,8 +136,6 @@ final class EntityOverlayResolver {
                 continue;
             }
             EnumMapOverlay enumMap = findEnumMapOverlay(this.cache, cn);
-            if (enumMap != null && EntityLayersResolver.isLayersRowToken(enumMap.token())) continue;
-
             List<JsonTree> emitted = resolveSite(site, cn, enumMap);
             // What this layer's render type translates its texture by, which every pass the site
             // emits carries: the offset is built into the pipeline the layer submits through, so it
@@ -250,13 +249,31 @@ final class EntityOverlayResolver {
      *
      * @param token the state field name (the {@code texture_by} axis token)
      * @param textures enum-constant name to raw texture path, in declaration order
+     * @param babyTextures the same keys' aged-down paths where the map's value is a pair, empty
+     *     where each value is a single texture
      */
-    record EnumMapOverlay(@NotNull String token, @NotNull Map<String, String> textures) {}
+    record EnumMapOverlay(
+        @NotNull String token,
+        @NotNull Map<String, String> textures,
+        @NotNull Map<String, String> babyTextures
+    ) {}
+
+    /**
+     * The two textures one enum key binds, as vanilla declares them: a value carrying a single
+     * texture leaves {@link #baby} null, and one carrying an aged-down pair fills it.
+     */
+    private record TexturePair(@NotNull String adult, @Nullable String baby) {}
+
+    /**
+     * An enum-constant read - a {@code GETSTATIC} whose field descriptor is its own owner, which is
+     * how {@link AsmWalker#readStaticEnumMap} recognises the key that opens each entry.
+     */
+    private static final @NotNull Match<FieldInsnNode> ENUM_CONSTANT_READ = Insn.of(FieldInsnNode.class,
+        field -> field.getOpcode() == Opcodes.GETSTATIC && field.desc.equals("L" + field.owner + ";"));
 
     /**
      * Detects the enum-map shape on a layer class and reads its constant-to-texture map, or
-     * {@code null} when the shape is absent (also covers markings-shaped layers - the
-     * caller routes those to the markings resolver).
+     * {@code null} when the shape is absent.
      */
     static @Nullable EnumMapOverlay findEnumMapOverlay(@NotNull ClassNodeCache cache, @NotNull ClassNode cn) {
         MethodNode submit = typedSubmit(cn);
@@ -271,10 +288,37 @@ final class EntityOverlayResolver {
                 back.getOpcode() == Opcodes.GETSTATIC && back instanceof FieldInsnNode map
                     && cn.name.equals(map.owner) && MAP_DESC.equals(map.desc) ? map.name : null);
             if (stateField == null || mapField == null) return null;
-            Map<String, String> textures = AsmWalker.readStaticEnumMap(cache, cn.name, mapField,
-                EntityOverlayResolver::readEntityTextureLiteral);
-            return textures.isEmpty() ? null : new EnumMapOverlay(stateField, textures);
+            Map<String, TexturePair> pairs = AsmWalker.readStaticEnumMap(cache, cn.name, mapField,
+                EntityOverlayResolver::readEntityTexturePair);
+            if (pairs.isEmpty()) return null;
+            Map<String, String> textures = new LinkedHashMap<>();
+            Map<String, String> babyTextures = new LinkedHashMap<>();
+            pairs.forEach((key, pair) -> {
+                textures.put(key, pair.adult());
+                if (pair.baby() != null) babyTextures.put(key, pair.baby());
+            });
+            return new EnumMapOverlay(stateField, textures, babyTextures);
         });
+    }
+
+    /**
+     * The textures one entry of an enum-keyed map binds, read off the first texture literal the
+     * entry pushes.
+     *
+     * <p>A value carrying an aged-down sibling declares the two side by side - vanilla's horse
+     * markings are a record of an adult {@code Identifier} and a baby one - so the second literal
+     * inside the same entry is that sibling. The entry is bounded by what closes it: the next enum
+     * key, or the store of the finished map, so a map whose values are single textures never reads
+     * the next key's texture as this key's baby.
+     */
+    private static @Nullable TexturePair readEntityTexturePair(@NotNull AbstractInsnNode in) {
+        String adult = readEntityTextureLiteral(in);
+        if (adult == null) return null;
+        String baby = AsmWalker.after(in)
+            .until(Insn.of(AbstractInsnNode.class, node ->
+                ENUM_CONSTANT_READ.matches(node) || node.getOpcode() == Opcodes.PUTSTATIC))
+            .firstNotNull(EntityOverlayResolver::readEntityTextureLiteral);
+        return new TexturePair(adult, baby);
     }
 
     // ------------------------------------------------------------------------------------
@@ -485,9 +529,14 @@ final class EntityOverlayResolver {
     // ------------------------------------------------------------------------------------
 
     /**
-     * The enum-map row (crackiness): no baked texture - the zero-state enum value is absent
-     * from the map, so the default draws nothing - with the full value-to-path map and a
-     * bounds skip (a zero-state-none overlay never contributes silhouette).
+     * The enum-map row (crackiness, the horse marking): no baked texture - the zero-state enum
+     * value is absent from the map, so the default draws nothing - with the full value-to-path map
+     * and a bounds skip (a zero-state-none overlay never contributes silhouette).
+     *
+     * <p>A map whose values carry an aged-down sibling gets a {@code baby} node holding that half,
+     * which is what makes the pass reach a baby at all - an overlay with no {@code baby} node is
+     * absent from the baby list by design. It inherits the row's axis and materialises against the
+     * {@code age.baby} mesh, so it names neither.
      */
     private @NotNull JsonTree resolveEnumMapRow(
         @NotNull EntityRendererResolver.LayerSite site,
@@ -495,14 +544,22 @@ final class EntityOverlayResolver {
     ) {
         JsonTree node = row(site.layerClass(), site.layerIndex())
             .putIf("geometry", this.geometryRef.primaryKey())
-            .put("texture_by", axisToken(enumMap.token()));
-        JsonTree byValue = JsonTree.object();
-        for (Map.Entry<String, String> entry : enumMap.textures().entrySet())
-            byValue.put(entry.getKey().toLowerCase(Locale.ROOT), namespaced(entry.getValue()));
-        node.put("textures_by_value", byValue);
-        node.put("skip_bounds", true);
-        this.diagnostics.info("enum-map overlay: texture_by '%s', %d values",
-            enumMap.token(), enumMap.textures().size());
+            .put("texture_by", axisToken(enumMap.token()))
+            .put("textures_by_value", byValue(enumMap.textures()))
+            .put("skip_bounds", true);
+        if (!enumMap.babyTextures().isEmpty())
+            node.put("baby", JsonTree.object().put("textures_by_value", byValue(enumMap.babyTextures())));
+        this.diagnostics.info("enum-map overlay: texture_by '%s', %d values%s",
+            enumMap.token(), enumMap.textures().size(),
+            enumMap.babyTextures().isEmpty() ? "" : " (+%d baby)".formatted(enumMap.babyTextures().size()));
+        return node;
+    }
+
+    /** One value-to-path map, keys lowercased and paths namespaced. */
+    private static @NotNull JsonTree byValue(@NotNull Map<String, String> textures) {
+        JsonTree node = JsonTree.object();
+        for (Map.Entry<String, String> entry : textures.entrySet())
+            node.put(entry.getKey().toLowerCase(Locale.ROOT), namespaced(entry.getValue()));
         return node;
     }
 

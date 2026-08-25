@@ -44,8 +44,6 @@ public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
  * @param blockOverlays the vanilla-block-shaped overlays, or {@code null} when absent
  * @param collar the dyed-collar node (its {@code texture} is read; the rest are authoring hints),
  *     or {@code null} - presence is the gate, mirroring vanilla's {@code collarColor != null} branch
- * @param markings the horse-marking node ({@code texture_by} / {@code textures_by_value} are
- *     authoring hints; presence is the datum), or {@code null}
  * @param armor the worn-armor shell node, or {@code null} for a subject vanilla never armors
  * @param equipment the equipment rows in roster order, or {@code null} when the subject wears none
  * @param axes the mandatory option-axis block ({@code age} plus optional {@code variant} / {@code shape} / {@code size})
@@ -60,7 +58,6 @@ record RawModel(
     @Nullable List<RawOverlay> overlays,
     @SerializedName("block_overlays") @Nullable List<RawBlockOverlay> blockOverlays,
     @Nullable com.google.gson.JsonObject collar,
-    @Nullable com.google.gson.JsonObject markings,
     @Nullable RawArmor armor,
     @Nullable List<RawEquipmentRow> equipment,
     @NotNull RawAxes axes,

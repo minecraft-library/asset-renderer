@@ -115,7 +115,6 @@ class EntityRenderTransformJoinTest {
             null,            // overlays
             null,            // block_overlays
             null,            // collar
-            null,            // markings
             null,            // armor
             null,            // equipment
             ageAxis(adultYShift),  // axes

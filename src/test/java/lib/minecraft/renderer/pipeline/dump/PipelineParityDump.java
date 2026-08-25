@@ -1461,7 +1461,6 @@ public final class PipelineParityDump {
      */
     private static @NotNull JsonObject layers(@NotNull Entity.Layers layers) {
         JsonObject root = new JsonObject();
-        root.addProperty("markings", layers.markings());
         root.addProperty("humanoid_armor", layers.humanoidArmor().isPresent());
         root.add("equipment", CanonicalJson.ordered(layers.equipment(), equipment -> {
             JsonObject entry = new JsonObject();
@@ -1585,7 +1584,6 @@ public final class PipelineParityDump {
                 root.addProperty("gate", "equipment");
                 root.addProperty("slot", equipment.slot());
             }
-            case AppearanceGate.MarkingsGate ignored -> root.addProperty("gate", "markings");
             case AppearanceGate.CollarColorGate ignored -> root.addProperty("gate", "collar_color");
             case AppearanceGate.AgeGate age -> {
                 root.addProperty("gate", "age");

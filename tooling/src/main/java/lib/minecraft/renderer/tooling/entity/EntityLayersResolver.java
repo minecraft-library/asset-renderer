@@ -28,7 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The four option-gated decoration members - {@code collar}, {@code markings}, {@code armor} and
+ * The three option-gated decoration members - {@code collar}, {@code armor} and
  * {@code equipment[]} - each named for what it is, presence being its own gate. One roster pass;
  * the {@code equipment} rows keep roster order and every node carries its {@code source} /
  * {@code layer_index} authoring hints.
@@ -43,19 +43,15 @@ import java.util.Map;
  *       the typed submit); the member's presence mirrors vanilla's actual
  *       {@code collarColor != null && !isInvisible} branch rather than approximating it from
  *       {@code state=tame}.</li>
- *   <li><b>Markings</b> - the enum-map shape whose axis token is the markings axis; emits
- *       {@code texture_by} plus the full {@code textures_by_value} map so textures are
- *       re-derived from the value at render rather than from a presence flag.</li>
  *   <li><b>Equipment</b> - {@link EntityEquipmentResolver} rows from call-site windows and
  *       bespoke layers, each flattened to {@code slot} plus its payload.</li>
  * </ul>
+ *
+ * <p>An enum-map layer is not one of these: it draws the wearer's own mesh under a
+ * {@code texture_by} axis, which is what an overlay row is, so
+ * {@link EntityOverlayResolver} emits it and this pass skips the site.
  */
 final class EntityLayersResolver {
-
-    /**
-     * The markings axis name - the sole enum-map token routed to a layers row.
-     */
-    private static final @NotNull String MARKINGS_TOKEN = "markings";
 
     /**
      * The two axes a second armor set can be selected by, and the age axis's aged-down option.
@@ -99,10 +95,10 @@ final class EntityLayersResolver {
     }
 
     /**
-     * The four decoration members as one carrier, or {@code null} to omit them all.
+     * The three decoration members as one carrier, or {@code null} to omit them all.
      *
-     * @return a node holding {@code collar} / {@code markings} / {@code armor} / {@code equipment}
-     *     where the roster emits each, or {@code null} when no site emits
+     * @return a node holding {@code collar} / {@code armor} / {@code equipment} where the roster
+     *     emits each, or {@code null} when no site emits
      */
     @Nullable JsonTree resolve() {
         JsonTree carrier = JsonTree.object();
@@ -127,11 +123,9 @@ final class EntityLayersResolver {
                 carrier.putIf("collar", resolveCollar(site, cn));
                 continue;
             }
-            EntityOverlayResolver.EnumMapOverlay enumMap = EntityOverlayResolver.findEnumMapOverlay(this.cache, cn);
-            if (enumMap != null && isLayersRowToken(enumMap.token())) {
-                carrier.put(MARKINGS_TOKEN, resolveMarkings(site, enumMap));
-                continue;
-            }
+            // An enum-map layer is an overlay row - it draws the wearer's own mesh under a
+            // texture_by axis, which is what the overlay engine is - so it never emits here.
+            if (EntityOverlayResolver.findEnumMapOverlay(this.cache, cn) != null) continue;
             if (EntityOverlayResolver.referencesEquipmentLayerType(cn)) {
                 JsonTree bespoke = this.equipment.resolveBespoke(site, cn);
                 if (bespoke != null) equipmentRows.add(flattenedEquipment(bespoke));
@@ -157,13 +151,6 @@ final class EntityLayersResolver {
         row.find("overlay").ifPresent(overlay ->
             overlay.members().forEach(flat::put));
         return flat;
-    }
-
-    /**
-     * Whether an enum-map axis token rides a {@code layers[]} row instead of an overlay.
-     */
-    static boolean isLayersRowToken(@NotNull String token) {
-        return MARKINGS_TOKEN.equals(token);
     }
 
     /**
@@ -201,25 +188,6 @@ final class EntityLayersResolver {
             .putInt("layer_index", site.layerIndex())
             .put("texture", VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + texture)
             .put("tint_by", "collar_color");
-    }
-
-    /**
-     * The markings node: the full value map travels with it.
-     */
-    private @NotNull JsonTree resolveMarkings(
-        @NotNull EntityRendererResolver.LayerSite site,
-        @NotNull EntityOverlayResolver.EnumMapOverlay enumMap
-    ) {
-        JsonTree byValue = JsonTree.object();
-        for (Map.Entry<String, String> entry : enumMap.textures().entrySet())
-            byValue.put(entry.getKey().toLowerCase(Locale.ROOT),
-                VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + entry.getValue());
-        this.diagnostics.info("markings row: %d values", enumMap.textures().size());
-        return JsonTree.object()
-            .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
-            .putInt("layer_index", site.layerIndex())
-            .put("texture_by", MARKINGS_TOKEN)
-            .put("textures_by_value", byValue);
     }
 
     /**

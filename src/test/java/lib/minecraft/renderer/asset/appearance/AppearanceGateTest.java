@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.is;
  * unset, {@link AppearanceGate.CollarColorGate} reads tameness as well as the dye, and
  * {@link AppearanceGate.AgeGate} fires unselected where {@link AppearanceGate.SizeGate} never does.
  *
- * <p>The arm table below is checked against {@code getPermittedSubclasses()}, so a tenth arm fails
+ * <p>The arm table below is checked against {@code getPermittedSubclasses()}, so a ninth arm fails
  * this class rather than slipping through with no coverage.
  */
 @DisplayName("AppearanceGate sealed arms")
@@ -54,9 +54,6 @@ class AppearanceGateTest {
             AppearanceOptions.defaults()),
         new ArmCase(new AppearanceGate.EquipmentGate("saddle"),
             AppearanceOptions.builder().equipment(Map.of("saddle", "")).build(),
-            AppearanceOptions.defaults()),
-        new ArmCase(new AppearanceGate.MarkingsGate(),
-            AppearanceOptions.builder().markings(HorseMarking.WHITE_DOTS).build(),
             AppearanceOptions.defaults()),
         new ArmCase(new AppearanceGate.CollarColorGate(),
             AppearanceOptions.builder().state(Optional.of("tame")).build(),

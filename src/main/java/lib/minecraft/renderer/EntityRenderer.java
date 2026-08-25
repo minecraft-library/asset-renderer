@@ -12,7 +12,6 @@ import lib.minecraft.renderer.asset.DyeColor;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
-import lib.minecraft.renderer.asset.appearance.HorseMarking;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -536,36 +535,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     if (collarTex.isEmpty()) return;
                     sink.addAll(EntityGeometryKit.buildTriangles(model, collarTex.get(),
                         new EntityGeometryKit.EntityBuildParams(ctx.frame(), PassDeclaration.DEFAULT, collarTint)).triangles());
-                });
-            }
-        },
-
-        /**
-         * The horse marking (white socks / blaze / patches): a same-geometry translucent overlay of the
-         * base body, textured by the selected {@link HorseMarking} and drawn over the coat. Gated on the
-         * resolved definition supporting markings (the horse) and a non-{@link HorseMarking#NONE}
-         * selection, so the default (unmarked) render draws nothing. Reuses the
-         * base body model - the baby mesh is baby-aware here, binding the marking's {@code _baby} texture
-         * - and, like the collar, wins the coplanar depth tie over the body beneath it (last-drawn LEQUAL).
-         */
-        MARKINGS(EntitySlot.MODEL_OVERLAY) {
-            @Override
-            void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                if (!ctx.definition().layers().markings()) return;
-                AppearanceOptions appearance = ctx.options().getAppearance();
-                HorseMarking marking = appearance.getMarkings();
-                // The marking texture comes from the HorseMarking enum - horse markings are a fixed
-                // vanilla set. NONE has no ref, so it draws nothing.
-                Optional<String> markingRef = marking.overlayTexture();
-                if (markingRef.isEmpty()) return;
-                String ref = appearance.isBaby() ? markingRef.get() + "_baby" : markingRef.get();
-                EntityModelData model = ctx.model();
-                stack.append(this.slot, sink -> {
-                    Optional<PixelBuffer> markingTex = resolveEntityTextureAtTick(ctx.context(), ref, ctx.tick());
-                    if (markingTex.isEmpty()) return;
-                    sink.addAll(EntityGeometryKit.buildTriangles(model, markingTex.get(),
-                        new EntityGeometryKit.EntityBuildParams(
-                            ctx.frame(), PassDeclaration.DEFAULT, ColorMath.WHITE)).triangles());
                 });
             }
         },

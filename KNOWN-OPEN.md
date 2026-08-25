@@ -49,23 +49,10 @@ a channel map the flag shed empties, so its pins move with the emitter. Closing 
 harness stride (WALK gets a reference, the thirteen become measurable, and the genuinely dead rest
 shed behind them) or an owner ruling that the offline renderer never plays a state-driven clip.
 
-## The horse marking still draws through its own feature arm, beside the mechanism the other axes take
+## The gate roster is eight records where one axis interface was licensed
 
-The texture axes answer for themselves on the overlay pass, but the horse's marking is not an
-overlay row: it is a node whose presence gates a dedicated feature arm, `MarkingsGate` and
-`Entity.Layers.markings` carry the gate, and the drawn texture comes off `HorseMarking`'s own
-enum columns. The node ships the full option-to-path map beside itself
-(`textures_by_value`, four rows) and nothing reads it - the same unread map the iron golem's
-crackiness row ships. Folding the marking into the axis mechanism is therefore two questions nobody
-has asked squarely: whether the shipped map becomes the read and the enum's ref columns go - the
-texture spelling of the move the tint ruling refused, against the standing rule that stability and
-call-site legibility beat deriving - and whether the marking becomes an overlay row at all, which
-is a table shape the generator would have to emit. Until both are answered, the feature arm stays.
-
-## The gate roster is nine records where one axis interface was licensed
-
-`AppearanceGate` seals over nine arms - state, flag, charged, tinted, equipment, markings, collar,
-age, size - and the surface-reduction work licensed exactly one new type for the whole programme:
+`AppearanceGate` seals over eight arms - state, flag, charged, tinted, equipment, collar, age,
+size - and the surface-reduction work licensed exactly one new type for the whole programme:
 an axis interface collapsing that roster, on the ground that collapsing N types into one is the
 reduction worth a type where a carrier is not. The programme closed without scheduling it and the
 design lives nowhere tracked. An earlier pass at unifying the appearance axes was parked with the

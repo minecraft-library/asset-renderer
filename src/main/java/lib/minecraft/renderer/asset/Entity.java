@@ -80,8 +80,8 @@ import java.util.Set;
  *     with no toggleable bones
  * @param axes the option-axis mesh / texture selections a render appearance chooses among (state
  *     textures, baby mesh, large shape, size meshes / scales) - see {@link Axes}
- * @param layers the conditional decoration layers drawn over the base body (collar, equipment,
- *     markings), each gated at render on its appearance axis - see {@link Layers}
+ * @param layers the conditional decoration layers drawn over the base body (collar, equipment), each
+ *     gated at render on its appearance axis - see {@link Layers}
  * @param members the self-inclusive canvas-group membership - every entity id that shares this
  *     entity's group-union fit window ({@code EntityOptions.FitMode.GROUP_BOUNDS}), the SAME list on
  *     each member of the group; empty for a singleton entity with no group
@@ -189,7 +189,7 @@ public record Entity(
                 .pose(definition.axes().babyPose().orElse(EntityPose.NONE))
                 .overlays(gatedOverlays(definition.axes().babyOverlays(), appearance))
                 .blockOverlays(List.of())
-                .layers(new Layers(Optional.empty(), List.of(), definition.layers().markings(), armor));
+                .layers(new Layers(Optional.empty(), List.of(), armor));
         } else {
             builder.overlays(gatedOverlays(definition.overlays(), appearance));
             // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
@@ -228,8 +228,7 @@ public record Entity(
             // A layer's own toggles ride the same selection the wearer's do, so an equipped saddle
             // draws its reins for a ridden subject and its chest panniers for a chested one.
             builder.layers(new Layers(definition.layers().collar(),
-                toggledEquipment(definition.layers().equipment(), selectedToggles),
-                definition.layers().markings(), armor));
+                toggledEquipment(definition.layers().equipment(), selectedToggles), armor));
         }
         // The base_color axis (tropical fish) overrides the model base_tint with the selected dye; absent
         // (default) keeps the baked base_tint.
@@ -400,16 +399,13 @@ public record Entity(
     ) {}
 
     /**
-     * The conditional decoration layers drawn over the base body ({@code collar}, {@code equipment},
-     * {@code markings}), each gated at render on its appearance axis.
+     * The conditional decoration layers drawn over the base body ({@code collar},
+     * {@code equipment}), each gated at render on its appearance axis.
      *
      * @param collar the dyed-collar texture drawn on the body geometry and tinted by the collar colour
      *     (wolf, cat); empty for non-collar entities
      * @param equipment the saddle / body-armor overlays rendered when the {@code equipment} axis selects
      *     their slot; empty for entities with no equipment layer
-     * @param markings whether the entity supports the horse {@code markings} axis (a same-geometry
-     *     translucent overlay over the coat, textured by the selected
-     *     {@link HorseMarking}); the default marking draws nothing
      * @param humanoidArmor the worn-armor shell this entity is dressed in (skeletons, zombies, piglins),
      *     joined from the {@code layers} armor row's geometry reference at load; empty for an entity
      *     vanilla arms with no {@code HumanoidArmorLayer}. Being armored IS carrying a shell, so a
@@ -418,7 +414,6 @@ public record Entity(
     public record Layers(
         @NotNull Optional<String> collar,
         @NotNull List<EquipmentOverlay> equipment,
-        boolean markings,
         @NotNull Optional<Shell> humanoidArmor
     ) {}
 
@@ -734,6 +729,13 @@ public record Entity(
          * resolves its biome under the pass' own robe directory, mirroring the layer's
          * {@code isBaby ? "baby" : "type"} token swap. The default keeps an unselected pass
          * unchanged; a selection swaps in that axis' texture.
+         * <p>
+         * {@code markings} (the horse coat marking) is the one axis answering off the age as well as
+         * off the selection, because vanilla binds each {@link HorseMarking} to a PAIR of sheets and
+         * picks between them on the render state's own {@code isBaby}. It is safe here where the villager robe's
+         * directory swap is not: a baby draws the baby overlay list and an adult the adult one, both
+         * forked on this same flag, so the sheet and the mesh cannot disagree. It resolves empty at
+         * the {@code NONE} default, so the pass is skipped and an unmarked horse draws nothing.
          *
          * @param appearance the axis selections to resolve against
          * @param texturePrefix the entity texture prefix ({@code villager} / {@code zombie_villager})
@@ -747,6 +749,10 @@ public record Entity(
                 return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(this::textureRef);
             if (this.textureBy.filter("crackiness"::equals).isPresent())
                 return appearance.getCrackiness().overlayTexture().or(this::textureRef);
+            if (this.textureBy.filter("markings"::equals).isPresent())
+                return appearance.isBaby()
+                    ? appearance.getMarkings().babyOverlayTexture()
+                    : appearance.getMarkings().overlayTexture();
             if (this.textureBy.filter("weathering"::equals).isPresent())
                 return Optional.of(appearance.getWeathering().eyeTexture());
             if (this.textureBy.filter("type"::equals).isPresent()) {

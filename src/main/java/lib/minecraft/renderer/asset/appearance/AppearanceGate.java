@@ -10,12 +10,12 @@ import java.util.Optional;
  * whether the gated overlay / layer renders for a given {@link AppearanceOptions}. An absent {@code when}
  * is modelled as no gate (an {@code Optional.empty()} on the owning row), meaning unconditional.
  *
- * <p>Each arm names the exact vanilla branch its condition expresses. The nine arms mirror the nine
+ * <p>Each arm names the exact vanilla branch its condition expresses. The eight arms mirror the eight
  * {@code when} forms the tooling emits.
  */
 public sealed interface AppearanceGate
     permits AppearanceGate.StateGate, AppearanceGate.FlagGate, AppearanceGate.ChargedGate,
-    AppearanceGate.TintedGate, AppearanceGate.EquipmentGate, AppearanceGate.MarkingsGate,
+    AppearanceGate.TintedGate, AppearanceGate.EquipmentGate,
     AppearanceGate.CollarColorGate, AppearanceGate.AgeGate, AppearanceGate.SizeGate {
 
     /**
@@ -93,14 +93,6 @@ public sealed interface AppearanceGate
         @Override
         public boolean test(@NotNull AppearanceOptions appearance) {
             return appearance.equipmentMaterial(this.slot).isPresent();
-        }
-    }
-
-    /** Renders only when the {@code markings} axis selects a non-default marking (the horse coat marking). */
-    record MarkingsGate() implements AppearanceGate {
-        @Override
-        public boolean test(@NotNull AppearanceOptions appearance) {
-            return appearance.getMarkings().overlayTexture().isPresent();
         }
     }
 

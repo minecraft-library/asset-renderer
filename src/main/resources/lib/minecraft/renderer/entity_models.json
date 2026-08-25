@@ -1248,17 +1248,29 @@
           }
         }
       },
-      "markings": {
-        "source": "HorseMarkingLayer",
-        "layer_index": 0,
-        "texture_by": "markings",
-        "textures_by_value": {
-          "white": "horse/horse_markings_white",
-          "white_field": "horse/horse_markings_whitefield",
-          "white_dots": "horse/horse_markings_whitedots",
-          "black_dots": "horse/horse_markings_blackdots"
+      "overlays": [
+        {
+          "source": "HorseMarkingLayer",
+          "layer_index": 0,
+          "geometry": "AbstractEquineModel#createBodyMesh@scaled=1.1",
+          "texture_by": "markings",
+          "textures_by_value": {
+            "white": "horse/horse_markings_white",
+            "white_field": "horse/horse_markings_whitefield",
+            "white_dots": "horse/horse_markings_whitedots",
+            "black_dots": "horse/horse_markings_blackdots"
+          },
+          "skip_bounds": true,
+          "baby": {
+            "textures_by_value": {
+              "white": "horse/horse_markings_white_baby",
+              "white_field": "horse/horse_markings_whitefield_baby",
+              "white_dots": "horse/horse_markings_whitedots_baby",
+              "black_dots": "horse/horse_markings_blackdots_baby"
+            }
+          }
         }
-      },
+      ],
       "equipment": [
         {
           "source": "SimpleEquipmentLayer",

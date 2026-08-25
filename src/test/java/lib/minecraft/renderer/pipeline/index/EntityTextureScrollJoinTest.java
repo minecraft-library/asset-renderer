@@ -127,7 +127,6 @@ class EntityTextureScrollJoinTest {
                 null)),                             // baby
             null,                                   // block_overlays
             null,                                   // collar
-            null,                                   // markings
             null,                                   // armor
             null,                                   // equipment
             ageAxis(),                              // axes
