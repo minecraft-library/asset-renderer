@@ -423,6 +423,32 @@ final class ParityTaskWiringTest {
     }
 
     @Test
+    @DisplayName("a capture continues past a failed producer without anyone typing --continue")
+    void aCaptureIsDrivenWithContinueOnFailure() {
+        String settings = read(Path.of("settings.gradle.kts"));
+
+        assertThat("a capture's job is to produce a comparable set, so a failed producer is a result "
+                + "to record rather than a reason to discard the rows that succeeded. Forgetting the "
+                + "flag cost a full bundle each time, and it struck hardest on the one run a capture "
+                + "exists for - re-baselining a pin whose own test asserts on the value being "
+                + "re-based, so the suite is red BECAUSE of the change under measurement",
+            collapsed(settings),
+            containsString("gradle.startParameter.isContinueOnFailure = true"));
+        assertThat("and it is settings that sets it, because nowhere later works: the execution plan "
+                + "is built once configuration ends, so a project script setting this has already "
+                + "missed it - the flag reads back as set and the build still halts on the first "
+                + "failed producer. Every parity refusal is read off the RESOLVED graph and this one "
+                + "cannot be, there being no graph yet",
+            collapsed(settings),
+            containsString("if (gradle.startParameter.taskNames.any { "
+                + "it.substringAfterLast(':').startsWith(\"parityCapture\") }) "
+                + "gradle.startParameter.isContinueOnFailure = true"));
+        assertThat("nowhere else may set it - a second site would make the flag a property of the "
+                + "invocation rather than of a capture",
+            occurrences(collapsed(buildFile()), "isContinueOnFailure"), is(equalTo(0)));
+    }
+
+    @Test
     @DisplayName("a registration parityExpect cannot complete is refused rather than turned into a clear")
     void anUnderSpecifiedRegistrationIsNeverForwardedAsAClear() {
         String argv = collapsed(taskBlock("parityExpect"));
