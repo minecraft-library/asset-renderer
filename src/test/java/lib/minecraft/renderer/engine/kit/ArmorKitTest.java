@@ -91,7 +91,7 @@ class ArmorKitTest {
     void singleFlatLayerFastReturn() {
         StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
-        ArmorKit.buildHumanoidArmor3D(headBounds(),
+        PlayerArmorKit.buildHumanoidArmor3D(headBounds(),
             Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), ctx);
 
         assertThat(ctx.getResolved(), equalTo(List.of("minecraft:entity/equipment/humanoid/iron")));
@@ -136,7 +136,7 @@ class ArmorKitTest {
     void babyArmorReadsBabySheet() {
         StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
-        ArmorKit.buildEntityArmor3D(babyShell(), RenderFrame.IDENTITY,
+        EntityArmorKit.buildEntityArmor3D(babyShell(), RenderFrame.IDENTITY,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), ctx);
 
         assertThat(ctx.getResolved(), equalTo(List.of("minecraft:entity/equipment/humanoid_baby/iron")));
@@ -147,7 +147,7 @@ class ArmorKitTest {
     void adultArmorReadsTrimAtlas() {
         StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
-        ArmorKit.buildEntityArmor3D(genericShell(), RenderFrame.IDENTITY,
+        EntityArmorKit.buildEntityArmor3D(genericShell(), RenderFrame.IDENTITY,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), ctx);
 
         assertThat(ctx.getResolved().contains("minecraft:trims/entity/humanoid/coast"), equalTo(true));
@@ -226,7 +226,7 @@ class ArmorKitTest {
     private static float[] helmetYSpan(@NotNull Shell shell, float modelScale) {
         StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
-        ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(shell,
+        ConcurrentList<VisibleTriangle> armor = EntityArmorKit.buildEntityArmor3D(shell,
             new RenderFrame(Vector3f.ZERO, 1f, modelScale),
             Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), ctx);
 
@@ -242,7 +242,7 @@ class ArmorKitTest {
     }
 
     private static void buildHelmet(@NotNull StubRendererContext ctx, @NotNull Map<ArmorSlot, ItemContext> items) {
-        ArmorKit.buildHumanoidArmor3D(headBounds(),
+        PlayerArmorKit.buildHumanoidArmor3D(headBounds(),
             Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.LEATHER)), items, ctx);
     }
 

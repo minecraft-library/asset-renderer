@@ -27,7 +27,7 @@ import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
-import lib.minecraft.renderer.engine.kit.ArmorKit;
+import lib.minecraft.renderer.engine.kit.PlayerArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.ElytraKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
@@ -457,7 +457,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
             for (BodyPart2D row : parts)
                 if (ArmorForm.playerSlots(row.part()).contains(slot))
-                    ArmorKit.compositeSlot2D(target, row, slot, entry.getValue(), item, context);
+                    PlayerArmorKit.compositeSlot2D(target, row, slot, entry.getValue(), item, context);
         }
     }
 
@@ -687,7 +687,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * Appends the worn-armor layer for a player scope: the scope's own
-     * {@link PlayerOptions.Type}'s {@code boxes} handed to {@link ArmorKit#buildHumanoidArmor3D}
+     * {@link PlayerOptions.Type}'s {@code boxes} handed to {@link PlayerArmorKit#buildHumanoidArmor3D}
      * with the four equipped slots. Shared by the SKULL / BUST / FULL 3D renderers so the append and
      * armor call live here once.
      *
@@ -698,7 +698,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static void appendArmor(@NotNull LayerStack<GeometryLayer> stack, @NotNull PlayerOptions.Type type,
                                     @NotNull PlayerOptions options, @NotNull ModelEngine engine) {
-        stack.append(PlayerSlot3D.ARMOR, sink -> sink.addAll(ArmorKit.buildHumanoidArmor3D(
+        stack.append(PlayerSlot3D.ARMOR, sink -> sink.addAll(PlayerArmorKit.buildHumanoidArmor3D(
             type.boxes(), options.getArmor().equipped(),
             options.getArmor().getItems(), engine.context())));
     }

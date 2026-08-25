@@ -390,7 +390,7 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
 - Naming the relation does not make divergence unrepresentable; it buys one greppable token with a
   test pinning its value.
 - A frame change and a shading flip are two turns, and separating them is what keeps each one
-  greppable: `ArmorKit.intoModelFrame` applies `HALF_X` to a shell's geometry and stored normal, and
+  greppable: `EntityArmorKit.intoModelFrame` applies `HALF_X` to a shell's geometry and stored normal, and
   the `MIRROR_Y` that lights it is the fold's, one argument at one call.
 
 ### Boxes and unwraps
@@ -442,12 +442,13 @@ do exactly that - `EntityRenderer` over the entity's folded stack through `Turn.
 rule: their kits bake `Lighting.inventory` at emit time and nothing relights them.
 
 - **The fold owns the entity shade; no entity-side producer resolves one.** `EntityGeometryKit`,
-  `ArmorKit.intoModelFrame` and `EntityRenderer.buildBlockOverlayTriangles` all emit `Shading.UNLIT`.
+  `EntityArmorKit.intoModelFrame` and `EntityRenderer.buildBlockOverlayTriangles` all emit
+  `Shading.UNLIT`.
   A player-side producer may still carry the `BlockGeometryKit.buildBox` cardinal bake, because the
   player's relight overwrites it either way - so `UNLIT` marks the entity path's producers, not every
   triangle either fold receives.
 - The pass reads a triangle's **stored normal and its emitted traits**, so a producer that re-frames
-  geometry after building it must turn the stored normal with it. `ArmorKit.intoModelFrame` is that
+  geometry after building it must turn the stored normal with it. `EntityArmorKit.intoModelFrame` is that
   turn for a worn shell, `ElytraKit.buildPlayerWings3D` for the player's wings.
 - Those traits are read for lighting as well as for coverage: `cullBackFaces` picks the per-face
   orientation and `directionalLight` gates the full-bright arm. So a producer rewriting either -
@@ -552,6 +553,12 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
 - `ArmorKit.buildArmor3D` takes a `ShellPart` list, a `UnaryOperator<Box>` frame mapping and an
   `ArmorForm`; those three are the whole difference between a player and a worn shell, and the
   mapping is an argument rather than a branch because it alone is arithmetic.
+- **The two wearers are two kits, as the geometry kits are.** `EntityArmorKit` starts from the
+  `Shell` an entity is dressed in; `PlayerArmorKit` holds no `Shell` at all and dresses the player's
+  own body boxes; `ArmorKit` is what they share, from `buildArmor3D` down. Keeping them in one type
+  is what let a shared class carry both subjects at once, and reach is resolved per CLASS - so a
+  player producer read the whole entity appearance surface through the half of the kit it never
+  enters. A kit that renders for one subject says so by being that subject's kit.
 - `ArmorForm.covers` and `ShellWalk`'s pivot chain are bounded by a visiting set, not a depth cap.
 - A genuinely distinct second shell repeats the node's members under `alternate` with the
   `when` that selects it and the `form` it keeps; `ArmorMeshIndex.Set.sameShellAs` decides
@@ -561,8 +568,8 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
   four slots and never a trim, and its pose is a mesh argument the geometry key names.
 - A baby shell's `inner_body` cube is named by no slot and can never draw, and its feet are
   cross-parented onto the opposite legs. Both are vanilla's; normalising them edits shipped data.
-- The canvas measures the shell on both sides - `ArmorKit.screenBounds` unions each equipped slot's
-  alpha-tight bounds into the fit, and `ArmorKit.slotMesh` rebuilds the bone tree for
+- The canvas measures the shell on both sides - `EntityArmorKit.screenBounds` unions each equipped slot's
+  alpha-tight bounds into the fit, and `EntityArmorKit.slotMesh` rebuilds the bone tree for
   `EntityGeometryKit.computeScreenBounds`. A reference canvas the same size armoured as bare is the
   symptom of an unmeasured shell, not evidence that vanilla clips.
 

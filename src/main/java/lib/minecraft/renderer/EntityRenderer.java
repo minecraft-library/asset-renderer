@@ -32,7 +32,7 @@ import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
-import lib.minecraft.renderer.engine.kit.ArmorKit;
+import lib.minecraft.renderer.engine.kit.EntityArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.ElytraKit;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
@@ -274,7 +274,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // side vanilla inflates it, and a baby's is a hooded shroud around a body a third its
             // bulk. Gated on a piece actually being equipped, so an unarmored render - which is all
             // but fourteen rows of the entity sweep - measures exactly what it measured before.
-            Optional<Box> armorBounds = resolved.humanoidArmor().flatMap(shell -> ArmorKit.screenBounds(shell,
+            Optional<Box> armorBounds = resolved.humanoidArmor().flatMap(shell -> EntityArmorKit.screenBounds(shell,
                 options.getArmor().equipped(), options.getArmor().getItems(),
                 renderOrient, modelScale, this.context));
             if (armorBounds.isPresent()) screenBounds = screenBounds.union(armorBounds.get());
@@ -597,7 +597,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 if (armor.isEmpty()) return;
                 EntityOptions options = ctx.options();
                 stack.append(this.slot, sink ->
-                    sink.addAll(ArmorKit.buildEntityArmor3D(armor.get(), ctx.frame(),
+                    sink.addAll(EntityArmorKit.buildEntityArmor3D(armor.get(), ctx.frame(),
                         options.getArmor().equipped(), options.getArmor().getItems(), ctx.context())));
             }
         };
