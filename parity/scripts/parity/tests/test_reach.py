@@ -150,8 +150,21 @@ class OverTheRealTree(unittest.TestCase):
         """An entity draws a carried block through it, so a change there is an entity change."""
         self.assertIn("sweep.entity", self._artifacts("BlockRenderer"))
 
-    def test_a_tensor_type_reaches_every_rooted_artifact(self):
-        self.assertEqual(self._artifacts("Vector3f"), set(self.graph.roots))
+    def test_a_tensor_type_reaches_every_artifact_that_renders(self):
+        """Engine-wide, and a full run is what it costs - nothing here tries to talk that down."""
+        found = self._artifacts("Vector3f")
+        for artifact in ("sweep.entity", "sweep.block", "sweep.item", "sweep.menu", "sweep.player",
+                         "manifest.dump.vanilla", "manifest.visual", "pin.block-crc"):
+            self.assertIn(artifact, found)
+
+    def test_even_a_tensor_type_cannot_move_a_digest_of_shipped_resources(self):
+        """The narrowing that survives at the widest reach there is.
+
+        `digest.shipped-tables` hashes the JSON this build ships and renders nothing, so no geometry
+        can move it. Rooting it at the suite that runs its writer would have said the opposite.
+        """
+        self.assertNotIn("digest.shipped-tables", self._artifacts("Vector3f"))
+        self.assertIn("digest.shipped-tables", self.graph.roots)
 
     def test_a_javadoc_only_reference_is_no_edge(self):
         """RendererContext documents BlockRenderer and does not depend on it.

@@ -43,11 +43,19 @@ CLASS_ROOTS = ("build/classes/java/main", "build/classes/java/test")
 #: The committed graph, relative to the ``parity/`` directory.
 STORED = "reach.json"
 
-#: Each artifact's producer entry point, by simple type name. Only the artifacts whose producer is a
-#: single class are rooted here; a whole-suite producer (``test``, ``slowTest``) and a JavaExec main
-#: are rooted by the wiring that registers them, and until they are, those artifacts answer through
-#: the blindness map as they do today.
+#: Each artifact's producer entry point, by simple type name.
+#:
+#: A row produced by a whole SUITE is rooted at the class that WRITES it rather than at the suite,
+#: which is the same distinction the capture wiring draws: ``test`` runs 1325 tests to write four
+#: self-captured rows, and what those rows can be moved by is what their own writer reaches. A suite
+#: as a root would be every test class, which answers "everything" and says nothing.
+#:
+#: Two artifacts are deliberately absent and answer through the blindness map instead. Neither has a
+#: root in this tree: ``manifest.references`` hashes the harness's reference tree, which is a
+#: separate Gradle build reached by shelling into its wrapper, and ``manifest.tooling-tables`` is the
+#: eight generator flows, which are another build again and on no classpath here.
 ROOTS: dict[str, tuple[str, ...]] = {
+    # --- sweeps, each a JavaExec main of its own
     "sweep.entity": ("TestEntityParityVanilla",),
     "sweep.entity-animation": ("TestEntityAnimationParityVanilla",),
     "sweep.block": ("TestBlockParityVanilla",),
@@ -56,10 +64,27 @@ ROOTS: dict[str, tuple[str, ...]] = {
     "sweep.player": ("TestPlayerParityVanilla",),
     "sweep.armor": ("TestArmorParityVanilla",),
     "sweep.menu": ("TestMenuParityVanilla",),
+    # --- render manifests. player-raw aggregates both rescaling sweeps rather than either one.
     "manifest.player-raw": ("TestPlayerParityVanilla", "TestArmorParityVanilla"),
     "manifest.player-sheets": ("TestPlayerRender",),
+    "manifest.fluid": ("FluidRenderDriver",),
+    "manifest.portal": ("PortalRenderDriver",),
     "manifest.dump.vanilla": ("PipelineParityDump",),
     "manifest.dump.packs": ("PipelineParityDump",),
+    # --- the eight visual drivers whose cache/visual sub-tree no other artifact covers
+    "manifest.visual": ("BlockRenderDriver", "EntityProjectionsDriver", "EntityRenderDriver",
+                        "ItemDayCycleDriver", "ItemRenderDriver", "LoreTooltipDriver",
+                        "MenuRenderDriver", "BlockProjectionsDriver"),
+    # --- self-captured rows, at their writer rather than at the suite that runs it
+    "digest.shipped-tables": ("BundledResourceShaTest",),
+    "digest.colormap-lut": ("ClientAcquisitionIntegrationTest",),
+    "pin.vanilla-iso-pose": ("VanillaEntityTransformGoldenTest",),
+    "pin.kit-corners": ("VanillaEntityTransformGoldenTest",),
+    "pin.corpus-count": ("CorpusCountPinTest",),
+    "pin.player-crc": ("PlayerRendererFittedGoldenTest",),
+    "pin.block-crc": ("BlockRendererRasterPinTest",),
+    "pin.portal-crc": ("PortalRendererFrameBakePinTest",),
+    "pin.fluid-crc": ("FluidRendererFrameBakePinTest",),
 }
 
 _REFERENCE = re.compile(re.escape(PACKAGE) + r"/[A-Za-z0-9_/$]+")
