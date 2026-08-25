@@ -230,6 +230,16 @@ class AgainstTheMap(unittest.TestCase):
                              Claim("wide", "select", ("root/**",))],
                             ["root/Lonely.java"])
 
+    def test_a_derived_subtraction_needs_no_other_claim(self):
+        """It removes what its OWN selection put there, the reference graph having answered it.
+
+        That is the shipped shape wherever the graph reaches an artifact a perturbation says cannot
+        move: the claim selects it per file and takes it back for the whole region.
+        """
+        declarations.verify(scan("subtraction-from-nothing"),
+                            [Claim("narrow", "demote", ("root/Lonely.java",), derived=True)],
+                            ["root/Lonely.java"])
+
 
 class TheSeamFlag(unittest.TestCase):
     """``ignored = true``: wiring rather than behaviour, and the one shape that claims nothing.

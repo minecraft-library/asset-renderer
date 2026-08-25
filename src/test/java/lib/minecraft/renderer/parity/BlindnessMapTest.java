@@ -1652,17 +1652,20 @@ final class BlindnessMapTest {
     /**
      * What the committed reference graph says one path reaches, or nothing when it cannot answer.
      *
-     * <p>A {@code package-info.java} answers an empty set rather than nothing. It declares no type,
-     * so no class file carries its edges, and what it does carry - a package's own {@code @Parity}
-     * declaration - moves this map's trigger paths rather than any render.
+     * <p>Two shapes under a source root answer an empty set rather than nothing, each because no
+     * class file anywhere can reference it. A {@code package-info.java} declares no type, and what it
+     * does carry - a package's own {@code @Parity} declaration - moves this map's trigger paths
+     * rather than any render. A {@code doc-files} directory is javadoc's own reserved name, passed
+     * over by javac and copied verbatim by the doclet, so what sits there is illustration.
      *
      * @param path the repo-relative path
      * @return the artifacts, or {@code null} when the graph has no entry for the path
      */
     private static Set<String> reachOf(String path) {
         boolean scanned = GRAPH_SOURCE_ROOTS.stream().anyMatch(root -> path.startsWith(root + "/"));
-        if (!scanned || !path.endsWith(".java")) return null;
-        if (path.endsWith("/" + PACKAGE_DECLARATION)) return Set.of();
+        if (!scanned) return null;
+        if (path.endsWith("/" + PACKAGE_DECLARATION) || path.contains("/doc-files/")) return Set.of();
+        if (!path.endsWith(".java")) return null;
         String root = GRAPH_SOURCE_ROOTS.stream().filter(each -> path.startsWith(each + "/"))
             .findFirst().orElseThrow();
         String binary = path.substring(root.length() + 1, path.length() - ".java".length());

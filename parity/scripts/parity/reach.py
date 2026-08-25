@@ -345,16 +345,19 @@ def answered_by(payload: dict, path: str) -> list[str] | None:
     compiled, which is the one way this scheduling can be quietly wrong rather than loudly stale;
     ``reach check`` on a verification run is what holds the committed file to the tree instead.
 
-    A ``package-info.java`` answers the empty list rather than nothing. It declares no type, so the
-    walk above never names it and no class file carries its edges - and what it does carry, a
-    package's own declaration, moves this map's trigger paths rather than any render.
+    Two shapes under a source root answer the empty list rather than nothing, each because no class
+    file anywhere can reference it. A ``package-info.java`` declares no type, and what it does carry
+    - a package's own declaration - moves this map's trigger paths rather than any render. A
+    ``doc-files`` directory is javadoc's own reserved name: javac passes over it and the doclet copies
+    it verbatim, so what sits there is illustration rather than input. Anything else under a source
+    root is refused, a new type and a shipped resource each needing an answer somebody wrote down.
 
     :param payload: a committed graph, as :func:`to_payload` writes one
     :param path: a repo-relative path in either separator
     """
     text = path.replace("\\", "/")
-    if text.endswith("/package-info.java") and any(text.startswith(f"{root}/")
-                                                   for root in SOURCE_ROOTS):
+    if any(text.startswith(f"{root}/") for root in SOURCE_ROOTS) and (
+            text.endswith("/package-info.java") or "/doc-files/" in text):
         return []
     binary = to_binary(text)
     if binary is None:

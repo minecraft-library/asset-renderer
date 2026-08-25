@@ -38,13 +38,18 @@
  *
  * <p><b>Parity.</b> The corner phase fixes which diagonal a quad's fan splits on and the unwrap fixes
  * which texels a face reads. Both are evaluated per quad at render time, so neither is a loaded value
- * a dump could carry, and every 3D render goes through them.
+ * a dump could carry, and every 3D render goes through them. Which renders each type here reaches is
+ * answered per file rather than for the package: the corner phase is under the fluid and the portal
+ * and the unwrap is not. What is answered for the package is the demotion - a face is named in
+ * serialised model data, so a dump can be reached from here and still cannot move.
  *
  * @see lib.minecraft.renderer.face.Face
  * @see lib.minecraft.renderer.face.CornerPhase
  * @see lib.minecraft.renderer.face.Unwrap
  */
-@Parity(claim = "face-vocabulary")
+@Parity(claim = "face-vocabulary", mode = Mode.DEMOTE, scope = Scope.SUBTREE)
 package lib.minecraft.renderer.face;
 
+import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Scope;

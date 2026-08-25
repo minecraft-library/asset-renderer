@@ -485,13 +485,15 @@ class Claim:
     key: str
     mode: str
     trigger_paths: tuple[str, ...]
+    derived: bool = False
 
 
 def claims_of(rules: Iterable) -> tuple[Claim, ...]:
     """The claims a rule list carries, keyed by the slug a declaration joins by."""
     return tuple(
         Claim(key=getattr(rule, "claim_key", "") or "", mode=rule.mode,
-              trigger_paths=tuple(rule.trigger_paths))
+              trigger_paths=tuple(rule.trigger_paths),
+              derived=bool(getattr(rule, "derived", False)))
         for rule in rules)
 
 
@@ -628,7 +630,10 @@ def verify(result: Scan, claims: Sequence[Claim], files: Sequence[str]) -> None:
                     f"'{claim}' is a {row.mode} and its scope is left at the default",
                     "a wider scope over-plans for a selection and under-plans for a subtraction - "
                     "write the scope this subtraction is meant to reach")
-        if not narrowing:
+        # A derived claim's demotion subtracts from its OWN selection, the graph having put the
+        # artifact there, so it needs no sibling claim on the path to remove anything. That is the
+        # shipped shape wherever the graph reaches an artifact a perturbation says cannot move.
+        if not narrowing or row.derived:
             continue
         reached = {path for glob in derived[claim] for path in files if compile_glob(glob).match(path)}
         elsewhere = any(

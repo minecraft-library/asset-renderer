@@ -125,6 +125,17 @@ class AnsweringOnePath(unittest.TestCase):
     def test_a_package_declaration_outside_a_scanned_root_answers_nothing(self):
         self.assertIsNone(reach.answered_by(self.PAYLOAD, "tooling/src/main/java/package-info.java"))
 
+    def test_javadoc_art_answers_an_empty_list(self):
+        """`doc-files` is javadoc's reserved name: javac passes over it and the doclet copies it."""
+        self.assertEqual(
+            reach.answered_by(self.PAYLOAD,
+                              "src/main/java/lib/minecraft/renderer/tensor/doc-files/e.svg"), [])
+
+    def test_anything_else_under_a_source_root_answers_nothing(self):
+        """A shipped resource under a source root needs an answer somebody wrote down."""
+        self.assertIsNone(
+            reach.answered_by(self.PAYLOAD, "src/main/java/lib/minecraft/renderer/table.json"))
+
     def test_a_path_carrying_no_java_answers_nothing(self):
         self.assertIsNone(reach.answered_by(self.PAYLOAD, "gradle/parity.gradle.kts"))
 

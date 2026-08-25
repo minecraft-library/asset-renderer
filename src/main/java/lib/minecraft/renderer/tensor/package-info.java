@@ -98,13 +98,18 @@
  *
  * <p><b>Parity.</b> This math is under every vertex the engine projects, so it reaches every render,
  * and two golden pins hold sixteen and twenty-four exact floats through it - an arithmetic change
- * fails them before any sum has moved. The dump never projects a vertex.
+ * fails them before any sum has moved. That is the one region where an answer per file is still an
+ * engine-wide answer, and nothing here tries to talk it down. What is answered for the package is
+ * the demotion - a dump holds serialised vectors, so it can be reached from here and still cannot
+ * move, the dump never projecting a vertex.
  *
  * @see lib.minecraft.renderer.tensor.Matrix4f
  * @see lib.minecraft.renderer.tensor.Quaternionf
  * @see lib.minecraft.renderer.tensor.SimdSupport
  */
-@Parity(claim = "tensor-math")
+@Parity(claim = "tensor-math", mode = Mode.DEMOTE, scope = Scope.SUBTREE)
 package lib.minecraft.renderer.tensor;
 
+import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Scope;
