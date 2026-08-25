@@ -840,11 +840,6 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     // Their rows are still rows: parityCapture -Partifacts=pins runs the suite and then the step, and
     // the step still fails on an absent file, which is the backstop a --tests-filtered run needs.
     spec.producers.forEach { producer ->
-        // Hung on the erase from OUT here rather than from inside the producer's own configuration
-        // action: `named(String, Action)` mutates the task container, which Gradle refuses while it is
-        // executing another task's action, and the refusal lands as "Could not create task ':slowTest'"
-        // on the first invocation that resolves the graph.
-        if (producer in paritySuiteProducers) named(parityCaptureBeginTask) { finalizedBy(producer) }
         named(producer) {
             // Every producer is ordered after the erase, not merely every capture step. Rows whose
             // source IS the working root are written there by the test JVM, so an erase on the far
@@ -865,6 +860,11 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
             // after the suite is the other half and cannot be the whole of it - `mustRunAfter` never
             // schedules, so on its own it drops the suite out of the graph and the step then fails on
             // a file nothing wrote, which is the same measurement one task earlier.
+            // That edge is declared ON the erase, behind a Callable over the resolved set, rather than
+            // reached back to from here - see `parityCaptureBeginTask`. Attached from here it would be
+            // eager: this function runs for every row at configuration time, so it scheduled BOTH
+            // suites on every capture whatever -Partifacts named. Measured at 1325 fast tests and 85
+            // slow ones for a capture scoped to the two dump rows, whose producer is neither.
             // A self-capturing producer's real output is a file in the root the erase just emptied,
             // and Gradle cannot see that: on an unchanged tree `test` is UP-TO-DATE, does not run,
             // and the capture step then fails on a file the erase deleted and nothing rewrote. So a
@@ -1132,6 +1132,25 @@ tasks {
         // parityExpect` in one invocation schedules the registration last, and the sentence saying
         // the registration runs before the capture is false of the case a reader is likeliest to try.
         mustRunAfter("parityExpect")
+        // The two whole-suite producers are SCHEDULED from here, and only when the resolved set holds
+        // a row one of them writes. A finalizer rather than a dependency for the reason
+        // `registerParityCapture` gives: a self-captured row's writer asserts on the value it just
+        // wrote, so a red suite must still leave the capture closeable. Hung on the erase because the
+        // erase exists only inside a capture graph, so an ordinary `./gradlew test` neither schedules
+        // a capture step nor meets one.
+        //
+        // Behind a Callable for the reason parityCapture's own dependsOn is: Gradle resolves it while
+        // it builds the graph, so `resolveParityArtifacts`'s no-plan refusal stays on the invocations
+        // that will actually capture. Declared here rather than reached back to from
+        // `registerParityCapture`, which runs for every row at CONFIGURATION time and so attached both
+        // suites to every capture whatever -Partifacts named - 1325 fast tests and 85 slow ones for a
+        // capture scoped to the two dump rows, whose producer is neither. Of the 26 rows carrying a
+        // step, 9 want a suite and 17 want neither.
+        finalizedBy(Callable {
+            resolveParityArtifacts(parityProperty("artifacts"))
+                .flatMap { spec -> spec.producers.filter { it in paritySuiteProducers } }
+                .distinct()
+        })
         parityToolkit("capture-begin", "--root", parityWorkingRoot)
         outputs.upToDateWhen { false }
     }

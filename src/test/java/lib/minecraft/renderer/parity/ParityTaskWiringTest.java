@@ -398,15 +398,28 @@ final class ParityTaskWiringTest {
             containsString("mustRunAfter(Callable { "
                 + "resolveParityArtifacts(parityProperty(\"artifacts\"))"
                 + ".flatMap { spec -> spec.producers } })"));
-        assertThat("and the plan is read by the declaration plus this task's two edges and nowhere "
-                + "else, so no third site can resolve it under a token test",
-            occurrences(build, "resolveParityArtifacts("), is(equalTo(3)));
-        assertThat("both of those reads behind a Callable, which is the property the count is only a "
-                + "proxy for: a call site outside one resolves while the task is merely CONFIGURED, "
-                + "and the refusal inside it then fires on any invocation that realizes the task to "
-                + "read its description. Counting alone cannot tell a lazy site from an eager one, "
-                + "and the second edge is what made that difference reachable",
-            occurrences(collapsed(build), "Callable { resolveParityArtifacts("), is(equalTo(2)));
+        assertThat("the erase schedules the whole-suite producers, and only the ones the resolved set "
+                + "actually wants. Attached from the step registration instead it is EAGER - that "
+                + "function runs for every row while the build is configured, so both suites were "
+                + "scheduled on every capture whatever -Partifacts named, measured at 1325 fast tests "
+                + "and 85 slow ones for a capture scoped to the two dump rows, whose producer is "
+                + "neither. A finalizer rather than a dependency so a red self-captured row still "
+                + "leaves the capture closeable, and hung on the erase because the erase exists only "
+                + "inside a capture graph",
+            collapsed(build),
+            containsString("finalizedBy(Callable { "
+                + "resolveParityArtifacts(parityProperty(\"artifacts\")) "
+                + ".flatMap { spec -> spec.producers.filter { it in paritySuiteProducers } } "
+                + ".distinct() })"));
+        assertThat("and the plan is read by the declaration, this task's two edges and the erase's "
+                + "one, and nowhere else, so no further site can resolve it under a token test",
+            occurrences(build, "resolveParityArtifacts("), is(equalTo(4)));
+        assertThat("every one of those reads behind a Callable, which is the property the count is "
+                + "only a proxy for: a call site outside one resolves while the task is merely "
+                + "CONFIGURED, and the refusal inside it then fires on any invocation that realizes "
+                + "the task to read its description. Counting alone cannot tell a lazy site from an "
+                + "eager one, and the second edge is what made that difference reachable",
+            occurrences(collapsed(build), "Callable { resolveParityArtifacts("), is(equalTo(3)));
     }
 
     @Test
