@@ -6,7 +6,6 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationMetadata;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ColorMap;
@@ -405,10 +404,10 @@ class PipelineRendererContextTest {
     @Test
     @DisplayName("findAnimation returns the parsed mcmeta sidecar with mixed-form frames")
     void findAnimationReturnsParsedMcmeta() {
-        Optional<AnimationMetadata> animation = context.findAnimation("minecraft:block/fixture");
+        Optional<MCMeta.Animation> animation = context.findAnimation("minecraft:block/fixture");
         assertThat(animation.isPresent(), is(true));
 
-        AnimationMetadata a = animation.get();
+        MCMeta.Animation a = animation.get();
         assertThat(a.frametime(), equalTo(4));
         assertThat(a.interpolate(), is(true));
         assertThat(a.frames().size(), equalTo(4));

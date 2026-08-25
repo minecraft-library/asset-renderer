@@ -4,8 +4,8 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationMetadata;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
@@ -493,7 +493,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         // This is the sole surviving pin - the tint / override / gui-scaling lookups now forward to the
         // delegate so static-atlas sprites see potion tints and pack color.properties.
         @Override
-        public @NotNull Optional<AnimationMetadata> findAnimation(@NotNull String textureId) {
+        public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
             return Optional.empty();
         }
 

@@ -6,7 +6,6 @@ import com.google.gson.JsonPrimitive;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.AnimationMetadata;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.Entity;
@@ -717,7 +716,7 @@ public final class PipelineParityDump {
      * @param animation the animation to emit
      * @return the animation object
      */
-    private static @NotNull JsonObject animation(@NotNull AnimationMetadata animation) {
+    private static @NotNull JsonObject animation(@NotNull MCMeta.Animation animation) {
         JsonObject root = new JsonObject();
         root.addProperty("frametime", animation.frametime());
         root.addProperty("interpolate", animation.interpolate());

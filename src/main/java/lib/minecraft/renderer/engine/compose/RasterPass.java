@@ -149,18 +149,6 @@ public record RasterPass(
     }
 
     /**
-     * Rasters one frame at the given tick through the supersample / FXAA / downscale tail. When
-     * {@code ssaa > 1} the frame is drawn into a pooled hi-res buffer, FXAA'd there, blit-scaled
-     * down, and any mask downsampled; otherwise it is drawn straight into the output buffer.
-     *
-     * @param tick the absolute animation tick to sample
-     * @return the finished frame, carrying its downsampled coverage mask when the pass records one
-     */
-    public @NotNull PixelBuffer renderFrame(int tick) {
-        return renderFrame(tick, tick);
-    }
-
-    /**
      * Rasters one frame at the given instant through the supersample / FXAA / downscale tail. When
      * {@code ssaa > 1} the frame is drawn into a pooled hi-res buffer, FXAA'd there, blit-scaled
      * down, and any mask downsampled; otherwise it is drawn straight into the output buffer.

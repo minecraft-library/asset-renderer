@@ -6,7 +6,6 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.BlockRenderer;
-import lib.minecraft.renderer.asset.AnimationMetadata;
 import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
@@ -65,7 +64,7 @@ public interface RendererContext {
      * @param textureId the namespaced texture identifier
      * @return the animation metadata, or empty when the texture has no sidecar
      */
-    default @NotNull Optional<AnimationMetadata> findAnimation(@NotNull String textureId) {
+    default @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
         return Optional.empty();
     }
 
@@ -379,7 +378,7 @@ public interface RendererContext {
      * no {@code .mcmeta} sidecar answers its source buffer unchanged, so tick {@code 0} is
      * byte-identical to {@link #resolveTexture}; an animated one has {@link AnimationKit#sampleFrame}
      * extract the strip frame for {@code tick}, blending adjacent frames when
-     * {@link AnimationMetadata#interpolate()} is set.
+     * {@link MCMeta.Animation#interpolate()} is set.
      *
      * @param textureId the namespaced texture identifier
      * @param tick the current animation tick (free-running, signed)
@@ -448,7 +447,7 @@ public interface RendererContext {
         @NotNull RendererContext delegate();
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<AnimationMetadata> findAnimation(@NotNull String textureId) {
+        @Override default @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
             return delegate().findAnimation(textureId);
         }
 

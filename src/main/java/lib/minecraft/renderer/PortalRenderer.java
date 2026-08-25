@@ -412,7 +412,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     private static int bridgeFrameCount(@NotNull PortalOptions options) {
         int total = options.getAnimation().getFrameCount();
         if (total < 3) return 0;
-        float bridge = options.getAnimation().getLoopFadeBridgePct();
+        float bridge = options.getLoopFadeBridgePct();
         if (bridge <= 0f) return 0;
         return Math.clamp(Math.round(bridge * total), 0, total - 1);
     }
@@ -512,7 +512,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         int startTick = options.getAnimation().getStartTick();
         int ticksPerFrame = options.getAnimation().getTicksPerFrame();
         int outputCount = options.getAnimation().getFrameCount();
-        int subTickSteps = Math.max(1, options.getAnimation().getSubTickSteps());
+        int subTickSteps = Math.max(1, options.getSubTickSteps());
         if (outputCount <= 1)
             return Timeline.gameTime(startTick, outputCount, ticksPerFrame, subTickSteps)
                 .bake(RasterPass.of(size, size, ssaa, antiAlias, raster));

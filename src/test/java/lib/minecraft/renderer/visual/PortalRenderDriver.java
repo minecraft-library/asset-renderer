@@ -126,9 +126,9 @@ public final class PortalRenderDriver {
                     .animation(
                         PortalOptions.DEFAULT_ANIMATION.mutate()
                             .frameCount(ANIMATED_FRAME_COUNT)
-                            .subTickSteps(SMOOTH_SUB_TICK_STEPS)
                             .build()
                     )
+                    .subTickSteps(SMOOTH_SUB_TICK_STEPS)
                     .build());
             }
         }
