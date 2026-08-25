@@ -10,6 +10,7 @@ artifact and can be separated from it is a value that will be separated from it.
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -49,6 +50,7 @@ REFERENCES_ARTIFACT = "manifest.references"
 #: is the mechanism that was missing while three fields sat in the signature and reached no caller.
 KEYS = {
     "artifact": True,
+    "asset_content_digest": True,
     "asset_dirty": True,
     "asset_sha": True,
     "counts": False,
@@ -124,6 +126,47 @@ def dirty_digest(repo: Path) -> str | None:
         return None
     body = f"{status}\n{diff}".replace("\r\n", LF).replace("\r", LF)
     return sha256_text(body)
+
+
+def content_digest(repo: Path) -> str | None:
+    """A digest over the working-tree CONTENT of every tracked file, so a capture names what it read.
+
+    ``asset_sha`` and ``dirty_digest`` between them name a tree as *a commit plus an edit on top of
+    it*, which is the wrong shape for the one question a promotion has to answer: is the content this
+    capture measured the content of a commit? Committing that edit changes both - a new sha, and a
+    diff that is now empty - while changing no byte a producer read. So the pair says "different"
+    about two trees that are identical, and the second capture that answer forced was the largest
+    avoidable cost in the gate.
+
+    Content answers it directly and does not move across the commit. Digested over the tracked set
+    because that is what a commit can carry: an untracked file is not in the tree either way, and an
+    ignored one is reached by no producer this store measures.
+
+    Raw bytes, deliberately unnormalized where ``dirty_digest`` normalizes. What is compared here is
+    two readings of ONE checkout on either side of a commit, and `git commit` rewrites no working
+    file, so the bytes are the same bytes; normalizing would only mask a real edit that changed line
+    endings alone. It is also what lets a PNG and a JAR be digested beside a source file.
+
+    :param repo: the repository root
+    :return: the digest, or None when git is unavailable
+    """
+    listing = _git(repo, "ls-files", "-z")
+    if listing is None:
+        return None
+    digest = hashlib.sha256()
+    for name in sorted(entry for entry in listing.split("\0") if entry):
+        path = repo / name
+        try:
+            data = path.read_bytes()
+        except OSError:
+            # Tracked and absent from the worktree is itself a state, and one a promotion must not
+            # read as equal to the same tree with the file present.
+            digest.update(name.encode("utf-8"))
+            digest.update(b"\0absent")
+            continue
+        digest.update(name.encode("utf-8"))
+        digest.update(hashlib.sha256(data).digest())
+    return digest.hexdigest()
 
 
 def mc_version(repo: Path) -> str | None:
@@ -229,6 +272,7 @@ def gather(artifact: str, repo: Path, producer: str = "", mode: str | None = Non
         "tool_version": VERSION,
     }
     record.update(asset_state(repo))
+    record["asset_content_digest"] = content_digest(repo)
     if mode:
         record["mode"] = mode
     if reason:

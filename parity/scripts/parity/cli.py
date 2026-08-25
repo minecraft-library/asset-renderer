@@ -1109,7 +1109,7 @@ def _cmd_promote_apply(args: argparse.Namespace) -> int:
     write_text(run / "promote.md", report_mod.render(payload, "promotion-plan"))
 
     promote_mod.check(root, entries, args.reason or "", target.index(), args.allow_partial,
-                      args.bootstrap, args.allow_dirty, args.population_changed)
+                      args.bootstrap, args.allow_dirty, args.population_changed, repo=_bases(args))
     for position, entry in enumerate(entries, start=1):
         _progress(args, f"promote {position}/{len(entries)} {entry.artifact} ({entry.action})")
     result = promote_mod.apply(root, target, entries, args.reason,

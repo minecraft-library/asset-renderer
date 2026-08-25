@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Sequence
 
-from parity import capture, compare, promote, store
+from parity import capture, compare, promote, provenance, store
 from parity.norm import MissingInput, Refused, read_json, read_text, write_json, write_text
 
 
@@ -343,6 +344,53 @@ class ADirtyTreeIsNotPromotable(Base):
 
     def test_allow_dirty_is_the_explicit_override(self):
         self._check(artifact(dirty=True), allow_dirty=True)
+
+    def test_a_dirty_capture_promotes_once_its_content_is_committed(self):
+        """Gate, then commit, then promote - and the capture is re-read rather than re-run.
+
+        What R4 needs is that a baseline be re-derivable from a commit, not that the capture ran
+        after one. `asset_dirty` names an ORDERING, so the only way to satisfy it was to capture a
+        second time from the committed tree, at the cost of the whole bundle. Content does not move
+        across a commit.
+        """
+        repo = self._git_repo()
+        payload = artifact(dirty=True)
+        payload["provenance"]["asset_content_digest"] = provenance.content_digest(repo)
+        self._check(payload, repo=repo)
+
+    def test_a_dirty_capture_of_other_content_is_still_refused(self):
+        """Committed is not enough: it has to be THIS content that got committed."""
+        repo = self._git_repo()
+        payload = artifact(dirty=True)
+        payload["provenance"]["asset_content_digest"] = "not the tree's digest"
+        with self.assertRaises(Refused):
+            self._check(payload, repo=repo)
+
+    def test_a_dirty_capture_is_refused_while_the_tree_is_still_dirty(self):
+        """Both halves are required - a matching digest over an uncommitted tree is not committed."""
+        repo = self._git_repo()
+        (repo / "seed.txt").write_text("edited after the commit\n", encoding="utf-8")
+        payload = artifact(dirty=True)
+        payload["provenance"]["asset_content_digest"] = provenance.content_digest(repo)
+        with self.assertRaises(Refused):
+            self._check(payload, repo=repo)
+
+    def test_a_capture_recording_no_content_digest_refuses_as_it_always_did(self):
+        repo = self._git_repo()
+        payload = artifact(dirty=True)
+        payload["provenance"].pop("asset_content_digest", None)
+        with self.assertRaises(Refused):
+            self._check(payload, repo=repo)
+
+    def _git_repo(self) -> Path:
+        """A committed repository, so `asset_state` reads it clean."""
+        repo = Path(tempfile.mkdtemp())
+        (repo / "seed.txt").write_text("seed\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                        "commit", "-qm", "seed"], cwd=repo, check=True)
+        return repo
 
     def test_the_override_is_recorded_in_the_promoted_provenance(self):
         """An override nothing writes down is indistinguishable from the refusal never firing."""

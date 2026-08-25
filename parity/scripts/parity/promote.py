@@ -31,6 +31,7 @@ from typing import Sequence
 
 from parity import capture as capture_mod
 from parity import compare as compare_mod
+from parity import provenance as provenance_mod
 from parity import store as store_mod
 from parity.norm import MissingInput, Refused, read_json, sha256_text, canonical_json, write_json
 
@@ -134,7 +135,7 @@ def to_report(entries: Sequence[Entry]) -> dict:
 
 def check(root: Path, entries: Sequence[Entry], reason: str, index: dict,
           allow_partial: bool = False, bootstrap: bool = False, allow_dirty: bool = False,
-          population_changed: bool = False) -> None:
+          population_changed: bool = False, repo: Path | None = None) -> None:
     """Every refusal, in one place, before a single production byte is written.
 
     :param root: the working root
@@ -146,6 +147,8 @@ def check(root: Path, entries: Sequence[Entry], reason: str, index: dict,
     :param bootstrap: whether this invocation establishes first baselines
     :param allow_dirty: whether a capture taken from an uncommitted tree may be promoted
     :param population_changed: whether an entry count moving from the baseline's is intended
+    :param repo: the repository root, for reading whether a dirty capture's content is now committed;
+        absent, that reading is unavailable and a dirty capture refuses as it always did
     :raises Refused: on any of the refusals above
     """
     if not reason.strip():
@@ -185,12 +188,39 @@ def check(root: Path, entries: Sequence[Entry], reason: str, index: dict,
                 f"{entry.artifact} has no baseline to replace; the first promotion of an artifact "
                 "is --bootstrap, and it is refused for anything below its determinism floor")
         dirty = record.get("asset_dirty")
-        if dirty is not False and not allow_dirty:
+        if dirty is not False and not allow_dirty and not _content_is_now_committed(record, repo):
             raise Refused(
-                f"{entry.artifact} records asset_dirty={dirty}: a baseline whose capture cannot be "
-                "shown to have run on a committed tree is not re-derivable from any commit, and no "
-                "later reading recovers that. Commit the change, re-capture, and promote from the "
-                "committed tree. Pass --allow-dirty to record the exception in provenance")
+                f"{entry.artifact} records asset_dirty={dirty} and the content it measured is not "
+                "the content of the current tree, so this baseline is not re-derivable from any "
+                "commit and no later reading recovers that. Gate, then commit WITHOUT further "
+                "edits, then promote - the capture is re-read rather than re-run. Pass "
+                "--allow-dirty to record the exception in provenance")
+
+
+def _content_is_now_committed(record: dict, repo: Path | None) -> bool:
+    """Whether the content a dirty capture measured is the content of the tree as it stands, clean.
+
+    What R4 needs is that a baseline be re-derivable from a commit - not that the capture ran after
+    one. Those came apart because ``asset_dirty`` names an *ordering*, so the only way to satisfy it
+    was to commit and capture a second time, at the cost of the whole bundle. A capture now records
+    the content it read, and committing that content changes none of it.
+
+    Both halves are required. The tree must be clean, or "committed" is not yet true of it; and the
+    digests must match, or this is some other content that merely happens to be committed.
+
+    :param record: the capture's provenance
+    :param repo: the repository root, or nothing when it cannot be read
+    :return: whether the dirty-tree refusal is satisfied by content instead of by ordering
+    """
+    if repo is None:
+        return False
+    captured = record.get("asset_content_digest")
+    if not captured:
+        return False
+    state = provenance_mod.asset_state(repo)
+    if state.get("asset_dirty") is not False:
+        return False
+    return captured == provenance_mod.content_digest(repo)
 
 
 def _require_population(entry: Entry, payload: dict, counts: dict, index: dict,
