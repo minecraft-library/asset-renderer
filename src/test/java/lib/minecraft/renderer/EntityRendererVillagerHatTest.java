@@ -78,17 +78,17 @@ class EntityRendererVillagerHatTest {
         // drawn ref would silently yield NONE and stop desert / snow suppressing a baby's robe head.
         OverlayLayer babyPass = pass("type", "villager/baby/plains");
         AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(Villager.Type.DESERT).build();
-        Optional<String> drawn = EntityRenderer.resolveOverlayTextureRef(babyPass, baby, "villager");
+        Optional<String> drawn = babyPass.textureFor(baby, "villager");
         assertThat("the baby pass draws the baby directory", drawn, is(Optional.of("villager/baby/desert")));
         assertThat("its hat flag still comes from the adult type sidecar",
-            EntityRenderer.typeHatTextureRef(babyPass, baby, "villager", drawn), is(Optional.of("villager/type/desert")));
+            babyPass.typeHatRef(baby, "villager", drawn), is(Optional.of("villager/type/desert")));
 
         OverlayLayer adultPass = pass("type", "villager/type/plains");
         AppearanceOptions adult = AppearanceOptions.builder().villagerType(Villager.Type.DESERT).build();
-        Optional<String> adultDrawn = EntityRenderer.resolveOverlayTextureRef(adultPass, adult, "villager");
+        Optional<String> adultDrawn = adultPass.textureFor(adult, "villager");
         assertThat("the adult pass draws the type directory", adultDrawn, is(Optional.of("villager/type/desert")));
         assertThat("and its hat ref recomputes the very ref it drew",
-            EntityRenderer.typeHatTextureRef(adultPass, adult, "villager", adultDrawn), is(adultDrawn));
+            adultPass.typeHatRef(adult, "villager", adultDrawn), is(adultDrawn));
     }
 
     @Test
@@ -100,10 +100,10 @@ class EntityRendererVillagerHatTest {
         // adult cubes.
         AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(Villager.Type.SNOW).build();
         assertThat("an adult pass keeps the type directory for a baby appearance",
-            EntityRenderer.resolveOverlayTextureRef(pass("type", "villager/type/plains"), baby, "villager"),
+            pass("type", "villager/type/plains").textureFor(baby, "villager"),
             is(Optional.of("villager/type/snow")));
         assertThat("a baby pass keeps the baby directory for an adult appearance",
-            EntityRenderer.resolveOverlayTextureRef(pass("type", "villager/baby/plains"),
+            pass("type", "villager/baby/plains").textureFor(
                 AppearanceOptions.builder().villagerType(Villager.Type.SNOW).build(), "villager"),
             is(Optional.of("villager/baby/snow")));
     }
@@ -112,7 +112,7 @@ class EntityRendererVillagerHatTest {
     @DisplayName("a pass off the type axis reads its hat flag from its own resolved ref")
     void aNonTypePassKeepsItsOwnRef() {
         Optional<String> own = Optional.of("villager/profession/farmer");
-        assertThat(EntityRenderer.typeHatTextureRef(pass("profession", "villager/profession/none"),
+        assertThat(pass("profession", "villager/profession/none").typeHatRef(
             AppearanceOptions.builder().age(Age.BABY).build(), "villager", own), is(own));
     }
 

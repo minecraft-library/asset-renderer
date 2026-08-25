@@ -115,6 +115,17 @@ public class Villager {
         }
 
         /**
+         * The profession pass' prefix-qualified texture ref, empty at the {@code NONE} profession.
+         *
+         * @param texturePrefix the entity texture prefix ({@code villager} / {@code zombie_villager})
+         *     the sub-path is qualified with
+         * @return the profession texture ref, or empty when no profession is selected
+         */
+        public @NotNull Optional<String> textureRef(@NotNull String texturePrefix) {
+            return overlaySubPath().map(sub -> texturePrefix + "/" + sub);
+        }
+
+        /**
          * Whether this profession draws a level badge - true for every real job, false for
          * {@link #NONE} (unemployed) and {@link #NITWIT}, matching vanilla's badge gate (the
          * {@code profession_level} pass fires only when the profession is neither {@code NONE} nor

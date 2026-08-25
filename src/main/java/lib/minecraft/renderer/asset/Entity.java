@@ -4,10 +4,12 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.CopperWeathering;
 import lib.minecraft.renderer.asset.appearance.HorseMarking;
 import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.appearance.TropicalFishPattern;
+import lib.minecraft.renderer.asset.appearance.Villager;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -62,14 +64,13 @@ import java.util.Set;
  * @param baseTintArgb per-entity multiplicative tint applied to the base mesh, mirroring
  *     {@code LivingEntityRenderer.getModelTint(state)}. Defaults to {@code 0xFFFFFFFF} (white = no-op
  *     MULTIPLY)
- * @param setupYawAddend yaw rotation in degrees that the vanilla renderer's {@code setupRotations}
- *     override adds to the standard {@code bodyRot} before the super call. Extracted from the
- *     {@code super.setupRotations(state, ps, bodyRot + N, scale)} bytecode pattern by the tooling-side
- *     renderer scan. {@code ShulkerRenderer} is the canonical case ({@code +180.0F}); every other
- *     vanilla renderer leaves {@code bodyRot} unmodified and lands at {@code 0}. The renderer adds this
- *     to the user-supplied yaw before applying the iso pose - for shulker the addend collapses the
- *     default {@code rotateY(180-bodyRot)} body rotation to identity, exposing the lid's authored UV
- *     orientation unrotated against the viewer
+ * @param setupYawAddend yaw rotation in degrees the vanilla renderer's {@code setupRotations} folds
+ *     into the body rotation it delegates - the leading constant y turn of the pose table's
+ *     {@code renderers} row, crossed back to degrees at index build. {@code ShulkerRenderer} is the
+ *     canonical case ({@code +180.0F}); every other vanilla renderer passes {@code bodyRot} through
+ *     and lands at {@code 0}. The renderer adds this to the user-supplied yaw before applying the
+ *     iso pose - it is a facing fact, so it reaches every render mode where a pose container step
+ *     never reaches BIND
  * @param rendererScale per-entity render-time scale extracted by {@code EntityRendererScaleResolver};
  *     defaults to {@code 1f} (identity)
  * @param boneToggles named bone-visibility toggles (toggle name -&gt; {@link BoneToggle}), flipped at
@@ -557,6 +558,67 @@ public record Entity(
     }
 
     /**
+     * The entity texture prefix (the first path segment of the definition's {@code texture_ref},
+     * e.g. {@code villager/villager} -&gt; {@code villager}) prepended to the villager
+     * profession-layer overlays' prefix-relative sub-paths, so one shared {@link Villager}
+     * vocabulary serves the villager and the zombie villager. The empty string when no texture ref
+     * is present.
+     *
+     * @return the texture prefix, or the empty string
+     */
+    public @NotNull String texturePrefix() {
+        return this.textureRef.map(ref -> {
+            int slash = ref.indexOf('/');
+            return slash < 0 ? ref : ref.substring(0, slash);
+        }).orElse("");
+    }
+
+    /**
+     * The baby texture ref when this resolved definition renders the baby mesh - the baby mesh has
+     * its own UV layout, so it binds the matching {@code <variant>_baby} texture carried in
+     * {@link Axes#stateTextures()} under {@code "baby"}. Empty when the render is not a baby, the
+     * entity has no baby mesh, or no baby texture is present, so a caller falls through to the
+     * weathering / state / default texture.
+     *
+     * @param appearance the axis selections to resolve against
+     * @return the baby texture ref, or empty
+     */
+    public @NotNull Optional<String> babyTextureRef(@NotNull AppearanceOptions appearance) {
+        if (!appearance.isBaby() || this.axes.babyModel().isEmpty()) return Optional.empty();
+        return Optional.ofNullable(this.axes.stateTextures().get("baby"));
+    }
+
+    /**
+     * The copper golem's weathered body base texture ref, when this definition supports weathering
+     * (it carries a {@code texture_by: weathering} eye overlay) and a
+     * non-{@link CopperWeathering#UNAFFECTED} state is chosen; empty otherwise, so a caller falls
+     * back to the default {@link #textureRef}, which is the {@code UNAFFECTED} texture. Keeps the
+     * default (unweathered) render unchanged.
+     *
+     * @param appearance the axis selections to resolve against
+     * @return the weathered base texture ref, or empty
+     */
+    public @NotNull Optional<String> weatheringBaseRef(@NotNull AppearanceOptions appearance) {
+        if (appearance.getWeathering() == CopperWeathering.UNAFFECTED) return Optional.empty();
+        boolean supportsWeathering = this.overlays.stream()
+            .anyMatch(o -> o.textureBy().filter("weathering"::equals).isPresent());
+        return supportsWeathering ? Optional.of(appearance.getWeathering().baseTexture()) : Optional.empty();
+    }
+
+    /**
+     * The state-specific texture ref when {@link AppearanceOptions#getState()} names one this
+     * definition carries; empty otherwise, so a caller falls back to the default
+     * {@link #textureRef}. The default {@code wild} state resolves to the same path as
+     * {@code texture_ref}, so an unset or {@code wild} state leaves the render unchanged.
+     *
+     * @param appearance the axis selections to resolve against
+     * @return the state texture ref, or empty
+     */
+    public @NotNull Optional<String> stateTextureRef(@NotNull AppearanceOptions appearance) {
+        return appearance.getState().map(this.axes.stateTextures()::get);
+    }
+
+    /**
      * One overlay layer on an {@link Entity}: an independent geometry plus its own bundled texture
      * sub-path. Resolved from the tooling-emitted {@code overlays} array at load time.
      *
@@ -638,6 +700,9 @@ public record Entity(
                 pose, Optional.empty());
         }
 
+        /** The path segment marking a baby robe directory, which a type pass' baked ref carries. */
+        private static final @NotNull String BABY_ROBE_SEGMENT = "/baby/";
+
         /**
          * Where this pass samples its texture from at one tick, in normalized sheet coordinates.
          *
@@ -652,6 +717,89 @@ public record Entity(
         public @NotNull Optional<Vector2f> textureOffsetAt(int tick) {
             return this.textureScroll.map(rate ->
                 new Vector2f(tick * rate.x() % 1f, tick * rate.y() % 1f));
+        }
+
+        /**
+         * The effective texture ref this pass draws at an appearance: the {@code texture_by} axis
+         * selection when the pass is axis-driven and the appearance supplies it, else the baked
+         * {@link #textureRef} (empty = reuse the base entity texture). Axes: {@code pattern}
+         * (tropical fish, baked default {@code KOB}), {@code crackiness} (iron golem, empty at
+         * {@code NONE} so the pass is skipped), {@code weathering} (copper-golem eyes, always
+         * resolving to the state's eye texture), and the villager profession-layer trio
+         * {@code type} / {@code profession} / {@code profession_level} (prefix-relative sub-paths
+         * the {@code texturePrefix} qualifies; {@code profession} resolves empty at its
+         * {@code NONE} default so the pass is skipped, and {@code profession_level} resolves empty
+         * only for a profession that draws no badge - vanilla has no badge-less job villager, so an
+         * unnamed tier resolves to the first rather than to nothing). The {@code type} axis
+         * resolves its biome under the pass' own robe directory, mirroring the layer's
+         * {@code isBaby ? "baby" : "type"} token swap. The default keeps an unselected pass
+         * unchanged; a selection swaps in that axis' texture.
+         *
+         * @param appearance the axis selections to resolve against
+         * @param texturePrefix the entity texture prefix ({@code villager} / {@code zombie_villager})
+         *     prepended to the villager profession-layer axes' prefix-relative sub-paths
+         * @return the effective texture ref, or empty when the pass' axis resolves to nothing
+         */
+        public @NotNull Optional<String> textureFor(
+            @NotNull AppearanceOptions appearance, @NotNull String texturePrefix) {
+
+            if (this.textureBy.filter("pattern"::equals).isPresent())
+                return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(this::textureRef);
+            if (this.textureBy.filter("crackiness"::equals).isPresent())
+                return appearance.getCrackiness().overlayTexture().or(this::textureRef);
+            if (this.textureBy.filter("weathering"::equals).isPresent())
+                return Optional.of(appearance.getWeathering().eyeTexture());
+            if (this.textureBy.filter("type"::equals).isPresent()) {
+                Villager.Type type = appearance.getVillagerType();
+                return Optional.of(texturePrefix + "/" + (drawsBabyRobe() ? type.babyOverlaySubPath() : type.overlaySubPath()));
+            }
+            if (this.textureBy.filter("profession"::equals).isPresent())
+                return appearance.getVillagerProfession().textureRef(texturePrefix);
+            if (this.textureBy.filter("profession_level"::equals).isPresent())
+                return appearance.getVillagerProfession().drawsBadge()
+                    ? Optional.of(texturePrefix + "/"
+                        + appearance.getVillagerLevel().orElseGet(Villager.Level::minimum).overlaySubPath())
+                    : Optional.empty();
+            return this.textureRef;
+        }
+
+        /**
+         * The ref whose {@code villager} sidecar supplies the type hat flag: for a {@code type}-axis
+         * pass the ADULT {@code <prefix>/type/<biome>} robe ref, whatever the age, else the pass'
+         * own resolved ref. Vanilla reads the type hat off a hardcoded {@code "type"} directory
+         * token before it ever tests the age, and only the drawn TEXTURE swaps to {@code baby/} -
+         * and the {@code baby/} directory ships no sidecars at all, so sourcing the flag from the
+         * baby ref would silently read {@code NONE} and stop the desert / snow full-hat suppression
+         * applying to a baby. For an adult {@code type} pass this recomputes the ref the pass
+         * already holds, so the decision is unchanged.
+         *
+         * @param appearance the axis selections to resolve against
+         * @param texturePrefix the entity texture prefix the type sub-path is qualified with
+         * @param resolved this pass' already-resolved texture ref
+         * @return the ref to read the type hat flag from
+         */
+        public @NotNull Optional<String> typeHatRef(
+            @NotNull AppearanceOptions appearance, @NotNull String texturePrefix,
+            @NotNull Optional<String> resolved) {
+
+            if (this.textureBy.filter("type"::equals).isEmpty()) return resolved;
+            return Optional.of(texturePrefix + "/" + appearance.getVillagerType().overlaySubPath());
+        }
+
+        /**
+         * Whether a {@code type} pass draws the baby robe directory rather than the adult
+         * {@code type/} one, read off the pass' OWN baked texture ref - the baby overlay list bakes
+         * {@code <prefix>/baby/<biome>} and the adult one {@code <prefix>/type/<biome>}. Keyed on
+         * the pass rather than on the appearance's age so the directory swap and the baby-mesh swap
+         * can never disagree: the baby robe's UV layout belongs to the baby mesh, so binding it
+         * over the adult mesh would garble its texels. A pass whose baby form probed no texture of
+         * its own inherits the adult ref and so keeps the adult directory, which is what the jar
+         * actually ships.
+         *
+         * @return {@code true} when the pass bakes the baby robe directory
+         */
+        private boolean drawsBabyRobe() {
+            return this.textureRef.filter(ref -> ref.contains(BABY_ROBE_SEGMENT)).isPresent();
         }
 
     }

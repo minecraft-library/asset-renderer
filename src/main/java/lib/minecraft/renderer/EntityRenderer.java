@@ -12,11 +12,8 @@ import lib.minecraft.renderer.asset.DyeColor;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
-import lib.minecraft.renderer.asset.appearance.CopperWeathering;
 import lib.minecraft.renderer.asset.appearance.HorseMarking;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
-import lib.minecraft.renderer.asset.appearance.TropicalFishPattern;
-import lib.minecraft.renderer.asset.appearance.Villager;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -121,9 +118,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /** The entity's model-to-world {@link Placement} - {@link #ENTITY_FACING} as a placement. */
     private static final @NotNull Placement ENTITY_PLACEMENT = new Placement(ENTITY_FACING);
-
-    /** The path segment marking a baked robe ref as the baby robe directory rather than {@code type/}. */
-    private static final @NotNull String BABY_ROBE_SEGMENT = "/baby/";
 
     /**
      * The prefix qualifying an entity texture ref into the id its sidecar is read under, and the one
@@ -430,12 +424,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Resolves the entity texture as the first present source of an ordered precedence: an explicit
      * {@link EntityOptions#getTextureId() texture id on options} (user override, authoritative when
      * present - looked up against the Java atlas via the pack stack) &gt; the {@code <variant>_baby}
-     * texture when the resolved definition renders the baby mesh &gt; an
+     * texture when the resolved definition renders the baby mesh &gt; the copper golem's weathered
+     * base when a weathering state is chosen &gt; an
      * {@link AppearanceOptions#getState() state} selection matching one of the definition's
      * {@link Entity.Axes#stateTextures() state textures} (wolf
      * {@code tame}/{@code angry}) &gt; the entity's own
-     * {@link Entity#textureRef() texture_ref}. Each model-form ref is resolved against the vanilla
-     * pack at {@code minecraft:entity/<ref>} via {@link #resolveEntityTextureAtTick}.
+     * {@link Entity#textureRef() texture_ref}. Each ref candidate is answered by the definition
+     * itself and resolved against the vanilla pack at {@code minecraft:entity/<ref>} via
+     * {@link #resolveEntityTextureAtTick}, so a candidate whose texture is missing falls through to
+     * the next.
      */
     private @NotNull Optional<PixelBuffer> resolveEntityTexture(
         @NotNull Entity definition,
@@ -446,57 +443,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             return options.getTextureId().flatMap(id -> this.context.resolveTextureAtTick(id, tick));
 
         AppearanceOptions appearance = options.getAppearance();
-        return babyTexture(definition, appearance, tick)
-            .or(() -> selectWeatheringTexture(definition, appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
-            .or(() -> selectStateTexture(definition, appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
+        return definition.babyTextureRef(appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick))
+            .or(() -> definition.weatheringBaseRef(appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
+            .or(() -> definition.stateTextureRef(appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
             .or(() -> definition.textureRef().flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)));
-    }
-
-    /**
-     * Selects the copper golem's weathered body base texture when the resolved definition supports
-     * weathering (it carries a {@code texture_by: weathering} eye overlay) and a non-{@link
-     * CopperWeathering#UNAFFECTED} state is chosen; empty otherwise (so the caller falls back to the
-     * default {@code texture_ref}, which is the {@code UNAFFECTED} texture). Keeps the default
-     * (unweathered) render unchanged.
-     */
-    private @NotNull Optional<String> selectWeatheringTexture(
-        @NotNull Entity definition,
-        @NotNull AppearanceOptions appearance
-    ) {
-        if (appearance.getWeathering() == CopperWeathering.UNAFFECTED) return Optional.empty();
-        boolean supportsWeathering = definition.overlays().stream()
-            .anyMatch(o -> o.textureBy().filter("weathering"::equals).isPresent());
-        return supportsWeathering ? Optional.of(appearance.getWeathering().baseTexture()) : Optional.empty();
-    }
-
-    /**
-     * The baby texture when the resolved definition renders the baby mesh - the baby mesh has its
-     * own UV layout, so it binds the matching {@code <variant>_baby} texture carried in
-     * {@link Entity.Axes#stateTextures() stateTextures} under {@code "baby"}.
-     * Empty when the render is not a baby, the entity has no baby mesh, or no baby texture is
-     * present (so the caller falls through to the state / default texture).
-     */
-    private @NotNull Optional<PixelBuffer> babyTexture(
-        @NotNull Entity definition,
-        @NotNull AppearanceOptions appearance,
-        int tick
-    ) {
-        if (!appearance.isBaby() || definition.axes().babyModel().isEmpty())
-            return Optional.empty();
-        return Optional.ofNullable(definition.axes().stateTextures().get("baby")).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick));
-    }
-
-    /**
-     * Selects the definition's state-specific texture when {@link AppearanceOptions#getState() state}
-     * names one it carries; empty otherwise (so the caller falls back to the default
-     * {@code texture_ref}). The default {@code wild} state resolves to the same path as
-     * {@code texture_ref}, so an unset or {@code wild} state leaves the render unchanged.
-     */
-    private @NotNull Optional<String> selectStateTexture(
-        @NotNull Entity definition,
-        @NotNull AppearanceOptions appearance
-    ) {
-        return appearance.getState().map(definition.axes().stateTextures()::get);
     }
 
     /**
@@ -524,12 +474,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 AppearanceOptions appearance = ctx.options().getAppearance();
-                // The entity texture prefix (villager -> "villager", zombie_villager ->
-                // "zombie_villager") derived from the definition's own texture ref, prepended to the
-                // villager profession-layer overlays' prefix-relative sub-paths (type / profession /
-                // profession_level) so one shared Villager.Type / Villager.Profession / Villager.Level enum
-                // serves both entities.
-                String texturePrefix = texturePrefix(ctx.definition());
+                String texturePrefix = ctx.definition().texturePrefix();
                 for (Entity.OverlayLayer overlay : ctx.definition().overlays()) {
                     // A tint-gated overlay (sheep wool undercoat) renders only once its tint_by axis
                     // selects a colour differing from its baked tint, which is vanilla's own early
@@ -538,7 +483,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     if (overlay.gate().filter(AppearanceGate.TintedGate.class::isInstance)
                         .filter(gate -> !gate.test(appearance)).isPresent()) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
-                    Optional<String> overlayRef = resolveOverlayTextureRef(overlay, appearance, texturePrefix);
+                    Optional<String> overlayRef = overlay.textureFor(appearance, texturePrefix);
                     // A texture_by overlay whose axis resolves to no texture draws nothing - the base /
                     // "none" state (iron golem Crackiness.NONE) - so skip it, keeping the default
                     // (unselected) render unchanged. Overlays with a baked default (tropical fish
@@ -798,71 +743,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * The effective texture ref for a model overlay: the {@code texture_by} axis selection when the
-     * overlay is axis-driven and the appearance supplies it, else the overlay's baked
-     * {@link Entity.OverlayLayer#textureRef() default texture} (empty = reuse the base
-     * entity texture). Axes: {@code pattern} (tropical fish, baked default {@code KOB}),
-     * {@code crackiness} (iron golem, empty at {@code NONE} so the overlay is skipped),
-     * {@code weathering} (copper-golem eyes, always resolves to the state's eye texture), and the
-     * villager profession-layer trio {@code type} / {@code profession} / {@code profession_level}
-     * (prefix-relative sub-paths the {@code texturePrefix} qualifies; {@code profession} resolves
-     * empty at its {@code NONE} default so the overlay is skipped, and {@code profession_level}
-     * resolves empty only for a profession that draws no badge - vanilla has no badge-less job
-     * villager, so an unnamed tier resolves to the first rather than to nothing).
-     * The {@code type} axis resolves its biome under the pass' own robe directory, mirroring the layer's
-     * {@code isBaby ? "baby" : "type"} token swap.
-     * The default keeps an unselected overlay unchanged; a selection swaps in that axis' texture.
-     *
-     * @param overlay the overlay layer to resolve a texture ref for
-     * @param appearance the axis selections to resolve against
-     * @param texturePrefix the entity texture prefix ({@code villager} / {@code zombie_villager})
-     *     prepended to the villager profession-layer axes' prefix-relative sub-paths
-     * @return the effective texture ref, or empty when the overlay's axis resolves to nothing
-     */
-    static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull Entity.OverlayLayer overlay, @NotNull AppearanceOptions appearance, @NotNull String texturePrefix) {
-        if (overlay.textureBy().filter("pattern"::equals).isPresent())
-            return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(overlay::textureRef);
-        if (overlay.textureBy().filter("crackiness"::equals).isPresent())
-            return appearance.getCrackiness().overlayTexture().or(overlay::textureRef);
-        if (overlay.textureBy().filter("weathering"::equals).isPresent())
-            return Optional.of(appearance.getWeathering().eyeTexture());
-        if (overlay.textureBy().filter("type"::equals).isPresent()) {
-            Villager.Type type = appearance.getVillagerType();
-            return Optional.of(texturePrefix + "/" + (drawsBabyRobe(overlay) ? type.babyOverlaySubPath() : type.overlaySubPath()));
-        }
-        if (overlay.textureBy().filter("profession"::equals).isPresent())
-            return professionTextureRef(appearance, texturePrefix);
-        if (overlay.textureBy().filter("profession_level"::equals).isPresent())
-            return appearance.getVillagerProfession().drawsBadge()
-                ? Optional.of(texturePrefix + "/"
-                    + appearance.getVillagerLevel().orElseGet(Villager.Level::minimum).overlaySubPath())
-                : Optional.empty();
-        return overlay.textureRef();
-    }
-
-    /**
-     * Whether a {@code type} pass draws the baby robe directory rather than the adult {@code type/} one,
-     * read off the pass' OWN baked texture ref - the baby overlay list bakes {@code <prefix>/baby/<biome>}
-     * and the adult one {@code <prefix>/type/<biome>}. Keyed on the pass rather than on the appearance's
-     * age so the directory swap and the baby-mesh swap can never disagree: the baby robe's UV layout
-     * belongs to the baby mesh, so binding it over the adult mesh would garble its texels. A pass whose
-     * baby form probed no texture of its own inherits the adult ref and so keeps the adult directory,
-     * which is what the jar actually ships.
-     *
-     * @param overlay the type pass to read the robe directory off
-     * @return {@code true} when the pass bakes the baby robe directory
-     */
-    private static boolean drawsBabyRobe(@NotNull Entity.OverlayLayer overlay) {
-        return overlay.textureRef().filter(ref -> ref.contains(BABY_ROBE_SEGMENT)).isPresent();
-    }
-
-    /**
      * The mesh a model overlay draws with: its own mesh, unless the overlay declares an alternate
      * suppressed-pass mesh and the villager hat rule selects it. The hat flags come from the
-     * {@code villager} sidecar of the pass' {@link #typeHatTextureRef type ref} (the robe texture) and of
-     * the selected profession texture, so a resource pack that changes either sidecar changes the
-     * decision. An overlay with no alternate, and every context whose texture lookup yields no sidecar,
-     * keep the overlay's own mesh.
+     * {@code villager} sidecar of the pass' {@link Entity.OverlayLayer#typeHatRef type ref} (the robe
+     * texture) and of the selected profession texture, so a resource pack that changes either sidecar
+     * changes the decision. An overlay with no alternate, and every context whose texture lookup
+     * yields no sidecar, keep the overlay's own mesh.
      *
      * @param ctx the feature context supplying the appearance and the sidecar lookup
      * @param overlay the overlay layer to pick a mesh for
@@ -879,35 +765,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (overlay.noHatModel().isEmpty()) return overlay.model();
         AppearanceOptions appearance = ctx.options().getAppearance();
         MCMeta.Villager.Hat typeHat = villagerHat(ctx.context(),
-            typeHatTextureRef(overlay, appearance, texturePrefix, overlayRef));
+            overlay.typeHatRef(appearance, texturePrefix, overlayRef));
         MCMeta.Villager.Hat professionHat = villagerHat(ctx.context(),
-            professionTextureRef(appearance, texturePrefix));
+            appearance.getVillagerProfession().textureRef(texturePrefix));
         return useFullModel(professionHat, typeHat) ? overlay.model() : overlay.noHatModel().get();
-    }
-
-    /**
-     * The ref whose {@code villager} sidecar supplies the type hat flag: for a {@code type}-axis pass the
-     * ADULT {@code <prefix>/type/<biome>} robe ref, whatever the age, else the pass' own resolved ref.
-     * Vanilla reads the type hat off a hardcoded {@code "type"} directory token before it ever tests the
-     * age, and only the drawn TEXTURE swaps to {@code baby/} - and the {@code baby/} directory ships no
-     * sidecars at all, so sourcing the flag from the baby ref would silently read {@code NONE} and stop
-     * the desert / snow full-hat suppression applying to a baby. For an adult {@code type} pass this
-     * recomputes the ref the pass already holds, so the decision is unchanged.
-     *
-     * @param overlay the overlay layer whose hat flag is being resolved
-     * @param appearance the axis selections to resolve against
-     * @param texturePrefix the entity texture prefix the type sub-path is qualified with
-     * @param overlayRef the overlay's already-resolved texture ref
-     * @return the ref to read the type hat flag from
-     */
-    static @NotNull Optional<String> typeHatTextureRef(
-        @NotNull Entity.OverlayLayer overlay,
-        @NotNull AppearanceOptions appearance,
-        @NotNull String texturePrefix,
-        @NotNull Optional<String> overlayRef
-    ) {
-        if (overlay.textureBy().filter("type"::equals).isEmpty()) return overlayRef;
-        return Optional.of(texturePrefix + "/" + appearance.getVillagerType().overlaySubPath());
     }
 
     /**
@@ -941,32 +802,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             .flatMap(MCMeta::villager)
             .map(MCMeta.Villager::hat)
             .orElse(MCMeta.Villager.Hat.NONE);
-    }
-
-    /**
-     * The profession pass' prefix-qualified texture ref, empty at the {@code NONE} profession.
-     *
-     * @param appearance the axis selections to resolve against
-     * @param texturePrefix the entity texture prefix the profession sub-path is qualified with
-     * @return the profession texture ref, or empty when no profession is selected
-     */
-    private static @NotNull Optional<String> professionTextureRef(@NotNull AppearanceOptions appearance, @NotNull String texturePrefix) {
-        return appearance.getVillagerProfession().overlaySubPath().map(sub -> texturePrefix + "/" + sub);
-    }
-
-    /**
-     * The entity texture prefix (the first path segment of the definition's {@code texture_ref}, e.g.
-     * {@code villager/villager} -&gt; {@code villager}) prepended to the villager profession-layer
-     * overlays' prefix-relative sub-paths. Empty when the definition carries no texture ref.
-     *
-     * @param definition the resolved entity definition
-     * @return the texture prefix, or the empty string when no texture ref is present
-     */
-    private static @NotNull String texturePrefix(@NotNull Entity definition) {
-        return definition.textureRef().map(ref -> {
-            int slash = ref.indexOf('/');
-            return slash < 0 ? ref : ref.substring(0, slash);
-        }).orElse("");
     }
 
     /**
