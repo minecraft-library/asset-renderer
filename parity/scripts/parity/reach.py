@@ -29,6 +29,8 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
 
+from parity import declarations as declarations_mod
+
 from .norm import MissingInput
 
 #: The package every edge this module cares about lives under, in binary (slash) form.
@@ -103,6 +105,8 @@ class Graph:
 
     #: Every top-level type declared in the scanned source roots, as a binary name.
     declared: frozenset[str]
+    #: The types declared ``Subject.IGNORED``, whose outgoing edges do not compose.
+    ignored: frozenset[str]
     #: The types each type references, keyed by the referring type.
     edges: dict[str, frozenset[str]]
     #: The artifacts each type can move, keyed by type.
@@ -271,6 +275,23 @@ def chain(start: str, goal: str, edges: dict[str, frozenset[str]]) -> list[str] 
     return None
 
 
+def ignored_types(base: Path, declared: frozenset[str]) -> frozenset[str]:
+    """Every type declaring ``ignored = true``, read from source as every declaration is.
+
+    :param base the repository root
+    :param declared the types that may be answered
+    """
+    scan = declarations_mod.scan(base)
+    out: set[str] = set()
+    for declaration in scan.declarations:
+        if not declaration.ignored or declaration.on == "package":
+            continue
+        binary = to_binary(declaration.path)
+        if binary in declared:
+            out.add(binary)
+    return frozenset(out)
+
+
 def build(base: Path) -> Graph:
     """Derive the whole reach graph from a compiled tree.
 
@@ -279,6 +300,11 @@ def build(base: Path) -> Graph:
     """
     declared = declared_types(base)
     edges, digest = _edges(base, declared)
+    ignored = ignored_types(base, declared)
+    # Outgoing edges only. Reach stops composing THROUGH a wiring type, and a change TO one is still
+    # seen by everything that reaches it - which is what keeps a defaulted interface member honest.
+    edges = {name: (frozenset() if name in ignored else targets)
+             for name, targets in edges.items()}
     roots = _resolve_roots(declared)
     artifacts: dict[str, set[str]] = defaultdict(set)
     for artifact, entry_points in roots.items():
@@ -288,7 +314,7 @@ def build(base: Path) -> Graph:
             touched |= forward(entry, edges)
         for name in touched:
             artifacts[name].add(artifact)
-    return Graph(declared=declared, edges=edges,
+    return Graph(declared=declared, ignored=ignored, edges=edges,
                  artifacts={name: frozenset(found) for name, found in artifacts.items()},
                  roots=roots, compiled_digest=digest)
 
@@ -332,6 +358,7 @@ def to_payload(graph: Graph) -> dict:
     return {
         "format": 1,
         "kind": "class-reach",
+        "ignored": sorted(graph.ignored),
         "roots": {artifact: list(names) for artifact, names in sorted(graph.roots.items())},
         "types": {name: {"artifacts": sorted(graph.artifacts.get(name, frozenset())),
                          "source": "derived"}

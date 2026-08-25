@@ -231,6 +231,36 @@ class AgainstTheMap(unittest.TestCase):
                             ["root/Lonely.java"])
 
 
+class TheSeamFlag(unittest.TestCase):
+    """``ignored = true``: wiring rather than behaviour, and the one shape that claims nothing.
+
+    A flag rather than a ``Subject`` because it answers a different question - a subject says which
+    pipelines a type reaches, and this says not to ask - so a pair like ``{ENTITY, IGNORED}`` would
+    have had to mean something.
+    """
+
+    def test_a_seam_declaration_carries_no_claim_and_is_still_read(self):
+        result = scan("seam")
+        seams = result.seams()
+        self.assertEqual([declaration.path for declaration in seams], ["root/Wiring.java"])
+        self.assertTrue(seams[0].ignored)
+        self.assertEqual(seams[0].claim, "")
+
+    def test_a_seam_is_not_grouped_under_a_claim(self):
+        """Grouped, every seam would file under a claim spelled '' and want a row in the map."""
+        self.assertEqual(sorted(scan("seam").by_claim()), ["a-claim"])
+
+    def test_a_seam_naming_a_claim_is_refused(self):
+        self.assertIn("makes no claim", str(refusal(self, "seam-claims")))
+
+    def test_a_seam_naming_a_subject_is_refused(self):
+        self.assertIn("not to ask", str(refusal(self, "seam-subject")))
+
+    def test_writing_the_default_is_refused(self):
+        """`ignored = false` states the default and reads as though it decided something."""
+        self.assertIn("false is the default", str(refusal(self, "seam-false")))
+
+
 class ACleanTree(unittest.TestCase):
     """What the reader answers when nothing is wrong, which is the whole of its output."""
 

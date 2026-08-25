@@ -178,6 +178,27 @@ class OverTheRealTree(unittest.TestCase):
     def test_a_menu_type_does_not_reach_the_entity_sweep(self):
         self.assertNotIn("sweep.entity", self._artifacts("MenuScreen"))
 
+    def test_the_wiring_seams_are_declared_and_read(self):
+        for simple in ("RendererContext", "PipelineRendererContext", "RenderOptions"):
+            name = next(n for n in self.graph.declared if n.rsplit("/", 1)[1] == simple)
+            self.assertIn(name, self.graph.ignored)
+
+    def test_reach_does_not_compose_through_a_wiring_seam(self):
+        """The collapse this exists to stop.
+
+        `RendererContext` DECLARES an entity lookup, so before the seam a menu sweep reached the
+        whole entity surface across it - a declared capability read as an exercised one.
+        """
+        self.assertNotIn("sweep.menu", self._artifacts("Entity"))
+        self.assertNotIn("sweep.entity", self._artifacts("MenuScreen"))
+
+    def test_a_change_TO_a_seam_is_still_seen(self):
+        """Outgoing edges only. `RendererContext` ships 21 default bodies beside its abstract
+        members, and a change to one of those moves output with no implementor edit to carry it."""
+        found = self._artifacts("RendererContext")
+        self.assertIn("sweep.entity", found)
+        self.assertIn("sweep.menu", found)
+
 
 if __name__ == "__main__":
     unittest.main()

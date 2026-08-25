@@ -48,6 +48,30 @@ public @interface Parity {
     Subject[] subject() default {};
 
     /**
+     * Whether this type is wiring rather than behaviour, so reach does not compose THROUGH it.
+     * <p>
+     * A context interface declares what its implementors can be asked for, and a context class
+     * constructs what the pipeline might need. Neither is evidence that a caller asks. Read as a
+     * graph that makes them the seam every subject reaches every other across: a menu sweep reaches
+     * the whole entity surface because {@link Subject#ENTITY the entity lookup} is DECLARED on the
+     * context it holds, and every producer reaches every loader because one class constructs them
+     * all. Type-level reach cannot tell a declared capability from an exercised one, and this is
+     * where that is said.
+     * <p>
+     * What makes it safe rather than a hole is that an abstract member cannot change alone: every
+     * implementor is forced to move with it, and an implementor is a concrete class whose own reach
+     * is exact, in the same commit. It cuts OUTGOING edges only, so a change to the type itself is
+     * still seen by everything that reaches it - which is what keeps a defaulted member honest,
+     * those being the members no implementor is forced to carry.
+     * <p>
+     * It is a flag rather than a subject because it answers a different question. A subject says
+     * which pipelines a type reaches; this says not to ask. Spelling it as one more constant would
+     * put two questions in one member and leave a pair like {@code {ENTITY, IGNORED}} meaning
+     * nothing.
+     */
+    boolean ignored() default false;
+
+    /**
      * The holder a package or a type carries more than one claim in.
      */
     @Documented

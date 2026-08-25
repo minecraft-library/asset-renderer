@@ -28,6 +28,7 @@ import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.engine.texture.RedstoneTint;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -54,6 +55,7 @@ import java.util.Optional;
  * {@link #knownItemIds}, etc.) and provide empty defaults so individual stubs only need to override
  * what they care about.
  */
+@Parity(ignored = true)
 public interface RendererContext {
 
     /**

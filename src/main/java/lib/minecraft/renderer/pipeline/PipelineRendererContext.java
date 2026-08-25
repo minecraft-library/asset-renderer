@@ -34,6 +34,7 @@ import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
 import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder.BlockTables;
 import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder;
 import lib.minecraft.renderer.pipeline.index.ItemIndexBuilder;
@@ -81,6 +82,7 @@ import java.util.Optional;
  * {@link PackStack}, so the context holds only immutable indexes.
  */
 @RequiredArgsConstructor
+@Parity(ignored = true)
 public final class PipelineRendererContext implements RendererContext {
 
     private final @NotNull PackStack stack;
