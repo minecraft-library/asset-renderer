@@ -3,6 +3,8 @@ package lib.minecraft.renderer.tooling.geometry;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
+
 /**
  * One geometry parse to perform: a factory coordinate plus the parameter-substitution hooks
  * that let the parser evaluate a branch-parameterised factory at one concrete variant.
@@ -100,10 +102,32 @@ public record GeometryRequest(
      * building a different mesh at each pose it is called with, which is what separates the baby
      * piglin's armor shell from the generic baby one.
      *
+     * <p>Equality is over the offset's VALUES. A record compares an array component by reference, so
+     * the generated one calls two bindings of the same slot to the same offset different - which is
+     * the wrong answer for a value that exists to say which mesh a factory builds, and is read by
+     * anything holding two requests to the difference between them.
+     *
      * @param slot the JVM local-variable slot holding the pose parameter
      * @param offset the 3-component offset the bound pose answers
      */
-    public record PoseParam(int slot, float @NotNull [] offset) {}
+    public record PoseParam(int slot, float @NotNull [] offset) {
+
+        /** {@inheritDoc} */
+        @Override
+        public boolean equals(@Nullable Object other) {
+            return this == other
+                || other instanceof PoseParam pose
+                && this.slot == pose.slot
+                && Arrays.equals(this.offset, pose.offset);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int hashCode() {
+            return 31 * Integer.hashCode(this.slot) + Arrays.hashCode(this.offset);
+        }
+
+    }
 
     // ------------------------------------------------------------------------------------
     // static factories - one per entity recipe shape. Every entity recipe shares

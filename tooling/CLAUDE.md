@@ -258,6 +258,29 @@ key.** Deriving a shared mesh in place would deform the body along with the pass
 mesh nothing else draws would leave an orphan `GeometryRefClosureTest` refuses. The same rule decides
 both the marking's splits and the overlays'.
 
+**A geometry key is not a complete identity, and `GeometryManifest` is what makes that safe.** Two
+request members the emitted mesh IS a function of are spelled in no key: the texture-size override,
+which `GeometryFlow.parse` stamps `texture_size` from; and the float-parameter table, whose mere
+presence selects the parser's `EVALUATING` walk where `@fparam=` encodes only a non-zero slot 0 -
+so a bound all-zero table and an absent one mint one key and walk differently. `@iparam=` faced the
+same choice and took the other one, encoding `0:0` for a bound-but-all-zero table.
+
+Rather than widen the grammar for a distinction no shipped key needs, `register` refuses: a key
+already held by a request differing in ANY member the mesh is a function of raises, naming the
+member. So the gap cannot become a wrong mesh - it becomes a stopped generation. Two things that
+guard depends on:
+
+- **The comparison is by VALUE and by exclusion.** Three components are arrays and `PoseParam` holds
+  a fourth, which a record compares by reference - a generated `equals` would call every legitimate
+  re-registration a difference and refuse the corpus, so `PoseParam` declares its own and the walk
+  uses `Objects.deepEquals`. And the members that do NOT count are named (`subjectId` is provenance,
+  `yAxis` reaches neither the parse nor the entry), so a component added to `GeometryRequest` is
+  compared by default rather than falling outside the guard in silence.
+- **It is quiet on the corpus today**, over all eight flows with every table byte-identical, so
+  nothing is currently relying on the gap. If a version bump makes it fire, the answer is to encode
+  the named member in the key - `@tex=<w>x<h>`, or `@fparam=` widened to `@iparam=`'s bound-table
+  rule - which moves keys and owes a promote.
+
 ## The policy SPI
 
 `policy/` holds the SPI and no fact of its own. A flow-local package-private `*Policies` enum declares

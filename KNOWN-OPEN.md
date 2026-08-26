@@ -10,21 +10,6 @@ it, and in the `reason` recorded with the baseline it moved.
 
 Delete an entry when it closes.
 
-## A geometry key is not a complete identity, and a texture override rides along un-encoded
-
-`GeometryIds` spells every discriminator a request carries except the texture-size override, which
-`GeometryFlow.parse` reads off `texWidthOverride` / `texHeightOverride` and stamps onto the entry.
-So two requests differing in nothing but that override mint ONE key, and the manifest dedupes them
-to whichever registered first - a mesh sampled against the wrong sheet dimensions, with nothing
-saying so.
-
-It has not bitten because every override in the corpus travels with a discriminator that already
-splits the key: `HumanoidModel#createMesh` ships at 64x64 while `@grow=0.2` and `@grow=0.25` ship at
-64x32, so the grow tells them apart and the sheet follows it. Nothing enforces that pairing, and a
-version bump that gives one factory two sheets at one deformation would collapse them silently.
-Closing it is either encoding the override in the key the way the other seven are, or a stated
-reason why a request may carry a fact its key does not name.
-
 ## Most of the clip tables are dead offline, and the live tail is why they have not been shed
 
 Of `entity_poses.json`'s seventy-four clip tables, fifty-seven are reachable only through `state`
