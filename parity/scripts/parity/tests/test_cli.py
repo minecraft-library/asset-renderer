@@ -2250,6 +2250,22 @@ class ACleanTreeIsPlannedFromTheBranch(unittest.TestCase):
         _git(self.repo, "checkout", "-q", "master")
         self.assertEqual(cli._changed_from_git(self.repo), [])
 
+    def test_a_path_the_branch_deleted_is_left_out(self):
+        """The graph is derived from the compiled tree, so a deleted .java has no entry and the
+        refusal that names `reach build` cannot be acted on - it would put back nothing."""
+        write_text(self.repo / "kept.txt", "x\n")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-qm", "add")
+        _git(self.repo, "rm", "-q", "base.txt")
+        _git(self.repo, "commit", "-qm", "delete")
+        self.assertEqual(cli._changed_from_git(self.repo), ["kept.txt"])
+
+    def test_a_deletion_still_in_the_worktree_is_kept(self):
+        """The dirty set is NOT filtered: at the moment a deletion is gated the graph still answers
+        for it, and that is the reading that has to include it."""
+        _git(self.repo, "rm", "-q", "base.txt")
+        self.assertEqual(cli._changed_from_git(self.repo), ["base.txt"])
+
 
 class RegisteringWhatTheVerdictFound(unittest.TestCase):
     """The movers read out of the compare rather than typed back in from it.

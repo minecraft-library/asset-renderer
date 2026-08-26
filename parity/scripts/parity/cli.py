@@ -1228,6 +1228,13 @@ def _changed_from_git(base: Path, since: str | None = None) -> list[str]:
     overrides the trunk where the default is not the ref wanted; a repo naming no trunk, or a HEAD
     that IS it, answers with the dirty set it has.
 
+    **A path the branch DELETED is left out of the fallback, and only out of the fallback.** Reach
+    for a ``.java`` is answered by a graph derived from the compiled tree, so a file the tree no
+    longer holds has no entry and never will - the refusal names ``reach build``, which cannot put
+    back what was deleted. It is not a gap: the commit that removed the file was gated while the
+    graph still answered for it, which is the dirty set below and is deliberately NOT filtered. What
+    is dropped here is a path the current tree does not have, asked about after the fact.
+
     :param base: the repo root
     :param since: the ref to measure a clean tree from, or None to use the trunk merge-base
     :return: the changed paths, repo-relative
@@ -1245,7 +1252,9 @@ def _changed_from_git(base: Path, since: str | None = None) -> list[str]:
     if merge_base.returncode != 0 or not merge_base.stdout.strip():
         return dirty
     fork = merge_base.stdout.strip()
-    return sorted(set(dirty) | set(_git_lines(base, ["git", "diff", "--name-only", f"{fork}..HEAD"])))
+    landed = [path for path in _git_lines(base, ["git", "diff", "--name-only", f"{fork}..HEAD"])
+              if (base / path).exists()]
+    return sorted(set(dirty) | set(landed))
 
 
 def _movers_from_verdict(args: argparse.Namespace, root: Path) -> list[dict]:
