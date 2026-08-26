@@ -125,11 +125,6 @@ public final class EntityIndexBuilder {
 
         RawRender render = family.render();
         float rendererScale = render == null || render.scale() == null ? 1f : render.scale();
-        // The setupRotations translate is per-age, so it rides the age options rather than `render`,
-        // and it is applied to the mesh here with the rest of the surgery rather than carried to render
-        // time: the renderer and the bounds walk both read the mesh, so moving it is what keeps the two
-        // from disagreeing about where the subject is.
-        RawOption babyAge = ageBaby(family);
         int baseTint = render == null || render.tint() == null ? WHITE : ColorTypeAdapter.parse(render.tint()).getRGB();
         List<Map<PoseChannel, PoseExpr>> composed =
             renderTransformOf(renderTransforms, family);
@@ -158,67 +153,131 @@ public final class EntityIndexBuilder {
         List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
             renderTransform, babyPose.orElse(EntityPose.NONE), babyCoord, babyModel, familyId);
 
+        FamilyContext ctx = new FamilyContext(family, familyId, poseClass, geometries, poses,
+            renderTransform, familyOverlays, baseTint, setupYawAddend, rendererScale,
+            babyModel, babyPose, babyOverlays,
+            buildLargeShape(family, geometries, poses, renderTransform, familyId),
+            equipment, humanoidArmor, stateDefaultOf(family));
+
         RawAxis variant = variantAxis(family);
-        if (variant != null) {
-            String defaultOption = variant.defaultOption();
-            Map<String, RawOption> options = variant.options();
-            VariantContext ctx = new VariantContext(baseCoord, poseClass, geometries, poses, renderTransform, familyOverlays,
-                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyPose, babyOverlays, equipment, humanoidArmor,
-                stateDefaultOf(family));
-            // one base row minecraft:<id>, the coat resolved at render. Every option
-            // is built into a sub-definition; the base row IS the default coat carrying the full option map.
-            LinkedHashMap<String, Entity> coats = new LinkedHashMap<>();
-            for (Map.Entry<String, RawOption> option : options.entrySet())
-                coats.put(option.getKey(), buildVariantRow(familyId, option.getValue(), ctx));
-            Entity base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
-            Entity.Axes baseAxes = base.axes();
-            definitions.put(familyId, base.mutate()
-                .axes(new Entity.Axes(baseAxes.babyModel(), baseAxes.babyPose(),
-                    baseAxes.babyOverlays(), baseAxes.largeShape(), baseAxes.state(), baseAxes.size(),
-                    new Entity.Axis<>(Map.copyOf(coats), Optional.ofNullable(defaultOption))))
-                .members(membersOf(family))
-                .build());
-            return;
-        }
+        // A family is one row and the coats are forms of it, so both arms below build ROWS and differ
+        // only in which forms there are and which of them the bare family already is.
+        Entity row = variant == null
+            ? buildRow(plainForm(family, adult, blockOverlays), ctx)
+            : variantRow(variant, baseCoord, blockOverlays, ctx);
+        definitions.put(familyId, row.mutate().members(membersOf(family)).build());
+    }
 
-        // Plain family: one row. The size / shape axes attach only to plain families, so they resolve here.
-        EntityModelData model = resolveModel(geometries, baseCoord, familyId);
-        EntityPose pose = under(renderTransform, poseOf(poses, poseClass == null ? baseCoord : poseClass));
-        // Ahead of the overlay load so a same-geometry pass is materialised on the shifted mesh and
-        // travels with it; a pass on a mesh of its OWN would not, which the shift warns about.
-        List<OverlayLayer> overlays =
-            loadOverlays(familyOverlays, geometries, poses, renderTransform, pose, baseCoord, model, familyId);
-        Optional<String> textureRef = Optional.ofNullable(adult.texture());
+    /**
+     * The family row of a family whose coats are option-encoded: every coat built as a row of its own,
+     * and the one the family declares carrying the whole option map.
+     *
+     * <p>One base row {@code minecraft:<id>}, the coat resolved at render - never a row per coat. The
+     * reason is in this class's own javadoc and is a collision-safety rule rather than a convenience.
+     */
+    private static @NotNull Entity variantRow(
+        @NotNull RawAxis variant,
+        @NotNull String baseCoord,
+        @NotNull List<BlockOverlayLayer> blockOverlays,
+        @NotNull FamilyContext ctx
+    ) {
+        LinkedHashMap<String, Entity> coats = new LinkedHashMap<>();
+        for (Map.Entry<String, RawOption> option : variant.options().entrySet())
+            coats.put(option.getKey(), buildRow(coatForm(option.getValue(), baseCoord, blockOverlays), ctx));
+        Entity base = coats.getOrDefault(variant.defaultOption(), coats.values().iterator().next());
+        Entity.Axes axes = base.axes();
+        return base.mutate()
+            .axes(new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(),
+                axes.largeShape(), axes.state(), axes.size(),
+                new Entity.Axis<>(Map.copyOf(coats), Optional.ofNullable(variant.defaultOption()))))
+            .build();
+    }
 
-        Map<String, String> stateTextures = new LinkedHashMap<>();
-        // Plain families carry their single baby texture on age.baby.texture; expose it under the "baby"
-        // state key so the renderer binds it the same way as variant families' per-option baby_texture.
-        String babyTexture = babyTextureOf(family);
-        if (babyTexture != null) stateTextures.put("baby", babyTexture);
+    /**
+     * Builds one row of a family - the family's own, or one of its coats - from the mesh it draws and
+     * everything the family shares.
+     *
+     * <p>Both arms of {@link #readDefinition} come through here, because a coat and the family row it
+     * is a coat of are the same construction over a different {@link RowForm}: they resolve the same
+     * pose against the same class, materialise the same overlay rows, and carry the same baby mesh,
+     * equipment and armour. What differs is the four members a form names.
+     *
+     * <p>The size axis is derived from the row rather than beside it, so it can only ever hold forms
+     * of THIS row. That is also what gives a coat its own size axis: a family that gained both would
+     * otherwise resolve a coat to a leaf carrying no sizes, and the sizes it does carry would be the
+     * family's rather than the coat's.
+     *
+     * @param form what this row differs from its siblings in
+     * @param ctx what the whole family shares
+     * @return the row, without the variant axis a family row is given afterwards
+     */
+    private static @NotNull Entity buildRow(@NotNull RowForm form, @NotNull FamilyContext ctx) {
+        EntityModelData model = resolveModel(ctx.geometries(), form.coordinate(), ctx.familyId());
+        // A coat swaps the mesh and never the renderer, so the class the pose is read against is the
+        // family's whatever geometry the form names.
+        EntityPose pose = under(ctx.renderTransform(),
+            poseOf(ctx.poses(), ctx.poseClass() == null ? form.coordinate() : ctx.poseClass()));
+        // Ahead of the size derivation so a same-geometry pass is materialised on the mesh this row
+        // actually draws, and travels with it into every form derived from the row.
+        List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
+            ctx.renderTransform(), pose, form.coordinate(), model, ctx.familyId());
+
+        Entity bare = Entity.builder()
+            .id(ResourceId.parse(ctx.familyId()))
+            .model(model).textureRef(form.textureRef()).overlays(overlays)
+            .blockOverlays(form.blockOverlays())
+            .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend())
+            .rendererScale(ctx.rendererScale())
+            .pose(pose)
+            .axes(new Entity.Axes(ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), ctx.largeShape(),
+                new Entity.Axis<>(form.stateTextures(), ctx.stateDefault()),
+                Entity.Axis.none(), Entity.Axis.none()))
+            .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()))
+            .build();
 
         // Built once WITHOUT the size axis, because a size form is a sub-definition derived from this
         // row - its own baked mesh over the same overlays, or this row at a multiplied scale - so the
-        // row it derives from has to exist first. The forms carry no size axis of their own, exactly as
-        // a coat carries no variant axis: a form is a leaf.
-        Entity bare = Entity.builder()
-            .id(ResourceId.parse(familyId))
-            .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
-            .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
-            .pose(pose)
-            .members(membersOf(family))
-            .axes(new Entity.Axes(babyModel, babyPose, babyOverlays,
-                buildLargeShape(family, geometries, poses, renderTransform, familyId),
-                new Entity.Axis<>(stateTextures, stateDefaultOf(family)),
-                Entity.Axis.none(), Entity.Axis.none()))
-            .layers(new Entity.Layers(equipment, humanoidArmor))
+        // row it derives from has to exist first. A form carries no size axis of its own: it is a leaf.
+        Entity.Axes axes = bare.axes();
+        return bare.mutate()
+            .axes(new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(),
+                axes.largeShape(), axes.state(),
+                buildSizeAxis(ctx.family(), ctx.geometries(), bare), axes.variant()))
             .build();
+    }
 
-        Entity.Axes bareAxes = bare.axes();
-        definitions.put(familyId, bare.mutate()
-            .axes(new Entity.Axes(bareAxes.babyModel(), bareAxes.babyPose(), bareAxes.babyOverlays(),
-                bareAxes.largeShape(), bareAxes.state(),
-                buildSizeAxis(family, geometries, bare), bareAxes.variant()))
-            .build());
+    /**
+     * The family's own row: the adult mesh and texture, and its block overlays as the rows declare
+     * them.
+     *
+     * <p>A family carries its single baby texture on {@code age.baby.texture}; it is exposed under the
+     * {@code "baby"} state key so the renderer binds it the same way as a coat's own
+     * {@code baby_texture}.
+     */
+    private static @NotNull RowForm plainForm(
+        @NotNull RawModel family, @NotNull RawOption adult,
+        @NotNull List<BlockOverlayLayer> blockOverlays) {
+
+        Map<String, String> stateTextures = new LinkedHashMap<>();
+        String babyTexture = babyTextureOf(family);
+        if (babyTexture != null) stateTextures.put("baby", babyTexture);
+        return new RowForm(adult.geometry(), Optional.ofNullable(adult.texture()),
+            stateTextures, blockOverlays);
+    }
+
+    /**
+     * One coat's row: its own mesh where it names one, its {@code wild} texture and per-state
+     * textures, and the family's fixed block overlays redrawn as the block it names.
+     */
+    private static @NotNull RowForm coatForm(
+        @NotNull RawOption option, @NotNull String baseCoord,
+        @NotNull List<BlockOverlayLayer> blockOverlays) {
+
+        return new RowForm(
+            option.geometry() == null ? baseCoord : option.geometry(),
+            variantWildTexture(option),
+            variantStateTextures(option),
+            coatBlockOverlays(blockOverlays, option.block()));
     }
 
     /**
@@ -333,65 +392,52 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * The family-level render context shared by every variant option's build, so one coat build fills
-     * the whole option map without restating what the coats have in common.
+     * What the whole family shares, so one row build restates none of it.
+     *
+     * <p>Held once per family and handed to every row of it, the family's own and each of its coats
+     * alike - which is what lets the two arms of {@link #readDefinition} be one construction over
+     * different {@link RowForm}s rather than two that drifted.
      */
-    private record VariantContext(
-        @NotNull String baseCoord,
+    private record FamilyContext(
+        @NotNull RawModel family,
+        @NotNull String familyId,
         @Nullable String poseClass,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
         @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform,
         @NotNull List<RawOverlay> familyOverlays,
-        @NotNull List<BlockOverlayLayer> blockOverlays,
         int baseTint,
         float setupYawAddend,
         float rendererScale,
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull Optional<EntityPose> babyPose,
         @NotNull List<OverlayLayer> babyOverlays,
+        @NotNull Optional<LargeShape> largeShape,
         @NotNull List<EquipmentOverlay> equipment,
         @NotNull Optional<Shell> humanoidArmor,
         @NotNull Optional<String> stateDefault
     ) {}
 
     /**
-     * Builds one variant option's {@link Entity}: the option's geometry (its own coordinate when it
-     * overrides the family mesh, else the base coordinate) with the family's bone toggles, hidden-bone
-     * strip, and overlays materialised on it, plus the option's {@code wild} coat texture and per-state
-     * textures. The built definition carries an empty {@code axes.variants} - it is a leaf coat.
+     * What one row of a family differs from its siblings in, and the whole of it.
      *
-     * <p>A coat naming its own {@code block} redraws the family's fixed block overlays as that block -
-     * the mooshroom's brown mushrooms against the red ones its rows carry. Only the fixed rows move:
-     * a selectable row's block is the caller's held one, supplied at render.
+     * <p>Four members: everything else a row carries is the family's and travels on
+     * {@link FamilyContext}. A coat that names no mesh of its own draws the family's, which is why the
+     * coordinate is resolved into the form rather than left for the build to decide.
+     *
+     * @param coordinate the mesh this row draws
+     * @param textureRef the row's own base texture, or empty where it has none
+     * @param stateTextures the row's alternate textures by behavioural state
+     * @param blockOverlays the block-shaped overlays as this row draws them - a coat naming its own
+     *     {@code block} redraws the family's fixed rows as that block, the mooshroom's brown mushrooms
+     *     against the red ones its rows carry, and a selectable row is left to the caller's selection
      */
-    private static @NotNull Entity buildVariantRow(
-        @NotNull String rowId,
-        @NotNull RawOption optionObj,
-        @NotNull VariantContext ctx
-    ) {
-        String rowCoord = optionObj.geometry() == null ? ctx.baseCoord() : optionObj.geometry();
-        EntityModelData model = resolveModel(ctx.geometries(), rowCoord, rowId);
-        // A coat swaps the mesh and never the renderer, so the class the pose is read against is the
-        // family's whatever geometry this option names.
-        EntityPose pose = under(ctx.renderTransform(),
-            poseOf(ctx.poses(), ctx.poseClass() == null ? rowCoord : ctx.poseClass()));
-        List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
-            ctx.renderTransform(), pose, rowCoord, model, rowId);
-        Map<String, String> stateTextures = variantStateTextures(optionObj);
-        Optional<String> textureRef = variantWildTexture(optionObj);
-        return Entity.builder()
-            .id(ResourceId.parse(rowId))
-            .model(model).textureRef(textureRef).overlays(overlays)
-            .blockOverlays(coatBlockOverlays(ctx.blockOverlays(), optionObj.block()))
-            .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
-            .pose(pose)
-            .axes(new Entity.Axes(ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Optional.empty(),
-                new Entity.Axis<>(stateTextures, ctx.stateDefault()),
-                Entity.Axis.none(), Entity.Axis.none()))
-            .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()))
-            .build();
-    }
+    private record RowForm(
+        @NotNull String coordinate,
+        @NotNull Optional<String> textureRef,
+        @NotNull Map<String, String> stateTextures,
+        @NotNull List<BlockOverlayLayer> blockOverlays
+    ) {}
 
     /**
      * The family's block overlays as one coat draws them: unchanged when the coat names no block of
