@@ -305,8 +305,9 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
 - The mesh is registered ungrown and unscaled; both layer deformations and any whole-mesh scale ride
   the row, and `ShellWalk.of` sums a cube's deformation with the row's at index time in the parser's
   operand order. `Shell.meshOffset()` derives the feet anchor as `24.016f * (1f - meshScale)`.
-- `EntityIndexBuilder.humanoidArmorOf` joins the geometry raw - no undrawn strip, no part subset,
-  no clearance bump.
+- `EntityIndexBuilder.humanoidArmorOf` joins the shell's own mesh - what a wearer rests without, the
+  subset a pass of its is restricted to and the deformation one surrounds it with are derived onto
+  meshes the wearer names, and an armour row names none of them.
 - The shell is built two-sided by `SurfaceTraits.WORN_SHELL`, vanilla submitting it through a no-cull
   cutout pipeline. Armour geometry differs from block geometry by those two bits and not by a code
   path, so one `buildBox` serves block, item, player, cape and shell alike.
@@ -362,13 +363,13 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
 - The index is keyed by plain entity id and nothing synthesises a `minecraft:<id>_<option>` key. Do
   not revive id-encoding as a convenience API - the keyspace is the vanilla entity registry, so a
   synthesised key and a declared one are indistinguishable. `variant_of` is in-memory only.
-- **A `bones.toggles` entry says which bones a toggle flips and never which way.** The side each
-  rests on is read off membership in the site's own `undrawn` list at load - a toggle naming a bone
-  the list carries rests hidden - so nothing declares it twice. `undrawn` carries the whole
-  of what a subject rests without - the never-drawn bones merged at generation with what its pose
-  rests hidden - and it is per SUBJECT because the two halves key apart: a renderer can re-enable a
-  bone its model class never draws, and the illusioner does, over the same `IllagerModel` row the
-  other three illagers hide their hat on.
+- **A bone says whether it draws and what flips it, and never which way a toggle points.** The side
+  each rests on is the bone's own `visible` on the mesh that renders - a bone naming a toggle and
+  resting hidden is one that toggle draws - so nothing declares it twice. A bone that rests undrawn
+  and names no toggle can never draw, so the tooling drops it and no member has to say so. What a
+  subject rests without is per SUBJECT because the two halves key apart: a renderer can re-enable a
+  bone its model class never draws, and the illusioner does, which is why the four illagers split
+  one `IllagerModel` mesh into one per rest state rather than sharing it.
 - **A bone that rests undrawn takes its subtree with it.** Vanilla's `visible = false` skips the part
   and everything under it; removing the name alone re-parents each orphan to the root, so geometry
   that should have vanished lands somewhere the subject is not - four sprigs of coral floating clear
@@ -525,12 +526,12 @@ is what a subject joins on.
   into the delegation's own body rotation - the shulker's `+ 180f` - and the base applies the body
   rotation as the subject's facing, so the index consumes it into `Entity.setupYawAddend`, which
   reaches every render mode through the facing sum where a container step never reaches BIND.
-- **A `y_shift` and a transform are two spellings of one `setupRotations` and only one may answer.**
-  The shift is applied to the mesh at load because the bounds walk reads the mesh; the transform
-  composes above it at render, and both together move the subject twice. `EntityIndexBuilder` refuses
-  a subject carrying both. Every renderer the shift claims is one the walk declines - the squid's
-  turn is by a method parameter the grammar has no term for - which the guard keeps a fact rather
-  than a coincidence.
+- **A shift and a transform are two spellings of one `setupRotations` and only one may answer.**
+  The shift is baked into the mesh because the bounds walk reads the mesh; the transform composes
+  above it at render, and both together move the subject twice. `EntityMeshShift` refuses a subject
+  carrying both, where the shift is still known and the renderer's steps are already walked. Every
+  renderer the shift claims is one the walk declines - the squid's turn is by a method parameter the
+  grammar has no term for - which the guard keeps a fact rather than a coincidence.
 
 **A bone the MESH does not declare is not evaluated.** A pose belongs to a model class where a mesh
 belongs to a subject, so the two part company wherever a bone rests undrawn and took its subtree with
@@ -557,8 +558,9 @@ rest before the fold reached it. **`entity_poses.json` still carries `input_defa
 resolved against, kept in the table until the emitter stops writing them.
 
 **Nothing at render reads a flag channel.** Every flag in the corpus folds to a literal at
-generation, so which bones a subject rests without is resolved into the tables' `undrawn` lists and
-the load-time strip is the only thing that applies one; the loader passes the two channel tokens
+generation, so which bones a subject rests without is written onto the mesh it rests in - a bone
+nothing can draw is gone from that mesh, and a bone a selection can draw rests `visible: false`
+naming what flips it - and nothing strips a mesh at load; the loader passes the two channel tokens
 over. It is why the guardian's eye and the fox's legs need neither a harness pin nor an asset answer:
 vanilla writes the eye `true` unconditionally, and calls the fox's `setWalkingPose` - which sets all
 four legs `true` - before any branch, leaving only `setSleepingPose` behind an `isSleeping` that
@@ -666,9 +668,9 @@ and replicate it in the kit's transform chain.
 
 - Only two `setupRotations` translates survive the harness rest pose; the rest sit behind gates the
   frozen animation state makes false.
-- The squid's age-conditional Y shift is applied to the **mesh** at load
-  (`EntityIndexBuilder.shiftModel`), because the renderer and the canvas-sizing bounds walk both read
-  the mesh. The pufferfish's is an expression, so the walk declines it and it stays latent.
+- The squid's age-conditional Y shift is baked into the **mesh** by `EntityMeshShift`, because the
+  renderer and the canvas-sizing bounds walk both read the mesh. The pufferfish's is an expression,
+  so the walk declines it and it stays latent.
 - A `setupRotations` shift is invisible unless the canvas is group-unioned, because the fit centres
   the bounds it was handed.
 - `MeshTransformer.scaling(F)` is baked by the tooling and is exact - do not look for a runtime

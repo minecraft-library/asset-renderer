@@ -506,16 +506,16 @@ public final class EntityIndexBuilder {
     /**
      * Resolves the baby forms of an {@code overlays} list into the parallel {@link OverlayLayer} list a
      * baby render draws in place of the adult one. Each row carrying a {@code baby} delta is rewritten
-     * into an overlay whose texture and cleared-bone root come from the delta and whose every other
-     * member ({@code texture_by}, tint, {@code retain_bones}, {@code grow}, pipeline, bounds skip, gate)
-     * is inherited from the row, then handed to {@link #loadOverlays} against the {@code age.baby} mesh.
-     * A row with no delta is absent from the result, so a pass vanilla itself gates off a baby (the
-     * villager profession and profession-level passes) drops out structurally.
+     * into an overlay whose meshes and texture come from the delta and whose every other member
+     * ({@code texture_by}, tint, pipeline, bounds skip, gate) is inherited from the row, then handed to
+     * {@link #loadOverlays} against the {@code age.baby} mesh. A row with no delta is absent from the
+     * result, so a pass vanilla itself gates off a baby (the villager profession and profession-level
+     * passes) drops out structurally.
      *
-     * <p>The derived row's geometry is deliberately {@code null} rather than the row's own coordinate: the
-     * row names the ADULT mesh, so carrying it would flip {@link #loadOverlays}'s {@code sameGeometry}
-     * false, losing the derived bounds skip - the pass would re-enter the canvas union and move the baby
-     * canvas. Left null it defaults to {@code babyCoord}, which is the same mesh instance
+     * <p>A delta naming no geometry is left naming none rather than given the row's coordinate: the row
+     * names the ADULT mesh, so carrying it would flip {@link #loadOverlays}'s {@code sameGeometry} false
+     * and lose the derived bounds skip - the pass would re-enter the canvas union and move the baby
+     * canvas. Left absent it defaults to {@code babyCoord}, which is the same mesh instance
      * {@link Entity.Axes#babyModel()} holds.
      *
      * @param overlays the family's raw overlay rows

@@ -10,24 +10,20 @@ it, and in the `reason` recorded with the baseline it moved.
 
 Delete an entry when it closes.
 
-## The load-time mesh surgery is wanted baked, and no design that generalizes exists yet
+## A geometry key is not a complete identity, and a texture override rides along un-encoded
 
-`EntityIndexBuilder` re-derives meshes at every load - the undrawn strip, the squid family's y
-shift, the warden's retained-bone subset - and the owner wants that information baked into shipped
-geometry coordinates, the way `@grow=` / `@scaled=` / `@baby=` already bake thirty of the hundred
-and forty-five. The naive bake fails on a measured blocker: a toggle re-adds bones the undrawn
-strip removes - the armour stand's arms, the chest of every equine that carries one, the turtle's
-egg belly, six subjects in all - and `loadBoneToggles` captures those bones' geometry from the
-UNSTRIPPED mesh, so the strip has to run somewhere that mesh still exists. Shipping a coordinate
-per toggle state is combinatorial; keeping the strip for the six blocked subjects keeps the
-mechanism for every subject; and the two pieces that could bake alone - the shift and the retained
-subset, two methods and roughly fifty lines - cost a table gate and a reinterpretation of the squid
-shift's recorded reason for a net near zero.
+`GeometryIds` spells every discriminator a request carries except the texture-size override, which
+`GeometryFlow.parse` reads off `texWidthOverride` / `texHeightOverride` and stamps onto the entry.
+So two requests differing in nothing but that override mint ONE key, and the manifest dedupes them
+to whichever registered first - a mesh sampled against the wrong sheet dimensions, with nothing
+saying so.
 
-Closing it is a research effort rather than a phase: a design in which the shipped form carries
-both what a subject rests without and what a toggle can re-add, generally enough that the load-time
-surgery goes whole rather than by exception. Until one exists, the surgery stays at load and the
-derivations stay runtime facts.
+It has not bitten because every override in the corpus travels with a discriminator that already
+splits the key: `HumanoidModel#createMesh` ships at 64x64 while `@grow=0.2` and `@grow=0.25` ship at
+64x32, so the grow tells them apart and the sheet follows it. Nothing enforces that pairing, and a
+version bump that gives one factory two sheets at one deformation would collapse them silently.
+Closing it is either encoding the override in the key the way the other seven are, or a stated
+reason why a request may carry a fact its key does not name.
 
 ## Most of the clip tables are dead offline, and the live tail is why they have not been shed
 

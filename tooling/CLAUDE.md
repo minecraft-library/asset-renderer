@@ -239,10 +239,24 @@ stands it with its legs together.
   emptiness is asked of a stack rather than read off a record of floats, so no row can ever name it.
 
 **Every flag folds to a literal here, which is why nothing at render reads a flag channel.** Which
-bones a subject rests without is resolved into the tables' `undrawn` lists, and the load-time strip
-is the only thing that applies one. A flag the fold cannot settle to a literal - one reading a clock
+bones a subject rests without is written by `EntityMeshMarking` onto the mesh it rests in - a bone
+nothing can draw is dropped, a bone a selection can draw rests `visible: false` naming what flips it
+- and nothing strips a mesh at load. A flag the fold cannot settle to a literal - one reading a clock
 - and a resting `skip_draw` both refuse the flow, which is the coverage the per-frame flag path used
 to hold, moved to where a version bump surfaces it loudly.
+
+**A mesh is derived at generation and named, never described for the reader to build.** The three
+overlay surgeries - the `retainExactParts` subset, the `CubeDeformation` inflate and the
+`clearChild().clearRecursively()` a suppressed pass draws - are `EntityMeshOverlays`, which mints
+`@retain=` / `@inflate=` / `@cleared=` through `GeometryIds`. An inflate is NOT the request's
+`@grow=`: that pre-seeds the factory's default deformation, which a cube deformed inline overrides,
+where an inflate adds to whatever a cube ended up carrying. The drowned's `hat` is deformed inline at
+0.5 and its pass's 0.25 takes it to 0.75, so the two never share a spelling.
+
+**A mesh every site derives the same way is derived where it stands; one the body also draws mints a
+key.** Deriving a shared mesh in place would deform the body along with the pass, and minting for a
+mesh nothing else draws would leave an orphan `GeometryRefClosureTest` refuses. The same rule decides
+both the marking's splits and the overlays'.
 
 ## The policy SPI
 
