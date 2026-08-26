@@ -28,9 +28,6 @@ class EntityIndexBuilderMeshTest {
 
     private static final String ENTITY = "minecraft:test_villager";
 
-    /** Model units per block, the factor a {@code y_shift} crosses on its way onto the mesh. */
-    private static final float MODEL_UNITS_PER_BLOCK = 16f;
-
     /**
      * The villager bone shape: {@code head} carries {@code hat} (which carries {@code hat_rim}) and
      * {@code nose}, alongside an untouched {@code body} / {@code right_leg} pair. Every bone owns one
@@ -92,33 +89,6 @@ class EntityIndexBuilderMeshTest {
             assertThat(name + " keeps its parent", after.getParent(), equalTo(before.getParent()));
             assertThat(name + " keeps its scale", after.getScale(), is(before.getScale()));
         }
-    }
-
-    // ------------------------------------------------------------------------------------
-    // shiftModel
-    // ------------------------------------------------------------------------------------
-
-    @Test
-    @DisplayName("a shift moves root pivots by the blocks crossed into model units, sign flipped")
-    void shiftModelMovesRootPivotsAndLeavesChildrenAlone() {
-        EntityModelData source = fixture();
-        EntityModelData shifted = EntityIndexBuilder.shiftModel(source, 0.5f);
-        float delta = -0.5f * MODEL_UNITS_PER_BLOCK;
-
-        for (String name : new String[]{"body", "head"})
-            assertThat("the root bone " + name + " moves", shifted.getBones().get(name).getPivot().y(),
-                is(source.getBones().get(name).getPivot().y() + delta));
-        for (String name : new String[]{"hat", "hat_rim", "nose", "right_leg"})
-            assertThat("the child bone " + name + " holds, its pivot being relative to its parent",
-                shifted.getBones().get(name).getPivot(), equalTo(source.getBones().get(name).getPivot()));
-    }
-
-    @Test
-    @DisplayName("a shift of nothing hands the mesh straight back")
-    void shiftModelReturnsTheSourceAtZero() {
-        EntityModelData source = fixture();
-
-        assertThat(EntityIndexBuilder.shiftModel(source, 0f), is(sameInstance(source)));
     }
 
     // ------------------------------------------------------------------------------------

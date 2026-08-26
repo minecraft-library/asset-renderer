@@ -121,7 +121,7 @@ record RawAxis(
 /**
  * One axis option - the superset of what any axis's option carries, every member optional because
  * each axis populates its own subset: an {@code age} option carries {@code geometry} /
- * {@code texture} / {@code y_shift}, a {@code variant} coat {@code textures} /
+ * {@code texture}, a {@code variant} coat {@code textures} /
  * {@code baby_texture} / {@code geometry} / {@code block}, the {@code shape.large} option
  * {@code geometry} / {@code texture} / {@code overlays}, a {@code size} option {@code geometry} /
  * {@code scale}, and a {@code state} option nothing at all - its name is the datum.
@@ -129,10 +129,6 @@ record RawAxis(
  * @param geometry the option's mesh coordinate, or {@code null}
  * @param texture the option's texture as the {@code textures/entity/} sub-path, settled at
  *     generation, or {@code null} when the option has none
- * @param yShift the blocks the renderer's {@code setupRotations} translates this age along Y before
- *     drawing it, {@code 0f} when absent. It sits on the option rather than on {@code render}
- *     because vanilla brackets its rotations with translates the age selects between - the squid
- *     lifts an adult by a different pair than a baby
  * @param scale a size option's render-scale factor, boxed so a mesh-only option leaves it absent
  * @param overlays the {@code shape.large} pattern overlays materialised on the large geometry, or
  *     {@code null}
@@ -145,7 +141,6 @@ record RawAxis(
 record RawOption(
     @Nullable String geometry,
     @Nullable String texture,
-    @SerializedName("y_shift") float yShift,
     @Nullable Float scale,
     @Nullable List<RawOverlay> overlays,
     @Nullable Map<String, String> textures,

@@ -993,13 +993,11 @@
           "options": {
             "adult": {
               "geometry": "SquidModel#createBodyLayer",
-              "texture": "squid/glow_squid",
-              "y_shift": -0.70000005
+              "texture": "squid/glow_squid"
             },
             "baby": {
               "geometry": "BabySquidModel#createBodyLayer",
-              "texture": "squid/glow_squid_baby",
-              "y_shift": -0.35000002
+              "texture": "squid/glow_squid_baby"
             }
           }
         }
@@ -2361,13 +2359,11 @@
           "options": {
             "adult": {
               "geometry": "SquidModel#createBodyLayer",
-              "texture": "squid/squid",
-              "y_shift": -0.70000005
+              "texture": "squid/squid"
             },
             "baby": {
               "geometry": "BabySquidModel#createBodyLayer",
-              "texture": "squid/squid_baby",
-              "y_shift": -0.35000002
+              "texture": "squid/squid_baby"
             }
           }
         }

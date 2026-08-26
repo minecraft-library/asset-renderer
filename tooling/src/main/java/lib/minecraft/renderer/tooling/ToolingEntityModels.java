@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.animation.PoseFlow;
 import lib.minecraft.renderer.tooling.entity.EntityMeshMarking;
+import lib.minecraft.renderer.tooling.entity.EntityMeshShift;
 import lib.minecraft.renderer.tooling.entity.EntityPoseClass;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryWalk;
@@ -64,11 +65,12 @@ public final class ToolingEntityModels {
             // on: a class two subjects pose two ways splits into a row each, and the body that takes
             // one names it in its own row. So the models table is written after, holding the join
             // the pose table actually carries.
-            PoseFlow.emit(session, manifest, rootBones, posing, renderers,
+            Set<String> composing = PoseFlow.emit(session, manifest, rootBones, posing, renderers,
                 root.child("models"), session.resolve("entity_poses.json"));
             // With both halves of what each subject rests without now settled, they go onto the mesh
             // that renders rather than beside it, and the members saying so come off the model table.
             EntityMeshMarking.apply(session.diagnostics().child("bones"), root.child("models"), geometries);
+            EntityMeshShift.apply(session.diagnostics().child("bones"), root.child("models"), geometries, composing);
             GeometryFlow.write(session, geometries, session.resolve("entity_geometry.json"));
             session.write(root, "entity_models.json");
             session.failOnStrictGate();

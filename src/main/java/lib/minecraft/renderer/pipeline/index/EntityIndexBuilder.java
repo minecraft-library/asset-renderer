@@ -70,9 +70,6 @@ import java.util.Set;
 @UtilityClass
 public final class EntityIndexBuilder {
 
-    /** Model units per block - the scale a vanilla {@code PoseStack} translate is expressed against. */
-    private static final float MODEL_UNITS_PER_BLOCK = 16f;
-
     private static final int WHITE = 0xFFFFFFFF;
 
     /**
@@ -129,10 +126,9 @@ public final class EntityIndexBuilder {
         // time: the renderer and the bounds walk both read the mesh, so moving it is what keeps the two
         // from disagreeing about where the subject is.
         RawOption babyAge = ageBaby(family);
-        float babyYShift = babyAge == null ? 0f : babyAge.yShift();
         int baseTint = render == null || render.tint() == null ? WHITE : ColorTypeAdapter.parse(render.tint()).getRGB();
         List<Map<PoseChannel, PoseExpr>> composed =
-            renderTransformOf(renderTransforms, family, familyId, adult.yShift(), babyYShift);
+            renderTransformOf(renderTransforms, family);
         float setupYawAddend = facingYawOf(composed);
         List<Map<PoseChannel, PoseExpr>> renderTransform = afterFacingYaw(composed);
 
@@ -153,13 +149,8 @@ public final class EntityIndexBuilder {
         // the families that pose at all are posed through that class alone.
         Optional<EntityPose> babyPose = babyCoord == null ? Optional.empty()
             : Optional.of(under(renderTransform, poseOf(poses, babyCoord)));
-        // A baby takes the strip its own option carries, the way the body and every size mesh do - a
-        // baby armadillo rests walking rather than curled, and its shell is one bone of the mesh
-        // either way. Not the family's list, though: that is read off the ADULT's model class, where
-        // the baby option's is read off the baby's own.
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
-            : Optional.ofNullable(geometries.get(babyCoord))
-                .map(baby -> shiftModel(baby, babyYShift));
+            : Optional.ofNullable(geometries.get(babyCoord));
         List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
             renderTransform, babyPose.orElse(EntityPose.NONE), babyCoord, babyModel, familyId);
 
@@ -191,7 +182,6 @@ public final class EntityIndexBuilder {
         EntityPose pose = under(renderTransform, poseOf(poses, poseClass == null ? baseCoord : poseClass));
         // Ahead of the overlay load so a same-geometry pass is materialised on the shifted mesh and
         // travels with it; a pass on a mesh of its OWN would not, which the shift warns about.
-        model = shiftModel(model, adult.yShift());
         List<OverlayLayer> overlays =
             loadOverlays(familyOverlays, geometries, poses, renderTransform, pose, baseCoord, model, familyId);
         Optional<String> textureRef = Optional.ofNullable(adult.texture());
@@ -223,30 +213,17 @@ public final class EntityIndexBuilder {
      * pose table keys its transforms by. A subject whose renderer the walk refused, or which
      * composes nothing at all, has no row and stands where its mesh puts it.
      *
-     * <p><b>A transform and a {@code y_shift} are two spellings of one {@code setupRotations} and
-     * only one of them may answer.</b> The shift is applied to the mesh because the bounds walk
-     * reads the mesh; the transform is seated at the front of every pose the subject's meshes take.
-     * Both together would move the subject twice, so a subject carrying both is refused rather than
-     * silently doubled - the corpus has none, every renderer the shift claims being one the
-     * transform walk declines.
-     *
-     * @throws PipelineException if a subject carries both a render transform and an age shift
+     * <p>A transform and a baked {@code setupRotations} translate are two spellings of one thing and
+     * only one may answer, so a subject reaching both is refused where the translate is still known -
+     * at generation, before it goes into the mesh.
      */
     private static @NotNull List<Map<PoseChannel, PoseExpr>> renderTransformOf(
-        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> transforms, @NotNull RawModel family,
-        @NotNull String familyId, float adultYShift, float babyYShift) {
+        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> transforms, @NotNull RawModel family) {
 
         String renderer = family.renderer();
         if (renderer == null) return List.of();
         int member = renderer.lastIndexOf('/');
-        List<Map<PoseChannel, PoseExpr>> steps =
-            transforms.getOrDefault(member < 0 ? renderer : renderer.substring(member + 1), List.of());
-        if (!steps.isEmpty() && (adultYShift != 0f || babyYShift != 0f))
-            throw new PipelineException(
-                "entity index: '%s' carries both a render transform and a setupRotations y shift, "
-                    + "which would move it twice",
-                familyId);
-        return steps;
+        return transforms.getOrDefault(member < 0 ? renderer : renderer.substring(member + 1), List.of());
     }
 
     /**
@@ -959,14 +936,12 @@ public final class EntityIndexBuilder {
     ) {
         Map<String, RawOption> options = sizeOptions(family);
         if (options == null) return Map.of();
-        float yShift = adultOption(family).yShift();
         Map<Size, EntityModelData> out = new LinkedHashMap<>();
         for (Map.Entry<String, RawOption> option : options.entrySet()) {
             RawOption body = option.getValue();
             if (body.geometry() == null) continue;
             EntityModelData mesh = geometries.get(body.geometry());
             if (mesh == null) continue;
-            mesh = shiftModel(mesh, yShift);
             out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
         }
         return out;
@@ -1111,44 +1086,6 @@ public final class EntityIndexBuilder {
             parent = p.getParent();
         }
         return false;
-    }
-
-    /**
-     * Translates a whole mesh along Y by a vanilla {@code PoseStack} distance in blocks - the
-     * {@code setupRotations} shift, applied as mesh surgery.
-     *
-     * <p>It lands on the mesh rather than on a render parameter because the renderer and the
-     * canvas-sizing bounds walk both read the mesh: moving it is what keeps a subject and the frame
-     * measured around it from disagreeing. That also makes the shift invisible for a subject measured
-     * against its OWN silhouette, which is correct - the fit centres what it measured, so subject and
-     * frame move together - and leaves it visible exactly where vanilla makes it visible, inside a
-     * canvas unioned across group members whose shifts differ.
-     *
-     * <p>Vanilla translates in world space where {@code +Y} is up, and the mesh is authored Y-down, so
-     * the sign flips on the way in. Only root bones move: a child's pivot is relative to its parent, so
-     * the whole tree follows them.
-     *
-     * <p>Package-private so the translation can be pinned on a fixture mesh directly.
-     *
-     * @param source the mesh to translate
-     * @param blocks the vanilla translation in blocks, {@code 0f} to return the source untouched
-     * @return the translated mesh, or {@code source} when there is nothing to apply
-     */
-    static @NotNull EntityModelData shiftModel(@NotNull EntityModelData source, float blocks) {
-        if (blocks == 0f) return source;
-        float delta = -blocks * MODEL_UNITS_PER_BLOCK;
-        LinkedHashMap<String, EntityModelData.Bone> shifted = new LinkedHashMap<>();
-        for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {
-            EntityModelData.Bone bone = e.getValue();
-            if (bone.getParent() != null) {
-                shifted.put(e.getKey(), bone);
-                continue;
-            }
-            Vector3f pivot = bone.getPivot();
-            shifted.put(e.getKey(), bone.withPivot(new Vector3f(pivot.x(), pivot.y() + delta, pivot.z())));
-        }
-        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(),
-            Concurrent.adoptLinkedMap(shifted), source.isCull());
     }
 
     /**

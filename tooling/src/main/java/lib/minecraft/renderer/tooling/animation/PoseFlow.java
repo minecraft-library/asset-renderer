@@ -12,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -84,7 +85,7 @@ public final class PoseFlow {
      * @param renderers the subjects' renderer classes, read for what each composes above its meshes
      * @param out the output path
      */
-    public static void emit(
+    public static @NotNull Set<String> emit(
         @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
         @NotNull Map<String, Set<String>> rootBones, @NotNull Set<String> posing,
         @NotNull Set<String> renderers, @NotNull JsonTree models, @NotNull Path out) {
@@ -189,6 +190,14 @@ public final class PoseFlow {
         reportRefusedTransforms(transforms, diagnostics);
         root.write(out);
         diagnostics.info("wrote %s", out.toAbsolutePath());
+        // Which renderers actually compose something, for the one caller that has to know: a shift
+        // baked into a mesh and a transform composed above it are two spellings of one
+        // setupRotations, and only here is it still known that a subject reaches both.
+        Set<String> composing = new LinkedHashSet<>();
+        transforms.values().stream()
+            .filter(transform -> !transform.steps().isEmpty())
+            .forEach(transform -> composing.add(transform.renderer()));
+        return Collections.unmodifiableSet(composing);
     }
 
     /**

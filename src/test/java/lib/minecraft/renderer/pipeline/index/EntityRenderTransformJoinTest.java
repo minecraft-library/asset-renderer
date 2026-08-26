@@ -6,7 +6,6 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
-import lib.minecraft.renderer.exception.PipelineException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
@@ -18,7 +17,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -52,7 +50,7 @@ class EntityRenderTransformJoinTest {
     @Test
     @DisplayName("the row is found by the renderer's simple name, not by the class name the table writes")
     void theJoinNarrowsTheInternalName() {
-        Entity subject = assemble(RENDERER, 0f, Map.of());
+        Entity subject = assemble(RENDERER, Map.of());
         assertEquals(1, subject.pose().container().size(), "the subject's pose carries its renderer's step");
         assertEquals(-3f,
             subject.pose().container().getFirst().get(PoseChannel.Y).constantValue().orElseThrow(),
@@ -69,7 +67,7 @@ class EntityRenderTransformJoinTest {
         EntityPose modelPose = new EntityPose(
             List.of(Map.of(PoseChannel.Y, new PoseExpr.Const(-7d, PoseOperator.Width.FLOAT))),
             Map.of(), List.of(), Optional.empty());
-        Entity subject = assemble(RENDERER, 0f, Map.of("TestModel", modelPose));
+        Entity subject = assemble(RENDERER, Map.of("TestModel", modelPose));
         List<Map<PoseChannel, PoseExpr>> container = subject.pose().container();
         assertEquals(2, container.size(), "the pose gains a step and keeps its own");
         assertEquals(-3f, container.get(0).get(PoseChannel.Y).constantValue().orElseThrow(),
@@ -81,30 +79,14 @@ class EntityRenderTransformJoinTest {
     @Test
     @DisplayName("a renderer the table names no transform for leaves the subject composing nothing")
     void anUnnamedRendererComposesNothing() {
-        assertTrue(assemble("net/minecraft/client/renderer/entity/OtherRenderer", 0f, Map.of())
+        assertTrue(assemble("net/minecraft/client/renderer/entity/OtherRenderer", Map.of())
             .pose().container().isEmpty(), "an unnamed renderer answers no steps");
-    }
-
-    @Test
-    @DisplayName("a subject carrying both a transform and an age shift is refused rather than moved twice")
-    void bothSpellingsOfOneSetupRotationsAreRefused() {
-        PipelineException raised =
-            assertThrows(PipelineException.class, () -> assemble(RENDERER, -0.7f, Map.of()));
-        assertTrue(raised.getMessage().contains("would move it twice"),
-            "the refusal names the doubling: " + raised.getMessage());
-    }
-
-    @Test
-    @DisplayName("an age shift on its own is left alone, the shift being the older of the two spellings")
-    void aShiftWithoutATransformStands() {
-        assertTrue(assemble("net/minecraft/client/renderer/entity/OtherRenderer", -0.7f, Map.of())
-            .pose().container().isEmpty(), "a shifted subject with no transform builds");
     }
 
     // ------------------------------------------------------------------------------------
 
     private static @NotNull Entity assemble(
-        @Nullable String renderer, float adultYShift, @NotNull Map<String, EntityPose> poses) {
+        @Nullable String renderer, @NotNull Map<String, EntityPose> poses) {
 
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, new RawModel(
@@ -116,15 +98,15 @@ class EntityRenderTransformJoinTest {
             null,            // block_overlays
             null,            // armor
             null,            // equipment
-            ageAxis(adultYShift),  // axes
+            ageAxis(),  // axes
             null));          // members
         return EntityIndexBuilder.assemble(
             Map.of(COORD, mesh()), new RawEntityModelsFile(models), poses, TRANSFORMS).get(ENTITY);
     }
 
-    private static @NotNull RawAxes ageAxis(float adultYShift) {
+    private static @NotNull RawAxes ageAxis() {
         Map<String, RawOption> options = new LinkedHashMap<>();
-        options.put("adult", new RawOption(COORD, "test", adultYShift, null, null, null, null, null));
+        options.put("adult", new RawOption(COORD, "test", null, null, null, null, null));
         return new RawAxes(null, new RawAxis(null, options), null, null, null);
     }
 
