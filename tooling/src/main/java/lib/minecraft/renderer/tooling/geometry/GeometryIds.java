@@ -1,19 +1,32 @@
 package lib.minecraft.renderer.tooling.geometry;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.EnumMap;
+import java.util.Map;
 
 /**
  * The factory-coordinate geometry key grammar
  * {@code <SimpleClass>#<method>[@k=v...]} - the dedupe identity IS the key, collision-free
  * by construction, greppable, replacing the legacy insertion-order {@code _<n>} fragility.
  *
- * <p>Discriminators appear only when set, in the declared canonical order {@code grow},
+ * <p>A key spells two kinds of discriminator, and they are not interchangeable. A <b>request</b>
+ * discriminator says what the factory was CALLED with, so it changes what the walk computes and
+ * the mesh it yields is readable no other way. A <b>{@link Derivation}</b> says what was done to
+ * the mesh the walk already yielded, so it is a transform of a mesh that also ships. Request
+ * discriminators come first, in their own canonical order; derivations follow in theirs.
+ *
+ * <p>Request discriminators appear only when set, in the declared canonical order {@code grow},
  * {@code fparam}, {@code scaled}, {@code baby}, {@code pose}, {@code iparam}, {@code ref}:
  * <ul>
  *   <li><b>{@code @grow=<v>}</b> / <b>{@code @grow=<x,y,z>}</b> - the request's grow
- *       pre-seed (scalar form when uniform), absent at zero.</li>
+ *       pre-seed (scalar form when uniform), absent at zero. A <em>pre-seed</em> of the
+ *       factory's default deformation rather than an addition to what a cube already carries:
+ *       a cube the factory deforms inline answers its own way, so this is not
+ *       {@link Derivation#INFLATE} under another name and the two never share a spelling.</li>
  *   <li><b>{@code @fparam=<v>}</b> - the slot-0 float-parameter seed (donkey 0.87, mule
  *       0.92), absent at zero / no table.</li>
  *   <li><b>{@code @scaled=<f>}</b> - the external MeshTransformer scale, absent at 1.</li>
@@ -31,7 +44,41 @@ import org.jetbrains.annotations.NotNull;
  * </ul>
  */
 @UtilityClass
-final class GeometryIds {
+public final class GeometryIds {
+
+    /**
+     * What was done to a mesh the walk already yielded, in the canonical order a key spells the
+     * discriminators naming it - which is the order the passes minting them run in, so a mesh
+     * reached by several reads its key left to right as the sequence that built it.
+     *
+     * <p>A derivation is a transform of a mesh that also ships, so a reader holding the bare
+     * coordinate and the discriminator can say what the derived mesh is. That is what separates
+     * these from the request discriminators, where the mesh is whatever the bytecode computed.
+     */
+    public enum Derivation {
+
+        /** What a subject rests without, the bones it never draws being gone and the rest marked. */
+        REST("rest"),
+        /** The vanilla {@code retainExactParts} subset a pass is restricted to. */
+        RETAIN("retain"),
+        /** The uniform amount added to every cube's grow, on every axis. */
+        INFLATE("inflate"),
+        /** The bone whose subtree is emptied, vanilla's {@code clearChild().clearRecursively()}. */
+        CLEARED("cleared");
+
+        /** The member name this derivation is spelled with, in a key and in the {@code source} twin. */
+        private final @NotNull String token;
+
+        Derivation(@NotNull String token) {
+            this.token = token;
+        }
+
+        /** The member name this derivation is spelled with, in a key and in the {@code source} twin. */
+        public @NotNull String token() {
+            return this.token;
+        }
+
+    }
 
     /**
      * Mints the key for a request.
@@ -73,6 +120,47 @@ final class GeometryIds {
         if (request.refParam() != null)
             key.append("@ref=").append(request.refParam().value());
         return key.toString();
+    }
+
+    /**
+     * Mints the key a derived mesh is written under.
+     *
+     * <p>Appended to the key of the mesh it was derived from, whatever that already spells, so a
+     * derivation of a request-discriminated mesh reads as both. A caller may hand the derivations
+     * in any order - what is spelled is {@link Derivation}'s own, so two passes minting the same
+     * pair of derivations can only mint the same key.
+     *
+     * @param coordinate the key of the mesh derived from
+     * @param derivations what was done to it
+     * @return the derived key, or {@code coordinate} where nothing was done to it
+     */
+    public static @NotNull String derived(
+        @NotNull String coordinate, @NotNull Map<Derivation, String> derivations) {
+
+        if (derivations.isEmpty()) return coordinate;
+        StringBuilder key = new StringBuilder(coordinate);
+        new EnumMap<>(derivations).forEach((derivation, value) ->
+            key.append('@').append(derivation.token()).append('=').append(value));
+        return key.toString();
+    }
+
+    /**
+     * Stamps onto a derived entry's {@code source} the machine-readable twin of what its key
+     * spells, so the entry and the key say one thing rather than two.
+     *
+     * <p>A mesh derived in place carries no discriminator and is stamped with none: the twin
+     * mirrors the key, and a key that distinguishes nothing has nothing to mirror.
+     *
+     * @param entry the derived geometry entry
+     * @param derivations what was done to the mesh it was derived from
+     */
+    public static void stampSource(
+        @NotNull JsonTree entry, @NotNull Map<Derivation, String> derivations) {
+
+        if (derivations.isEmpty()) return;
+        entry.find("source").ifPresent(source ->
+            new EnumMap<>(derivations).forEach((derivation, value) ->
+                source.put(derivation.token(), value)));
     }
 
     /**

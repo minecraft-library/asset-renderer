@@ -2,7 +2,10 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.tooling.geometry.GeometryIds.Derivation;
+import lib.minecraft.renderer.tooling.geometry.GeometryIds;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,11 +30,17 @@ import java.util.TreeSet;
  * this reads - and therefore after the geometry has been parsed but before it is written.
  *
  * <p><b>A coordinate two sites rest differently splits.</b> One mesh cannot stand at two rest states,
- * so each state mints a key naming what it rests without and the bare coordinate is left to no one.
- * The corpus splits exactly one: the four illagers share a body mesh and rest three ways in it.
- * Where every site agrees - which is every other shared coordinate - the mesh is marked where it
- * stands and its key is untouched, a discriminator that distinguishes nothing being noise in a
- * grammar built to be read.
+ * so each state that says something mints a key naming what it rests without, and the bare
+ * coordinate is left to the sites that say nothing - removed only where there are none. The corpus
+ * splits exactly one: the four illagers share a body mesh and rest three ways in it. Where every
+ * site agrees - which is every other shared coordinate - the mesh is marked where it stands and its
+ * key is untouched, a discriminator that distinguishes nothing being noise in a grammar built to be
+ * read.
+ *
+ * <p><b>Resting whole in a mesh is a state like any other.</b> A site saying nothing is counted for
+ * exactly that reason: a mesh one subject rests without a bone in and another rests whole in is two
+ * states, and reading only the first would mark the shared mesh and stop the second drawing a bone
+ * it draws.
  */
 @UtilityClass
 public final class EntityMeshMarking {
@@ -53,20 +62,11 @@ public final class EntityMeshMarking {
             JsonTree entry = geometries.get(coordinate);
             if (entry == null) return;                          // a dangling ref the closure test owns
             if (states.size() == 1) {
-                mark(entry, states.values().iterator().next().getFirst().rest());
+                Rest only = states.keySet().iterator().next();
+                if (!only.isEmpty()) mark(entry, only);
                 return;
             }
-            states.forEach((discriminator, group) -> {
-                String minted = coordinate + "@rest=" + discriminator;
-                JsonTree split = entry.deepCopy();
-                split.find("source").ifPresent(source -> source.put("rest", discriminator));
-                mark(split, group.getFirst().rest());
-                geometries.put(minted, split);
-                for (Site site : group) site.node().put("geometry", minted);
-                diagnostics.info("split '%s' at rest '%s' for %d site(s)",
-                    coordinate, discriminator, group.size());
-            });
-            geometries.remove(coordinate);
+            split(diagnostics, geometries, coordinate, entry, states);
         });
 
         for (Site site : sites) site.strip();
@@ -75,6 +75,48 @@ public final class EntityMeshMarking {
             subject.findArray("equipment").ifPresent(rows ->
                 rows.elements().forEach(EntityMeshMarking::dropEmptyBones));
         });
+    }
+
+    /**
+     * Splits one coordinate its sites rest differently in: every state that says something mints a
+     * mesh of its own and the sites in it are pointed at the minted key.
+     *
+     * <p>The bare coordinate is left to the sites that say nothing, and removed only where there
+     * are none - a mesh a subject rests whole in is that subject's mesh, and marking it because
+     * another subject rests without a bone would stop the first one drawing it.
+     *
+     * @throws ToolingException if two states mint one key, which is two meshes under one name
+     */
+    private static void split(
+        @NotNull Diagnostics diagnostics, @NotNull Map<String, JsonTree> geometries,
+        @NotNull String coordinate, @NotNull JsonTree entry, @NotNull Map<Rest, List<Site>> states) {
+
+        Set<String> minted = new LinkedHashSet<>();
+        boolean bare = false;
+        for (Map.Entry<Rest, List<Site>> state : states.entrySet()) {
+            Rest rest = state.getKey();
+            if (rest.isEmpty()) {
+                bare = true;
+                continue;
+            }
+            Map<Derivation, String> derivation = Map.of(Derivation.REST, rest.discriminator());
+            String key = GeometryIds.derived(coordinate, derivation);
+            // Two states the key cannot tell apart differ in their toggles alone, which the key does
+            // not name. Refused rather than spelled, because a discriminator that has to say what a
+            // selection moves is naming the render rather than the mesh.
+            if (!minted.add(key))
+                throw new ToolingException(
+                    "geometry '%s' rests two ways that both mint '%s', and one name cannot hold two meshes",
+                    coordinate, key);
+            JsonTree derived = entry.deepCopy();
+            GeometryIds.stampSource(derived, derivation);
+            mark(derived, rest);
+            geometries.put(key, derived);
+            for (Site site : state.getValue()) site.node().put("geometry", key);
+            diagnostics.info("split '%s' at rest '%s' for %d site(s)",
+                coordinate, rest.discriminator(), state.getValue().size());
+        }
+        if (!bare) geometries.remove(coordinate);
     }
 
     /**
@@ -229,15 +271,20 @@ public final class EntityMeshMarking {
         return sites;
     }
 
-    /** The sites grouped by the mesh they name and then by the state they rest it in. */
-    private static @NotNull Map<String, Map<String, List<Site>>> byCoordinate(
+    /**
+     * The sites grouped by the mesh they name and then by the state they rest it in.
+     *
+     * <p>Grouped by the WHOLE state rather than by the key it would mint, so two states one key
+     * cannot tell apart arrive as the two states they are and are refused where they are split.
+     */
+    private static @NotNull Map<String, Map<Rest, List<Site>>> byCoordinate(
         @NotNull List<Site> sites) {
 
-        Map<String, Map<String, List<Site>>> grouped = new LinkedHashMap<>();
+        Map<String, Map<Rest, List<Site>>> grouped = new LinkedHashMap<>();
         for (Site site : sites)
             grouped
                 .computeIfAbsent(site.coordinate(), key -> new LinkedHashMap<>())
-                .computeIfAbsent(site.rest().discriminator(), key -> new ArrayList<>())
+                .computeIfAbsent(site.rest(), key -> new ArrayList<>())
                 .add(site);
         return grouped;
     }
@@ -271,17 +318,22 @@ public final class EntityMeshMarking {
     }
 
     /**
-     * One site, or {@code null} where the node names no mesh or rests in nothing worth saying.
+     * One site, or {@code null} where the node names no mesh.
+     *
+     * <p>A place resting in nothing worth saying is still a site, because what it says about the
+     * mesh is that a subject rests WHOLE in it. A census that dropped those would read a mesh one
+     * site rests without a bone in as a mesh every site rests that way in, and mark it for the
+     * subjects that draw the bone.
      *
      * @param node the node naming the mesh, which is where a split rewrites the reference
      * @param rest what the subject rests without there
      * @param bones the node the two members saying so have to come off, or {@code null}
-     * @return the site, or {@code null} for a place with nothing to mark
+     * @return the site, or {@code null} for a place naming no mesh
      */
     private static @Nullable Site siteOf(
         @Nullable JsonTree node, @NotNull Rest rest, @Nullable JsonTree bones) {
 
-        if (node == null || rest.isEmpty()) return null;
+        if (node == null) return null;
         String coordinate = node.findString("geometry").orElse(null);
         return coordinate == null ? null : new Site(node, coordinate, rest, bones);
     }

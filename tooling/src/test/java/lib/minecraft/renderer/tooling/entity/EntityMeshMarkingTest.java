@@ -163,4 +163,46 @@ class EntityMeshMarkingTest {
             "nothing to distinguish, so no discriminator");
     }
 
+    @Test
+    @DisplayName("a site resting whole keeps the bare mesh, and the site resting without splits off")
+    void aSiteRestingWholeIsNotMarkedWithItsNeighbour() {
+        Map<String, JsonTree> geometries = new LinkedHashMap<>();
+        geometries.put("Mesh#layer", shellMesh());
+        JsonTree models = models("Mesh#layer", List.of("shell"), Map.of());
+        models.put("minecraft:whole",
+            models("Mesh#layer", List.of(), Map.of()).getObject("minecraft:test"));
+
+        EntityMeshMarking.apply(diagnostics, models, geometries);
+
+        assertTrue(geometries.containsKey("Mesh#layer"), "the site resting whole keeps the bare key");
+        assertTrue(geometries.get("Mesh#layer").getObject("bones").has("shell"),
+            "and its mesh still draws the shell its neighbour rests without");
+        assertTrue(geometries.containsKey("Mesh#layer@rest=shell"), "the resting site splits off");
+        assertFalse(geometries.get("Mesh#layer@rest=shell").getObject("bones").has("shell"),
+            "and that mesh is the one the shell is gone from");
+    }
+
+    @Test
+    @DisplayName("the site resting whole keeps naming the bare coordinate")
+    void theWholeSiteIsNotRepointed() {
+        Map<String, JsonTree> geometries = new LinkedHashMap<>();
+        geometries.put("Mesh#layer", shellMesh());
+        JsonTree models = models("Mesh#layer", List.of("shell"), Map.of());
+        models.put("minecraft:whole",
+            models("Mesh#layer", List.of(), Map.of()).getObject("minecraft:test"));
+
+        EntityMeshMarking.apply(diagnostics, models, geometries);
+
+        assertEquals("Mesh#layer", geometryOf(models, "minecraft:whole"),
+            "nothing was done to its mesh, so nothing repoints it");
+        assertEquals("Mesh#layer@rest=shell", geometryOf(models, "minecraft:test"),
+            "the resting site names the mesh minted for it");
+    }
+
+    /** The mesh one subject's adult age option names. */
+    private static String geometryOf(@NotNull JsonTree models, @NotNull String id) {
+        return models.getObject(id).getObject("axes").getObject("age")
+            .getObject("options").getObject("adult").getString("geometry", null);
+    }
+
 }
