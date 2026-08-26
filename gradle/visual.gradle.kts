@@ -34,6 +34,13 @@ val visualSweepProducers = mapOf(
     "projectionSmoke" to "projection-smoke"
 )
 
+// The names `parity.gradle.kts` sums for `visualSweepSet`'s own wall time. An aggregator does its
+// work through `dependsOn`, so the span between its own `doFirst` and `doLast` opens only once every
+// one of these has finished and rounds to zero - which is why `manifest.visual` carried no duration
+// and the budget printed as a floor rather than a cost. It crosses as a VALUE because an applied
+// script sees no declaration of a sibling's, and this one is applied first.
+extra["visualSweepProducerNames"] = visualSweepProducers.keys.toList()
+
 tasks {
 // Visual diagnostics - main() entry points in src/test/java/lib/minecraft/renderer/visual/.
 // Run with `./gradlew tasks --group visual` to list. Outputs land under cache/visual/.

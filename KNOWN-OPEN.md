@@ -4,9 +4,9 @@ Items that are open and unowned: a decision nobody has taken, or a capability so
 already claims and does not have. They live here because the alternative is a working note that gets
 deleted, and then the same investigation runs a second time.
 
-What does **not** belong here. A refusal that stays refused is a decision - `CLAUDE.md`'s *Decisions
-that stay closed*. A measurement belongs in the commit that made it, and in the `reason` recorded
-with the baseline it moved.
+What does **not** belong here. A refusal that stays refused is a decision - `RENDERER-RULES.md`'s
+*Decisions that stay closed*, or `tooling/CLAUDE.md`'s. A measurement belongs in the commit that made
+it, and in the `reason` recorded with the baseline it moved.
 
 Delete an entry when it closes.
 
@@ -49,35 +49,10 @@ a channel map the flag shed empties, so its pins move with the emitter. Closing 
 harness stride (WALK gets a reference, the thirteen become measurable, and the genuinely dead rest
 shed behind them) or an owner ruling that the offline renderer never plays a state-driven clip.
 
-## The budget prints as a floor, and three mechanisms keep twelve artifacts out of it
+## Two aggregator rows still carry no duration
 
-`parityPlan`'s BUDGET line sums each planned artifact's `last_duration_ms`, and twelve of the
-store's twenty-six baselined rows carry none - so the line reads as a floor rather than a cost, and a
-bundle whose measured half is a two-second table and whose unmeasured half boots the client prints
-comfortably under the rule that decides whether to background it. Three independent mechanisms hold
-it there and none of them is neglect.
-
-**A capture stamps a wall time only for a producer that ran to completion in that invocation.** The
-build times each producer between its own `doFirst` and `doLast` and passes the sum as `--wall-time`
-only when it exceeds zero, so an up-to-date producer and a producer whose suite failed both record
-nothing. That half closes by forcing re-execution on a green tree, and it is why `entity_models`'
-own row carried no duration through the promotion that re-based it: `test` was red in that capture,
-so the hook never fired.
-
-**An aggregator producer can never stamp one.** `visualSweepSet` and `playerRawSweepSet` do their
-work through `dependsOn` alone, so the span between their own `doFirst` and `doLast` opens after
-every dependency has finished and rounds to zero. `manifest.visual` and `manifest.player-raw` are the
-two rows that follow, and no forced re-run reaches them - measured null over three runs each.
-
-**A measured duration cannot be promoted on its own.** `parityPromote` skips a row whose content is
-unchanged before it reads the file, so the index row carrying `last_duration_ms` is never rebuilt: a
-timing refresh over ten rows reported `promoted 0: nothing` with every capture carrying a wall time.
-A duration therefore lands only as a side effect of a promotion that also moves content, and the rows
-that never move are exactly the rows that never get one.
-
-What the producers actually cost, measured over three sequential forced re-runs each under no other
-load: `test` 8131/8133/9128 ms, `slowTest` 22053/22150/20402 ms, `fluidRenderer` 12228/12316/12497 ms,
-`portalRenderer` 148026/146600/147676 ms. The portal alone outruns the threshold that decides whether
-a capture is backgrounded, which no budget has ever said. Closing this is two small changes rather
-than a phase - let an unchanged row still refresh its recorded duration, and give an aggregator the
-sum of its dependencies' - and the numbers above are what they would record.
+`manifest.visual` and `manifest.player-raw` are the last rows whose `last_duration_ms` is unset, so
+`parityPlan`'s BUDGET still prints as a floor wherever either is planned. Nothing is wrong with them:
+their producers aggregate through `dependsOn` and could not stamp a wall time at all until the build
+learned to sum a dependency's, and no capture has run since it did. The next capture of either
+records one, and this closes when it has.

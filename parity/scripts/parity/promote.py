@@ -315,17 +315,25 @@ def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry],
     straight into the store, and its one byte form - LF, UTF-8 without a BOM, one trailing newline -
     would hold only by luck.
 
-    An ``unchanged`` entry is skipped before its file is even read: no artifact byte is written for
-    it and ``index["artifacts"]`` is only assigned inside the same loop, so the row it already had -
-    ``promoted_at`` included - is carried through from the store as it stood. Widening a promotion
-    past the rows that moved therefore rewrites nothing extra. ``plan`` classifies on a
+    An ``unchanged`` entry writes no artifact byte and keeps the row it already had - ``promoted_at``
+    included - so widening a promotion past the rows that moved rewrites nothing extra. Its capture is
+    still read for one field: ``wall_time_ms`` is a property of the RUN rather than of the value, so a
+    row whose value never moves would otherwise never carry a duration at all, which is what put
+    twelve of them outside the budget and left it printing as a floor. ``plan`` classifies on a
     provenance-stripped digest, so a re-capture of an artifact whose value did not move is
-    ``unchanged`` even though its provenance records a different run.
+    ``unchanged`` even though its provenance records a different run - which is precisely the run
+    worth timing.
     """
     index = target.index()
     written = []
+    refreshed = []
     for entry in entries:
         if entry.action == "unchanged":
+            row = index["artifacts"].get(entry.artifact)
+            wall = read_json(root / entry.path).get("provenance", {}).get("wall_time_ms")
+            if row is not None and wall is not None and row.get("last_duration_ms") != wall:
+                row["last_duration_ms"] = wall
+                refreshed.append(entry.artifact)
             continue
         payload = read_json(root / entry.path)
         record = payload.setdefault("provenance", {})
@@ -348,7 +356,8 @@ def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry],
     index.setdefault("key", "artifact")
     index.setdefault("kind", "index")
     write_json(target.path("report.oracle-index"), index)
-    return {"promoted": written, "reason": reason, "parity_class": parity_class}
+    return {"promoted": written, "refreshed": refreshed, "reason": reason,
+            "parity_class": parity_class}
 
 
 def _index_row(entry: Entry, payload: dict, floor: int) -> dict:

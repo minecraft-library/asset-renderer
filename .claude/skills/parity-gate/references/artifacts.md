@@ -48,19 +48,19 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 23309 ms | yes |
 | `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 23309 ms | yes |
 | `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 17186 ms | yes |
-| `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | - | yes |
-| `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | - | yes |
+| `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 12316 ms | yes |
+| `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 147676 ms | yes |
 | `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 45784 ms | yes |
-| `digest.shipped-tables` | digest-set | STORE | `test` | 1 | 1 | 11 | - | yes |
-| `digest.colormap-lut` | digest-set | STORE | `slowTest` | 1 | 2 | 3 | - | yes |
+| `digest.shipped-tables` | digest-set | STORE | `test` | 1 | 1 | 11 | 8133 ms | yes |
+| `digest.colormap-lut` | digest-set | STORE | `slowTest` | 1 | 2 | 3 | 22053 ms | yes |
 | `digest.dump-sections` | - | EXTERNAL | - | - | - | - | - | - |
-| `pin.vanilla-iso-pose` | pin-set | STORE | `test` | 1 | 2 | 1 | - | yes |
-| `pin.kit-corners` | pin-set | STORE | `test` | 1 | 2 | 1 | - | yes |
+| `pin.vanilla-iso-pose` | pin-set | STORE | `test` | 1 | 2 | 1 | 8133 ms | yes |
+| `pin.kit-corners` | pin-set | STORE | `test` | 1 | 2 | 1 | 8133 ms | yes |
 | `pin.corpus-count` | pin-set | STORE | `test` | 1 | 1 | 4 | 6718 ms | yes |
-| `pin.player-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | - | yes |
-| `pin.block-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 3 | - | yes |
-| `pin.portal-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 2 | - | yes |
-| `pin.fluid-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 13 | - | yes |
+| `pin.player-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | 22053 ms | yes |
+| `pin.block-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 3 | 22053 ms | yes |
+| `pin.portal-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 2 | 22053 ms | yes |
+| `pin.fluid-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 13 | 22053 ms | yes |
 | `pin.armor-span` | - | SOURCE | - | - | - | - | - | - |
 | `pin.tick-lattice` | - | EXTERNAL | - | - | - | - | - | - |
 | `roster.humanoid-armor` | - | SOURCE | - | - | - | - | - | - |

@@ -505,6 +505,21 @@ val parityArtifacts = listOf(
 val parityProducerNames: Set<String> = parityArtifacts.flatMap { it.producers }.toSet()
 
 /**
+ * The producers whose OWN wall time is zero by construction, against the names to sum in its place.
+ *
+ * An aggregator does its work through `dependsOn`, so its own span opens only once every dependency
+ * has finished and rounds to zero. Declared rather than walked off the task graph, because which
+ * dependencies a row's budget should COUNT is a decision rather than a fact - `visualSweepClean` is a
+ * dependency of `visualSweepSet` and is not work the budget is about - and because a name typed here
+ * fails loudly at configuration where a graph walk would answer zero in silence, which is the failure
+ * this exists to end.
+ */
+val parityAggregatedProducers: Map<String, List<String>> = mapOf(
+    "visualSweepSet" to (extra["visualSweepProducerNames"] as List<*>).map { it.toString() },
+    "playerRawSweepSet" to listOf("playerParityVanilla", "armorParityVanilla")
+)
+
+/**
  * How long each producer that ran took, in milliseconds, filled as each one finishes.
  *
  * This is what a capture stamps as its row's wall time, and it is the producers rather than the
@@ -1492,12 +1507,22 @@ tasks {
     // whatever its type: the two whole-suite rows are Test tasks and the reference render is an Exec,
     // and a budget missing those is a budget missing the expensive half. `doFirst` prepends, so the
     // start is taken before any action the task already carries.
-    parityProducerNames.forEach { producer ->
+    //
+    // An AGGREGATOR is the shape that reading its own span misses. A producer that does its work
+    // through `dependsOn` alone opens its own `doFirst` only once every dependency has finished, so
+    // the span rounds to zero, the sum below never exceeds it, and no `--wall-time` is passed at all -
+    // which is why the two of them carried no duration and the budget printed as a floor. Their
+    // dependencies are timed here too and summed instead, the aggregator's `doLast` running after
+    // every one of theirs. `maxOf` rather than the sum outright, so a producer that really does its
+    // own work still answers for it.
+    (parityProducerNames + parityAggregatedProducers.values.flatten()).forEach { producer ->
         named(producer) {
             val startedAt = AtomicLong()
             doFirst { startedAt.set(System.nanoTime()) }
             doLast {
-                parityProducerElapsedMs[name] = (System.nanoTime() - startedAt.get()) / 1_000_000L
+                val own = (System.nanoTime() - startedAt.get()) / 1_000_000L
+                val viaDeps = parityAggregatedProducers[name].orEmpty().sumOf { parityProducerElapsedMs[it] ?: 0L }
+                parityProducerElapsedMs[name] = maxOf(own, viaDeps)
             }
         }
     }}

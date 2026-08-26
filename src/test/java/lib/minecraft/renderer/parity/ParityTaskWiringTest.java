@@ -911,11 +911,17 @@ final class ParityTaskWiringTest {
     void theCaptureStampsWhatItsProducersCost() {
         assertThat("measured on the producers rather than on the step, which runs after them and "
                 + "takes milliseconds - the question the budget answers is whether to background a "
-                + "twenty-minute render",
+                + "twenty-minute render. An AGGREGATOR is what reading its own span alone misses: a "
+                + "producer working through `dependsOn` opens its own `doFirst` only once every "
+                + "dependency has finished, so the span rounds to zero and no wall time is passed at "
+                + "all, which is what kept two rows out of the budget. `maxOf` rather than the sum "
+                + "outright, so a producer that really does its own work still answers for it",
             collapsed(buildFile()),
             containsString("doFirst { startedAt.set(System.nanoTime()) } "
-                + "doLast { parityProducerElapsedMs[name] = "
-                + "(System.nanoTime() - startedAt.get()) / 1_000_000L }"));
+                + "doLast { val own = (System.nanoTime() - startedAt.get()) / 1_000_000L "
+                + "val viaDeps = parityAggregatedProducers[name].orEmpty()"
+                + ".sumOf { parityProducerElapsedMs[it] ?: 0L } "
+                + "parityProducerElapsedMs[name] = maxOf(own, viaDeps) }"));
         assertThat("and appended where the answer exists, guarded on something having run: a zero "
                 + "stamped for a producer the invocation never scheduled is summed by the plan's "
                 + "budget as an artifact that costs nothing",
