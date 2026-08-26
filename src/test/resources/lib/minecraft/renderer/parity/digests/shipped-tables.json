@@ -40,7 +40,7 @@
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "245c2d072c8d76b3d21d0c19dbb1b0098f34ed28ff592da6542851d2229f47fd"
+      "sha256": "928ddd1185024787eb7586126996c21a4777a69aa94a5e19bb4e74f725d4cb1c"
     },
     "entity_poses": {
       "form": "table-canonical",
@@ -63,8 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
+    "asset_content_digest": "6b772d31451618933230583f6247ae5eff4d6a56d9f4f3a45f4a9019e57158f4",
     "asset_dirty": false,
-    "asset_sha": "461817e369d5cb18271767b33680e9904a44bd40",
+    "asset_sha": "97a5519f93b2e25802d2e93cfebe213c9ab4f374",
     "counts": {
       "digests": 11
     },
@@ -73,9 +74,9 @@
       "gson": "2.13.2"
     },
     "mc_version": "26.1.2",
-    "parity_class": "shaped",
+    "parity_class": "moving",
     "producer": "test",
-    "reason": "the horse marking folds into the overlay mechanism: its markings node becomes an overlays row carrying the body's own geometry coordinate, and the enum-map walk reads the adult/baby pair vanilla binds each marking to instead of the first literal alone, so the row ships a baby node. 5 movers, all of them tables this change rewrites; every sweep held at zero, including sweep.entity's four marked horse rows, and the baby marking was measured by hand at 10 byte-identical horse renders",
+    "reason": "the collar folds into the overlay mechanism the marking fold-in proved: its node becomes an overlays row carrying the body's own geometry coordinate with a real when on the collared flag, so entity_models ships the two collar nodes rewritten in place. That landed without a store pass, leaving the entity_models pin red by design. 5 moved values over 4 artifacts - the shipped-table digest, both dump manifests' entities.json, and the tooling manifest's entity_models.json beside its entityModels log - and every sweep held at zero over the 20 artifacts captured, sweep.entity's collar rows included",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,7 +85,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-25T15:56:51Z",
+    "timestamp": "2026-08-26T01:40:11Z",
     "tool_version": "1.0.0"
   }
 }
