@@ -1220,12 +1220,13 @@ tasks {
     register<Exec>("parityExpect") {
         description = "Registers the movers this change intends into the working root's expected-diff, which is what " +
             "makes the gate diff == expected rather than diff == empty. The manifest survives the capture wipe, so a " +
-            "previous change's registration stands until this clears it. -PexpectEmpty | -Partifact= -Pkey= -Pto= " +
-            "-Preason= | -Partifact= -Punproduced -Preason="
+            "previous change's registration stands until this clears it. -PexpectEmpty | -PfromVerdict -Preason= | " +
+            "-Partifact= -Pkey= -Pto= -Preason= | -Partifact= -Punproduced -Preason="
         group = "parity"
         dependsOn("paritySelfTest")
         requireParityRootUnderCache()
         val empty = parityFlag("expectEmpty")
+        val fromVerdict = parityFlag("fromVerdict")
         val unproduced = parityFlag("unproduced")
         val artifact = parityProperty("artifact")
         val key = parityProperty("key")
@@ -1249,13 +1250,30 @@ tasks {
         // so an argv that reached it under-specified would be refused there rather than erasing the
         // registration a previous invocation left - which is what a fallback to --empty does.
         refuseWhenScheduled {
-            if (empty && (given.isNotEmpty() || unproduced))
+            if (empty && (given.isNotEmpty() || unproduced || fromVerdict))
                 throw GradleException(
                     "parityExpect was given -PexpectEmpty and " +
-                        "${(given + listOfNotNull("unproduced".takeIf { unproduced }))
+                        "${(given + listOfNotNull("unproduced".takeIf { unproduced },
+                                                  "fromVerdict".takeIf { fromVerdict }))
                             .joinToString { "-P$it" }} together: a clear and a registration are two " +
                         "different orders, and one of them would be silently dropped. Clear first, " +
                         "then register.")
+            // What -PfromVerdict registers is READ, so a row or a value typed beside it is refused
+            // rather than losing to the verdict in silence. -Partifact still narrows, and -Preason
+            // is owed for the same reason a hand-written registration owes one.
+            if (fromVerdict && (key != null || to != null || unproduced))
+                throw GradleException(
+                    "parityExpect was given -PfromVerdict with " +
+                        "${listOfNotNull("key".takeIf { key != null }, "to".takeIf { to != null },
+                                         "unproduced".takeIf { unproduced })
+                            .joinToString { "-P$it" }}: what it registers is read out of the verdict, " +
+                        "so a row or a value given beside it would be dropped. Use -PfromVerdict " +
+                        "alone, or register the row by hand.")
+            if (fromVerdict && reason == null)
+                throw GradleException(
+                    "parityExpect -PfromVerdict needs -Preason=<why>: a mover nobody accounted for " +
+                        "is the finding rather than a state to wave through, and that holds however " +
+                        "the registration was written.")
             if (unproduced && (key != null || to != null))
                 throw GradleException(
                     "parityExpect was given -Punproduced with " +
@@ -1266,15 +1284,17 @@ tasks {
             if (unproduced && !registersUnproduced)
                 throw GradleException(
                     "parityExpect -Punproduced needs -Partifact=<id> and -Preason=<why>")
-            if (!empty && !unproduced && !registers)
+            if (!empty && !unproduced && !fromVerdict && !registers)
                 throw GradleException(
-                    "parityExpect needs -PexpectEmpty to clear the manifest, or all four of " +
+                    "parityExpect needs -PexpectEmpty to clear the manifest, -PfromVerdict -Preason=<why> " +
+                        "to register what the last compare found, or all four of " +
                         "-Partifact=<id> -Pkey=<row key> -Pto=<the value it must land on> -Preason=<why>")
         }
         parityToolkit(*buildList {
             add("expect")
             add("--root"); add(parityWorkingRoot)
             if (empty) add("--empty")
+            if (fromVerdict) add("--from-verdict")
             if (unproduced) add("--unproduced")
             artifact?.let { add("--artifact"); add(it) }
             key?.let { add("--key"); add(it) }
@@ -1352,7 +1372,8 @@ tasks {
 
     register<Exec>("parityCompare") {
         description = "Compares the parity working root against the production store (or -Pbase=<dir>) and fails " +
-            "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= -Pbootstrap"
+            "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= " +
+            "-Pbootstrap -Psummary -PphaseGate"
         group = "parity"
         dependsOn("paritySelfTest")
         // A compare reads what a capture wrote, so it never runs before one in the same invocation.
@@ -1377,6 +1398,12 @@ tasks {
         // one promotion that establishes it. Without this the toolkit's own refusal names a flag the
         // build never sends, so the first promotion of any artifact is unreachable through Gradle.
         val bootstrap = parityFlag("bootstrap")
+        val summary = parityFlag("summary")
+        // The operator's claim that this verdict speaks for the phase's CONTENT rather than for the
+        // one tree state it was taken at, so a phase gated once can land in as many commits as it
+        // has landable units. Opt-in: the strict default is what makes every commit after a gate
+        // ask again, and that is the hook working rather than a cost to remove.
+        val phaseGate = parityFlag("phaseGate")
         parityToolkit(*buildList {
             add("compare")
             add("--root"); add(parityWorkingRoot)
@@ -1384,6 +1411,8 @@ tasks {
             artifacts?.let { add("--artifacts"); add(it) }
             expected?.let { add("--expected"); add(it) }
             if (bootstrap) add("--bootstrap")
+            if (summary) add("--summary")
+            if (phaseGate) add("--phase-gate")
         }.toTypedArray())
         outputs.upToDateWhen { false }
     }
@@ -1434,14 +1463,19 @@ tasks {
     }
 
     register<Exec>("parityPlan") {
-        description = "Resolves which parity artifacts can SEE the working tree's change, prints SEES / BLIND / PLAN / " +
-            "BUDGET and writes _run/plan.json. Runs no producer and measures nothing. -Pchanged=<paths> -Pformat=json"
+        description = "Resolves which parity artifacts can SEE the change - what is uncommitted, or what the branch " +
+            "changed where nothing is - prints SEES / BLIND / PLAN / BUDGET and writes _run/plan.json. Runs no " +
+            "producer and measures nothing. -Pchanged=<paths> -Psince=<ref> -Pformat=json"
         group = "parity"
         // The only dependency, and deliberately not a producer of any kind: a plan a broken toolkit
         // produced is worse than no plan.
         dependsOn("paritySelfTest")
         requireParityRootUnderCache()
         val changed = parityProperty("changed")
+        // Which ref a CLEAN tree is measured from, the toolkit defaulting to the trunk merge-base.
+        // A phase that has already committed is the case: nothing is uncommitted, so the dirty set
+        // is empty and only the branch's own diff says what the phase did.
+        val since = parityProperty("since")
         val json = parityProperty("format") == "json"
         parityToolkit(*buildList {
             add("plan")
@@ -1450,6 +1484,7 @@ tasks {
             if (changed == null) add("--changed-from-git")
             else changed.split(",").map(String::trim).filter { it.isNotEmpty() }
                 .forEach { add("--changed"); add(it) }
+            since?.let { add("--since"); add(it) }
             if (json) { add("--format"); add("json") }
         }.toTypedArray())
         // A plan is a function of the working tree, which Gradle cannot see.

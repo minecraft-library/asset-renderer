@@ -472,17 +472,28 @@ final class ParityTaskWiringTest {
         assertThat("a clear and a registration in one invocation. Whichever is taken, the other is "
                 + "discarded without a word - and the one discarded by the argv below is the "
                 + "registration, so the command that named a row and a value reports a cleared "
-                + "manifest and exits 0. Both kinds of registration are counted, an unproduced row "
-                + "being a flag rather than a member of the list below",
+                + "manifest and exits 0. Every kind of registration is counted, an unproduced row and "
+                + "a read-from-the-verdict one being flags rather than members of the list below",
             block, containsString(
-                "if (empty && (given.isNotEmpty() || unproduced)) throw GradleException("));
+                "if (empty && (given.isNotEmpty() || unproduced || fromVerdict)) throw GradleException("));
         assertThat("and an incomplete registration, which is the refusal this task exists for: a "
                 + "-Pto is what makes a registration an assertion rather than a licence for the row "
                 + "to take any value at all. The `!empty` half is load-bearing in the other "
                 + "direction - dropped, the first line of the documented flow, a bare "
-                + "-PexpectEmpty, is refused for naming none of the four; the `!unproduced` half is "
-                + "the same clause for the registration that names two of them on purpose",
-            block, containsString("if (!empty && !unproduced && !registers) throw GradleException("));
+                + "-PexpectEmpty, is refused for naming none of the four; the `!unproduced` and "
+                + "`!fromVerdict` halves are the same clause for the two registrations that name "
+                + "fewer of them on purpose",
+            block, containsString(
+                "if (!empty && !unproduced && !fromVerdict && !registers) throw GradleException("));
+        assertThat("and a read-from-the-verdict registration given a row or a value, which is the "
+                + "refusal that keeps it honest: what it registers is READ, so a -Pkey or a -Pto "
+                + "beside it names something the verdict is about to overwrite",
+            block, containsString(
+                "if (fromVerdict && (key != null || to != null || unproduced)) throw GradleException("));
+        assertThat("and one naming no reason. Reading the movers out of the verdict is a spelling of "
+                + "the registration and never a licence to skip judging it, so the reason a "
+                + "hand-written registration owes is owed here too",
+            block, containsString("if (fromVerdict && reason == null) throw GradleException("));
         assertThat("and an unproduced registration given a value, which is the refusal that keeps "
                 + "the two kinds apart: what is wrong with an unproduced row is that it HAS no "
                 + "value, so a -Pkey or a -Pto would register a mover and cover nothing",

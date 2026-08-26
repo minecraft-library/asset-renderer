@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.parity.ParityJson;
+import lib.minecraft.renderer.parity.ParityStore;
 import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.parity.SelfCapture;
 import org.jetbrains.annotations.NotNull;
@@ -21,7 +22,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -116,16 +119,64 @@ class BundledResourceShaTest {
                 + "a table a flow added or dropped is a review, not a silent narrowing",
             Pins.keys(ARTIFACT), equalTo(List.copyOf(observed.keySet())));
 
+        Map<String, Set<String>> registered = registeredDigests();
         List<String> drift = new ArrayList<>();
         for (Map.Entry<String, String> table : observed.entrySet()) {
+            Set<String> declared = registered.get(table.getKey());
+            if (declared != null) {
+                // A move somebody wrote down, checked against the value they wrote rather than
+                // against the pin it is on its way to replacing.
+                if (!declared.contains(table.getValue()))
+                    drift.add(table.getKey() + ".json: registered to move to " + declared
+                        + " but actual " + table.getValue());
+                continue;
+            }
             String expected = Pins.digest(ARTIFACT, table.getKey());
             if (!expected.equals(table.getValue()))
-                drift.add(table.getKey() + ".json: pinned " + expected + " but actual " + table.getValue());
+                drift.add(table.getKey() + ".json: pinned " + expected + " but actual " + table.getValue()
+                    + " (register it with `./gradlew parityExpect -Partifact=" + ARTIFACT + " -Pkey="
+                    + table.getKey() + " -Pto=" + table.getValue() + " -Preason=<why>` if the move is intended)");
         }
         assertThat("bundled JSON drifted from the digests pinned in the parity store. If intentional, "
                 + "re-baseline it: " + Pins.rebaselineCommand(ARTIFACT)
                 + "\n" + String.join("\n", drift),
             drift, is(empty()));
+    }
+
+    /**
+     * The digests each table is registered to move to, out of the working root's expected-diff.
+     *
+     * <p>A phase that regenerates a table is red here from its first edit until the promote, which is
+     * a whole phase of the suite reporting a regression nobody is going to look at - and a standing
+     * red is what hides the next real one. A registration is what turns that move into a declared
+     * one: it names the table, the digest it must land on, and the reason it moved. So a registered
+     * table is checked against THAT value instead of against the pin.
+     *
+     * <p>It is exactly as strong a guard and not a suppression. A registration naming the wrong
+     * digest fails here the way the pin would, the value has to have been written down by somebody,
+     * and the manifest lives under the gitignored working root - so it cannot be committed, and a
+     * capture of a later phase clears it.
+     *
+     * @return the registered digests per table, empty where nothing is registered
+     */
+    private static @NotNull Map<String, Set<String>> registeredDigests() {
+        Path manifest = ParityStore.WORKING.resolve(ParityStore.RUN_DIR).resolve("expected-diff.json");
+        if (!Files.isRegularFile(manifest)) return Map.of();
+        Map<String, Set<String>> registered = new TreeMap<>();
+        try {
+            JsonObject payload = GSON.fromJson(Files.readString(manifest, StandardCharsets.UTF_8),
+                JsonObject.class);
+            if (payload == null || !payload.has("movers")) return Map.of();
+            for (JsonElement element : payload.getAsJsonArray("movers")) {
+                JsonObject row = element.getAsJsonObject();
+                if (!ARTIFACT.equals(row.get("artifact").getAsString())) continue;
+                registered.computeIfAbsent(row.get("key").getAsString(), key -> new TreeSet<>())
+                    .add(row.get("to").getAsString());
+            }
+        } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
+        }
+        return registered;
     }
 
     /**
