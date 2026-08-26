@@ -960,6 +960,10 @@ tasks.withType<Test>().configureEach {
     // BlindnessMapTest reads them back: a heading renamed there turns a citation into a dead one
     // with nothing in this file having moved.
     inputs.file("CLAUDE.md").withPropertyName("parityClaudeMd")
+    // RENDERER-RULES.md for the same reason, that file holding the sections the renderer's own
+    // claims cite. It is the other half of one check, so leaving it undeclared would let a heading
+    // move there against an UP-TO-DATE suite while the orientation beside it is watched.
+    inputs.file("RENDERER-RULES.md").withPropertyName("parityRendererRules")
     // The task registry itself, as this build answers it. ParityReferencesTest holds the generated
     // artifact reference's "tasks that carry no artifact id" table to real task names, and two of
     // those rows are tasks a plugin registers and this file never spells - so a check parsing the

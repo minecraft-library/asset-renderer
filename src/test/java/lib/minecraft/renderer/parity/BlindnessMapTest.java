@@ -221,7 +221,8 @@ final class BlindnessMapTest {
         "parityTestSources", "\"src/test/java\"",
         "parityMainSources", "\"src/main/java\"",
         "parityGitIndex", "\".git/index\"",
-        "parityClaudeMd", "\"CLAUDE.md\"");
+        "parityClaudeMd", "\"CLAUDE.md\"",
+        "parityRendererRules", "\"RENDERER-RULES.md\"");
 
     /**
      * The files the Gradle task registry is a function of.
@@ -362,8 +363,21 @@ final class BlindnessMapTest {
     /** The skill body, whose frontmatter is what decides when the gate is offered at all. */
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
 
-    /** The repository's own rules, whose headings the map's {@code source} column cites by name. */
+    /** The repository's orientation, whose headings the map's {@code source} column cites by name. */
     private static final Path CLAUDE_MD = Path.of("CLAUDE.md");
+
+    /** The renderer's own rules, the other file those citations name. */
+    private static final Path RENDERER_RULES = Path.of("RENDERER-RULES.md");
+
+    /**
+     * Every file a citation can name, keyed by the spelling the {@code source} column cites it under.
+     *
+     * <p>Two rather than one because the rules a claim came from sit beside the code they bind while
+     * the orientation stays small enough to load unread: a citation says which of the two holds the
+     * heading, and resolving one against the other file would report a live heading as dead.
+     */
+    private static final Map<String, Path> CITED_FILES =
+        Map.of("CLAUDE.md", CLAUDE_MD, "RENDERER-RULES.md", RENDERER_RULES);
 
     /**
      * The committed reference graph, which is what a rule declaring {@code derived} selects through.
@@ -387,8 +401,9 @@ final class BlindnessMapTest {
     /** One heading of a markdown file, at any level. */
     private static final Pattern MARKDOWN_HEADING = Pattern.compile("(?m)^#{1,6} (.+)$");
 
-    /** A citation naming a section of the repository's rules, as the {@code source} column spells one. */
-    private static final Pattern CLAUDE_MD_CITATION = Pattern.compile("CLAUDE\\.md '([^']*)'");
+    /** A citation naming a rules file and one of its sections, as the {@code source} column spells one. */
+    private static final Pattern SECTION_CITATION =
+        Pattern.compile("((?:RENDERER-RULES|CLAUDE)\\.md) '([^']*)'");
 
     /** What a rule's {@code source} says instead of a citation when this map is where a fact lives. */
     private static final String HOME_CLAIM = "moved out of CLAUDE.md and this map is its home";
@@ -413,13 +428,13 @@ final class BlindnessMapTest {
      * than lines, because these files wrap their prose and a rewrap is not a different statement.
      */
     private static final List<String> CLAUDE_MD_CUSTODY = List.of(
-        ".claude/skills/parity-gate/references/diagnostics.md: `CLAUDE.md` in the repo root carries "
-            + "the durable findings: the depth contract, the armour shell, the face vocabulary, the "
-            + "iso pose. Which artifacts see a given change is not one of them - that answer is "
-            + "`blindness.json`, which `parityPlan` resolves and `references/blindness.md` renders, "
-            + "and where a rule's claim did come from a section of `CLAUDE.md` the rule cites it by "
-            + "name. This file holds the *method* - how those were arrived at - and does not "
-            + "restate them.");
+        ".claude/skills/parity-gate/references/diagnostics.md: `RENDERER-RULES.md` in the repo root "
+            + "carries the durable findings: the depth contract, the armour shell, the face "
+            + "vocabulary, the iso pose. Which artifacts see a given change is not one of them - "
+            + "that answer is `blindness.json`, which `parityPlan` resolves and "
+            + "`references/blindness.md` renders, and where a rule's claim did come from a section "
+            + "of `RENDERER-RULES.md` or of `CLAUDE.md` the rule cites it by name. This file holds "
+            + "the *method* - how those were arrived at - and does not restate them.");
 
     /** One inline code span, which is how the skill body spells each trigger path. */
     private static final Pattern BACKTICKED = Pattern.compile("`([^`]+)`");
@@ -521,25 +536,33 @@ final class BlindnessMapTest {
     @Test
     @DisplayName("every CLAUDE.md section a rule cites is a heading CLAUDE.md still carries")
     void everyClaudeMdCitationNamesALiveHeading() {
-        Set<String> headings = new TreeSet<>();
-        Matcher heading = MARKDOWN_HEADING.matcher(text(CLAUDE_MD));
-        while (heading.find()) headings.add(heading.group(1).trim());
+        Map<String, Set<String>> headings = new TreeMap<>();
+        CITED_FILES.forEach((name, path) -> {
+            Set<String> own = new TreeSet<>();
+            Matcher heading = MARKDOWN_HEADING.matcher(text(path));
+            while (heading.find()) own.add(heading.group(1).trim());
+            headings.put(name, own);
+        });
 
         List<String> cited = new ArrayList<>();
         List<String> dead = new ArrayList<>();
         for (JsonObject rule : rules()) {
-            Matcher citation = CLAUDE_MD_CITATION.matcher(rule.get("source").getAsString());
+            Matcher citation = SECTION_CITATION.matcher(rule.get("source").getAsString());
             while (citation.find()) {
-                cited.add(rule.get("id").getAsString() + " -> " + citation.group(1));
-                if (!headings.contains(citation.group(1))) dead.add(cited.getLast());
+                cited.add(rule.get("id").getAsString() + " -> " + citation.group(1) + " '"
+                    + citation.group(2) + "'");
+                if (!headings.get(citation.group(1)).contains(citation.group(2)))
+                    dead.add(cited.getLast());
             }
         }
 
-        assertThat("CLAUDE.md carries no heading at all, so every citation below would read as dead "
-            + "and the failure would be in this walk rather than in the map", headings, is(not(empty())));
-        assertThat("no rule cites a CLAUDE.md section, so this case has no operand; it needs a "
-            + "different shape rather than deleting", cited, is(not(empty())));
-        assertThat("rules citing a CLAUDE.md section that file no longer has a heading for. A "
+        assertThat("a cited file carrying no heading at all, so every citation into it would read "
+            + "as dead and the failure would be in this walk rather than in the map",
+            headings.entrySet().stream().filter(file -> file.getValue().isEmpty()).map(Map.Entry::getKey)
+                .toList(), is(empty()));
+        assertThat("no rule cites a section of either rules file, so this case has no operand; it "
+            + "needs a different shape rather than deleting", cited, is(not(empty())));
+        assertThat("rules citing a section the file they name no longer has a heading for. A "
             + "`source` is where the claim came from, and a reader following one to a heading that "
             + "was deleted or renamed cannot tell a moved rule from an abandoned one - eleven of "
             + "these went dead in a single rebuild with nothing mechanical able to notice, because "
@@ -562,7 +585,7 @@ final class BlindnessMapTest {
                 .filter(paragraph -> CUSTODY.matcher(paragraph).find())
                 .map(paragraph -> path + ": " + paragraph))
             .toList();
-        String rulebook = text(CLAUDE_MD);
+        String rulebook = text(CLAUDE_MD) + "\n" + text(RENDERER_RULES);
         List<String> named = ParityArtifacts.ALL.stream()
             .map(ParityArtifacts.Registration::id)
             .filter(rulebook::contains)
@@ -581,12 +604,12 @@ final class BlindnessMapTest {
             + "with - a claim naming no section and an answer that is not a citation, so the check "
             + "above sees neither. A new statement of custody is a decision: make it agree with the "
             + "map, or record it here", custody, equalTo(CLAUDE_MD_CUSTODY));
-        assertThat("artifact ids CLAUDE.md names. A statement of what a gate sees has to name the "
-            + "gate, and a gate is an artifact of this store - so an id in that file is the answer "
-            + "those rows say moved out of it, growing a second home back where it was. The map is "
-            + "where the statement goes; citing a CLAUDE.md section as where a rule's claim came "
-            + "from is the other case, and the check above is what holds that citation live",
-            named, is(empty()));
+        assertThat("artifact ids the two rules files name. A statement of what a gate sees has to "
+            + "name the gate, and a gate is an artifact of this store - so an id in either file is "
+            + "the answer those rows say moved out of it, growing a second home back where it was. "
+            + "The map is where the statement goes; citing a section of one of them as where a "
+            + "rule's claim came from is the other case, and the check above is what holds that "
+            + "citation live", named, is(empty()));
     }
 
     /**
