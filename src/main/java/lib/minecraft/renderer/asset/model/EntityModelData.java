@@ -235,8 +235,30 @@ public class EntityModelData {
         private transient @NotNull Vector3f poseScale = UNIT_SCALE;
 
         /**
-         * Constructs a bone standing at no clip displacement, which is every bone a mesh is loaded
-         * with - only a posed frame writes one.
+         * Whether this bone draws where the subject rests. A bone the subject rests not drawing
+         * carries {@code false}; one that draws carries nothing, which is the default.
+         *
+         * <p>A bone that rests undrawn and names no {@link #toggle} can never draw at all, so the
+         * tooling omits it from the mesh entirely rather than shipping it hidden - which is why a
+         * {@code false} here always travels with a toggle.
+         */
+        private boolean visible = true;
+
+        /**
+         * The named selection that flips this bone's {@link #visible} state, or {@code null} when
+         * nothing flips it.
+         *
+         * <p>Which way a toggle points is read off the bone it moves rather than declared beside it:
+         * a donkey's chest rests undrawn and its {@code chest} selection draws it, where a goat's
+         * horns rest drawn and its {@code horn} selection hides them. One answer, taken from the mesh
+         * that renders.
+         */
+        private @Nullable String toggle = null;
+
+        /**
+         * Constructs a bone standing at no clip displacement and drawing at rest, which is every
+         * bone a mesh is loaded with - only a posed frame writes the first and only the tooling
+         * writes the second.
          *
          * @param pivot the parent-relative anchor its rotation is applied about
          * @param rotation its rotation about that anchor, in the parent's frame
@@ -250,7 +272,7 @@ public class EntityModelData {
             @NotNull EulerRotation bindPoseRotation, float scale,
             @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
 
-            this(pivot, rotation, bindPoseRotation, scale, cubes, parent, UNIT_SCALE);
+            this(pivot, rotation, bindPoseRotation, scale, cubes, parent, UNIT_SCALE, true, null);
         }
 
         /**
@@ -260,6 +282,78 @@ public class EntityModelData {
          */
         public boolean isPoseScaled() {
             return !UNIT_SCALE.equals(this.poseScale);
+        }
+
+        /**
+         * This bone seated at another anchor.
+         *
+         * @param newPivot the parent-relative anchor to seat it at
+         * @return an otherwise-identical bone anchored at {@code newPivot}
+         */
+        public @NotNull Bone withPivot(@NotNull Vector3f newPivot) {
+            return new Bone(newPivot, this.rotation, this.bindPoseRotation, this.scale, this.cubes,
+                this.parent, this.poseScale, this.visible, this.toggle);
+        }
+
+        /**
+         * This bone owning another cube list, which is how a subset and a subtree clear are taken.
+         *
+         * @param newCubes the cubes it owns instead
+         * @return an otherwise-identical bone owning {@code newCubes}
+         */
+        public @NotNull Bone withCubes(@NotNull ConcurrentList<Cube> newCubes) {
+            return new Bone(this.pivot, this.rotation, this.bindPoseRotation, this.scale, newCubes,
+                this.parent, this.poseScale, this.visible, this.toggle);
+        }
+
+        /**
+         * This bone hung off another parent, everything else about it untouched.
+         *
+         * @param newParent the parent bone's name, or {@code null} to make it a root
+         * @return an otherwise-identical bone parented to {@code newParent}
+         */
+        public @NotNull Bone withParent(@Nullable String newParent) {
+            return new Bone(this.pivot, this.rotation, this.bindPoseRotation, this.scale, this.cubes,
+                newParent, this.poseScale, this.visible, this.toggle);
+        }
+
+        /**
+         * This bone displaced by a clip.
+         *
+         * @param newPoseScale the per-axis scale the clip displaces it by
+         * @return an otherwise-identical bone carrying {@code newPoseScale}
+         */
+        public @NotNull Bone withPoseScale(@NotNull Vector3f newPoseScale) {
+            return new Bone(this.pivot, this.rotation, this.bindPoseRotation, this.scale, this.cubes,
+                this.parent, newPoseScale, this.visible, this.toggle);
+        }
+
+        /**
+         * This bone drawing the other way, which is what a selected {@link #toggle} does to it.
+         *
+         * @param drawn whether it draws
+         * @return itself when it already draws that way, else an otherwise-identical bone that does
+         */
+        public @NotNull Bone withVisible(boolean drawn) {
+            if (this.visible == drawn) return this;
+            return new Bone(this.pivot, this.rotation, this.bindPoseRotation, this.scale, this.cubes,
+                this.parent, this.poseScale, drawn, this.toggle);
+        }
+
+        /**
+         * This bone where a pose leaves it - placed, turned and scaled together, because a pose
+         * writes the three as one frame and a chain composition reads them as one.
+         *
+         * @param newPivot the anchor the pose places it at
+         * @param newRotation the rotation the pose turns it to
+         * @param newScale the factor the pose scales it by
+         * @return an otherwise-identical bone standing where the pose puts it
+         */
+        public @NotNull Bone withPose(
+            @NotNull Vector3f newPivot, @NotNull EulerRotation newRotation, float newScale) {
+
+            return new Bone(newPivot, newRotation, this.bindPoseRotation, newScale, this.cubes,
+                this.parent, this.poseScale, this.visible, this.toggle);
         }
 
     }

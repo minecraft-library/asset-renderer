@@ -298,8 +298,7 @@ public final class PoseKit {
                 "entity pose: bone '%s' is scaled by its model and by a clip, which one factor cannot hold",
                 name);
 
-        return new EntityModelData.Bone(bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
-            bone.getScale(), bone.getCubes(), bone.getParent(), new Vector3f(1f + x, 1f + y, 1f + z));
+        return bone.withPoseScale(new Vector3f(1f + x, 1f + y, 1f + z));
     }
 
     /**
@@ -353,19 +352,16 @@ public final class PoseKit {
                 "entity pose: bone '%s' is the root of a mesh flattened at '%s' and the pose places it, "
                     + "which that factor alone does not answer",
                 name, flattened);
-        return new EntityModelData.Bone(
+        // Placed, turned and scaled through one copy: what a clip scales the bone by, and which
+        // selection draws it, were both settled before this ran, and a positional rebuild is what
+        // would put either back at its default.
+        return bone.withPose(
             placed,
             new EulerRotation(
                 degrees(written, PoseChannel.X_ROT, rotation.pitch(), rotation.pitchRadians()),
                 degrees(written, PoseChannel.Y_ROT, rotation.yaw(), rotation.yawRadians()),
                 degrees(written, PoseChannel.Z_ROT, rotation.roll(), rotation.rollRadians())),
-            bone.getBindPoseRotation(),
-            scale(written, name, bone.getScale()),
-            bone.getCubes(),
-            bone.getParent(),
-            // Carried rather than defaulted: what a clip scales the bone by was settled before this
-            // ran, and the six-argument form would put it back at rest.
-            bone.getPoseScale());
+            scale(written, name, bone.getScale()));
     }
 
     /** A channel the pose wrote, or the mesh's own where it wrote none. */
@@ -505,8 +501,7 @@ public final class PoseKit {
     private static @NotNull EntityModelData.Bone reparented(
         @NotNull EntityModelData.Bone bone, @NotNull String parent) {
 
-        return new EntityModelData.Bone(bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
-            bone.getScale(), bone.getCubes(), parent);
+        return bone.withParent(parent);
     }
 
     /** Whether a bone hangs from the root, by the same three tests the chain composition applies. */

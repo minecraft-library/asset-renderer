@@ -752,6 +752,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/model/BoneCopyTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/model/EntityModelData": {
       "artifacts": [
         "digest.colormap-lut",

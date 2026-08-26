@@ -118,9 +118,8 @@ public class ElytraKit {
         if (dy == 0f) return mesh;
         ConcurrentLinkedMap<String, EntityModelData.Bone> seated = Concurrent.newLinkedMap();
         // New bones: the authored meshes are shared constants, so the seat must never mutate them.
-        mesh.getBones().forEach((name, bone) -> seated.put(name, new EntityModelData.Bone(
-            new Vector3f(bone.getPivot().x(), bone.getPivot().y() + dy, bone.getPivot().z()),
-            bone.getRotation(), bone.getBindPoseRotation(), bone.getScale(), bone.getCubes(), bone.getParent())));
+        mesh.getBones().forEach((name, bone) -> seated.put(name, bone.withPivot(
+            new Vector3f(bone.getPivot().x(), bone.getPivot().y() + dy, bone.getPivot().z()))));
         return new EntityModelData(mesh.getTextureSize(), mesh.getInventoryYRotation(), seated, mesh.isCull());
     }
 
