@@ -45,8 +45,8 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 3042 | 138730 ms | yes |
 | `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | - | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | - | yes |
-| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 24604 ms | yes |
-| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 24604 ms | yes |
+| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 22539 ms | yes |
+| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 22539 ms | yes |
 | `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 17186 ms | yes |
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 12316 ms | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 147676 ms | yes |
