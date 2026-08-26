@@ -340,6 +340,19 @@ emitted bytes against a capture from the clean tree taken before the first edit 
 what makes that non-destructive. Diff the diagnostics log too: a byte-identical table is not an
 unchanged run.
 
+**Diff the emitted bytes MEMBER BY MEMBER, not just for equality**, and do it before the commit
+rather than after the suite. A pass here edits a shared tree in place, so its blast radius is every
+member of every node it walks and both suites stay green over the parts it should not have touched.
+Two shapes this has already caught, neither of which any test would have:
+
+- **A strip that runs where it was not wanted.** A pass taking members off the node it derived from
+  took the same members off every node it merely VISITED, and an armour row's `grow` - the two layer
+  deformations, nothing to do with a pass's inflate - went with them on fourteen subjects. A
+  surgery's own members are what it may remove, and only on a node it is actually deriving.
+- **Identity that is not identity.** `JsonTree` wraps a fresh object per access, so tracking nodes in
+  an `IdentityHashMap` or a `Collections.newSetFromMap` silently never matches and every membership
+  test answers false. Discriminate on what a node CARRIES, never on which object came back.
+
 `PolicyPurityTest` and `GeometryRefClosureTest` hold filesystem paths relative to the renderer root.
 A directory move breaks them at runtime rather than at compile time.
 
