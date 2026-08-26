@@ -1127,8 +1127,10 @@ public final class EntityIndexBuilder {
      * the subject is not. A zombie nautilus is what that looks like - its {@code corals} group left,
      * and four sprigs of coral floating clear of the shell. The closure runs here, per mesh, because
      * one family list serves the body and every coat and a subtree is each mesh's own.
+     *
+     * <p>Package-private so the closure can be pinned on a fixture mesh directly.
      */
-    private static @NotNull EntityModelData applyUndrawn(
+    static @NotNull EntityModelData applyUndrawn(
         @NotNull EntityModelData model,
         @Nullable List<String> undrawn,
         @NotNull String entityId
@@ -1177,8 +1179,10 @@ public final class EntityIndexBuilder {
      * a bone keeps its cubes iff it is named AND no ancestor is (vanilla's {@code clearRecursively} empties a
      * retained part's descendant subtree). Every other bone is kept as a pose-only node so the transform
      * hierarchy stays intact.
+     *
+     * <p>Package-private so the subset rule can be pinned on a fixture mesh directly.
      */
-    private static @NotNull EntityModelData retainExactParts(@NotNull EntityModelData source, @NotNull List<String> retainBones) {
+    static @NotNull EntityModelData retainExactParts(@NotNull EntityModelData source, @NotNull List<String> retainBones) {
         Set<String> retain = new LinkedHashSet<>();
         for (String el : retainBones)
             if (el != null) retain.add(el);
@@ -1190,9 +1194,7 @@ public final class EntityIndexBuilder {
             if (keepCubes || bone.getCubes().isEmpty()) {
                 out.put(e.getKey(), bone);
             } else {
-                out.put(e.getKey(), new EntityModelData.Bone(
-                    bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
-                    bone.getScale(), Concurrent.adoptList(new ArrayList<>()), bone.getParent()));
+                out.put(e.getKey(), bone.withCubes(Concurrent.adoptList(new ArrayList<>())));
             }
         }
         return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(out), source.isCull());
@@ -1230,9 +1232,7 @@ public final class EntityIndexBuilder {
             if (!cleared || bone.getCubes().isEmpty()) {
                 out.put(e.getKey(), bone);
             } else {
-                out.put(e.getKey(), new EntityModelData.Bone(
-                    bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
-                    bone.getScale(), Concurrent.adoptList(new ArrayList<>()), bone.getParent()));
+                out.put(e.getKey(), bone.withCubes(Concurrent.adoptList(new ArrayList<>())));
             }
         }
         return Optional.of(new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(),
@@ -1251,11 +1251,6 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * Returns a deep-cloned copy of {@code model} with every cube's grow bumped by {@code delta} on every
-     * axis - surrounding the base mesh with the inflated overlay instead of z-fighting it. Bones, pivots,
-     * rotations, UVs, and parent links are preserved verbatim.
-     */
-    /**
      * Translates a whole mesh along Y by a vanilla {@code PoseStack} distance in blocks - the
      * {@code setupRotations} shift, applied as mesh surgery.
      *
@@ -1270,11 +1265,13 @@ public final class EntityIndexBuilder {
      * the sign flips on the way in. Only root bones move: a child's pivot is relative to its parent, so
      * the whole tree follows them.
      *
+     * <p>Package-private so the translation can be pinned on a fixture mesh directly.
+     *
      * @param source the mesh to translate
      * @param blocks the vanilla translation in blocks, {@code 0f} to return the source untouched
      * @return the translated mesh, or {@code source} when there is nothing to apply
      */
-    private static @NotNull EntityModelData shiftModel(@NotNull EntityModelData source, float blocks) {
+    static @NotNull EntityModelData shiftModel(@NotNull EntityModelData source, float blocks) {
         if (blocks == 0f) return source;
         float delta = -blocks * MODEL_UNITS_PER_BLOCK;
         LinkedHashMap<String, EntityModelData.Bone> shifted = new LinkedHashMap<>();
@@ -1285,16 +1282,24 @@ public final class EntityIndexBuilder {
                 continue;
             }
             Vector3f pivot = bone.getPivot();
-            shifted.put(e.getKey(), new EntityModelData.Bone(
-                new Vector3f(pivot.x(), pivot.y() + delta, pivot.z()),
-                bone.getRotation(), bone.getBindPoseRotation(),
-                bone.getScale(), bone.getCubes(), bone.getParent()));
+            shifted.put(e.getKey(), bone.withPivot(new Vector3f(pivot.x(), pivot.y() + delta, pivot.z())));
         }
         return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(),
             Concurrent.adoptLinkedMap(shifted), source.isCull());
     }
 
-    private static @NotNull EntityModelData inflateModel(@NotNull EntityModelData source, float delta) {
+    /**
+     * Returns a deep-cloned copy of {@code source} with every cube's grow bumped by {@code delta} on
+     * every axis - surrounding the base mesh with the inflated overlay instead of z-fighting it. Bones,
+     * pivots, rotations, UVs, and parent links are preserved verbatim.
+     *
+     * <p>Package-private so the inflate can be pinned on a fixture mesh directly.
+     *
+     * @param source the mesh to inflate
+     * @param delta the amount added to every cube's grow on every axis
+     * @return the inflated mesh
+     */
+    static @NotNull EntityModelData inflateModel(@NotNull EntityModelData source, float delta) {
         LinkedHashMap<String, EntityModelData.Bone> inflated = new LinkedHashMap<>();
         for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {
             EntityModelData.Bone bone = e.getValue();
@@ -1306,9 +1311,7 @@ public final class EntityIndexBuilder {
                     new Vector3f(grow.x() + delta, grow.y() + delta, grow.z() + delta), cube.isMirror(),
                     cube.getPivot(), cube.getRotation(), cube.getFaceUv()));
             }
-            inflated.put(e.getKey(), new EntityModelData.Bone(
-                bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
-                bone.getScale(), Concurrent.adoptList(cubes), bone.getParent()));
+            inflated.put(e.getKey(), bone.withCubes(Concurrent.adoptList(cubes)));
         }
         return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(inflated), source.isCull());
     }

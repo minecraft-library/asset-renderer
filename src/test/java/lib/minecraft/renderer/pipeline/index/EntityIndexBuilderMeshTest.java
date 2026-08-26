@@ -4,17 +4,20 @@ import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Mesh-surgery contract tests for {@link EntityIndexBuilder}, exercised on a hand-built fixture rather
@@ -24,6 +27,10 @@ import static org.hamcrest.Matchers.is;
 class EntityIndexBuilderMeshTest {
 
     private static final String ENTITY = "minecraft:test_villager";
+
+    /** Model units per block, the factor a {@code y_shift} crosses on its way onto the mesh. */
+    private static final float MODEL_UNITS_PER_BLOCK = 16f;
+
     /**
      * The villager bone shape: {@code head} carries {@code hat} (which carries {@code hat_rim}) and
      * {@code nose}, alongside an untouched {@code body} / {@code right_leg} pair. Every bone owns one
@@ -40,10 +47,179 @@ class EntityIndexBuilderMeshTest {
         return new EntityModelData(TextureSize.DEFAULT, 0f, Concurrent.adoptLinkedMap(bones), false);
     }
 
-    private static EntityModelData.Bone bone(Vector3f pivot, String parent) {
-        return new EntityModelData.Bone(pivot, EulerRotation.NONE, EulerRotation.NONE, 1f,
-            Concurrent.newList(new EntityModelData.Cube()), parent);
+    /**
+     * The zombie-nautilus shape, declared so a grandchild precedes its parent and the parent precedes
+     * ITS parent - the ordering a single closure pass gets wrong. Stripping {@code shell} has to reach
+     * {@code coral_tip} through {@code corals}, which is only visible on the second pass.
+     */
+    private static EntityModelData childBeforeParentFixture() {
+        LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
+        bones.put("coral_tip", bone(new Vector3f(0f, 1f, 0f), "corals"));
+        bones.put("corals", bone(new Vector3f(0f, 2f, 0f), "shell"));
+        bones.put("shell", bone(new Vector3f(0f, 3f, 0f), null));
+        bones.put("body", bone(new Vector3f(0f, 4f, 0f), null));
+        return new EntityModelData(TextureSize.DEFAULT, 0f, Concurrent.adoptLinkedMap(bones), false);
     }
+
+    private static EntityModelData.Bone bone(Vector3f pivot, String parent) {
+        return bone(pivot, parent, 0.25f);
+    }
+
+    /** One bone owning a single fully-populated cube, so a surgery's pass-through is observable. */
+    private static EntityModelData.Bone bone(Vector3f pivot, String parent, float grow) {
+        EntityModelData.Cube cube = new EntityModelData.Cube(
+            new Vector3f(1f, 2f, 3f), new Vector3f(4f, 5f, 6f), new Vector2f(7f, 8f),
+            new Vector3f(grow, grow, grow), true, new Vector3f(9f, 10f, 11f),
+            EulerRotation.NONE, Concurrent.newMap());
+        return new EntityModelData.Bone(pivot, EulerRotation.NONE, EulerRotation.NONE, 1f,
+            Concurrent.newList(cube), parent);
+    }
+
+    // ------------------------------------------------------------------------------------
+    // applyUndrawn
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a bone that rests undrawn takes its whole subtree with it")
+    void applyUndrawnTakesTheSubtreeWithTheNamedBone() {
+        EntityModelData stripped = EntityIndexBuilder.applyUndrawn(fixture(), List.of("head"), ENTITY);
+
+        for (String name : new String[]{"head", "hat", "hat_rim", "nose"})
+            assertThat("the " + name + " subtree bone is gone", stripped.getBones().containsKey(name), is(false));
+        for (String name : new String[]{"body", "right_leg"})
+            assertThat("the " + name + " bone outside the subtree survives", stripped.getBones().containsKey(name), is(true));
+    }
+
+    @Test
+    @DisplayName("the closure is a fixpoint, so a grandchild declared before its parent still goes")
+    void applyUndrawnClosesOverAChildDeclaredBeforeItsParent() {
+        EntityModelData stripped =
+            EntityIndexBuilder.applyUndrawn(childBeforeParentFixture(), List.of("shell"), ENTITY);
+
+        assertThat("the shell is gone", stripped.getBones().containsKey("shell"), is(false));
+        assertThat("its child goes with it", stripped.getBones().containsKey("corals"), is(false));
+        assertThat("and so does its grandchild, which a single pass would orphan",
+            stripped.getBones().containsKey("coral_tip"), is(false));
+        assertThat("the body is untouched", stripped.getBones().containsKey("body"), is(true));
+    }
+
+    @Test
+    @DisplayName("the survivors keep the mesh's own order, which is the tied-depth priority")
+    void applyUndrawnKeepsTheMeshsOwnOrder() {
+        EntityModelData stripped = EntityIndexBuilder.applyUndrawn(fixture(), List.of("hat"), ENTITY);
+
+        assertThat(List.copyOf(stripped.getBones().keySet()),
+            equalTo(List.of("body", "head", "nose", "right_leg")));
+    }
+
+    @Test
+    @DisplayName("a list naming no bone the mesh has hands the mesh straight back")
+    void applyUndrawnReturnsTheSourceWhenItNamesNothingTheMeshHas() {
+        EntityModelData source = fixture();
+
+        assertThat("an empty list is the identity",
+            EntityIndexBuilder.applyUndrawn(source, List.of(), ENTITY), is(sameInstance(source)));
+        assertThat("so is a list of names the mesh does not carry",
+            EntityIndexBuilder.applyUndrawn(source, List.of("snout"), ENTITY), is(sameInstance(source)));
+    }
+
+    // ------------------------------------------------------------------------------------
+    // retainExactParts
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a bone keeps its cubes only when it is named and no ancestor of it is")
+    void retainExactPartsKeepsCubesOnlyOnANamedBoneWithNoNamedAncestor() {
+        EntityModelData retained = EntityIndexBuilder.retainExactParts(fixture(), List.of("head", "hat"));
+
+        assertThat("head is named and has no named ancestor, so it draws",
+            retained.getBones().get("head").getCubes().isEmpty(), is(false));
+        assertThat("hat is named but hangs off head, which is also named, so it is emptied",
+            retained.getBones().get("hat").getCubes().isEmpty(), is(true));
+        for (String name : new String[]{"hat_rim", "nose", "body", "right_leg"})
+            assertThat("the unnamed " + name + " is emptied", retained.getBones().get(name).getCubes().isEmpty(), is(true));
+    }
+
+    @Test
+    @DisplayName("retainExactParts empties cubes and never drops a bone, so the chain survives")
+    void retainExactPartsKeepsEveryBoneAsAPoseOnlyNode() {
+        EntityModelData source = fixture();
+        EntityModelData retained = EntityIndexBuilder.retainExactParts(source, List.of("head"));
+
+        assertThat(Set.copyOf(retained.getBones().keySet()), equalTo(Set.copyOf(source.getBones().keySet())));
+        for (String name : source.getBones().keySet()) {
+            EntityModelData.Bone before = source.getBones().get(name);
+            EntityModelData.Bone after = retained.getBones().get(name);
+            assertThat(name + " keeps its pivot", after.getPivot(), equalTo(before.getPivot()));
+            assertThat(name + " keeps its parent", after.getParent(), equalTo(before.getParent()));
+            assertThat(name + " keeps its scale", after.getScale(), is(before.getScale()));
+        }
+    }
+
+    // ------------------------------------------------------------------------------------
+    // shiftModel
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a shift moves root pivots by the blocks crossed into model units, sign flipped")
+    void shiftModelMovesRootPivotsAndLeavesChildrenAlone() {
+        EntityModelData source = fixture();
+        EntityModelData shifted = EntityIndexBuilder.shiftModel(source, 0.5f);
+        float delta = -0.5f * MODEL_UNITS_PER_BLOCK;
+
+        for (String name : new String[]{"body", "head"})
+            assertThat("the root bone " + name + " moves", shifted.getBones().get(name).getPivot().y(),
+                is(source.getBones().get(name).getPivot().y() + delta));
+        for (String name : new String[]{"hat", "hat_rim", "nose", "right_leg"})
+            assertThat("the child bone " + name + " holds, its pivot being relative to its parent",
+                shifted.getBones().get(name).getPivot(), equalTo(source.getBones().get(name).getPivot()));
+    }
+
+    @Test
+    @DisplayName("a shift of nothing hands the mesh straight back")
+    void shiftModelReturnsTheSourceAtZero() {
+        EntityModelData source = fixture();
+
+        assertThat(EntityIndexBuilder.shiftModel(source, 0f), is(sameInstance(source)));
+    }
+
+    // ------------------------------------------------------------------------------------
+    // inflateModel
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("an inflate ADDS to the grow a cube already carries, on every axis")
+    void inflateModelAddsTheDeltaToEveryCubeGrow() {
+        EntityModelData inflated = EntityIndexBuilder.inflateModel(fixture(), 0.5f);
+
+        for (String name : inflated.getBones().keySet()) {
+            Vector3f grow = inflated.getBones().get(name).getCubes().getFirst().getGrow();
+            assertThat(name + " grows on x", grow.x(), is(0.75f));
+            assertThat(name + " grows on y", grow.y(), is(0.75f));
+            assertThat(name + " grows on z", grow.z(), is(0.75f));
+        }
+    }
+
+    @Test
+    @DisplayName("an inflate touches the grow and nothing else the cube carries")
+    void inflateModelLeavesEveryOtherCubeMemberAlone() {
+        EntityModelData source = fixture();
+        EntityModelData inflated = EntityIndexBuilder.inflateModel(source, 0.5f);
+
+        EntityModelData.Cube before = source.getBones().get("head").getCubes().getFirst();
+        EntityModelData.Cube after = inflated.getBones().get("head").getCubes().getFirst();
+        assertThat("the origin holds", after.getOrigin(), equalTo(before.getOrigin()));
+        assertThat("the size holds", after.getSize(), equalTo(before.getSize()));
+        assertThat("the uv holds", after.getUv(), equalTo(before.getUv()));
+        assertThat("the mirror holds", after.isMirror(), is(before.isMirror()));
+        assertThat("the pivot holds", after.getPivot(), equalTo(before.getPivot()));
+        assertThat("the rotation holds", after.getRotation(), equalTo(before.getRotation()));
+        assertThat("the source is untouched", before.getGrow().x(), is(0.25f));
+    }
+
+    // ------------------------------------------------------------------------------------
+    // clearSubtreeCubes
+    // ------------------------------------------------------------------------------------
 
     @Test
     @DisplayName("clearSubtreeCubes empties the root bone and every descendant, sparing the rest")
