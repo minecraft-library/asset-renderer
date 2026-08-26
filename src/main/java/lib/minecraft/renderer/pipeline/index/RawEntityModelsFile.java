@@ -39,7 +39,8 @@ public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
  * @param render the family render tuning ({@code scale} / {@code tint}), or {@code null}
  * @param rest which constant each of the subject's enum render-state fields holds before anything
  *     has happened to it, or {@code null} when its renderer fills none from a readable accessor
- * @param bones the {@code undrawn} strip and {@code toggles} specs, or {@code null} when the family has none
+ * @param bones the model class the family's body is posed through, or {@code null} where the
+ *     mesh coordinate already names it
  * @param overlays the body overlay layers in declared order, or {@code null} when absent
  * @param blockOverlays the vanilla-block-shaped overlays, or {@code null} when absent
  * @param armor the worn-armor shell node, or {@code null} for a subject vanilla never armors
@@ -79,27 +80,9 @@ record RawRender(
  *     or {@code null} when the mesh's own geometry coordinate already names it. Written only
  *     where the two disagree, which is a saddle: vanilla declares a saddle's mesh factory on
  *     the wearer's model class and hands the layer a different class to pose it with
- * @param undrawn the bone names the subject rests not drawing - the never-drawn merged with what
- *     its pose rests hidden, resolved at generation - or {@code null} when it rests whole
- * @param toggles the named visibility toggles keyed by toggle name, or {@code null} when none
  */
 record RawBones(
-    @Nullable String pose,
-    @Nullable List<String> undrawn,
-    @Nullable Map<String, RawToggle> toggles
-) {}
-
-/**
- * One {@code bones.toggles} spec - which bones a toggle flips, and nothing about which way.
- *
- * <p>Which way it points is derived: a toggle names the state its subject is not resting in, and
- * what it rests without is what the site's {@code undrawn} list already says. A member declaring it
- * here would be a second answer to a question that already has one.
- *
- * @param bones the bone names this toggle flips
- */
-record RawToggle(
-    @Nullable List<String> bones
+    @Nullable String pose
 ) {}
 
 /**
@@ -138,10 +121,10 @@ record RawAxis(
 /**
  * One axis option - the superset of what any axis's option carries, every member optional because
  * each axis populates its own subset: an {@code age} option carries {@code geometry} /
- * {@code texture} / {@code y_shift} / {@code undrawn}, a {@code variant} coat {@code textures} /
+ * {@code texture} / {@code y_shift}, a {@code variant} coat {@code textures} /
  * {@code baby_texture} / {@code geometry} / {@code block}, the {@code shape.large} option
  * {@code geometry} / {@code texture} / {@code overlays}, a {@code size} option {@code geometry} /
- * {@code scale} / {@code undrawn}, and a {@code state} option nothing at all - its name is the datum.
+ * {@code scale}, and a {@code state} option nothing at all - its name is the datum.
  *
  * @param geometry the option's mesh coordinate, or {@code null}
  * @param texture the option's texture as the {@code textures/entity/} sub-path, settled at
@@ -150,8 +133,6 @@ record RawAxis(
  *     drawing it, {@code 0f} when absent. It sits on the option rather than on {@code render}
  *     because vanilla brackets its rotations with translates the age selects between - the squid
  *     lifts an adult by a different pair than a baby
- * @param undrawn the bone names this option's mesh rests not drawing, resolved at generation, or
- *     {@code null} when it rests whole
  * @param scale a size option's render-scale factor, boxed so a mesh-only option leaves it absent
  * @param overlays the {@code shape.large} pattern overlays materialised on the large geometry, or
  *     {@code null}
@@ -165,7 +146,6 @@ record RawOption(
     @Nullable String geometry,
     @Nullable String texture,
     @SerializedName("y_shift") float yShift,
-    @Nullable List<String> undrawn,
     @Nullable Float scale,
     @Nullable List<RawOverlay> overlays,
     @Nullable Map<String, String> textures,
@@ -345,8 +325,8 @@ record RawArmor(
  *
  * @param slot the equipment slot this row is gated on
  * @param geometry the row's mesh coordinate
- * @param bones the {@code undrawn} strip and {@code toggles} specs the layer's own model class
- *     declares over that geometry, or {@code null} when it declares none
+ * @param bones the model class the layer is posed through, which is not always the one that baked
+ *     its mesh, or {@code null} where the two agree
  * @param layerType the equipment render layer's serialized id ({@code pig_saddle}), or {@code null}
  * @param materialAssets the equipment asset id per selectable material, or {@code null}
  * @param defaultMaterial the equipment default material, or {@code null}

@@ -6,7 +6,6 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.adapter.ColorTypeAdapter;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
-import lib.minecraft.renderer.asset.Entity.BoneToggle;
 import lib.minecraft.renderer.asset.Entity.EquipmentOverlay;
 import lib.minecraft.renderer.asset.Entity.LargeShape;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
@@ -138,8 +137,6 @@ public final class EntityIndexBuilder {
         List<Map<PoseChannel, PoseExpr>> renderTransform = afterFacingYaw(composed);
 
         RawBones bones = family.bones();
-        List<String> undrawnBones = bones == null ? null : bones.undrawn();
-        Map<String, RawToggle> boneToggleSpecs = bones == null ? null : bones.toggles();
         // The class the body's pose is read against, which is the renderer's own and not always the
         // one that baked the mesh - a model reusing its parent's layer is headed with the parent
         // everywhere a coordinate appears, and reading it there poses a zombie as a plain humanoid.
@@ -162,9 +159,7 @@ public final class EntityIndexBuilder {
         // the baby option's is read off the baby's own.
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
             : Optional.ofNullable(geometries.get(babyCoord))
-                .map(baby -> shiftModel(
-                    applyUndrawn(baby, babyAge == null ? null : babyAge.undrawn(), familyId),
-                    babyYShift));
+                .map(baby -> shiftModel(baby, babyYShift));
         List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
             renderTransform, babyPose.orElse(EntityPose.NONE), babyCoord, babyModel, familyId);
 
@@ -172,7 +167,7 @@ public final class EntityIndexBuilder {
         if (variant != null) {
             String defaultOption = variant.defaultOption();
             Map<String, RawOption> options = variant.options();
-            VariantContext ctx = new VariantContext(baseCoord, poseClass, geometries, poses, renderTransform, undrawnBones, boneToggleSpecs, familyOverlays,
+            VariantContext ctx = new VariantContext(baseCoord, poseClass, geometries, poses, renderTransform, familyOverlays,
                 blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyPose, babyOverlays, equipment, humanoidArmor,
                 stateDefaultOf(family));
             // one base row minecraft:<id>, the coat resolved at render. Every option
@@ -194,8 +189,6 @@ public final class EntityIndexBuilder {
         // Plain family: one row. The size / shape axes attach only to plain families, so they resolve here.
         EntityModelData model = resolveModel(geometries, baseCoord, familyId);
         EntityPose pose = under(renderTransform, poseOf(poses, poseClass == null ? baseCoord : poseClass));
-        Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, undrawnBones, familyId);
-        model = applyUndrawn(model, undrawnBones, familyId);
         // Ahead of the overlay load so a same-geometry pass is materialised on the shifted mesh and
         // travels with it; a pass on a mesh of its OWN would not, which the shift warns about.
         model = shiftModel(model, adult.yShift());
@@ -213,7 +206,6 @@ public final class EntityIndexBuilder {
             .id(ResourceId.parse(familyId))
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
-            .boneToggles(toggles)
             .pose(pose)
             .members(membersOf(family))
             .axes(new Entity.Axes(stateTextures, babyModel, babyPose, babyOverlays,
@@ -358,8 +350,6 @@ public final class EntityIndexBuilder {
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
         @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform,
-        @Nullable List<String> undrawnBones,
-        @Nullable Map<String, RawToggle> boneToggleSpecs,
         @NotNull List<RawOverlay> familyOverlays,
         @NotNull List<BlockOverlayLayer> blockOverlays,
         int baseTint,
@@ -394,8 +384,6 @@ public final class EntityIndexBuilder {
         // family's whatever geometry this option names.
         EntityPose pose = under(ctx.renderTransform(),
             poseOf(ctx.poses(), ctx.poseClass() == null ? rowCoord : ctx.poseClass()));
-        Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, ctx.undrawnBones(), rowId);
-        model = applyUndrawn(model, ctx.undrawnBones(), rowId);
         List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
             ctx.renderTransform(), pose, rowCoord, model, rowId);
         Map<String, String> stateTextures = variantStateTextures(optionObj);
@@ -405,7 +393,6 @@ public final class EntityIndexBuilder {
             .model(model).textureRef(textureRef).overlays(overlays)
             .blockOverlays(coatBlockOverlays(ctx.blockOverlays(), optionObj.block()))
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
-            .boneToggles(toggles)
             .pose(pose)
             .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Optional.empty(),
                 Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))
@@ -921,17 +908,10 @@ public final class EntityIndexBuilder {
                 // diagnostics.warn("entity '%s' equipment row names unknown layer type '%s'", entityId, row.layerType());
                 continue;
             }
-            RawBones bones = row.bones();
-            // Off the FULL mesh, ahead of the strip, for the reason the body's are: a toggle whose
-            // bones rest undrawn has to keep them somewhere to re-add them from.
-            Map<String, BoneToggle> toggles = loadBoneToggles(
-                bones == null ? null : bones.toggles(), model,
-                bones == null ? null : bones.undrawn(), entityId);
-            model = applyUndrawn(model, bones == null ? null : bones.undrawn(), entityId);
             Map<String, ResourceId> materialAssets = new LinkedHashMap<>();
             row.materialAssets().forEach((material, assetId) -> materialAssets.put(material, ResourceId.parse(assetId)));
             out.add(new EquipmentOverlay(row.slot(), model, layerType.get(),
-                Map.copyOf(materialAssets), row.defaultMaterial(), toggles));
+                Map.copyOf(materialAssets), row.defaultMaterial()));
         }
         return List.copyOf(out);
     }
@@ -986,7 +966,6 @@ public final class EntityIndexBuilder {
             if (body.geometry() == null) continue;
             EntityModelData mesh = geometries.get(body.geometry());
             if (mesh == null) continue;
-            mesh = applyUndrawn(mesh, body.undrawn(), entityId);
             mesh = shiftModel(mesh, yShift);
             out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
         }
@@ -1056,122 +1035,6 @@ public final class EntityIndexBuilder {
         if (model == null)
             throw new PipelineException("Entity '%s' references geometry '%s' which is absent from entity_geometry", entityId, coord);
         return model;
-    }
-
-    /**
-     * Resolves a {@code bones.toggles} object into {@code toggle -> }{@link BoneToggle}, pulling each named
-     * bone's {@link EntityModelData.Bone} from the FULL geometry BEFORE the {@code undrawn} strip - so a
-     * default-hidden toggle's bones are still present for the resolver to re-add (donkey / mule / llama
-     * chest). A named bone absent from the geometry warns and drops; a toggle left with no resolvable bones
-     * is omitted.
-     *
-     * <p><b>Which way a toggle points is READ OFF THE UNDRAWN LIST rather than declared beside
-     * it.</b> A toggle is a name for the state a subject is not resting in, and what it rests
-     * without is what the site's list already says: a donkey's chest is not drawn because its list
-     * names it, and a goat's horns are because no list does. Deriving it keeps one answer to that
-     * question instead of two that can drift apart - and they had, on the bee.
-     */
-    private static @NotNull Map<String, BoneToggle> loadBoneToggles(
-        @Nullable Map<String, RawToggle> toggles,
-        @NotNull EntityModelData fullModel,
-        @Nullable List<String> undrawn,
-        @NotNull String entityId
-    ) {
-        if (toggles == null) return Map.of();
-        Map<String, BoneToggle> out = new LinkedHashMap<>();
-        for (Map.Entry<String, RawToggle> entry : toggles.entrySet()) {
-            RawToggle spec = entry.getValue();
-            if (spec.bones() == null) continue;
-            boolean defaultVisible = restsDrawn(undrawn, spec.bones());
-            LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
-            for (String boneName : spec.bones()) {
-                if (boneName == null) continue;
-                EntityModelData.Bone bone = fullModel.getBones().get(boneName);
-                if (bone == null) {
-                    // TODO: restore pipeline diagnostics
-                    // diagnostics.warn("entity '%s' bone_toggles '%s' names bone '%s' which is not on the geometry", entityId, entry.getKey(), boneName);
-                    continue;
-                }
-                bones.put(boneName, bone);
-            }
-            if (!bones.isEmpty()) out.put(entry.getKey(), new BoneToggle(bones, defaultVisible));
-        }
-        return out;
-    }
-
-    /**
-     * Whether the bones one toggle names are drawn at rest.
-     *
-     * <p>The bones a toggle holds are one thing shown or hidden together, so they answer together;
-     * a toggle whose bones disagreed would be two toggles wearing one name. A named bone the site's
-     * undrawn list carries answers hidden for them all, and a toggle naming none of them rests
-     * drawn - a subtree is undrawn by its own root, and the list carries the root where its
-     * children are simply carried along.
-     */
-    private static boolean restsDrawn(@Nullable List<String> undrawn, @NotNull List<String> named) {
-        if (undrawn == null || undrawn.isEmpty()) return true;
-        for (String bone : named)
-            if (bone != null && undrawn.contains(bone)) return false;
-        return true;
-    }
-
-    /**
-     * Strips the bones a site's {@code undrawn} list names, or returns {@code model} verbatim when
-     * it names none the mesh has. The list carries what the subject rests not drawing, resolved at
-     * generation; a toggle re-adds its bones from the pre-strip mesh where a selection flips them.
-     *
-     * <p><b>A bone that does not draw takes its subtree with it.</b> Vanilla's {@code visible = false}
-     * skips the part and everything hanging off it, and a name-only removal does something else
-     * entirely: an orphan's parent lookup misses, so {@link lib.minecraft.renderer.engine.kit.BoneKit
-     * BoneKit} anchors it at the root instead, and geometry that should have vanished lands somewhere
-     * the subject is not. A zombie nautilus is what that looks like - its {@code corals} group left,
-     * and four sprigs of coral floating clear of the shell. The closure runs here, per mesh, because
-     * one family list serves the body and every coat and a subtree is each mesh's own.
-     *
-     * <p>Package-private so the closure can be pinned on a fixture mesh directly.
-     */
-    static @NotNull EntityModelData applyUndrawn(
-        @NotNull EntityModelData model,
-        @Nullable List<String> undrawn,
-        @NotNull String entityId
-    ) {
-        if (undrawn == null || undrawn.isEmpty()) return model;
-        LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(model.getBones());
-        Set<String> named = new LinkedHashSet<>();
-        for (String name : undrawn)
-            if (name != null && bones.containsKey(name)) named.add(name);
-        if (named.isEmpty()) return model;
-        bones.keySet().removeAll(withDescendants(bones, named));
-        return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(), Concurrent.adoptLinkedMap(bones), model.isCull());
-    }
-
-    /**
-     * Closes a set of bones downwards over the bone forest, so what it holds is whole subtrees.
-     *
-     * <p>A fixpoint rather than one pass, because a bone map is in the tooling's own
-     * {@code addOrReplaceChild} order and a child can precede its parent in it.
-     *
-     * @param bones the mesh's bones keyed by name
-     * @param seed the bones to close over, which is left untouched
-     * @return the seed and every bone reached from it through a parent chain
-     */
-    private static @NotNull Set<String> withDescendants(
-        @NotNull Map<String, EntityModelData.Bone> bones, @NotNull Set<String> seed) {
-
-        Set<String> closed = new LinkedHashSet<>(seed);
-        boolean grew = true;
-        while (grew) {
-            grew = false;
-            for (Map.Entry<String, EntityModelData.Bone> bone : bones.entrySet()) {
-                if (closed.contains(bone.getKey())) continue;
-                String parent = bone.getValue().getParent();
-                if (parent != null && closed.contains(parent)) {
-                    closed.add(bone.getKey());
-                    grew = true;
-                }
-            }
-        }
-        return closed;
     }
 
     /**

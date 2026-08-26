@@ -47,20 +47,6 @@ class EntityIndexBuilderMeshTest {
         return new EntityModelData(TextureSize.DEFAULT, 0f, Concurrent.adoptLinkedMap(bones), false);
     }
 
-    /**
-     * The zombie-nautilus shape, declared so a grandchild precedes its parent and the parent precedes
-     * ITS parent - the ordering a single closure pass gets wrong. Stripping {@code shell} has to reach
-     * {@code coral_tip} through {@code corals}, which is only visible on the second pass.
-     */
-    private static EntityModelData childBeforeParentFixture() {
-        LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
-        bones.put("coral_tip", bone(new Vector3f(0f, 1f, 0f), "corals"));
-        bones.put("corals", bone(new Vector3f(0f, 2f, 0f), "shell"));
-        bones.put("shell", bone(new Vector3f(0f, 3f, 0f), null));
-        bones.put("body", bone(new Vector3f(0f, 4f, 0f), null));
-        return new EntityModelData(TextureSize.DEFAULT, 0f, Concurrent.adoptLinkedMap(bones), false);
-    }
-
     private static EntityModelData.Bone bone(Vector3f pivot, String parent) {
         return bone(pivot, parent, 0.25f);
     }
@@ -73,54 +59,6 @@ class EntityIndexBuilderMeshTest {
             EulerRotation.NONE, Concurrent.newMap());
         return new EntityModelData.Bone(pivot, EulerRotation.NONE, EulerRotation.NONE, 1f,
             Concurrent.newList(cube), parent);
-    }
-
-    // ------------------------------------------------------------------------------------
-    // applyUndrawn
-    // ------------------------------------------------------------------------------------
-
-    @Test
-    @DisplayName("a bone that rests undrawn takes its whole subtree with it")
-    void applyUndrawnTakesTheSubtreeWithTheNamedBone() {
-        EntityModelData stripped = EntityIndexBuilder.applyUndrawn(fixture(), List.of("head"), ENTITY);
-
-        for (String name : new String[]{"head", "hat", "hat_rim", "nose"})
-            assertThat("the " + name + " subtree bone is gone", stripped.getBones().containsKey(name), is(false));
-        for (String name : new String[]{"body", "right_leg"})
-            assertThat("the " + name + " bone outside the subtree survives", stripped.getBones().containsKey(name), is(true));
-    }
-
-    @Test
-    @DisplayName("the closure is a fixpoint, so a grandchild declared before its parent still goes")
-    void applyUndrawnClosesOverAChildDeclaredBeforeItsParent() {
-        EntityModelData stripped =
-            EntityIndexBuilder.applyUndrawn(childBeforeParentFixture(), List.of("shell"), ENTITY);
-
-        assertThat("the shell is gone", stripped.getBones().containsKey("shell"), is(false));
-        assertThat("its child goes with it", stripped.getBones().containsKey("corals"), is(false));
-        assertThat("and so does its grandchild, which a single pass would orphan",
-            stripped.getBones().containsKey("coral_tip"), is(false));
-        assertThat("the body is untouched", stripped.getBones().containsKey("body"), is(true));
-    }
-
-    @Test
-    @DisplayName("the survivors keep the mesh's own order, which is the tied-depth priority")
-    void applyUndrawnKeepsTheMeshsOwnOrder() {
-        EntityModelData stripped = EntityIndexBuilder.applyUndrawn(fixture(), List.of("hat"), ENTITY);
-
-        assertThat(List.copyOf(stripped.getBones().keySet()),
-            equalTo(List.of("body", "head", "nose", "right_leg")));
-    }
-
-    @Test
-    @DisplayName("a list naming no bone the mesh has hands the mesh straight back")
-    void applyUndrawnReturnsTheSourceWhenItNamesNothingTheMeshHas() {
-        EntityModelData source = fixture();
-
-        assertThat("an empty list is the identity",
-            EntityIndexBuilder.applyUndrawn(source, List.of(), ENTITY), is(sameInstance(source)));
-        assertThat("so is a list of names the mesh does not carry",
-            EntityIndexBuilder.applyUndrawn(source, List.of("snout"), ENTITY), is(sameInstance(source)));
     }
 
     // ------------------------------------------------------------------------------------

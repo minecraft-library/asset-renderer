@@ -1302,7 +1302,6 @@ public final class PipelineParityDump {
         root.add("block_overlays", CanonicalJson.ordered(entity.blockOverlays(), PipelineParityDump::blockOverlay));
         root.add("layers", layers(entity.layers()));
         root.add("axes", axes(entity.axes()));
-        root.add("bone_toggles", CanonicalJson.map(entity.boneToggles(), PipelineParityDump::boneToggle));
         CanonicalJson.put(root, "texture_ref", entity.textureRef(), JsonPrimitive::new);
         // Canvas-group membership: emitted only for genuine groups (size > 1) so singleton entities
         // stay byte-identical; the members set has no meaningful order, so sort for a canonical array.
@@ -1602,24 +1601,6 @@ public final class PipelineParityDump {
         return root;
     }
 
-    /**
-     * Returns one bone toggle.
-     * <p>
-     * Its {@code bones} map is emitted as an ARRAY because its order is semantic, which is not obvious:
-     * the map is only ever read by key on the HIDE path, but the REVEAL path appends it wholesale into
-     * the mesh's own bone map, and that map's sequence is the coplanar depth tie-break. Sorting here
-     * would let a tooling change that reordered the source array pass the gate while changing which face
-     * wins at tied depth in production.
-     *
-     * @param toggle the toggle to emit
-     * @return the toggle object
-     */
-    private static @NotNull JsonObject boneToggle(@NotNull Entity.BoneToggle toggle) {
-        JsonObject root = new JsonObject();
-        root.addProperty("default_visible", toggle.defaultVisible());
-        root.add("bones", CanonicalJson.orderedMap(toggle.bones(), "name", PipelineParityDump::bone));
-        return root;
-    }
 
     /**
      * Returns the block-entity section: the loaded models plus their state-conditional variants.
@@ -1721,6 +1702,11 @@ public final class PipelineParityDump {
         root.add("scale", CanonicalJson.number(bone.getScale()));
         root.add("cubes", CanonicalJson.ordered(bone.getCubes(), PipelineParityDump::cube));
         if (bone.getParent() != null) root.addProperty("parent", bone.getParent());
+        // Emitted only where they stand away from their default, on the same terms as `parent`: what
+        // a subject rests without is carried by the few bones a selection moves, and every other bone
+        // draws and is moved by nothing.
+        if (!bone.isVisible()) root.addProperty("visible", false);
+        if (bone.getToggle() != null) root.addProperty("toggle", bone.getToggle());
         return root;
     }
 

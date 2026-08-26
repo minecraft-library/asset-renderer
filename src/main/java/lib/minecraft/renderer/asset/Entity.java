@@ -73,11 +73,6 @@ import java.util.Set;
  *     never reaches BIND
  * @param rendererScale per-entity render-time scale extracted by {@code EntityRendererScaleResolver};
  *     defaults to {@code 1f} (identity)
- * @param boneToggles named bone-visibility toggles (toggle name -&gt; {@link BoneToggle}), flipped at
- *     render when {@code AppearanceOptions.toggles} selects the toggle: a default-hidden toggle
- *     (donkey/mule/llama {@code chest}) re-adds its bones, a default-visible toggle (goat {@code horn})
- *     removes them. The default render is unchanged (chest stripped, horns present); empty for entities
- *     with no toggleable bones
  * @param axes the option-axis mesh / texture selections a render appearance chooses among (state
  *     textures, baby mesh, large shape, size meshes / scales) - see {@link Axes}
  * @param layers the conditional decoration layers drawn over the base body (equipment, worn armor), each
@@ -100,7 +95,6 @@ public record Entity(
     int baseTintArgb,
     float setupYawAddend,
     float rendererScale,
-    @NotNull Map<String, BoneToggle> boneToggles,
     @NotNull Axes axes,
     @NotNull Layers layers,
     @NotNull List<String> members,
@@ -205,8 +199,8 @@ public record Entity(
                 selectedToggles = new LinkedHashSet<>(selectedToggles);
                 selectedToggles.add("sheared");
             }
-            EntityModelData toggled = applyBoneToggles(definition.model(), definition.boneToggles(), selectedToggles);
-            if (toggled != null) builder.model(toggled);
+            EntityModelData flipped = toggled(definition.model(), selectedToggles);
+            if (flipped != definition.model()) builder.model(flipped);
             builder.blockOverlays(resolveBlockOverlays(definition, appearance));
             // The shape axis (tropical fish) swaps to the large body when the selected pattern's Shape is
             // large: the large mesh, tropical_b base texture, and the pattern overlays cloned onto the
@@ -294,28 +288,26 @@ public record Entity(
     }
 
     /**
-     * Rebuilds a mesh with the appearance's selected bone toggles flipped, or {@code null} when no
-     * selected toggle applies (leaving the mesh as it is). A default-hidden toggle re-adds its bones
-     * (chest); a default-visible toggle removes them (goat horns). Re-added bones' parents are
-     * already present, so the kit resolves them by name; the rebuilt model grows / shrinks the canvas
-     * bounds automatically.
+     * The mesh with every bone a selected toggle names drawing the other way, or the mesh itself
+     * when no selection reaches one of its bones.
      *
-     * <p>One arithmetic for the wearer and for what it wears: a saddle declares its own toggles over
-     * its own mesh, and a selection reaches both.
+     * <p>Which way a toggle points comes off the bone it moves - a donkey's chest rests undrawn and
+     * its {@code chest} selection draws it, where a goat's horns rest drawn and its {@code horn}
+     * selection hides them - so nothing is captured before the mesh is built, and a re-drawn bone
+     * keeps the position its mesh authored it at rather than landing after everything that draws.
+     *
+     * <p>One arithmetic for the wearer and for what it wears: a saddle's own mesh names its own
+     * selections, and a selection reaches both.
      *
      * @param model the mesh to flip
-     * @param specs the toggles that mesh declares
      * @param toggles the appearance's selected toggle names
-     * @return the rebuilt mesh, or {@code null} when none of the selected toggles is one of its own
+     * @return the flipped mesh, or {@code model} when no selection names one of its bones
      */
-    private static @Nullable EntityModelData applyBoneToggles(
-        @NotNull EntityModelData model, @NotNull Map<String, BoneToggle> specs, @NotNull Set<String> toggles) {
+    private static @NotNull EntityModelData toggled(
+        @NotNull EntityModelData model, @NotNull Set<String> toggles) {
 
-        if (toggles.isEmpty()) return null;
+        if (toggles.isEmpty()) return model;
         LinkedHashMap<String, EntityModelData.Bone> bones = null;
-        // A bone naming a selected toggle draws the other way. Which way that is comes off the bone
-        // itself, so nothing has to be captured before the mesh is built, and a re-drawn bone keeps
-        // the position its mesh authored it at rather than landing after everything that draws.
         for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
             String toggle = bone.getToggle();
@@ -323,16 +315,7 @@ public record Entity(
             if (bones == null) bones = new LinkedHashMap<>(model.getBones());
             bones.put(entry.getKey(), bone.withVisible(!bone.isVisible()));
         }
-        for (String toggle : toggles) {
-            BoneToggle spec = specs.get(toggle);
-            if (spec == null || spec.bones().isEmpty()) continue;
-            if (bones == null) bones = new LinkedHashMap<>(model.getBones());
-            if (spec.defaultVisible())
-                spec.bones().keySet().forEach(bones::remove);
-            else
-                bones.putAll(spec.bones());
-        }
-        if (bones == null) return null;
+        if (bones == null) return model;
         return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(),
             Concurrent.adoptLinkedMap(bones), model.isCull());
     }
@@ -352,9 +335,9 @@ public record Entity(
         List<EquipmentOverlay> out = new ArrayList<>(equipment.size());
         boolean moved = false;
         for (EquipmentOverlay overlay : equipment) {
-            EquipmentOverlay toggled = overlay.withToggles(toggles);
-            moved |= toggled != overlay;
-            out.add(toggled);
+            EquipmentOverlay flipped = overlay.withToggles(toggles);
+            moved |= flipped != overlay;
+            out.add(flipped);
         }
         return moved ? List.copyOf(out) : equipment;
     }
@@ -763,17 +746,13 @@ public record Entity(
      *     saddle layer shares {@code minecraft:saddle}, so the mapping is data rather than convention
      * @param defaultMaterial the material substituted when the slot is selected without one
      *     ({@code saddle} for a saddle, {@code leather} for horse body armor)
-     * @param boneToggles the layer's own named bone-visibility toggles, flipped by the same selection
-     *     the wearer's are - an equine saddle's reins ride {@code ridden}, a donkey saddle's chest
-     *     panniers ride {@code chest}
      */
     public record EquipmentOverlay(
         @NotNull String slot,
         @NotNull EntityModelData model,
         @NotNull LayerType layerType,
         @NotNull Map<String, ResourceId> materialAssets,
-        @NotNull String defaultMaterial,
-        @NotNull Map<String, BoneToggle> boneToggles
+        @NotNull String defaultMaterial
     ) {
         /**
          * Resolves the equipment asset id for a selected material; falls back to
@@ -795,9 +774,9 @@ public record Entity(
          * @return the overlay drawing what the selection asks for
          */
         @NotNull EquipmentOverlay withToggles(@NotNull Set<String> toggles) {
-            EntityModelData toggled = applyBoneToggles(this.model, this.boneToggles, toggles);
-            return toggled == null ? this : new EquipmentOverlay(
-                this.slot, toggled, this.layerType, this.materialAssets, this.defaultMaterial, this.boneToggles);
+            EntityModelData flipped = toggled(this.model, toggles);
+            return flipped == this.model ? this : new EquipmentOverlay(
+                this.slot, flipped, this.layerType, this.materialAssets, this.defaultMaterial);
         }
     }
 
@@ -815,21 +794,6 @@ public record Entity(
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef,
         @NotNull List<OverlayLayer> overlays
-    ) {}
-
-    /**
-     * A named bone-visibility toggle resolved at load: the geometry {@link EntityModelData.Bone bones} it
-     * flips (kept by name so the entity definition resolver can add or remove them) plus their default
-     * visibility. {@code defaultVisible = false} (donkey chest) - the bones are stripped from the default
-     * model and the toggle re-adds them; {@code defaultVisible = true} (goat horns) - the bones render by
-     * default and the toggle removes them.
-     *
-     * @param bones the toggle's bones keyed by name
-     * @param defaultVisible whether the bones render by default (true = toggle hides; false = toggle reveals)
-     */
-    public record BoneToggle(
-        @NotNull Map<String, EntityModelData.Bone> bones,
-        boolean defaultVisible
     ) {}
 
 }
