@@ -28,11 +28,11 @@
     },
     {
       "path": "entity_geometry.json",
-      "sha256": "3cad0266c9a8063f8d9e2a56366cef6f508058d1fb4413605a7288bdea8efc43"
+      "sha256": "a593faa1f21857401bcd036ad0e6c5405e756cfdda24562c98c37bd960f57f39"
     },
     {
       "path": "entity_models.json",
-      "sha256": "39b2d2d603063ff1d2a5520a74c210ee3dac6dcfc31e0c3b5fe048c223060485"
+      "sha256": "a0b44ac78ecc8149792b2bd52b34145df3f1f8f1941ba38593d08ff8b509ad1d"
     },
     {
       "path": "entity_poses.json",
@@ -56,15 +56,15 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "8fa5e97563bdba11ef52da7ecfbc933e1a45cd5e7c2707a78727bfc871c6ccd3",
+    "entityModels": "6b7b83b248309a98b70b85c1a259fab45baa8ef122c6be3aab49217c6f843a04",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
-    "asset_content_digest": "6b772d31451618933230583f6247ae5eff4d6a56d9f4f3a45f4a9019e57158f4",
+    "asset_content_digest": "83d18f3c31f1072510363030cee2bf6971fea60c70a722c1cccab6ec7f10aa8a",
     "asset_dirty": false,
-    "asset_sha": "97a5519f93b2e25802d2e93cfebe213c9ab4f374",
+    "asset_sha": "2685d141f5fe9e3726eb4f9343dba5adccb350e3",
     "counts": {
       "files": 11,
       "logs": 8
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "the collar folds into the overlay mechanism the marking fold-in proved: its node becomes an overlays row carrying the body's own geometry coordinate with a real when on the collared flag, so entity_models ships the two collar nodes rewritten in place. That landed without a store pass, leaving the entity_models pin red by design. 5 moved values over 4 artifacts - the shipped-table digest, both dump manifests' entities.json, and the tooling manifest's entity_models.json beside its entityModels log - and every sweep held at zero over the 20 artifacts captured, sweep.entity's collar rows included",
+    "reason": "the last three load-time mesh surgeries bake into the shipped tables: an overlay pass retained subset, its cube inflate and the emptied subtree of its suppressed form each become a mesh the row names, so EntityIndexBuilder joins every mesh and reshapes none. 6 moved values over 4 artifacts - both shipped-table digests, both dump manifests entities.json, and the tooling manifest two tables beside its entityModels log. Every sweep held at zero over the 24 artifacts captured, sweep.entity at 402 rows and 59.4901 and sweep.entity-animation at 90 and 10.0809, and each of the 12 derived meshes was checked cube by cube against the surgery it replaces. No artifact changed population.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,8 +84,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-26T01:40:12Z",
+    "timestamp": "2026-08-26T06:56:40Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 45784
+    "wall_time_ms": 45697
   }
 }

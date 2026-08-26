@@ -18,9 +18,8 @@
       "entries": 11,
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
-      "last_duration_ms": 8133,
-      "promoted_at": "97a5519f93b2e25802d2e93cfebe213c9ab4f374",
-      "sha256": "87f0516f498516a3df06d4eb2480042695bc536b77b0d6a3dca5ee9a2c9936f4"
+      "promoted_at": "2685d141f5fe9e3726eb4f9343dba5adccb350e3",
+      "sha256": "9d86c340c121e2a7d7e4ad2592f04555a2a6b2ace19f9c205245da8c2b063022"
     },
     "manifest.dump.packs": {
       "baselined": true,
@@ -28,9 +27,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 23309,
-      "promoted_at": "97a5519f93b2e25802d2e93cfebe213c9ab4f374",
-      "sha256": "8a191bc067ad74e6d788e8bee495b5a5b9f6dfed3e88512bc5581c290af75428"
+      "last_duration_ms": 24604,
+      "promoted_at": "2685d141f5fe9e3726eb4f9343dba5adccb350e3",
+      "sha256": "fff3b62fe3fc10b8fc9da094effb9266d911cdd2badeef8c73cf6fb04a12ea66"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
@@ -38,9 +37,9 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 23309,
-      "promoted_at": "97a5519f93b2e25802d2e93cfebe213c9ab4f374",
-      "sha256": "93ac71e9308297f52ce3f6f908e433cccc5cb190294db2e020401e17b4280888"
+      "last_duration_ms": 24604,
+      "promoted_at": "2685d141f5fe9e3726eb4f9343dba5adccb350e3",
+      "sha256": "51525a8f1e4755f86347d48bd5b9c6072102ca73b9e788139aeb36168c051ff3"
     },
     "manifest.fluid": {
       "baselined": true,
@@ -97,9 +96,9 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 45784,
-      "promoted_at": "97a5519f93b2e25802d2e93cfebe213c9ab4f374",
-      "sha256": "48f10d1c6c8bc0e6a355a8ac12b2444cf316afde5eba3704643aeeb674486df4"
+      "last_duration_ms": 45697,
+      "promoted_at": "2685d141f5fe9e3726eb4f9343dba5adccb350e3",
+      "sha256": "93827b0f6c365a48b6893e2276d0209358254b6b5ab1b8a8b6ecf3202cd485b2"
     },
     "manifest.visual": {
       "baselined": true,

@@ -35,12 +35,12 @@
     "entity_geometry": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "5a46b5f7a0a5b9c6849eded9393fa118c90568029a3ecf3dd253418c65874bde"
+      "sha256": "ae61b531b135327c3836ff010bbcd01945d089675f2dadc351d7089353e0e7bf"
     },
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "928ddd1185024787eb7586126996c21a4777a69aa94a5e19bb4e74f725d4cb1c"
+      "sha256": "a947ad09eac14743bcd24d0f4d2cbd9db2e0a08becc9365eee0b7420e1527a0a"
     },
     "entity_poses": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "6b772d31451618933230583f6247ae5eff4d6a56d9f4f3a45f4a9019e57158f4",
+    "asset_content_digest": "83d18f3c31f1072510363030cee2bf6971fea60c70a722c1cccab6ec7f10aa8a",
     "asset_dirty": false,
-    "asset_sha": "97a5519f93b2e25802d2e93cfebe213c9ab4f374",
+    "asset_sha": "2685d141f5fe9e3726eb4f9343dba5adccb350e3",
     "counts": {
       "digests": 11
     },
@@ -76,7 +76,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "the collar folds into the overlay mechanism the marking fold-in proved: its node becomes an overlays row carrying the body's own geometry coordinate with a real when on the collared flag, so entity_models ships the two collar nodes rewritten in place. That landed without a store pass, leaving the entity_models pin red by design. 5 moved values over 4 artifacts - the shipped-table digest, both dump manifests' entities.json, and the tooling manifest's entity_models.json beside its entityModels log - and every sweep held at zero over the 20 artifacts captured, sweep.entity's collar rows included",
+    "reason": "the last three load-time mesh surgeries bake into the shipped tables: an overlay pass retained subset, its cube inflate and the emptied subtree of its suppressed form each become a mesh the row names, so EntityIndexBuilder joins every mesh and reshapes none. 6 moved values over 4 artifacts - both shipped-table digests, both dump manifests entities.json, and the tooling manifest two tables beside its entityModels log. Every sweep held at zero over the 24 artifacts captured, sweep.entity at 402 rows and 59.4901 and sweep.entity-animation at 90 and 10.0809, and each of the 12 derived meshes was checked cube by cube against the surgery it replaces. No artifact changed population.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -85,7 +85,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-26T01:40:11Z",
+    "timestamp": "2026-08-26T06:56:38Z",
     "tool_version": "1.0.0"
   }
 }
