@@ -38,7 +38,8 @@ public final class ToolingBlockModels {
             GeometryManifest manifest = new GeometryManifest();
             BlockEntityRegistryWalk.run(session, subjects, manifest, root);
             session.write(root, "block_models.json");
-            GeometryFlow.emit(session, manifest, session.resolve("block_geometry.json"));
+            GeometryFlow.write(session, GeometryFlow.parse(session, manifest),
+                session.resolve("block_geometry.json"));
             session.failOnStrictGate();
         }
     }

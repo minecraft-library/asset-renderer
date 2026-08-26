@@ -58,22 +58,25 @@ public final class GeometryFlow {
     }
 
     /**
-     * Parses every manifest entry and writes the geometry file.
+     * Parses every manifest entry into the entry each minted key is written as, WITHOUT writing the
+     * file.
+     *
+     * <p>Held apart from {@link #write} because a flow can have something to say about a mesh that
+     * is not known until after the geometry has been parsed: which bones a subject rests without is
+     * settled by the pose flow, and the pose flow reads the root bones this answers. So the entries
+     * are parsed, taken through that, and written once - rather than written twice, which would
+     * leave a table on disk that the second pass then contradicts. A flow with nothing to say
+     * between the two hands one straight to the other.
      *
      * @param session the live session
      * @param manifest the registry the models walk populated
-     * @param out the output path ({@code entity_geometry.json} / {@code block_geometry.json})
-     * @return the bones each factory class's mesh names at top level, by class
+     * @return the entry per minted key, in registration order
      */
-    public static @NotNull Map<String, Set<String>> emit(
-        @NotNull ToolingSession session, @NotNull GeometryManifest manifest, @NotNull Path out) {
+    public static @NotNull Map<String, JsonTree> parse(
+        @NotNull ToolingSession session, @NotNull GeometryManifest manifest) {
 
         Diagnostics diagnostics = session.diagnostics().child("geometry");
-        Map<String, Set<String>> rootBones = new LinkedHashMap<>();
-        Set<String> disagreed = new LinkedHashSet<>();
-        JsonTree root = session.envelope(
-            "GeometryManifest registration order (walk order; append-last as a data-structure property)");
-        JsonTree geometries = root.child("geometries");
+        Map<String, JsonTree> entries = new LinkedHashMap<>();
         for (Map.Entry<String, GeometryRequest> entry : manifest.entries().entrySet()) {
             String key = entry.getKey();
             GeometryRequest request = entry.getValue();
@@ -91,14 +94,45 @@ public final class GeometryFlow {
             if (GeometryCullResolver.usesCullRenderType(session.cache(), request.factoryClass()))
                 node.put("cull", true);
             node.putIf("bones", parsed.find("bones"));
-            geometries.put(key, node);
-            recordRootBones(rootBones, disagreed, request.factoryClass(), parsed);
+            entries.put(key, node);
         }
-        root.write(out);
-        diagnostics.info("wrote %s", out.toAbsolutePath());
+        return entries;
+    }
 
+    /**
+     * The bones each factory class's mesh names at top level, by class.
+     *
+     * @param manifest the registry the entries were parsed from
+     * @param entries the parsed entries
+     * @return the top-level bone set per factory class, omitting a class whose meshes disagree
+     */
+    public static @NotNull Map<String, Set<String>> rootBones(
+        @NotNull GeometryManifest manifest, @NotNull Map<String, JsonTree> entries) {
+
+        Map<String, Set<String>> rootBones = new LinkedHashMap<>();
+        Set<String> disagreed = new LinkedHashSet<>();
+        entries.forEach((key, node) ->
+            recordRootBones(rootBones, disagreed, manifest.entries().get(key).factoryClass(), node));
         disagreed.forEach(rootBones::remove);
         return Collections.unmodifiableMap(rootBones);
+    }
+
+    /**
+     * Writes the parsed entries as the geometry file.
+     *
+     * @param session the live session
+     * @param entries the entry per minted key, in registration order
+     * @param out the output path ({@code entity_geometry.json} / {@code block_geometry.json})
+     */
+    public static void write(
+        @NotNull ToolingSession session, @NotNull Map<String, JsonTree> entries, @NotNull Path out) {
+
+        JsonTree root = session.envelope(
+            "GeometryManifest registration order (walk order; append-last as a data-structure property)");
+        JsonTree geometries = root.child("geometries");
+        entries.forEach(geometries::put);
+        root.write(out);
+        session.diagnostics().child("geometry").info("wrote %s", out.toAbsolutePath());
     }
 
     /**

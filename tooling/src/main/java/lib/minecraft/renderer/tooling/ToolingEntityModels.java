@@ -39,8 +39,11 @@ public final class ToolingEntityModels {
                 "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain");
             GeometryManifest manifest = new GeometryManifest();
             EntityRegistryWalk.run(session, subjects, manifest, root);
-            Map<String, Set<String>> rootBones =
-                GeometryFlow.emit(session, manifest, session.resolve("entity_geometry.json"));
+            // Parsed but not yet written: which bones a subject rests without is settled by the pose
+            // flow below, and that answer belongs in the mesh rather than beside it - so the entries
+            // are held until it has been taken, and written once.
+            Map<String, JsonTree> geometries = GeometryFlow.parse(session, manifest);
+            Map<String, Set<String>> rootBones = GeometryFlow.rootBones(manifest, geometries);
             // The classes the renderers pose with, which the geometry manifest does not name: a model
             // reusing its parent's layer bakes no mesh, so nothing would have walked its pose. The
             // renderers themselves travel beside them, because what a renderer puts above the meshes
@@ -62,6 +65,7 @@ public final class ToolingEntityModels {
             // the pose table actually carries.
             PoseFlow.emit(session, manifest, rootBones, posing, renderers,
                 root.child("models"), session.resolve("entity_poses.json"));
+            GeometryFlow.write(session, geometries, session.resolve("entity_geometry.json"));
             session.write(root, "entity_models.json");
             session.failOnStrictGate();
         }
