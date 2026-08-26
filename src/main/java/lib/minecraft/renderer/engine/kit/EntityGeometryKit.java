@@ -181,6 +181,9 @@ public class EntityGeometryKit {
         for (Map.Entry<String, EntityModelData.Bone> boneEntry : model.getBones().entrySet()) {
             String boneName = boneEntry.getKey();
             EntityModelData.Bone bone = boneEntry.getValue();
+            // A bone the subject rests without emits nothing, and its subtree rests without it too -
+            // the mesh carries the whole subtree marked, so this needs no closure of its own.
+            if (!bone.isVisible()) continue;
             Matrix4f boneChain = chainTransforms.get(boneName);
 
             // Java's PartPose / ModelPart authoring stores cube origins LOCAL to the bone's
@@ -285,7 +288,7 @@ public class EntityGeometryKit {
      */
     public static @NotNull Optional<Box> computeBoneBounds(@NotNull EntityModelData model, @NotNull String boneName) {
         EntityModelData.Bone bone = model.getBones().get(boneName);
-        if (bone == null || bone.getCubes().isEmpty()) return Optional.empty();
+        if (bone == null || !bone.isVisible() || bone.getCubes().isEmpty()) return Optional.empty();
         Matrix4f boneChain = BoneKit.buildChainTransform(model.getBones(), boneName);
         BoundsAccumulator acc = new BoundsAccumulator();
         float s = bone.getScale();
@@ -347,6 +350,7 @@ public class EntityGeometryKit {
 
         for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
+            if (!bone.isVisible()) continue;
             String boneName = entry.getKey();
             Matrix4f boneChain = chainTransforms.get(boneName);
             float s = bone.getScale();
@@ -761,6 +765,7 @@ public class EntityGeometryKit {
 
         for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
+            if (!bone.isVisible()) continue;
             Matrix4f boneChain = chainTransforms.get(entry.getKey());
             // Same pivot-translation + bone-scale as in {@link #buildTriangles}.
             float s = bone.getScale();

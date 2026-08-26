@@ -198,7 +198,10 @@ public record Entity(
             // mushrooms); entities whose sheared handling is overlay-only (sheep wool) declare no such
             // toggle and are left unchanged.
             Set<String> selectedToggles = appearance.getToggles();
-            if (appearance.isSheared() && definition.boneToggles().containsKey("sheared")) {
+            // Named unconditionally rather than gated on the subject declaring one: a mesh whose
+            // bones name no "sheared" selection is left alone by the flip anyway, so asking first
+            // would be a second roster of which subjects have the toggle.
+            if (appearance.isSheared()) {
                 selectedToggles = new LinkedHashSet<>(selectedToggles);
                 selectedToggles.add("sheared");
             }
@@ -308,8 +311,18 @@ public record Entity(
     private static @Nullable EntityModelData applyBoneToggles(
         @NotNull EntityModelData model, @NotNull Map<String, BoneToggle> specs, @NotNull Set<String> toggles) {
 
-        if (toggles.isEmpty() || specs.isEmpty()) return null;
+        if (toggles.isEmpty()) return null;
         LinkedHashMap<String, EntityModelData.Bone> bones = null;
+        // A bone naming a selected toggle draws the other way. Which way that is comes off the bone
+        // itself, so nothing has to be captured before the mesh is built, and a re-drawn bone keeps
+        // the position its mesh authored it at rather than landing after everything that draws.
+        for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
+            EntityModelData.Bone bone = entry.getValue();
+            String toggle = bone.getToggle();
+            if (toggle == null || !toggles.contains(toggle)) continue;
+            if (bones == null) bones = new LinkedHashMap<>(model.getBones());
+            bones.put(entry.getKey(), bone.withVisible(!bone.isVisible()));
+        }
         for (String toggle : toggles) {
             BoneToggle spec = specs.get(toggle);
             if (spec == null || spec.bones().isEmpty()) continue;
