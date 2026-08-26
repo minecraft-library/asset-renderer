@@ -18,11 +18,6 @@
     },
     "minecraft:armadillo": {
       "renderer": "net/minecraft/client/renderer/entity/ArmadilloRenderer",
-      "bones": {
-        "undrawn": [
-          "cube"
-        ]
-      },
       "axes": {
         "age": {
           "options": {
@@ -32,10 +27,7 @@
             },
             "baby": {
               "geometry": "BabyArmadilloModel#createBodyLayer",
-              "texture": "armadillo/armadillo_baby",
-              "undrawn": [
-                "cube"
-              ]
+              "texture": "armadillo/armadillo_baby"
             }
           }
         }
@@ -43,26 +35,6 @@
     },
     "minecraft:armor_stand": {
       "renderer": "net/minecraft/client/renderer/entity/ArmorStandRenderer",
-      "bones": {
-        "undrawn": [
-          "hat",
-          "left_arm",
-          "right_arm"
-        ],
-        "toggles": {
-          "arms": {
-            "bones": [
-              "left_arm",
-              "right_arm"
-            ]
-          },
-          "base_plate": {
-            "bones": [
-              "base_plate"
-            ]
-          }
-        }
-      },
       "axes": {
         "age": {
           "options": {
@@ -76,12 +48,7 @@
           "default": "large",
           "options": {
             "small": {
-              "geometry": "ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER",
-              "undrawn": [
-                "hat",
-                "left_arm",
-                "right_arm"
-              ]
+              "geometry": "ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER"
             }
           }
         }
@@ -172,15 +139,6 @@
     },
     "minecraft:bee": {
       "renderer": "net/minecraft/client/renderer/entity/BeeRenderer",
-      "bones": {
-        "toggles": {
-          "stinger": {
-            "bones": [
-              "stinger"
-            ]
-          }
-        }
-      },
       "axes": {
         "age": {
           "options": {
@@ -211,21 +169,6 @@
     },
     "minecraft:bogged": {
       "renderer": "net/minecraft/client/renderer/entity/BoggedRenderer",
-      "bones": {
-        "toggles": {
-          "sheared": {
-            "bones": [
-              "mushrooms",
-              "red_mushroom_1",
-              "red_mushroom_2",
-              "brown_mushroom_1",
-              "brown_mushroom_2",
-              "brown_mushroom_3",
-              "brown_mushroom_4"
-            ]
-          }
-        }
-      },
       "axes": {
         "age": {
           "options": {
@@ -319,18 +262,6 @@
           "layer_index": 0,
           "slot": "saddle",
           "geometry": "CamelSaddleModel#createSaddleLayer",
-          "bones": {
-            "undrawn": [
-              "reins"
-            ],
-            "toggles": {
-              "ridden": {
-                "bones": [
-                  "reins"
-                ]
-              }
-            }
-          },
           "layer_type": "camel_saddle",
           "default_material": "saddle",
           "material_assets": {
@@ -361,18 +292,6 @@
           "layer_index": 0,
           "slot": "saddle",
           "geometry": "CamelSaddleModel#createSaddleLayer",
-          "bones": {
-            "undrawn": [
-              "reins"
-            ],
-            "toggles": {
-              "ridden": {
-                "bones": [
-                  "reins"
-                ]
-              }
-            }
-          },
           "layer_type": "camel_husk_saddle",
           "default_material": "saddle",
           "material_assets": {
@@ -702,20 +621,6 @@
     },
     "minecraft:donkey": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
-      "bones": {
-        "undrawn": [
-          "left_chest",
-          "right_chest"
-        ],
-        "toggles": {
-          "chest": {
-            "bones": [
-              "left_chest",
-              "right_chest"
-            ]
-          }
-        }
-      },
       "axes": {
         "age": {
           "options": {
@@ -725,11 +630,7 @@
             },
             "baby": {
               "geometry": "BabyDonkeyModel#createBabyLayer",
-              "texture": "horse/donkey_baby",
-              "undrawn": [
-                "left_chest",
-                "right_chest"
-              ]
+              "texture": "horse/donkey_baby"
             }
           }
         }
@@ -741,19 +642,7 @@
           "slot": "saddle",
           "geometry": "DonkeyModel#createSaddleLayer@fparam=0.87",
           "bones": {
-            "pose": "EquineSaddleModel",
-            "undrawn": [
-              "left_saddle_line",
-              "right_saddle_line"
-            ],
-            "toggles": {
-              "ridden": {
-                "bones": [
-                  "left_saddle_line",
-                  "right_saddle_line"
-                ]
-              }
-            }
+            "pose": "EquineSaddleModel"
           },
           "layer_type": "donkey_saddle",
           "default_material": "saddle",
@@ -950,18 +839,13 @@
         "mainArm": "RIGHT"
       },
       "bones": {
-        "pose": "IllagerModel@armPose=CROSSED",
-        "undrawn": [
-          "hat",
-          "left_arm",
-          "right_arm"
-        ]
+        "pose": "IllagerModel@armPose=CROSSED"
       },
       "axes": {
         "age": {
           "options": {
             "adult": {
-              "geometry": "IllagerModel#createBodyLayer@scaled=0.9375",
+              "geometry": "IllagerModel#createBodyLayer@scaled=0.9375@rest=hat,left_arm,right_arm",
               "texture": "illager/evoker"
             }
           }
@@ -987,11 +871,6 @@
     },
     "minecraft:frog": {
       "renderer": "net/minecraft/client/renderer/entity/FrogRenderer",
-      "bones": {
-        "undrawn": [
-          "croaking_body"
-        ]
-      },
       "axes": {
         "variant": {
           "default": "temperate",
@@ -1132,16 +1011,6 @@
     },
     "minecraft:goat": {
       "renderer": "net/minecraft/client/renderer/entity/GoatRenderer",
-      "bones": {
-        "toggles": {
-          "horn": {
-            "bones": [
-              "left_horn",
-              "right_horn"
-            ]
-          }
-        }
-      },
       "axes": {
         "age": {
           "options": {
@@ -1303,20 +1172,6 @@
           "layer_index": 2,
           "slot": "saddle",
           "geometry": "EquineSaddleModel#createSaddleLayer@scaled=1.1",
-          "bones": {
-            "undrawn": [
-              "left_saddle_line",
-              "right_saddle_line"
-            ],
-            "toggles": {
-              "ridden": {
-                "bones": [
-                  "left_saddle_line",
-                  "right_saddle_line"
-                ]
-              }
-            }
-          },
           "layer_type": "horse_saddle",
           "default_material": "saddle",
           "material_assets": {
@@ -1384,18 +1239,14 @@
         "age": {
           "options": {
             "adult": {
-              "geometry": "IllagerModel#createBodyLayer@scaled=0.9375",
+              "geometry": "IllagerModel#createBodyLayer@scaled=0.9375@rest=left_arm,right_arm",
               "texture": "illager/illusioner"
             }
           }
         }
       },
       "bones": {
-        "pose": "IllagerModel@armPose=CROSSED",
-        "undrawn": [
-          "left_arm",
-          "right_arm"
-        ]
+        "pose": "IllagerModel@armPose=CROSSED"
       }
     },
     "minecraft:iron_golem": {
@@ -1469,20 +1320,6 @@
     },
     "minecraft:llama": {
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
-      "bones": {
-        "undrawn": [
-          "left_chest",
-          "right_chest"
-        ],
-        "toggles": {
-          "chest": {
-            "bones": [
-              "right_chest",
-              "left_chest"
-            ]
-          }
-        }
-      },
       "axes": {
         "variant": {
           "default": "creamy",
@@ -1519,11 +1356,7 @@
               "geometry": "LlamaModel#createBodyLayer"
             },
             "baby": {
-              "geometry": "BabyLlamaModel#createBodyLayer",
-              "undrawn": [
-                "left_chest",
-                "right_chest"
-              ]
+              "geometry": "BabyLlamaModel#createBodyLayer"
             }
           }
         }
@@ -1534,20 +1367,6 @@
           "layer_index": 0,
           "slot": "body",
           "geometry": "LlamaModel#createBodyLayer@grow=0.5",
-          "bones": {
-            "undrawn": [
-              "left_chest",
-              "right_chest"
-            ],
-            "toggles": {
-              "chest": {
-                "bones": [
-                  "right_chest",
-                  "left_chest"
-                ]
-              }
-            }
-          },
           "layer_type": "llama_body",
           "default_material": "white",
           "material_assets": {
@@ -1738,20 +1557,6 @@
     },
     "minecraft:mule": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
-      "bones": {
-        "undrawn": [
-          "left_chest",
-          "right_chest"
-        ],
-        "toggles": {
-          "chest": {
-            "bones": [
-              "left_chest",
-              "right_chest"
-            ]
-          }
-        }
-      },
       "axes": {
         "age": {
           "options": {
@@ -1761,11 +1566,7 @@
             },
             "baby": {
               "geometry": "BabyDonkeyModel#createBabyLayer",
-              "texture": "horse/mule_baby",
-              "undrawn": [
-                "left_chest",
-                "right_chest"
-              ]
+              "texture": "horse/mule_baby"
             }
           }
         }
@@ -1777,19 +1578,7 @@
           "slot": "saddle",
           "geometry": "DonkeyModel#createSaddleLayer@fparam=0.92",
           "bones": {
-            "pose": "EquineSaddleModel",
-            "undrawn": [
-              "left_saddle_line",
-              "right_saddle_line"
-            ],
-            "toggles": {
-              "ridden": {
-                "bones": [
-                  "left_saddle_line",
-                  "right_saddle_line"
-                ]
-              }
-            }
+            "pose": "EquineSaddleModel"
           },
           "layer_type": "mule_saddle",
           "default_material": "saddle",
@@ -2121,17 +1910,13 @@
         "mainArm": "RIGHT"
       },
       "bones": {
-        "pose": "IllagerModel@armPose=NEUTRAL",
-        "undrawn": [
-          "hat",
-          "arms"
-        ]
+        "pose": "IllagerModel@armPose=NEUTRAL"
       },
       "axes": {
         "age": {
           "options": {
             "adult": {
-              "geometry": "IllagerModel#createBodyLayer@scaled=0.9375",
+              "geometry": "IllagerModel#createBodyLayer@scaled=0.9375@rest=arms,hat",
               "texture": "illager/pillager"
             }
           }
@@ -2432,20 +2217,6 @@
           "layer_index": 1,
           "slot": "saddle",
           "geometry": "EquineSaddleModel#createSaddleLayer",
-          "bones": {
-            "undrawn": [
-              "left_saddle_line",
-              "right_saddle_line"
-            ],
-            "toggles": {
-              "ridden": {
-                "bones": [
-                  "left_saddle_line",
-                  "right_saddle_line"
-                ]
-              }
-            }
-          },
           "layer_type": "skeleton_horse_saddle",
           "default_material": "saddle",
           "material_assets": {
@@ -2691,20 +2462,6 @@
     },
     "minecraft:trader_llama": {
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
-      "bones": {
-        "undrawn": [
-          "left_chest",
-          "right_chest"
-        ],
-        "toggles": {
-          "chest": {
-            "bones": [
-              "right_chest",
-              "left_chest"
-            ]
-          }
-        }
-      },
       "axes": {
         "variant": {
           "default": "creamy",
@@ -2741,11 +2498,7 @@
               "geometry": "LlamaModel#createBodyLayer"
             },
             "baby": {
-              "geometry": "BabyLlamaModel#createBodyLayer",
-              "undrawn": [
-                "left_chest",
-                "right_chest"
-              ]
+              "geometry": "BabyLlamaModel#createBodyLayer"
             }
           }
         }
@@ -2770,20 +2523,6 @@
           "layer_index": 0,
           "slot": "body",
           "geometry": "LlamaModel#createBodyLayer@grow=0.5",
-          "bones": {
-            "undrawn": [
-              "left_chest",
-              "right_chest"
-            ],
-            "toggles": {
-              "chest": {
-                "bones": [
-                  "right_chest",
-                  "left_chest"
-                ]
-              }
-            }
-          },
           "layer_type": "llama_body",
           "default_material": "white",
           "material_assets": {
@@ -2869,18 +2608,6 @@
     },
     "minecraft:turtle": {
       "renderer": "net/minecraft/client/renderer/entity/TurtleRenderer",
-      "bones": {
-        "undrawn": [
-          "egg_belly"
-        ],
-        "toggles": {
-          "egg": {
-            "bones": [
-              "egg_belly"
-            ]
-          }
-        }
-      },
       "axes": {
         "age": {
           "options": {
@@ -2965,18 +2692,13 @@
         "mainArm": "RIGHT"
       },
       "bones": {
-        "pose": "IllagerModel@armPose=CROSSED",
-        "undrawn": [
-          "hat",
-          "left_arm",
-          "right_arm"
-        ]
+        "pose": "IllagerModel@armPose=CROSSED"
       },
       "axes": {
         "age": {
           "options": {
             "adult": {
-              "geometry": "IllagerModel#createBodyLayer@scaled=0.9375",
+              "geometry": "IllagerModel#createBodyLayer@scaled=0.9375@rest=hat,left_arm,right_arm",
               "texture": "illager/vindicator"
             }
           }
@@ -3357,20 +3079,6 @@
           "layer_index": 1,
           "slot": "saddle",
           "geometry": "EquineSaddleModel#createSaddleLayer",
-          "bones": {
-            "undrawn": [
-              "left_saddle_line",
-              "right_saddle_line"
-            ],
-            "toggles": {
-              "ridden": {
-                "bones": [
-                  "left_saddle_line",
-                  "right_saddle_line"
-                ]
-              }
-            }
-          },
           "layer_type": "zombie_horse_saddle",
           "default_material": "saddle",
           "material_assets": {

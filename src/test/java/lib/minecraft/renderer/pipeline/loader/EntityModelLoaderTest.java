@@ -472,18 +472,21 @@ class EntityModelLoaderTest {
             String entityId = wearer.getKey();
             Entity.EquipmentOverlay saddle = equipmentLayer(defs, entityId, "saddle");
             assertThat(entityId + " saddle rests with its own strap",
-                saddle.model().getBones().keySet(), hasItem("saddle"));
+                saddle.model().getBones().get("saddle").isVisible(), is(true));
+            // Carried and not drawn rather than absent: a selection can ask for them, so the mesh
+            // keeps them standing at rest visibility rather than dropping them.
             for (String bone : wearer.getValue())
                 assertThat(entityId + " saddle rests without '" + bone + "'",
-                    saddle.model().getBones().keySet(), not(hasItem(bone)));
+                    saddle.model().getBones().get(bone).isVisible(), is(false));
 
             Entity ridden = defs.get(entityId).resolve(AppearanceOptions.builder()
                 .equipment(Map.of("saddle", "saddle")).toggles(Set.of("ridden")).build());
-            assertThat(entityId + " draws its reins while ridden",
-                ridden.layers().equipment().stream()
-                    .filter(overlay -> overlay.slot().equals("saddle"))
-                    .findFirst().orElseThrow().model().getBones().keySet(),
-                hasItems(wearer.getValue().toArray(String[]::new)));
+            EntityModelData riddenSaddle = ridden.layers().equipment().stream()
+                .filter(overlay -> overlay.slot().equals("saddle"))
+                .findFirst().orElseThrow().model();
+            for (String bone : wearer.getValue())
+                assertThat(entityId + " draws '" + bone + "' while ridden",
+                    riddenSaddle.getBones().get(bone).isVisible(), is(true));
         }
     }
 

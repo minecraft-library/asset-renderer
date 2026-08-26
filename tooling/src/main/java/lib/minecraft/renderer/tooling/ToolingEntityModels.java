@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.animation.PoseFlow;
+import lib.minecraft.renderer.tooling.entity.EntityMeshMarking;
 import lib.minecraft.renderer.tooling.entity.EntityPoseClass;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryWalk;
@@ -65,6 +66,9 @@ public final class ToolingEntityModels {
             // the pose table actually carries.
             PoseFlow.emit(session, manifest, rootBones, posing, renderers,
                 root.child("models"), session.resolve("entity_poses.json"));
+            // With both halves of what each subject rests without now settled, they go onto the mesh
+            // that renders rather than beside it, and the members saying so come off the model table.
+            EntityMeshMarking.apply(session.diagnostics().child("bones"), root.child("models"), geometries);
             GeometryFlow.write(session, geometries, session.resolve("entity_geometry.json"));
             session.write(root, "entity_models.json");
             session.failOnStrictGate();
