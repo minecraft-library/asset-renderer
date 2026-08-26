@@ -10,6 +10,30 @@ it, and in the `reason` recorded with the baseline it moved.
 
 Delete an entry when it closes.
 
+## A variant family would lose its size and shape axes, and nothing would say so
+
+`EntityIndexBuilder.buildVariantRow` builds every coat with `largeShape`, `sizeModels` and
+`sizeScales` hardcoded empty, and `readDefinition` then takes the family row's axes off one of those
+coats - `Entity.Axes baseAxes = base.axes()` - carrying the three empties up with them. The size and
+shape builders are only ever called on the plain-family branch, so a family declaring a variant axis
+gets none of them.
+
+`sizeDefault` does not travel that path: it is read from the raw family, so it survives. That is what
+makes the failure silent rather than loud. The subject would carry a declared default size with no
+alternates behind it, `resolve` would answer the base mesh for every size selected, and
+`AppearanceCodec` would go on suppressing and writing `~size=` tokens against a default whose
+alternatives resolve to nothing - so the appearance key would name sizes the render cannot produce.
+
+No subject reaches it today: the variant families and the five size families and the one shape family
+do not intersect, checked over all ninety. It is one vanilla release away from being real - a coat
+axis on the pufferfish, or a size axis on any of the fourteen coated families - and the tables would
+regenerate clean, every suite would stay green, and the size axis would simply stop working.
+
+Closing it is either wiring the three through `VariantContext` the way `babyModel` and `babyPose`
+already travel, which makes it correct by construction, or a generation-time refusal for a family
+declaring a variant axis beside a size or shape one, which makes it loud. The first is cheap and this
+entry exists because nobody has taken it, not because it is hard.
+
 ## Most of the clip tables are dead offline, and the live tail is why they have not been shed
 
 Of `entity_poses.json`'s seventy-four clip tables, fifty-seven are reachable only through `state`
