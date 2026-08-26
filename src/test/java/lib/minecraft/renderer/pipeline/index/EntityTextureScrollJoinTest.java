@@ -113,13 +113,11 @@ class EntityTextureScrollJoinTest {
             null,                                   // bones
             List.of(new RawOverlay(
                 null,                               // geometry
+                null,                               // no_hat_geometry
                 "test",  // texture
-                null,                               // retain_bones
-                null,                               // no_hat_root
                 null,                               // tint
                 null,                               // tint_by
                 null,                               // texture_by
-                null,                               // grow
                 null,                               // pipeline
                 new RawTextureScroll(u, v),         // texture_scroll
                 false,                              // skip_bounds

@@ -151,15 +151,18 @@ record RawOption(
 /**
  * One body {@code overlays} entry.
  *
+ * <p>The mesh a pass draws is named rather than described: the subset it is restricted to, the
+ * deformation it surrounds the body with and the emptied subtree of its suppressed form are all
+ * baked, so a row names one mesh for each form it has and carries no instruction for building one.
+ *
  * @param geometry the overlay geometry coordinate, or {@code null} to reuse the base coordinate
+ * @param noHatGeometry the mesh the pass draws where it is suppressed, or {@code null} when the pass
+ *     has no suppressed form. Named BESIDE {@code geometry} rather than in place of it, a pass
+ *     drawing the body's own mesh being one the canvas union already measures through the body
  * @param texture the overlay texture sub-path, or {@code null} to reuse the base texture
- * @param retainBones the vanilla {@code retainExactParts} subset restricting the mesh, or {@code null}
- * @param noHatRoot the bone whose subtree the suppressed pass clears (vanilla's
- *     {@code clearChild(name).clearRecursively()}), or {@code null} when the pass has no alternate mesh
  * @param tint the overlay tint as a hex string, or {@code null} for white
  * @param tintBy the render-axis token overriding the tint at render, or {@code null}
  * @param textureBy the render-axis token overriding the texture at render, or {@code null}
- * @param grow the uniform cube inflate, or {@code null} when absent
  * @param pipeline the blend / alpha / emissive render pipeline, or {@code null}
  * @param textureScroll the texels-per-tick the render type translates this pass's texture by, or
  *     {@code null} when it translates none
@@ -170,13 +173,11 @@ record RawOption(
  */
 record RawOverlay(
     @Nullable String geometry,
+    @SerializedName("no_hat_geometry") @Nullable String noHatGeometry,
     @Nullable String texture,
-    @SerializedName("retain_bones") @Nullable List<String> retainBones,
-    @SerializedName("no_hat_root") @Nullable String noHatRoot,
     @Nullable String tint,
     @SerializedName("tint_by") @Nullable String tintBy,
     @SerializedName("texture_by") @Nullable String textureBy,
-    @Nullable Float grow,
     @Nullable RawPipeline pipeline,
     @SerializedName("texture_scroll") @Nullable RawTextureScroll textureScroll,
     @SerializedName("skip_bounds") boolean skipBounds,
@@ -198,29 +199,26 @@ record RawTextureScroll(float u, float v) {}
 
 /**
  * An overlay's {@code baby} age delta - the members a baby render substitutes, with everything else
- * ({@code texture_by}, tint, pipeline, bounds skip, gate) inherited from the overlay row. Most deltas
- * carry no {@code geometry} and materialise against the {@code age.baby} mesh, which
- * {@link EntityIndexBuilder} supplies as the base coordinate; one is carried where vanilla bakes the
- * baby pass its own {@code LayerDefinition} that no inflate of the baby body reaches (the drowned's
- * outer shell, whose factory hardcodes two head cubes' deformations rather than driving them off its
- * parameter). {@code grow} is carried because a baby decoration inflates its baby mesh by its own
- * {@code CubeDeformation} (the trader llama's baby caparison at {@code 0.2}, against the adult's
- * {@code 0.5}), not the adult row's.
+ * ({@code texture_by}, tint, pipeline, bounds skip, gate) inherited from the overlay row. A delta
+ * carrying no {@code geometry} draws the {@code age.baby} mesh, which {@link EntityIndexBuilder}
+ * supplies as the base coordinate.
  *
- * @param geometry the baby mesh coordinate, or {@code null} to materialise against the
- *     {@code age.baby} mesh
+ * <p>A baby form's mesh is its own rather than the adult's under a baby-sized deformation: a baby
+ * decoration is inflated by its own {@code CubeDeformation} (the trader llama's baby caparison
+ * against the adult's), and one is baked its own {@code LayerDefinition} that no inflate of the baby
+ * body reaches (the drowned's outer shell, whose factory hardcodes two head cubes' deformations
+ * rather than driving them off its parameter). Both are meshes the tooling has already derived, so
+ * the delta names one where it differs from the row's.
+ *
+ * @param geometry the baby mesh coordinate, or {@code null} to draw the {@code age.baby} mesh
+ * @param noHatGeometry the mesh the baby pass draws where it is suppressed, or {@code null} when it
+ *     has no suppressed form
  * @param texture the baby texture sub-path, or {@code null} to inherit the row's texture
- * @param noHatRoot the bone whose subtree the baby suppressed pass clears, or {@code null} when the
- *     baby pass has no alternate mesh
- * @param grow the baby cube inflate, or {@code null} to inherit the row's grow - and never
- *     inherited at all once {@code geometry} names a mesh of its own, whose deformation the tooling
- *     has already baked in
  */
 record RawOverlayBaby(
     @Nullable String geometry,
-    @Nullable String texture,
-    @SerializedName("no_hat_root") @Nullable String noHatRoot,
-    @Nullable Float grow
+    @SerializedName("no_hat_geometry") @Nullable String noHatGeometry,
+    @Nullable String texture
 ) {}
 
 /**

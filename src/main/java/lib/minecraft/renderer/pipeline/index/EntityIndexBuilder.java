@@ -50,11 +50,15 @@ import java.util.Set;
 
 /**
  * Assembles the runtime entity index from the two pure reads: joins each {@link RawModel}'s geometry
- * coordinate against the geometry table, runs the mesh surgery (undrawn strip, {@code retainExactParts}
- * subset, {@code grow} inflate plus the auto-emitted depth-clearance bump), pivots the option axes into
- * {@link Entity.Axes}, folds each variant option into a sub-{@link Entity}, and stamps cross-entity
- * canvas-group membership. The leaf decodes (hex tint, {@code blend} token, texture strip, transform ops)
- * happen here too - the raw records carry them verbatim.
+ * coordinate against the geometry table, pivots the option axes into {@link Entity.Axes}, folds each
+ * variant option into a sub-{@link Entity}, and stamps cross-entity canvas-group membership. The leaf
+ * decodes (hex tint, {@code blend} token, texture strip, transform ops) happen here too - the raw
+ * records carry them verbatim.
+ *
+ * <p>Every mesh a subject draws is JOINED rather than built. What a subject rests without, the subset
+ * a pass is restricted to, the deformation it surrounds the body with and the emptied subtree of its
+ * suppressed form are all baked into meshes of their own, so a row names one mesh per form it has and
+ * nothing here reshapes one. A mesh that arrives is the mesh that draws.
  *
  * <p>Every family folds to one base row: option-encoded coats live on {@code axes.variants} and are
  * measured by the group canvas union rather than expanded into member rows of their own. That is a
@@ -398,10 +402,10 @@ public final class EntityIndexBuilder {
 
     /**
      * Resolves an {@code overlays} list into {@link OverlayLayer}s. An overlay without a {@code geometry}
-     * member (or one naming the base coordinate) inherits the post-hidden-strip base mesh so its cubes
-     * co-register with the base; a distinct coordinate resolves fresh from the geometry table (a missing
-     * coordinate warns and drops). {@code retain_bones} restricts the mesh to a vanilla
-     * {@code retainExactParts} subset before inflate; {@code grow} inflates every cube.
+     * member (or one naming the base coordinate) draws the base mesh itself so its cubes co-register
+     * with the base; a distinct coordinate resolves fresh from the geometry table (a missing coordinate
+     * warns and drops). A pass vanilla restricts to a subset or deforms names the mesh that is, so the
+     * distinct coordinate is what says the two differ.
      */
     private static @NotNull List<OverlayLayer> loadOverlays(
         @NotNull List<RawOverlay> overlays,
@@ -434,28 +438,16 @@ public final class EntityIndexBuilder {
             // Either way the renderer's steps sit at the front, the body's arriving composed already.
             EntityPose overlayPose = sameGeometry ? bodyPose : under(renderTransform, poseOf(poses, coord));
             Optional<String> overlayTexture = Optional.ofNullable(entry.texture());
-            // retain_bones (warden pulsating spots) restricts the overlay to a vanilla retainExactParts
-            // subset of the shared mesh, so the glow texture draws only where vanilla's subset
-            // LayerDefinition does. Applied before inflate so surviving cubes inflate together.
-            EntityModelData retained = entry.retainBones() == null ? overlayModel : retainExactParts(overlayModel, entry.retainBones());
             boolean hasTint = entry.tint() != null;
-            // inflate: an explicit grow is a real vanilla CubeDeformation (tropical_fish 0.008, llama
-            // carpet 0.5); every other overlay carries none. A same-mesh grow-less overlay re-submits the
-            // base geometry coincident with it, exactly as vanilla submits the identical ModelPart through
-            // a second render type, and the depth test resolves the tie in the overlay's favour because it
-            // draws second.
-            float inflate = entry.grow() != null ? entry.grow() : 0f;
-            EntityModelData materialised = inflate != 0f ? inflateModel(retained, inflate) : retained;
             RawPipeline pipeline = entry.pipeline();
             boolean emissive = pipeline != null && pipeline.emissive();
             int overlayTint = hasTint ? ColorTypeAdapter.parse(entry.tint()).getRGB() : WHITE;
-            // A same-geometry overlay with no deformation of its own is excluded from the canvas-sizing
-            // bounds: it renders the IDENTICAL cube tree as the base, so the base already contributes its
-            // full silhouette extent. An explicit grow is a real vanilla CubeDeformation that vanilla's own
+            // An overlay drawing the base mesh itself is excluded from the canvas-sizing bounds: it
+            // renders the IDENTICAL cube tree as the base, so the base already contributes its full
+            // silhouette extent. A pass vanilla deforms draws a mesh of its OWN, which vanilla's own
             // bounds walk includes, so it keeps contributing. An explicit skip_bounds (llama carpet,
             // NO_RENDER_LAYER_SUFFIXES) always wins.
-            boolean coincidentWithBase = sameGeometry && inflate == 0f;
-            boolean skipBounds = entry.skipBounds() || coincidentWithBase;
+            boolean skipBounds = entry.skipBounds() || sameGeometry;
             // Resolved here rather than re-parsed per frame: the token is the table's spelling and
             // the axis is what every reader asks.
             Optional<TintAxis> tintBy = TintAxis.ofToken(entry.tintBy());
@@ -472,19 +464,18 @@ public final class EntityIndexBuilder {
             // (what DepthStencilState.DEFAULT declares) and draws in emission order.
             boolean writesDepth = pipeline == null || pipeline.depthWrite() == null || pipeline.depthWrite();
             boolean sorted = pipeline != null && pipeline.sorted();
-            // The suppressed-pass mesh: vanilla's clearChild(root).clearRecursively() over the SAME
-            // materialised mesh, so the alternate differs from the primary in nothing but the emptied
-            // subtree. Derived here rather than from a second geometry coordinate precisely so
-            // sameGeometry, the depth-clearance inflate and the derived skipBounds above all stand.
-            Optional<EntityModelData> noHatModel = entry.noHatRoot() == null ? Optional.empty()
-                : clearSubtreeCubes(materialised, entry.noHatRoot(), entityId);
+            // The suppressed-pass mesh, named by a member of its OWN rather than by the coordinate this
+            // pass draws: it differs from the primary in nothing but the emptied subtree, and naming it
+            // as the pass's geometry would flip sameGeometry and take the bounds skip above with it.
+            Optional<EntityModelData> noHatModel = entry.noHatGeometry() == null ? Optional.empty()
+                : Optional.ofNullable(geometries.get(entry.noHatGeometry()));
             Optional<Vector2f> scroll = textureScroll(entry, entityId);
             // The wrap is the pass's own fact, decided here rather than inferred at render: vanilla
             // builds the offset into the render type's texture matrix, so a scrolled pass samples
             // past the sheet and wraps, and every other pass holds at the last texel.
             PassDeclaration pass =
                 new PassDeclaration(emissive, blend, alpha, writesDepth, sorted, scroll.isPresent());
-            out.add(new OverlayLayer(materialised, overlayTexture, pass, overlayTint, skipBounds, tintBy,
+            out.add(new OverlayLayer(overlayModel, overlayTexture, pass, overlayTint, skipBounds, tintBy,
                 textureBy, gate, noHatModel, overlayPose, scroll));
         }
         return out;
@@ -549,17 +540,11 @@ public final class EntityIndexBuilder {
         for (RawOverlay entry : overlays) {
             RawOverlayBaby baby = entry.baby();
             if (baby == null) continue;
-            // A delta naming its own mesh takes that mesh's deformation as the tooling baked it, so the
-            // row's grow is NOT inherited onto it - the adult inflate would land a second time on top
-            // of the baby factory's own. A delta reusing the age.baby mesh still inherits it.
-            Float babyGrow = baby.grow() != null ? baby.grow()
-                : baby.geometry() != null ? null
-                : entry.grow();
             forms.add(new RawOverlay(
-                baby.geometry(),
+                baby.geometry(), baby.noHatGeometry(),
                 baby.texture() == null ? entry.texture() : baby.texture(),
-                entry.retainBones(), baby.noHatRoot(), entry.tint(), entry.tintBy(), entry.textureBy(),
-                babyGrow, entry.pipeline(), entry.textureScroll(), entry.skipBounds(), entry.when(), null));
+                entry.tint(), entry.tintBy(), entry.textureBy(),
+                entry.pipeline(), entry.textureScroll(), entry.skipBounds(), entry.when(), null));
         }
         if (forms.isEmpty()) return List.of();
         // Rows declared a baby form but the mesh they would materialise against is missing - the same
@@ -735,8 +720,9 @@ public final class EntityIndexBuilder {
      * wearer rather than dressing it in a guess. An absent {@code scaled} is the identity, which is what
      * the eleven wearers vanilla registers unscaled omit.
      *
-     * <p>The mesh arrives RAW - none of the entity mesh surgery (the undrawn strip, the
-     * {@code retainExactParts} subset, the auto-emitted depth-clearance bump) touches it. Worn armor is
+     * <p>The mesh arrives as the shell's own - what a wearer rests without, the subset a pass of its is
+     * restricted to and the deformation one surrounds it with are derived onto meshes the wearer names,
+     * and this row names none of them. Worn armor is
      * a shared set vanilla hands the wearer, not a derivative of the wearer's own mesh, so anything done
      * to the body must not follow it onto the shell.
      *
@@ -1010,110 +996,6 @@ public final class EntityIndexBuilder {
         if (model == null)
             throw new PipelineException("Entity '%s' references geometry '%s' which is absent from entity_geometry", entityId, coord);
         return model;
-    }
-
-    /**
-     * Restricts an overlay model to the vanilla {@code retainExactParts} subset named by {@code retainBones}:
-     * a bone keeps its cubes iff it is named AND no ancestor is (vanilla's {@code clearRecursively} empties a
-     * retained part's descendant subtree). Every other bone is kept as a pose-only node so the transform
-     * hierarchy stays intact.
-     *
-     * <p>Package-private so the subset rule can be pinned on a fixture mesh directly.
-     */
-    static @NotNull EntityModelData retainExactParts(@NotNull EntityModelData source, @NotNull List<String> retainBones) {
-        Set<String> retain = new LinkedHashSet<>();
-        for (String el : retainBones)
-            if (el != null) retain.add(el);
-        Map<String, EntityModelData.Bone> bones = source.getBones();
-        LinkedHashMap<String, EntityModelData.Bone> out = new LinkedHashMap<>();
-        for (Map.Entry<String, EntityModelData.Bone> e : bones.entrySet()) {
-            EntityModelData.Bone bone = e.getValue();
-            boolean keepCubes = retain.contains(e.getKey()) && !hasAncestorInSet(bones, bone, retain);
-            if (keepCubes || bone.getCubes().isEmpty()) {
-                out.put(e.getKey(), bone);
-            } else {
-                out.put(e.getKey(), bone.withCubes(Concurrent.adoptList(new ArrayList<>())));
-            }
-        }
-        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(out), source.isCull());
-    }
-
-    /**
-     * Returns a copy of {@code source} with the cube list of {@code rootBone} and of every descendant
-     * emptied - vanilla's {@code clearChild(name).clearRecursively()}. Every bone keeps its pivot,
-     * rotation, bind-pose rotation, scale and parent so the transform hierarchy is untouched and a
-     * cube-less bone simply emits nothing; every bone outside the subtree passes through by reference.
-     * A {@code rootBone} absent from the mesh warns and yields empty. Package-private so the subtree
-     * clear can be pinned on a fixture mesh directly.
-     *
-     * @param source the mesh to derive from
-     * @param rootBone the subtree root whose cubes (and its descendants') are emptied
-     * @param entityId the entity the overlay belongs to, for the diagnostic
-     * @return the cleared mesh, or empty when {@code rootBone} is not on the geometry
-     */
-    static @NotNull Optional<EntityModelData> clearSubtreeCubes(
-        @NotNull EntityModelData source,
-        @NotNull String rootBone,
-        @NotNull String entityId
-    ) {
-        Map<String, EntityModelData.Bone> bones = source.getBones();
-        if (!bones.containsKey(rootBone)) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' overlay no_hat_root names bone '%s' which is not on the geometry", entityId, rootBone);
-            return Optional.empty();
-        }
-        Set<String> root = Set.of(rootBone);
-        LinkedHashMap<String, EntityModelData.Bone> out = new LinkedHashMap<>();
-        for (Map.Entry<String, EntityModelData.Bone> e : bones.entrySet()) {
-            EntityModelData.Bone bone = e.getValue();
-            boolean cleared = rootBone.equals(e.getKey()) || hasAncestorInSet(bones, bone, root);
-            if (!cleared || bone.getCubes().isEmpty()) {
-                out.put(e.getKey(), bone);
-            } else {
-                out.put(e.getKey(), bone.withCubes(Concurrent.adoptList(new ArrayList<>())));
-            }
-        }
-        return Optional.of(new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(),
-            Concurrent.adoptLinkedMap(out), source.isCull()));
-    }
-
-    /** Reports whether any proper ancestor of {@code bone} is named in {@code retain}. */
-    private static boolean hasAncestorInSet(@NotNull Map<String, EntityModelData.Bone> bones, @NotNull EntityModelData.Bone bone, @NotNull Set<String> retain) {
-        for (String parent = bone.getParent(); parent != null; ) {
-            if (retain.contains(parent)) return true;
-            EntityModelData.Bone p = bones.get(parent);
-            if (p == null) return false;
-            parent = p.getParent();
-        }
-        return false;
-    }
-
-    /**
-     * Returns a deep-cloned copy of {@code source} with every cube's grow bumped by {@code delta} on
-     * every axis - surrounding the base mesh with the inflated overlay instead of z-fighting it. Bones,
-     * pivots, rotations, UVs, and parent links are preserved verbatim.
-     *
-     * <p>Package-private so the inflate can be pinned on a fixture mesh directly.
-     *
-     * @param source the mesh to inflate
-     * @param delta the amount added to every cube's grow on every axis
-     * @return the inflated mesh
-     */
-    static @NotNull EntityModelData inflateModel(@NotNull EntityModelData source, float delta) {
-        LinkedHashMap<String, EntityModelData.Bone> inflated = new LinkedHashMap<>();
-        for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {
-            EntityModelData.Bone bone = e.getValue();
-            ArrayList<EntityModelData.Cube> cubes = new ArrayList<>(bone.getCubes().size());
-            for (EntityModelData.Cube cube : bone.getCubes()) {
-                Vector3f grow = cube.getGrow();
-                cubes.add(new EntityModelData.Cube(
-                    cube.getOrigin(), cube.getSize(), cube.getUv(),
-                    new Vector3f(grow.x() + delta, grow.y() + delta, grow.z() + delta), cube.isMirror(),
-                    cube.getPivot(), cube.getRotation(), cube.getFaceUv()));
-            }
-            inflated.put(e.getKey(), bone.withCubes(Concurrent.adoptList(cubes)));
-        }
-        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(inflated), source.isCull());
     }
 
     // ------------------------------------------------------------------------------------

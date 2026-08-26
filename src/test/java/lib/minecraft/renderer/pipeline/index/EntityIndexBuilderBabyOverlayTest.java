@@ -10,14 +10,17 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -30,8 +33,8 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * Baby overlay-form contract tests for {@link EntityIndexBuilder}, exercised on a hand-built raw model
  * so the age delta is pinned independently of any shipped entity's rows. The load-bearing case is the
- * base-coordinate the derived rows materialise against: a baby overlay must inherit the {@code age.baby}
- * mesh, because that is what keeps the depth-clearance inflate and the derived bounds skip.
+ * coordinate a derived row draws: a baby overlay naming no mesh of its own must draw the
+ * {@code age.baby} mesh, because that is what keeps its derived bounds skip.
  */
 @DisplayName("EntityIndexBuilder baby overlay forms")
 class EntityIndexBuilderBabyOverlayTest {
@@ -40,31 +43,61 @@ class EntityIndexBuilderBabyOverlayTest {
     private static final String CONTROL = "minecraft:test_sheep";
     private static final String ADULT_COORD = "TestVillagerModel#createBodyModel";
     private static final String BABY_COORD = "BabyTestVillagerModel#createBodyModel";
+    /** The meshes a suppressed pass draws, which the tooling derives and the row names. */
+    private static final String ADULT_CLEARED = ADULT_COORD + "@cleared=head";
+    private static final String BABY_CLEARED = BABY_COORD + "@cleared=head";
+    /** The meshes a deformed pass draws, likewise derived and named rather than built here. */
+    private static final String ADULT_DECOR = ADULT_COORD + "@inflate=0.5";
+    private static final String BABY_DECOR = BABY_COORD + "@inflate=0.2";
+    /** The subtree a suppressed pass's mesh is cut back over. */
+    private static final Set<String> HEAD_SUBTREE = Set.of("head", "hat", "hat_rim", "nose");
+
     /**
      * A villager-shaped mesh: {@code head} carries {@code hat} / {@code hat_rim} / {@code nose} beside an
      * untouched {@code body}, plus one bone unique to this mesh so the two meshes are distinguishable by
      * their bone sets alone.
      */
     private static EntityModelData mesh(String uniqueBone) {
+        return mesh(uniqueBone, 0f);
+    }
+
+    /** The same mesh with one deformation on every cube, standing for a mesh the tooling inflated. */
+    private static EntityModelData mesh(String uniqueBone, float grow) {
         LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
-        bones.put("body", bone(new Vector3f(0f, 1f, 0f), null));
-        bones.put("head", bone(new Vector3f(0f, 2f, 0f), null));
-        bones.put("hat", bone(new Vector3f(0f, 3f, 0f), "head"));
-        bones.put("hat_rim", bone(new Vector3f(0f, 4f, 0f), "hat"));
-        bones.put("nose", bone(new Vector3f(0f, 5f, 0f), "head"));
-        bones.put(uniqueBone, bone(new Vector3f(0f, 6f, 0f), "body"));
+        bones.put("body", bone(new Vector3f(0f, 1f, 0f), null, grow));
+        bones.put("head", bone(new Vector3f(0f, 2f, 0f), null, grow));
+        bones.put("hat", bone(new Vector3f(0f, 3f, 0f), "head", grow));
+        bones.put("hat_rim", bone(new Vector3f(0f, 4f, 0f), "hat", grow));
+        bones.put("nose", bone(new Vector3f(0f, 5f, 0f), "head", grow));
+        bones.put(uniqueBone, bone(new Vector3f(0f, 6f, 0f), "body", grow));
         return new EntityModelData(TextureSize.DEFAULT, 0f, Concurrent.adoptLinkedMap(bones), false);
     }
 
-    private static EntityModelData.Bone bone(Vector3f pivot, String parent) {
+    private static EntityModelData.Bone bone(Vector3f pivot, String parent, float grow) {
+        EntityModelData.Cube cube = new EntityModelData.Cube(
+            Vector3f.ZERO, Vector3f.ZERO, new Vector2f(0f, 0f), new Vector3f(grow, grow, grow), false,
+            Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
         return new EntityModelData.Bone(pivot, EulerRotation.NONE, EulerRotation.NONE, 1f,
-            Concurrent.newList(new EntityModelData.Cube()), parent);
+            Concurrent.newList(cube), parent);
+    }
+
+    /** One mesh with the {@code head} subtree emptied - what the tooling derives a suppressed pass onto. */
+    private static EntityModelData cleared(EntityModelData source) {
+        LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
+        source.getBones().forEach((name, bone) -> bones.put(name,
+            HEAD_SUBTREE.contains(name) ? bone.withCubes(Concurrent.adoptList(new ArrayList<>())) : bone));
+        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(),
+            Concurrent.adoptLinkedMap(bones), source.isCull());
     }
 
     private static Map<String, EntityModelData> geometries() {
         Map<String, EntityModelData> geometries = new LinkedHashMap<>();
         geometries.put(ADULT_COORD, mesh("jacket"));
         geometries.put(BABY_COORD, mesh("bb_main"));
+        geometries.put(ADULT_CLEARED, cleared(mesh("jacket")));
+        geometries.put(BABY_CLEARED, cleared(mesh("bb_main")));
+        geometries.put(ADULT_DECOR, mesh("jacket", 0.5f));
+        geometries.put(BABY_DECOR, mesh("bb_main", 0.2f));
         return geometries;
     }
 
@@ -92,17 +125,15 @@ class EntityIndexBuilderBabyOverlayTest {
             null);                    // state
     }
 
-    /** The {@code type} pass - a category overlay carrying a baby delta that clears the head subtree. */
+    /** The {@code type} pass - a category overlay carrying a baby delta with a suppressed form. */
     private static RawOverlay typePass() {
         return new RawOverlay(
             ADULT_COORD,                                           // geometry
+            ADULT_CLEARED,                                         // no_hat_geometry
             "villager/type/plains",  // texture
-            null,                                                  // retain_bones
-            "head",                                                // no_hat_root
             null,                                                  // tint
             null,                                                  // tint_by
             "type",                                                // texture_by
-            null,                                                  // grow
             null,                                                  // pipeline
             null,                                                  // texture_scroll
             false,                                                 // skip_bounds
@@ -110,26 +141,23 @@ class EntityIndexBuilderBabyOverlayTest {
             typeBabyDelta());                                      // baby
     }
 
-    /** The {@code type} pass's age delta - the baby texture plus the subtree its baby form clears. */
+    /** The {@code type} pass's age delta - the baby texture plus the mesh its suppressed form draws. */
     private static RawOverlayBaby typeBabyDelta() {
         return new RawOverlayBaby(
             null,                                                  // geometry
-            "villager/baby/plains",  // texture
-            "head",                                                // no_hat_root
-            null);                                                 // grow
+            BABY_CLEARED,                                          // no_hat_geometry
+            "villager/baby/plains");  // texture
     }
 
     /** The {@code profession} pass - no age delta, so a baby drops it structurally. */
     private static RawOverlay professionPass() {
         return new RawOverlay(
             ADULT_COORD,   // geometry
+            null,          // no_hat_geometry
             null,          // texture
-            null,          // retain_bones
-            null,          // no_hat_root
             null,          // tint
             null,          // tint_by
             "profession",  // texture_by
-            null,          // grow
             null,          // pipeline
             null,          // texture_scroll
             true,          // skip_bounds
@@ -141,13 +169,11 @@ class EntityIndexBuilderBabyOverlayTest {
     private static RawOverlay woolPass() {
         return new RawOverlay(
             ADULT_COORD,                                       // geometry
+            null,                                              // no_hat_geometry
             "sheep/sheep_wool",  // texture
-            null,                                              // retain_bones
-            null,                                              // no_hat_root
             null,                                              // tint
             "wool_color",                                      // tint_by
             null,                                              // texture_by
-            null,                                              // grow
             null,                                              // pipeline
             null,                                              // texture_scroll
             false,                                             // skip_bounds
@@ -255,29 +281,27 @@ class EntityIndexBuilderBabyOverlayTest {
     }
 
     @Test
-    @DisplayName("a baby delta's own grow inflates the baby mesh, overriding the row's adult grow")
-    void babyDeltaGrowOverridesTheRowGrow() {
-        // The trader llama dresses its baby in a caparison inflated by 0.2 where the adult's inflates by
-        // 0.5, so the baby delta must carry that grow rather than inherit the row's. A null baby grow
-        // still inherits (the villager robe), which the other cases here already cover.
+    @DisplayName("a baby delta naming its own mesh draws that one, not the mesh the row draws")
+    void babyDeltaDrawsTheMeshItNames() {
+        // The trader llama dresses its baby in a caparison deformed by 0.2 where the adult's is deformed
+        // by 0.5, and the two are meshes rather than amounts. So the delta names the baby one and the
+        // row's own mesh must not reach it. A delta naming none draws the age.baby mesh (the villager
+        // robe), which the other cases here already cover.
         RawOverlay decor = new RawOverlay(
-            ADULT_COORD,                                                        // geometry
+            ADULT_DECOR,                                                        // geometry
+            null,                                                               // no_hat_geometry
             "equipment/llama_body/trader_llama",  // texture
-            null,                                                               // retain_bones
-            null,                                                               // no_hat_root
             null,                                                               // tint
             null,                                                               // tint_by
             null,                                                               // texture_by
-            0.5f,                                                               // grow (adult caparison)
             null,                                                               // pipeline
             null,                                                               // texture_scroll
             true,                                                               // skip_bounds
             null,                                                               // when
             new RawOverlayBaby(
-                null,                                                                    // geometry
-                "equipment/llama_body/trader_llama_baby",  // texture
-                null,                                                                    // no_hat_root
-                0.2f));                                                                  // grow (baby caparison)
+                BABY_DECOR,                                                              // geometry
+                null,                                                                    // no_hat_geometry
+                "equipment/llama_body/trader_llama_baby"));  // texture
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, new RawModel(
             null,                                        // renderer
@@ -293,13 +317,15 @@ class EntityIndexBuilderBabyOverlayTest {
             null));                                      // members
         Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), Map.of(), Map.of()).get(ENTITY);
 
-        assertThat("the adult decor inflates by its row grow",
+        assertThat("the adult decor draws the mesh its row names",
             firstCubeGrow(llama.overlays().getFirst().model()), is(0.5f));
-        assertThat("the baby decor inflates by its own grow, not the row's 0.5",
+        assertThat("the baby decor draws the mesh its delta names, not the row's",
             firstCubeGrow(llama.axes().babyOverlays().getFirst().model()), is(0.2f));
+        assertThat("the baby decor is cut from the baby mesh",
+            llama.axes().babyOverlays().getFirst().model().getBones().keySet(), hasItems("bb_main"));
     }
 
-    /** The uniform grow baked into the first cube of an overlay's materialised mesh. */
+    /** The uniform grow baked into the first cube of the mesh an overlay draws. */
     private static float firstCubeGrow(EntityModelData model) {
         for (EntityModelData.Bone bone : model.getBones().values())
             if (!bone.getCubes().isEmpty())

@@ -3615,10 +3615,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pipeline/index/EntityIndexBuilderMeshTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/pipeline/index/EntityPoseLoadTest": {
       "artifacts": [],
       "source": "derived"

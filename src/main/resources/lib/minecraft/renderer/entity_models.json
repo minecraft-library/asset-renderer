@@ -586,7 +586,7 @@
           "when": {
             "charged": true
           },
-          "geometry": "CreeperModel#createBodyLayer",
+          "geometry": "CreeperModel#createBodyLayer@inflate=2.0",
           "texture": "creeper/creeper_armor",
           "tint": "0xFF808080",
           "pipeline": {
@@ -594,7 +594,6 @@
             "blend": "additive",
             "sorted": true
           },
-          "grow": 2.0,
           "texture_scroll": {
             "u": 0.01,
             "v": 0.01
@@ -672,12 +671,11 @@
         {
           "source": "DrownedOuterLayer",
           "layer_index": 4,
-          "geometry": "DrownedModel#createBodyLayer",
+          "geometry": "DrownedModel#createBodyLayer@inflate=0.25",
           "texture": "zombie/drowned_outer_layer",
           "pipeline": {
             "blend": "cutout"
           },
-          "grow": 0.25,
           "baby": {
             "geometry": "BabyDrownedModel#createBodyLayer@grow=0.25",
             "texture": "zombie/drowned_outer_layer_baby"
@@ -2503,13 +2501,12 @@
         {
           "source": "LlamaDecorLayer",
           "layer_index": 0,
-          "geometry": "LlamaModel#createBodyLayer",
+          "geometry": "LlamaModel#createBodyLayer@inflate=0.5",
           "texture": "equipment/llama_body/trader_llama",
-          "grow": 0.5,
           "skip_bounds": true,
           "baby": {
             "texture": "equipment/llama_body/trader_llama_baby",
-            "grow": 0.2
+            "geometry": "BabyLlamaModel#createBodyLayer@inflate=0.2"
           }
         }
       ],
@@ -2571,15 +2568,14 @@
                 {
                   "source": "TropicalFishPatternLayer",
                   "layer_index": 0,
-                  "geometry": "TropicalFishLargeModel#createBodyLayer",
+                  "geometry": "TropicalFishLargeModel#createBodyLayer@inflate=0.008",
                   "texture": "fish/tropical_b_pattern_1",
                   "texture_by": "pattern",
                   "tint": "0xFFF9FFFE",
                   "tint_by": "pattern_color",
                   "pipeline": {
                     "blend": "cutout"
-                  },
-                  "grow": 0.008
+                  }
                 }
               ]
             }
@@ -2590,15 +2586,14 @@
         {
           "source": "TropicalFishPatternLayer",
           "layer_index": 0,
-          "geometry": "TropicalFishSmallModel#createBodyLayer",
+          "geometry": "TropicalFishSmallModel#createBodyLayer@inflate=0.008",
           "texture": "fish/tropical_a_pattern_1",
           "texture_by": "pattern",
           "tint": "0xFFF9FFFE",
           "tint_by": "pattern_color",
           "pipeline": {
             "blend": "cutout"
-          },
-          "grow": 0.008
+          }
         }
       ]
     },
@@ -2655,11 +2650,11 @@
           "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
           "texture": "villager/type/plains",
           "texture_by": "type",
-          "no_hat_root": "head",
           "baby": {
             "texture": "villager/baby/plains",
-            "no_hat_root": "head"
-          }
+            "no_hat_geometry": "BabyVillagerModel#createBodyModel@cleared=head"
+          },
+          "no_hat_geometry": "VillagerModel#createBodyModel@scaled=0.9375@cleared=head"
         },
         {
           "source": "VillagerProfessionLayer",
@@ -2754,15 +2749,7 @@
             "depth_write": false,
             "sorted": true
           },
-          "skip_bounds": true,
-          "retain_bones": [
-            "body",
-            "head",
-            "left_arm",
-            "right_arm",
-            "left_leg",
-            "right_leg"
-          ]
+          "skip_bounds": true
         }
       ]
     },
@@ -2801,15 +2788,14 @@
           "when": {
             "charged": true
           },
-          "geometry": "WitherBossModel#createBodyLayer",
+          "geometry": "WitherBossModel#createBodyLayer@inflate=0.5",
           "texture": "wither/wither_armor",
           "tint": "0xFF808080",
           "pipeline": {
             "emissive": true,
             "blend": "additive",
             "sorted": true
-          },
-          "grow": 0.5
+          }
         }
       ]
     },
@@ -3162,11 +3148,11 @@
           "geometry": "ZombieVillagerModel#createBodyLayer",
           "texture": "zombie_villager/type/plains",
           "texture_by": "type",
-          "no_hat_root": "head",
           "baby": {
             "texture": "zombie_villager/baby/plains",
-            "no_hat_root": "head"
-          }
+            "no_hat_geometry": "BabyZombieVillagerModel#createBodyLayer@cleared=head"
+          },
+          "no_hat_geometry": "ZombieVillagerModel#createBodyLayer@cleared=head"
         },
         {
           "source": "VillagerProfessionLayer",

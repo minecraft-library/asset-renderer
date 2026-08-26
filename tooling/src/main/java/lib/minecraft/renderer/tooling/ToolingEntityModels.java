@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.animation.PoseFlow;
 import lib.minecraft.renderer.tooling.entity.EntityMeshMarking;
+import lib.minecraft.renderer.tooling.entity.EntityMeshOverlays;
 import lib.minecraft.renderer.tooling.entity.EntityMeshShift;
 import lib.minecraft.renderer.tooling.entity.EntityPoseClass;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery;
@@ -71,6 +72,10 @@ public final class ToolingEntityModels {
             // that renders rather than beside it, and the members saying so come off the model table.
             EntityMeshMarking.apply(session.diagnostics().child("bones"), root.child("models"), geometries);
             EntityMeshShift.apply(session.diagnostics().child("bones"), root.child("models"), geometries, composing);
+            // Last of the three, because what a pass derives from is the mesh as it finally stands:
+            // an overlay drawing the body's own mesh has to inherit the marking and the shift, which
+            // deriving before either would leave behind on a mesh nobody then draws.
+            EntityMeshOverlays.apply(session.diagnostics().child("overlays"), root.child("models"), geometries);
             GeometryFlow.write(session, geometries, session.resolve("entity_geometry.json"));
             session.write(root, "entity_models.json");
             session.failOnStrictGate();
