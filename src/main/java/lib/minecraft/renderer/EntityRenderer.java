@@ -1270,7 +1270,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull Box unionVariantSilhouettes(@NotNull Box bounds, @Nullable Entity definition, @NotNull Matrix4f transform, int tick) {
         if (definition == null) return bounds;
-        for (Entity coat : definition.axes().variants().values()) {
+        for (Entity coat : definition.axes().variant().options().values()) {
             if (coat.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> coatTexture = resolveGroupMemberTexture(coat);
             if (coatTexture.isEmpty()) continue;

@@ -34,10 +34,10 @@ final class AppearanceKeyTest {
     /**
      * Builds a model whose axes carry only the members these fixtures populate, every other empty.
      *
-     * <p>{@code Entity.Axes} is a ten-component positional constructor of interchangeable
-     * {@code Map.of()} and {@code Optional.empty()} arguments, where a transposition of two
-     * same-typed ones compiles silently, so each is labelled here once and the three fixtures below
-     * name theirs rather than repeating the shape.
+     * <p>Each argument is labelled once here and the three fixtures below name theirs rather than
+     * repeating the shape. The transposition hazard that made that necessary is mostly gone - the
+     * three axes are distinct types now, so swapping two of them does not compile - but the four
+     * baby / shape members ahead of them are still interchangeable {@code Optional.empty()}s.
      *
      * @param id the entity id, namespaced
      * @param variants the coat options, keyed by coat name
@@ -46,22 +46,18 @@ final class AppearanceKeyTest {
      * @return the model
      */
     private static Entity model(String id, Map<String, Entity> variants,
-                                Optional<String> variantDefault, Optional<String> sizeDefault) {
+                                Optional<String> variantDefault, Optional<Size> sizeDefault) {
         return Entity.builder()
             .id(ResourceId.parse(id))
             .model(new EntityModelData())
             .axes(new Entity.Axes(
-                Map.of(),          // stateTextures
                 Optional.empty(),  // babyModel
                 Optional.empty(),  // babyPose
                 List.of(),         // babyOverlays
                 Optional.empty(),  // largeShape
-                Map.of(),          // sizeModels
-                Map.of(),          // sizeScales
-                variants,
-                variantDefault,
-                Optional.empty(),  // stateDefault
-                sizeDefault))
+                Entity.Axis.none(),                                 // state
+                new Entity.Axis<>(Map.of(), sizeDefault),           // size
+                new Entity.Axis<>(variants, variantDefault)))       // variant
             .build();
     }
 
@@ -78,7 +74,7 @@ final class AppearanceKeyTest {
     }
 
     /** A model carrying a size axis with a declared default. */
-    private static Entity sizedModel(String id, String defaultSize) {
+    private static Entity sizedModel(String id, Size defaultSize) {
         return model(id, Map.of(), Optional.empty(), Optional.of(defaultSize));
     }
 
@@ -88,7 +84,7 @@ final class AppearanceKeyTest {
         "minecraft:wolf", variantModel("minecraft:wolf", "pale", "pale", "ashen", "spotted"),
         "minecraft:nautilus", variantModel("minecraft:nautilus", "warm", "warm", "cold"),
         "minecraft:zombie_nautilus", variantModel("minecraft:zombie_nautilus", "warm", "warm", "cold"),
-        "minecraft:pufferfish", sizedModel("minecraft:pufferfish", "large")));
+        "minecraft:pufferfish", sizedModel("minecraft:pufferfish", Size.LARGE)));
 
     private static AppearanceKey parsed(String name) {
         AppearanceKey.Result result = CODEC.parse(name);

@@ -1442,10 +1442,15 @@ public final class PipelineParityDump {
      */
     private static @NotNull JsonObject axes(@NotNull Entity.Axes axes) {
         JsonObject root = new JsonObject();
-        root.add("state_textures", CanonicalJson.map(axes.stateTextures(), JsonPrimitive::new));
-        root.add("size_models", CanonicalJson.map(axes.sizeModels(), Enum::name, PipelineParityDump::entityModel));
-        root.add("size_scales", CanonicalJson.map(axes.sizeScales(), Enum::name, scale -> CanonicalJson.number(scale)));
-        root.add("variants", CanonicalJson.map(axes.variants(), PipelineParityDump::entity));
+        root.add("state_textures", CanonicalJson.map(axes.state().options(), JsonPrimitive::new));
+        CanonicalJson.put(root, "state_default", axes.state().declared(), JsonPrimitive::new);
+        // One map where there were two, because a size form carries whichever of the two vanilla
+        // mechanisms its subject uses - its own mesh, or the base at a multiplied scale - and the
+        // sub-definition already holds both members. The declared size is a form like any other.
+        root.add("sizes", CanonicalJson.map(axes.size().options(), Enum::name, PipelineParityDump::entity));
+        CanonicalJson.put(root, "size_default", axes.size().declared(), size -> new JsonPrimitive(size.name()));
+        root.add("variants", CanonicalJson.map(axes.variant().options(), PipelineParityDump::entity));
+        CanonicalJson.put(root, "variant_default", axes.variant().declared(), JsonPrimitive::new);
         CanonicalJson.put(root, "baby_model", axes.babyModel(), PipelineParityDump::entityModel);
         CanonicalJson.put(root, "large_shape", axes.largeShape(), shape -> {
             JsonObject entry = new JsonObject();

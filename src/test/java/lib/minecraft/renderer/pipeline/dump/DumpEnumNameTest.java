@@ -106,6 +106,9 @@ final class DumpEnumNameTest {
             List.of("ADULT", "BABY")),
         new ValueSite("root.addProperty(\"value\", size.name());", Size.class,
             List.of("SMALL", "MEDIUM", "LARGE")),
+        new ValueSite("CanonicalJson.put(root, \"size_default\", axes.size().declared(), "
+            + "size -> new JsonPrimitive(size.name()));", Size.class,
+            List.of("SMALL", "MEDIUM", "LARGE")),
         new ValueSite("root.addProperty(\"flag\", flag.name().toLowerCase(Locale.ROOT));", Flag.class,
             List.of("SHEARED", "CHARGED", "COLLARED")));
 
@@ -130,8 +133,7 @@ final class DumpEnumNameTest {
      * fails before anything is hashed.
      */
     private static final List<String> KEY_SITES = List.of(
-        "root.add(\"size_models\", CanonicalJson.map(axes.sizeModels(), Enum::name, PipelineParityDump::entityModel));",
-        "root.add(\"size_scales\", CanonicalJson.map(axes.sizeScales(), Enum::name, scale -> CanonicalJson.number(scale)));");
+        "root.add(\"sizes\", CanonicalJson.map(axes.size().options(), Enum::name, PipelineParityDump::entity));");
 
     /** The lines that match the scan and are not enums at all - a path segment and an NBT key. */
     private static final List<String> PLAIN_SITES = List.of(

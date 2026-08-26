@@ -51,11 +51,11 @@ class EntityModelLoaderTest {
     void wolfWildEqualsTextureRef() {
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity pale = coat(defs, "minecraft:wolf", "pale");
-        assertThat(pale.axes().stateTextures().get("wild"), is("wolf/wolf"));
+        assertThat(pale.axes().state().options().get("wild"), is("wolf/wolf"));
         assertThat("wild state equals the default texture_ref",
-            Optional.of(pale.axes().stateTextures().get("wild")), equalTo(pale.textureRef()));
-        assertThat(pale.axes().stateTextures().keySet(), hasItems("wild", "tame", "angry"));
-        assertThat(coat(defs, "minecraft:wolf", "ashen").axes().stateTextures().get("tame"), is("wolf/wolf_ashen_tame"));
+            Optional.of(pale.axes().state().options().get("wild")), equalTo(pale.textureRef()));
+        assertThat(pale.axes().state().options().keySet(), hasItems("wild", "tame", "angry"));
+        assertThat(coat(defs, "minecraft:wolf", "ashen").axes().state().options().get("tame"), is("wolf/wolf_ashen_tame"));
     }
 
     @Test
@@ -63,13 +63,13 @@ class EntityModelLoaderTest {
     void babyThreeSourceChain() {
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         // 1) variant-table per-option baby_texture (per coat sub-definition)
-        assertThat(coat(defs, "minecraft:cow", "temperate").axes().stateTextures().get("baby"), is("cow/cow_temperate_baby"));
-        assertThat(coat(defs, "minecraft:cow", "warm").axes().stateTextures().get("baby"), is("cow/cow_warm_baby"));
+        assertThat(coat(defs, "minecraft:cow", "temperate").axes().state().options().get("baby"), is("cow/cow_temperate_baby"));
+        assertThat(coat(defs, "minecraft:cow", "warm").axes().state().options().get("baby"), is("cow/cow_warm_baby"));
         assertThat("cow carries a distinct baby mesh", coat(defs, "minecraft:cow", "temperate").axes().babyModel().isPresent(), is(true));
         // 2) non-variant entity sources its baby texture from the age.baby.texture (isBaby) binding
-        assertThat(defs.get("minecraft:sheep").axes().stateTextures().get("baby"), is("sheep/sheep_baby"));
+        assertThat(defs.get("minecraft:sheep").axes().state().options().get("baby"), is("sheep/sheep_baby"));
         // 3) enum-variant fallback to the <adult>_baby naming convention; the base row is the default coat
-        assertThat(defs.get("minecraft:axolotl").axes().stateTextures().get("baby"), is("axolotl/axolotl_lucy_baby"));
+        assertThat(defs.get("minecraft:axolotl").axes().state().options().get("baby"), is("axolotl/axolotl_lucy_baby"));
     }
 
     @Test
@@ -108,15 +108,15 @@ class EntityModelLoaderTest {
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity cow = defs.get("minecraft:cow");
         assertThat("one base row, no coat pseudo-ids", cow != null && defs.get("minecraft:cow_cold") == null, is(true));
-        assertThat("the coat map carries every option", cow.axes().variants().keySet(), hasItems("cold", "temperate", "warm"));
+        assertThat("the coat map carries every option", cow.axes().variant().options().keySet(), hasItems("cold", "temperate", "warm"));
 
         // The base IS the default (temperate) coat; the resolver fold swaps it to the selected coat.
         // cow_cold uses the horned coldcow mesh + cold texture, so selecting it changes both.
-        assertThat("the base row is the default coat", cow.textureRef(), is(cow.axes().variants().get("temperate").textureRef()));
+        assertThat("the base row is the default coat", cow.textureRef(), is(cow.axes().variant().options().get("temperate").textureRef()));
         Entity resolvedCold = cow.resolve(AppearanceOptions.builder().variant(Optional.of("cold")).build());
-        assertThat("selecting cold swaps to the cold coat texture", resolvedCold.textureRef(), is(cow.axes().variants().get("cold").textureRef()));
+        assertThat("selecting cold swaps to the cold coat texture", resolvedCold.textureRef(), is(cow.axes().variant().options().get("cold").textureRef()));
         assertThat("the cold coat differs from the default", resolvedCold.textureRef(), not(cow.textureRef()));
-        assertThat("selecting cold swaps to the cold coat mesh", resolvedCold.model(), sameInstance(cow.axes().variants().get("cold").model()));
+        assertThat("selecting cold swaps to the cold coat mesh", resolvedCold.model(), sameInstance(cow.axes().variant().options().get("cold").model()));
 
         // Canvas-group membership is baked onto Entity.members: an option-encoded variant model with no
         // cross-entity group is a singleton (empty members); a genuine group_of group carries the
@@ -560,6 +560,6 @@ class EntityModelLoaderTest {
 
     /** The option-encoded coat sub-definition for a variant family's option. */
     private static Entity coat(ConcurrentMap<String, Entity> defs, String familyId, String option) {
-        return defs.get(familyId).axes().variants().get(option);
+        return defs.get(familyId).axes().variant().options().get(option);
     }
 }

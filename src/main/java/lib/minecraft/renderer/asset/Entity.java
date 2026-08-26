@@ -166,7 +166,7 @@ public record Entity(
         // An absent or unknown option, and a non-variant model (empty variants map), keep the model
         // default coat.
         Entity definition = appearance.getVariant()
-            .map(coat -> this.axes().variants().getOrDefault(coat, this))
+            .flatMap(coat -> this.axes().variant().select(coat))
             .orElse(this);
         Builder builder = definition.mutate();
         // The worn shell resolves ahead of the age fork and outside it, because the axis that
@@ -211,17 +211,20 @@ public record Entity(
                 LargeShape large = definition.axes().largeShape().get();
                 builder.model(large.model()).textureRef(large.textureRef()).overlays(large.overlays());
             }
-            // The size axis (pufferfish) swaps to the selected size's distinct baked mesh. An unset size, or
-            // the entity's default size (pufferfish large = the base mesh, absent from the map), leaves the
-            // base model untouched.
-            appearance.getSize().map(definition.axes().sizeModels()::get).ifPresent(builder::model);
-            // The size axis (slime / magma_cube) instead multiplies rendererScale by the selected size's
-            // factor. An unset / default size (scale 1.0, absent from the map) leaves rendererScale
-            // untouched. The orthographic VANILLA_ISO parity path reads this off the resolved definition and
-            // sizes a native pixels-per-block canvas from it, so a 2x size renders a 2x canvas and entity
-            // rather than resolving self-similar to the default.
-            appearance.getSize().map(definition.axes().sizeScales()::get)
-                .ifPresent(scale -> builder.rendererScale(definition.rendererScale() * scale));
+            // The size axis swaps to the selected size's form, which carries whichever of the two
+            // vanilla mechanisms its subject uses: a distinct baked mesh (armor stand, pufferfish,
+            // salmon) or the base mesh at a multiplied render scale (slime, magma_cube). Both are read
+            // off the form because a subject uses one or the other and the form already holds the
+            // resolved value - the selected size's own mesh, and its own already-multiplied scale.
+            // Selecting the declared size resolves to a form equal to the base, so it changes nothing.
+            //
+            // The orthographic VANILLA_ISO parity path reads the scale off the resolved definition and
+            // sizes a native pixels-per-block canvas from it, so a 2x size renders a 2x canvas and
+            // entity rather than resolving self-similar to the default.
+            appearance.getSize().flatMap(definition.axes().size()::select).ifPresent(form -> {
+                builder.model(form.model());
+                builder.rendererScale(form.rendererScale());
+            });
             // A layer's own toggles ride the same selection the wearer's do, so an equipped saddle
             // draws its reins for a ridden subject and its chest panniers for a chested one.
             builder.layers(new Layers(
@@ -343,14 +346,57 @@ public record Entity(
     }
 
     /**
-     * The option-axis meshes and textures a render appearance selects among: {@code stateTextures},
-     * {@code babyModel}, {@code babyOverlays}, {@code largeShape}, {@code sizeModels}, and
-     * {@code sizeScales}.
+     * One option axis: what each option selects, and which option the bare definition already is.
      *
-     * @param stateTextures alternate base textures keyed by behavioural state (wolf
-     *     {@code wild}/{@code tame}/{@code angry}) plus the {@code baby} texture, populated for
-     *     multi-state / ageable variant models; empty otherwise. The {@code wild} entry, when present,
-     *     equals the definition's {@code textureRef}
+     * <p><b>The declared option is one of the options.</b> Every axis carries an entry for the option
+     * its base row was built from, so a caller holding an axis can say which of them it is looking at
+     * rather than inferring it from the data. That is what a reference key needs in order not to name
+     * one appearance two ways, and it is why the size axis carries its default beside the alternates
+     * where the shipped table lists only the others.
+     *
+     * <p>Empty is the honest shape for a definition with no such axis: no options and no declared
+     * one, so every read answers absent rather than a value nothing selected.
+     *
+     * @param <K> the option key - a name for the state and variant axes, {@link Size} for the size one
+     * @param <V> what an option selects
+     * @param options every option, including the declared one
+     * @param declared the option the bare definition already is, empty when the definition has no
+     *     such axis
+     */
+    public record Axis<K, V>(@NotNull Map<K, V> options, @NotNull Optional<K> declared) {
+
+        /** An axis a definition does not carry, which selects nothing and declares nothing. */
+        public static <K, V> @NotNull Axis<K, V> none() {
+            return new Axis<>(Map.of(), Optional.empty());
+        }
+
+        /**
+         * What one option selects, or empty where the axis does not carry it.
+         *
+         * @param option the selected option
+         * @return what it selects, or empty when the axis names no such option
+         */
+        public @NotNull Optional<V> select(@NotNull K option) {
+            return Optional.ofNullable(this.options.get(option));
+        }
+
+        /**
+         * Whether one option is the one the bare definition already is.
+         *
+         * @param option the selected option
+         * @return whether selecting it changes nothing
+         */
+        public boolean isDeclared(@NotNull K option) {
+            return this.declared.equals(Optional.of(option));
+        }
+
+    }
+
+    /**
+     * The option-axis meshes and textures a render appearance selects among: the {@code state},
+     * {@code size} and {@code variant} axes, the baby mesh and its pose and overlays, and the
+     * {@code shape} axis's large alternative.
+     *
      * @param babyPose the pose of the baby mesh's own model class, swapped in beside
      *     {@code babyModel} rather than derived from it - two of the families that pose at all are
      *     posed through their baby coordinate ALONE, so a single pose per entity could not say which
@@ -362,37 +408,31 @@ public record Entity(
      *     axis selects {@code baby}; empty unless an overlay declares a baby form
      * @param largeShape the {@code shape} axis's large alternative (tropical fish): the large body mesh +
      *     {@code tropical_b} texture + pattern overlays cloned onto it; empty otherwise
-     * @param sizeModels the {@code size} axis's non-default alternate meshes keyed by {@link Size}
-     *     (pufferfish, salmon); the default size is the base model and absent here; empty for no-size-axis entities
-     * @param sizeScales the {@code size} axis's non-default render scale factors keyed by {@link Size}
-     *     (slime / magma_cube); the default size is scale {@code 1.0} and absent here; empty otherwise
-     * @param variants the {@code variant} axis's option-encoded coat sub-definitions keyed by option
+     * @param state alternate base textures keyed by behavioural state (wolf
+     *     {@code wild}/{@code tame}/{@code angry}) plus the {@code baby} texture, populated for
+     *     multi-state / ageable variant models; empty otherwise. The {@code wild} entry, when present,
+     *     equals the definition's {@code textureRef}
+     * @param size the {@code size} axis's forms keyed by {@link Size}, each a sub-definition carrying
+     *     what that size changes - its own baked mesh (armor stand, pufferfish, salmon) or the base
+     *     mesh at a multiplied render scale (slime, magma_cube). Vanilla scales one at the mesh and
+     *     the other at the render and the two are not interchangeable, so a form carries whichever
+     *     its subject uses and the render reads both off it
+     * @param variant the {@code variant} axis's option-encoded coat sub-definitions keyed by option
      *     (cow {@code temperate}/{@code cold}/{@code warm}, wolf coats, cat breeds), each a fully-built
-     *     definition; the base definition IS the default option's build. Empty when {@code variant} is
+     *     definition; the base definition IS the declared option's build. Empty when {@code variant} is
      *     id-encoded (each coat a first-class
      *     pseudo-id) or the model has no variant axis. The render-time variant fold in
      *     {@link Entity#resolve} swaps to the selected
      *     option's sub-definition, and the group canvas union measures every option's silhouette
-     * @param variantDefault the {@code variant} option the base definition was built from, empty for a
-     *     model with no variant axis. The option maps carry every option including this one, so without
-     *     the name there is no way to tell which of them the bare model already is
-     * @param stateDefault the {@code state} option the base textures represent, empty for a model with no
-     *     state axis
-     * @param sizeDefault the {@code size} option the base mesh and unit scale represent, empty for a model
-     *     with no size axis; {@code sizeModels} and {@code sizeScales} hold only the others
      */
     public record Axes(
-        @NotNull Map<String, String> stateTextures,
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull Optional<EntityPose> babyPose,
         @NotNull List<OverlayLayer> babyOverlays,
         @NotNull Optional<LargeShape> largeShape,
-        @NotNull Map<Size, EntityModelData> sizeModels,
-        @NotNull Map<Size, Float> sizeScales,
-        @NotNull Map<String, Entity> variants,
-        @NotNull Optional<String> variantDefault,
-        @NotNull Optional<String> stateDefault,
-        @NotNull Optional<String> sizeDefault
+        @NotNull Axis<String, String> state,
+        @NotNull Axis<Size, Entity> size,
+        @NotNull Axis<String, Entity> variant
     ) {}
 
     /**
@@ -574,7 +614,7 @@ public record Entity(
      */
     public @NotNull Optional<String> babyTextureRef(@NotNull AppearanceOptions appearance) {
         if (!appearance.isBaby() || this.axes.babyModel().isEmpty()) return Optional.empty();
-        return Optional.ofNullable(this.axes.stateTextures().get("baby"));
+        return this.axes.state().select("baby");
     }
 
     /**
@@ -604,7 +644,7 @@ public record Entity(
      * @return the state texture ref, or empty
      */
     public @NotNull Optional<String> stateTextureRef(@NotNull AppearanceOptions appearance) {
-        return appearance.getState().map(this.axes.stateTextures()::get);
+        return appearance.getState().flatMap(this.axes.state()::select);
     }
 
     /**

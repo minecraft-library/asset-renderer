@@ -173,9 +173,9 @@ public final class EntityIndexBuilder {
             Entity base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
             Entity.Axes baseAxes = base.axes();
             definitions.put(familyId, base.mutate()
-                .axes(new Entity.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.babyPose(), baseAxes.babyOverlays(),
-                    baseAxes.largeShape(), baseAxes.sizeModels(), baseAxes.sizeScales(), Map.copyOf(coats),
-                    Optional.ofNullable(defaultOption), stateDefaultOf(family), sizeDefaultOf(family)))
+                .axes(new Entity.Axes(baseAxes.babyModel(), baseAxes.babyPose(),
+                    baseAxes.babyOverlays(), baseAxes.largeShape(), baseAxes.state(), baseAxes.size(),
+                    new Entity.Axis<>(Map.copyOf(coats), Optional.ofNullable(defaultOption))))
                 .members(membersOf(family))
                 .build());
             return;
@@ -196,17 +196,28 @@ public final class EntityIndexBuilder {
         String babyTexture = babyTextureOf(family);
         if (babyTexture != null) stateTextures.put("baby", babyTexture);
 
-        definitions.put(familyId, Entity.builder()
+        // Built once WITHOUT the size axis, because a size form is a sub-definition derived from this
+        // row - its own baked mesh over the same overlays, or this row at a multiplied scale - so the
+        // row it derives from has to exist first. The forms carry no size axis of their own, exactly as
+        // a coat carries no variant axis: a form is a leaf.
+        Entity bare = Entity.builder()
             .id(ResourceId.parse(familyId))
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .pose(pose)
             .members(membersOf(family))
-            .axes(new Entity.Axes(stateTextures, babyModel, babyPose, babyOverlays,
+            .axes(new Entity.Axes(babyModel, babyPose, babyOverlays,
                 buildLargeShape(family, geometries, poses, renderTransform, familyId),
-                buildSizeModels(family, geometries, familyId),
-                buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
+                new Entity.Axis<>(stateTextures, stateDefaultOf(family)),
+                Entity.Axis.none(), Entity.Axis.none()))
             .layers(new Entity.Layers(equipment, humanoidArmor))
+            .build();
+
+        Entity.Axes bareAxes = bare.axes();
+        definitions.put(familyId, bare.mutate()
+            .axes(new Entity.Axes(bareAxes.babyModel(), bareAxes.babyPose(), bareAxes.babyOverlays(),
+                bareAxes.largeShape(), bareAxes.state(),
+                buildSizeAxis(family, geometries, bare), bareAxes.variant()))
             .build());
     }
 
@@ -375,8 +386,9 @@ public final class EntityIndexBuilder {
             .blockOverlays(coatBlockOverlays(ctx.blockOverlays(), optionObj.block()))
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
             .pose(pose)
-            .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Optional.empty(),
-                Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))
+            .axes(new Entity.Axes(ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Optional.empty(),
+                new Entity.Axis<>(stateTextures, ctx.stateDefault()),
+                Entity.Axis.none(), Entity.Axis.none()))
             .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()))
             .build();
     }
@@ -905,47 +917,53 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * Resolves the family's {@code size} axis geometry alternatives (pufferfish small / medium, the
-     * small armor stand) into {@code Size -> mesh}. Options carrying a {@code scale} (not a
-     * {@code geometry}) are skipped; the default size is the base mesh and never appears here.
+     * Resolves the family's {@code size} axis into a form per size, each a sub-definition of the row
+     * it is a size of.
      *
-     * <p>A size mesh is the same subject's body at another size, so it takes the same surgery the
-     * base body does - its option's undrawn strip and the age's Y shift. Reaching for the raw mesh
-     * instead drew the armor stand's arms on its small form and not on its full one, off one mesh the
-     * strip had run over and one it had not. The two fish carry no list and no shift, so both passes
-     * are the identity on every subject that had a size axis before.
+     * <p><b>Vanilla sizes a subject two ways and they are not interchangeable</b>, so a form carries
+     * whichever its own subject uses. An option naming a {@code geometry} takes that baked mesh - the
+     * small armor stand, the two pufferfish bodies, the salmon's own {@code @scaled=} meshes, which
+     * vanilla registers through a {@code MeshTransformer} and which therefore carry the feet anchor.
+     * An option naming a {@code scale} instead takes the base mesh at a multiplied render scale -
+     * slime and magma_cube, which vanilla scales at the render, about the origin and with no anchor.
+     * Folding either into the other moves the subject.
+     *
+     * <p><b>The declared size is a form like any other.</b> The shipped table lists only the other
+     * sizes, because the declared one is what the bare row already is - but the axis carries it
+     * anyway, mapped to that row, so a reader can ask which size it is holding rather than inferring
+     * it from an absence. Selecting it resolves to a form equal to the base and changes nothing.
+     *
+     * <p>Order is preserved rather than left to an immutable map's own, which is salted per JVM: the
+     * pipeline dump serialises this axis and a re-ordered map would flap its bytes between runs.
+     *
+     * @param family the raw model
+     * @param geometries the geometry coordinate to bone tree table
+     * @param bare the row these are sizes of, built without a size axis of its own
+     * @return the form per size, empty for a family with no size axis
      */
-    private static @NotNull Map<Size, EntityModelData> buildSizeModels(
+    private static @NotNull Entity.Axis<Size, Entity> buildSizeAxis(
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull String entityId
+        @NotNull Entity bare
     ) {
         Map<String, RawOption> options = sizeOptions(family);
-        if (options == null) return Map.of();
-        Map<Size, EntityModelData> out = new LinkedHashMap<>();
+        if (options == null) return Entity.Axis.none();
+        Optional<Size> declared = sizeDefaultOf(family).flatMap(name -> enumOf(Size.class, name));
+        Map<Size, Entity> forms = new LinkedHashMap<>();
+        declared.ifPresent(size -> forms.put(size, bare));
         for (Map.Entry<String, RawOption> option : options.entrySet()) {
             RawOption body = option.getValue();
-            if (body.geometry() == null) continue;
-            EntityModelData mesh = geometries.get(body.geometry());
-            if (mesh == null) continue;
-            out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
+            Optional<Size> size = enumOf(Size.class, option.getKey());
+            if (size.isEmpty()) continue;
+            if (body.geometry() != null) {
+                EntityModelData mesh = geometries.get(body.geometry());
+                if (mesh != null) forms.put(size.get(), bare.mutate().model(mesh).build());
+            } else if (body.scale() != null) {
+                forms.put(size.get(), bare.mutate()
+                    .rendererScale(bare.rendererScale() * body.scale()).build());
+            }
         }
-        return out;
-    }
-
-    /**
-     * Resolves the family's {@code size} axis scale alternatives (salmon / slime / magma_cube) into
-     * {@code Size -> factor}. The default size is scale {@code 1.0} and never appears here.
-     */
-    private static @NotNull Map<Size, Float> buildSizeScales(@NotNull RawModel family) {
-        Map<String, RawOption> options = sizeOptions(family);
-        if (options == null) return Map.of();
-        Map<Size, Float> out = new LinkedHashMap<>();
-        for (Map.Entry<String, RawOption> option : options.entrySet()) {
-            RawOption body = option.getValue();
-            if (body.scale() != null) out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), body.scale());
-        }
-        return out;
+        return new Entity.Axis<>(Collections.unmodifiableMap(forms), declared);
     }
 
     /** Returns the family's {@code axes.size.options} object, or {@code null} when it has no size axis. */
