@@ -1,9 +1,13 @@
 package lib.minecraft.renderer.asset.pose;
 
+import dev.simplified.annotations.EnumLookup;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tensor.VanillaEase;
 import lib.minecraft.renderer.tensor.VanillaMth;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Every operation a shipped pose expression names, with the token it is spelled with, how many
@@ -28,6 +32,9 @@ import org.jetbrains.annotations.Nullable;
  * folded term and an evaluated one are two different poses in one expression. The two copies are
  * held to each other by test rather than by a shared type.
  */
+@EnumLookup
+@Getter(style = NamingStyle.FLUENT)
+@RequiredArgsConstructor
 public enum PoseOperator {
 
     /** Adds two floats. */
@@ -194,42 +201,15 @@ public enum PoseOperator {
 
     }
 
+    /** The snake-case token this operation is spelled with in the shipped table. */
+    @KeyField
     private final @NotNull String token;
+
+    /** How many operands this operation takes. */
     private final int arity;
+
+    /** The width this operation computes at, and therefore the width of its result. */
     private final @NotNull Width width;
-
-    PoseOperator(@NotNull String token, int arity, @NotNull Width width) {
-        this.token = token;
-        this.arity = arity;
-        this.width = width;
-    }
-
-    /**
-     * The token this operation is spelled with in the shipped table.
-     *
-     * @return the snake-case token
-     */
-    public @NotNull String token() {
-        return this.token;
-    }
-
-    /**
-     * How many operands this operation takes.
-     *
-     * @return the operand count
-     */
-    public int arity() {
-        return this.arity;
-    }
-
-    /**
-     * The width this operation computes at, and therefore the width of its result.
-     *
-     * @return the numeric width
-     */
-    public @NotNull Width width() {
-        return this.width;
-    }
 
     /**
      * Applies this operation to concrete operands.
@@ -300,18 +280,6 @@ public enum PoseOperator {
             case EASE_IN_OUT_EXPO -> VanillaEase.inOutExpo((float) operands[0]);
             case EASE_IN_OUT_ELASTIC -> VanillaEase.inOutElastic((float) operands[0]);
         };
-    }
-
-    /**
-     * Resolves the operation a token names.
-     *
-     * @param token the token to resolve
-     * @return the operation, or {@code null} when no operation is spelled that way
-     */
-    public static @Nullable PoseOperator ofToken(@NotNull String token) {
-        for (PoseOperator operator : values())
-            if (operator.token.equals(token)) return operator;
-        return null;
     }
 
 }

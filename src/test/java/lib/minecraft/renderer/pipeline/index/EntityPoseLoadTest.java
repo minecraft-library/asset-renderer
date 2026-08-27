@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline.index;
 
 import com.google.gson.Gson;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.appearance.Age;
@@ -349,7 +350,7 @@ class EntityPoseLoadTest {
     }
 
     private static @NotNull PoseExpr op(@NotNull PoseOperator operator, @NotNull PoseExpr... operands) {
-        return new PoseExpr.Op(operator, List.of(operands));
+        return new PoseExpr.Op(operator, Concurrent.newUnmodifiableList(operands));
     }
 
     private static @NotNull PoseExpr constant(float value) {

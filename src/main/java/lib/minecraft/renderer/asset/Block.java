@@ -3,6 +3,7 @@ package lib.minecraft.renderer.asset;
 import dev.simplified.annotations.EqualsAndHashCode;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
@@ -18,7 +19,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.Color;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -167,6 +167,8 @@ public record Block(
      * carries no biome channel at all, which is what separates {@link #NONE} and {@link #CONSTANT}
      * from the four that resolve against a biome.
      */
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     public enum TintTarget {
 
         /**
@@ -209,41 +211,25 @@ public record Block(
          * under ({@code grass.}, {@code water.}), empty for a target with no biome channel. Note
          * {@code dryfoliage.} carries no separator inside the word where the colormap name does.
          */
-        @Getter(style = NamingStyle.FLUENT)
         private final @NotNull Optional<String> packKeyPrefix;
 
         /**
          * The colormap this target samples, named as it appears under
          * {@code textures/colormap/<name>.png}, empty for a target that samples none.
          */
-        @Getter(style = NamingStyle.FLUENT)
         private final @NotNull Optional<String> colorMapName;
 
         /**
          * The ARGB this target resolves to when neither a pack nor the biome answered and no
          * colormap is registered.
          */
-        @Getter(style = NamingStyle.FLUENT)
         private final int defaultArgb;
 
         /**
          * Whether the biome's {@code GrassColorModifier} post-processes this target's colour.
          * Vanilla runs it on the grass tint alone.
          */
-        @Getter(style = NamingStyle.FLUENT)
         private final boolean grassModified;
-
-        TintTarget(
-            @NotNull Optional<String> packKeyPrefix,
-            @NotNull Optional<String> colorMapName,
-            int defaultArgb,
-            boolean grassModified
-        ) {
-            this.packKeyPrefix = packKeyPrefix;
-            this.colorMapName = colorMapName;
-            this.defaultArgb = defaultArgb;
-            this.grassModified = grassModified;
-        }
 
     }
 
@@ -374,7 +360,7 @@ public record Block(
              *
              * @param terms the conjoined sub-conditions, in author order
              */
-            record All(@NotNull List<When> terms) implements When {
+            record All(@NotNull ConcurrentList<When> terms) implements When {
 
                 @Override
                 public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
@@ -389,7 +375,7 @@ public record Block(
              *
              * @param terms the alternative sub-conditions, in author order
              */
-            record Any(@NotNull List<When> terms) implements When {
+            record Any(@NotNull ConcurrentList<When> terms) implements When {
 
                 @Override
                 public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
@@ -406,11 +392,11 @@ public record Block(
              *
              * @param required each property name to its allowed values
              */
-            record Match(@NotNull Map<String, List<String>> required) implements When {
+            record Match(@NotNull ConcurrentMap<String, ConcurrentList<String>> required) implements When {
 
                 @Override
                 public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
-                    for (Map.Entry<String, List<String>> entry : this.required.entrySet())
+                    for (Map.Entry<String, ConcurrentList<String>> entry : this.required.entrySet())
                         if (!entry.getValue().contains(properties.getOrDefault(entry.getKey(), ""))) return false;
                     return true;
                 }

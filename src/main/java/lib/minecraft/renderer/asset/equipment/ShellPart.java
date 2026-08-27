@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.equipment;
 
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.face.HumanoidPart;
@@ -10,7 +11,6 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
-import java.util.Set;
 
 /**
  * One box a slot's armour draws, resolved ahead of the render into the frame its own producer works
@@ -42,7 +42,7 @@ public sealed interface ShellPart {
      *
      * @return the covering slots
      */
-    @NotNull Set<ArmorSlot> slots();
+    @NotNull ConcurrentSet<ArmorSlot> slots();
 
     /**
      * This row's box as one slot wears it, in the frame the row's own producer works in.
@@ -91,7 +91,7 @@ public sealed interface ShellPart {
     record Mesh(
         @NotNull String trace,
         @NotNull Unwrap.Atlas unwrap,
-        @NotNull Set<ArmorSlot> slots,
+        @NotNull ConcurrentSet<ArmorSlot> slots,
         @NotNull Vector3f origin,
         @NotNull Vector3f size,
         @NotNull Vector3f innerGrowth,
@@ -144,7 +144,7 @@ public sealed interface ShellPart {
     record Body(
         @NotNull HumanoidPart part,
         boolean overlay,
-        @NotNull Set<ArmorSlot> slots,
+        @NotNull ConcurrentSet<ArmorSlot> slots,
         @NotNull Box bounds
     ) implements ShellPart {
 

@@ -2,6 +2,8 @@ package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
@@ -31,9 +33,9 @@ import java.util.Optional;
 public final class CatharsisConfig {
 
     /** The empty config - no option carries a default, so every {@code catharsis:config} condition degrades to false. */
-    public static final @NotNull CatharsisConfig EMPTY = new CatharsisConfig(Map.of());
+    public static final @NotNull CatharsisConfig EMPTY = new CatharsisConfig(Concurrent.newUnmodifiableLinkedMap());
 
-    private final @NotNull Map<String, OptionDefault> options;
+    private final @NotNull ConcurrentMap<String, OptionDefault> options;
 
     /**
      * Parses a config document - the {@code config.catharsis.json} array (or the mcmeta config
@@ -43,9 +45,9 @@ public final class CatharsisConfig {
      * @return the parsed defaults, or {@link #EMPTY} when none are found
      */
     public static @NotNull CatharsisConfig parse(@NotNull JsonTree root) {
-        Map<String, OptionDefault> options = new LinkedHashMap<>();
+        LinkedHashMap<String, OptionDefault> options = new LinkedHashMap<>();
         walk(root, options);
-        return options.isEmpty() ? EMPTY : new CatharsisConfig(Map.copyOf(options));
+        return options.isEmpty() ? EMPTY : new CatharsisConfig(Concurrent.adoptLinkedMap(options).toUnmodifiable());
     }
 
     /**

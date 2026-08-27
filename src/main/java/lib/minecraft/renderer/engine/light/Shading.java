@@ -109,84 +109,83 @@ public class Shading {
         boolean forceCullBackFaces
     ) {
         Matrix4f normalTransform = guiNormalTransform(lighting);
-        ConcurrentList<VisibleTriangle> out = Concurrent.newList();
-        for (VisibleTriangle t : triangles) {
-            boolean cull = forceCullBackFaces || t.traits().cullBackFaces();
-            // A face that takes no directional light is a "shade": false element: vanilla's
-            // getShade(direction, false) returns 1.0, so render it full-bright rather than applying
-            // the ITEMS_3D Lambertian. Cull / two-sided handling is unchanged; only the shade differs.
-            if (!t.traits().directionalLight()) {
-                out.add(new VisibleTriangle(
+        return triangles.stream()
+            .map(t -> {
+                boolean cull = forceCullBackFaces || t.traits().cullBackFaces();
+                // A face that takes no directional light is a "shade": false element: vanilla's
+                // getShade(direction, false) returns 1.0, so render it full-bright rather than applying
+                // the ITEMS_3D Lambertian. Cull / two-sided handling is unchanged; only the shade differs.
+                if (!t.traits().directionalLight()) {
+                    return new VisibleTriangle(
+                        t.position0(), t.position1(), t.position2(),
+                        t.uv0(), t.uv1(), t.uv2(),
+                        t.texture(), t.tintArgb(), t.normal(),
+                        1.0f, t.traits().withCullBackFaces(cull), t.debugTag()
+                    );
+                }
+                // The outward facing of this quad. Normally the authored face normal ({@code
+                // t.normal()}) - the cardinal pushed through the element-rotation matrix - but the
+                // {@code spawner}/{@code trial_spawner}/{@code vault} inner-faces models emit a second
+                // cube with INVERTED geometry ({@code from > to}, reversed winding) whose authored
+                // normals point the wrong way; for those the winding (cross-product) normal is the
+                // true facing. Use the winding normal only when it contradicts the authored one.
+                Vector3f geometricNormal = t.position1()
+                    .subtract(t.position0())
+                    .cross(t.position2().subtract(t.position0()))
+                    .normalize();
+                Vector3f outwardNormal = geometricNormal.dot(t.normal()) < 0f ? geometricNormal : t.normal();
+                // Vanilla's plain-block GUI path ({@code BlockFeatureRenderer.putBakedQuad}) carries NO
+                // per-vertex normal: every quad lights by its single {@code BakedQuad.direction =
+                // requireNonNullElse(FaceBakery.calculateFacing(verts), UP)}, the cardinal nearest the
+                // quad's geometric normal - not the continuous tilted normal. So lectern's -22.5deg
+                // reading surface ((0, 0.924, -0.383)) lights as its nearest cardinal UP (full bright),
+                // exactly as if it were a flat top, and the iso reference matches.
+                //
+                // Snap from {@code outwardNormal} (the authored normal pushed through the element-
+                // rotation matrix) rather than {@code geometricNormal} (the cross of the tessellated
+                // TRIANGLE, one of whose edges is the quad diagonal). At an exactly-45deg face the two
+                // tied cardinals decide on the sub-ULP balance of the normal's components, and the
+                // triangle-diagonal cross drifts one ULP off symmetry - e.g. on a sculk-sensor tendril
+                // it pushes |x| past |z| and wrongly snaps EAST/WEST (shade 0.65/0.49) where the
+                // reference shows the Z cardinal (0.40). The element-rotation matrix yields a bit-
+                // symmetric authored normal ({@code |x| == |z|} to the raw int bits), so the tie falls
+                // to the lower {@code Direction.values()} index and reproduces the reference shade.
+                //
+                // Block-entity surfaces (signs, banner cloth, hanging-sign chains) render through
+                // vanilla's entity path ({@code entityCutoutNoCull} + {@code PER_FACE_LIGHTING}), not
+                // {@code putBakedQuad}, so they keep the continuous normal and the camera-facing flip.
+                Vector3f shadeNormal = forceCullBackFaces ? Face.fromNormal(outwardNormal).normal() : outwardNormal;
+                Vector3f renderNormal = shadeNormal.transformNormal(normalTransform).normalize();
+                // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
+                // ENTITY_CUTOUT / sign pipeline composes withCull(false) + PER_FACE_LIGHTING, whose
+                // fragment shader picks the front- or back-vertex colour by screen-space winding -
+                // equivalent to shading against whichever normal points at the camera. A zero-depth
+                // plane emits two coplanar polygons with opposite normals (sign chains, banner cloth,
+                // item-frame backing); without this, the asset shades by whichever polygon wins the
+                // coplanar depth tie (the away-facing one over-brightens to ~1.0 where vanilla shows
+                // the camera-facing ~0.5). Visible iso faces point at +Z in this render frame, so an
+                // away-facing (z < 0) two-sided normal is flipped before lighting. Faces that cull
+                // (genuine cube faces, or plain block models under {@code forceCullBackFaces})
+                // already present only their front side, so they are left untouched.
+                Vector3f litNormal = !cull && renderNormal.z() < 0f
+                    ? Turn.INVERT.apply(renderNormal)
+                    : renderNormal;
+                // Match vanilla's vertex-stream byte-packed normal: the shader receives the
+                // normal after a signed-byte SNORM round-trip ({@code (int)(c * 127.0F) / 127.0F},
+                // truncated toward zero). For the LEFT face of a default iso pose, this maps
+                // unit (-0.7071, 0.3536, 0.6124) -> (-0.7008, 0.3465, 0.6063), magnitude 0.9894;
+                // the resulting Lambertian shade drops from 0.6505 to 0.6490, matching vanilla's
+                // empirical 0.647 within precision. Without this step every block shows the
+                // visible-LEFT face's texels rounded ~1 LSB high.
+                Vector3f packedNormal = packAsSnormByte(litNormal);
+                return new VisibleTriangle(
                     t.position0(), t.position1(), t.position2(),
                     t.uv0(), t.uv1(), t.uv2(),
                     t.texture(), t.tintArgb(), t.normal(),
-                    1.0f, t.traits().withCullBackFaces(cull), t.debugTag()
-                ));
-                continue;
-            }
-            // The outward facing of this quad. Normally the authored face normal ({@code
-            // t.normal()}) - the cardinal pushed through the element-rotation matrix - but the
-            // {@code spawner}/{@code trial_spawner}/{@code vault} inner-faces models emit a second
-            // cube with INVERTED geometry ({@code from > to}, reversed winding) whose authored
-            // normals point the wrong way; for those the winding (cross-product) normal is the
-            // true facing. Use the winding normal only when it contradicts the authored one.
-            Vector3f geometricNormal = t.position1()
-                .subtract(t.position0())
-                .cross(t.position2().subtract(t.position0()))
-                .normalize();
-            Vector3f outwardNormal = geometricNormal.dot(t.normal()) < 0f ? geometricNormal : t.normal();
-            // Vanilla's plain-block GUI path ({@code BlockFeatureRenderer.putBakedQuad}) carries NO
-            // per-vertex normal: every quad lights by its single {@code BakedQuad.direction =
-            // requireNonNullElse(FaceBakery.calculateFacing(verts), UP)}, the cardinal nearest the
-            // quad's geometric normal - not the continuous tilted normal. So lectern's -22.5deg
-            // reading surface ((0, 0.924, -0.383)) lights as its nearest cardinal UP (full bright),
-            // exactly as if it were a flat top, and the iso reference matches.
-            //
-            // Snap from {@code outwardNormal} (the authored normal pushed through the element-
-            // rotation matrix) rather than {@code geometricNormal} (the cross of the tessellated
-            // TRIANGLE, one of whose edges is the quad diagonal). At an exactly-45deg face the two
-            // tied cardinals decide on the sub-ULP balance of the normal's components, and the
-            // triangle-diagonal cross drifts one ULP off symmetry - e.g. on a sculk-sensor tendril
-            // it pushes |x| past |z| and wrongly snaps EAST/WEST (shade 0.65/0.49) where the
-            // reference shows the Z cardinal (0.40). The element-rotation matrix yields a bit-
-            // symmetric authored normal ({@code |x| == |z|} to the raw int bits), so the tie falls
-            // to the lower {@code Direction.values()} index and reproduces the reference shade.
-            //
-            // Block-entity surfaces (signs, banner cloth, hanging-sign chains) render through
-            // vanilla's entity path ({@code entityCutoutNoCull} + {@code PER_FACE_LIGHTING}), not
-            // {@code putBakedQuad}, so they keep the continuous normal and the camera-facing flip.
-            Vector3f shadeNormal = forceCullBackFaces ? Face.fromNormal(outwardNormal).normal() : outwardNormal;
-            Vector3f renderNormal = shadeNormal.transformNormal(normalTransform).normalize();
-            // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
-            // ENTITY_CUTOUT / sign pipeline composes withCull(false) + PER_FACE_LIGHTING, whose
-            // fragment shader picks the front- or back-vertex colour by screen-space winding -
-            // equivalent to shading against whichever normal points at the camera. A zero-depth
-            // plane emits two coplanar polygons with opposite normals (sign chains, banner cloth,
-            // item-frame backing); without this, the asset shades by whichever polygon wins the
-            // coplanar depth tie (the away-facing one over-brightens to ~1.0 where vanilla shows
-            // the camera-facing ~0.5). Visible iso faces point at +Z in this render frame, so an
-            // away-facing (z < 0) two-sided normal is flipped before lighting. Faces that cull
-            // (genuine cube faces, or plain block models under {@code forceCullBackFaces})
-            // already present only their front side, so they are left untouched.
-            if (!cull && renderNormal.z() < 0f)
-                renderNormal = Turn.INVERT.apply(renderNormal);
-            // Match vanilla's vertex-stream byte-packed normal: the shader receives the
-            // normal after a signed-byte SNORM round-trip ({@code (int)(c * 127.0F) / 127.0F},
-            // truncated toward zero). For the LEFT face of a default iso pose, this maps
-            // unit (-0.7071, 0.3536, 0.6124) -> (-0.7008, 0.3465, 0.6063), magnitude 0.9894;
-            // the resulting Lambertian shade drops from 0.6505 to 0.6490, matching vanilla's
-            // empirical 0.647 within precision. Without this step every block shows the
-            // visible-LEFT face's texels rounded ~1 LSB high.
-            Vector3f packedNormal = packAsSnormByte(renderNormal);
-            float shading = Lighting.blockItems3d(packedNormal);
-            out.add(new VisibleTriangle(
-                t.position0(), t.position1(), t.position2(),
-                t.uv0(), t.uv1(), t.uv2(),
-                t.texture(), t.tintArgb(), t.normal(),
-                shading, t.traits().withCullBackFaces(cull), t.debugTag()
-            ));
-        }
-        return out;
+                    Lighting.blockItems3d(packedNormal), t.traits().withCullBackFaces(cull), t.debugTag()
+                );
+            })
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     // --- entity-in-UI relighting (vanilla Lighting.ENTITY_IN_UI parity) ---
@@ -221,19 +220,17 @@ public class Shading {
         @NotNull Turn intoKitFrame
     ) {
         Lighting.EntityLighting basis = Lighting.resolveEntity(lighting);
-        ConcurrentList<VisibleTriangle> out = Concurrent.newList();
-        for (VisibleTriangle t : triangles) {
-            float shading = t.traits().directionalLight()
-                ? basis.shade(intoKitFrame.apply(t.normal()), t.traits().cullBackFaces())
-                : 1.0f;
-            out.add(new VisibleTriangle(
+        return triangles.stream()
+            .map(t -> new VisibleTriangle(
                 t.position0(), t.position1(), t.position2(),
                 t.uv0(), t.uv1(), t.uv2(),
                 t.texture(), t.tintArgb(), t.normal(),
-                shading, t.traits(), t.debugTag()
-            ));
-        }
-        return out;
+                t.traits().directionalLight()
+                    ? basis.shade(intoKitFrame.apply(t.normal()), t.traits().cullBackFaces())
+                    : 1.0f,
+                t.traits(), t.debugTag()
+            ))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**

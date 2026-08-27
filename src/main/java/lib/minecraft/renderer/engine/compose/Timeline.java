@@ -119,8 +119,10 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      * @throws RenderException if the schedule is empty
      */
     default @NotNull ImageData wrap(@NotNull IntFunction<PixelBuffer> frameAt) {
-        ConcurrentList<PixelBuffer> buffers = Concurrent.newList();
-        for (int f = 0; f < frames(); f++) buffers.add(frameAt.apply(f));
+        ConcurrentList<PixelBuffer> buffers = IntStream.range(0, frames())
+            .mapToObj(frameAt)
+            .collect(Concurrent.toUnmodifiableList());
+
         return wrapAt(buffers, this);
     }
 
@@ -330,14 +332,13 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      * @throws RenderException if the schedule is empty
      */
     default @NotNull ImageData bake(@NotNull RasterPass pass) {
-        ConcurrentList<PixelBuffer> buffers = Concurrent.newList();
-        IntStream.range(0, frames())
+        ConcurrentList<PixelBuffer> buffers = IntStream.range(0, frames())
             .parallel()
             .mapToObj(f -> {
                 double age = millisAt(f) / MILLIS_PER_TICK;
                 return pass.renderFrame((int) Math.floor(age), (float) age);
             })
-            .forEachOrdered(buffers::add);
+            .collect(Concurrent.toList());
 
         RasterPass.Finish.Result result = pass.finish().finish(buffers, this);
         return wrapAt(result.frames(), result.playback());

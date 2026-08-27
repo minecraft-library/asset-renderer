@@ -182,7 +182,7 @@ class EntityRendererVillagerHatTest {
      */
     private static OverlayLayer pass(String textureBy, String textureRef) {
         return new OverlayLayer(new EntityModelData(), Optional.of(textureRef), PassDeclaration.DEFAULT,
-            0xFFFFFFFF, true, Optional.empty(), TextureAxis.ofToken(textureBy),
+            0xFFFFFFFF, true, Optional.empty(), TextureAxis.findByToken(textureBy),
             Optional.empty(), Optional.empty(), EntityPose.NONE);
     }
 

@@ -1,7 +1,11 @@
 package lib.minecraft.renderer.asset.pose;
 
+import dev.simplified.annotations.EnumLookup;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * The nine bone members a pose writes, and the token each is spelled with in the shipped table.
@@ -11,6 +15,9 @@ import org.jetbrains.annotations.Nullable;
  * rests at when nothing writes it - a rotation resting at zero and a scale at one are the same
  * statement said two ways, and reading either from the wrong side collapses a limb.
  */
+@EnumLookup
+@Getter(style = NamingStyle.FLUENT)
+@RequiredArgsConstructor
 public enum PoseChannel {
 
     /** Sideways offset of the bone's pivot, in model pixels. */
@@ -54,42 +61,11 @@ public enum PoseChannel {
 
     }
 
+    /** The snake-case token this channel is spelled with in the shipped table. */
+    @KeyField
     private final @NotNull String token;
+
+    /** What this channel accumulates. */
     private final @NotNull Kind kind;
-
-    PoseChannel(@NotNull String token, @NotNull Kind kind) {
-        this.token = token;
-        this.kind = kind;
-    }
-
-    /**
-     * The token this channel is spelled with in the shipped table.
-     *
-     * @return the snake-case token
-     */
-    public @NotNull String token() {
-        return this.token;
-    }
-
-    /**
-     * What this channel accumulates.
-     *
-     * @return the channel kind
-     */
-    public @NotNull Kind kind() {
-        return this.kind;
-    }
-
-    /**
-     * Resolves the channel a token names.
-     *
-     * @param token the token to resolve
-     * @return the channel, or {@code null} when no channel is spelled that way
-     */
-    public static @Nullable PoseChannel ofToken(@NotNull String token) {
-        for (PoseChannel channel : values())
-            if (channel.token.equals(token)) return channel;
-        return null;
-    }
 
 }

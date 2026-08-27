@@ -61,7 +61,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.function.IntFunction;
@@ -93,7 +92,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Passed in directly rather than queried through {@code context.findEntity()} so visual tests
      * can swap in custom fixtures.
      */
-    private final @NotNull Map<String, Entity> javaEntities;
+    private final @NotNull ConcurrentMap<String, Entity> javaEntities;
 
     /**
      * The pack-aware texture-resolution service, bound once to {@link #context}, that every
@@ -130,7 +129,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param context the renderer context for texture resolution + isometric engine setup
      * @param javaEntities the entity definitions keyed by namespaced id
      */
-    public EntityRenderer(@NotNull RendererContext context, @NotNull Map<String, Entity> javaEntities) {
+    public EntityRenderer(@NotNull RendererContext context, @NotNull ConcurrentMap<String, Entity> javaEntities) {
         this.context = context;
         this.javaEntities = javaEntities;
     }
@@ -184,7 +183,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // whether the overlay bounds the canvas at all and, on the orthographic path below, the
         // alpha-tight silhouette it contributes. An overlay whose texture does not resolve draws
         // nothing, so it is absent here rather than bounding the canvas with a mesh that never appears.
-        List<EquippedOverlay> equipped = resolveEquippedOverlays(resolved, options.getAppearance(), startTick);
+        ConcurrentList<EquippedOverlay> equipped = resolveEquippedOverlays(resolved, options.getAppearance(), startTick);
         // Resolve the wing texture on the same terms as the equipment overlays above: it decides whether
         // the wings bound the canvas at all, and the silhouette they contribute below. Wings the pack
         // ships no texture for render nothing, so they are empty here rather than bounding the canvas.
@@ -672,15 +671,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // The wrap already rides the pass, baked at index build, so a frame whose offset lands on a
         // whole turn - tick zero among them - has nothing to move and keeps the built triangles.
         if (by.x() == 0f && by.y() == 0f) return triangles;
-        ConcurrentList<VisibleTriangle> out = Concurrent.newList();
-        for (VisibleTriangle triangle : triangles) {
-            out.add(new VisibleTriangle(
+        return triangles.stream()
+            .map(triangle -> new VisibleTriangle(
                 triangle.position0(), triangle.position1(), triangle.position2(),
                 shifted(triangle.uv0(), by), shifted(triangle.uv1(), by), shifted(triangle.uv2(), by),
                 triangle.texture(), triangle.tintArgb(), triangle.normal(), triangle.shading(),
-                triangle.traits(), triangle.debugTag()));
-        }
-        return out;
+                triangle.traits(), triangle.debugTag()))
+            .collect(Concurrent.toWideList());
     }
 
     /** One UV corner moved by the pass's offset. */
@@ -901,8 +898,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // blockToPixel, then the bone anchor, then entityFit.
         Matrix4f finalMatrix = entityFit.multiply(boneAnchor).scale(16f, 16f, 16f).multiply(blockUnitChain);
 
-        ConcurrentList<VisibleTriangle> out = Concurrent.newList();
-        for (VisibleTriangle tri : blockTris) {
+        return blockTris.stream().map(tri -> {
             Vector3f transformedNormal = tri.normal().transformNormal(finalMatrix).normalize();
             // The transformed normal is stored rather than shaded against here: a carried block is part
             // of the entity draw, and vanilla submits these mushroom / flower models through the entity
@@ -965,7 +961,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // through lights the mooshroom's and iron golem's planes by the wrong rule - the second one
             // full-bright. Relax either literal for the coverage reason above and the lighting moves
             // with it, at a distance from the pass that reads it.
-            out.add(new VisibleTriangle(
+            return new VisibleTriangle(
                 tri.position0().transform(finalMatrix),
                 tri.position1().transform(finalMatrix),
                 tri.position2().transform(finalMatrix),
@@ -974,9 +970,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 transformedNormal,
                 Shading.UNLIT, new SurfaceTraits(true, false, false, true,
                     PassDeclaration.DEFAULT.withEmissive(tri.traits().pass().emissive()))
-            ));
-        }
-        return out;
+            );
+        }).collect(Concurrent.toWideList());
     }
 
     /**
@@ -1242,7 +1237,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // separate group-member rows, so union each coat's silhouette here. A no-op while variant is
         // id-encoded (each coat is a member row measured below) or the model has no variant axis.
         bounds = unionVariantSilhouettes(bounds, base, transform, tick);
-        List<String> members = definition.members();
+        ConcurrentList<String> members = definition.members();
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
             if (memberId.equals(entityId)) continue;
@@ -1337,22 +1332,21 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param tick the animation tick to sample each layer texture at
      * @return the drawable overlays, in layer order
      */
-    private @NotNull List<EquippedOverlay> resolveEquippedOverlays(
+    private @NotNull ConcurrentList<EquippedOverlay> resolveEquippedOverlays(
         @NotNull Entity resolved,
         @NotNull AppearanceOptions appearance,
         int tick
     ) {
-        List<EquippedOverlay> out = new ArrayList<>(resolved.layers().equipment().size());
-        for (Entity.EquipmentOverlay equipment : resolved.layers().equipment()) {
-            if (equipment.model().getBones().isEmpty()) continue;
-            Optional<ResourceId> assetId = appearance.equipmentMaterial(equipment.slot())
-                .flatMap(equipment::assetFor);
-            if (assetId.isEmpty()) continue;
-            EquipmentKit.composite(this.context, assetId.get(), equipment.layerType(),
-                    appearance.tint(TintAxis.EQUIPMENT).map(DyeColor::argb), CitResult.NONE, OptionalInt.of(tick))
-                .ifPresent(texture -> out.add(new EquippedOverlay(equipment, texture)));
-        }
-        return out;
+        return resolved.layers().equipment()
+            .stream()
+            .filter(equipment -> !equipment.model().getBones().isEmpty())
+            .flatMap(equipment -> appearance.equipmentMaterial(equipment.slot())
+                .flatMap(equipment::assetFor)
+                .flatMap(assetId -> EquipmentKit.composite(this.context, assetId, equipment.layerType(),
+                    appearance.tint(TintAxis.EQUIPMENT).map(DyeColor::argb), CitResult.NONE, OptionalInt.of(tick)))
+                .map(texture -> new EquippedOverlay(equipment, texture))
+                .stream())
+            .collect(Concurrent.toWideUnmodifiableList());
     }
 
     /**

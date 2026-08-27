@@ -143,12 +143,12 @@ class PoseEvaluatorTest {
             EulerRotation.NONE, 1f, Concurrent.newList(), null));
 
         EntityPose carried = new EntityPose(
-            List.of(Map.of(PoseChannel.Y, new PoseExpr.Select(
+            Concurrent.newUnmodifiableList(Map.of(PoseChannel.Y, new PoseExpr.Select(
                 new PosePredicate(PosePredicate.Comparison.EQ,
                     new PoseExpr.Input("hasEgg"), new PoseExpr.Const(0, PoseOperator.Width.INT)),
                 new PoseExpr.Const(0f, PoseOperator.Width.FLOAT),
                 new PoseExpr.Const(-1f, PoseOperator.Width.FLOAT)))),
-            Map.of(), List.of(), Optional.empty());
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
 
         assertEquals(0f, PoseEvaluator.evaluate(carried, mesh, PoseEvaluator.AT_REST)
                 .container().getFirst().get(PoseChannel.Y),
@@ -195,9 +195,10 @@ class PoseEvaluatorTest {
         EntityModelData mesh = new EntityModelData();
         mesh.getBones().put("head", bone(new EulerRotation(90f, 0f, 0f)));
 
-        EntityPose reads = new EntityPose(List.of(), Map.of("head",
-            Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT))),
-            List.of(), Optional.empty());
+        EntityPose reads = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("head",
+                Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT)))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
 
         assertEquals((float) Math.toRadians(90d),
             PoseEvaluator.evaluate(reads, mesh, PoseEvaluator.AT_REST).bones().get("head").get(PoseChannel.X_ROT),

@@ -39,7 +39,8 @@ class PackStackTest {
         ConcurrentList<PackRoot> roots = Concurrent.newList();
         roots.add(PackRoot.BASE);
         return new ResourcePack(id, new PackContainer.Directory(Path.of(id.value())), MCMeta.EMPTY,
-                                roots.toUnmodifiable(), namespaces, capabilities);
+                                roots.toUnmodifiable(), Concurrent.newUnmodifiableTreeSet(namespaces),
+                                Concurrent.newUnmodifiableLinkedSet(capabilities));
     }
 
     @Test
@@ -103,7 +104,8 @@ class PackStackTest {
         roots.add(PackRoot.overlay("ov_early"));
         roots.add(PackRoot.overlay("ov_late"));
         ResourcePack pack = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(root), MCMeta.EMPTY,
-                                             roots.toUnmodifiable(), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
+                                             roots.toUnmodifiable(), Concurrent.newUnmodifiableTreeSet("minecraft"),
+                                             Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE));
         ConcurrentList<ResourcePack> ascending = Concurrent.newList();
         ascending.add(pack);
         PackStack stack = PackStack.of(ascending.toUnmodifiable());

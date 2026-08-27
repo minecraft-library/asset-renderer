@@ -12,17 +12,18 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Emits the skeletal pose table: every authored keyframe clip, and every model's pose.
@@ -193,16 +194,17 @@ public final class PoseFlow {
         // Which renderers actually compose something, for the one caller that has to know: a shift
         // baked into a mesh and a transform composed above it are two spellings of one
         // setupRotations, and only here is it still known that a subject reaches both.
-        Set<String> composing = new LinkedHashSet<>();
-        transforms.values().stream()
+        Set<String> composing = transforms.values()
+            .stream()
             .filter(transform -> !transform.steps().isEmpty())
-            .forEach(transform -> composing.add(transform.renderer()));
+            .map(RenderTransform::renderer)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        Map<String, Float> facings = new LinkedHashMap<>();
-        transforms.values()
+        Map<String, Float> facings = transforms.values()
             .stream()
             .filter(transform -> transform.facingYaw() != 0f)
-            .forEach(transform -> facings.put(transform.renderer(), transform.facingYaw()));
+            .collect(Collectors.toMap(RenderTransform::renderer, RenderTransform::facingYaw,
+                (a, b) -> b, LinkedHashMap::new));
 
         return new Emitted(Collections.unmodifiableSet(composing),
             Collections.unmodifiableMap(facings), rigidModels(poses, rootBones));
@@ -352,8 +354,10 @@ public final class PoseFlow {
                 Map<Map<String, String>, String> split =
                     splitKeys(model, distinct.keySet(), bodies, elsewhere);
                 if (split.isEmpty()) {
-                    List<String> spelled = new ArrayList<>();
-                    distinct.forEach((frame, subjects) -> spelled.add(frame + " <- " + subjects));
+                    List<String> spelled = distinct.entrySet()
+                        .stream()
+                        .map(reached -> reached.getKey() + " <- " + reached.getValue())
+                        .collect(Collectors.toList());
                     diagnostics.info("%s is reached at %d resting frames and is emitted unfolded: %s",
                         model, distinct.size(), String.join("; ", spelled));
                     out.put(model, entry.getValue());
@@ -410,10 +414,14 @@ public final class PoseFlow {
         @NotNull Map<String, RenderTransform> transforms, @NotNull JsonTree models,
         @NotNull Map<String, Float> inputDefaults, @NotNull Diagnostics diagnostics) {
 
-        Map<String, Map<Map<String, String>, Set<String>>> drawn = new LinkedHashMap<>();
-        models.members().forEach((entity, row) -> row.findString("renderer").ifPresent(renderer ->
-            drawn.computeIfAbsent(ClassKit.simpleName(renderer), name -> new LinkedHashMap<>())
-                .computeIfAbsent(restOf(row), name -> new LinkedHashSet<>()).add(entity)));
+        Map<String, Map<Map<String, String>, Set<String>>> drawn = models.members()
+            .filter(entry -> entry.getValue().findString("renderer").isPresent())
+            .collect(Collectors.groupingBy(
+                entry -> ClassKit.simpleName(entry.getValue().findString("renderer").orElseThrow()),
+                LinkedHashMap::new,
+                Collectors.groupingBy(entry -> restOf(entry.getValue()), LinkedHashMap::new,
+                    Collectors.mapping(Map.Entry::getKey,
+                        Collectors.toCollection(LinkedHashSet::new)))));
 
         Map<String, RenderTransform> out = new TreeMap<>();
         for (Map.Entry<String, RenderTransform> entry : transforms.entrySet()) {
@@ -431,8 +439,10 @@ public final class PoseFlow {
                 distinct.computeIfAbsent(PoseFold.frameOf(program, rest, Map.of()),
                     frame -> new TreeSet<>()).addAll(subjects));
             if (distinct.size() > 1) {
-                List<String> spelled = new ArrayList<>();
-                distinct.forEach((frame, subjects) -> spelled.add(frame + " <- " + subjects));
+                List<String> spelled = distinct.entrySet()
+                    .stream()
+                    .map(reached -> reached.getKey() + " <- " + reached.getValue())
+                    .collect(Collectors.toList());
                 diagnostics.info(
                     "%s.setupRotations draws %d resting frames and is emitted unfolded: %s",
                     renderer, distinct.size(), String.join("; ", spelled));
@@ -473,17 +483,14 @@ public final class PoseFlow {
             if (keys.contains(model) && keys.size() > 1) return Map.of();
 
         Set<String> differing = disagreeing(frames);
-        Map<Map<String, String>, String> out = new LinkedHashMap<>();
-        for (Map<String, String> frame : frames) {
-            StringBuilder suffix = new StringBuilder();
-            for (String member : differing) {
-                String held = frame.get(member);
-                if (held == null) continue;
-                if (!suffix.isEmpty()) suffix.append(',');
-                suffix.append(member).append('=').append(held);
-            }
-            out.put(frame, suffix.isEmpty() ? model : model + SPLIT + suffix);
-        }
+        Map<Map<String, String>, String> out = frames.stream()
+            .collect(Collectors.toMap(frame -> frame, frame -> {
+                String suffix = differing.stream()
+                    .filter(member -> frame.get(member) != null)
+                    .map(member -> member + '=' + frame.get(member))
+                    .collect(Collectors.joining(","));
+                return suffix.isEmpty() ? model : model + SPLIT + suffix;
+            }, (a, b) -> b, LinkedHashMap::new));
         // A key that does not tell the frames apart is not a split: two rows under one name would
         // leave whichever was written second standing for both, silently.
         return Set.copyOf(out.values()).size() == frames.size() ? out : Map.of();
@@ -501,21 +508,22 @@ public final class PoseFlow {
         @NotNull Map<String, PoseOutcome> poses, @NotNull String model) {
 
         if (poses.containsKey(model)) return List.of(model);
-        List<String> out = new ArrayList<>();
-        for (String key : poses.keySet())
-            if (key.startsWith(model + SPLIT)) out.add(key);
-        return out;
+        String prefix = model + SPLIT;
+        return poses.keySet()
+            .stream()
+            .filter(key -> key.startsWith(prefix))
+            .collect(Collectors.toList());
     }
 
     /** The members the frames do not agree on, which is what a key has to name to tell them apart. */
     private static @NotNull Set<String> disagreeing(@NotNull Set<Map<String, String>> frames) {
-        Set<String> named = new TreeSet<>();
-        for (Map<String, String> frame : frames) named.addAll(frame.keySet());
-        named.removeIf(member -> {
-            Set<String> held = new HashSet<>();
-            for (Map<String, String> frame : frames) held.add(frame.get(member));
-            return held.size() == 1;
-        });
+        Set<String> named = frames.stream()
+            .flatMap(frame -> frame.keySet().stream())
+            .collect(Collectors.toCollection(TreeSet::new));
+        named.removeIf(member -> frames.stream()
+            .map(frame -> frame.get(member))
+            .collect(Collectors.toSet())
+            .size() == 1);
         return named;
     }
 
@@ -597,8 +605,10 @@ public final class PoseFlow {
 
             // One family list serves the body and every coat, so two bodies resting apart on the
             // members their shared class names is a shape the table cannot carry.
-            Set<List<String>> bodySeeds = new LinkedHashSet<>();
-            for (String key : bodyKeys(row)) bodySeeds.add(resting.getOrDefault(key, List.of()));
+            Set<List<String>> bodySeeds = bodyKeys(row)
+                .stream()
+                .map(key -> resting.getOrDefault(key, List.of()))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
             if (bodySeeds.size() > 1)
                 throw new ToolingException(
                     "'%s' bodies rest apart (%s), which one family undrawn list cannot say",
@@ -696,9 +706,10 @@ public final class PoseFlow {
         if (bones == null) return List.of();
         JsonTree held = bones.find("undrawn").orElse(null);
         if (held == null) return List.of();
-        List<String> out = new ArrayList<>();
-        held.elements().toList().forEach(entry -> entry.asString().ifPresent(out::add));
-        return out;
+        return held.elements()
+            .map(JsonTree::asString)
+            .flatMap(Optional::stream)
+            .collect(Collectors.toList());
     }
 
     /** One list, the never-drawn bones first and the resting seed after, each name once. */
@@ -706,9 +717,7 @@ public final class PoseFlow {
         @NotNull List<String> never, @NotNull List<String> seed) {
 
         if (seed.isEmpty()) return never;
-        LinkedHashSet<String> out = new LinkedHashSet<>(never);
-        out.addAll(seed);
-        return List.copyOf(out);
+        return Stream.concat(never.stream(), seed.stream()).distinct().toList();
     }
 
     /**
@@ -747,8 +756,9 @@ public final class PoseFlow {
         @NotNull String... anchors) {
 
         List<String> held = holder.keys().toList();
-        Map<String, JsonTree> members = new LinkedHashMap<>();
-        for (String member : held) members.put(member, holder.find(member).orElseThrow());
+        Map<String, JsonTree> members = held.stream()
+            .collect(Collectors.toMap(member -> member,
+                member -> holder.find(member).orElseThrow(), (a, b) -> b, LinkedHashMap::new));
         Set<String> before = Set.of(anchors);
         holder.clear();
         boolean placed = false;
@@ -791,10 +801,11 @@ public final class PoseFlow {
     private static @NotNull Map<String, String> restOf(@NotNull JsonTree row) {
         JsonTree rest = row.find("rest").orElse(null);
         if (rest == null) return Map.of();
-        Map<String, String> out = new LinkedHashMap<>();
-        rest.members().forEach((member, held) ->
-            held.asString().ifPresent(value -> out.put(member, value)));
-        return Map.copyOf(out);
+        return Map.copyOf(rest.members()
+            .filter(entry -> entry.getValue().asString().isPresent())
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                entry -> entry.getValue().asString().orElseThrow(), (a, b) -> b,
+                LinkedHashMap::new)));
     }
 
     /**
@@ -813,12 +824,11 @@ public final class PoseFlow {
      * @return entity id to the keys its body takes, omitting a subject whose body resolves none
      */
     private static @NotNull Map<String, Set<String>> bodyKeysOf(@NotNull JsonTree models) {
-        Map<String, Set<String>> out = new LinkedHashMap<>();
-        models.members().forEach((entity, row) -> {
-            Set<String> keys = bodyKeys(row);
-            if (!keys.isEmpty()) out.put(entity, keys);
-        });
-        return out;
+        return models.members()
+            .map(entry -> Map.entry(entry.getKey(), bodyKeys(entry.getValue())))
+            .filter(entry -> !entry.getValue().isEmpty())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b,
+                LinkedHashMap::new));
     }
 
     /** The pose keys one subject's body resolves, by the rule {@link #bodyKeysOf} states. */
@@ -938,9 +948,11 @@ public final class PoseFlow {
         @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
         @NotNull Set<String> posing, @NotNull Diagnostics diagnostics) {
 
-        Map<String, String> classes = new LinkedHashMap<>();
-        for (GeometryRequest request : manifest.entries().values())
-            classes.putIfAbsent(request.factoryClass(), request.factoryClass());
+        Map<String, String> classes = manifest.entries()
+            .values()
+            .stream()
+            .collect(Collectors.toMap(GeometryRequest::factoryClass, GeometryRequest::factoryClass,
+                (a, b) -> a, LinkedHashMap::new));
         // A class that poses a mesh it did not bake still has to be walked, or the model table names
         // a pose the pose table does not carry and the reader resolves it to nothing at all. The mesh
         // it poses is the one its nearest baking ancestor declares - a subclass reusing its parent's
@@ -985,12 +997,12 @@ public final class PoseFlow {
         @NotNull ToolingSession session, @NotNull Map<String, String> roster,
         @NotNull Map<String, Set<String>> rootBones, @NotNull Diagnostics diagnostics) {
 
-        Map<String, PoseOutcome> out = new TreeMap<>();
-        for (Map.Entry<String, String> model : roster.entrySet())
-            out.putIfAbsent(ClassKit.simpleName(model.getKey()), PoseWalk.extract(
-                session.cache(), model.getKey(),
-                rootBones.getOrDefault(model.getValue(), Set.of()), diagnostics));
-        return out;
+        return roster.entrySet()
+            .stream()
+            .collect(Collectors.toMap(model -> ClassKit.simpleName(model.getKey()),
+                model -> PoseWalk.extract(session.cache(), model.getKey(),
+                    rootBones.getOrDefault(model.getValue(), Set.of()), diagnostics),
+                (a, b) -> a, TreeMap::new));
     }
 
     /**
@@ -1003,14 +1015,15 @@ public final class PoseFlow {
     private static @NotNull Map<String, RenderTransform> walkRenderers(
         @NotNull ToolingSession session, @NotNull Set<String> renderers, @NotNull JsonTree models) {
 
-        Map<String, RenderTransform> out = new TreeMap<>();
-        for (String renderer : renderers) {
-            String name = ClassKit.simpleName(renderer);
-            RenderTransform transform = RenderTransformWalk.read(session.cache(), renderer,
-                (state, member) -> restingConstant(session, models, name, state, member));
-            if (transform != null) out.putIfAbsent(transform.renderer(), transform);
-        }
-        return out;
+        return renderers.stream()
+            .map(renderer -> {
+                String name = ClassKit.simpleName(renderer);
+                return RenderTransformWalk.read(session.cache(), renderer,
+                    (state, member) -> restingConstant(session, models, name, state, member));
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toMap(RenderTransform::renderer, transform -> transform,
+                (a, b) -> a, TreeMap::new));
     }
 
     /**
@@ -1034,11 +1047,12 @@ public final class PoseFlow {
 
         String constructed = InputDefaultResolver
             .resolveConstants(session.cache(), state, Set.of(member)).get(member);
-        Set<String> answers = new LinkedHashSet<>();
-        models.members().forEach((entity, row) -> row.findString("renderer").ifPresent(named -> {
-            if (ClassKit.simpleName(named).equals(renderer))
-                answers.add(restOf(row).getOrDefault(member, constructed));
-        }));
+        Set<String> answers = models.members()
+            .values()
+            .filter(row -> row.findString("renderer")
+                .map(named -> ClassKit.simpleName(named).equals(renderer)).orElse(false))
+            .map(row -> restOf(row).getOrDefault(member, constructed))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
         if (answers.isEmpty()) return Optional.ofNullable(constructed);
         return answers.size() == 1 ? Optional.ofNullable(answers.iterator().next()) : Optional.empty();
     }
@@ -1080,13 +1094,17 @@ public final class PoseFlow {
         @NotNull List<KeyframeClip> clips, @NotNull Map<String, PoseOutcome> poses,
         @NotNull Diagnostics diagnostics) {
 
-        Set<String> played = new LinkedHashSet<>();
-        for (PoseOutcome outcome : poses.values())
-            if (outcome instanceof PoseOutcome.Extracted extracted)
-                for (PoseClipSite site : extracted.program().clipSites()) played.add(site.clip());
-        Set<String> dead = new TreeSet<>();
-        for (KeyframeClip clip : clips)
-            if (!played.contains(clip.coordinate())) dead.add(clip.coordinate());
+        Set<String> played = poses.values()
+            .stream()
+            .filter(PoseOutcome.Extracted.class::isInstance)
+            .map(PoseOutcome.Extracted.class::cast)
+            .flatMap(extracted -> extracted.program().clipSites().stream())
+            .map(PoseClipSite::clip)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> dead = clips.stream()
+            .map(KeyframeClip::coordinate)
+            .filter(coordinate -> !played.contains(coordinate))
+            .collect(Collectors.toCollection(TreeSet::new));
         if (!dead.isEmpty())
             diagnostics.info("emitted %d clip(s) no model plays: %s", dead.size(), String.join(", ", dead));
     }

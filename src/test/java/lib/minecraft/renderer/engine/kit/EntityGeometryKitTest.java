@@ -144,13 +144,13 @@ class EntityGeometryKitTest {
     @DisplayName("each cardinal face direction is represented by exactly two triangles")
     void faceCoverage_eachFaceHasTwoTriangles() {
         Map<Face, Integer> faceCount = new HashMap<>();
-        for (Face face : Face.CACHED_VALUES) faceCount.put(face, 0);
+        Face.forEach(face -> faceCount.put(face, 0));
         for (VisibleTriangle tri : collect(buildSingleCube())) {
             Face face = cardinalFor(tri.normal());
             faceCount.put(face, faceCount.get(face) + 1);
         }
-        for (Face face : Face.CACHED_VALUES)
-            assertThat("face " + face + " triangle count", faceCount.get(face), equalTo(2));
+        Face.forEach(face ->
+            assertThat("face " + face + " triangle count", faceCount.get(face), equalTo(2)));
     }
 
     /**

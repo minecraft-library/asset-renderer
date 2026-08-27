@@ -26,6 +26,7 @@ import org.objectweb.asm.tree.VarInsnNode;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * The equipment side of the {@code layers[]} node - one row per saddle / body-armor layer
@@ -208,8 +209,10 @@ final class EntityEquipmentResolver {
             return null;
         }
         String adultKey = this.manifest.register(adultRequest);
-        Map<String, JsonTree> materialAssets = new LinkedHashMap<>();
-        materials.forEach((material, assetId) -> materialAssets.put(material, JsonTree.of(assetId)));
+        Map<String, JsonTree> materialAssets = materials.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, material -> JsonTree.of(material.getValue()),
+                (first, second) -> second, LinkedHashMap::new));
         JsonTree overlay = JsonTree.object()
             .put("geometry", adultKey)
             .putIf("bones", layerBones(site, adultRequest))

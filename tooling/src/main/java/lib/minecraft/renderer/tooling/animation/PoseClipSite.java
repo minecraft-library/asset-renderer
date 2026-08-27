@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -38,6 +41,8 @@ public record PoseClipSite(
      * behind a per-entity animation state contributes nothing to a render that starts no state,
      * which is every render this library takes.
      */
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     public enum Gate {
 
         /** Held at its first frame unconditionally - the only clip kind that always contributes. */
@@ -52,20 +57,8 @@ public record PoseClipSite(
          */
         STATE("state");
 
+        /** The token this gate is spelled with in the shipped table. */
         private final @NotNull String token;
-
-        Gate(@NotNull String token) {
-            this.token = token;
-        }
-
-        /**
-         * The token this gate is spelled with in the shipped table.
-         *
-         * @return the lower-case token
-         */
-        public @NotNull String token() {
-            return this.token;
-        }
 
     }
 

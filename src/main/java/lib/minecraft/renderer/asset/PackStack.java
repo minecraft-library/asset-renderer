@@ -7,6 +7,7 @@ import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
@@ -22,14 +23,10 @@ import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 /**
  * The ordered resource-pack stack: vanilla at priority 0, then user packs in ascending priority,
@@ -50,13 +47,13 @@ public final class PackStack {
     @Getter(style = NamingStyle.FLUENT)
     private final @NotNull ConcurrentList<ResourcePack> ascending;
 
-    private final @NotNull Map<PackId, ResourcePack> byId;
+    private final @NotNull ConcurrentMap<PackId, ResourcePack> byId;
 
     /**
-     * The union of every pack's namespaces.
+     * The union of every pack's namespaces, in the order the ascending stack first supplies each.
      */
     @Getter(style = NamingStyle.FLUENT)
-    private final @NotNull Set<String> namespaces;
+    private final @NotNull ConcurrentSet<String> namespaces;
 
     /**
      * The scanned texture index, keyed by resolved namespaced id.
@@ -105,13 +102,12 @@ public final class PackStack {
         if (!ascending.getFirst().id().equals(PackId.VANILLA))
             throw new PipelineException("Pack stack must lead with the vanilla pack, got '%s'", ascending.getFirst().id());
 
-        LinkedHashMap<PackId, ResourcePack> byId = new LinkedHashMap<>();
-        LinkedHashSet<String> namespaces = new LinkedHashSet<>();
-        for (ResourcePack pack : ascending) {
-            byId.put(pack.id(), pack);
-            namespaces.addAll(pack.namespaces());
-        }
-        return new PackStack(ascending, Map.copyOf(byId), Set.copyOf(namespaces), Concurrent.newMap(), RuleSet.empty(PackId.VANILLA));
+        ConcurrentMap<PackId, ResourcePack> byId = ascending.stream()
+            .collect(Concurrent.toUnmodifiableLinkedMap(ResourcePack::id, pack -> pack, (a, b) -> b));
+        ConcurrentSet<String> namespaces = ascending.stream()
+            .flatMap(pack -> pack.namespaces().stream())
+            .collect(Concurrent.toUnmodifiableLinkedSet());
+        return new PackStack(ascending, byId, namespaces, Concurrent.newMap(), RuleSet.empty(PackId.VANILLA));
     }
 
     /**
@@ -324,12 +320,12 @@ public final class PackStack {
     }
 
     /** The within-pack namespace search order: primary namespace, then {@code minecraft}, then the rest sorted. */
-    private static @NotNull List<String> searchOrder(@NotNull ResourcePack pack) {
-        LinkedHashSet<String> order = new LinkedHashSet<>();
-        pack.primaryNamespace().ifPresent(order::add);
-        order.add("minecraft");
-        pack.namespaces().stream().sorted().forEach(order::add);
-        return new ArrayList<>(order);
+    private static @NotNull ConcurrentList<String> searchOrder(@NotNull ResourcePack pack) {
+        return Stream.of(pack.primaryNamespace().stream(), Stream.of("minecraft"),
+                pack.namespaces().stream().sorted())
+            .flatMap(source -> source)
+            .distinct()
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     private boolean isLoadedPackId(@NotNull String prefix) {

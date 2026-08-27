@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Shared ASM bytecode walker for vanilla {@code LayerDefinition.create / CubeListBuilder /
@@ -507,11 +508,11 @@ public final class GeometryParser {
     private static void applyRetainedNamesFilter(@NotNull WalkState state) {
         Set<String> retained = state.retainedNames;
         if (retained == null) return;
-        List<String> toRemove = new java.util.ArrayList<>();
-        for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
-            if (!hasRetainedAncestor(entry.getKey(), retained, state.boneParents))
-                toRemove.add(entry.getKey());
-        }
+        List<String> toRemove = state.bones.entrySet()
+            .stream()
+            .map(Map.Entry::getKey)
+            .filter(name -> !hasRetainedAncestor(name, retained, state.boneParents))
+            .collect(Collectors.toList());
         for (String name : toRemove) state.bones.remove(name);
     }
 
@@ -1821,7 +1822,6 @@ public final class GeometryParser {
         // Varargs Set.of([Ljava/lang/Object;) collapses to a single '[' arg - skip it for now.
         for (char t : argTypes) if (t != 'L') return null;
         int expectedCount = argTypes.length;
-        Set<String> names = new LinkedHashSet<>();
         java.util.Deque<String> collected = new java.util.ArrayDeque<>();
         AbstractInsnNode prev = methodInsn.getPrevious();
         while (prev != null && collected.size() < expectedCount) {
@@ -1835,8 +1835,7 @@ public final class GeometryParser {
             prev = prev.getPrevious();
         }
         if (collected.size() != expectedCount) return null;
-        names.addAll(collected);
-        return names;
+        return collected.stream().collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     /**

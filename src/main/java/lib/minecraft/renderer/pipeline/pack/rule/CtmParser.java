@@ -17,6 +17,7 @@ import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -147,17 +148,16 @@ public class CtmParser {
     }
 
     private static @NotNull ConcurrentList<String> splitNames(@NotNull String value) {
-        List<String> names = new ArrayList<>();
-        for (String token : value.trim().split("\\s+"))
-            if (!token.isBlank()) names.add(token);
-        return Concurrent.adoptList(names).toUnmodifiable();
+        return Arrays.stream(value.trim().split("\\s+"))
+            .filter(token -> !token.isBlank())
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     private static @NotNull ConcurrentList<BlockMatch> parseBlockMatches(@NotNull String value) {
-        List<BlockMatch> matches = new ArrayList<>();
-        for (String entry : value.trim().split("\\s+"))
-            if (!entry.isBlank()) matches.add(parseBlockMatch(entry));
-        return Concurrent.adoptList(matches).toUnmodifiable();
+        return Arrays.stream(value.trim().split("\\s+"))
+            .filter(entry -> !entry.isBlank())
+            .map(CtmParser::parseBlockMatch)
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**
@@ -178,10 +178,9 @@ public class CtmParser {
             int eq = segments[i].indexOf('=');
             if (eq < 0) continue;
             String key = segments[i].substring(0, eq);
-            ArrayList<String> values = new ArrayList<>();
-            for (String value : segments[i].substring(eq + 1).split(","))
-                if (!value.isBlank()) values.add(value);
-            properties.put(key, Concurrent.adoptList(values).toUnmodifiable());
+            properties.put(key, Arrays.stream(segments[i].substring(eq + 1).split(","))
+                .filter(value -> !value.isBlank())
+                .collect(Concurrent.toUnmodifiableList()));
         }
         String id = String.join(":", idSegments);
         ResourceId block = id.contains(":") ? ResourceId.parse(id) : new ResourceId(MINECRAFT, id);

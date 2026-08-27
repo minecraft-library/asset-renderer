@@ -17,6 +17,7 @@ import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Resolves one entity in one pass - the {@link #resolve()} put-chain IS the on-disk key
@@ -125,21 +126,20 @@ final class EntityRendererResolver {
     private @NotNull List<LayerSite> scanLayerRoster(@NotNull ToolingSession session) {
         List<List<LayerSite>> perClass = new ArrayList<>();
         ClassKit.walkSuperChain(session.cache(), this.subject.rendererClass(), cn -> {
-            List<LayerSite> level = new ArrayList<>();
-            for (MethodNode ctor : cn.methods) {
-                if (!ClassKit.INIT.equals(ctor.name)) continue;
-                // Owner-agnostic addLayer match - the renderer's super may be any of
-                // several LivingEntityRenderer subclasses; gate on the canonical
-                // descriptor shape (single Layer arg, boolean return).
-                level.addAll(AsmWalker.over(ctor)
+            // Owner-agnostic addLayer match - the renderer's super may be any of
+            // several LivingEntityRenderer subclasses; gate on the canonical
+            // descriptor shape (single Layer arg, boolean return).
+            perClass.add(cn.methods.stream()
+                .filter(ctor -> ClassKit.INIT.equals(ctor.name))
+                .flatMap(ctor -> AsmWalker.over(ctor)
                     .ofType(MethodInsnNode.class)
                     .where(call -> call.getOpcode() == Opcodes.INVOKEVIRTUAL
                         && VanillaSourceClasses.Methods.ADD_LAYER.equals(call.name)
                         && call.desc.startsWith("(L") && call.desc.endsWith(";)Z"))
                     .mapNotNull(call -> resolveSite(ctor, call))
-                    .toList());
-            }
-            perClass.add(level);
+                    .toList()
+                    .stream())
+                .collect(Collectors.toList()));
         });
         List<LayerSite> out = new ArrayList<>();
         for (int levelIndex = perClass.size() - 1; levelIndex >= 0; levelIndex--)

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.engine.compose.layer;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -84,12 +86,11 @@ public final class LayerStack<L> {
      *
      * @return the ordered layers
      */
-    public @NotNull List<L> ordered() {
-        List<Entry<L>> sorted = new ArrayList<>(this.entries);
-        sorted.sort(Comparator.<Entry<L>>comparingDouble(Entry::key).thenComparingInt(Entry::seq));
-        List<L> result = new ArrayList<>(sorted.size());
-        for (Entry<L> entry : sorted) result.add(entry.layer());
-        return result;
+    public @NotNull ConcurrentList<L> ordered() {
+        return this.entries.stream()
+            .sorted(Comparator.<Entry<L>>comparingDouble(Entry::key).thenComparingInt(Entry::seq))
+            .map(Entry::layer)
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * Writes what a subject rests without onto the mesh it rests in, and takes the two members saying it
@@ -139,9 +140,14 @@ public final class EntityMeshMarking {
         JsonTree bones = entry.find("bones").orElse(null);
         if (bones == null) return;
 
-        Map<String, String> toggleOf = new LinkedHashMap<>();
-        rest.toggles().forEach((toggle, named) ->
-            named.forEach(bone -> toggleOf.putIfAbsent(bone, toggle)));
+        // First-wins where two selections name one bone, so the bone answers to the selection that
+        // reached it first.
+        Map<String, String> toggleOf = rest.toggles()
+            .entrySet()
+            .stream()
+            .flatMap(toggle -> toggle.getValue().stream().map(bone -> Map.entry(bone, toggle.getKey())))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                (first, second) -> first, LinkedHashMap::new));
 
         Set<String> hidden = withDescendants(bones, rest.undrawn());
         for (String name : names(bones)) {
@@ -166,9 +172,10 @@ public final class EntityMeshMarking {
     private static @NotNull Set<String> withDescendants(
         @NotNull JsonTree bones, @NotNull Set<String> seed) {
 
-        Set<String> closed = new LinkedHashSet<>();
-        for (String name : seed)
-            if (bones.has(name)) closed.add(name);
+        Set<String> closed = seed
+            .stream()
+            .filter(bones::has)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
         if (closed.isEmpty()) return closed;
         boolean grew = true;
         while (grew) {
@@ -187,9 +194,7 @@ public final class EntityMeshMarking {
 
     /** The bone names of a mesh, taken as a list so the object can be edited while it is walked. */
     private static @NotNull List<String> names(@NotNull JsonTree bones) {
-        List<String> named = new ArrayList<>();
-        bones.members().forEach((name, bone) -> named.add(name));
-        return named;
+        return bones.keys().collect(Collectors.toCollection(ArrayList::new));
     }
 
     // ------------------------------------------------------------------------------------
@@ -235,9 +240,10 @@ public final class EntityMeshMarking {
 
     /** Every place the table names a mesh, with the rest state that place is in. */
     private static @NotNull List<Site> sitesIn(@NotNull JsonTree models) {
-        List<Site> sites = new ArrayList<>();
-        models.members().forEach((id, subject) -> sites.addAll(sitesOf(subject)));
-        return sites;
+        return models.members()
+            .values()
+            .flatMap(subject -> sitesOf(subject).stream())
+            .collect(Collectors.toCollection(ArrayList::new));
     }
 
     /** Every place ONE subject names a mesh. */
@@ -280,13 +286,10 @@ public final class EntityMeshMarking {
     private static @NotNull Map<String, Map<Rest, List<Site>>> byCoordinate(
         @NotNull List<Site> sites) {
 
-        Map<String, Map<Rest, List<Site>>> grouped = new LinkedHashMap<>();
-        for (Site site : sites)
-            grouped
-                .computeIfAbsent(site.coordinate(), key -> new LinkedHashMap<>())
-                .computeIfAbsent(site.rest(), key -> new ArrayList<>())
-                .add(site);
-        return grouped;
+        return sites.stream()
+            .collect(Collectors.groupingBy(Site::coordinate, LinkedHashMap::new,
+                Collectors.groupingBy(Site::rest, LinkedHashMap::new,
+                    Collectors.toCollection(ArrayList::new))));
     }
 
     /** Keeps a site, where the node named a mesh and rested in something worth saying. */
@@ -302,9 +305,11 @@ public final class EntityMeshMarking {
             node.findArray("undrawn").ifPresent(named ->
                 named.elements().forEach(bone -> bone.asString().ifPresent(undrawn::add)));
             node.findObject("toggles").ifPresent(declared -> declared.members().forEach((name, spec) -> {
-                List<String> named = new ArrayList<>();
-                spec.findArray("bones").ifPresent(bones ->
-                    bones.elements().forEach(bone -> bone.asString().ifPresent(named::add)));
+                List<String> named = spec.findArray("bones")
+                    .stream()
+                    .flatMap(JsonTree::elements)
+                    .flatMap(bone -> bone.asString().stream())
+                    .collect(Collectors.toCollection(ArrayList::new));
                 if (!named.isEmpty()) toggles.put(name, named);
             }));
         }

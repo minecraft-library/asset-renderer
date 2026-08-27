@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.geometry;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
@@ -55,6 +58,8 @@ public final class GeometryIds {
      * coordinate and the discriminator can say what the derived mesh is. That is what separates
      * these from the request discriminators, where the mesh is whatever the bytecode computed.
      */
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     public enum Derivation {
 
         /** What a subject rests without, the bones it never draws being gone and the rest marked. */
@@ -68,15 +73,6 @@ public final class GeometryIds {
 
         /** The member name this derivation is spelled with, in a key and in the {@code source} twin. */
         private final @NotNull String token;
-
-        Derivation(@NotNull String token) {
-            this.token = token;
-        }
-
-        /** The member name this derivation is spelled with, in a key and in the {@code source} twin. */
-        public @NotNull String token() {
-            return this.token;
-        }
 
     }
 

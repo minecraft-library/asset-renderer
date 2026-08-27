@@ -82,7 +82,8 @@ public record RasterPass(
         /**
          * Transforms the baked strip.
          *
-         * @param frames the baked frame buffers, in frame order; each carries its own coverage mask
+         * @param frames the baked frame buffers, in frame order, writable so that a finish stamping
+         *        every frame can replace them in place; each carries its own coverage mask
          * @param timeline the schedule that baked the frames
          * @return the frames to wrap and the schedule whose delays wrap them
          */

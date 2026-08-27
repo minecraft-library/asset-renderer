@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.asset.appearance;
 
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Locale;
 import java.util.Optional;
@@ -28,6 +28,7 @@ public class Villager {
      * {@link #overlaySubPath()} for the adult robe pass and {@link #babyOverlaySubPath()} for the
      * baby one, mirroring the layer's own {@code isBaby ? "baby" : "type"} swap.
      */
+    @EnumLookup
     public enum Type {
 
         PLAINS,
@@ -61,21 +62,6 @@ public class Villager {
         public @NotNull String babyOverlaySubPath() {
             return "baby/" + name().toLowerCase(Locale.ROOT);
         }
-
-        /**
-         * Looks up a biome type by name (case-insensitive), e.g. {@code "desert"}.
-         *
-         * @param name the type name
-         * @return the matching type, or {@code null} when the name is not a built-in villager type
-         */
-        public static @Nullable Type ofName(@Nullable String name) {
-            if (name == null) return null;
-            try {
-                return valueOf(name.toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException notAType) {
-                return null;
-            }
-        }
     }
 
     /**
@@ -85,6 +71,7 @@ public class Villager {
      * carries a {@code <prefix>/profession/<name>} texture. {@code NONE} and {@code NITWIT} draw no
      * level badge (see {@link #drawsBadge()}), mirroring the layer's per-profession badge gate.
      */
+    @EnumLookup
     public enum Profession {
 
         NONE,
@@ -136,21 +123,6 @@ public class Villager {
         public boolean drawsBadge() {
             return this != NONE && this != NITWIT;
         }
-
-        /**
-         * Looks up a profession by name (case-insensitive), e.g. {@code "weaponsmith"}.
-         *
-         * @param name the profession name
-         * @return the matching profession, or {@code null} when the name is not a villager profession
-         */
-        public static @Nullable Profession ofName(@Nullable String name) {
-            if (name == null) return null;
-            try {
-                return valueOf(name.toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException notAProfession) {
-                return null;
-            }
-        }
     }
 
     /**
@@ -165,6 +137,7 @@ public class Villager {
      * all is the profession - see {@link Profession#drawsBadge()} - and the subject's age, both
      * answered before a level is ever read.
      */
+    @EnumLookup
     public enum Level {
 
         STONE,
@@ -192,21 +165,6 @@ public class Villager {
          */
         public @NotNull String overlaySubPath() {
             return "profession_level/" + name().toLowerCase(Locale.ROOT);
-        }
-
-        /**
-         * Looks up a badge tier by name (case-insensitive), e.g. {@code "diamond"}.
-         *
-         * @param name the tier name
-         * @return the matching tier, or {@code null} when the name is not a villager badge tier
-         */
-        public static @Nullable Level ofName(@Nullable String name) {
-            if (name == null) return null;
-            try {
-                return valueOf(name.toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException notALevel) {
-                return null;
-            }
         }
     }
 

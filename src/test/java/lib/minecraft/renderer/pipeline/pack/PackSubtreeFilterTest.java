@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -163,8 +162,8 @@ class PackSubtreeFilterTest {
 
     private static ResourcePack pack(PackId id, Path root, MCMeta meta) {
         return new ResourcePack(id, new PackContainer.Directory(root), meta,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"),
-            Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
     }
 
     private static void write(Path path, String content) throws IOException {

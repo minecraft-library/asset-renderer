@@ -58,8 +58,6 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -262,10 +260,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         ModelData resolved = model.get();
-        List<LayerTint> tints = resolution != null ? resolution.tints() : baked.tints();
-        HashMap<String, String> sprites = new HashMap<>();
-        resolved.getTextures().forEach((slot, texture) -> sprites.put(slot, texture.sprite()));
-        return new Item(baked.id(), resolved, Concurrent.adoptMap(sprites),
+        ConcurrentList<LayerTint> tints = resolution != null ? resolution.tints() : baked.tints();
+        ConcurrentMap<String, String> sprites = resolved.getTextures()
+            .entrySet()
+            .stream()
+            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().sprite()));
+        return new Item(baked.id(), resolved, sprites,
             baked.maxDurability(), tints, baked.alwaysGlinted());
     }
 
@@ -494,7 +494,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         int layerIndex,
         @NotNull ItemOptions options
     ) {
-        List<LayerTint> tints = item.tints();
+        ConcurrentList<LayerTint> tints = item.tints();
         if (layerIndex < tints.size()) {
             return switch (tints.get(layerIndex)) {
                 case LayerTint.Dye dye ->
@@ -820,7 +820,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (isBannerOrShield(options.getItemId()))
                 return buildBannerOrShield3D(engine, options.getItemId(), options);
             if (!item.model().getElements().isEmpty()) {
-                Map<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item, tick);
+                ConcurrentMap<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item, tick);
                 var forceRefs = item.model().resolveForceTranslucentRefs();
                 return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint, tint, forceRefs);
             }
@@ -839,7 +839,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * original face reference string (including any leading {@code #}), which matches what
          * {@link BlockGeometryKit#buildFromElements} expects.
          */
-        private static @NotNull Map<String, PixelBuffer> loadFaceTextures(
+        private static @NotNull ConcurrentMap<String, PixelBuffer> loadFaceTextures(
             @NotNull ModelEngine engine,
             @NotNull Item item,
             int tick

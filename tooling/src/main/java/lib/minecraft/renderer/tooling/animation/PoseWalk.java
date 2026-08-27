@@ -43,6 +43,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * Walks a model's {@code setupAnim} body into the pose it computes.
@@ -785,18 +788,24 @@ public final class PoseWalk {
     private static @NotNull Interp.Snapshot<PoseValue> rewritten(
         @NotNull Interp.Snapshot<PoseValue> machine, @NotNull UnaryOperator<PoseValue> mapping) {
 
-        List<PoseValue> stack = new ArrayList<>(machine.stack().size());
-        for (PoseValue value : machine.stack()) stack.add(mapping.apply(value));
+        List<PoseValue> stack = machine.stack()
+            .stream()
+            .map(mapping)
+            .collect(Collectors.toList());
 
-        Map<Integer, PoseValue> slots = new LinkedHashMap<>();
-        machine.slots().forEach((slot, value) -> slots.put(slot, mapping.apply(value)));
+        Map<Integer, PoseValue> slots = machine.slots()
+            .entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, held -> mapping.apply(held.getValue()),
+                (a, b) -> b, LinkedHashMap::new));
 
-        List<Map<Integer, PoseValue>> frames = new ArrayList<>(machine.frames().size());
-        for (Map<Integer, PoseValue> frame : machine.frames()) {
-            Map<Integer, PoseValue> replaced = new LinkedHashMap<>();
-            frame.forEach((slot, value) -> replaced.put(slot, mapping.apply(value)));
-            frames.add(replaced);
-        }
+        List<Map<Integer, PoseValue>> frames = machine.frames()
+            .stream()
+            .<Map<Integer, PoseValue>>map(frame -> frame.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, held -> mapping.apply(held.getValue()),
+                    (a, b) -> b, LinkedHashMap::new)))
+            .collect(Collectors.toList());
         return new Interp.Snapshot<>(stack, slots, frames, machine.poisoned());
     }
 
@@ -994,17 +1003,14 @@ public final class PoseWalk {
         @NotNull PosePredicate condition,
         @NotNull Map<PoseExpr, PoseExpr> taken, @NotNull Map<PoseExpr, PoseExpr> fallen) {
 
-        Map<PoseExpr, PoseExpr> out = new LinkedHashMap<>();
-        Set<PoseExpr> reads = new LinkedHashSet<>(taken.keySet());
-        reads.addAll(fallen.keySet());
-
-        for (PoseExpr read : reads) {
-            PoseExpr whenTaken = taken.getOrDefault(read, read);
-            PoseExpr whenNot = fallen.getOrDefault(read, read);
-            out.put(read, whenTaken.equals(whenNot)
-                ? whenTaken : new PoseExpr.Select(condition, whenTaken, whenNot));
-        }
-        return out;
+        return Stream.concat(taken.keySet().stream(), fallen.keySet().stream())
+            .distinct()
+            .collect(Collectors.toMap(read -> read, read -> {
+                PoseExpr whenTaken = taken.getOrDefault(read, read);
+                PoseExpr whenNot = fallen.getOrDefault(read, read);
+                return whenTaken.equals(whenNot)
+                    ? whenTaken : new PoseExpr.Select(condition, whenTaken, whenNot);
+            }, (a, b) -> b, LinkedHashMap::new));
     }
 
     /**
@@ -1083,9 +1089,9 @@ public final class PoseWalk {
         if (taken.stack().size() != fallen.stack().size() || taken.frames().size() != fallen.frames().size())
             throw new UnmergeableArms("arms of a branch reach their join holding different things");
 
-        List<PoseValue> stack = new ArrayList<>(taken.stack().size());
-        for (int index = 0; index < taken.stack().size(); index++)
-            stack.add(choose(condition, taken.stack().get(index), fallen.stack().get(index)));
+        List<PoseValue> stack = IntStream.range(0, taken.stack().size())
+            .mapToObj(index -> choose(condition, taken.stack().get(index), fallen.stack().get(index)))
+            .collect(Collectors.toList());
 
         Map<Integer, PoseValue> slots = new LinkedHashMap<>(fallen.slots());
         taken.slots().forEach((slot, value) -> slots.merge(slot, value, (mine, theirs) -> choose(condition, theirs, mine)));
@@ -1133,24 +1139,23 @@ public final class PoseWalk {
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> fallen) {
 
         Map<String, Map<PoseChannel, PoseExpr>> out = new LinkedHashMap<>();
-        Set<String> bones = new LinkedHashSet<>(taken.keySet());
-        bones.addAll(fallen.keySet());
+        Set<String> bones = Stream.concat(taken.keySet().stream(), fallen.keySet().stream())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
 
         for (String bone : bones) {
             Map<PoseChannel, PoseExpr> left = taken.getOrDefault(bone, Map.of());
             Map<PoseChannel, PoseExpr> right = fallen.getOrDefault(bone, Map.of());
-            Set<PoseChannel> channels = new LinkedHashSet<>(left.keySet());
-            channels.addAll(right.keySet());
-
-            Map<PoseChannel, PoseExpr> merged = new EnumMap<>(PoseChannel.class);
-            for (PoseChannel channel : channels) {
-                // An arm that did not write leaves standing whatever the channel already held, which
-                // is exactly what a read of the untouched channel answers.
-                PoseExpr whenTaken = left.getOrDefault(channel, unwritten(bone, channel));
-                PoseExpr whenNot = right.getOrDefault(channel, unwritten(bone, channel));
-                merged.put(channel, whenTaken.equals(whenNot)
-                    ? whenTaken : new PoseExpr.Select(condition, whenTaken, whenNot));
-            }
+            Map<PoseChannel, PoseExpr> merged =
+                Stream.concat(left.keySet().stream(), right.keySet().stream())
+                    .distinct()
+                    .collect(Collectors.toMap(channel -> channel, channel -> {
+                        // An arm that did not write leaves standing whatever the channel already
+                        // held, which is exactly what a read of the untouched channel answers.
+                        PoseExpr whenTaken = left.getOrDefault(channel, unwritten(bone, channel));
+                        PoseExpr whenNot = right.getOrDefault(channel, unwritten(bone, channel));
+                        return whenTaken.equals(whenNot)
+                            ? whenTaken : new PoseExpr.Select(condition, whenTaken, whenNot);
+                    }, (a, b) -> b, () -> new EnumMap<PoseChannel, PoseExpr>(PoseChannel.class)));
             out.put(bone, merged);
         }
         return out;
@@ -1275,9 +1280,10 @@ public final class PoseWalk {
     private static @NotNull Map<String, Map<PoseChannel, PoseExpr>> copy(
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose) {
 
-        Map<String, Map<PoseChannel, PoseExpr>> out = new LinkedHashMap<>();
-        pose.forEach((bone, channels) -> out.put(bone, new EnumMap<>(channels)));
-        return out;
+        return pose.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                bone -> new EnumMap<>(bone.getValue()), (a, b) -> b, LinkedHashMap::new));
     }
 
     /**
@@ -1876,10 +1882,12 @@ public final class PoseWalk {
             .orElseThrow(() -> new IllegalStateException("reads a switch table over "
                 + ClassKit.simpleName(type[0]) + ", which is not an enum"));
 
-        Map<Integer, Integer> byOrdinal = new LinkedHashMap<>();
-        byConstant.forEach((name, answer) ->
-            declared.byName(name).ifPresent(one -> byOrdinal.put(one.ordinal(), answer)));
-        return Map.copyOf(byOrdinal);
+        return Map.copyOf(byConstant.entrySet()
+            .stream()
+            .filter(entry -> declared.byName(entry.getKey()).isPresent())
+            .collect(Collectors.toMap(
+                entry -> declared.byName(entry.getKey()).orElseThrow().ordinal(),
+                Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new)));
     }
 
     /**
@@ -2678,9 +2686,11 @@ public final class PoseWalk {
     private static @NotNull Map<String, Map<PoseChannel, PoseExpr>> freeze(
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose) {
 
-        Map<String, Map<PoseChannel, PoseExpr>> out = new LinkedHashMap<>();
-        pose.forEach((bone, channels) -> out.put(bone, Collections.unmodifiableMap(new EnumMap<>(channels))));
-        return Collections.unmodifiableMap(out);
+        return Collections.unmodifiableMap(pose.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                bone -> Collections.unmodifiableMap(new EnumMap<>(bone.getValue())),
+                (a, b) -> b, LinkedHashMap::new)));
     }
 
     private static @NotNull PoseValue num(@NotNull PoseExpr expr) {

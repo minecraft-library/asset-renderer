@@ -24,7 +24,6 @@ import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -181,19 +180,16 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         blockIds.addAll(FLUID_BLOCK_IDS);
 
         // Parallel dispatch across independent block renders. parallelStream preserves encounter
-        // order through the terminal toList() collector, so composeAtlas + buildSidecar still walk
-        // tiles in the same order a serial loop would produce. Each render owns its own
-        // PixelBuffer and reads from shared ConcurrentMap caches, so there is no aliasing.
+        // order through the terminal collector, so composeAtlas + buildSidecar still walk tiles in
+        // the same order a serial loop would produce. Each render owns its own PixelBuffer and
+        // reads from shared ConcurrentMap caches, so there is no aliasing.
         AtomicInteger completed = new AtomicInteger();
-        List<RenderedTile> orderedTiles = blockIds.parallelStream()
+        ConcurrentList<RenderedTile> tiles = blockIds.parallelStream()
             .filter(blockId -> options.getFilter().map(f -> f.test(blockId)).orElse(true))
             .filter(blockId -> !hasFlatItemIcon(blockId))
             .map(blockId -> renderBlockTile(blockId, options, renderer, fluids, portals, completed))
             .flatMap(Optional::stream)
-            .toList();
-
-        ConcurrentList<RenderedTile> tiles = Concurrent.newList();
-        tiles.addAll(orderedTiles);
+            .collect(Concurrent.toWideList());
 
         if (options.isProgressLogging())
             System.out.printf("Block render pass complete: %d tiles%n", tiles.size());
@@ -330,16 +326,13 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         // keep their item tile because the underlying item/<id>.json carries a real layer0 icon -
         // the entity overlay only enriches the block-tile render, not the inventory icon.
         AtomicInteger completed = new AtomicInteger();
-        List<RenderedTile> orderedTiles = this.context.knownItemIds().parallelStream()
+        ConcurrentList<RenderedTile> tiles = this.context.knownItemIds().parallelStream()
             .filter(itemId -> options.getFilter().map(f -> f.test(itemId)).orElse(true))
             .filter(itemId -> !this.context.findBlockEntityEntry(itemId)
                 .map(be -> !be.additive()).orElse(false))
             .map(itemId -> renderItemTile(itemId, options, renderer, completed))
             .flatMap(Optional::stream)
-            .toList();
-
-        ConcurrentList<RenderedTile> tiles = Concurrent.newList();
-        tiles.addAll(orderedTiles);
+            .collect(Concurrent.toWideList());
 
         if (options.isProgressLogging())
             System.out.printf("Item render pass complete: %d tiles%n", tiles.size());
@@ -391,12 +384,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         int tileSize = options.getTileSize();
         int rows = (tiles.size() + columns - 1) / columns;
 
-        ConcurrentList<GridOptions.GridTile> gridTiles = Concurrent.newList();
-        for (int i = 0; i < tiles.size(); i++) {
-            int col = i % columns;
-            int row = i / columns;
-            gridTiles.add(new GridOptions.GridTile(col, row, tiles.get(i).image()));
-        }
+        ConcurrentList<GridOptions.GridTile> gridTiles = IntStream.range(0, tiles.size())
+            .mapToObj(i -> new GridOptions.GridTile(i % columns, i / columns, tiles.get(i).image()))
+            .collect(Concurrent.toWideUnmodifiableList());
 
         GridOptions gridOptions = GridOptions.builder()
             .tiles(gridTiles)

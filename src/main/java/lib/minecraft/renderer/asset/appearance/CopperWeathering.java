@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.asset.appearance;
 
 import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Locale;
 import java.util.Optional;
@@ -18,6 +18,7 @@ import java.util.Optional;
  * {@code CopperGolemOxidationLevels.getOxidationLevel}'s per-state
  * {@code CopperGolemOxidationLevel(texture, eyeTexture)} pairs.
  */
+@EnumLookup
 @Getter(style = NamingStyle.FLUENT)
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum CopperWeathering {
@@ -46,18 +47,4 @@ public enum CopperWeathering {
         return this == UNAFFECTED ? Optional.empty() : Optional.of(name().toLowerCase(Locale.ROOT));
     }
 
-    /**
-     * Looks up a weathering state by name (case-insensitive), e.g. {@code "oxidized"}.
-     *
-     * @param name the state name
-     * @return the matching state, or {@code null} when the name is not a vanilla weathering state
-     */
-    public static @Nullable CopperWeathering ofName(@Nullable String name) {
-        if (name == null) return null;
-        try {
-            return valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException notAWeathering) {
-            return null;
-        }
-    }
 }

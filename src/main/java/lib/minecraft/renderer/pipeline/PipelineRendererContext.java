@@ -57,7 +57,6 @@ import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -132,7 +131,7 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
-        ConcurrentMap<String, List<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
+        ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
         ConcurrentSet<String> glintItems = GlintItemsLoader.load();
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(stack);
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
@@ -279,14 +278,15 @@ public final class PipelineRendererContext implements RendererContext {
      * Sorts the block ids by primary tag then id (both case-insensitive); the shared, precomputed order.
      */
     private static @NotNull ConcurrentList<String> sortedBlockIds(@NotNull ConcurrentMap<String, Block> blockIndex, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
-        ArrayList<String> ids = new ArrayList<>(blockIndex.keySet());
-        ids.sort((a, b) -> {
-            String groupA = primaryTag(a, blockIndex, blockTags);
-            String groupB = primaryTag(b, blockIndex, blockTags);
-            int cmp = String.CASE_INSENSITIVE_ORDER.compare(groupA, groupB);
-            return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
-        });
-        return Concurrent.adoptList(ids).toUnmodifiable();
+        return blockIndex.keySet()
+            .stream()
+            .sorted((a, b) -> {
+                String groupA = primaryTag(a, blockIndex, blockTags);
+                String groupB = primaryTag(b, blockIndex, blockTags);
+                int cmp = String.CASE_INSENSITIVE_ORDER.compare(groupA, groupB);
+                return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
+            })
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**
@@ -303,12 +303,13 @@ public final class PipelineRendererContext implements RendererContext {
      * Sorts the item ids by material prefix then id (both case-insensitive); the shared, precomputed order.
      */
     private static @NotNull ConcurrentList<String> sortedItemIds(@NotNull ConcurrentMap<String, Item> itemIndex) {
-        ArrayList<String> ids = new ArrayList<>(itemIndex.keySet());
-        ids.sort((a, b) -> {
-            int cmp = String.CASE_INSENSITIVE_ORDER.compare(idPrefix(a), idPrefix(b));
-            return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
-        });
-        return Concurrent.adoptList(ids).toUnmodifiable();
+        return itemIndex.keySet()
+            .stream()
+            .sorted((a, b) -> {
+                int cmp = String.CASE_INSENSITIVE_ORDER.compare(idPrefix(a), idPrefix(b));
+                return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
+            })
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /** {@inheritDoc} */
@@ -326,7 +327,9 @@ public final class PipelineRendererContext implements RendererContext {
     /** {@inheritDoc} */
     @Override
     public @NotNull ConcurrentList<BannerPattern> knownBannerPatterns() {
-        return Concurrent.adoptList(new ArrayList<>(this.bannerPatterns.values()));
+        return this.bannerPatterns.values()
+            .stream()
+            .collect(Concurrent.toList());
     }
 
     /** {@inheritDoc} */

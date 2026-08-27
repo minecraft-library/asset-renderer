@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.index;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.adapter.ColorTypeAdapter;
 import dev.simplified.image.pixel.BlendMode;
@@ -34,7 +35,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -42,6 +42,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Assembles the runtime entity index from the two pure reads: joins each {@link RawModel}'s geometry
@@ -89,12 +90,12 @@ public final class EntityIndexBuilder {
     ) {
         Map<String, RawModel> models = rawFile.models();
         if (models == null) return Concurrent.newMap();
-        LinkedHashMap<String, Entity> definitions = new LinkedHashMap<>();
-        for (Map.Entry<String, RawModel> entry : models.entrySet()) {
-            if (entry.getValue() == null) continue;
-            readDefinition(entry.getKey(), entry.getValue(), geometries, poses, renderTransforms, definitions);
-        }
-        return Concurrent.adoptMap(definitions);
+        return models.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue() != null)
+            .collect(Concurrent.toLinkedMap(
+                Map.Entry::getKey,
+                entry -> readDefinition(entry.getKey(), entry.getValue(), geometries, poses, renderTransforms)));
     }
 
     // ------------------------------------------------------------------------------------
@@ -102,16 +103,15 @@ public final class EntityIndexBuilder {
     // ------------------------------------------------------------------------------------
 
     /**
-     * Reads one model into its single {@link Entity} row and adds it to {@code definitions}. A variant
-     * model's coats are built into the row's option map rather than into rows of their own.
+     * Reads one model into its single {@link Entity} row. A variant model's coats are built into the
+     * row's option map rather than into rows of their own.
      */
-    private static void readDefinition(
+    private static @NotNull Entity readDefinition(
         @NotNull String familyId,
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
-        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms,
-        @NotNull Map<String, Entity> definitions
+        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms
     ) {
         // The family baseline (primary geometry + adult texture) lives under the mandatory age axis'
         // options.adult, not at top level.
@@ -131,9 +131,10 @@ public final class EntityIndexBuilder {
         String poseClass = bones == null ? null : bones.pose();
 
         List<RawOverlay> familyOverlays = nullToEmpty(family.overlays());
-        List<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null ? List.of() : loadBlockOverlays(family.blockOverlays());
+        ConcurrentList<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null
+            ? Concurrent.newUnmodifiableList() : loadBlockOverlays(family.blockOverlays());
 
-        List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId);
+        ConcurrentList<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId);
         Optional<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId);
         String babyCoord = babyGeometryOf(family);
         // Beside the baby MESH rather than derived from it: a baby is its own model class, and two of
@@ -142,7 +143,7 @@ public final class EntityIndexBuilder {
             : Optional.of(under(renderTransform, poseOf(poses, babyCoord)));
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
             : Optional.ofNullable(geometries.get(babyCoord));
-        List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
+        ConcurrentList<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
             renderTransform, babyPose.orElse(EntityPose.NONE), babyCoord, babyModel, familyId);
 
         FamilyContext ctx = new FamilyContext(family, familyId, poseClass, geometries, poses,
@@ -156,7 +157,7 @@ public final class EntityIndexBuilder {
         Entity row = variant == null
             ? buildRow(plainForm(family, adult, blockOverlays), ctx)
             : variantRow(variant, baseCoord, blockOverlays, ctx);
-        definitions.put(familyId, row.mutate().members(membersOf(family)).build());
+        return row.mutate().members(membersOf(family)).build();
     }
 
     /**
@@ -169,18 +170,21 @@ public final class EntityIndexBuilder {
     private static @NotNull Entity variantRow(
         @NotNull RawAxis variant,
         @NotNull String baseCoord,
-        @NotNull List<BlockOverlayLayer> blockOverlays,
+        @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays,
         @NotNull FamilyContext ctx
     ) {
-        LinkedHashMap<String, Entity> coats = new LinkedHashMap<>();
-        for (Map.Entry<String, RawOption> option : variant.options().entrySet())
-            coats.put(option.getKey(), buildRow(coatForm(option.getValue(), baseCoord, blockOverlays), ctx));
+        ConcurrentMap<String, Entity> coats = variant.options()
+            .entrySet()
+            .stream()
+            .collect(Concurrent.toUnmodifiableLinkedMap(
+                Map.Entry::getKey,
+                option -> buildRow(coatForm(option.getValue(), baseCoord, blockOverlays), ctx)));
         Entity base = coats.getOrDefault(variant.defaultOption(), coats.values().iterator().next());
         Entity.Axes axes = base.axes();
         return base.mutate()
             .axes(new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(),
                 axes.shape(), axes.state(), axes.size(),
-                new Entity.Axis<>(Map.copyOf(coats), Optional.ofNullable(variant.defaultOption()))))
+                new Entity.Axis<>(coats, Optional.ofNullable(variant.defaultOption()))))
             .build();
     }
 
@@ -210,10 +214,10 @@ public final class EntityIndexBuilder {
             poseOf(ctx.poses(), ctx.poseClass() == null ? form.coordinate() : ctx.poseClass()));
         // Ahead of the size derivation so a same-geometry pass is materialised on the mesh this row
         // actually draws, and travels with it into every form derived from the row.
-        List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
+        ConcurrentList<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
             ctx.renderTransform(), pose, form.coordinate(), model, ctx.familyId());
 
-        Map<String, String> states = weathered(form.stateTextures(), ctx.familyOverlays(), ctx.familyId());
+        ConcurrentMap<String, String> states = weathered(form.stateTextures(), ctx.familyOverlays(), ctx.familyId());
 
         Entity bare = Entity.builder()
             .id(ResourceId.parse(ctx.familyId()))
@@ -250,12 +254,16 @@ public final class EntityIndexBuilder {
      */
     private static @NotNull RowForm plainForm(
         @NotNull RawModel family, @NotNull RawOption adult,
-        @NotNull List<BlockOverlayLayer> blockOverlays) {
+        @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays) {
 
-        Map<String, String> stateTextures = new LinkedHashMap<>();
-        if (adult.texture() != null) stateTextures.put(Entity.BASE_STATE, adult.texture());
-        String babyTexture = babyTextureOf(family);
-        if (babyTexture != null) stateTextures.put("baby", babyTexture);
+        ConcurrentMap<String, String> stateTextures = Stream.concat(
+                Optional.ofNullable(adult.texture())
+                    .map(texture -> Map.entry(Entity.BASE_STATE, texture))
+                    .stream(),
+                Optional.ofNullable(babyTextureOf(family))
+                    .map(texture -> Map.entry("baby", texture))
+                    .stream())
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue));
         return new RowForm(adult.geometry(), stateTextures, blockOverlays);
     }
 
@@ -265,7 +273,7 @@ public final class EntityIndexBuilder {
      */
     private static @NotNull RowForm coatForm(
         @NotNull RawOption option, @NotNull String baseCoord,
-        @NotNull List<BlockOverlayLayer> blockOverlays) {
+        @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays) {
 
         return new RowForm(
             option.geometry() == null ? baseCoord : option.geometry(),
@@ -331,9 +339,10 @@ public final class EntityIndexBuilder {
         @NotNull List<Map<PoseChannel, PoseExpr>> steps, @NotNull EntityPose pose) {
 
         if (steps.isEmpty() || !pose.isReadable()) return pose;
-        List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>(steps);
-        container.addAll(pose.container());
-        return new EntityPose(List.copyOf(container), pose.bones(), pose.clips(), pose.refusal());
+        ConcurrentList<Map<PoseChannel, PoseExpr>> container =
+            Stream.concat(steps.stream(), pose.container().stream())
+                .collect(Concurrent.toUnmodifiableList());
+        return new EntityPose(container, pose.bones(), pose.clips(), pose.refusal());
     }
 
     /**
@@ -355,8 +364,8 @@ public final class EntityIndexBuilder {
         float rendererScale,
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull Optional<EntityPose> babyPose,
-        @NotNull List<OverlayLayer> babyOverlays,
-        @NotNull List<EquipmentOverlay> equipment,
+        @NotNull ConcurrentList<OverlayLayer> babyOverlays,
+        @NotNull ConcurrentList<EquipmentOverlay> equipment,
         @NotNull Optional<Shell> humanoidArmor,
         @NotNull Optional<String> stateDefault
     ) {}
@@ -364,21 +373,20 @@ public final class EntityIndexBuilder {
     /**
      * What one row of a family differs from its siblings in, and the whole of it.
      *
-     * <p>Four members: everything else a row carries is the family's and travels on
+     * <p>Three members: everything else a row carries is the family's and travels on
      * {@link FamilyContext}. A coat that names no mesh of its own draws the family's, which is why the
      * coordinate is resolved into the form rather than left for the build to decide.
      *
      * @param coordinate the mesh this row draws
-     * @param textureRef the row's own base texture, or empty where it has none
-     * @param stateTextures the row's alternate textures by behavioural state
+     * @param stateTextures the row's textures by behavioural state, its base one among them
      * @param blockOverlays the block-shaped overlays as this row draws them - a coat naming its own
      *     {@code block} redraws the family's fixed rows as that block, the mooshroom's brown mushrooms
      *     against the red ones its rows carry, and a selectable row is left to the caller's selection
      */
     private record RowForm(
         @NotNull String coordinate,
-        @NotNull Map<String, String> stateTextures,
-        @NotNull List<BlockOverlayLayer> blockOverlays
+        @NotNull ConcurrentMap<String, String> stateTextures,
+        @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays
     ) {}
 
     /**
@@ -399,21 +407,24 @@ public final class EntityIndexBuilder {
      * @return the states, with an entry per oxidation level for a subject that weathers
      * @throws PipelineException if the subject's base texture is not the unaffected weathering texture
      */
-    private static @NotNull Map<String, String> weathered(
-        @NotNull Map<String, String> states, @NotNull List<RawOverlay> overlays, @NotNull String familyId) {
+    private static @NotNull ConcurrentMap<String, String> weathered(
+        @NotNull ConcurrentMap<String, String> states, @NotNull List<RawOverlay> overlays, @NotNull String familyId) {
 
         boolean weathers = overlays.stream()
-            .anyMatch(row -> TextureAxis.ofToken(row.textureBy()).filter(TextureAxis.WEATHERING::equals).isPresent());
+            .anyMatch(row -> TextureAxis.findByToken(row.textureBy()).filter(TextureAxis.WEATHERING::equals).isPresent());
         if (!weathers) return states;
         String base = states.get(Entity.BASE_STATE);
         if (base != null && !CopperWeathering.UNAFFECTED.baseTexture().equals(base))
             throw new PipelineException(
                 "Entity '%s' weathers but rests at '%s' rather than the unaffected '%s'",
                 familyId, base, CopperWeathering.UNAFFECTED.baseTexture());
-        Map<String, String> out = new LinkedHashMap<>(states);
-        for (CopperWeathering weathering : CopperWeathering.values())
-            weathering.stateKey().ifPresent(key -> out.put(key, weathering.baseTexture()));
-        return out;
+        return Stream.concat(
+                states.entrySet().stream(),
+                Stream.of(CopperWeathering.values())
+                    .flatMap(weathering -> weathering.stateKey()
+                        .map(key -> Map.entry(key, weathering.baseTexture()))
+                        .stream()))
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
     }
 
     /**
@@ -440,13 +451,12 @@ public final class EntityIndexBuilder {
      * block id is a placeholder the caller's carried selection replaces at render, so rewriting it
      * here would be overwritten anyway and would read as though the coat had chosen it.
      */
-    private static @NotNull List<BlockOverlayLayer> coatBlockOverlays(
-        @NotNull List<BlockOverlayLayer> blockOverlays, @Nullable String coatBlock) {
+    private static @NotNull ConcurrentList<BlockOverlayLayer> coatBlockOverlays(
+        @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays, @Nullable String coatBlock) {
         if (coatBlock == null || blockOverlays.isEmpty()) return blockOverlays;
-        List<BlockOverlayLayer> out = new ArrayList<>(blockOverlays.size());
-        for (BlockOverlayLayer overlay : blockOverlays)
-            out.add(overlay.selectable() ? overlay : overlay.withBlockId(coatBlock));
-        return List.copyOf(out);
+        return blockOverlays.stream()
+            .map(overlay -> overlay.selectable() ? overlay : overlay.withBlockId(coatBlock))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     // ------------------------------------------------------------------------------------
@@ -460,7 +470,7 @@ public final class EntityIndexBuilder {
      * warns and drops). A pass vanilla restricts to a subset or deforms names the mesh that is, so the
      * distinct coordinate is what says the two differ.
      */
-    private static @NotNull List<OverlayLayer> loadOverlays(
+    private static @NotNull ConcurrentList<OverlayLayer> loadOverlays(
         @NotNull List<RawOverlay> overlays,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
@@ -503,8 +513,8 @@ public final class EntityIndexBuilder {
             boolean skipBounds = entry.skipBounds() || sameGeometry;
             // Resolved here rather than re-parsed per frame: the token is the table's spelling and
             // the axis is what every reader asks.
-            Optional<TintAxis> tintBy = TintAxis.ofToken(entry.tintBy());
-            Optional<TextureAxis> textureBy = TextureAxis.ofToken(entry.textureBy());
+            Optional<TintAxis> tintBy = TintAxis.findByToken(entry.tintBy());
+            Optional<TextureAxis> textureBy = TextureAxis.findByToken(entry.textureBy());
             // The overlay's render condition, parsed straight from its `when` object into the typed
             // AppearanceGate (flag/charged/tinted). Absent -> unconditional.
             Optional<AppearanceGate> gate = parseOverlayGate(entry.when(), tintBy, overlayTint);
@@ -531,7 +541,7 @@ public final class EntityIndexBuilder {
             out.add(new OverlayLayer(overlayModel, overlayTexture, pass, overlayTint, skipBounds, tintBy,
                 textureBy, gate, noHatModel, overlayPose, scroll));
         }
-        return out;
+        return Concurrent.adoptList(out).toUnmodifiable();
     }
 
     /**
@@ -578,7 +588,7 @@ public final class EntityIndexBuilder {
      * @param entityId the entity the rows belong to, for diagnostics
      * @return the baby overlay passes, or an empty list when no row declares a baby form
      */
-    private static @NotNull List<OverlayLayer> loadBabyOverlays(
+    private static @NotNull ConcurrentList<OverlayLayer> loadBabyOverlays(
         @NotNull List<RawOverlay> overlays,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
@@ -588,25 +598,23 @@ public final class EntityIndexBuilder {
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull String entityId
     ) {
-        if (babyCoord == null) return List.of();
-        List<RawOverlay> forms = new ArrayList<>();
-        for (RawOverlay entry : overlays) {
-            RawOverlayBaby baby = entry.baby();
-            if (baby == null) continue;
-            forms.add(new RawOverlay(
-                baby.geometry(), baby.noHatGeometry(),
-                baby.texture() == null ? entry.texture() : baby.texture(),
+        if (babyCoord == null) return Concurrent.newUnmodifiableList();
+        ConcurrentList<RawOverlay> forms = overlays.stream()
+            .filter(entry -> entry.baby() != null)
+            .map(entry -> new RawOverlay(
+                entry.baby().geometry(), entry.baby().noHatGeometry(),
+                entry.baby().texture() == null ? entry.texture() : entry.baby().texture(),
                 entry.tint(), entry.tintBy(), entry.textureBy(),
-                entry.pipeline(), entry.textureScroll(), entry.skipBounds(), entry.when(), null));
-        }
-        if (forms.isEmpty()) return List.of();
+                entry.pipeline(), entry.textureScroll(), entry.skipBounds(), entry.when(), null))
+            .collect(Concurrent.toUnmodifiableList());
+        if (forms.isEmpty()) return Concurrent.newUnmodifiableList();
         // Rows declared a baby form but the mesh they would materialise against is missing - the same
         // drop loadOverlays warns about for an adult pass, warned about here rather than silently
         // returning an empty list that reads as "no row declares a baby form".
         if (babyModel.isEmpty()) {
             // TODO: restore pipeline diagnostics
             // diagnostics.warn("entity '%s' baby overlay references geometry '%s' absent from entity_geometry", entityId, babyCoord);
-            return List.of();
+            return Concurrent.newUnmodifiableList();
         }
         return loadOverlays(forms, geometries, poses, renderTransform, babyPose, babyCoord, babyModel.get(), entityId);
     }
@@ -672,42 +680,49 @@ public final class EntityIndexBuilder {
      * its {@code block} may be omitted entirely (the enderman carried block). A {@code transforms} entry
      * is a single-member object dispatched on the member's own name, the shape a pose expression takes.
      *
+     * @throws PipelineException if a transform entry names an op the tooling does not emit
+     */
+    private static @NotNull ConcurrentList<BlockOverlayLayer> loadBlockOverlays(@NotNull List<RawBlockOverlay> array) {
+        return array.stream()
+            .filter(row -> row.block() != null || row.selectable())
+            .map(row -> new BlockOverlayLayer(row.block() == null ? "" : row.block(),
+                row.attachedBone(), composedTransform(row), row.selectable()))
+            .collect(Concurrent.toUnmodifiableList());
+    }
+
+    /**
+     * The product of one row's {@code transforms} ops, in declared order.
+     *
      * <p>The ops compose here rather than at render: every operand is a shipped constant, so their
      * product is one too, and the row carries the product. Each arm applies the op the fluent way -
      * {@code Math.toRadians} on the degrees, post-multiply onto the accumulated chain - because that is
      * the arithmetic the render frame is entitled to, and the fluent path differs from the
      * {@code multiply} path in the last few bits.
      *
+     * @param row the block-overlay row
+     * @return the composed transform, the identity for a row declaring no op
      * @throws PipelineException if a transform entry names an op the tooling does not emit
      */
-    private static @NotNull List<BlockOverlayLayer> loadBlockOverlays(@NotNull List<RawBlockOverlay> array) {
-        List<BlockOverlayLayer> out = new ArrayList<>();
-        for (RawBlockOverlay row : array) {
-            boolean selectable = row.selectable();
-            if (row.block() == null && !selectable) continue;
-            String blockId = row.block() == null ? "" : row.block();
-            String attachedBone = row.attachedBone();
-            Matrix4f transform = Matrix4f.IDENTITY;
-            for (Map<String, com.google.gson.JsonElement> opObj : nullToEmpty(row.transforms())) {
-                Map.Entry<String, com.google.gson.JsonElement> only = opObj.entrySet().iterator().next();
-                transform = switch (only.getKey()) {
-                    case "translate" -> {
-                        com.google.gson.JsonArray by = only.getValue().getAsJsonArray();
-                        yield transform.translate(by.get(0).getAsFloat(), by.get(1).getAsFloat(), by.get(2).getAsFloat());
-                    }
-                    case "scale" -> {
-                        com.google.gson.JsonArray by = only.getValue().getAsJsonArray();
-                        yield transform.scale(by.get(0).getAsFloat(), by.get(1).getAsFloat(), by.get(2).getAsFloat());
-                    }
-                    case "rotate_x" -> transform.rotateX((float) Math.toRadians(only.getValue().getAsFloat()));
-                    case "rotate_y" -> transform.rotateY((float) Math.toRadians(only.getValue().getAsFloat()));
-                    case "rotate_z" -> transform.rotateZ((float) Math.toRadians(only.getValue().getAsFloat()));
-                    default -> throw new PipelineException("Unknown block-overlay transform '%s'", only.getKey());
-                };
-            }
-            out.add(new BlockOverlayLayer(blockId, attachedBone, transform, selectable));
+    private static @NotNull Matrix4f composedTransform(@NotNull RawBlockOverlay row) {
+        Matrix4f transform = Matrix4f.IDENTITY;
+        for (Map<String, com.google.gson.JsonElement> opObj : nullToEmpty(row.transforms())) {
+            Map.Entry<String, com.google.gson.JsonElement> only = opObj.entrySet().iterator().next();
+            transform = switch (only.getKey()) {
+                case "translate" -> {
+                    com.google.gson.JsonArray by = only.getValue().getAsJsonArray();
+                    yield transform.translate(by.get(0).getAsFloat(), by.get(1).getAsFloat(), by.get(2).getAsFloat());
+                }
+                case "scale" -> {
+                    com.google.gson.JsonArray by = only.getValue().getAsJsonArray();
+                    yield transform.scale(by.get(0).getAsFloat(), by.get(1).getAsFloat(), by.get(2).getAsFloat());
+                }
+                case "rotate_x" -> transform.rotateX((float) Math.toRadians(only.getValue().getAsFloat()));
+                case "rotate_y" -> transform.rotateY((float) Math.toRadians(only.getValue().getAsFloat()));
+                case "rotate_z" -> transform.rotateZ((float) Math.toRadians(only.getValue().getAsFloat()));
+                default -> throw new PipelineException("Unknown block-overlay transform '%s'", only.getKey());
+            };
         }
-        return List.copyOf(out);
+        return transform;
     }
 
     // ------------------------------------------------------------------------------------
@@ -720,13 +735,15 @@ public final class EntityIndexBuilder {
      * multi-state family (wolf) or an ageable variant (cow). A single-texture option leaves the map empty;
      * the base {@code texture_ref} is the {@code wild} entry either way.
      */
-    private static @NotNull Map<String, String> variantStateTextures(@NotNull RawOption optionObj) {
-        Map<String, String> states = new LinkedHashMap<>();
-        if (optionObj.textures() != null)
-            for (Map.Entry<String, String> texture : optionObj.textures().entrySet())
-                states.put(texture.getKey(), texture.getValue());
-        if (optionObj.babyTexture() != null) states.put("baby", optionObj.babyTexture());
-        return states;
+    private static @NotNull ConcurrentMap<String, String> variantStateTextures(@NotNull RawOption optionObj) {
+        return Stream.concat(
+                optionObj.textures() == null
+                    ? Stream.<Map.Entry<String, String>>empty()
+                    : optionObj.textures().entrySet().stream(),
+                Optional.ofNullable(optionObj.babyTexture())
+                    .map(texture -> Map.entry("baby", texture))
+                    .stream())
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
     }
 
     /**
@@ -898,7 +915,7 @@ public final class EntityIndexBuilder {
      * resolved at generation against its OWN model class's pose, so a row posed by a class the walk
      * never looked at carries none and rests as it is baked.
      */
-    private static @NotNull List<EquipmentOverlay> loadEquipment(
+    private static @NotNull ConcurrentList<EquipmentOverlay> loadEquipment(
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String entityId
@@ -915,21 +932,22 @@ public final class EntityIndexBuilder {
                 // diagnostics.warn("entity '%s' equipment row references geometry '%s' absent from entity_geometry", entityId, coord);
                 continue;
             }
-            Optional<LayerType> layerType = LayerType.fromId(row.layerType());
+            Optional<LayerType> layerType = LayerType.findById(row.layerType());
             if (layerType.isEmpty()) {
                 // TODO: restore pipeline diagnostics
                 // diagnostics.warn("entity '%s' equipment row names unknown layer type '%s'", entityId, row.layerType());
                 continue;
             }
-            Map<String, ResourceId> materialAssets = new LinkedHashMap<>();
+            LinkedHashMap<String, ResourceId> materialAssets = new LinkedHashMap<>();
             row.materialAssets().forEach((material, assetId) -> materialAssets.put(material, ResourceId.parse(assetId)));
             // The row's default is one of its own materials, so what a caller naming none gets is an
             // entry under the unselected key rather than a second member saying which key to read.
             ResourceId unselected = materialAssets.get(row.defaultMaterial());
             if (unselected != null) materialAssets.put(EquipmentOverlay.UNSELECTED, unselected);
-            out.add(new EquipmentOverlay(row.slot(), model, layerType.get(), Map.copyOf(materialAssets)));
+            out.add(new EquipmentOverlay(row.slot(), model, layerType.get(),
+                Concurrent.adoptLinkedMap(materialAssets).toUnmodifiable()));
         }
-        return List.copyOf(out);
+        return Concurrent.adoptList(out).toUnmodifiable();
     }
 
     /**
@@ -959,7 +977,7 @@ public final class EntityIndexBuilder {
         String coord = large.geometry();
         EntityModelData model = ctx.geometries().get(coord);
         if (model == null) return Entity.Axis.none();
-        List<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), ctx.geometries(), ctx.poses(),
+        ConcurrentList<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), ctx.geometries(), ctx.poses(),
             ctx.renderTransform(), under(ctx.renderTransform(), poseOf(ctx.poses(), coord)), coord, model,
             ctx.familyId());
         Entity largeForm = bare.mutate()
@@ -967,10 +985,11 @@ public final class EntityIndexBuilder {
             .overlays(overlays)
             .axes(drawnAs(bare.axes(), large.texture() == null ? "" : large.texture()))
             .build();
-        LinkedHashMap<String, Entity> forms = new LinkedHashMap<>();
-        forms.put(axes.shape().defaultOption(), bare);
-        forms.put(Entity.SHAPE_LARGE, largeForm);
-        return new Entity.Axis<>(Map.copyOf(forms), Optional.of(axes.shape().defaultOption()));
+        return new Entity.Axis<>(
+            Concurrent.newUnmodifiableLinkedMap(
+                Map.entry(axes.shape().defaultOption(), bare),
+                Map.entry(Entity.SHAPE_LARGE, largeForm)),
+            Optional.of(axes.shape().defaultOption()));
     }
 
     /**
@@ -984,10 +1003,12 @@ public final class EntityIndexBuilder {
     private static @NotNull Entity.Axes drawnAs(@NotNull Entity.Axes axes, @NotNull String ref) {
         Entity.Axis<String, String> state = axes.state();
         String key = state.declared().orElse(Entity.BASE_STATE);
-        LinkedHashMap<String, String> options = new LinkedHashMap<>(state.options());
-        options.put(key, ref);
+        ConcurrentMap<String, String> options = Stream.concat(
+                state.options().entrySet().stream(),
+                Stream.of(Map.entry(key, ref)))
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
         return new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(), axes.shape(),
-            new Entity.Axis<>(Map.copyOf(options), Optional.of(key)), axes.size(), axes.variant());
+            new Entity.Axis<>(options, Optional.of(key)), axes.size(), axes.variant());
     }
 
     /**
@@ -1023,21 +1044,39 @@ public final class EntityIndexBuilder {
         Map<String, RawOption> options = sizeOptions(family);
         if (options == null) return Entity.Axis.none();
         Optional<Size> declared = sizeDefaultOf(family).flatMap(name -> enumOf(Size.class, name));
-        Map<Size, Entity> forms = new LinkedHashMap<>();
-        declared.ifPresent(size -> forms.put(size, bare));
-        for (Map.Entry<String, RawOption> option : options.entrySet()) {
-            RawOption body = option.getValue();
-            Optional<Size> size = enumOf(Size.class, option.getKey());
-            if (size.isEmpty()) continue;
-            if (body.geometry() != null) {
-                EntityModelData mesh = geometries.get(body.geometry());
-                if (mesh != null) forms.put(size.get(), bare.mutate().model(mesh).build());
-            } else if (body.scale() != null) {
-                forms.put(size.get(), bare.mutate()
-                    .rendererScale(bare.rendererScale() * body.scale()).build());
-            }
-        }
-        return new Entity.Axis<>(Collections.unmodifiableMap(forms), declared);
+        ConcurrentMap<Size, Entity> forms = Stream.concat(
+                declared.map(size -> Map.entry(size, bare)).stream(),
+                options.entrySet()
+                    .stream()
+                    .flatMap(option -> enumOf(Size.class, option.getKey())
+                        .flatMap(size -> sizeForm(option.getValue(), geometries, bare)
+                            .map(form -> Map.entry(size, form)))
+                        .stream()))
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
+        return new Entity.Axis<>(forms, declared);
+    }
+
+    /**
+     * One size option's form of a row - the option's own baked mesh where it names a
+     * {@code geometry}, else the row at the {@code scale} it multiplies the render by. Empty for an
+     * option naming neither, and for one whose mesh the geometry table does not carry.
+     *
+     * @param body the size option
+     * @param geometries the geometry coordinate to bone tree table
+     * @param bare the row this is a size of
+     * @return the form, or empty when the option resolves to none
+     */
+    private static @NotNull Optional<Entity> sizeForm(
+        @NotNull RawOption body,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Entity bare
+    ) {
+        if (body.geometry() != null)
+            return Optional.ofNullable(geometries.get(body.geometry()))
+                .map(mesh -> bare.mutate().model(mesh).build());
+        if (body.scale() != null)
+            return Optional.of(bare.mutate().rendererScale(bare.rendererScale() * body.scale()).build());
+        return Optional.empty();
     }
 
     /** Returns the family's {@code axes.size.options} object, or {@code null} when it has no size axis. */
@@ -1100,7 +1139,8 @@ public final class EntityIndexBuilder {
     }
 
     /** The family's resolved canvas-group membership, verbatim from the table, empty for a singleton. */
-    private static @NotNull List<String> membersOf(@NotNull RawModel family) {
-        return family.members() == null ? List.of() : List.copyOf(family.members());
+    private static @NotNull ConcurrentList<String> membersOf(@NotNull RawModel family) {
+        return family.members() == null
+            ? Concurrent.newUnmodifiableList() : Concurrent.newUnmodifiableList(family.members());
     }
 }

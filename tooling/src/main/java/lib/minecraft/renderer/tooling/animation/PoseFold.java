@@ -2,7 +2,6 @@ package lib.minecraft.renderer.tooling.animation;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,6 +9,7 @@ import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Resolves a walked pose against the frame an offline subject stands in, leaving only what the tick
@@ -113,20 +113,26 @@ final class PoseFold {
         PoseFold fold =
             new PoseFold(subjectRest, restDefaults, questionDefaults, inputDefaults, free);
 
-        List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>(program.container().size());
-        for (Map<PoseChannel, PoseExpr> step : program.container()) container.add(fold.channels(step));
+        List<Map<PoseChannel, PoseExpr>> container = program.container()
+            .stream()
+            .map(fold::channels)
+            .collect(Collectors.toList());
 
         // In the mesh's own bone order, which is the tied-depth priority a coplanar pair is decided
         // by - a rebuild that re-ordered it would re-decide which face survives.
-        Map<String, Map<PoseChannel, PoseExpr>> bones = new LinkedHashMap<>();
-        program.bones().forEach((bone, channels) -> bones.put(bone, fold.channels(channels)));
+        Map<String, Map<PoseChannel, PoseExpr>> bones = program.bones()
+            .entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> fold.channels(entry.getValue()),
+                (a, b) -> b, LinkedHashMap::new));
 
-        List<PoseClipSite> clips = new ArrayList<>(program.clipSites().size());
-        for (PoseClipSite site : program.clipSites()) {
-            List<PoseExpr> arguments = new ArrayList<>(site.arguments().size());
-            for (PoseExpr argument : site.arguments()) arguments.add(fold.expression(argument));
-            clips.add(new PoseClipSite(site.clip(), site.drive(), List.copyOf(arguments)));
-        }
+        List<PoseClipSite> clips = program.clipSites()
+            .stream()
+            .map(site -> new PoseClipSite(site.clip(), site.drive(), site.arguments()
+                .stream()
+                .map(fold::expression)
+                .collect(Collectors.toUnmodifiableList())))
+            .collect(Collectors.toList());
 
         return new PoseProgram(program.model(), List.copyOf(container),
             Map.copyOf(bones), List.copyOf(clips));
@@ -168,8 +174,10 @@ final class PoseFold {
 
     /** One channel map with every expression in it folded, in the vocabulary's own order. */
     private @NotNull Map<PoseChannel, PoseExpr> channels(@NotNull Map<PoseChannel, PoseExpr> written) {
-        Map<PoseChannel, PoseExpr> out = new LinkedHashMap<>();
-        written.forEach((channel, expr) -> out.put(channel, expression(expr)));
+        Map<PoseChannel, PoseExpr> out = written.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> expression(entry.getValue()),
+                (a, b) -> b, LinkedHashMap::new));
         return Map.copyOf(out);
     }
 
@@ -203,11 +211,10 @@ final class PoseFold {
             // shortcut lands on. Each operator narrows at its own width on the way through, which is
             // the whole of why this is done operand by operand and not by evaluating the chain in
             // double and narrowing once at the end.
-            case PoseExpr.Op operation -> {
-                List<PoseExpr> operands = new ArrayList<>(operation.operands().size());
-                for (PoseExpr operand : operation.operands()) operands.add(expression(operand));
-                yield PoseExpr.Op.of(operation.operator(), List.copyOf(operands));
-            }
+            case PoseExpr.Op operation -> PoseExpr.Op.of(operation.operator(), operation.operands()
+                .stream()
+                .map(this::expression)
+                .collect(Collectors.toUnmodifiableList()));
             case PoseExpr.Select select -> {
                 PosePredicate condition = condition(select.condition());
                 if (condition instanceof PosePredicate.Constant decided)

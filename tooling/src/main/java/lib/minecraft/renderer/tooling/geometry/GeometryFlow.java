@@ -15,6 +15,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * The shared geometry pipeline: consumes the manifest a models walk populated in the same
@@ -153,10 +154,10 @@ public final class GeometryFlow {
         JsonTree bones = parsed.find("bones").orElse(null);
         if (bones == null) return;
 
-        Set<String> named = new LinkedHashSet<>();
-        bones.members().forEach((name, bone) -> {
-            if (bone.findString("parent").isEmpty()) named.add(name);
-        });
+        Set<String> named = bones.members()
+            .filter((name, bone) -> bone.findString("parent").isEmpty())
+            .keys()
+            .collect(Collectors.toCollection(LinkedHashSet::new));
 
         Set<String> held = rootBones.putIfAbsent(factoryClass, Collections.unmodifiableSet(named));
         if (held != null && !held.equals(named)) disagreed.add(factoryClass);

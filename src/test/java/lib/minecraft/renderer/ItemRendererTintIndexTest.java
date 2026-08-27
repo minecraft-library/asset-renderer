@@ -11,8 +11,6 @@ import lib.minecraft.renderer.asset.model.ModelTexture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
@@ -53,7 +51,7 @@ class ItemRendererTintIndexTest {
             ModelData.class
         );
         Item item = new Item(ResourceId.parse("minecraft:leather_helmet"),
-            model, spriteMap(model), 0, List.of(), false);
+            model, spriteMap(model), 0, Concurrent.newUnmodifiableList(), false);
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(0));
     }
 
@@ -67,7 +65,7 @@ class ItemRendererTintIndexTest {
             ModelData.class
         );
         Item item = new Item(ResourceId.parse("minecraft:diamond_sword"),
-            model, spriteMap(model), 0, List.of(), false);
+            model, spriteMap(model), 0, Concurrent.newUnmodifiableList(), false);
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(-1));
     }
 
@@ -82,7 +80,7 @@ class ItemRendererTintIndexTest {
             ModelData.class
         );
         Item item = new Item(ResourceId.parse("minecraft:carrot"),
-            model, spriteMap(model), 0, List.of(), false);
+            model, spriteMap(model), 0, Concurrent.newUnmodifiableList(), false);
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(0));
     }
 
@@ -97,7 +95,7 @@ class ItemRendererTintIndexTest {
             ModelData.class
         );
         Item item = new Item(ResourceId.parse("minecraft:stick"),
-            model, spriteMap(model), 0, List.of(), false);
+            model, spriteMap(model), 0, Concurrent.newUnmodifiableList(), false);
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(-1));
     }
 
@@ -113,7 +111,8 @@ class ItemRendererTintIndexTest {
     private static Item simpleItem(String textureKey, String textureRef) {
         ModelData model = new ModelData();
         model.getTextures().put(textureKey, new ModelTexture(textureRef, false));
-        return new Item(ResourceId.parse("minecraft:test"), model, spriteMap(model), 0, List.of(), false);
+        return new Item(ResourceId.parse("minecraft:test"), model, spriteMap(model), 0,
+            Concurrent.newUnmodifiableList(), false);
     }
 
     /**

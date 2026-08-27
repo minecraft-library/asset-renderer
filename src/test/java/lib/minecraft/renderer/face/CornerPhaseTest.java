@@ -106,37 +106,37 @@ class CornerPhaseTest {
     @Test
     @DisplayName("the bakery phase's UV pairing is the identity on every face")
     void bakeryUvSlotsAreTheIdentity() {
-        for (Face face : Face.CACHED_VALUES)
+        Face.forEach(face ->
             assertThat("bakery slots of " + face,
-                CornerPhase.BAKERY.uvSlots(face), equalTo(new int[]{ 0, 1, 2, 3 }));
+                CornerPhase.BAKERY.uvSlots(face), equalTo(new int[]{ 0, 1, 2, 3 })));
     }
 
     @Test
     @DisplayName("every index set names the same four box corners on both phases")
     void indexSetsCoincide() {
-        for (Face face : Face.CACHED_VALUES) {
+        Face.forEach(face -> {
             int[] bakery = CornerPhase.BAKERY.vertexIndices(face).clone();
             int[] polygon = CornerPhase.POLYGON.vertexIndices(face).clone();
             Arrays.sort(bakery);
             Arrays.sort(polygon);
             assertThat("corner set of " + face, polygon, equalTo(bakery));
-        }
+        });
     }
 
     @Test
     @DisplayName("the bakery phase winds CCW - the emit-order cross agrees with the stored normal")
     void bakeryWinding() {
-        for (Face face : Face.CACHED_VALUES)
+        Face.forEach(face ->
             assertSameVector("winding of BAKERY." + face,
-                crossOf(CornerPhase.BAKERY.corners(face, UNIT)), face.normal());
+                crossOf(CornerPhase.BAKERY.corners(face, UNIT)), face.normal()));
     }
 
     @Test
     @DisplayName("the polygon phase winds CCW - the emit-order cross agrees with the stored normal")
     void polygonWinding() {
-        for (Face face : Face.CACHED_VALUES)
+        Face.forEach(face ->
             assertSameVector("winding of POLYGON." + face,
-                crossOf(CornerPhase.POLYGON.corners(face, UNIT)), face.normal());
+                crossOf(CornerPhase.POLYGON.corners(face, UNIT)), face.normal()));
     }
 
     @Test
@@ -145,8 +145,8 @@ class CornerPhaseTest {
         int[][] bakery = { { 4, 1 }, { 3, 6 }, { 2, 0 }, { 7, 5 }, { 3, 4 }, { 6, 1 } };
         int[][] polygon = { { 5, 0 }, { 2, 7 }, { 1, 3 }, { 4, 6 }, { 0, 7 }, { 5, 2 } };
 
-        for (int i = 0; i < Face.CACHED_VALUES.length; i++) {
-            Face face = Face.CACHED_VALUES[i];
+        for (int i = 0; i < Face.size(); i++) {
+            Face face = Face.ofOrdinal(i);
             assertThat("bakery diagonal of " + face,
                 diagonalOf(CornerPhase.BAKERY.vertexIndices(face)), equalTo(bakery[i]));
             assertThat("polygon diagonal of " + face,
@@ -160,12 +160,12 @@ class CornerPhaseTest {
     @Test
     @DisplayName("the fan diagonal really is a diagonal - it moves on both of the face's own axes")
     void diagonalCrossesBothAxes() {
-        for (Face face : Face.CACHED_VALUES) {
+        Face.forEach(face -> {
             assertDiagonal("BAKERY." + face, CornerPhase.BAKERY.corners(face, BOX),
                 face.widthAxis(), face.heightAxis());
             assertDiagonal("POLYGON." + face, CornerPhase.POLYGON.corners(face, BOX),
                 face.widthAxis(), face.heightAxis());
-        }
+        });
     }
 
     @Test
@@ -173,8 +173,8 @@ class CornerPhaseTest {
     void bakeryUvPairing() {
         int[][] signs = { { 1, -1 }, { 1, 1 }, { -1, -1 }, { 1, -1 }, { 1, -1 }, { -1, -1 } };
 
-        for (int i = 0; i < Face.CACHED_VALUES.length; i++) {
-            Face face = Face.CACHED_VALUES[i];
+        for (int i = 0; i < Face.size(); i++) {
+            Face face = Face.ofOrdinal(i);
             Vector4f rect = new Unwrap.Element(BOX).rect(face);
             Vector2f[] uv = CornerPhase.BAKERY.permuteUv(face, rect.toUvCorners(
                 GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
@@ -189,8 +189,8 @@ class CornerPhaseTest {
     void polygonUvPairing() {
         int[][] signs = { { 1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 }, { -1, 1 }, { 1, 1 } };
 
-        for (int i = 0; i < Face.CACHED_VALUES.length; i++) {
-            Face face = Face.CACHED_VALUES[i];
+        for (int i = 0; i < Face.size(); i++) {
+            Face face = Face.ofOrdinal(i);
             Vector4f rect = new Unwrap.Atlas(CUBE_UV, CUBE_SIZE, false).rect(face);
             Vector2f[] uv = CornerPhase.POLYGON.permuteUv(face, rect.toUvCorners(SHEET, SHEET, 0, false));
             assertPairing("POLYGON." + face, CornerPhase.POLYGON.corners(face, BOX), uv,

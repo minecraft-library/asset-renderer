@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine.kit;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -16,7 +17,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -148,16 +148,17 @@ class ClipKitTest {
         EntityModelData mesh = new EntityModelData();
         mesh.getBones().put("body", new EntityModelData.Bone());
 
-        PoseClip clip = new PoseClip(1f, false, List.of(new PoseClip.Channel("body",
-            PoseClip.Target.ROTATION, List.of(
+        PoseClip clip = new PoseClip(1f, false, Concurrent.newUnmodifiableList(new PoseClip.Channel("body",
+            PoseClip.Target.ROTATION, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, from, from, from, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(1f, to, to, to, PoseClip.Interpolation.LINEAR)))));
 
         // A static site holds the clip at nothing, so the instant is driven in as a walk position:
         // millis is `position * 50 * rate`, and a rate of 20 turns a second of clip into a second.
-        EntityPose pose = new EntityPose(List.of(), Map.of(), List.of(new EntityPose.Clip(
-            "test", EntityPose.Gate.WALK,
-            List.of(constant(at), constant(1f), constant(WALK_RATE), constant(1f)), clip)),
+        EntityPose pose = new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
+            Concurrent.newUnmodifiableList(new EntityPose.Clip(
+                "test", EntityPose.Gate.WALK,
+                Concurrent.newUnmodifiableList(constant(at), constant(1f), constant(WALK_RATE), constant(1f)), clip)),
             Optional.empty());
 
         Map<PoseChannel, Float> written =
@@ -168,11 +169,12 @@ class ClipKitTest {
 
     /** A pose playing one clip that scales a named bone on one axis. */
     private static @NotNull EntityPose scaling(@NotNull String bone) {
-        PoseClip clip = new PoseClip(1f, false, List.of(new PoseClip.Channel(bone,
-            PoseClip.Target.SCALE, List.of(
+        PoseClip clip = new PoseClip(1f, false, Concurrent.newUnmodifiableList(new PoseClip.Channel(bone,
+            PoseClip.Target.SCALE, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0.5f, PoseClip.Interpolation.LINEAR)))));
-        return new EntityPose(List.of(), Map.of(), List.of(new EntityPose.Clip(
-            "test", EntityPose.Gate.STATIC, List.of(), clip)),
+        return new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
+            Concurrent.newUnmodifiableList(new EntityPose.Clip(
+                "test", EntityPose.Gate.STATIC, Concurrent.newUnmodifiableList(), clip)),
             Optional.empty());
     }
 

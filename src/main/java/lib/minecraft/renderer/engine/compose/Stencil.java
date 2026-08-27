@@ -1,12 +1,14 @@
 package lib.minecraft.renderer.engine.compose;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
+import java.util.Arrays;
 
 /**
  * A rectangular picture written as role codes, and how many Minecraft pixels each of them draws as.
@@ -25,7 +27,7 @@ import java.util.List;
  * @param pixel Minecraft pixels a side each authored pixel is drawn as
  */
 @Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
-record Stencil(@NotNull List<String> rows, int pixel) {
+record Stencil(@NotNull ConcurrentList<String> rows, int pixel) {
 
     /**
      * The code leaving the destination untouched. It is resolved before any table is consulted, so
@@ -44,7 +46,7 @@ record Stencil(@NotNull List<String> rows, int pixel) {
                     "Stencil row '%s' is '%d' wide where its first row is '%d'".formatted(row, row.length(), columns));
         }
 
-        rows = List.copyOf(rows);
+        rows = rows.stream().collect(Concurrent.toUnmodifiableList());
     }
 
     /**
@@ -65,7 +67,7 @@ record Stencil(@NotNull List<String> rows, int pixel) {
      * @return the stencil
      */
     static @NotNull Stencil of(int pixel, @NotNull String @NotNull ... rows) {
-        return new Stencil(List.of(rows), pixel);
+        return new Stencil(Arrays.stream(rows).collect(Concurrent.toUnmodifiableList()), pixel);
     }
 
     /**

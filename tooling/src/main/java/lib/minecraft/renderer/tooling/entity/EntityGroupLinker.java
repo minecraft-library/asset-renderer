@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Node {@code members} - the cross-entity grouping post-pass (stray beside skeleton, zoglin beside
@@ -48,10 +49,10 @@ final class EntityGroupLinker {
      */
     static void link(@NotNull JsonTree root, @NotNull VariantIndex variants, @NotNull Diagnostics diagnostics) {
         JsonTree models = root.child("models");
-        Map<String, List<String>> clusters = new LinkedHashMap<>();
-        models.members().forEach((id, model) ->
-            primaryGeometry(model).ifPresent(geometry ->
-                clusters.computeIfAbsent(geometry, key -> new ArrayList<>()).add(id)));
+        Map<String, List<String>> clusters = models.members()
+            .flatMapToObj((id, model) -> primaryGeometry(model).stream().map(geometry -> Map.entry(geometry, id)))
+            .collect(Collectors.groupingBy(Map.Entry::getKey, LinkedHashMap::new,
+                Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
 
         for (Map.Entry<String, List<String>> cluster : clusters.entrySet()) {
             List<String> reached = cluster.getValue();

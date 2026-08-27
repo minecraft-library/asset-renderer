@@ -2,6 +2,8 @@ package lib.minecraft.renderer.asset;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
 import lib.minecraft.renderer.asset.appearance.Size;
@@ -78,13 +80,13 @@ import java.util.Set;
 public record Entity(
     @NotNull ResourceId id,
     @NotNull EntityModelData model,
-    @NotNull List<OverlayLayer> overlays,
-    @NotNull List<BlockOverlayLayer> blockOverlays,
+    @NotNull ConcurrentList<OverlayLayer> overlays,
+    @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays,
     int baseTintArgb,
     float rendererScale,
     @NotNull Axes axes,
     @NotNull Layers layers,
-    @NotNull List<String> members,
+    @NotNull ConcurrentList<String> members,
     @NotNull EntityPose pose
 ) {
 
@@ -110,7 +112,7 @@ public record Entity(
      * {@link #pose} to the pose of a model that poses nothing, so callers can omit either.
      */
     public Entity {
-        members = members == null ? List.of() : members;
+        members = members == null ? Concurrent.newUnmodifiableList() : members;
         pose = pose == null ? EntityPose.NONE : pose;
     }
 
@@ -191,8 +193,8 @@ public record Entity(
             builder.model(definition.axes().babyModel().get())
                 .pose(definition.axes().babyPose().orElse(EntityPose.NONE))
                 .overlays(gatedOverlays(definition.axes().babyOverlays(), appearance))
-                .blockOverlays(List.of())
-                .layers(new Layers(List.of(), armor));
+                .blockOverlays(Concurrent.newUnmodifiableList())
+                .layers(new Layers(Concurrent.newUnmodifiableList(), armor));
         } else {
             builder.overlays(gatedOverlays(definition.overlays(), appearance));
             // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
@@ -254,13 +256,15 @@ public record Entity(
      * @param appearance the axis selections to gate against
      * @return the surviving overlays, or the given list itself when nothing drops
      */
-    private static @NotNull List<OverlayLayer> gatedOverlays(@NotNull List<OverlayLayer> overlays, @NotNull AppearanceOptions appearance) {
+    private static @NotNull ConcurrentList<OverlayLayer> gatedOverlays(@NotNull ConcurrentList<OverlayLayer> overlays, @NotNull AppearanceOptions appearance) {
         boolean gated = overlays.stream()
             .anyMatch(overlay -> overlay.gate()
                 .filter(gate -> !(gate instanceof AppearanceGate.TintedGate))
                 .isPresent());
         if (!gated) return overlays;
-        return overlays.stream().filter(overlay -> rendersAtResolve(overlay, appearance)).toList();
+        return overlays.stream()
+            .filter(overlay -> rendersAtResolve(overlay, appearance))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**
@@ -283,18 +287,15 @@ public record Entity(
      * only when a block is selected, with its block id replaced by that selection. The default (empty)
      * appearance therefore renders the fixed decorations and no selectable held block.
      */
-    private static @NotNull List<BlockOverlayLayer> resolveBlockOverlays(@NotNull Entity definition, @NotNull AppearanceOptions appearance) {
+    private static @NotNull ConcurrentList<BlockOverlayLayer> resolveBlockOverlays(@NotNull Entity definition, @NotNull AppearanceOptions appearance) {
         if (definition.blockOverlays().isEmpty()) return definition.blockOverlays();
         Optional<String> selected = appearance.selectedCarriedBlock();
         boolean dropsFixed = appearance.dropsCarried();
-        List<BlockOverlayLayer> out = new ArrayList<>(definition.blockOverlays().size());
-        for (BlockOverlayLayer overlay : definition.blockOverlays()) {
-            if (overlay.selectable())
-                selected.ifPresent(id -> out.add(overlay.withBlockId(id)));
-            else if (!dropsFixed)
-                out.add(overlay);
-        }
-        return List.copyOf(out);
+        return definition.blockOverlays()
+            .stream()
+            .filter(overlay -> overlay.selectable() ? selected.isPresent() : !dropsFixed)
+            .map(overlay -> overlay.selectable() ? overlay.withBlockId(selected.orElseThrow()) : overlay)
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**
@@ -337,8 +338,8 @@ public record Entity(
      * @param toggles the appearance's selected toggle names
      * @return the overlays drawing what the selection asks for
      */
-    private static @NotNull List<EquipmentOverlay> toggledEquipment(
-        @NotNull List<EquipmentOverlay> equipment, @NotNull Set<String> toggles) {
+    private static @NotNull ConcurrentList<EquipmentOverlay> toggledEquipment(
+        @NotNull ConcurrentList<EquipmentOverlay> equipment, @NotNull Set<String> toggles) {
 
         if (toggles.isEmpty() || equipment.isEmpty()) return equipment;
         List<EquipmentOverlay> out = new ArrayList<>(equipment.size());
@@ -348,7 +349,7 @@ public record Entity(
             moved |= flipped != overlay;
             out.add(flipped);
         }
-        return moved ? List.copyOf(out) : equipment;
+        return moved ? Concurrent.newUnmodifiableList(out) : equipment;
     }
 
     /**
@@ -372,11 +373,11 @@ public record Entity(
      * @param declared the option the bare definition already is, empty when the definition has no
      *     such axis
      */
-    public record Axis<K, V>(@NotNull Map<K, V> options, @NotNull Optional<K> declared) {
+    public record Axis<K, V>(@NotNull ConcurrentMap<K, V> options, @NotNull Optional<K> declared) {
 
         /** An axis a definition does not carry, which selects nothing and declares nothing. */
         public static <K, V> @NotNull Axis<K, V> none() {
-            return new Axis<>(Map.of(), Optional.empty());
+            return new Axis<>(Concurrent.newUnmodifiableMap(), Optional.empty());
         }
 
         /**
@@ -443,7 +444,7 @@ public record Entity(
     public record Axes(
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull Optional<EntityPose> babyPose,
-        @NotNull List<OverlayLayer> babyOverlays,
+        @NotNull ConcurrentList<OverlayLayer> babyOverlays,
         @NotNull Axis<String, Entity> shape,
         @NotNull Axis<String, String> state,
         @NotNull Axis<Size, Entity> size,
@@ -462,7 +463,7 @@ public record Entity(
      *     wearer whose mesh failed to resolve drops off the roster loudly rather than rendering a guess
      */
     public record Layers(
-        @NotNull List<EquipmentOverlay> equipment,
+        @NotNull ConcurrentList<EquipmentOverlay> equipment,
         @NotNull Optional<Shell> humanoidArmor
     ) {}
 
@@ -698,7 +699,7 @@ public record Entity(
         @NotNull String slot,
         @NotNull EntityModelData model,
         @NotNull LayerType layerType,
-        @NotNull Map<String, ResourceId> materialAssets
+        @NotNull ConcurrentMap<String, ResourceId> materialAssets
     ) {
         /**
          * The material a caller who named none is asking for - a saddle's {@code saddle}, horse body

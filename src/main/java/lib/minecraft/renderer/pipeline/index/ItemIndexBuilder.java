@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.index;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
@@ -14,8 +15,6 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -70,25 +69,17 @@ public class ItemIndexBuilder {
      * @return the finished item index, keyed by stripped item id, unmodifiable
      */
     public static @NotNull ConcurrentMap<String, Item> load(
-        @NotNull ConcurrentMap<String, List<LayerTint>> itemTints,
+        @NotNull ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints,
         @NotNull Set<String> glintItems,
         @NotNull ConcurrentMap<String, ModelData> itemModels,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries
     ) {
-        HashMap<String, Item> itemIndex = new HashMap<>();
-        for (Map.Entry<String, ModelData> itemEntry : itemModels.entrySet()) {
-            String modelId = itemEntry.getKey();
-            ModelData model = itemEntry.getValue();
-            ResourceId itemResource = ResourceId.ofModelId(modelId);
-            String itemId = itemResource.id();
-            if (beEntries.containsKey(itemId)) continue;
-            HashMap<String, String> textures = new HashMap<>();
-            model.getTextures().forEach((slot, texture) -> textures.put(slot, texture.sprite()));
-            List<LayerTint> tints = itemTints.getOrDefault(itemId, List.of());
-            boolean alwaysGlinted = glintItems.contains(itemId);
-            itemIndex.put(itemId, new Item(itemResource, model, Concurrent.adoptMap(textures), 0, tints, alwaysGlinted));
-        }
+        ConcurrentMap<String, Item> itemIndex = itemModels.entrySet()
+            .stream()
+            .filter(entry -> !beEntries.containsKey(ResourceId.ofModelId(entry.getKey()).id()))
+            .map(entry -> itemOf(ResourceId.ofModelId(entry.getKey()), entry.getValue(), itemTints, glintItems))
+            .collect(Concurrent.toMap(item -> item.id().id(), item -> item, (a, b) -> b));
 
         int before = itemIndex.size();
         itemIndex.values().removeIf(item ->
@@ -98,7 +89,32 @@ public class ItemIndexBuilder {
 
         addDispatchOnlyItems(itemIndex, itemTints, glintItems, itemTrees, beEntries);
 
-        return Concurrent.adoptMap(itemIndex).toUnmodifiable();
+        return itemIndex.toUnmodifiable();
+    }
+
+    /**
+     * Materialises one item from its parsed model: the model's texture bindings flattened to sprite
+     * ids, the per-layer tints registered under its id, and whether that id is intrinsically foil.
+     *
+     * @param itemResource the item's resource id, stripped of the {@code item/} model prefix
+     * @param model the parsed model the item renders
+     * @param itemTints the per-layer tint lists keyed by stripped item id
+     * @param glintItems the set of intrinsically-foil item ids
+     * @return the materialised item
+     */
+    private static @NotNull Item itemOf(
+        @NotNull ResourceId itemResource,
+        @NotNull ModelData model,
+        @NotNull ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints,
+        @NotNull Set<String> glintItems
+    ) {
+        String itemId = itemResource.id();
+        ConcurrentMap<String, String> textures = model.getTextures()
+            .entrySet()
+            .stream()
+            .collect(Concurrent.toMap(Map.Entry::getKey, binding -> binding.getValue().sprite()));
+        return new Item(itemResource, model, textures, 0,
+            itemTints.getOrDefault(itemId, Concurrent.newUnmodifiableList()), glintItems.contains(itemId));
     }
 
     /**
@@ -116,8 +132,8 @@ public class ItemIndexBuilder {
      * exactly the previously-unrenderable ids.
      */
     private static void addDispatchOnlyItems(
-        @NotNull HashMap<String, Item> itemIndex,
-        @NotNull ConcurrentMap<String, List<LayerTint>> itemTints,
+        @NotNull ConcurrentMap<String, Item> itemIndex,
+        @NotNull ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints,
         @NotNull Set<String> glintItems,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries
@@ -133,7 +149,7 @@ public class ItemIndexBuilder {
             Item backing = itemIndex.get(ResourceId.ofModelId(modelId).id());
             if (backing == null) continue;
 
-            List<LayerTint> tints = itemTints.getOrDefault(itemId, List.of());
+            ConcurrentList<LayerTint> tints = itemTints.getOrDefault(itemId, Concurrent.newUnmodifiableList());
             itemIndex.put(itemId, new Item(ResourceId.parse(itemId), backing.model(), backing.textures(),
                 0, tints, glintItems.contains(itemId)));
             added++;

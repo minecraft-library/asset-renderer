@@ -1,7 +1,9 @@
 package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
@@ -21,11 +23,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -89,20 +89,20 @@ public class PlayerArmorKit {
     private static @NotNull List<ShellPart> bodyRows(@NotNull Map<HumanoidPart, Box> bodyPositions) {
         List<ShellPart> rows = new ArrayList<>();
 
-        for (HumanoidPart part : HumanoidPart.CACHED_VALUES) {
+        HumanoidPart.forEach(part -> {
             Box bounds = bodyPositions.get(part);
-            if (bounds == null) continue;
-            Set<ArmorSlot> slots = ArmorForm.playerSlots(part);
-            if (slots.isEmpty()) continue;
+            if (bounds == null) return;
+            ConcurrentSet<ArmorSlot> slots = ArmorForm.playerSlots(part);
+            if (slots.isEmpty()) return;
 
             rows.add(new ShellPart.Body(part, false, slots, bounds));
 
-            EnumSet<ArmorSlot> second = EnumSet.noneOf(ArmorSlot.class);
-            for (ArmorSlot slot : slots)
-                if (slot.keepsChildren()) second.add(slot);
+            ConcurrentSet<ArmorSlot> second = slots.stream()
+                .filter(ArmorSlot::keepsChildren)
+                .collect(Concurrent.toUnmodifiableSet());
             if (!second.isEmpty())
-                rows.add(new ShellPart.Body(part, true, Set.copyOf(second), bounds));
-        }
+                rows.add(new ShellPart.Body(part, true, second, bounds));
+        });
 
         return rows;
     }

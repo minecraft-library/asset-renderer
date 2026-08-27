@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.asset.appearance;
 
 import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -15,6 +15,7 @@ import java.util.Optional;
  * overlay texture {@code IronGolemCrackinessLayer} composites over the body. Names and texture
  * mappings mirror {@code IronGolemCrackinessLayer}'s per-level texture map (which omits {@code NONE}).
  */
+@EnumLookup
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum IronGolemCrackiness {
 
@@ -34,20 +35,5 @@ public enum IronGolemCrackiness {
      */
     public @NotNull Optional<String> overlayTexture() {
         return Optional.ofNullable(this.overlayTexture);
-    }
-
-    /**
-     * Looks up a crackiness level by name (case-insensitive), e.g. {@code "medium"}.
-     *
-     * @param name the level name
-     * @return the matching level, or {@code null} when the name is not a vanilla crackiness level
-     */
-    public static @Nullable IronGolemCrackiness ofName(@Nullable String name) {
-        if (name == null) return null;
-        try {
-            return valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException notACrackiness) {
-            return null;
-        }
     }
 }

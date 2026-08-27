@@ -4,12 +4,11 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Map;
 
 /**
  * What an authored chrome image is made of - four corner rects, four edge bands each repeating a
@@ -24,7 +23,7 @@ import java.util.Map;
  * @param top the top band's depth
  * @param right the right band's depth
  * @param bottom the bottom band's depth
- * @param bands one band per edge
+ * @param bands one band per edge, in {@link Edge} declaration order
  * @param interior what the middle is, once the bands are taken off
  * @param interiorPeriodX the interior's repeat period across, meaningful when it tiles
  * @param interiorPeriodY the interior's repeat period down, meaningful when it tiles
@@ -34,7 +33,7 @@ import java.util.Map;
 public record ChromeDecomposition(
     int width, int height,
     int left, int top, int right, int bottom,
-    @NotNull Map<Edge, Band> bands,
+    @NotNull ConcurrentMap<Edge, Band> bands,
     @NotNull Interior interior,
     int interiorPeriodX, int interiorPeriodY,
     boolean stretchInner

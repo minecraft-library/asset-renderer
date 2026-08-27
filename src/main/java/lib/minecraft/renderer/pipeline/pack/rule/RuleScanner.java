@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.pack.rule;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackCapability;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.stream.Stream;
 
 /**
  * Scans one {@link ResourcePack} into its per-pack {@link RuleSet}, folding the pack's
@@ -129,19 +131,24 @@ public class RuleScanner {
             perPack.add(scan(pack));
         }
 
-        List<CitRule> cit = new ArrayList<>();
-        for (RuleSet rules : perPack) cit.addAll(rules.citRules());
-        cit.sort(citComparator(priority));
+        ConcurrentList<CitRule> cit = perPack.stream()
+            .flatMap(rules -> rules.citRules().stream())
+            .sorted(citComparator(priority))
+            .collect(Concurrent.toUnmodifiableList());
 
-        List<CtmRule> tiles = new ArrayList<>();
-        List<CtmRule> blocks = new ArrayList<>();
-        for (RuleSet rules : perPack)
-            for (CtmRule rule : rules.ctmRules()) (rule.isTileTarget() ? tiles : blocks).add(rule);
+        // Tile targets sort and land before block targets, so the two partitions are sorted apart and
+        // concatenated rather than sorted together under a partition-first comparator.
         Comparator<CtmRule> ctmComparator = ctmComparator(priority);
-        tiles.sort(ctmComparator);
-        blocks.sort(ctmComparator);
-        List<CtmRule> ctm = new ArrayList<>(tiles);
-        ctm.addAll(blocks);
+        ConcurrentList<CtmRule> ctm = Stream.concat(
+            perPack.stream()
+                .flatMap(rules -> rules.ctmRules().stream())
+                .filter(CtmRule::isTileTarget)
+                .sorted(ctmComparator),
+            perPack.stream()
+                .flatMap(rules -> rules.ctmRules().stream())
+                .filter(rule -> !rule.isTileTarget())
+                .sorted(ctmComparator))
+            .collect(Concurrent.toUnmodifiableList());
 
         LinkedHashMap<String, Integer> colors = new LinkedHashMap<>();
         Optional<Boolean> useGlint = Optional.empty();
@@ -152,8 +159,7 @@ public class RuleScanner {
 
         ColorProperties mergedColors = new ColorProperties(
             new ResourceId("minecraft", "color.properties"), PackId.VANILLA, Concurrent.adoptMap(colors).toUnmodifiable());
-        return new RuleSet(PackId.VANILLA,
-            Concurrent.adoptList(cit).toUnmodifiable(), Concurrent.adoptList(ctm).toUnmodifiable(), mergedColors, useGlint);
+        return new RuleSet(PackId.VANILLA, cit, ctm, mergedColors, useGlint);
     }
 
     /** Weight DESC, then filename ASC, then higher-priority pack, then full id - a total, deterministic order. */

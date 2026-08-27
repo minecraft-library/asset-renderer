@@ -21,7 +21,6 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Box;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -105,17 +104,13 @@ public class ArmorKit {
      * for a shell the mesh's bone order and then each bone's cube order, so a part and the overlay box
      * parented to it stay adjacent, which is what decides a coplanar tie.
      */
-    private static @NotNull List<SlotBox> resolveBoxes(
+    private static @NotNull ConcurrentList<SlotBox> resolveBoxes(
         @NotNull List<ShellPart> rows, @NotNull ArmorSlot slot,
         @NotNull UnaryOperator<Box> intoFrame) {
-        List<SlotBox> boxes = new ArrayList<>();
-
-        for (ShellPart row : rows) {
-            if (!row.coveredBy(slot)) continue;
-            boxes.add(new SlotBox(row, intoFrame.apply(row.boxFor(slot))));
-        }
-
-        return boxes;
+        return rows.stream()
+            .filter(row -> row.coveredBy(slot))
+            .map(row -> new SlotBox(row, intoFrame.apply(row.boxFor(slot))))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**

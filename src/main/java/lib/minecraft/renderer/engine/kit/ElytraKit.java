@@ -27,6 +27,7 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -116,10 +117,15 @@ public class ElytraKit {
         if (!baby || bodyBounds.isEmpty()) return mesh;
         float dy = bodyBounds.get().minY() - EntityGeometryKit.computeBounds(mesh).minY();
         if (dy == 0f) return mesh;
-        ConcurrentLinkedMap<String, EntityModelData.Bone> seated = Concurrent.newLinkedMap();
         // New bones: the authored meshes are shared constants, so the seat must never mutate them.
-        mesh.getBones().forEach((name, bone) -> seated.put(name, bone.withPivot(
-            new Vector3f(bone.getPivot().x(), bone.getPivot().y() + dy, bone.getPivot().z()))));
+        ConcurrentLinkedMap<String, EntityModelData.Bone> seated = mesh.getBones()
+            .entrySet()
+            .stream()
+            .collect(Concurrent.toLinkedMap(Map.Entry::getKey, entry -> {
+                Vector3f pivot = entry.getValue().getPivot();
+                return entry.getValue()
+                    .withPivot(new Vector3f(pivot.x(), pivot.y() + dy, pivot.z()));
+            }));
         return new EntityModelData(mesh.getTextureSize(), seated, mesh.isCull());
     }
 

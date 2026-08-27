@@ -20,7 +20,9 @@ import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Entry point of the {@code entityModels} Gradle task - runs the entity-models flow then the shared
@@ -52,13 +54,13 @@ public final class ToolingEntityModels {
             // reusing its parent's layer bakes no mesh, so nothing would have walked its pose. The
             // renderers themselves travel beside them, because what a renderer puts above the meshes
             // it submits is its own fact and no model class carries it.
-            Set<String> posing = new LinkedHashSet<>();
-            Set<String> renderers = new LinkedHashSet<>();
-            for (EntitySubject subject : subjects) {
-                renderers.add(subject.rendererClass());
-                String model = EntityPoseClass.of(session.cache(), subject.rendererClass());
-                if (model != null) posing.add(model);
-            }
+            Set<String> posing = subjects.stream()
+                .map(subject -> EntityPoseClass.of(session.cache(), subject.rendererClass()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+            Set<String> renderers = subjects.stream()
+                .map(EntitySubject::rendererClass)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
             // The model table travels into the pose flow because the fold needs what each subject
             // rests at, and that table is the statement of record for it - it is what the reader
             // joins on, so deriving the join from anything else would be a second account of it.

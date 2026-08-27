@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Writes one model's pose into the shipped table.
@@ -381,16 +382,16 @@ public final class PoseJson {
     }
 
     private static @NotNull JsonTree operands(@NotNull List<PoseExpr> operands, @NotNull Shared shared) {
-        List<JsonTree> written = new ArrayList<>(operands.size());
-        for (PoseExpr operand : operands) written.add(shared.use(operand));
+        List<JsonTree> written = operands.stream().map(shared::use).collect(Collectors.toList());
         return JsonTree.array().addAll(written);
     }
 
     /** Every model's outcome, keyed the way the rest of the table keys a model. */
     static @NotNull Map<String, JsonTree> all(@NotNull Map<String, PoseOutcome> outcomes) {
-        Map<String, JsonTree> out = new TreeMap<>();
-        outcomes.forEach((model, outcome) -> out.put(model, of(outcome)));
-        return out;
+        return outcomes.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> of(entry.getValue()),
+                (a, b) -> b, TreeMap::new));
     }
 
     /**
@@ -401,12 +402,11 @@ public final class PoseJson {
      * one would read as a renderer that composes an empty transform rather than none.
      */
     static @NotNull Map<String, JsonTree> allTransforms(@NotNull Map<String, RenderTransform> transforms) {
-        Map<String, JsonTree> out = new TreeMap<>();
-        transforms.forEach((renderer, transform) -> {
-            if (transform.isReadable() && transform.steps().isEmpty()) return;
-            out.put(renderer, transform(transform));
-        });
-        return out;
+        return transforms.entrySet()
+            .stream()
+            .filter(entry -> !(entry.getValue().isReadable() && entry.getValue().steps().isEmpty()))
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> transform(entry.getValue()),
+                (a, b) -> b, TreeMap::new));
     }
 
 }

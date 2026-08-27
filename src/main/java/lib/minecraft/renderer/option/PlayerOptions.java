@@ -3,6 +3,8 @@ package lib.minecraft.renderer.option;
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.client.ClientAcquisition;
@@ -18,10 +20,8 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Box;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 
@@ -165,7 +165,7 @@ public class PlayerOptions implements RenderOptions {
          * The parts this scope draws, in draw order.
          */
         @Getter(style = NamingStyle.FLUENT)
-        private final @NotNull List<HumanoidPart> parts;
+        private final @NotNull ConcurrentList<HumanoidPart> parts;
 
         private final int minPixelX;
         private final int maxPixelX;
@@ -185,7 +185,7 @@ public class PlayerOptions implements RenderOptions {
         Type(float unitsPerPixel, boolean centred, @NotNull HumanoidPart @NotNull ... parts) {
             this.unitsPerPixel = unitsPerPixel;
             this.centred = centred;
-            this.parts = List.of(parts);
+            this.parts = Concurrent.newUnmodifiableList(parts);
 
             int minX = Integer.MAX_VALUE;
             int maxX = Integer.MIN_VALUE;
@@ -234,19 +234,17 @@ public class PlayerOptions implements RenderOptions {
          * @param canvasSize the square canvas edge in pixels
          * @return the parts in draw order, each with its canvas rectangle
          */
-        public @NotNull List<BodyPart2D> layout2D(int canvasSize) {
+        public @NotNull ConcurrentList<BodyPart2D> layout2D(int canvasSize) {
             int scale = canvasSize / bodyHeight();
             int offsetX = (canvasSize - bodyWidth() * scale) / 2;
-            List<BodyPart2D> layout = new ArrayList<>(this.parts.size());
 
-            for (HumanoidPart part : this.parts)
-                layout.add(new BodyPart2D(part,
+            return this.parts.stream()
+                .map(part -> new BodyPart2D(part,
                     offsetX + (part.minPixelX() - this.minPixelX) * scale,
                     (this.maxPixelY - part.maxPixelY()) * scale,
                     part.pixelWidth() * scale,
-                    part.pixelHeight() * scale));
-
-            return List.copyOf(layout);
+                    part.pixelHeight() * scale))
+                .collect(Concurrent.toWideUnmodifiableList());
         }
 
         /**

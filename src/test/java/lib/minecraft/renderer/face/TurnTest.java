@@ -37,12 +37,12 @@ class TurnTest {
     @Test
     @DisplayName("the six faces are declared in opposing pairs, which is what makes ordinal ^ 1 the opposite")
     void facesAreDeclaredInOpposingPairs() {
-        assertThat("six cardinal directions", Face.CACHED_VALUES.length, is(6));
+        assertThat("six cardinal directions", Face.size(), is(6));
 
         // Pairs share an axis and differ only in sign, which is what makes ordinal ^ 1 the opposite.
-        for (int i = 0; i < Face.CACHED_VALUES.length; i += 2) {
-            Face low = Face.CACHED_VALUES[i];
-            Face high = Face.CACHED_VALUES[i + 1];
+        for (int i = 0; i < Face.size(); i += 2) {
+            Face low = Face.ofOrdinal(i);
+            Face high = Face.ofOrdinal(i + 1);
             assertThat(low + " and " + high + " share an axis", high.axis(), is(low.axis()));
             assertThat(low + " and " + high + " are opposites", high.normal(),
                 equalTo(new Vector3f(-low.normal().x() + 0f, -low.normal().y() + 0f, -low.normal().z() + 0f)));
@@ -65,11 +65,10 @@ class TurnTest {
     @Test
     @DisplayName("the face map is the face-level shadow of the point turn, on every turn and face")
     void faceMapShadowsThePointTurn() {
-        for (Turn turn : Turn.CACHED_VALUES)
-            for (Face face : Face.CACHED_VALUES) {
+        Turn.forEach(turn ->
+            Face.forEach(face ->
                 assertThat(turn + " on " + face,
-                    settled(turn.apply(face).normal()), equalTo(settled(turn.apply(face.normal()))));
-            }
+                    settled(turn.apply(face).normal()), equalTo(settled(turn.apply(face.normal()))))));
     }
 
     @Test
@@ -85,14 +84,14 @@ class TurnTest {
     @Test
     @DisplayName("every turn is axis-preserving - a face pairs with itself or its own opposite")
     void everyTurnIsAxisPreserving() {
-        for (Turn turn : Turn.CACHED_VALUES)
-            for (Face face : Face.CACHED_VALUES) {
+        Turn.forEach(turn ->
+            Face.forEach(face -> {
                 Face turned = turn.apply(face);
                 assertThat(turn + " keeps " + face + " on its own axis",
                     turned == face || turned.normal().equals(
                         new Vector3f(-face.normal().x() + 0f, -face.normal().y() + 0f, -face.normal().z() + 0f)),
                     is(true));
-            }
+            }));
     }
 
     @Test
@@ -101,19 +100,19 @@ class TurnTest {
         Set<Turn> all = EnumSet.allOf(Turn.class);
         assertThat("the group has eight members", all.size(), is(8));
 
-        for (Turn a : Turn.CACHED_VALUES) {
+        Turn.forEach(a -> {
             assertThat(a + " composed with itself is the identity", a.then(a), is(Turn.NONE));
             assertThat("NONE is the identity for " + a, a.then(Turn.NONE), is(a));
 
-            for (Turn b : Turn.CACHED_VALUES) {
+            Turn.forEach(b -> {
                 assertThat(a + " then " + b + " stays in the group", all.contains(a.then(b)), is(true));
                 assertThat(a + " then " + b + " commutes", a.then(b), is(b.then(a)));
                 // Composition on the group must agree with composition on a point.
                 Vector3f point = new Vector3f(2f, 3f, 5f);
                 assertThat(a + " then " + b + " agrees on a point",
                     a.then(b).apply(point), equalTo(b.apply(a.apply(point))));
-            }
-        }
+            });
+        });
     }
 
     @Test
@@ -128,7 +127,7 @@ class TurnTest {
     @DisplayName("reflects agrees with the determinant, and four of the group reflect")
     void reflectsAgreesWithDeterminant() {
         int reflecting = 0;
-        for (Turn turn : Turn.CACHED_VALUES) {
+        for (Turn turn : Turn.stream().toList()) {
             Vector3f x = turn.apply(new Vector3f(1f, 0f, 0f));
             Vector3f y = turn.apply(new Vector3f(0f, 1f, 0f));
             Vector3f z = turn.apply(new Vector3f(0f, 0f, 1f));

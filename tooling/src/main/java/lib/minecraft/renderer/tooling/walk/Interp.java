@@ -19,6 +19,7 @@ import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * The one interpreter chassis: an operand stack, a slot table and the arithmetic mechanism,
@@ -380,8 +381,10 @@ public final class Interp<V> {
      * @return the state, restorable through {@link #restore}
      */
     public @NotNull Snapshot<V> snapshot() {
-        List<Map<Integer, V>> saved = new ArrayList<>(this.slotFrames.size());
-        for (Map<Integer, V> frame : this.slotFrames) saved.add(new LinkedHashMap<>(frame));
+        List<Map<Integer, V>> saved = this.slotFrames
+            .stream()
+            .<Map<Integer, V>>map(LinkedHashMap::new)
+            .collect(Collectors.toCollection(ArrayList::new));
         return new Snapshot<>(new ArrayList<>(this.stack), new LinkedHashMap<>(this.slots), saved, this.poisoned);
     }
 

@@ -8,11 +8,11 @@ import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Writes the {@code setupRotations} translate into the mesh it moves, and takes the member naming it
@@ -98,12 +98,11 @@ public final class EntityMeshShift {
 
     /** The age axis' options, empty where the subject declares no age axis. */
     private static @NotNull List<JsonTree> ageOptions(@NotNull JsonTree subject) {
-        List<JsonTree> options = new ArrayList<>();
-        subject.find("axes")
+        return subject.find("axes")
             .flatMap(axes -> axes.find("age"))
             .flatMap(age -> age.find("options"))
-            .ifPresent(declared -> declared.members().forEach((name, option) -> options.add(option)));
-        return options;
+            .map(declared -> declared.members().values().collect(Collectors.toList()))
+            .orElse(List.of());
     }
 
 }

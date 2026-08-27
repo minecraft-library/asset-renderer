@@ -5,8 +5,9 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.Optional;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * The resolved playback table of an {@link MCMeta.Animation animation} sidecar against the strip it
@@ -59,21 +60,16 @@ public record Flipbook(
         if (frameCount <= 0) return Optional.empty();
 
         int defaultTicks = Math.max(1, animation.frametime());
-        ArrayList<MCMeta.Frame> entries = new ArrayList<>();
-        if (animation.frames().isEmpty())
-            for (int i = 0; i < frameCount; i++) entries.add(new MCMeta.Frame(i, defaultTicks));
-        else
-            for (MCMeta.Frame entry : animation.frames())
-                entries.add(new MCMeta.Frame(
-                    Math.clamp(entry.index(), 0, frameCount - 1),
-                    entry.time() > 0 ? entry.time() : defaultTicks));
+        Stream<MCMeta.Frame> authored = animation.frames().isEmpty()
+            ? IntStream.range(0, frameCount).mapToObj(index -> new MCMeta.Frame(index, defaultTicks))
+            : animation.frames().stream().map(entry -> new MCMeta.Frame(
+                Math.clamp(entry.index(), 0, frameCount - 1),
+                entry.time() > 0 ? entry.time() : defaultTicks));
 
-        int totalTicks = 0;
-        for (MCMeta.Frame entry : entries) totalTicks += entry.time();
-
+        ConcurrentList<MCMeta.Frame> entries = authored.collect(Concurrent.toUnmodifiableList());
         return Optional.of(new Flipbook(
-            frameWidth, frameHeight, Concurrent.adoptList(entries).toUnmodifiable(),
-            totalTicks, animation.interpolate()));
+            frameWidth, frameHeight, entries,
+            entries.stream().mapToInt(MCMeta.Frame::time).sum(), animation.interpolate()));
     }
 
 }

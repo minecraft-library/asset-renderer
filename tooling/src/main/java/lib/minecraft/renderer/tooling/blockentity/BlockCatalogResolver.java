@@ -33,6 +33,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Builds the {@code blocks[]} node: the ordered {@code {block, texture, variant?, tint?}} rows
@@ -132,9 +134,10 @@ final class BlockCatalogResolver {
                 case BANNER -> banner(rows);
             }
 
-        Map<String, JsonTree> out = new LinkedHashMap<>();
-        rows.forEach((splitId, list) -> out.put(splitId, toArray(list)));
-        return out;
+        return rows.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> toArray(entry.getValue()),
+                (a, b) -> b, LinkedHashMap::new));
     }
 
     // ------------------------------------------------------------------------------------
@@ -154,7 +157,7 @@ final class BlockCatalogResolver {
         }
         List<Row> list = new ArrayList<>();
         if (uncolored != null) list.add(uncolored);
-        orderByDye(byColour, list);
+        list.addAll(orderByDye(byColour));
         rows.put(primarySplit(), list);
     }
 
@@ -174,22 +177,23 @@ final class BlockCatalogResolver {
     /** Bed: the 16 dyed beds under bed_head in DyeColor declaration order, texture {@code entity/bed/<color>}. */
     private void bed(@NotNull Map<String, List<Row>> rows) {
         String sheet = sheetBase(BlockFamilyPolicies.CatalogFamily.BED);
-        Map<String, Row> byColour = new LinkedHashMap<>();
-        for (String field : this.subject.blockFields()) {
-            String colour = stripSuffix(blockLocal(field), "bed");
-            byColour.put(colour, new Row(blockId(field), sheet + colour, null, null));
-        }
-        List<Row> list = new ArrayList<>();
-        orderByDye(byColour, list);
-        rows.put(primarySplit(), list);
+        Map<String, Row> byColour = this.subject.blockFields()
+            .stream()
+            .map(field -> {
+                String colour = stripSuffix(blockLocal(field), "bed");
+                return Map.entry(colour, new Row(blockId(field), sheet + colour, null, null));
+            })
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
+        rows.put(primarySplit(), orderByDye(byColour));
     }
 
-    /** Appends {@code byColour}'s rows into {@code out} in DyeColor declaration order. */
-    private void orderByDye(@NotNull Map<String, Row> byColour, @NotNull List<Row> out) {
-        for (String colour : dyeColorOrder()) {
-            Row row = byColour.get(colour);
-            if (row != null) out.add(row);
-        }
+    /** The rows of {@code byColour} in DyeColor declaration order. */
+    private @NotNull List<Row> orderByDye(@NotNull Map<String, Row> byColour) {
+        return dyeColorOrder()
+            .stream()
+            .map(byColour::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(ArrayList::new));
     }
 
     /**
@@ -233,24 +237,27 @@ final class BlockCatalogResolver {
     /** Copper golem statue: 8 blocks (4 weathers x waxed/unwaxed) under the sole split. */
     private void copperGolem(@NotNull Map<String, List<Row>> rows) {
         Map<String, String> textures = copperGolemTextures();
-        List<Row> list = new ArrayList<>();
-        for (String field : this.subject.blockFields()) {
-            String weather = copperWeatherField(blockLocal(field), "copper_golem_statue");
-            String texture = textures.get(weather);
-            if (texture == null) {
-                this.diagnostics.warn("no CopperGolemOxidationLevels texture bound for weather '%s' (block '%s') - empty stem", weather, field);
-                texture = "";
-            }
-            list.add(new Row(blockId(field), texture, null, null));
-        }
+        List<Row> list = this.subject.blockFields()
+            .stream()
+            .map(field -> {
+                String weather = copperWeatherField(blockLocal(field), "copper_golem_statue");
+                String texture = textures.get(weather);
+                if (texture == null) {
+                    this.diagnostics.warn("no CopperGolemOxidationLevels texture bound for weather '%s' (block '%s') - empty stem", weather, field);
+                    texture = "";
+                }
+                return new Row(blockId(field), texture, null, null);
+            })
+            .collect(Collectors.toCollection(ArrayList::new));
         rows.put(primarySplit(), list);
     }
 
     /** A one-texture-for-every-block family (conduit / bell / decorated_pot). */
     private void single(@NotNull Map<String, List<Row>> rows, @NotNull String texture) {
-        List<Row> list = new ArrayList<>();
-        for (String field : this.subject.blockFields())
-            list.add(new Row(blockId(field), texture, null, null));
+        List<Row> list = this.subject.blockFields()
+            .stream()
+            .map(field -> new Row(blockId(field), texture, null, null))
+            .collect(Collectors.toCollection(ArrayList::new));
         rows.put(primarySplit(), list);
     }
 
@@ -279,8 +286,10 @@ final class BlockCatalogResolver {
         if (source == null || attached == null) return;
         List<Row> base = rows.get(source);
         if (base == null) return;
-        List<Row> alternate = new ArrayList<>();
-        for (Row row : base) alternate.add(new Row(row.block(), row.texture(), ATTACHED_VARIANT, null));
+        List<Row> alternate = base
+            .stream()
+            .map(row -> new Row(row.block(), row.texture(), ATTACHED_VARIANT, null))
+            .collect(Collectors.toCollection(ArrayList::new));
         rows.put(attached, alternate);
     }
 

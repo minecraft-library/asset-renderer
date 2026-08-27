@@ -1,9 +1,12 @@
 package lib.minecraft.renderer.asset.pose;
 
+import dev.simplified.annotations.EnumLookup;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.collection.ConcurrentList;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import java.util.List;
 
 /**
  * One authored keyframe animation - a table of what each bone is displaced by as a clip runs.
@@ -29,7 +32,7 @@ import java.util.List;
 public record PoseClip(
     float lengthSeconds,
     boolean looping,
-    @NotNull List<Channel> channels
+    @NotNull ConcurrentList<Channel> channels
 ) {
 
     /**
@@ -38,6 +41,8 @@ public record PoseClip(
      * <p>Each names the channel triple it lands on, so nothing downstream re-derives the mapping and
      * a target the table gains has one place to declare it.
      */
+    @EnumLookup
+    @RequiredArgsConstructor
     public enum Target {
 
         /** The bone's pivot, in model pixels. */
@@ -49,27 +54,14 @@ public record PoseClip(
         /** The bone's per-axis scale, added to the one it rests at. */
         SCALE("scale", PoseChannel.X_SCALE, PoseChannel.Y_SCALE, PoseChannel.Z_SCALE);
 
+        /** The lower-case token this target is spelled with in the shipped table. */
+        @KeyField
+        @Getter(style = NamingStyle.FLUENT)
         private final @NotNull String token;
+
         private final @NotNull PoseChannel x;
         private final @NotNull PoseChannel y;
         private final @NotNull PoseChannel z;
-
-        Target(@NotNull String token,
-               @NotNull PoseChannel x, @NotNull PoseChannel y, @NotNull PoseChannel z) {
-            this.token = token;
-            this.x = x;
-            this.y = y;
-            this.z = z;
-        }
-
-        /**
-         * The token this target is spelled with in the shipped table.
-         *
-         * @return the lower-case token
-         */
-        public @NotNull String token() {
-            return this.token;
-        }
 
         /**
          * The channel one component of this target displaces.
@@ -87,18 +79,6 @@ public record PoseClip(
             };
         }
 
-        /**
-         * Resolves the target a token names.
-         *
-         * @param token the token to resolve
-         * @return the target, or {@code null} when no target is spelled that way
-         */
-        public static @Nullable Target ofToken(@NotNull String token) {
-            for (Target target : values())
-                if (target.token.equals(token)) return target;
-            return null;
-        }
-
     }
 
     /**
@@ -107,6 +87,9 @@ public record PoseClip(
      * <p>Carried on the keyframe being approached rather than the one being left, which is vanilla's
      * own convention: the curve is a property of the arrival.
      */
+    @EnumLookup
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     public enum Interpolation {
 
         /** Straight between the two keyframes bracketing the instant. */
@@ -115,32 +98,9 @@ public record PoseClip(
         /** A Catmull-Rom spline through the bracketing pair and one keyframe either side of them. */
         CATMULLROM("catmullrom");
 
+        /** The lower-case token this curve is spelled with in the shipped table. */
+        @KeyField
         private final @NotNull String token;
-
-        Interpolation(@NotNull String token) {
-            this.token = token;
-        }
-
-        /**
-         * The token this curve is spelled with in the shipped table.
-         *
-         * @return the lower-case token
-         */
-        public @NotNull String token() {
-            return this.token;
-        }
-
-        /**
-         * Resolves the curve a token names.
-         *
-         * @param token the token to resolve
-         * @return the curve, or {@code null} when no curve is spelled that way
-         */
-        public static @Nullable Interpolation ofToken(@NotNull String token) {
-            for (Interpolation interpolation : values())
-                if (interpolation.token.equals(token)) return interpolation;
-            return null;
-        }
 
     }
 
@@ -157,7 +117,7 @@ public record PoseClip(
     public record Channel(
         @NotNull String bone,
         @NotNull Target target,
-        @NotNull List<Keyframe> keyframes
+        @NotNull ConcurrentList<Keyframe> keyframes
     ) {}
 
     /**

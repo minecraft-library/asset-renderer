@@ -32,6 +32,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Node {@code axes.size} - the option-encoded size axis, in two forms:
@@ -181,9 +183,9 @@ final class EntitySizeAxisResolver {
                 "Method '%s.%s' carries no bounded draw shifted into a size for %s - the jar is either obfuscated or from an unsupported version",
                 owner.name, spawn.name, NATURAL_SIZES
             );
-        List<Integer> sizes = new ArrayList<>(draws);
-        for (int draw = 0; draw < draws; draw++) sizes.add(base << draw);
-        return sizes;
+        return IntStream.range(0, draws)
+            .mapToObj(draw -> base << draw)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -196,10 +198,12 @@ final class EntitySizeAxisResolver {
             this.diagnostics.warn("natural-size set %s exceeds the size domain %s - size axis omitted", naturalSizes, domain);
             return null;
         }
-        Map<String, JsonTree> options = new LinkedHashMap<>();
         int base = naturalSizes.getFirst();
-        for (int index = 1; index < naturalSizes.size(); index++)
-            options.put(domain.get(index), JsonTree.object().put("scale", (float) naturalSizes.get(index) / base));
+        Map<String, JsonTree> options = IntStream.range(1, naturalSizes.size())
+            .boxed()
+            .collect(Collectors.toMap(domain::get,
+                index -> JsonTree.object().put("scale", (float) naturalSizes.get(index) / base),
+                (first, second) -> second, LinkedHashMap::new));
         this.diagnostics.info("size axis via natural sizes %s (scale-per-size proportional)", naturalSizes);
         return sizeNode(domain, options);
     }

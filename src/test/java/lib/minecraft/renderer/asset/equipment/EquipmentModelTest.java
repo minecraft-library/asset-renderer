@@ -1,11 +1,12 @@
 package lib.minecraft.renderer.asset.equipment;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel.Layer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -35,7 +36,8 @@ class EquipmentModelTest {
     @DisplayName("getLayers returns an empty list for an undeclared layer type")
     void getLayersEmpty() {
         EquipmentModel.Layer iron = new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false);
-        EquipmentModel model = new EquipmentModel(Map.of(LayerType.HUMANOID, List.of(iron)));
+        ConcurrentList<Layer> humanoid = Concurrent.newUnmodifiableList(iron);
+        EquipmentModel model = new EquipmentModel(Concurrent.newUnmodifiableMap(Map.of(LayerType.HUMANOID, humanoid)));
         assertThat(model.getLayers(LayerType.HUMANOID).size(), is(1));
         assertThat(model.getLayers(LayerType.WINGS).isEmpty(), is(true));
     }

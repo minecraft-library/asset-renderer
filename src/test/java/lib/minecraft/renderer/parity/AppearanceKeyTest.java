@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.parity;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.DyeColor;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -45,37 +47,37 @@ final class AppearanceKeyTest {
      * @param sizeDefault the declared size default
      * @return the model
      */
-    private static Entity model(String id, Map<String, Entity> variants,
+    private static Entity model(String id, ConcurrentMap<String, Entity> variants,
                                 Optional<String> variantDefault, Optional<Size> sizeDefault) {
         return Entity.builder()
             .id(ResourceId.parse(id))
             .model(new EntityModelData())
             .axes(new Entity.Axes(
-                Optional.empty(),  // babyModel
-                Optional.empty(),  // babyPose
-                List.of(),         // babyOverlays
-                Entity.Axis.none(),                                 // shape
-                Entity.Axis.none(),                                 // state
-                new Entity.Axis<>(Map.of(), sizeDefault),           // size
-                new Entity.Axis<>(variants, variantDefault)))       // variant
+                Optional.empty(),                       // babyModel
+                Optional.empty(),                       // babyPose
+                Concurrent.newUnmodifiableList(),       // babyOverlays
+                Entity.Axis.none(),                     // shape
+                Entity.Axis.none(),                     // state
+                new Entity.Axis<>(Concurrent.newUnmodifiableMap(), sizeDefault),   // size
+                new Entity.Axis<>(variants, variantDefault)))                     // variant
             .build();
     }
 
     /** A model with no axes at all - the plain case a bare head resolves to. */
     private static Entity plain(String id) {
-        return model(id, Map.of(), Optional.empty(), Optional.empty());
+        return model(id, Concurrent.newUnmodifiableMap(), Optional.empty(), Optional.empty());
     }
 
     /** A model carrying a variant axis with the given options and declared default. */
     private static Entity variantModel(String id, String defaultOption, String... options) {
         Map<String, Entity> coats = new LinkedHashMap<>();
         for (String option : options) coats.put(option, plain(id));
-        return model(id, Map.copyOf(coats), Optional.of(defaultOption), Optional.empty());
+        return model(id, Concurrent.newUnmodifiableMap(coats), Optional.of(defaultOption), Optional.empty());
     }
 
     /** A model carrying a size axis with a declared default. */
     private static Entity sizedModel(String id, Size defaultSize) {
-        return model(id, Map.of(), Optional.empty(), Optional.of(defaultSize));
+        return model(id, Concurrent.newUnmodifiableMap(), Optional.empty(), Optional.of(defaultSize));
     }
 
     private static final AppearanceCodec CODEC = AppearanceCodec.over(Map.of(

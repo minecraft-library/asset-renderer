@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * Writes what an overlay pass does to the mesh it draws into a mesh of its own, and takes the three
@@ -244,9 +245,9 @@ public final class EntityMeshOverlays {
 
     /** The bone names of a mesh, taken as a list so a bone can be edited while the mesh is walked. */
     private static @NotNull List<String> names(@NotNull JsonTree bones) {
-        List<String> named = new ArrayList<>();
-        bones.members().forEach((name, bone) -> named.add(name));
-        return named;
+        return bones.members()
+            .keys()
+            .collect(Collectors.toList());
     }
 
     // ------------------------------------------------------------------------------------
@@ -314,13 +315,10 @@ public final class EntityMeshOverlays {
     private static @NotNull Map<String, Map<Map<Derivation, String>, List<Site>>> byCoordinate(
         @NotNull List<Site> sites) {
 
-        Map<String, Map<Map<Derivation, String>, List<Site>>> grouped = new LinkedHashMap<>();
-        for (Site site : sites)
-            grouped
-                .computeIfAbsent(site.coordinate(), key -> new LinkedHashMap<>())
-                .computeIfAbsent(site.surgery().materialisation(), key -> new ArrayList<>())
-                .add(site);
-        return grouped;
+        return sites.stream()
+            .collect(Collectors.groupingBy(Site::coordinate, LinkedHashMap::new,
+                Collectors.groupingBy(site -> site.surgery().materialisation(), LinkedHashMap::new,
+                    Collectors.toList())));
     }
 
     /**
@@ -395,9 +393,12 @@ public final class EntityMeshOverlays {
      * armor shell look like a pass that derives a mesh.
      */
     private static @NotNull Surgery surgeryOf(@NotNull JsonTree node) {
-        List<String> retain = new ArrayList<>();
-        node.findArray("retain_bones").ifPresent(named ->
-            named.elements().forEach(bone -> bone.asString().ifPresent(retain::add)));
+        List<String> retain = node.findArray("retain_bones")
+            .map(named -> named.elements()
+                .map(JsonTree::asString)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toList()))
+            .orElseGet(List::of);
         float inflate = node.find("grow")
             .filter(JsonTree::isPrimitive)
             .map(grow -> grow.asFloat(0f))
@@ -430,10 +431,9 @@ public final class EntityMeshOverlays {
         if (variant == null) return false;
         JsonTree options = variant.find("options").orElse(null);
         if (options == null) return false;
-        List<String> named = new ArrayList<>();
-        options.members().forEach((name, option) ->
-            option.findString("geometry").ifPresent(named::add));
-        return !named.isEmpty();
+        return options.members()
+            .values()
+            .anyMatch(option -> option.findString("geometry").isPresent());
     }
 
     /** One option of an axis, or {@code null} where the axis or the option is absent. */

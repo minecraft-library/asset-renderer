@@ -17,8 +17,6 @@ import lib.minecraft.renderer.client.VanillaSourcePaths;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -77,14 +75,17 @@ public record ResolvedModels(
     private static @NotNull ConcurrentMap<String, ModelData> resolveModels(
         @NotNull PackStack stack, @NotNull String subdir, @NotNull String kind, boolean isItem
     ) {
-        LinkedHashMap<String, Attributed> raw = mergeRawAcrossStack(stack, subdir, kind);
-        HashMap<String, JsonObject> rawJson = new HashMap<>(raw.size());
-        raw.forEach((id, attributed) -> rawJson.put(id, attributed.json()));
+        ConcurrentMap<String, Attributed> raw = mergeRawAcrossStack(stack, subdir, kind);
+        ConcurrentMap<String, JsonObject> rawJson = raw.entrySet()
+            .stream()
+            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().json()));
 
-        return raw.entrySet().parallelStream().collect(Concurrent.toMap(
-            Map.Entry::getKey,
-            entry -> resolveModel(entry.getKey(), entry.getValue(), rawJson, kind, isItem)
-        )).toUnmodifiable();
+        return raw.entrySet()
+            .parallelStream()
+            .collect(Concurrent.toMap(
+                Map.Entry::getKey,
+                entry -> resolveModel(entry.getKey(), entry.getValue(), rawJson, kind, isItem)
+            )).toUnmodifiable();
     }
 
     /**
@@ -94,22 +95,18 @@ public record ResolvedModels(
      * namespace)} subtree it owns is scanned. Every winning entry carries its origin pack so
      * diagnostics can name it.
      */
-    private static @NotNull LinkedHashMap<String, Attributed> mergeRawAcrossStack(
+    private static @NotNull ConcurrentMap<String, Attributed> mergeRawAcrossStack(
         @NotNull PackStack stack, @NotNull String subdir, @NotNull String kind
     ) {
         // The shared walk enumerates and filters serially (container walks do not split well), then
         // the byte read + Gson parse parallelise across the FJP common pool. map() preserves
         // encounter order, so the sequential merge below still sees resolution order - later roots
         // and later packs last, and therefore winning.
-        List<Map.Entry<String, Attributed>> parsed = PackSubtree.walk(stack, PackSubtree.Subtree.of(subdir, ".json"))
+        return PackSubtree.walk(stack, PackSubtree.Subtree.of(subdir, ".json"))
             .parallelStream()
             .map(entry -> parseModelFile(entry, kind))
             .flatMap(Optional::stream)
-            .toList();
-
-        LinkedHashMap<String, Attributed> merged = new LinkedHashMap<>();
-        for (Map.Entry<String, Attributed> row : parsed) merged.put(row.getKey(), row.getValue());
-        return merged;
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (lower, higher) -> higher));
     }
 
     /**

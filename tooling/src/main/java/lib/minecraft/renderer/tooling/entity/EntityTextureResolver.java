@@ -29,6 +29,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Node {@code texture} - the family's primary texture, resolved as the FULL namespaced vanilla
@@ -673,9 +674,10 @@ final class EntityTextureResolver {
             }
         }
 
-        Set<String> candidateStems = new HashSet<>();
-        for (String path : candidates)
-            candidateStems.add(path.substring(VanillaSourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length()));
+        Set<String> candidateStems = candidates
+            .stream()
+            .map(path -> path.substring(VanillaSourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length()))
+            .collect(Collectors.toSet());
 
         for (String path : candidates) {
             String stem = path.substring(VanillaSourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length());
@@ -791,9 +793,10 @@ final class EntityTextureResolver {
      */
     static @NotNull Set<String> deriveNonBaseSuffixes(@NotNull ToolingSession session) {
         String prefix = VanillaSourceClasses.Paths.ASSETS_ROOT + VanillaSourceClasses.Paths.TEXTURES_ENTITY;
-        Set<String> stems = new LinkedHashSet<>();
-        for (String entryPath : session.cache().list(prefix, ".png"))
-            stems.add(entryPath.substring(prefix.length(), entryPath.length() - ".png".length()));
+        Set<String> stems = session.cache().list(prefix, ".png")
+            .stream()
+            .map(entryPath -> entryPath.substring(prefix.length(), entryPath.length() - ".png".length()))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
 
         Map<String, Integer> suffixCount = new HashMap<>();
         for (String stem : stems) {
@@ -808,9 +811,11 @@ final class EntityTextureResolver {
                 underscore = local.indexOf('_', underscore + 1);
             }
         }
-        Set<String> out = new LinkedHashSet<>();
-        for (Map.Entry<String, Integer> entry : suffixCount.entrySet())
-            if (entry.getValue() >= SUFFIX_MIN_RECURRENCE) out.add(entry.getKey());
+        Set<String> out = suffixCount.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue() >= SUFFIX_MIN_RECURRENCE)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
         session.diagnostics().child("textures").info("derived %d non-base texture suffixes: %s", out.size(), out);
         return out;
     }

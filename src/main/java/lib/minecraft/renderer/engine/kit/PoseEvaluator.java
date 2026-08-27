@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
@@ -10,15 +12,12 @@ import lib.minecraft.renderer.asset.pose.PosePredicate;
 import lib.minecraft.renderer.exception.RendererException;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.ToDoubleFunction;
-import java.util.stream.Collectors;
 
 /**
  * Evaluates one model's pose at one instant - the arithmetic a {@code setupAnim} body does, read off
@@ -120,16 +119,16 @@ public final class PoseEvaluator {
         List<Map<PoseChannel, Float>> container = pose.container().stream()
             .map(step -> channels(step, model, frame, memo))
             .toList();
-        // Collected into a LinkedHashMap rather than through Map.copyOf: what comes out is read in
+        // Collected in insertion order rather than through Map.copyOf: what comes out is read in
         // order downstream, and copyOf salts its iteration per JVM launch.
         Map<String, Map<PoseChannel, Float>> bones = pose.bones()
             .entrySet()
             .stream()
             .filter(written -> model.getBones().containsKey(written.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey,
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey,
                 written -> channels(written.getValue(), model, frame, memo),
-                (first, second) -> first, LinkedHashMap::new));
-        return new ChannelWrites(container, Collections.unmodifiableMap(bones));
+                (first, second) -> first));
+        return new ChannelWrites(container, bones);
     }
 
     /**
@@ -148,15 +147,14 @@ public final class PoseEvaluator {
      * @param frame what each render-state figure reads as, {@link #AT_REST} where none is driven
      * @return each expression's value, in the order given
      */
-    public static @NotNull List<Float> values(
+    public static @NotNull ConcurrentList<Float> values(
         @NotNull List<PoseExpr> expressions, @NotNull EntityModelData model,
         @NotNull ToDoubleFunction<String> frame) {
 
         Map<Object, Double> memo = new IdentityHashMap<>();
-        List<Float> out = new ArrayList<>(expressions.size());
-        for (PoseExpr expression : expressions)
-            out.add((float) value(expression, model, frame, memo));
-        return Collections.unmodifiableList(out);
+        return expressions.stream()
+            .map(expression -> (float) value(expression, model, frame, memo))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     // ------------------------------------------------------------------------------------

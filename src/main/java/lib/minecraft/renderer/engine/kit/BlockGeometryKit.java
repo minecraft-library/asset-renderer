@@ -135,23 +135,24 @@ public class BlockGeometryKit {
                 Matrix4f cubeTransform = presentation.multiply(BoneKit.composeCubeTransform(cube, bone, boneChain));
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
 
-                for (Face face : Face.CACHED_VALUES) {
-                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
-                    Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
-                    for (int i = 0; i < corners.length; i++) {
-                        Vector3f t = corners[i].transform(cubeTransform);
-                        corners[i] = new Vector3f(
-                            t.x() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
-                            t.y() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
-                            t.z() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f);
-                    }
-                    Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
-                    Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
-                    boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
-                    GeometryKit.addQuad(triangles, corners, uv,
-                        texture, tintArgb, normal, Lighting.inventory(normal),
-                        new SurfaceTraits(!isPlaneCube, translucent, false, true, PassDeclaration.DEFAULT), null);
-                }
+                Face.stream()
+                    .filter(face -> !(isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)))
+                    .forEach(face -> {
+                        Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
+                        for (int i = 0; i < corners.length; i++) {
+                            Vector3f t = corners[i].transform(cubeTransform);
+                            corners[i] = new Vector3f(
+                                t.x() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
+                                t.y() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
+                                t.z() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f);
+                        }
+                        Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
+                        Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
+                        boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
+                        GeometryKit.addQuad(triangles, corners, uv,
+                            texture, tintArgb, normal, Lighting.inventory(normal),
+                            new SurfaceTraits(!isPlaneCube, translucent, false, true, PassDeclaration.DEFAULT), null);
+                    });
             }
         }
 

@@ -17,7 +17,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -100,7 +99,8 @@ class BannerPatternLoaderTest {
     /** Loads banner patterns from a single-pack (vanilla) stack rooted at the given directory. */
     private static ConcurrentMap<String, BannerPattern> load(Path packRoot) {
         ResourcePack vanilla = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(packRoot), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
         return BannerPatternLoader.load(PackStack.of(Concurrent.newList(vanilla)));
     }
 

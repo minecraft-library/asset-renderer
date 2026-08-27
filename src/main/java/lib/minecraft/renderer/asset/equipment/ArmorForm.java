@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.asset.equipment;
 
 import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.face.HumanoidPart;
 import org.jetbrains.annotations.NotNull;
@@ -132,17 +134,18 @@ public enum ArmorForm {
      * The slots covering each of the player's own body parts, resolved once from {@link #ADULT}'s part
      * table by reading each bone name back to the body box it dresses.
      */
-    private static final @NotNull Map<HumanoidPart, Set<ArmorSlot>> PLAYER_SLOTS = new EnumMap<>(HumanoidPart.class);
+    private static final @NotNull Map<HumanoidPart, ConcurrentSet<ArmorSlot>> PLAYER_SLOTS = new EnumMap<>(HumanoidPart.class);
 
     static {
-        for (HumanoidPart part : HumanoidPart.CACHED_VALUES) {
+        HumanoidPart.forEach(part -> {
             EnumSet<ArmorSlot> slots = EnumSet.noneOf(ArmorSlot.class);
 
-            for (ArmorSlot slot : ArmorSlot.CACHED_VALUES)
-                if (ADULT.parts(slot).contains(part.boneName())) slots.add(slot);
+            ArmorSlot.stream()
+                .filter(slot -> ADULT.parts(slot).contains(part.boneName()))
+                .forEach(slots::add);
 
-            PLAYER_SLOTS.put(part, Set.copyOf(slots));
-        }
+            PLAYER_SLOTS.put(part, Concurrent.newUnmodifiableSet(slots));
+        });
     }
 
     /**
@@ -157,7 +160,7 @@ public enum ArmorForm {
      * @param part the player body part
      * @return the slots whose armor draws that part, empty when none does
      */
-    public static @NotNull Set<ArmorSlot> playerSlots(@NotNull HumanoidPart part) {
+    public static @NotNull ConcurrentSet<ArmorSlot> playerSlots(@NotNull HumanoidPart part) {
         return PLAYER_SLOTS.get(part);
     }
 

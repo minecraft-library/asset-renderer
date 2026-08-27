@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * The join between the field name a vanilla model calls a bone and the name its mesh does.
@@ -316,10 +318,9 @@ public final class EntityBoneNames {
             int length = entry.getValue();
             String recipe = scan.recipes().get(field);
             if (recipe != null) {
-                List<String> bones = new ArrayList<>(length);
-                for (int index = 0; index < length; index++)
-                    bones.add(ClassKit.applyStringConcatRecipeWithInt(recipe, index));
-                out.put(field, List.copyOf(bones));
+                out.put(field, IntStream.range(0, length)
+                    .mapToObj(index -> ClassKit.applyStringConcatRecipeWithInt(recipe, index))
+                    .collect(Collectors.toUnmodifiableList()));
                 continue;
             }
             List<String> literals = scan.literals().get(field);

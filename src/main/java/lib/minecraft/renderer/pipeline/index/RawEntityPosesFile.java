@@ -6,6 +6,9 @@ import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.annotations.JsonAdapter;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseClip;
@@ -17,8 +20,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -72,18 +73,20 @@ public record RawEntityPosesFile(
             @NotNull JsonElement root, @NotNull Type type, @NotNull JsonDeserializationContext context) {
 
             if (!root.isJsonObject()) throw new PipelineException("entity poses: the file is not an object");
-            Map<String, PoseClip> tables = clipTables(root.getAsJsonObject().get("clips"));
-            Map<String, List<Map<PoseChannel, PoseExpr>>> transforms =
+            ConcurrentMap<String, PoseClip> tables = clipTables(root.getAsJsonObject().get("clips"));
+            ConcurrentMap<String, List<Map<PoseChannel, PoseExpr>>> transforms =
                 renderTransforms(root.getAsJsonObject().get("renderers"));
             JsonElement poses = root.getAsJsonObject().get("poses");
             if (poses == null) return new RawEntityPosesFile(Map.of(), transforms);
             if (!poses.isJsonObject()) throw new PipelineException("entity poses: 'poses' is not an object");
 
-            Map<String, EntityPose> out = new LinkedHashMap<>();
-            for (Map.Entry<String, JsonElement> entry : poses.getAsJsonObject().entrySet())
-                out.put(entry.getKey(),
-                    pose(entry.getKey(), object(entry.getValue(), entry.getKey()), tables));
-            return new RawEntityPosesFile(Collections.unmodifiableMap(out), transforms);
+            ConcurrentMap<String, EntityPose> out = poses.getAsJsonObject()
+                .entrySet()
+                .stream()
+                .collect(Concurrent.toUnmodifiableLinkedMap(
+                    Map.Entry::getKey,
+                    entry -> pose(entry.getKey(), object(entry.getValue(), entry.getKey()), tables)));
+            return new RawEntityPosesFile(out, transforms);
         }
 
     }
@@ -101,29 +104,45 @@ public record RawEntityPosesFile(
      * the subject somewhere vanilla never puts it - so the row exists for a reader of the table
      * rather than for this one.
      */
-    private static @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms(
+    private static @NotNull ConcurrentMap<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms(
         @Nullable JsonElement node) {
 
-        if (node == null) return Map.of();
+        if (node == null) return Concurrent.newUnmodifiableLinkedMap();
         if (!node.isJsonObject())
             throw new PipelineException("entity poses: 'renderers' is not an object");
 
-        Map<String, List<Map<PoseChannel, PoseExpr>>> out = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : node.getAsJsonObject().entrySet()) {
-            String renderer = entry.getKey();
-            JsonObject declared = object(entry.getValue(), renderer);
-            if (declared.get("refused") != null) continue;
+        return node.getAsJsonObject()
+            .entrySet()
+            .stream()
+            .filter(entry -> object(entry.getValue(), entry.getKey()).get("refused") == null)
+            .map(entry -> Map.entry(entry.getKey(),
+                composedSteps(entry.getKey(), object(entry.getValue(), entry.getKey()))))
+            .filter(entry -> !entry.getValue().isEmpty())
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
 
-            Shared shared = Shared.of(renderer, declared.get("shared"));
-            List<Map<PoseChannel, PoseExpr>> steps = new ArrayList<>();
-            JsonElement held = declared.get("container");
-            if (held != null)
-                for (JsonElement step : array(held, renderer))
-                    steps.add(channels(renderer, "container", object(step, renderer), shared));
-            shared.requireAllRead(renderer);
-            if (!steps.isEmpty()) out.put(renderer, List.copyOf(steps));
-        }
-        return Collections.unmodifiableMap(out);
+    /**
+     * The steps one renderer's {@code container} declares, read under that renderer's own
+     * {@code shared} table.
+     *
+     * @param renderer the renderer simple name, for the refusals
+     * @param declared the renderer's own declaration
+     * @return the steps it composes, empty where it composes none
+     */
+    private static @NotNull ConcurrentList<Map<PoseChannel, PoseExpr>> composedSteps(
+        @NotNull String renderer, @NotNull JsonObject declared) {
+
+        Shared shared = Shared.of(renderer, declared.get("shared"));
+        JsonElement held = declared.get("container");
+        ConcurrentList<Map<PoseChannel, PoseExpr>> steps = held == null
+            ? Concurrent.newUnmodifiableList()
+            : array(held, renderer)
+                .asList()
+                .stream()
+                .map(step -> channels(renderer, "container", object(step, renderer), shared))
+                .collect(Concurrent.toUnmodifiableList());
+        shared.requireAllRead(renderer);
+        return steps;
     }
 
     /**
@@ -132,14 +151,16 @@ public record RawEntityPosesFile(
      * <p>Read once for the file rather than per pose, the same table serving every model that plays
      * it - a nautilus and a zombie nautilus play one swim, and a camel and its saddle one sit.
      */
-    private static @NotNull Map<String, PoseClip> clipTables(@Nullable JsonElement node) {
-        if (node == null) return Map.of();
+    private static @NotNull ConcurrentMap<String, PoseClip> clipTables(@Nullable JsonElement node) {
+        if (node == null) return Concurrent.newUnmodifiableLinkedMap();
         if (!node.isJsonObject()) throw new PipelineException("entity poses: 'clips' is not an object");
 
-        Map<String, PoseClip> out = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : node.getAsJsonObject().entrySet())
-            out.put(entry.getKey(), clipTable(entry.getKey(), object(entry.getValue(), entry.getKey())));
-        return Collections.unmodifiableMap(out);
+        return node.getAsJsonObject()
+            .entrySet()
+            .stream()
+            .collect(Concurrent.toUnmodifiableLinkedMap(
+                Map.Entry::getKey,
+                entry -> clipTable(entry.getKey(), object(entry.getValue(), entry.getKey()))));
     }
 
     /**
@@ -154,15 +175,18 @@ public record RawEntityPosesFile(
         if (length == null)
             throw new PipelineException("entity poses: clip %s declares no length", coordinate);
 
-        List<PoseClip.Channel> channels = new ArrayList<>();
         JsonElement declared = node.get("channels");
-        if (declared != null)
-            for (JsonElement channel : array(declared, coordinate))
-                channels.add(clipChannel(coordinate, object(channel, coordinate)));
+        ConcurrentList<PoseClip.Channel> channels = declared == null
+            ? Concurrent.newUnmodifiableList()
+            : array(declared, coordinate)
+                .asList()
+                .stream()
+                .map(channel -> clipChannel(coordinate, object(channel, coordinate)))
+                .collect(Concurrent.toUnmodifiableList());
 
         JsonElement looping = node.get("looping");
         return new PoseClip((float) length.getAsDouble(),
-            looping != null && looping.getAsBoolean(), List.copyOf(channels));
+            looping != null && looping.getAsBoolean(), channels);
     }
 
     /** One bone's displacement table, in one of its three members. */
@@ -180,16 +204,19 @@ public record RawEntityPosesFile(
             throw new PipelineException("entity poses: clip %s displaces '%s', which is not a target",
                 coordinate, target.getAsString());
 
-        List<PoseClip.Keyframe> keyframes = new ArrayList<>();
         JsonElement declared = node.get("keyframes");
-        if (declared != null)
-            for (JsonElement keyframe : array(declared, coordinate))
-                keyframes.add(clipKeyframe(coordinate, object(keyframe, coordinate)));
+        ConcurrentList<PoseClip.Keyframe> keyframes = declared == null
+            ? Concurrent.newUnmodifiableList()
+            : array(declared, coordinate)
+                .asList()
+                .stream()
+                .map(keyframe -> clipKeyframe(coordinate, object(keyframe, coordinate)))
+                .collect(Concurrent.toUnmodifiableList());
         if (keyframes.isEmpty())
             throw new PipelineException("entity poses: clip %s displaces '%s' at no instant",
                 coordinate, bone.getAsString());
 
-        return new PoseClip.Channel(bone.getAsString(), displaces, List.copyOf(keyframes));
+        return new PoseClip.Channel(bone.getAsString(), displaces, keyframes);
     }
 
     /** One authored instant of a channel. */
@@ -224,7 +251,8 @@ public record RawEntityPosesFile(
 
         JsonElement refused = node.get("refused");
         if (refused != null)
-            return new EntityPose(List.of(), Map.of(), List.of(), Optional.of(refused.getAsString()));
+            return new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(Map.of()),
+                Concurrent.newUnmodifiableList(), Optional.of(refused.getAsString()));
 
         Shared shared = Shared.of(model, node.get("shared"));
 
@@ -232,30 +260,39 @@ public record RawEntityPosesFile(
         // than one of them, so it is read into its own list and never into the bone map. An ORDERED
         // list, because a renderer composing one out of a sequence says everything by the order:
         // each element is a part pose, and only a body posing a flattened root writes just the one.
-        List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>();
         JsonElement held = node.get("container");
-        if (held != null)
-            for (JsonElement step : array(held, model))
-                container.add(channels(model, "container", object(step, model), shared));
+        ConcurrentList<Map<PoseChannel, PoseExpr>> container = held == null
+            ? Concurrent.newUnmodifiableList()
+            : array(held, model)
+                .asList()
+                .stream()
+                .map(step -> channels(model, "container", object(step, model), shared))
+                .collect(Concurrent.toUnmodifiableList());
 
-        Map<String, Map<PoseChannel, PoseExpr>> bones = new LinkedHashMap<>();
-        JsonElement written = node.get("bones");
-        if (written != null)
-            for (Map.Entry<String, JsonElement> bone : object(written, model).entrySet())
-                bones.put(bone.getKey(), channels(model, bone.getKey(), object(bone.getValue(), model), shared));
-
-        List<EntityPose.Clip> clips = new ArrayList<>();
-        JsonElement played = node.get("clips");
-        if (played != null)
-            for (JsonElement clip : array(played, model))
-                clips.add(clip(model, object(clip, model), shared, tables));
-
-        shared.requireAllRead(model);
         // Order-preserving rather than Map.copyOf, whose iteration order is salted per JVM launch.
         // Nothing reads the order for meaning, but the parity dump digests this map, and a digest
         // over a map that flaps is a row that fails its own reproducibility check and nothing else.
-        return new EntityPose(List.copyOf(container), Collections.unmodifiableMap(bones),
-            List.copyOf(clips), Optional.empty());
+        JsonElement written = node.get("bones");
+        ConcurrentMap<String, Map<PoseChannel, PoseExpr>> bones = written == null
+            ? Concurrent.newUnmodifiableLinkedMap()
+            : object(written, model)
+                .entrySet()
+                .stream()
+                .collect(Concurrent.toUnmodifiableLinkedMap(
+                    Map.Entry::getKey,
+                    bone -> channels(model, bone.getKey(), object(bone.getValue(), model), shared)));
+
+        JsonElement played = node.get("clips");
+        ConcurrentList<EntityPose.Clip> clips = played == null
+            ? Concurrent.newUnmodifiableList()
+            : array(played, model)
+                .asList()
+                .stream()
+                .map(site -> clip(model, object(site, model), shared, tables))
+                .collect(Concurrent.toUnmodifiableList());
+
+        shared.requireAllRead(model);
+        return new EntityPose(container, bones, clips, Optional.empty());
     }
 
     /**
@@ -354,15 +391,19 @@ public record RawEntityPosesFile(
             throw new PipelineException("entity poses: %s plays '%s', which this file declares no table for",
                 model, coordinate.getAsString());
 
-        EntityPose.Gate drive = EntityPose.Gate.ofToken(gate.getAsString())
+        EntityPose.Gate drive = EntityPose.Gate.findByToken(gate.getAsString())
             .orElseThrow(() -> new PipelineException("entity poses: %s drives a clip by '%s', which is not a drive",
                 model, gate.getAsString()));
 
-        List<PoseExpr> arguments = new ArrayList<>();
         JsonElement args = node.get("args");
-        if (args != null)
-            for (JsonElement argument : array(args, model)) arguments.add(expression(model, argument, shared));
-        return new EntityPose.Clip(coordinate.getAsString(), drive, List.copyOf(arguments), table);
+        ConcurrentList<PoseExpr> arguments = args == null
+            ? Concurrent.newUnmodifiableList()
+            : array(args, model)
+                .asList()
+                .stream()
+                .map(argument -> expression(model, argument, shared))
+                .collect(Concurrent.toUnmodifiableList());
+        return new EntityPose.Clip(coordinate.getAsString(), drive, arguments, table);
     }
 
     /**
@@ -381,12 +422,15 @@ public record RawEntityPosesFile(
 
         PoseOperator operator = PoseOperator.ofToken(token);
         if (operator != null) {
-            List<PoseExpr> operands = new ArrayList<>();
-            for (JsonElement operand : array(body, model)) operands.add(expression(model, operand, shared));
+            ConcurrentList<PoseExpr> operands = array(body, model)
+                .asList()
+                .stream()
+                .map(operand -> expression(model, operand, shared))
+                .collect(Concurrent.toUnmodifiableList());
             if (operands.size() != operator.arity())
                 throw new PipelineException("entity poses: %s applies '%s' to %d operand(s), which takes %d",
                     model, token, operands.size(), operator.arity());
-            return new PoseExpr.Op(operator, List.copyOf(operands));
+            return new PoseExpr.Op(operator, operands);
         }
 
         return switch (token) {

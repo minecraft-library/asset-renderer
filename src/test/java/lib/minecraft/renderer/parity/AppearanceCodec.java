@@ -247,7 +247,7 @@ public final class AppearanceCodec {
                 case BASE_COLOR, PATTERN_COLOR, WOOL_COLOR, COLLAR_COLOR, EQUIPMENT_COLOR -> {
                     Optional<DyeColor> dye = dye(value);
                     if (dye.isEmpty()) return malformed(fileName, "unknown dye '" + value + "'");
-                    tints.put(TintAxis.ofToken(axisName).orElseThrow(), dye.get());
+                    tints.put(TintAxis.findByToken(axisName).orElseThrow(), dye.get());
                 }
                 case ARMOR -> {
                     Optional<ArmorMaterial> material = enumOf(ArmorMaterial.class, value);

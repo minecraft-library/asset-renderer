@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * One enum's constants, in declaration order, carrying the values its static initialiser bound each
@@ -157,12 +158,13 @@ public record EnumConstantTable(@NotNull String type, @NotNull List<Constant> co
             || !(literal(pushes.get(1)) instanceof Double ordinal))
             throw new IllegalStateException("declares " + put.name + " without a readable name and position");
 
-        List<Double> arguments = new ArrayList<>();
         // One push per parameter or nothing: a shorter run means an argument was computed, and there
         // is then no way to say which push belonged to which parameter.
-        if (pushes.size() == arity)
-            for (AbstractInsnNode push : pushes.subList(DECLARED_ARGUMENTS_BEFORE_OWN, pushes.size()))
-                arguments.add(literal(push) instanceof Double number ? number : null);
+        List<Double> arguments = pushes.size() != arity ? List.of() : pushes
+            .subList(DECLARED_ARGUMENTS_BEFORE_OWN, pushes.size())
+            .stream()
+            .map(push -> literal(push) instanceof Double number ? number : null)
+            .collect(Collectors.toList());
         return new Built(name, (int) (double) ordinal, constructor.owner, constructor.desc, arguments);
     }
 

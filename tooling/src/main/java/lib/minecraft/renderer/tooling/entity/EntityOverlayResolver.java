@@ -37,6 +37,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Node {@code overlays[]} - the generic overlay engine. The per-entity handling dissolves
@@ -298,12 +299,15 @@ final class EntityOverlayResolver {
             Map<String, TexturePair> pairs = AsmWalker.readStaticEnumMap(cache, cn.name, mapField,
                 EntityOverlayResolver::readEntityTexturePair);
             if (pairs.isEmpty()) return null;
-            Map<String, String> textures = new LinkedHashMap<>();
-            Map<String, String> babyTextures = new LinkedHashMap<>();
-            pairs.forEach((key, pair) -> {
-                textures.put(key, pair.adult());
-                if (pair.baby() != null) babyTextures.put(key, pair.baby());
-            });
+            Map<String, String> textures = pairs.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().adult(),
+                    (first, second) -> second, LinkedHashMap::new));
+            Map<String, String> babyTextures = pairs.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue().baby() != null)
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().baby(),
+                    (first, second) -> second, LinkedHashMap::new));
             return new EnumMapOverlay(stateField, textures, babyTextures);
         });
     }
@@ -1709,8 +1713,11 @@ final class EntityOverlayResolver {
                 substituted.set(elseArm);
             })
             .run();
-        return new CategoryTokens(new ArrayList<>(new LinkedHashSet<>(categories.values())),
-            babyCategory.get(), substituted.get());
+        List<String> roster = categories.values()
+            .stream()
+            .distinct()
+            .collect(Collectors.toList());
+        return new CategoryTokens(roster, babyCategory.get(), substituted.get());
     }
 
     /**

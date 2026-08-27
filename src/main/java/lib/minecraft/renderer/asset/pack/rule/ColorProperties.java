@@ -9,6 +9,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 
@@ -56,12 +57,10 @@ public record ColorProperties(
             throw new PipelineException(ex, "Failed to read color.properties '%s'", id);
         }
 
-        ConcurrentMap<String, Integer> overrides = Concurrent.newMap();
-        for (String key : props.stringPropertyNames()) {
-            Integer color = parseColor(props.getProperty(key));
-            if (color != null) overrides.put(key, color);
-        }
-        return new ColorProperties(id, pack, overrides);
+        return new ColorProperties(id, pack, props.stringPropertyNames()
+            .stream()
+            .flatMap(key -> parseColor(props.getProperty(key)).stream().map(color -> Map.entry(key, color)))
+            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
     /**
@@ -95,20 +94,20 @@ public record ColorProperties(
 
     /**
      * Parses a hex colour value ({@code 0x} / {@code #} / bare hex), forcing the alpha channel opaque -
-     * {@code color.properties} values carry only RGB. Returns {@code null} for a blank or unparseable
-     * value so the caller skips the key rather than failing the file.
+     * {@code color.properties} values carry only RGB. Empty for a blank or unparseable value, so the
+     * caller skips the key rather than failing the file.
      */
-    private static Integer parseColor(String value) {
-        if (value == null || value.isBlank()) return null;
+    private static @NotNull Optional<Integer> parseColor(String value) {
+        if (value == null || value.isBlank()) return Optional.empty();
         String trimmed = value.trim();
         try {
             if (trimmed.startsWith("0x") || trimmed.startsWith("0X"))
-                return 0xFF000000 | (int) Long.parseLong(trimmed.substring(2), 16);
+                return Optional.of(0xFF000000 | (int) Long.parseLong(trimmed.substring(2), 16));
             if (trimmed.startsWith("#"))
-                return 0xFF000000 | (int) Long.parseLong(trimmed.substring(1), 16);
-            return 0xFF000000 | (int) Long.parseLong(trimmed, 16);
+                return Optional.of(0xFF000000 | (int) Long.parseLong(trimmed.substring(1), 16));
+            return Optional.of(0xFF000000 | (int) Long.parseLong(trimmed, 16));
         } catch (NumberFormatException ignored) {
-            return null;
+            return Optional.empty();
         }
     }
 

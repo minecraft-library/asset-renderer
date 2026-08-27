@@ -1,13 +1,14 @@
 package lib.minecraft.renderer.asset.pack.item;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -33,7 +34,7 @@ public sealed interface ItemModelNode
      * @param model the namespaced model id (e.g. {@code minecraft:item/bow})
      * @param tints the per-layer tint rules, index {@code N} applying to {@code layerN}; empty when untinted
      */
-    record Model(@NotNull String model, @NotNull List<LayerTint> tints) implements ItemModelNode {}
+    record Model(@NotNull String model, @NotNull ConcurrentList<LayerTint> tints) implements ItemModelNode {}
 
     /**
      * A {@code minecraft:condition} node - a boolean property selecting {@link #onTrue} or
@@ -63,7 +64,7 @@ public sealed interface ItemModelNode
      */
     record Select(
         @NotNull String property, @NotNull String blockStateProperty,
-        @NotNull List<Case> cases, @NotNull ItemModelNode fallback
+        @NotNull ConcurrentList<Case> cases, @NotNull ItemModelNode fallback
     ) implements ItemModelNode {
 
         /**
@@ -73,7 +74,7 @@ public sealed interface ItemModelNode
          * @param when the case keys this branch matches (a single string or an array in the JSON)
          * @param model the branch model
          */
-        public record Case(@NotNull List<String> when, @NotNull ItemModelNode model) {}
+        public record Case(@NotNull ConcurrentList<String> when, @NotNull ItemModelNode model) {}
 
     }
 
@@ -91,7 +92,7 @@ public sealed interface ItemModelNode
      */
     record RangeDispatch(
         @NotNull String property, float scale, @NotNull String target, int index,
-        @NotNull List<Entry> entries, @NotNull ItemModelNode fallback
+        @NotNull ConcurrentList<Entry> entries, @NotNull ItemModelNode fallback
     ) implements ItemModelNode {
 
         /**
@@ -112,7 +113,7 @@ public sealed interface ItemModelNode
      *
      * @param models the child nodes, in paint order
      */
-    record Composite(@NotNull List<ItemModelNode> models) implements ItemModelNode {}
+    record Composite(@NotNull ConcurrentList<ItemModelNode> models) implements ItemModelNode {}
 
     /**
      * A {@code minecraft:special} leaf - a hardcoded render kind ({@code bed}, {@code shield},
@@ -134,11 +135,11 @@ public sealed interface ItemModelNode
      */
     record Special(
         @NotNull String kind, @NotNull String base,
-        @NotNull Map<String, String> fields, @NotNull SpecialTransform transform
+        @NotNull ConcurrentMap<String, String> fields, @NotNull SpecialTransform transform
     ) implements ItemModelNode {
 
         /** The special kinds vanilla 26.1 ships, each mapped onto an existing render path. */
-        private static final @NotNull Set<String> KNOWN = Set.of(
+        private static final @NotNull ConcurrentSet<String> KNOWN = Concurrent.newUnmodifiableSet(
             "bed", "chest", "shulker_box", "banner", "conduit", "decorated_pot",
             "shield", "head", "player_head", "copper_golem_statue", "trident");
 
@@ -224,7 +225,7 @@ public sealed interface ItemModelNode
             case Select select -> resolveSelect(select, context);
             case RangeDispatch range -> resolveRange(range, context);
             case Composite composite -> resolveComposite(composite, context);
-            case Special special -> new Resolution(Optional.empty(), List.of(), Optional.of(special));
+            case Special special -> new Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.of(special));
             case Bundle ignored -> Resolution.NOTHING;
             case Empty ignored -> Resolution.NOTHING;
         };
@@ -313,12 +314,13 @@ public sealed interface ItemModelNode
      */
     record Resolution(
         @NotNull Optional<String> modelId,
-        @NotNull List<LayerTint> tints,
+        @NotNull ConcurrentList<LayerTint> tints,
         @NotNull Optional<Special> special
     ) {
 
         /** The empty resolution - a branch that renders nothing. */
-        public static final @NotNull Resolution NOTHING = new Resolution(Optional.empty(), List.of(), Optional.empty());
+        public static final @NotNull Resolution NOTHING =
+            new Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.empty());
 
         /**
          * Whether this resolution renders nothing (neither a model nor a special leaf).

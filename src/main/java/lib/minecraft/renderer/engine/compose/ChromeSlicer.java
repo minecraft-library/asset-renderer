@@ -3,6 +3,7 @@ package lib.minecraft.renderer.engine.compose;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.engine.compose.ChromeDecomposition.Anchor;
@@ -17,11 +18,11 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Takes an authored chrome image apart into repeatable bands and the unique features that break
@@ -110,9 +111,9 @@ public final class ChromeSlicer {
             periodY = derived[5];
         }
 
-        Map<Edge, Band> bands = new EnumMap<>(Edge.class);
-        for (Edge edge : Edge.values())
-            bands.put(edge, bandOf(source, edge, left, top, right, bottom));
+        ConcurrentMap<Edge, Band> bands = Arrays.stream(Edge.values())
+            .collect(Concurrent.toUnmodifiableLinkedMap(
+                edge -> edge, edge -> bandOf(source, edge, left, top, right, bottom)));
 
         Interior interior = classifyInterior(source, left, top, w - right, h - bottom, periodX, periodY);
         if (interior == Interior.SOLID || interior == Interior.STRETCH) {
@@ -121,7 +122,7 @@ public final class ChromeSlicer {
         }
 
         return new ChromeDecomposition(w, h, left, top, right, bottom,
-            Map.copyOf(bands), interior, periodX, periodY, stretchInner);
+            bands, interior, periodX, periodY, stretchInner);
     }
 
     /**
@@ -192,11 +193,12 @@ public final class ChromeSlicer {
         Model model = bestPeriod(strip);
         int[] tile = model.period == 0 ? new int[0] : tileIndices(strip, model);
 
-        ConcurrentList<Feature> features = Concurrent.newList();
-        for (int[] run : model.runs) {
-            int[] anchored = anchorFor(run[0], run[1], n, model.runs);
-            features.add(new Feature(edge, run[0], run[1] - run[0], Anchor.values()[anchored[0]], anchored[1]));
-        }
+        ConcurrentList<Feature> features = model.runs.stream()
+            .map(run -> {
+                int[] anchored = anchorFor(run[0], run[1], n, model.runs);
+                return new Feature(edge, run[0], run[1] - run[0], Anchor.values()[anchored[0]], anchored[1]);
+            })
+            .collect(Concurrent.toUnmodifiableList());
 
         return new Band(edge, n, depth, model.period, tile, features);
     }
@@ -281,14 +283,15 @@ public final class ChromeSlicer {
         int n = strip.length;
         int[][] tile = new int[p][];
         for (int residue = 0; residue < p; residue++) {
-            Map<SliceKey, Integer> counts = new HashMap<>();
-            for (int i = residue; i < n; i += p)
-                counts.merge(new SliceKey(strip[i]), 1, Integer::sum);
-            SliceKey top = counts.entrySet().stream()
+            tile[residue] = IntStream.iterate(residue, i -> i < n, i -> i + p)
+                .mapToObj(i -> new SliceKey(strip[i]))
+                .collect(Collectors.toMap(slice -> slice, slice -> 1, Integer::sum))
+                .entrySet()
+                .stream()
                 .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey)
-                .orElse(new SliceKey(strip[residue]));
-            tile[residue] = top.pixels();
+                .orElse(new SliceKey(strip[residue]))
+                .pixels();
         }
         return tile;
     }

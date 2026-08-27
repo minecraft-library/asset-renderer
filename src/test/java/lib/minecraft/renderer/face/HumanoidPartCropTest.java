@@ -58,11 +58,11 @@ class HumanoidPartCropTest {
         PixelBuffer skin = sheet(64, 64);
 
         for (HumanoidPart part : HumanoidPart.values()) {
-            for (Face face : Face.CACHED_VALUES) {
+            Face.forEach(face -> {
                 int[] expected = origin(part, face, false);
                 assertRegion(part + "." + face + " base", part.crop(skin, face, false),
                     expected[0], expected[1], size(part, face), false);
-            }
+            });
         }
     }
 
@@ -72,11 +72,11 @@ class HumanoidPartCropTest {
         PixelBuffer skin = sheet(64, 64);
 
         for (HumanoidPart part : HumanoidPart.values()) {
-            for (Face face : Face.CACHED_VALUES) {
+            Face.forEach(face -> {
                 int[] expected = origin(part, face, true);
                 assertRegion(part + "." + face + " overlay", part.crop(skin, face, true),
                     expected[0], expected[1], size(part, face), false);
-            }
+            });
         }
     }
 
@@ -86,11 +86,11 @@ class HumanoidPartCropTest {
         PixelBuffer atlas = sheet(64, 32);
 
         for (HumanoidPart part : new HumanoidPart[]{ HumanoidPart.HEAD, HumanoidPart.TORSO, HumanoidPart.RIGHT_ARM, HumanoidPart.RIGHT_LEG }) {
-            for (Face face : Face.CACHED_VALUES) {
+            Face.forEach(face -> {
                 int[] expected = origin(part, face, false);
                 assertRegion(part + "." + face + " on 64x32", part.crop(atlas, face, false),
                     expected[0], expected[1], size(part, face), false);
-            }
+            });
         }
     }
 
@@ -111,11 +111,11 @@ class HumanoidPartCropTest {
     void overlaysOn64x32() {
         PixelBuffer atlas = sheet(64, 32);
 
-        for (Face face : Face.CACHED_VALUES) {
+        Face.forEach(face -> {
             int[] expected = origin(HumanoidPart.HEAD, face, true);
             assertRegion("HEAD." + face + " overlay on 64x32", HumanoidPart.HEAD.crop(atlas, face, true),
                 expected[0], expected[1], size(HumanoidPart.HEAD, face), false);
-        }
+        });
 
         // The overlay layer never takes the fallback, so a region past the bottom edge reads as
         // transparent rather than as the mirrored right limb.
@@ -130,11 +130,11 @@ class HumanoidPartCropTest {
 
         // On a full skin the left limbs keep their own regions - the fallback is a property of the
         // sheet, not of the part.
-        for (Face face : Face.CACHED_VALUES) {
+        Face.forEach(face -> {
             int[] own = origin(HumanoidPart.LEFT_ARM, face, false);
             assertRegion("LEFT_ARM." + face + " on 64x64", HumanoidPart.LEFT_ARM.crop(skin, face, false),
                 own[0], own[1], size(HumanoidPart.LEFT_ARM, face), false);
-        }
+        });
     }
 
     // ------------------------------------------------------------------------------------------
@@ -148,11 +148,11 @@ class HumanoidPartCropTest {
     private static void assertMirroredLimb(HumanoidPart left, HumanoidPart right) {
         PixelBuffer atlas = sheet(64, 32);
 
-        for (Face face : Face.CACHED_VALUES) {
+        Face.forEach(face -> {
             int[] source = origin(right, sagittal(face), false);
             assertRegion(left + "." + face + " on 64x32", left.crop(atlas, face, false),
                 source[0], source[1], size(left, face), true);
-        }
+        });
     }
 
     /** The face a sagittal-plane mirror reads through - the two sides trade, the other four stay. */

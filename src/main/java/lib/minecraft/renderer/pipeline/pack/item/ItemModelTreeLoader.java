@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.pack.item;
 import com.google.gson.Gson;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.JsonTree;
@@ -18,7 +19,6 @@ import lib.minecraft.renderer.pipeline.pack.PackSubtree;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -146,7 +146,8 @@ public class ItemModelTreeLoader {
         }
         ItemModelNode fallback = existing != null
             ? existing.root()
-            : new ItemModelNode.Model(VanillaSourcePaths.modelIdPrefix(namespace, VanillaSourcePaths.ITEM_KIND) + stem, List.of());
+            : new ItemModelNode.Model(VanillaSourcePaths.modelIdPrefix(namespace, VanillaSourcePaths.ITEM_KIND) + stem,
+                Concurrent.newUnmodifiableList());
 
         try {
             JsonTree json = JsonTree.parse(entry.container().bytes(entry.entryPath()).orElseThrow());
@@ -175,12 +176,11 @@ public class ItemModelTreeLoader {
      * @return the item-to-block-model mapping for block items
      */
     public static @NotNull ConcurrentMap<String, String> deriveBlockItemModels(@NotNull Map<String, ItemModelTree> trees) {
-        HashMap<String, String> models = new HashMap<>();
-        trees.forEach((itemId, tree) -> {
-            if (tree.root() instanceof ItemModelNode.Model model && VanillaSourcePaths.isBlockModelRef(model.model()))
-                models.put(itemId, model.model());
-        });
-        return Concurrent.adoptMap(models).toUnmodifiable();
+        return trees.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().root() instanceof ItemModelNode.Model model && VanillaSourcePaths.isBlockModelRef(model.model()))
+            .collect(Concurrent.toUnmodifiableMap(
+                Map.Entry::getKey, entry -> ((ItemModelNode.Model) entry.getValue().root()).model()));
     }
 
     /**
@@ -191,14 +191,14 @@ public class ItemModelTreeLoader {
      * @param trees the merged item-definition trees
      * @return the item-to-tint-list mapping for tinted items
      */
-    public static @NotNull ConcurrentMap<String, List<LayerTint>> deriveTints(@NotNull Map<String, ItemModelTree> trees) {
-        HashMap<String, List<LayerTint>> tintMap = new HashMap<>();
+    public static @NotNull ConcurrentMap<String, ConcurrentList<LayerTint>> deriveTints(@NotNull Map<String, ItemModelTree> trees) {
         ItemModelContext neutral = ItemModelContext.gui();
-        trees.forEach((itemId, tree) -> {
-            List<LayerTint> tints = tree.resolve(neutral).tints();
-            if (!tints.isEmpty()) tintMap.put(itemId, tints);
-        });
-        return Concurrent.adoptMap(tintMap).toUnmodifiable();
+        return trees.entrySet()
+            .stream()
+            .map(entry -> Map.entry(entry.getKey(), entry.getValue().resolve(neutral).tints()))
+            .filter(entry -> !entry.getValue().isEmpty())
+            .collect(Concurrent.toUnmodifiableMap(
+                Map.Entry::getKey, entry -> Concurrent.newUnmodifiableList(entry.getValue())));
     }
 
 }

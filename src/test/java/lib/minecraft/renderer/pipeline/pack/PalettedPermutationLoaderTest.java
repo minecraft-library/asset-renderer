@@ -82,7 +82,8 @@ class PalettedPermutationLoaderTest {
 
     private static ResourcePack pack(PackId id, Path root, Set<String> namespaces) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), namespaces, Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableSet(namespaces),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
     }
 
     private static void write(Path path, String content) throws IOException {

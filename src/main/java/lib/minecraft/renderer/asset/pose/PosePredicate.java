@@ -1,7 +1,11 @@
 package lib.minecraft.renderer.asset.pose;
 
+import dev.simplified.annotations.EnumLookup;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * What decides between the two arms of a {@link PoseExpr.Select} - a numeric comparison, and only
@@ -27,6 +31,9 @@ public record PosePredicate(
 ) {
 
     /** How two numbers are compared. */
+    @EnumLookup
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     public enum Comparison {
 
         /** Equal. */
@@ -47,20 +54,9 @@ public record PosePredicate(
         /** Greater or equal. */
         GE("ge");
 
+        /** The lower-case token this comparison is spelled with in the shipped table. */
+        @KeyField
         private final @NotNull String token;
-
-        Comparison(@NotNull String token) {
-            this.token = token;
-        }
-
-        /**
-         * The token this comparison is spelled with in the shipped table.
-         *
-         * @return the lower-case token
-         */
-        public @NotNull String token() {
-            return this.token;
-        }
 
         /**
          * Applies this comparison.
@@ -78,18 +74,6 @@ public record PosePredicate(
                 case GT -> left > right;
                 case GE -> left >= right;
             };
-        }
-
-        /**
-         * Resolves the comparison a token names.
-         *
-         * @param token the token to resolve
-         * @return the comparison, or {@code null} when no comparison is spelled that way
-         */
-        public static @Nullable Comparison ofToken(@NotNull String token) {
-            for (Comparison comparison : values())
-                if (comparison.token.equals(token)) return comparison;
-            return null;
         }
 
     }

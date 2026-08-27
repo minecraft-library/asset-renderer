@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.index;
 
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
@@ -28,7 +29,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -65,7 +65,7 @@ class IndexTemplateFilterTest {
     private static ConcurrentMap<String, BlockTag> blockTags;
 
     // The explicit item-index loader inputs.
-    private static ConcurrentMap<String, List<LayerTint>> itemTints;
+    private static ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints;
     private static Set<String> glintItems;
     private static ConcurrentMap<String, ModelData> itemModels;
     private static ConcurrentMap<String, ItemModelTree> itemTrees;

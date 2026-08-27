@@ -12,7 +12,6 @@ import lib.minecraft.renderer.client.VanillaSourcePaths;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,13 +51,10 @@ public class TextureIndexer {
         // The shared walk enumerates and filters serially, then the row build - which reads the PNG's
         // whole .mcmeta sidecar - parallelises across the FJP common pool. map() preserves encounter
         // order, so the sequential merge still sees later roots and later packs last, and winning.
-        List<ResolvedTexture> rows = PackSubtree.walk(stack, TEXTURES).parallelStream()
+        return PackSubtree.walk(stack, TEXTURES)
+            .parallelStream()
             .map(TextureIndexer::buildRow)
-            .toList();
-
-        LinkedHashMap<ResourceId, ResolvedTexture> merged = new LinkedHashMap<>();
-        for (ResolvedTexture row : rows) merged.put(row.id(), row);
-        return Concurrent.adoptMap(merged).toUnmodifiable();
+            .collect(Concurrent.toUnmodifiableLinkedMap(ResolvedTexture::id, row -> row, (lower, higher) -> higher));
     }
 
     /** Builds one index row: namespaced id, winning root-prefixed container path, whole sidecar. */

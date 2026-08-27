@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -48,7 +50,7 @@ public class BoneKit {
      * @param bones the model's bones keyed by name
      * @return each bone's ancestor-anchor chain matrix keyed by bone name
      */
-    public static @NotNull Map<String, Matrix4f> buildChainTransforms(
+    public static @NotNull ConcurrentMap<String, Matrix4f> buildChainTransforms(
         @NotNull Map<String, EntityModelData.Bone> bones
     ) {
         return buildChainTransformsFrom(Matrix4f.IDENTITY, bones);
@@ -66,14 +68,16 @@ public class BoneKit {
      * @param bones the model's bones keyed by name
      * @return each bone's ancestor-anchor chain matrix keyed by bone name
      */
-    public static @NotNull Map<String, Matrix4f> buildChainTransformsFrom(
+    public static @NotNull ConcurrentMap<String, Matrix4f> buildChainTransformsFrom(
         @NotNull Matrix4f base,
         @NotNull Map<String, EntityModelData.Bone> bones
     ) {
-        Map<String, Matrix4f> cache = new HashMap<>();
+        // The recursion memoizes into the cache and reads it back, so the walk fills a plain map and
+        // the concurrent surface is adopted over it rather than collected into.
+        HashMap<String, Matrix4f> cache = new HashMap<>();
         for (String name : bones.keySet())
             resolveChainFrom(name, bones, cache, new LinkedHashSet<>(), base);
-        return cache;
+        return Concurrent.adoptMap(cache);
     }
 
     /**
@@ -186,24 +190,6 @@ public class BoneKit {
     private static boolean isZero(@NotNull EulerRotation r) {
         return r.pitch() == 0f && r.yaw() == 0f && r.roll() == 0f;
     }
-
-    /**
-     * Returns {@code base * T(pivot) * R} - vanilla's bone-level PoseStack shape (no un-translate).
-     * Matches {@code pose.translate(pivot); pose.mulPose(quat)} bit-for-bit.
-     * <p>
-     * Used for the bone hierarchy chain where cube origins are stored in BONE-LOCAL coordinates
-     * (relative to the bone's own pivot, matching vanilla {@code ModelPart.Cube}'s
-     * {@code posX1..posZ2} bone-local fields). The pre-translate by bone pivot happens once inside
-     * this method (the fluent {@code .translate(p)} call). The rotation is built from a
-     * {@link Quaternionf#rotationZYX} quaternion so the result is bit-identical to vanilla's
-     * {@code mulPose(new Quaternionf().rotationZYX(zRot, yRot, xRot))} (pitch X first, then yaw Y,
-     * then roll Z), with no negation since the frame is vanilla Java's native Y-down.
-     *
-     * @param base the chain matrix to post-multiply onto
-     * @param pivot the bone pivot in the parent frame (skipped when zero)
-     * @param rotation the bone rotation (skipped when identity)
-     * @return {@code base * T(pivot) * R}, or {@code base} unchanged when both are trivial
-     */
     /**
      * The bone's own step of the chain: its pivot, its rotation, then what a clip scales it by.
      *
@@ -229,6 +215,23 @@ public class BoneKit {
         return chain.scale(scale.x(), scale.y(), scale.z());
     }
 
+    /**
+     * Returns {@code base * T(pivot) * R} - vanilla's bone-level PoseStack shape (no un-translate).
+     * Matches {@code pose.translate(pivot); pose.mulPose(quat)} bit-for-bit.
+     * <p>
+     * Used for the bone hierarchy chain where cube origins are stored in BONE-LOCAL coordinates
+     * (relative to the bone's own pivot, matching vanilla {@code ModelPart.Cube}'s
+     * {@code posX1..posZ2} bone-local fields). The pre-translate by bone pivot happens once inside
+     * this method (the fluent {@code .translate(p)} call). The rotation is built from a
+     * {@link Quaternionf#rotationZYX} quaternion so the result is bit-identical to vanilla's
+     * {@code mulPose(new Quaternionf().rotationZYX(zRot, yRot, xRot))} (pitch X first, then yaw Y,
+     * then roll Z), with no negation since the frame is vanilla Java's native Y-down.
+     *
+     * @param base the chain matrix to post-multiply onto
+     * @param pivot the bone pivot in the parent frame (skipped when zero)
+     * @param rotation the bone rotation (skipped when identity)
+     * @return {@code base * T(pivot) * R}, or {@code base} unchanged when both are trivial
+     */
     private static @NotNull Matrix4f applyBoneRotation(
         @NotNull Matrix4f base,
         @NotNull Vector3f pivot,

@@ -1,7 +1,11 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import dev.simplified.annotations.EnumLookup;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * The eleven {@code ModelPart} members a {@code setupAnim} body can write, and the token each is
@@ -17,6 +21,9 @@ import org.jetbrains.annotations.Nullable;
  * field is what a {@code putfield} names and the token is what the table spells, and the tables
  * here have always written multi-word names in snake case.
  */
+@EnumLookup
+@Getter(style = NamingStyle.FLUENT)
+@RequiredArgsConstructor
 public enum PoseChannel {
 
     /** Sideways offset of the bone's pivot, in model pixels. */
@@ -69,42 +76,15 @@ public enum PoseChannel {
 
     }
 
+    /** The vanilla {@code ModelPart} field name a {@code putfield} on this channel names. */
+    @KeyField
     private final @NotNull String field;
+
+    /** The token this channel is spelled with in the shipped table. */
     private final @NotNull String token;
+
+    /** What this channel accumulates. */
     private final @NotNull Kind kind;
-
-    PoseChannel(@NotNull String field, @NotNull String token, @NotNull Kind kind) {
-        this.field = field;
-        this.token = token;
-        this.kind = kind;
-    }
-
-    /**
-     * The vanilla {@code ModelPart} field name a {@code putfield} on this channel names.
-     *
-     * @return the field name
-     */
-    public @NotNull String field() {
-        return this.field;
-    }
-
-    /**
-     * The token this channel is spelled with in the shipped table.
-     *
-     * @return the snake-case token
-     */
-    public @NotNull String token() {
-        return this.token;
-    }
-
-    /**
-     * What this channel accumulates.
-     *
-     * @return the channel kind
-     */
-    public @NotNull Kind kind() {
-        return this.kind;
-    }
 
     /**
      * Whether this channel carries a boolean rather than a float.
@@ -113,18 +93,6 @@ public enum PoseChannel {
      */
     public boolean isFlag() {
         return this.kind == Kind.FLAG;
-    }
-
-    /**
-     * Resolves the channel a vanilla {@code ModelPart} field name refers to.
-     *
-     * @param field the field name a {@code putfield} or {@code getfield} names
-     * @return the channel, or {@code null} when the field is not one a pose writes
-     */
-    public static @Nullable PoseChannel ofField(@NotNull String field) {
-        for (PoseChannel channel : values())
-            if (channel.field.equals(field)) return channel;
-        return null;
     }
 
 }

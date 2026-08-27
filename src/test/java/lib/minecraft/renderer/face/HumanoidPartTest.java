@@ -100,11 +100,11 @@ class HumanoidPartTest {
     @Test
     @DisplayName("five of the six parts are twelve pixels tall, which is the span the rule was written for")
     void everyLimbAndTheTorsoAreTwelvePixelsTall() {
-        for (HumanoidPart part : HumanoidPart.CACHED_VALUES) {
+        HumanoidPart.forEach(part -> {
             int[] expected = PIXEL_SPANS[part.ordinal()];
             assertThat(part + " pixel width", part.pixelWidth(), is(expected[0]));
             assertThat(part + " pixel height", part.pixelHeight(), is(expected[1]));
-        }
+        });
 
         assertThat("only the head departs from a 12-pixel height", HumanoidPart.HEAD.pixelHeight(), is(8));
     }
@@ -112,7 +112,7 @@ class HumanoidPartTest {
     @Test
     @DisplayName("box seats every endpoint of every part on the exact float its own pixel offset spells")
     void boxSeatsEveryEndpointOnItsOwnPixelOffset() {
-        for (HumanoidPart part : HumanoidPart.CACHED_VALUES) {
+        HumanoidPart.forEach(part -> {
             float[] expected = BODY_LATTICE[part.ordinal()];
             Box box = part.box(BODY_SCALE);
 
@@ -122,13 +122,13 @@ class HumanoidPartTest {
             assertThat(part + " maxX", box.maxX(), equalTo(expected[3]));
             assertThat(part + " maxY", box.maxY(), equalTo(expected[4]));
             assertThat(part + " maxZ", box.maxZ(), equalTo(expected[5]));
-        }
+        });
     }
 
     @Test
     @DisplayName("box does not add a scaled extent to an origin - five upper Y endpoints move by a bit if it does")
     void boxNeverAddsAScaledExtentToAnOrigin() {
-        for (HumanoidPart part : HumanoidPart.CACHED_VALUES) {
+        HumanoidPart.forEach(part -> {
             Box box = part.box(BODY_SCALE);
             float naiveY = part.minPixelY() * BODY_SCALE + part.pixelHeight() * BODY_SCALE;
             float naiveX = part.minPixelX() * BODY_SCALE + part.pixelWidth() * BODY_SCALE;
@@ -143,7 +143,7 @@ class HumanoidPartTest {
             } else {
                 assertThat(part + " maxY agrees at 8 pixels", naiveY, equalTo(box.maxY()));
             }
-        }
+        });
     }
 
     @Test
@@ -188,21 +188,21 @@ class HumanoidPartTest {
         assertThat("the gap is exactly one ULP", Math.nextUp(half), equalTo(0.18f));
 
         // Every 12-pixel part lands on that same half, the torso and the four limbs alike.
-        for (HumanoidPart part : HumanoidPart.CACHED_VALUES)
-            if (part.pixelHeight() == 12)
-                assertThat(part + " half height", part.centred(BODY_SCALE).maxY(), equalTo(half));
+        HumanoidPart.stream()
+            .filter(part -> part.pixelHeight() == 12)
+            .forEach(part -> assertThat(part + " half height", part.centred(BODY_SCALE).maxY(), equalTo(half)));
     }
 
     @Test
     @DisplayName("centred is symmetric about the origin on all three axes")
     void centredIsSymmetricAboutTheOrigin() {
-        for (HumanoidPart part : HumanoidPart.CACHED_VALUES) {
+        HumanoidPart.forEach(part -> {
             Box centred = part.centred(BODY_SCALE);
 
             assertThat(part + " X", centred.minX(), equalTo(-centred.maxX()));
             assertThat(part + " Y", centred.minY(), equalTo(-centred.maxY()));
             assertThat(part + " Z", centred.minZ(), equalTo(-centred.maxZ()));
-        }
+        });
     }
 
     @Test
@@ -211,14 +211,14 @@ class HumanoidPartTest {
         // Measured at the shipped body scale over the six shipped parts - centring moves both
         // endpoints of every axis and still reports the same extent, so a fit measured off either box
         // sizes the part identically.
-        for (HumanoidPart part : HumanoidPart.CACHED_VALUES) {
+        HumanoidPart.forEach(part -> {
             Box seated = part.box(BODY_SCALE);
             Box centred = part.centred(BODY_SCALE);
 
             assertThat(part + " X extent", centred.maxX() - centred.minX(), equalTo(seated.maxX() - seated.minX()));
             assertThat(part + " Y extent", centred.maxY() - centred.minY(), equalTo(seated.maxY() - seated.minY()));
             assertThat(part + " Z extent", centred.maxZ() - centred.minZ(), equalTo(seated.maxZ() - seated.minZ()));
-        }
+        });
     }
 
     @Test

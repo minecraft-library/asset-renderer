@@ -1,11 +1,12 @@
 package lib.minecraft.renderer.asset.appearance;
 
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.option.AppearanceOptions;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 
@@ -22,6 +23,7 @@ import java.util.Optional;
  * dye axes. A new texture-driven dimension is one enum constant here plus its {@code texture_by}
  * emission in the tooling.
  */
+@EnumLookup
 @Getter(style = NamingStyle.FLUENT)
 @RequiredArgsConstructor
 public enum TextureAxis {
@@ -118,6 +120,7 @@ public enum TextureAxis {
     private static final @NotNull String BABY_ROBE_SEGMENT = "/baby/";
 
     /** The {@code texture_by} token this axis is named by in the model form (e.g. {@code "pattern"}). */
+    @KeyField
     private final @NotNull String token;
 
     /**
@@ -133,23 +136,5 @@ public enum TextureAxis {
      */
     public abstract @NotNull Optional<String> resolve(@NotNull AppearanceOptions appearance,
         @NotNull String texturePrefix, @NotNull Optional<String> rowTexture);
-
-    /**
-     * Resolves a {@code texture_by} token to its axis.
-     *
-     * @param token the {@code texture_by} token from an overlay
-     * @return the matching axis, or empty when no axis owns the token
-     */
-    public static @NotNull Optional<TextureAxis> ofToken(@Nullable String token) {
-        if (token == null)
-            return Optional.empty();
-
-        for (TextureAxis axis : values()) {
-            if (axis.token.equals(token))
-                return Optional.of(axis);
-        }
-
-        return Optional.empty();
-    }
 
 }

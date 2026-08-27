@@ -1,10 +1,11 @@
 package lib.minecraft.renderer.asset.equipment;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -16,14 +17,14 @@ import java.util.Optional;
  *
  * @param layers the render layers per layer type, in back-to-front composite order within each type
  */
-public record EquipmentModel(@NotNull Map<LayerType, List<Layer>> layers) {
+public record EquipmentModel(@NotNull ConcurrentMap<LayerType, ConcurrentList<Layer>> layers) {
 
     /**
      * The absent-asset sentinel: zero layers for every layer type, so an unresolvable asset id
      * resolves to nothing rather than a load failure (matching the no-missing-texture-fallback
      * contract).
      */
-    public static final @NotNull EquipmentModel MISSING = new EquipmentModel(Map.of());
+    public static final @NotNull EquipmentModel MISSING = new EquipmentModel(Concurrent.newUnmodifiableMap());
 
     /**
      * Returns the ordered render layers for a layer type, an empty list when this model declares none.
@@ -31,8 +32,8 @@ public record EquipmentModel(@NotNull Map<LayerType, List<Layer>> layers) {
      * @param type the layer type to look up
      * @return the layers for {@code type}, or an empty list
      */
-    public @NotNull List<Layer> getLayers(@NotNull LayerType type) {
-        return this.layers.getOrDefault(type, List.of());
+    public @NotNull ConcurrentList<Layer> getLayers(@NotNull LayerType type) {
+        return this.layers.getOrDefault(type, Concurrent.newUnmodifiableList());
     }
 
     /**

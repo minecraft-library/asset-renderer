@@ -23,7 +23,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -133,7 +132,8 @@ class RuleScannerMergeTest {
         writeCit(PackId.VANILLA, "z.properties", "items=diamond_sword\ntexture=z");
         ResourcePack vanillaOnly = new ResourcePack(PackId.VANILLA,
             new PackContainer.Directory(this.tmp.resolve(PackId.VANILLA.value())), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableTreeSet("minecraft"),
+            Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE));
 
         RuleSet scanned = RuleScanner.scan(vanillaOnly);
         assertThat(scanned.citRules().isEmpty(), is(true));
@@ -154,7 +154,8 @@ class RuleScannerMergeTest {
         Path root = this.tmp.resolve(id.value());
         Files.createDirectories(root);
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES));
+            Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableTreeSet("minecraft"),
+            Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES));
     }
 
     private void writeCit(@NotNull PackId id, @NotNull String name, @NotNull String content) throws IOException {

@@ -1,8 +1,15 @@
 package lib.minecraft.renderer.asset.pose;
 
+import dev.simplified.annotations.EnumLookup;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -50,15 +57,15 @@ import java.util.Optional;
  * @param refusal why there is no pose here, or empty when the rest is the whole answer
  */
 public record EntityPose(
-    @NotNull List<Map<PoseChannel, PoseExpr>> container,
-    @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
-    @NotNull List<Clip> clips,
+    @NotNull ConcurrentList<Map<PoseChannel, PoseExpr>> container,
+    @NotNull ConcurrentMap<String, Map<PoseChannel, PoseExpr>> bones,
+    @NotNull ConcurrentList<Clip> clips,
     @NotNull Optional<String> refusal
 ) {
 
     /** The pose of a model that poses nothing, which is a real answer rather than a missing one. */
-    public static final @NotNull EntityPose NONE =
-        new EntityPose(List.of(), Map.of(), List.of(), Optional.empty());
+    public static final @NotNull EntityPose NONE = new EntityPose(Concurrent.newUnmodifiableList(),
+        Concurrent.newUnmodifiableMap(Map.of()), Concurrent.newUnmodifiableList(), Optional.empty());
 
     /**
      * One authored clip this model plays, and what it plays it at.
@@ -79,11 +86,14 @@ public record EntityPose(
     public record Clip(
         @NotNull String coordinate,
         @NotNull Gate gate,
-        @NotNull List<PoseExpr> arguments,
+        @NotNull ConcurrentList<PoseExpr> arguments,
         @NotNull PoseClip clip
     ) {}
 
     /** What drives a clip, which decides what its own time axis is read from. */
+    @EnumLookup
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     public enum Gate {
 
         /** Driven by the walk inputs, at the rate and amplitude the arguments carry. */
@@ -95,32 +105,9 @@ public record EntityPose(
         /** Held at its first frame, unconditionally. */
         STATIC("static");
 
+        /** The lower-case token this drive is spelled with in the shipped table. */
+        @KeyField
         private final @NotNull String token;
-
-        Gate(@NotNull String token) {
-            this.token = token;
-        }
-
-        /**
-         * The token this drive is spelled with in the shipped table.
-         *
-         * @return the lower-case token
-         */
-        public @NotNull String token() {
-            return this.token;
-        }
-
-        /**
-         * Resolves the drive a token names.
-         *
-         * @param token the token to resolve
-         * @return the drive, or empty when no drive is spelled that way
-         */
-        public static @NotNull Optional<Gate> ofToken(@NotNull String token) {
-            for (Gate gate : values())
-                if (gate.token.equals(token)) return Optional.of(gate);
-            return Optional.empty();
-        }
 
     }
 

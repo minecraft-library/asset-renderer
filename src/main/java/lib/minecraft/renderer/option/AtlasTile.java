@@ -1,5 +1,9 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.EnumLookup;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
+import dev.simplified.annotations.NamingStyle;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.FluidRenderer;
@@ -12,12 +16,7 @@ import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Arrays;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * One row of an {@link AtlasSidecar}: the subject a tile was rendered from, how that tile was
@@ -55,9 +54,11 @@ public record AtlasTile(
 ) {
 
     /**
-     * Kind tag emitted alongside each tile in the sidecar JSON. Serialised via {@link #jsonName()}
+     * Kind tag emitted alongside each tile in the sidecar JSON. Serialised via {@link #jsonName}
      * so the on-disk format stays lowercase ({@code "block"} / {@code "item"}).
      */
+    @EnumLookup
+    @Getter(style = NamingStyle.FLUENT)
     public enum Kind {
 
         /**
@@ -69,27 +70,12 @@ public record AtlasTile(
          */
         ITEM;
 
-        private static final @NotNull Map<String, Kind> BY_JSON_NAME =
-            Arrays.stream(values()).collect(Collectors.toUnmodifiableMap(Kind::jsonName, Function.identity()));
-
         /**
-         * Resolves the kind a serialised token names, empty when the token names no kind.
-         *
-         * @param jsonName the lowercase token read from a sidecar row
-         * @return the matching kind, or empty for an unknown token
+         * Lowercase kind name used in the sidecar JSON schema, derived once at class-load time from
+         * {@link #name()}.
          */
-        public static @NotNull Optional<Kind> fromJsonName(@NotNull String jsonName) {
-            return Optional.ofNullable(BY_JSON_NAME.get(jsonName));
-        }
-
-        /**
-         * Derives the lowercase kind name used in the sidecar JSON schema.
-         *
-         * @return the lowercase kind name
-         */
-        public @NotNull String jsonName() {
-            return this.name().toLowerCase(Locale.ROOT);
-        }
+        @KeyField
+        private final @NotNull String jsonName = this.name().toLowerCase(Locale.ROOT);
 
     }
 
@@ -118,6 +104,8 @@ public record AtlasTile(
      * <p>Distinct from {@link AtlasOptions.Source}, which selects the model kinds an atlas render
      * covers: this one records where an emitted tile came from.
      */
+    @EnumLookup
+    @Getter(style = NamingStyle.FLUENT)
     public enum Source {
 
         /**
@@ -145,27 +133,12 @@ public record AtlasTile(
          */
         ITEM_MODEL;
 
-        private static final @NotNull Map<String, Source> BY_JSON_NAME =
-            Arrays.stream(values()).collect(Collectors.toUnmodifiableMap(Source::jsonName, Function.identity()));
-
         /**
-         * Resolves the source a serialised token names, empty when the token names no source.
-         *
-         * @param jsonName the lowercase token read from a sidecar row
-         * @return the matching source, or empty for an unknown token
+         * Lowercase source name used in the sidecar JSON schema, derived once at class-load time
+         * from {@link #name()}.
          */
-        public static @NotNull Optional<Source> fromJsonName(@NotNull String jsonName) {
-            return Optional.ofNullable(BY_JSON_NAME.get(jsonName));
-        }
-
-        /**
-         * Derives the lowercase source name used in the sidecar JSON schema.
-         *
-         * @return the lowercase source name
-         */
-        public @NotNull String jsonName() {
-            return this.name().toLowerCase(Locale.ROOT);
-        }
+        @KeyField
+        private final @NotNull String jsonName = this.name().toLowerCase(Locale.ROOT);
 
     }
 

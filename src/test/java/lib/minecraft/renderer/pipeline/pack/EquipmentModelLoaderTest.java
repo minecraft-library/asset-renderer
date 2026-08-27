@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
@@ -20,7 +21,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -151,8 +151,8 @@ class EquipmentModelLoaderTest {
             {"layers":{"humanoid":[{"texture":"minecraft:custom_iron"}]}}""");
 
         PackStack stack = PackStack.of(Concurrent.newList(
-            pack(PackId.VANILLA, van, Set.of("minecraft")),
-            pack(new PackId("userpack"), user, Set.of("minecraft"))));
+            pack(PackId.VANILLA, van, Concurrent.newUnmodifiableSet("minecraft")),
+            pack(new PackId("userpack"), user, Concurrent.newUnmodifiableSet("minecraft"))));
 
         EquipmentModel.Layer layer = EquipmentModelLoader.load(stack)
             .get(new ResourceId("minecraft", "iron")).getLayers(LayerType.HUMANOID).getFirst();
@@ -160,12 +160,13 @@ class EquipmentModelLoaderTest {
     }
 
     private static Map<ResourceId, EquipmentModel> load(Path vanillaRoot) {
-        return EquipmentModelLoader.load(PackStack.of(Concurrent.newList(pack(PackId.VANILLA, vanillaRoot, Set.of("minecraft")))));
+        return EquipmentModelLoader.load(PackStack.of(Concurrent.newList(pack(PackId.VANILLA, vanillaRoot, Concurrent.newUnmodifiableSet("minecraft")))));
     }
 
-    private static ResourcePack pack(PackId id, Path root, Set<String> namespaces) {
+    private static ResourcePack pack(PackId id, Path root, ConcurrentSet<String> namespaces) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), namespaces, Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), namespaces,
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
     }
 
     private static void write(Path path, String content) throws IOException {

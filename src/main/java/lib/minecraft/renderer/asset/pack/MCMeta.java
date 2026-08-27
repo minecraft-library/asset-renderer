@@ -121,12 +121,11 @@ public record MCMeta(
         Optional<JsonTree> block = filter.get().findArray("block");
         if (block.isEmpty()) return Concurrent.newList();
 
-        ArrayList<Filter> parsed = new ArrayList<>();
-        for (JsonTree entry : block.get().elements().toList()) {
-            if (!entry.isObject()) continue;
-            parsed.add(new Filter(compile(entry, "namespace", packId), compile(entry, "path", packId)));
-        }
-        return Concurrent.adoptList(parsed).toUnmodifiable();
+        return block.get()
+            .elements()
+            .filter(JsonTree::isObject)
+            .map(entry -> new Filter(compile(entry, "namespace", packId), compile(entry, "path", packId)))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     private static @NotNull Optional<Pattern> compile(@NotNull JsonTree obj, @NotNull String key, @NotNull String packId) {
@@ -152,17 +151,12 @@ public record MCMeta(
     }
 
     private static @NotNull ConcurrentList<Frame> parseFrames(@NotNull JsonTree elements) {
-        ArrayList<Frame> frames = new ArrayList<>(elements.size());
-        for (JsonTree element : elements.elements().toList()) {
-            if (element.asInt().isPresent())
-                frames.add(new Frame(element.asInt().get(), -1));
-            else if (element.isObject()) {
-                int index = element.getInt("index", 0);
-                int time = element.getInt("time", -1);
-                frames.add(new Frame(index, time));
-            }
-        }
-        return Concurrent.adoptList(frames).toUnmodifiable();
+        return elements.elements()
+            .filter(element -> element.asInt().isPresent() || element.isObject())
+            .map(element -> element.asInt()
+                .map(index -> new Frame(index, -1))
+                .orElseGet(() -> new Frame(element.getInt("index", 0), element.getInt("time", -1))))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     private static @NotNull Optional<TextureFlags> readTexture(@NotNull JsonTree root) {

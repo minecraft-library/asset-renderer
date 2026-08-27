@@ -15,7 +15,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -58,23 +57,26 @@ public class PalettedPermutationLoader {
      * @return the ordered paletted-permutation sources (lower packs first)
      */
     public static @NotNull ConcurrentList<PalettedPermutationSource> load(@NotNull PackStack stack) {
-        ArrayList<PalettedPermutationSource> sources = new ArrayList<>();
-        for (PackSubtree.Entry entry : PackSubtree.walk(stack, ATLASES))
-            parseAtlas(entry.container(), entry.entryPath(), sources);
-        return Concurrent.adoptList(sources).toUnmodifiable();
+        return PackSubtree.walk(stack, ATLASES)
+            .stream()
+            .flatMap(entry -> parseAtlas(entry.container(), entry.entryPath()).stream())
+            .collect(Concurrent.toWideUnmodifiableList());
     }
 
-    /** Parses one atlas file, appending each {@code paletted_permutations} source it declares. */
-    private static void parseAtlas(@NotNull PackContainer container, @NotNull String entry, @NotNull List<PalettedPermutationSource> out) {
+    /** The {@code paletted_permutations} sources one atlas file declares, empty when it is malformed. */
+    private static @NotNull List<PalettedPermutationSource> parseAtlas(@NotNull PackContainer container, @NotNull String entry) {
         try {
             AtlasFile atlas = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), AtlasFile.class);
-            if (atlas == null || atlas.sources() == null) return;
-            for (SourceDto source : atlas.sources()) {
-                if (source == null || !PALETTED_PERMUTATIONS_TYPE.equals(source.type())) continue;
-                parseSource(source).ifPresent(out::add);
-            }
+            if (atlas == null || atlas.sources() == null) return List.of();
+            return atlas.sources()
+                .stream()
+                .filter(source -> source != null && PALETTED_PERMUTATIONS_TYPE.equals(source.type()))
+                .map(PalettedPermutationLoader::parseSource)
+                .flatMap(Optional::stream)
+                .toList();
         } catch (JsonSyntaxException ex) {
             System.err.printf("Skipping malformed atlas '%s': %s%n", entry, ex.getMessage());
+            return List.of();
         }
     }
 

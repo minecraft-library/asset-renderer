@@ -57,7 +57,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -396,7 +395,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         PixelBuffer skin = resolveSkin(parent, options);
         int size = options.getOutput().getCanvasSize();
 
-        List<BodyPart2D> parts = options.getType().layout2D(size);
+        ConcurrentList<BodyPart2D> parts = options.getType().layout2D(size);
 
         boolean overlay = options.getSkin().isRenderOverlay();
         boolean enchanted = options.getArmor().hasEnchanted();
@@ -448,7 +447,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static void compositeArmor2D(
         @NotNull PixelBuffer target,
-        @NotNull List<BodyPart2D> parts,
+        @NotNull ConcurrentList<BodyPart2D> parts,
         @NotNull PlayerOptions options,
         @NotNull RendererContext context
     ) {

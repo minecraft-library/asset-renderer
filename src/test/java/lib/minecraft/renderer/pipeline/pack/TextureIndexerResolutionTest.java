@@ -144,7 +144,8 @@ class TextureIndexerResolutionTest {
             new ResourceId("filterpack", "pack"));
         ResourcePack filterPack = new ResourcePack(new PackId("filterpack"),
             new PackContainer.Directory(top), filtering, Concurrent.newList(PackRoot.BASE),
-            Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newUnmodifiableTreeSet("minecraft"),
+            Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE));
 
         PackStack bare = PackStack.of(Concurrent.newList(lower, filterPack));
         PackStack filtered = bare.withTextureIndex(TextureIndexer.index(bare));
@@ -164,7 +165,8 @@ class TextureIndexerResolutionTest {
     private static @NotNull ResourcePack pack(PackId id, Path root, Set<String> namespaces,
                                              ConcurrentList<PackRoot> roots) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            roots.toUnmodifiable(), namespaces, Set.of(PackCapability.VANILLA_CORE));
+            roots.toUnmodifiable(), Concurrent.newUnmodifiableTreeSet(namespaces),
+            Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE));
     }
 
     private static void png(Path path, int width, int height) throws IOException {

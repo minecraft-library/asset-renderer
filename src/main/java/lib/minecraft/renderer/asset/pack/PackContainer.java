@@ -8,8 +8,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Enumeration;
-import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -190,13 +190,13 @@ public sealed interface PackContainer permits PackContainer.Directory, PackConta
         @Override
         public @NotNull Stream<String> entries(@NotNull String prefix) {
             try (ZipFile archive = new ZipFile(this.zip.toFile())) {
-                List<String> matches = new java.util.ArrayList<>();
                 Enumeration<? extends ZipEntry> all = archive.entries();
-                while (all.hasMoreElements()) {
-                    ZipEntry entry = all.nextElement();
-                    if (!entry.isDirectory() && underPrefix(entry.getName(), prefix)) matches.add(entry.getName());
-                }
-                return matches.stream();
+                return Collections.list(all)
+                    .stream()
+                    .filter(entry -> !entry.isDirectory() && underPrefix(entry.getName(), prefix))
+                    .map(ZipEntry::getName)
+                    .toList()
+                    .stream();
             } catch (IOException ex) {
                 throw new PipelineException(ex, "Failed to enumerate zip '%s'", this.zip);
             }

@@ -1,7 +1,9 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -15,9 +17,9 @@ import lib.minecraft.renderer.pipeline.loader.BlockModelReader.BlockModelEntry;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Loads block-entity model geometry, orchestrating two pure reads and one assembler:
@@ -59,10 +61,9 @@ public class BlockModelLoader {
          *
          * @return the union of primary and variant block-entity-backed ids
          */
-        public @NotNull Set<String> blockEntityBackedIds() {
-            Set<String> ids = new HashSet<>(this.models.keySet());
-            ids.addAll(this.variants.keySet());
-            return ids;
+        public @NotNull ConcurrentSet<String> blockEntityBackedIds() {
+            return Stream.concat(this.models.keySet().stream(), this.variants.keySet().stream())
+                .collect(Concurrent.toWideUnmodifiableSet());
         }
     }
 

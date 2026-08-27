@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 /**
  * Reads a renderer's own {@code setupRotations} into the container steps it puts every mesh it
@@ -628,9 +629,11 @@ final class RenderTransformWalk {
             this.steps.add(Map.copyOf(step));
             return;
         }
-        Map<PoseChannel, PoseExpr> guarded = new EnumMap<>(PoseChannel.class);
-        step.forEach((channel, value) ->
-            guarded.put(channel, new PoseExpr.Select(this.block.runs(), value, PoseExpr.Const.of(0f))));
+        Map<PoseChannel, PoseExpr> guarded = step.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                entry -> new PoseExpr.Select(this.block.runs(), entry.getValue(), PoseExpr.Const.of(0f)),
+                (first, second) -> second, () -> new EnumMap<PoseChannel, PoseExpr>(PoseChannel.class)));
         this.steps.add(Map.copyOf(guarded));
     }
 

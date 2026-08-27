@@ -1,5 +1,9 @@
 package lib.minecraft.renderer.asset.equipment;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -38,15 +42,14 @@ import java.util.Set;
  * {@link #parts} is a list because the order in it is load-bearing: it is the mesh's own bone order and
  * then each bone's own cube order, which is what keeps a part and the overlay box parented to it
  * adjacent, and a coplanar tie is decided by emission order. {@link #covered} is lookup-only, so
- * neither the per-run salt of an immutable map nor the insertion order of a mutable one can reach a
- * render.
+ * neither its own iteration order nor that of the sets in it can reach a render.
  *
  * @param parts one row per cube of the shell, in the mesh's own order
  * @param covered the bone names each slot's armour draws
  */
 public record ShellWalk(
-    @NotNull List<ShellPart> parts,
-    @NotNull Map<ArmorSlot, Set<String>> covered
+    @NotNull ConcurrentList<ShellPart> parts,
+    @NotNull ConcurrentMap<ArmorSlot, ConcurrentSet<String>> covered
 ) {
 
     /**
@@ -60,16 +63,13 @@ public record ShellWalk(
      */
     public static @NotNull ShellWalk of(@NotNull EntityModelData mesh, @NotNull ArmorForm form,
                                         @NotNull Vector3f innerGrow, @NotNull Vector3f outerGrow) {
-        Map<ArmorSlot, Set<String>> covered = new EnumMap<>(ArmorSlot.class);
+        Map<ArmorSlot, ConcurrentSet<String>> covered = new EnumMap<>(ArmorSlot.class);
 
-        for (ArmorSlot slot : ArmorSlot.CACHED_VALUES) {
-            Set<String> bones = new HashSet<>();
-
-            for (String bone : mesh.getBones().keySet())
-                if (form.covers(mesh, slot, bone)) bones.add(bone);
-
-            covered.put(slot, Set.copyOf(bones));
-        }
+        ArmorSlot.forEach(slot -> covered.put(slot, mesh.getBones()
+            .keySet()
+            .stream()
+            .filter(bone -> form.covers(mesh, slot, bone))
+            .collect(Concurrent.toUnmodifiableSet())));
 
         List<ShellPart> parts = new ArrayList<>();
 
@@ -77,10 +77,11 @@ public record ShellWalk(
             String bone = entry.getKey();
             EnumSet<ArmorSlot> slots = EnumSet.noneOf(ArmorSlot.class);
 
-            for (ArmorSlot slot : ArmorSlot.CACHED_VALUES)
-                if (covered.get(slot).contains(bone)) slots.add(slot);
+            ArmorSlot.stream()
+                .filter(slot -> covered.get(slot).contains(bone))
+                .forEach(slots::add);
 
-            Set<ArmorSlot> drawnBy = Set.copyOf(slots);
+            ConcurrentSet<ArmorSlot> drawnBy = Concurrent.newUnmodifiableSet(slots);
             Vector3f anchor = chainedPivot(mesh, entry.getValue());
             float scale = entry.getValue().getScale();
 
@@ -92,7 +93,7 @@ public record ShellWalk(
                     outerGrow.add(cube.getGrow()).multiply(scale)));
         }
 
-        return new ShellWalk(List.copyOf(parts), Map.copyOf(covered));
+        return new ShellWalk(Concurrent.newUnmodifiableList(parts), Concurrent.newUnmodifiableMap(covered));
     }
 
     /**

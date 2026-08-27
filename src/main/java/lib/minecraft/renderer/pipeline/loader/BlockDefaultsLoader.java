@@ -11,7 +11,6 @@ import lib.minecraft.renderer.pipeline.util.ResourceDocument;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -84,12 +83,11 @@ public final class BlockDefaultsLoader {
             unresolved.remove(blockId);
         }
 
-        HashMap<String, ConcurrentMap<String, String>> defaults = new HashMap<>();
-        for (String blockId : blocks.keySet()) {
-            if (unresolved.contains(blockId)) continue;
-            defaults.put(blockId, Concurrent.adoptMap(new LinkedHashMap<>(blocks.get(blockId))).toUnmodifiable());
-        }
-        return Concurrent.adoptMap(defaults).toUnmodifiable();
+        return blocks.entrySet()
+            .stream()
+            .filter(block -> !unresolved.contains(block.getKey()))
+            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey,
+                block -> Concurrent.adoptMap(new LinkedHashMap<>(block.getValue())).toUnmodifiable()));
     }
 
     /**
@@ -102,15 +100,16 @@ public final class BlockDefaultsLoader {
      * @return the property-to-value map
      * @throws PipelineException if a property value is not a JSON primitive
      */
-    private static @NotNull Map<String, String> toStringMap(@NotNull String blockId, @NotNull JsonTree state) {
-        LinkedHashMap<String, String> map = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonTree> entry : state.members().toList()) {
-            JsonTree value = entry.getValue();
-            if (!value.isPrimitive())
-                throw new PipelineException("Block-defaults override for '%s' property '%s' is not a scalar value", blockId, entry.getKey());
-            map.put(entry.getKey(), value.asString().orElseThrow());
-        }
-        return map;
+    private static @NotNull ConcurrentMap<String, String> toStringMap(@NotNull String blockId, @NotNull JsonTree state) {
+        return state.members()
+            .toList()
+            .stream()
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, entry -> {
+                JsonTree value = entry.getValue();
+                if (!value.isPrimitive())
+                    throw new PipelineException("Block-defaults override for '%s' property '%s' is not a scalar value", blockId, entry.getKey());
+                return value.asString().orElseThrow();
+            }, (first, second) -> second));
     }
 
     /**
@@ -122,4 +121,5 @@ public final class BlockDefaultsLoader {
      * @param unresolved the block ids whose default state is unresolved (omitted from the runtime map)
      */
     record DefaultsDoc(@NotNull Map<String, Map<String, String>> blocks, @Nullable List<String> unresolved) {}
+
 }

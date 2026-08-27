@@ -73,10 +73,9 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
      * composite steps then re-use.
      */
     private static @NotNull ConcurrentList<ImageData> resolveChildren(@NotNull ConcurrentList<Supplier<ImageData>> children) {
-        ConcurrentList<ImageData> resolved = Concurrent.newList();
-        for (Supplier<ImageData> supplier : children)
-            resolved.add(supplier.get());
-        return resolved;
+        return children.stream()
+            .map(Supplier::get)
+            .collect(Concurrent.toWideUnmodifiableList());
     }
 
     /**

@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.asset.pose;
 
+import dev.simplified.collection.ConcurrentList;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
 import java.util.OptionalDouble;
 
 /**
@@ -62,7 +62,7 @@ public sealed interface PoseExpr {
      * @param operator what is applied
      * @param operands the operands, in declaration order
      */
-    record Op(@NotNull PoseOperator operator, @NotNull List<PoseExpr> operands) implements PoseExpr {}
+    record Op(@NotNull PoseOperator operator, @NotNull ConcurrentList<PoseExpr> operands) implements PoseExpr {}
 
     /**
      * The join of a choice the table could not decide.

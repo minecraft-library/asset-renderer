@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
 
 /**
  * Hierarchical diagnostic sink for tooling flows - parent-to-child scopes whose paths mirror
@@ -171,10 +172,9 @@ public final class Diagnostics {
      */
     public @NotNull List<Entry> entries() {
         String subtree = this.path + "/";
-        List<Entry> out = new ArrayList<>();
-        for (Entry entry : this.rootEntries)
-            if (entry.path().equals(this.path) || entry.path().startsWith(subtree)) out.add(entry);
-        return List.copyOf(out);
+        return this.rootEntries.stream()
+            .filter(entry -> entry.path().equals(this.path) || entry.path().startsWith(subtree))
+            .collect(Collectors.toUnmodifiableList());
     }
 
     /**

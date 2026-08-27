@@ -125,7 +125,7 @@ public class GeometryKit {
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f)
         };
 
-        for (Face face : Face.CACHED_VALUES) {
+        Face.forEach(face -> {
             Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
             Vector3f normal = face.normal();
             addQuad(
@@ -135,7 +135,7 @@ public class GeometryKit {
                 surface,
                 debugPart == null ? null : debugPart + ":" + face.direction()
             );
-        }
+        });
 
         return triangles;
     }

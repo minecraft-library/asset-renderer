@@ -4,8 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 
 /**
  * A list of {@link IntRange}s - the OptiFine grammar's list-of-values-or-ranges form
@@ -27,10 +26,10 @@ public record IntRanges(@NotNull ConcurrentList<IntRange> entries) {
      * @throws NumberFormatException if a token's numeric operand cannot be parsed
      */
     public static @NotNull IntRanges parse(@NotNull String expression) {
-        List<IntRange> ranges = new ArrayList<>();
-        for (String token : expression.trim().split("[,\\s]+"))
-            if (!token.isEmpty()) ranges.add(IntRange.parse(token));
-        return new IntRanges(Concurrent.adoptList(ranges).toUnmodifiable());
+        return new IntRanges(Arrays.stream(expression.trim().split("[,\\s]+"))
+            .filter(token -> !token.isEmpty())
+            .map(IntRange::parse)
+            .collect(Concurrent.toUnmodifiableList()));
     }
 
     /**

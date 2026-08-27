@@ -28,6 +28,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Node {@code bones} - bone-visibility deltas from a single model-hierarchy walk:
@@ -103,27 +104,32 @@ final class EntityBoneResolver {
         // that half onto this member - saying it twice here is how the two came to disagree about
         // whether a bee rests with its sting. What this half holds is the bones nothing ever
         // draws, which no pose speaks for at all.
-        LinkedHashSet<String> undrawnFields = new LinkedHashSet<>(scan.unconditionalHidden());
         LinkedHashSet<String> reEnabled = collectReEnabledBones();
-        undrawnFields.removeAll(reEnabled);
-        LinkedHashSet<String> undrawn = new LinkedHashSet<>();
-        for (String field : undrawnFields) undrawn.add(boneName(scan, field));
+        LinkedHashSet<String> undrawn = scan.unconditionalHidden()
+            .stream()
+            .filter(field -> !reEnabled.contains(field))
+            .map(field -> boneName(scan, field))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
 
         // toggles: field-gated reveal (chest - hidden by default), array-element gate (the equine
         // saddle's reins - one write covering every element of a ModelPart[]), inline-gated hide
         // (goat horns - left/right pairs group under a shared stem), negated-branch gate (bogged
         // mushrooms).
-        Map<String, List<String>> toggles = new LinkedHashMap<>();
-        for (Map.Entry<String, LinkedHashSet<String>> gate : scan.stateGatedByFlag().entrySet()) {
-            List<String> bones = new ArrayList<>();
-            for (String field : gate.getValue()) bones.add(boneName(scan, field));
-            toggles.put(flagToToggleName(gate.getKey()), bones);
-        }
+        Map<String, List<String>> toggles = scan.stateGatedByFlag()
+            .entrySet()
+            .stream()
+            .collect(Collectors.toMap(gate -> flagToToggleName(gate.getKey()),
+                gate -> gate.getValue()
+                    .stream()
+                    .map(field -> boneName(scan, field))
+                    .collect(Collectors.toCollection(ArrayList::new)),
+                (first, second) -> second, LinkedHashMap::new));
         for (Map.Entry<String, LinkedHashSet<String>> gate : arrayGatedBones(modelClass, scan).entrySet())
             toggles.putIfAbsent(flagToToggleName(gate.getKey()), new ArrayList<>(gate.getValue()));
-        Map<String, List<String>> inlineGroups = new LinkedHashMap<>();
-        for (String bone : scan.inlineGatedBones())
-            inlineGroups.computeIfAbsent(stripLeftRight(bone), key -> new ArrayList<>()).add(bone);
+        Map<String, List<String>> inlineGroups = scan.inlineGatedBones()
+            .stream()
+            .collect(Collectors.groupingBy(EntityBoneResolver::stripLeftRight, LinkedHashMap::new,
+                Collectors.toCollection(ArrayList::new)));
         for (Map.Entry<String, List<String>> group : inlineGroups.entrySet())
             toggles.putIfAbsent(group.getKey(), group.getValue());
         for (Map.Entry<String, LinkedHashSet<String>> gate : scan.negatedGatedByFlag().entrySet()) {

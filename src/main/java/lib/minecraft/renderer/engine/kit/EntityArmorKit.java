@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.equipment.ArmorPiece;
@@ -19,7 +20,6 @@ import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -77,13 +77,13 @@ public class EntityArmorKit {
         // player frame (bounds turned about X) and turning the result back into the entity frame lands
         // it correctly once ENTITY_FACING is applied, with the geometry and normals in the frame the
         // wearer's own faces are in - which is the frame the pass that lights the folded stack reads.
-        ConcurrentList<VisibleTriangle> upright = ArmorKit.buildArmor3D(shell.walk().parts(),
-            box -> intoRenderFrame(shell, frame, box), shell.form(), equipped, items, context);
-
-        ConcurrentList<VisibleTriangle> entityArmor = Concurrent.newList();
-        for (VisibleTriangle triangle : upright)
-            entityArmor.add(intoModelFrame(triangle));
-        return entityArmor;
+        return ArmorKit.buildArmor3D(
+            shell.walk().parts(),
+            box -> intoRenderFrame(shell, frame, box),
+            shell.form(), equipped, items, context)
+            .stream()
+            .map(EntityArmorKit::intoModelFrame)
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**
@@ -142,17 +142,21 @@ public class EntityArmorKit {
         EntityModelData tree = shell.mesh();
         Vector3f deformation = slot.onLayer(shell.innerGrow(), shell.outerGrow());
         Vector3f seat = shell.meshOffset().multiply(1f / shell.meshScale());
-        LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
-        for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
-            EntityModelData.Bone bone = entry.getValue();
-            ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
-            if (shell.walk().covers(slot, entry.getKey()))
-                for (EntityModelData.Cube cube : bone.getCubes())
-                    cubes.add(grownBy(cube, deformation));
-            Vector3f pivot = bone.getParent() == null ? bone.getPivot().add(seat) : bone.getPivot();
-            bones.put(entry.getKey(), bone.withCubes(cubes).withPivot(pivot));
-        }
-        return new EntityModelData(tree.getTextureSize(), Concurrent.adoptLinkedMap(bones), tree.isCull());
+        ConcurrentLinkedMap<String, EntityModelData.Bone> bones = tree.getBones()
+            .entrySet()
+            .stream()
+            .collect(Concurrent.toLinkedMap(Map.Entry::getKey, entry -> {
+                EntityModelData.Bone bone = entry.getValue();
+                ConcurrentList<EntityModelData.Cube> cubes = shell.walk().covers(slot, entry.getKey())
+                    ? bone.getCubes()
+                        .stream()
+                        .map(cube -> grownBy(cube, deformation))
+                        .collect(Concurrent.toList())
+                    : Concurrent.newList();
+                Vector3f pivot = bone.getParent() == null ? bone.getPivot().add(seat) : bone.getPivot();
+                return bone.withCubes(cubes).withPivot(pivot);
+            }));
+        return new EntityModelData(tree.getTextureSize(), bones, tree.isCull());
     }
 
     /**

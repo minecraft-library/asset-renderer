@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.asset.appearance;
 
 import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -18,6 +18,7 @@ import java.util.Optional;
  * baby mesh, which has its own UV layout - the two components of the record
  * {@code HorseMarkingLayer} binds every marking to.
  */
+@EnumLookup
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum HorseMarking {
 
@@ -71,20 +72,5 @@ public enum HorseMarking {
      */
     public @NotNull Optional<String> babyOverlayTexture() {
         return Optional.ofNullable(this.babyOverlayTexture);
-    }
-
-    /**
-     * Looks up a marking by name (case-insensitive), e.g. {@code "white_dots"}.
-     *
-     * @param name the marking name
-     * @return the matching marking, or {@code null} when the name is not a vanilla marking
-     */
-    public static @Nullable HorseMarking ofName(@Nullable String name) {
-        if (name == null) return null;
-        try {
-            return valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException notAMarking) {
-            return null;
-        }
     }
 }

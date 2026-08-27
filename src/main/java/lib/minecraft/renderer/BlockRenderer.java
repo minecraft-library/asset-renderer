@@ -445,10 +445,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * the relight to leave a {@code "shade": false} face full-bright.
          */
         private static @NotNull ConcurrentList<VisibleTriangle> applyRotation(@NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull Matrix4f rotation) {
-            ConcurrentList<VisibleTriangle> rotated = Concurrent.newList();
-
-            for (VisibleTriangle tri : triangles) {
-                rotated.add(new VisibleTriangle(
+            return triangles.stream()
+                .map(tri -> new VisibleTriangle(
                     tri.position0().transform(rotation),
                     tri.position1().transform(rotation),
                     tri.position2().transform(rotation),
@@ -458,10 +456,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     tri.shading(), new SurfaceTraits(tri.traits().cullBackFaces(), false, false,
                         tri.traits().directionalLight(),
                         PassDeclaration.DEFAULT.withEmissive(tri.traits().pass().emissive()))
-                ));
-            }
-
-            return rotated;
+                ))
+                .collect(Concurrent.toWideList());
         }
 
 
@@ -570,9 +566,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 float dy = part.offset()[1] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
                 float dz = part.offset()[2] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
                 if (dx != 0f || dy != 0f || dz != 0f) {
-                    ConcurrentList<VisibleTriangle> shifted = Concurrent.newList();
-                    for (VisibleTriangle t : partTriangles) {
-                        shifted.add(new VisibleTriangle(
+                    partTriangles = partTriangles.stream()
+                        .map(t -> new VisibleTriangle(
                             new Vector3f(t.position0().x() + dx, t.position0().y() + dy, t.position0().z() + dz),
                             new Vector3f(t.position1().x() + dx, t.position1().y() + dy, t.position1().z() + dz),
                             new Vector3f(t.position2().x() + dx, t.position2().y() + dy, t.position2().z() + dz),
@@ -580,9 +575,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                             t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
                                 t.traits().directionalLight(),
                                 PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
-                        ));
-                    }
-                    partTriangles = shifted;
+                        ))
+                        .collect(Concurrent.toWideList());
                 }
 
                 combined.addAll(partTriangles);
@@ -741,19 +735,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             float cx = (minX + maxX) * 0.5f, cy = (minY + maxY) * 0.5f, cz = (minZ + maxZ) * 0.5f;
             float scale = 1.4f / extent;
 
-            ConcurrentList<VisibleTriangle> result = Concurrent.newList();
-            for (VisibleTriangle t : triangles) {
-                result.add(new VisibleTriangle(
+            return triangles.stream()
+                .map(t -> new VisibleTriangle(
                     new Vector3f((t.position0().x() - cx) * scale, (t.position0().y() - cy) * scale, (t.position0().z() - cz) * scale),
                     new Vector3f((t.position1().x() - cx) * scale, (t.position1().y() - cy) * scale, (t.position1().z() - cz) * scale),
                     new Vector3f((t.position2().x() - cx) * scale, (t.position2().y() - cy) * scale, (t.position2().z() - cz) * scale),
                     t.uv0(), t.uv1(), t.uv2(),
                     t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
-                                t.traits().directionalLight(),
-                                PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
-                ));
-            }
-            return result;
+                        t.traits().directionalLight(),
+                        PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
+                ))
+                .collect(Concurrent.toWideList());
         }
 
     }

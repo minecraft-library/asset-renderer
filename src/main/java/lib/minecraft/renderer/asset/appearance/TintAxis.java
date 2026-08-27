@@ -1,13 +1,14 @@
 package lib.minecraft.renderer.asset.appearance;
 
 import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.asset.DyeColor;
 import lib.minecraft.renderer.option.AppearanceOptions;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 
@@ -24,6 +25,7 @@ import java.util.Optional;
  * constant here plus its {@code tint_by} emission in the tooling - never a new appearance field and a
  * new hard-coded token branch in the renderer.
  */
+@EnumLookup
 @Getter(style = NamingStyle.FLUENT)
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum TintAxis {
@@ -67,6 +69,7 @@ public enum TintAxis {
     EQUIPMENT("equipment_color");
 
     /** The {@code tint_by} token this axis is named by in the model form (e.g. {@code "wool_color"}). */
+    @KeyField
     private final @NotNull String token;
 
     /**
@@ -92,23 +95,5 @@ public enum TintAxis {
      */
     public @NotNull Optional<DyeColor> selectionIn(@NotNull AppearanceOptions appearance) {
         return appearance.tint(this);
-    }
-
-    /**
-     * Resolves a {@code tint_by} token to its axis.
-     *
-     * @param token the {@code tint_by} token from an overlay
-     * @return the matching axis, or empty when no axis owns the token
-     */
-    public static @NotNull Optional<TintAxis> ofToken(@Nullable String token) {
-        if (token == null)
-            return Optional.empty();
-
-        for (TintAxis axis : values()) {
-            if (axis.token.equals(token))
-                return Optional.of(axis);
-        }
-
-        return Optional.empty();
     }
 }

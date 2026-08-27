@@ -2,6 +2,8 @@ package lib.minecraft.renderer.asset.pack.cats;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.util.compression.Compression;
 import dev.simplified.util.compression.exception.CompressionException;
 import lib.minecraft.renderer.asset.pack.PackContainer;
@@ -35,7 +37,7 @@ public final class CatsIndex {
     private static final int MAGIC = 0x43415453; // "CATS"
     private static final int VERSION = 0x01;
 
-    private final @NotNull LinkedHashMap<String, CatsEntry> entries;
+    private final @NotNull ConcurrentMap<String, CatsEntry> entries;
     private final byte @NotNull [] data;
     private final @NotNull Optional<byte[]> outerMcmeta;
 
@@ -60,11 +62,16 @@ public final class CatsIndex {
         int[] pos = {5};
         parseDirectory(blob, pos, "", entries);
         byte[] data = Arrays.copyOfRange(blob, pos[0], blob.length);
-        for (CatsEntry entry : entries.values())
+
+        for (CatsEntry entry : entries.values()) {
             if (entry.offset() < 0 || entry.size() < 0 || (long) entry.offset() + entry.size() > data.length)
-                throw new PipelineException("Truncated CATS container: entry '%s' spans [%d,+%d) beyond the %d-byte data region",
-                    entry.path(), entry.offset(), entry.size(), data.length);
-        return new CatsIndex(entries, data, outerMcmeta);
+                throw new PipelineException(
+                    "Truncated CATS container: entry '%s' spans [%d,+%d) beyond the %d-byte data region",
+                    entry.path(), entry.offset(), entry.size(), data.length
+                );
+        }
+
+        return new CatsIndex(Concurrent.adoptLinkedMap(entries).toUnmodifiable(), data, outerMcmeta);
     }
 
     /**
@@ -79,6 +86,7 @@ public final class CatsIndex {
             int nameLen = readByte(blob, pos);
             String name = readName(blob, pos, nameLen);
             String path = prefix.isEmpty() ? name : prefix + "/" + name;
+
             if (type == 0x01) {
                 parseDirectory(blob, pos, path, out);
             } else if (type == 0x00) {
@@ -109,6 +117,7 @@ public final class CatsIndex {
         byte[] slice = Arrays.copyOfRange(this.data, entry.offset(), entry.offset() + entry.size());
         if (entry.compression() == Compression.NONE)
             return Optional.of(slice);
+
         try {
             return Optional.of(Compression.decompress(slice));
         } catch (CompressionException ex) {

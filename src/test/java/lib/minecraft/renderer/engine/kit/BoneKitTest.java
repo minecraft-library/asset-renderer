@@ -443,7 +443,7 @@ class BoneKitTest {
             new Vector3f(6f, 8f, 0f)
         };
         for (int zeroAxis = 0; zeroAxis < planes.length; zeroAxis++)
-            for (Face face : Face.CACHED_VALUES)
+            for (Face face : Face.stream().toList())
                 assertThat("axis " + zeroAxis + " plane, face " + face.direction(),
                     BoneKit.isDegeneratePlaneFace(planes[zeroAxis], face),
                     is(face.axis() != zeroAxis));
@@ -460,9 +460,9 @@ class BoneKitTest {
     void twoZeroAxesCollapseEveryFace() {
         Vector3f lineAlongZ = new Vector3f(0f, 0f, 8f);
 
-        for (Face face : Face.CACHED_VALUES)
+        Face.forEach(face ->
             assertThat(face + " spans an axis of zero extent, so it has no area",
-                BoneKit.isDegeneratePlaneFace(lineAlongZ, face), is(true));
+                BoneKit.isDegeneratePlaneFace(lineAlongZ, face), is(true)));
     }
 
     /**
@@ -489,8 +489,8 @@ class BoneKitTest {
     @DisplayName("a cube with three non-zero extents collapses no face")
     void solidCubeCollapsesNoFace() {
         Vector3f solid = new Vector3f(4f, 6f, 8f);
-        for (Face face : Face.CACHED_VALUES)
-            assertThat(face.direction(), BoneKit.isDegeneratePlaneFace(solid, face), is(false));
+        Face.forEach(face ->
+            assertThat(face.direction(), BoneKit.isDegeneratePlaneFace(solid, face), is(false)));
     }
 
     // --- faceHasPartialAlpha ---

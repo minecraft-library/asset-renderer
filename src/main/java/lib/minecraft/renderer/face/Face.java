@@ -1,14 +1,14 @@
 package lib.minecraft.renderer.face;
 
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * The six cardinal face directions of an axis-aligned Minecraft cube.
@@ -41,6 +41,7 @@ import java.util.Map;
  * Callers that have a surface normal rather than a face resolve it via {@link #fromNormal(Vector3f)};
  * callers that have a direction string use {@link #fromName(String)}.
  */
+@EnumLookup
 @Getter(style = NamingStyle.FLUENT)
 public enum Face {
 
@@ -53,31 +54,12 @@ public enum Face {
     EAST (new Vector3f(1f, 0f, 0f),        0.8f,     true, true,         1, 1);
 
     /**
-     * Cached snapshot of {@link #values()} reused by lookups and iteration to avoid the per-call
-     * defensive array clone the JLS mandates.
-     */
-    public static final Face @NotNull [] CACHED_VALUES = values();
-
-    /**
-     * Index of {@link #direction direction names} to enum constants for O(1) lookup by lowercase
-     * name. Powers {@link #fromName(String)}.
-     */
-    private static final @NotNull Map<String, Face> BY_NAME;
-
-    static {
-        Map<String, Face> byName = new HashMap<>(CACHED_VALUES.length * 2);
-
-        for (Face face : CACHED_VALUES)
-            byName.put(face.direction, face);
-
-        BY_NAME = Map.copyOf(byName);
-    }
-
-    /**
      * Lowercase direction name ({@code "down"}, {@code "up"}, ...), derived once at class-load
      * time from {@link #name()} so external callers don't pay a per-call {@code toLowerCase}.
-     * Matches the vanilla block / item model JSON key and the vanilla {@code Direction} key.
+     * Matches the vanilla block / item model JSON key and the vanilla {@code Direction} key, and
+     * is the key {@link #fromName(String)} resolves a face by.
      */
+    @KeyField(ignoreCase = true)
     private final @NotNull String direction = this.name().toLowerCase(Locale.ROOT);
 
     /**
@@ -227,16 +209,16 @@ public enum Face {
     }
 
     /**
-     * Parses a lowercase direction name ({@code "down"}, {@code "up"}, {@code "north"},
-     * {@code "south"}, {@code "west"}, {@code "east"}) into its {@code Face} constant via
-     * an O(1) lookup against {@link #BY_NAME}. Returns {@code null} when the name is
+     * Parses a direction name ({@code "down"}, {@code "up"}, {@code "north"}, {@code "south"},
+     * {@code "west"}, {@code "east"}) into its {@code Face} constant, matching the
+     * {@link #direction} key without regard to case. Returns {@code null} when the name is
      * {@code null} or unrecognized.
      *
      * @param name the direction name, or {@code null}
      * @return the matching face, or {@code null} when the name is {@code null} or unrecognized
      */
     public static @Nullable Face fromName(@Nullable String name) {
-        return name == null ? null : BY_NAME.get(name.toLowerCase(Locale.ROOT));
+        return ofDirection(name);
     }
 
 }

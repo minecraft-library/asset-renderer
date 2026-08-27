@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.parity.Mode;
@@ -7,9 +9,7 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * The atlas sidecar schema, typed - the one statement of what {@code atlas.json} holds, shared by
@@ -40,11 +40,11 @@ public record AtlasSidecar(int tileSize, int columns, int count, @NotNull List<A
      * @throws IllegalArgumentException when a tile's kind or source names no constant
      */
     public static @NotNull AtlasSidecar parse(@NotNull JsonTree root) {
-        List<AtlasTile> tiles = new ArrayList<>();
-        Optional<JsonTree> array = root.find("tiles");
-        if (array.isPresent())
-            for (JsonTree tile : array.get().elements().toList())
-                tiles.add(parseTile(tile));
+        ConcurrentList<AtlasTile> tiles = root.find("tiles")
+            .map(array -> array.elements()
+                .map(AtlasSidecar::parseTile)
+                .collect(Concurrent.toWideUnmodifiableList()))
+            .orElseGet(Concurrent::newUnmodifiableList);
 
         return new AtlasSidecar(
             root.getInt("tileSize", 0),
@@ -63,9 +63,9 @@ public record AtlasSidecar(int tileSize, int columns, int count, @NotNull List<A
     private static @NotNull AtlasTile parseTile(@NotNull JsonTree row) {
         String kindToken = row.getString("kind", "");
         String sourceToken = row.getString("source", "");
-        AtlasTile.Kind kind = AtlasTile.Kind.fromJsonName(kindToken)
+        AtlasTile.Kind kind = AtlasTile.Kind.findByJsonName(kindToken)
             .orElseThrow(() -> unknownToken("AtlasTile.Kind", kindToken));
-        AtlasTile.Source source = AtlasTile.Source.fromJsonName(sourceToken)
+        AtlasTile.Source source = AtlasTile.Source.findByJsonName(sourceToken)
             .orElseThrow(() -> unknownToken("AtlasTile.Source", sourceToken));
 
         return new AtlasTile(

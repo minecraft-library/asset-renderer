@@ -15,7 +15,8 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
+import java.util.Arrays;
+import java.util.Map;
 
 /**
  * A loader that resolves the three biome colormaps ({@code textures/colormap/{grass,foliage,dry_foliage}.png})
@@ -43,14 +44,12 @@ public class ColorMapLoader {
      *     the read lock
      */
     public static @NotNull ConcurrentMap<Block.TintTarget, ColorMap> load(@NotNull PackStack stack) {
-        HashMap<Block.TintTarget, ColorMap> colorMaps = new HashMap<>();
-        for (Block.TintTarget target : Block.TintTarget.values()) {
-            if (target.colorMapName().isEmpty()) continue;
-            ResourceId id = new ResourceId("minecraft", "colormap/" + target.colorMapName().get());
-            stack.resolve(id).ifPresent(resolved ->
-                colorMaps.put(target, new ColorMap(resolved.id().id(), resolved.pack().value(), target, decode(resolved.bytes()))));
-        }
-        return Concurrent.adoptMap(colorMaps).toUnmodifiable();
+        return Arrays.stream(Block.TintTarget.values())
+            .filter(target -> target.colorMapName().isPresent())
+            .flatMap(target -> stack.resolve(new ResourceId("minecraft", "colormap/" + target.colorMapName().get()))
+                .map(resolved -> Map.entry(target, new ColorMap(resolved.id().id(), resolved.pack().value(), target, decode(resolved.bytes()))))
+                .stream())
+            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**

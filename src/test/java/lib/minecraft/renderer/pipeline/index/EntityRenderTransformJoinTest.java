@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.index;
 
+import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
@@ -65,8 +66,8 @@ class EntityRenderTransformJoinTest {
         // are the same shape and compose in one direction only: swapping them turns the subject about
         // the wrong origin, which renders and looks deliberate.
         EntityPose modelPose = new EntityPose(
-            List.of(Map.of(PoseChannel.Y, new PoseExpr.Const(-7d, PoseOperator.Width.FLOAT))),
-            Map.of(), List.of(), Optional.empty());
+            Concurrent.newUnmodifiableList(Map.of(PoseChannel.Y, new PoseExpr.Const(-7d, PoseOperator.Width.FLOAT))),
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
         Entity subject = assemble(RENDERER, Map.of("TestModel", modelPose));
         List<Map<PoseChannel, PoseExpr>> container = subject.pose().container();
         assertEquals(2, container.size(), "the pose gains a step and keeps its own");

@@ -149,8 +149,8 @@ class RuleSetConnectedTextureForTest {
     @DisplayName("an empty rule set substitutes nothing - the parity-neutral vanilla case")
     void emptyRuleSetIsInert() {
         RuleSet empty = RuleSet.empty(PackId.VANILLA);
-        for (Face face : Face.CACHED_VALUES)
-            assertThat(empty.connectedTextureFor(tileCtx(face)).isPresent(), is(false));
+        Face.forEach(face ->
+            assertThat(empty.connectedTextureFor(tileCtx(face)).isPresent(), is(false)));
     }
 
     private void assertFirstTile(@NotNull CtmRule rule) {

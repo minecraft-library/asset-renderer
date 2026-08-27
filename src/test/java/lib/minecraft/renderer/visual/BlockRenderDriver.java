@@ -108,7 +108,7 @@ public final class BlockRenderDriver {
             }
 
             // Render each 2D face for comparison
-            for (Face face : Face.CACHED_VALUES) {
+            Face.forEach(face -> {
                 try {
                     BlockOptions faceOpt = BlockOptions.builder()
                         .blockId(blockId)
@@ -124,7 +124,7 @@ public final class BlockRenderDriver {
                 } catch (Exception ex) {
                     System.err.println("  Failed 2D " + face + ": " + ex.getMessage());
                 }
-            }
+            });
         }
     }
 

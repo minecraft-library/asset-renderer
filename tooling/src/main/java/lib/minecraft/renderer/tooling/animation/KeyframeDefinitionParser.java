@@ -18,6 +18,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Reads vanilla's keyframe clip tables out of the {@code <clinit>} of every class under the
@@ -102,13 +103,13 @@ public final class KeyframeDefinitionParser {
      * @return every clip that parsed, in class-listing then declaration order
      */
     public static @NotNull List<KeyframeClip> parseAll(@NotNull ClassNodeCache cache, @NotNull Diagnostics diagnostics) {
-        List<KeyframeClip> clips = new ArrayList<>();
-        for (String entry : cache.list(VanillaSourceClasses.Types.ANIMATION_DEFINITIONS_ROOT, ".class")) {
-            String owner = entry.substring(0, entry.length() - ".class".length());
-            if (owner.endsWith("package-info")) continue;
-            clips.addAll(parse(cache, owner, diagnostics.child(owner.substring(owner.lastIndexOf('/') + 1))));
-        }
-        return List.copyOf(clips);
+        return cache.list(VanillaSourceClasses.Types.ANIMATION_DEFINITIONS_ROOT, ".class")
+            .stream()
+            .map(entry -> entry.substring(0, entry.length() - ".class".length()))
+            .filter(owner -> !owner.endsWith("package-info"))
+            .flatMap(owner -> parse(cache, owner,
+                diagnostics.child(owner.substring(owner.lastIndexOf('/') + 1))).stream())
+            .collect(Collectors.toUnmodifiableList());
     }
 
     /**
@@ -196,11 +197,10 @@ public final class KeyframeDefinitionParser {
             stack.pop();
             if (!(args.getFirst() instanceof AnimationValue.Sym target) || !(args.get(1) instanceof AnimationValue.Arr array))
                 throw new IllegalStateException("channel built from something other than a target and a keyframe array");
-            List<AnimationValue.Frame> frames = new ArrayList<>();
-            for (AnimationValue.Frame frame : array.frames()) {
-                if (frame == null) throw new IllegalStateException("keyframe array has a slot nothing stored into");
-                frames.add(frame);
-            }
+            List<AnimationValue.Frame> frames = array.frames()
+                .stream()
+                .map(KeyframeDefinitionParser::frameOf)
+                .collect(Collectors.toList());
             stack.push(new AnimationValue.Chan(lower(target.name()), frames));
             return;
         }
@@ -254,6 +254,12 @@ public final class KeyframeDefinitionParser {
                 (float) (doubleOf(args.get(2)) - 1.0));
             default -> throw new IllegalStateException("'" + factory + "' is not one of the three keyframe vector factories");
         };
+    }
+
+    /** One slot of a keyframe array, every position the allocation declared having to have been filled. */
+    private static @NotNull AnimationValue.Frame frameOf(@Nullable AnimationValue.Frame frame) {
+        if (frame != null) return frame;
+        throw new IllegalStateException("keyframe array has a slot nothing stored into");
     }
 
     private static @NotNull AnimationValue.Clip clipOf(@NotNull AnimationValue value) {

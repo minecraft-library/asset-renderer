@@ -25,7 +25,6 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -176,9 +175,10 @@ class PoseKitTest {
         mesh.getBones().put("head", new EntityModelData.Bone(new Vector3f(1f, 2f, 3f), authored,
             EulerRotation.NONE, 1f, Concurrent.newList(), null));
 
-        EntityPose readsItself = new EntityPose(List.of(),
-            Map.of("head", Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT))),
-            List.of(), Optional.empty());
+        EntityPose readsItself = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("head",
+                Map.of(PoseChannel.X_ROT, new PoseExpr.BoneRead("head", PoseChannel.X_ROT)))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
 
         EntityModelData posed = PoseKit.posed(EntityOptions.PoseMode.IDLE,
             subject("minecraft:test", mesh, readsItself), 4);
@@ -197,8 +197,8 @@ class PoseKitTest {
         mesh.getBones().put("head", bone("body"));
 
         EntityPose drops = new EntityPose(
-            List.of(Map.of(PoseChannel.Y, new PoseExpr.Const(-3d, PoseOperator.Width.FLOAT))),
-            Map.of(), List.of(), Optional.empty());
+            Concurrent.newUnmodifiableList(Map.of(PoseChannel.Y, new PoseExpr.Const(-3d, PoseOperator.Width.FLOAT))),
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
 
         EntityModelData posed = PoseKit.posed(EntityOptions.PoseMode.IDLE,
             subject("minecraft:test", mesh, drops), 0);
@@ -281,17 +281,18 @@ class PoseKitTest {
         // the charged creeper's swirl still the day either subject's pass gains a moving pose.
         EntityModelData mesh = new EntityModelData();
         mesh.getBones().put("body", cubed(null));
-        EntityPose turns = new EntityPose(List.of(), Map.of("body",
-            Map.of(PoseChannel.X_ROT, new PoseExpr.Const(0.5d, PoseOperator.Width.FLOAT))),
-            List.of(), Optional.empty());
+        EntityPose turns = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("body",
+                Map.of(PoseChannel.X_ROT, new PoseExpr.Const(0.5d, PoseOperator.Width.FLOAT)))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
         Optional<Vector2f> scroll = Optional.of(new Vector2f(0.02f, 0.01f));
         Entity subject = Entity.builder()
             .id(ResourceId.parse("minecraft:test"))
             .model(mesh)
             .pose(turns)
-            .overlays(List.of(new Entity.OverlayLayer(mesh, Optional.empty(), PassDeclaration.DEFAULT,
-                0xFFFFFFFF, false, Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), turns, scroll)))
+            .overlays(Concurrent.newUnmodifiableList(new Entity.OverlayLayer(mesh, Optional.empty(),
+                PassDeclaration.DEFAULT, 0xFFFFFFFF, false, Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), turns, scroll)))
             .build();
 
         Entity posed = PoseKit.posedSubject(EntityOptions.PoseMode.IDLE, subject, 7);
@@ -343,11 +344,12 @@ class PoseKitTest {
         EntityModelData mesh = new EntityModelData();
         mesh.getBones().put("body", bone(null));
 
-        EntityPose uneven = new EntityPose(List.of(), Map.of("body", Map.of(
-            PoseChannel.X_SCALE, new PoseExpr.Const(2d, PoseOperator.Width.FLOAT),
-            PoseChannel.Y_SCALE, new PoseExpr.Const(3d, PoseOperator.Width.FLOAT),
-            PoseChannel.Z_SCALE, new PoseExpr.Const(2d, PoseOperator.Width.FLOAT))),
-            List.of(), Optional.empty());
+        EntityPose uneven = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("body", Map.of(
+                PoseChannel.X_SCALE, new PoseExpr.Const(2d, PoseOperator.Width.FLOAT),
+                PoseChannel.Y_SCALE, new PoseExpr.Const(3d, PoseOperator.Width.FLOAT),
+                PoseChannel.Z_SCALE, new PoseExpr.Const(2d, PoseOperator.Width.FLOAT)))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
 
         RendererException refused = assertThrows(RendererException.class, () -> PoseKit.posed(
             EntityOptions.PoseMode.IDLE, subject("minecraft:test", mesh, uneven), 0));

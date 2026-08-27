@@ -230,7 +230,7 @@ public class EntityGeometryKit {
                 boolean cubeIsTranslucent = !cubeCullBackFaces
                     && uvPartialAlphaPresent(cube, size, texture, texW, texH);
 
-                for (Face face : Face.CACHED_VALUES) {
+                Face.forEach(face -> {
                     Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
                     for (int i = 0; i < 4; i++)
                         corners[i] = corners[i].transform(perCubeChainFluent);
@@ -244,7 +244,7 @@ public class EntityGeometryKit {
                     Vector3f normal = face.normal().transformNormal(fullTransform).normalize();
 
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
-                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
+                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) return;
 
                     Vector2f[] effUv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
 
@@ -259,7 +259,7 @@ public class EntityGeometryKit {
                     String debugTag = boneName + ":" + face.direction();
                     GeometryKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, Shading.UNLIT,
                         new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass), debugTag);
-                }
+                });
             }
         }
 
@@ -374,7 +374,9 @@ public class EntityGeometryKit {
                 }
 
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
-                for (Face face : Face.CACHED_VALUES) {
+                // A loop rather than a forEach: the body reads the mutable {@code cubeIndex} the
+                // enclosing walk advances, which a lambda cannot capture.
+                for (Face face : Face.stream().toList()) {
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
                     Vector3f[] corners3d = CornerPhase.POLYGON.corners(face, cubeBounds);
                     // Must match the renderer's UV resolver. {@link BoneKit#resolveFaceUv} alone
@@ -847,7 +849,7 @@ public class EntityGeometryKit {
         // outboard (WEST/SOUTH) faces, under the 20% threshold on the visible UP/NORTH/EAST, so
         // sampling only the visible triple would cull them and open two see-through holes where
         // vanilla's entityCutoutNoCull draws the opaque inner faces through the front cutout.
-        for (Face face : Face.CACHED_VALUES)
+        for (Face face : Face.stream().toList())
             if (uvNonOpaqueExceeds(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
                 return false;
         for (Face face : ISO_VISIBLE)
@@ -880,7 +882,7 @@ public class EntityGeometryKit {
         float texW,
         float texH
     ) {
-        for (Face face : Face.CACHED_VALUES) {
+        for (Face face : Face.stream().toList()) {
             if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
                 && BoneKit.isDegeneratePlaneFace(size, face)) continue;
             if (BoneKit.faceHasPartialAlpha(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))

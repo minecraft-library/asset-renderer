@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.equipment;
 
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.parity.Parity;
@@ -18,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
  * it wears. The trim pattern texture it also names is one use among many.
  */
 @Parity(claim = "option-surface")
+@EnumLookup
 @Getter
 @RequiredArgsConstructor
 public enum ArmorSlot {
@@ -50,13 +52,6 @@ public enum ArmorSlot {
     CHESTPLATE("chestplate"),
     /** Boots - armor layer 1, painted over the leggings on the lower legs. */
     BOOTS("boots");
-
-    /**
-     * Cached snapshot of {@link #values()} reused by every compositor's walk to avoid the per-call
-     * defensive array clone the JLS mandates. Declaration order - and so the back-to-front composite
-     * order this type's contract rests on - is preserved exactly.
-     */
-    public static final ArmorSlot @NotNull [] CACHED_VALUES = values();
 
     /**
      * Per-side inflation in the skin renderer's normalized frame for the layer-1 pieces, so armor sits

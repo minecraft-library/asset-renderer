@@ -221,18 +221,16 @@ final class PropertyDefinitionResolver {
      * previous statement and reverse the backward encounter into declaration order.
      */
     private @NotNull List<FieldRef> resolvePropertyListElements(@NotNull String owner, @NotNull String field) {
-        List<FieldRef> out = new ArrayList<>();
         FieldInsnNode put = findPutStaticNode(owner, field);
         AbstractInsnNode of = put == null ? null : AsmWalker.previousReal(put);
         if (!(of instanceof MethodInsnNode build) || of.getOpcode() != Opcodes.INVOKESTATIC || !build.desc.endsWith(LIST_RETURN_SUFFIX))
-            return out;
-        List<FieldRef> backward = AsmWalker.before(of).real()
+            return List.of();
+        return AsmWalker.before(of).real()
             .until(Insn.opcode(Opcodes.PUTSTATIC))
             .mapNotNull(PropertyDefinitionResolver::scalarPropertyRef)
             .map(prop -> new FieldRef(prop.owner, prop.name))
-            .toList();
-        out.addAll(backward.reversed());
-        return out;
+            .toList()
+            .reversed();
     }
 
     // ------------------------------------------------------------------------------------

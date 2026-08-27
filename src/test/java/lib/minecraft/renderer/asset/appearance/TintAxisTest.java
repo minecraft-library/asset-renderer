@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.not;
  * halves are asserted over all sixteen vanilla dyes, so an override moved onto the wrong constant
  * fails here rather than in a render.
  *
- * <p>{@link TintAxis#ofToken(String)} is a linear scan over five tokens that answers empty for a null
+ * <p>{@link TintAxis#findByToken(String)} is a linear scan over five tokens that answers empty for a null
  * and for anything it does not hold, including a token differing only in case - the tokens are the
  * keys the shipped model form writes, so a case-folding "fix" would start accepting spellings the
  * tooling never emits.
@@ -92,11 +92,11 @@ class TintAxisTest {
         @Test
         @DisplayName("resolves each of the five tokens to its axis")
         void resolvesEachTokenToItsAxis() {
-            assertThat(TintAxis.ofToken("base_color"), is(Optional.of(TintAxis.BASE)));
-            assertThat(TintAxis.ofToken("pattern_color"), is(Optional.of(TintAxis.PATTERN)));
-            assertThat(TintAxis.ofToken("wool_color"), is(Optional.of(TintAxis.WOOL)));
-            assertThat(TintAxis.ofToken("collar_color"), is(Optional.of(TintAxis.COLLAR)));
-            assertThat(TintAxis.ofToken("equipment_color"), is(Optional.of(TintAxis.EQUIPMENT)));
+            assertThat(TintAxis.findByToken("base_color"), is(Optional.of(TintAxis.BASE)));
+            assertThat(TintAxis.findByToken("pattern_color"), is(Optional.of(TintAxis.PATTERN)));
+            assertThat(TintAxis.findByToken("wool_color"), is(Optional.of(TintAxis.WOOL)));
+            assertThat(TintAxis.findByToken("collar_color"), is(Optional.of(TintAxis.COLLAR)));
+            assertThat(TintAxis.findByToken("equipment_color"), is(Optional.of(TintAxis.EQUIPMENT)));
         }
 
         /** Asserts every axis finds itself through the token it carries. */
@@ -104,7 +104,7 @@ class TintAxisTest {
         @DisplayName("round-trips every axis through its own token")
         void roundTripsEveryAxisThroughItsToken() {
             for (TintAxis axis : TintAxis.values())
-                assertThat(axis.name(), TintAxis.ofToken(axis.token()), is(Optional.of(axis)));
+                assertThat(axis.name(), TintAxis.findByToken(axis.token()), is(Optional.of(axis)));
         }
 
         /**
@@ -122,11 +122,11 @@ class TintAxisTest {
         @Test
         @DisplayName("answers empty for a null, unknown or differently-cased token")
         void answersEmptyForAnythingElse() {
-            assertThat(TintAxis.ofToken(null), is(Optional.<TintAxis>empty()));
-            assertThat(TintAxis.ofToken(""), is(Optional.<TintAxis>empty()));
-            assertThat(TintAxis.ofToken("wool"), is(Optional.<TintAxis>empty()));
+            assertThat(TintAxis.findByToken(null), is(Optional.<TintAxis>empty()));
+            assertThat(TintAxis.findByToken(""), is(Optional.<TintAxis>empty()));
+            assertThat(TintAxis.findByToken("wool"), is(Optional.<TintAxis>empty()));
             // The comparison is String.equals, so the table is case-sensitive by construction.
-            assertThat(TintAxis.ofToken("WOOL_COLOR"), is(Optional.<TintAxis>empty()));
+            assertThat(TintAxis.findByToken("WOOL_COLOR"), is(Optional.<TintAxis>empty()));
         }
 
     }

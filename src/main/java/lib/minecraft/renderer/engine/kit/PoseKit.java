@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
@@ -155,16 +156,16 @@ public final class PoseKit {
 
         if (mode == EntityOptions.PoseMode.BIND) return subject;
         EntityModelData model = posed(mode, subject, tick);
-        List<Entity.OverlayLayer> overlays = posedOverlays(mode, subject, tick);
+        ConcurrentList<Entity.OverlayLayer> overlays = posedOverlays(mode, subject, tick);
         if (model == subject.model() && overlays == subject.overlays()) return subject;
         return subject.mutate().model(model).overlays(overlays).build();
     }
 
     /** Each overlay pass where its own model leaves it, or the list itself when none of them moved. */
-    private static @NotNull List<Entity.OverlayLayer> posedOverlays(
+    private static @NotNull ConcurrentList<Entity.OverlayLayer> posedOverlays(
         @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
 
-        List<Entity.OverlayLayer> overlays = subject.overlays();
+        ConcurrentList<Entity.OverlayLayer> overlays = subject.overlays();
         List<Entity.OverlayLayer> out = new ArrayList<>(overlays.size());
         boolean moved = false;
         for (Entity.OverlayLayer overlay : overlays) {
@@ -179,7 +180,7 @@ public final class PoseKit {
                 overlay.tintArgb(), overlay.skipBounds(), overlay.tintBy(), overlay.textureBy(),
                 overlay.gate(), noHat, overlay.pose(), overlay.textureScroll()));
         }
-        return moved ? List.copyOf(out) : overlays;
+        return moved ? Concurrent.newUnmodifiableList(out) : overlays;
     }
 
     // ------------------------------------------------------------------------------------

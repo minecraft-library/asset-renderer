@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.asset.pack;
 
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentSet;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * One logical resource pack in the stack: its identity, byte access, parsed metadata, active roots,
@@ -27,8 +27,8 @@ public record ResourcePack(
     @NotNull PackContainer container,
     @NotNull MCMeta meta,
     @NotNull ConcurrentList<PackRoot> roots,
-    @NotNull Set<String> namespaces,
-    @NotNull Set<PackCapability> capabilities
+    @NotNull ConcurrentSet<String> namespaces,
+    @NotNull ConcurrentSet<PackCapability> capabilities
 ) {
 
     /**
