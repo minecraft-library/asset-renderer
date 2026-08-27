@@ -35,7 +35,7 @@
     "entity_geometry": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "ae61b531b135327c3836ff010bbcd01945d089675f2dadc351d7089353e0e7bf"
+      "sha256": "1d0cac1f584882771837cfc73f12d06326343a1f26fa4deefec8ab6fe1826374"
     },
     "entity_models": {
       "form": "table-canonical",
@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "9fe42c7322ab9b9d721015e9a386f98880fc6a16dffba1e92769bee5df2803d4"
+      "sha256": "048c7f549344fc3d8e7e2e09f56c0aa93ee8bb18888df226e5c536ee4a1575e1"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "83d18f3c31f1072510363030cee2bf6971fea60c70a722c1cccab6ec7f10aa8a",
+    "asset_content_digest": "fc91ddb97f59ef7134897ef7f992b3b7ccc0ba2f2fb3675750f8b0ffde836faa",
     "asset_dirty": false,
-    "asset_sha": "2685d141f5fe9e3726eb4f9343dba5adccb350e3",
+    "asset_sha": "aa12f713781e4ac237256bb1c48c7e8c0eb3870e",
     "counts": {
       "digests": 11
     },
@@ -76,7 +76,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "the last three load-time mesh surgeries bake into the shipped tables: an overlay pass retained subset, its cube inflate and the emptied subtree of its suppressed form each become a mesh the row names, so EntityIndexBuilder joins every mesh and reshapes none. 6 moved values over 4 artifacts - both shipped-table digests, both dump manifests entities.json, and the tooling manifest two tables beside its entityModels log. Every sweep held at zero over the 24 artifacts captured, sweep.entity at 402 rows and 59.4901 and sweep.entity-animation at 90 and 10.0809, and each of the 12 derived meshes was checked cube by cube against the surgery it replaces. No artifact changed population.",
+    "reason": "entity-bake S1/S2/S5/S7 and the B8 cube bake. Two shipped tables re-emitted at aa12f713: entity_geometry gains pivot+rotation on the shulker's three cubes, entity_poses loses the ShulkerRenderer row, and the flow log gains one 'turned' line - so digest.shipped-tables and manifest.tooling-tables move together and the agreement check holds. The dump moves in three files: entities.json is reshaped by all five commits, and blocks.json + block-entities.json move for one reason only, entityModel() no longer writing inventory_y_rotation (B5) - verified by count, the remaining 210 equalling BoneModel's own source_y_up and entity_flip rather than doubling texture_size. Every render is byte-identical: 90 subjects at BIND, 8 posed shulker frames, 1055 block renders, 17 equipment renders, 5 fish patterns, 3 oxidation levels.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -85,7 +85,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-26T06:56:38Z",
+    "timestamp": "2026-08-27T08:39:11Z",
     "tool_version": "1.0.0"
   }
 }

@@ -28,7 +28,7 @@
     },
     {
       "path": "entity_geometry.json",
-      "sha256": "a593faa1f21857401bcd036ad0e6c5405e756cfdda24562c98c37bd960f57f39"
+      "sha256": "92b9e2c4d6952a407f6b00b9884beed65d2d5f97c9627addfcc9bdeeb9d046a5"
     },
     {
       "path": "entity_models.json",
@@ -36,7 +36,7 @@
     },
     {
       "path": "entity_poses.json",
-      "sha256": "e8863033756fd8a58fc73ec5355b4798efda5dc702952a49a83beda1e6d76874"
+      "sha256": "848c23264d4f497558482499eb5b1b5ee8726fd66305d34bdb4581f1ccafd95b"
     },
     {
       "path": "glint_items.json",
@@ -56,15 +56,15 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "6b7b83b248309a98b70b85c1a259fab45baa8ef122c6be3aab49217c6f843a04",
+    "entityModels": "f4836d06ffc6424bc1ca04dbe997b83f44313b1249ce368eafc31072d096cd6c",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
-    "asset_content_digest": "83d18f3c31f1072510363030cee2bf6971fea60c70a722c1cccab6ec7f10aa8a",
+    "asset_content_digest": "fc91ddb97f59ef7134897ef7f992b3b7ccc0ba2f2fb3675750f8b0ffde836faa",
     "asset_dirty": false,
-    "asset_sha": "2685d141f5fe9e3726eb4f9343dba5adccb350e3",
+    "asset_sha": "aa12f713781e4ac237256bb1c48c7e8c0eb3870e",
     "counts": {
       "files": 11,
       "logs": 8
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "the last three load-time mesh surgeries bake into the shipped tables: an overlay pass retained subset, its cube inflate and the emptied subtree of its suppressed form each become a mesh the row names, so EntityIndexBuilder joins every mesh and reshapes none. 6 moved values over 4 artifacts - both shipped-table digests, both dump manifests entities.json, and the tooling manifest two tables beside its entityModels log. Every sweep held at zero over the 24 artifacts captured, sweep.entity at 402 rows and 59.4901 and sweep.entity-animation at 90 and 10.0809, and each of the 12 derived meshes was checked cube by cube against the surgery it replaces. No artifact changed population.",
+    "reason": "entity-bake S1/S2/S5/S7 and the B8 cube bake. Two shipped tables re-emitted at aa12f713: entity_geometry gains pivot+rotation on the shulker's three cubes, entity_poses loses the ShulkerRenderer row, and the flow log gains one 'turned' line - so digest.shipped-tables and manifest.tooling-tables move together and the agreement check holds. The dump moves in three files: entities.json is reshaped by all five commits, and blocks.json + block-entities.json move for one reason only, entityModel() no longer writing inventory_y_rotation (B5) - verified by count, the remaining 210 equalling BoneModel's own source_y_up and entity_flip rather than doubling texture_size. Every render is byte-identical: 90 subjects at BIND, 8 posed shulker frames, 1055 block renders, 17 equipment renders, 5 fish patterns, 3 oxidation levels.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,8 +84,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-26T06:56:40Z",
+    "timestamp": "2026-08-27T08:39:14Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 45697
+    "wall_time_ms": 46808
   }
 }
