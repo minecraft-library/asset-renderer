@@ -4,7 +4,6 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
-import lib.minecraft.renderer.asset.appearance.CopperWeathering;
 import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
@@ -571,23 +570,6 @@ public record Entity(
     public @NotNull Optional<String> babyTextureRef(@NotNull AppearanceOptions appearance) {
         if (!appearance.isBaby() || this.axes.babyModel().isEmpty()) return Optional.empty();
         return this.axes.state().select("baby");
-    }
-
-    /**
-     * The copper golem's weathered body base texture ref, when this definition supports weathering
-     * (it carries a {@code texture_by: weathering} eye overlay) and a
-     * non-{@link CopperWeathering#UNAFFECTED} state is chosen; empty otherwise, so a caller falls
-     * back to the default {@link #textureRef}, which is the {@code UNAFFECTED} texture. Keeps the
-     * default (unweathered) render unchanged.
-     *
-     * @param appearance the axis selections to resolve against
-     * @return the weathered base texture ref, or empty
-     */
-    public @NotNull Optional<String> weatheringBaseRef(@NotNull AppearanceOptions appearance) {
-        if (appearance.getWeathering() == CopperWeathering.UNAFFECTED) return Optional.empty();
-        boolean supportsWeathering = this.overlays.stream()
-            .anyMatch(o -> o.textureBy().filter(TextureAxis.WEATHERING::equals).isPresent());
-        return supportsWeathering ? Optional.of(appearance.getWeathering().baseTexture()) : Optional.empty();
     }
 
     /**

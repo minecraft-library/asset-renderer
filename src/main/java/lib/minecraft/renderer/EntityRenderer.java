@@ -443,8 +443,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             return options.getTextureId().flatMap(id -> this.context.resolveTextureAtTick(id, tick));
 
         AppearanceOptions appearance = options.getAppearance();
+        Entity.Axis<String, String> state = definition.axes().state();
         return definition.babyTextureRef(appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick))
-            .or(() -> definition.weatheringBaseRef(appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
+            .or(() -> appearance.getWeathering().stateKey().flatMap(state::select)
+                .flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
             .or(() -> definition.stateTextureRef(appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
             .or(() -> definition.textureRef().flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)));
     }

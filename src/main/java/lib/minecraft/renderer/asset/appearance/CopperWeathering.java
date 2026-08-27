@@ -8,6 +8,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * A copper-golem weathering state - one of the four vanilla
@@ -31,6 +32,19 @@ public enum CopperWeathering {
 
     /** The emissive eye texture ref for this weathering state (e.g. {@code copper_golem/copper_golem_eyes_exposed}). */
     private final @NotNull String eyeTexture;
+
+    /**
+     * The behavioural state whose base texture this weathering draws, as the entity state axis keys it.
+     *
+     * <p>Empty for {@link #UNAFFECTED}, whose texture is the subject's own base state rather than an
+     * alternate: freshly-placed copper is what a copper golem already is, so there is nothing for a
+     * selection to swap to and the axis carries no entry for it.
+     *
+     * @return the state key, or empty when this weathering is the subject's base state
+     */
+    public @NotNull Optional<String> stateKey() {
+        return this == UNAFFECTED ? Optional.empty() : Optional.of(name().toLowerCase(Locale.ROOT));
+    }
 
     /**
      * Looks up a weathering state by name (case-insensitive), e.g. {@code "oxidized"}.

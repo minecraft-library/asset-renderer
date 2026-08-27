@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.CopperWeathering;
 import lib.minecraft.renderer.asset.appearance.Flag;
 import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.appearance.TextureAxis;
@@ -217,6 +218,8 @@ public final class EntityIndexBuilder {
         List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
             ctx.renderTransform(), pose, form.coordinate(), model, ctx.familyId());
 
+        Map<String, String> states = weathered(form.stateTextures(), ctx.familyOverlays(), ctx.familyId());
+
         Entity bare = Entity.builder()
             .id(ResourceId.parse(ctx.familyId()))
             .model(model).overlays(overlays)
@@ -225,7 +228,7 @@ public final class EntityIndexBuilder {
             .rendererScale(ctx.rendererScale())
             .pose(pose)
             .axes(new Entity.Axes(ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), ctx.largeShape(),
-                new Entity.Axis<>(form.stateTextures(), declaredState(ctx.stateDefault(), form.stateTextures())),
+                new Entity.Axis<>(states, declaredState(ctx.stateDefault(), states)),
                 Entity.Axis.none(), Entity.Axis.none()))
             .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()))
             .build();
@@ -431,6 +434,41 @@ public final class EntityIndexBuilder {
         @NotNull Map<String, String> stateTextures,
         @NotNull List<BlockOverlayLayer> blockOverlays
     ) {}
+
+    /**
+     * The row's states with the copper golem's oxidation among them, for a subject that weathers.
+     *
+     * <p>A subject weathers when it carries a pass whose texture the weathering axis answers, which is
+     * a fact of the definition rather than of the render - so it is settled once here instead of
+     * restreamed per frame, and a subject that does not weather simply has no such state for a
+     * selection to land on.
+     *
+     * <p>{@link CopperWeathering#UNAFFECTED} contributes no entry: it is the state the subject is
+     * already in. That it really is the same texture is checked rather than assumed, because a
+     * disagreement would silently redraw the default render as one of the oxidised forms.
+     *
+     * @param states the row's own state textures
+     * @param overlays the family's raw overlay rows
+     * @param familyId the subject being read, for the refusal
+     * @return the states, with an entry per oxidation level for a subject that weathers
+     * @throws PipelineException if the subject's base texture is not the unaffected weathering texture
+     */
+    private static @NotNull Map<String, String> weathered(
+        @NotNull Map<String, String> states, @NotNull List<RawOverlay> overlays, @NotNull String familyId) {
+
+        boolean weathers = overlays.stream()
+            .anyMatch(row -> TextureAxis.ofToken(row.textureBy()).filter(TextureAxis.WEATHERING::equals).isPresent());
+        if (!weathers) return states;
+        String base = states.get(Entity.BASE_STATE);
+        if (base != null && !CopperWeathering.UNAFFECTED.baseTexture().equals(base))
+            throw new PipelineException(
+                "Entity '%s' weathers but rests at '%s' rather than the unaffected '%s'",
+                familyId, base, CopperWeathering.UNAFFECTED.baseTexture());
+        Map<String, String> out = new LinkedHashMap<>(states);
+        for (CopperWeathering weathering : CopperWeathering.values())
+            weathering.stateKey().ifPresent(key -> out.put(key, weathering.baseTexture()));
+        return out;
+    }
 
     /**
      * Which state a row is already in: the one the shipped table declares where it declares one, else

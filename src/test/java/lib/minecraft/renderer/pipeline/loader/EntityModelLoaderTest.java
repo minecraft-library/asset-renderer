@@ -5,6 +5,7 @@ import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.CopperWeathering;
 import lib.minecraft.renderer.asset.appearance.Flag;
 import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
@@ -63,6 +64,30 @@ class EntityModelLoaderTest {
             assertThat(where + " reads its texture ref out of the state it is in",
                 definition.textureRef(), is(state.select(state.declared().get())));
             assertThat(where + " names a base texture", definition.textureRef().isPresent(), is(true));
+        }
+    }
+
+    @Test
+    @DisplayName("the copper golem oxidises through its state axis, and only it does")
+    void weatheringIsAState() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
+        Entity golem = defs.get("minecraft:copper_golem");
+        for (CopperWeathering weathering : CopperWeathering.values())
+            assertThat("the " + weathering + " body is the state that selects it",
+                weathering.stateKey().flatMap(golem.axes().state()::select)
+                    .orElseGet(() -> golem.textureRef().orElseThrow()),
+                is(weathering.baseTexture()));
+        // The unaffected body is the state the subject is already in rather than a fourth entry, so
+        // asking for it by key answers nothing - which is what makes the default render fall through
+        // to the base state instead of selecting an alternate equal to it.
+        assertThat("unaffected names no alternate", CopperWeathering.UNAFFECTED.stateKey(), is(Optional.empty()));
+        // A subject that does not weather carries no oxidation state, so a weathering selection lands
+        // on nothing rather than repainting a cow in copper.
+        for (Entity definition : defs.values()) {
+            if (definition.id().id().equals("minecraft:copper_golem")) continue;
+            assertThat(definition.id() + " carries no oxidation state",
+                definition.axes().state().options().keySet(),
+                not(hasItem(CopperWeathering.OXIDIZED.stateKey().orElseThrow())));
         }
     }
 
