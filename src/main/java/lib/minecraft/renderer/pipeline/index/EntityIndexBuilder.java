@@ -9,12 +9,6 @@ import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
 import lib.minecraft.renderer.asset.Entity.EquipmentOverlay;
 import lib.minecraft.renderer.asset.Entity.LargeShape;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
-import lib.minecraft.renderer.asset.Entity.TransformOp.RotateX;
-import lib.minecraft.renderer.asset.Entity.TransformOp.RotateY;
-import lib.minecraft.renderer.asset.Entity.TransformOp.RotateZ;
-import lib.minecraft.renderer.asset.Entity.TransformOp.Scale;
-import lib.minecraft.renderer.asset.Entity.TransformOp.Translate;
-import lib.minecraft.renderer.asset.Entity.TransformOp;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.Age;
@@ -33,6 +27,7 @@ import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
@@ -677,6 +672,12 @@ public final class EntityIndexBuilder {
      * its {@code block} may be omitted entirely (the enderman carried block). A {@code transforms} entry
      * is a single-member object dispatched on the member's own name, the shape a pose expression takes.
      *
+     * <p>The ops compose here rather than at render: every operand is a shipped constant, so their
+     * product is one too, and the row carries the product. Each arm applies the op the fluent way -
+     * {@code Math.toRadians} on the degrees, post-multiply onto the accumulated chain - because that is
+     * the arithmetic the render frame is entitled to, and the fluent path differs from the
+     * {@code multiply} path in the last few bits.
+     *
      * @throws PipelineException if a transform entry names an op the tooling does not emit
      */
     private static @NotNull List<BlockOverlayLayer> loadBlockOverlays(@NotNull List<RawBlockOverlay> array) {
@@ -686,25 +687,25 @@ public final class EntityIndexBuilder {
             if (row.block() == null && !selectable) continue;
             String blockId = row.block() == null ? "" : row.block();
             String attachedBone = row.attachedBone();
-            List<TransformOp> ops = new ArrayList<>();
+            Matrix4f transform = Matrix4f.IDENTITY;
             for (Map<String, com.google.gson.JsonElement> opObj : nullToEmpty(row.transforms())) {
                 Map.Entry<String, com.google.gson.JsonElement> only = opObj.entrySet().iterator().next();
-                ops.add(switch (only.getKey()) {
+                transform = switch (only.getKey()) {
                     case "translate" -> {
                         com.google.gson.JsonArray by = only.getValue().getAsJsonArray();
-                        yield new Translate(by.get(0).getAsFloat(), by.get(1).getAsFloat(), by.get(2).getAsFloat());
+                        yield transform.translate(by.get(0).getAsFloat(), by.get(1).getAsFloat(), by.get(2).getAsFloat());
                     }
                     case "scale" -> {
                         com.google.gson.JsonArray by = only.getValue().getAsJsonArray();
-                        yield new Scale(by.get(0).getAsFloat(), by.get(1).getAsFloat(), by.get(2).getAsFloat());
+                        yield transform.scale(by.get(0).getAsFloat(), by.get(1).getAsFloat(), by.get(2).getAsFloat());
                     }
-                    case "rotate_x" -> new RotateX(only.getValue().getAsFloat());
-                    case "rotate_y" -> new RotateY(only.getValue().getAsFloat());
-                    case "rotate_z" -> new RotateZ(only.getValue().getAsFloat());
+                    case "rotate_x" -> transform.rotateX((float) Math.toRadians(only.getValue().getAsFloat()));
+                    case "rotate_y" -> transform.rotateY((float) Math.toRadians(only.getValue().getAsFloat()));
+                    case "rotate_z" -> transform.rotateZ((float) Math.toRadians(only.getValue().getAsFloat()));
                     default -> throw new PipelineException("Unknown block-overlay transform '%s'", only.getKey());
-                });
+                };
             }
-            out.add(new BlockOverlayLayer(blockId, attachedBone, List.copyOf(ops), selectable));
+            out.add(new BlockOverlayLayer(blockId, attachedBone, transform, selectable));
         }
         return List.copyOf(out);
     }

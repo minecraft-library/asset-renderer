@@ -73,6 +73,7 @@ import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
@@ -1516,50 +1517,30 @@ public final class PipelineParityDump {
         JsonObject root = new JsonObject();
         root.addProperty("block_id", overlay.blockId());
         root.addProperty("selectable", overlay.selectable());
-        root.add("transforms", CanonicalJson.ordered(overlay.transforms(), PipelineParityDump::transformOp));
+        root.add("transform", matrix(overlay.transform()));
         if (overlay.attachedBone() != null) root.addProperty("attached_bone", overlay.attachedBone());
         return root;
     }
 
     /**
-     * Returns one transform op as a tagged record.
-     * <p>
-     * The ops are emitted rather than folded into the matrix they compose. A matrix probe would bake the
-     * degrees-to-radians rounding into the gate, let two different chains alias onto one result, and hide
-     * WHICH op moved when one did. Every op is a record with public components, so there is nothing
-     * behavioural to lose by emitting them directly.
+     * Returns a matrix as its four columns, in the storage order the type documents.
      *
-     * @param op the op to emit
-     * @return the op object
+     * <p>What this section can see of a block overlay's placement is its product, because the product is
+     * what the row carries and the ops that composed it are a fact of the shipped table rather than of
+     * the built index. That splits the two questions cleanly rather than blurring them: an op that moves
+     * in the table moves {@code digest.shipped-tables} and is named there in its own vocabulary, and what
+     * is left for this section to answer is whether the SAME ops still compose to the same bits - which
+     * is the one thing folding at index build put at risk and the one thing a list of ops could not show.
+     *
+     * <p>Two different chains can alias onto one matrix here. They also render identically, so the
+     * aliasing costs this section nothing it was measuring.
+     *
+     * @param matrix the matrix to emit
+     * @return the four columns, in column-major order
      */
-    private static @NotNull JsonObject transformOp(@NotNull Entity.TransformOp op) {
-        JsonObject root = new JsonObject();
-        switch (op) {
-            case Entity.TransformOp.Translate translate -> {
-                root.addProperty("op", "translate");
-                root.add("x", CanonicalJson.number(translate.x()));
-                root.add("y", CanonicalJson.number(translate.y()));
-                root.add("z", CanonicalJson.number(translate.z()));
-            }
-            case Entity.TransformOp.Scale scale -> {
-                root.addProperty("op", "scale");
-                root.add("x", CanonicalJson.number(scale.x()));
-                root.add("y", CanonicalJson.number(scale.y()));
-                root.add("z", CanonicalJson.number(scale.z()));
-            }
-            case Entity.TransformOp.RotateX rotate -> {
-                root.addProperty("op", "rotate_x");
-                root.add("degrees", CanonicalJson.number(rotate.degrees()));
-            }
-            case Entity.TransformOp.RotateY rotate -> {
-                root.addProperty("op", "rotate_y");
-                root.add("degrees", CanonicalJson.number(rotate.degrees()));
-            }
-            case Entity.TransformOp.RotateZ rotate -> {
-                root.addProperty("op", "rotate_z");
-                root.add("degrees", CanonicalJson.number(rotate.degrees()));
-            }
-        }
+    private static @NotNull JsonArray matrix(@NotNull Matrix4f matrix) {
+        JsonArray root = new JsonArray();
+        for (int col = 1; col <= 4; col++) root.add(floats(matrix.column(col)));
         return root;
     }
 

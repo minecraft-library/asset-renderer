@@ -32,9 +32,9 @@ import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
-import lib.minecraft.renderer.engine.kit.EntityArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.ElytraKit;
+import lib.minecraft.renderer.engine.kit.EntityArmorKit;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.engine.kit.EquipmentKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
@@ -851,15 +851,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             blockModel.getElements(), faceTextures, blockTint, ColorMath.WHITE, forceRefs);
         if (blockTris.isEmpty()) return Concurrent.newList();
 
-        // Compose the per-overlay transform matrix in vanilla block units. PoseStack ops apply
-        // in bytecode order to the LOCAL frame: under the column-vector convention each new op
-        // post-multiplies, matching vanilla's PoseStack `pose = pose * newOp`. Final composite
-        // applies the most-recently-appended op first to the cube-local vertex. The bone anchor is
-        // applied separately in pixel space (see finalMatrix) so it composes the bone's FULL
-        // ancestor chain, not just the attached bone's own local pivot / rotation.
-        Matrix4f blockUnitChain = Matrix4f.IDENTITY;
-        for (Entity.TransformOp op : overlay.transforms())
-            blockUnitChain = op.appendTo(blockUnitChain);
+        // The per-overlay placement in vanilla block units, composed at index build from the ops the
+        // layer's shipped row declares: PoseStack ops apply in bytecode order to the LOCAL frame, so
+        // under the column-vector convention each post-multiplies, matching vanilla's
+        // `pose = pose * newOp`, and the last-declared op applies first to the cube-local vertex. The
+        // bone anchor is applied separately in pixel space (see finalMatrix) so it composes the bone's
+        // FULL ancestor chain, not just the attached bone's own local pivot / rotation.
+        Matrix4f blockUnitChain = overlay.transform();
 
         // Vanilla expects block-model vertices in {@code [0, 1]} (corner-at-origin) since the
         // last pose op {@code translate(-0.5, -0.5, -0.5)} re-centers them at origin before the

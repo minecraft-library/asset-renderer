@@ -3595,6 +3595,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pipeline/index/BlockOverlayTransformFoldTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pipeline/index/BoneToggleRestTest": {
       "artifacts": [],
       "source": "derived"

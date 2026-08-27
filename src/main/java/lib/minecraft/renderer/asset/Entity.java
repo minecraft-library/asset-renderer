@@ -456,21 +456,22 @@ public record Entity(
      * at a specific transform on top of the entity body. Used by mooshroom (mushrooms on back / between
      * horns), enderman (carried block), iron golem (poppy), etc.
      *
-     * <p>The {@code transforms} list is applied in order at render time, one push/pop scope per
-     * block-overlay row (each row = one mushroom/flower/etc). Transforms operate in entity-local
-     * coordinates - the block model's 0..1 unit cube is placed in the entity's frame after the transform
-     * chain. Optionally pre-pended by an entity-bone pose ({@code attachedBone}) so head-attached
-     * overlays (mooshroom's third mushroom between the horns) follow the head's runtime / bind-pose
-     * rotation.
+     * <p>{@link #transform} places the block model in entity-local coordinates: the block model's 0..1
+     * unit cube is positioned in the entity's frame by it, optionally pre-multiplied by an entity-bone
+     * pose ({@code attachedBone}) so head-attached overlays (mooshroom's third mushroom between the
+     * horns) follow the head's runtime / bind-pose rotation. One push/pop scope per block-overlay row -
+     * each row is one mushroom / flower.
      *
      * @param blockId the block id to render (e.g. {@code "minecraft:red_mushroom_block"}); the documented
      *     default for a {@link #selectable} row (empty when the layer has no vanilla literal, as for the
      *     enderman carried block), always overridden at render by the caller's selection
-     * @param attachedBone optional entity-bone whose pose stack pre-multiplies the transforms (e.g.
+     * @param attachedBone optional entity-bone whose pose stack pre-multiplies the transform (e.g.
      *     {@code "head"} for the mooshroom horn-mushroom, {@code "right_arm"} for the iron golem flower).
      *     {@code null} when the overlay is positioned in the entity's root frame
-     * @param transforms ordered list of {@code translate} / {@code rotate_y} / {@code rotate_x} /
-     *     {@code scale} ops applied to the block model after the optional bone pose
+     * @param transform the block-unit placement, in vanilla's {@code PoseStack} composition: the product
+     *     of the {@code translate} / {@code rotate_x} / {@code rotate_y} / {@code rotate_z} /
+     *     {@code scale} ops the layer's shipped row declares, post-multiplied in declared order so that
+     *     under the column-vector convention the last-declared op applies first to a cube-local vertex
      * @param selectable when {@code true} this overlay is a caller-selected held block (enderman carried
      *     block, iron golem flower) rather than an always-present body decoration (mooshroom mushrooms,
      *     snow golem pumpkin): it renders only when {@link AppearanceOptions#selectedCarriedBlock()}
@@ -480,7 +481,7 @@ public record Entity(
     public record BlockOverlayLayer(
         @NotNull String blockId,
         @Nullable String attachedBone,
-        @NotNull List<TransformOp> transforms,
+        @NotNull Matrix4f transform,
         boolean selectable
     ) {
         /**
@@ -491,98 +492,7 @@ public record Entity(
          * @return an otherwise-identical overlay rendering {@code newBlockId}
          */
         public @NotNull BlockOverlayLayer withBlockId(@NotNull String newBlockId) {
-            return new BlockOverlayLayer(newBlockId, this.attachedBone, this.transforms, this.selectable);
-        }
-    }
-
-    /**
-     * One transform operation in a {@link BlockOverlayLayer}'s chain. Mirrors the vanilla
-     * {@code PoseStack} ops a render layer issues between {@code pushPose} / {@code popPose}:
-     * {@code translate(F, F, F)} -> {@link Translate}, {@code mulPose(rotationDegrees(deg))} on the Y
-     * axis -> {@link RotateY} / on the X axis -> {@link RotateX} / on the Z axis -> {@link RotateZ},
-     * {@code scale(F, F, F)} -> {@link Scale}.
-     *
-     * <p>Sealed so each op knows how to {@link #appendTo(Matrix4f) append itself} to the chain, letting
-     * the renderer compose a transform without a dispatch switch. Add a new op kind by adding a nested
-     * record and updating the JSON parser.
-     */
-    public sealed interface TransformOp {
-
-        /**
-         * Post-multiplies this op onto {@code chain}, matching vanilla's {@code pose = pose * newOp} so
-         * that, under the column-vector convention, the most-recently-appended op applies first to a
-         * cube-local vertex.
-         *
-         * @param chain the accumulated block-unit chain
-         * @return {@code chain} with this op appended
-         */
-        @NotNull Matrix4f appendTo(@NotNull Matrix4f chain);
-
-        /**
-         * Translation by {@code (x, y, z)} in entity-local units.
-         *
-         * @param x the offset along the X axis, in entity-local units
-         * @param y the offset along the Y axis, in entity-local units
-         * @param z the offset along the Z axis, in entity-local units
-         */
-        record Translate(float x, float y, float z) implements TransformOp {
-            @Override
-            public @NotNull Matrix4f appendTo(@NotNull Matrix4f chain) {
-                return chain.translate(this.x, this.y, this.z);
-            }
-        }
-
-        /**
-         * Rotation around the Y axis by {@code degrees}.
-         *
-         * @param degrees the rotation about the Y axis, in degrees
-         */
-        record RotateY(float degrees) implements TransformOp {
-            @Override
-            public @NotNull Matrix4f appendTo(@NotNull Matrix4f chain) {
-                return chain.rotateY((float) Math.toRadians(this.degrees));
-            }
-        }
-
-        /**
-         * Rotation around the X axis by {@code degrees} (the enderman carried block's {@code Axis.XP} tilt,
-         * the iron golem flower's {@code Axis.XP} lay-flat).
-         *
-         * @param degrees the rotation about the X axis, in degrees
-         */
-        record RotateX(float degrees) implements TransformOp {
-            @Override
-            public @NotNull Matrix4f appendTo(@NotNull Matrix4f chain) {
-                return chain.rotateX((float) Math.toRadians(this.degrees));
-            }
-        }
-
-        /**
-         * Rotation around the Z axis by {@code degrees} (a {@code mulPose(rotationDegrees)} on
-         * {@code Axis.ZP}). Vocabulary-only in 26.1 - no vanilla block-overlay layer emits a {@code rotate_z}
-         * row - but present so a future one composes in the correct PoseStack order.
-         *
-         * @param degrees the rotation about the Z axis, in degrees
-         */
-        record RotateZ(float degrees) implements TransformOp {
-            @Override
-            public @NotNull Matrix4f appendTo(@NotNull Matrix4f chain) {
-                return chain.rotateZ((float) Math.toRadians(this.degrees));
-            }
-        }
-
-        /**
-         * Per-axis scale {@code (x, y, z)}. Negative components flip the axis.
-         *
-         * @param x the scale factor along the X axis
-         * @param y the scale factor along the Y axis
-         * @param z the scale factor along the Z axis
-         */
-        record Scale(float x, float y, float z) implements TransformOp {
-            @Override
-            public @NotNull Matrix4f appendTo(@NotNull Matrix4f chain) {
-                return chain.scale(this.x, this.y, this.z);
-            }
+            return new BlockOverlayLayer(newBlockId, this.attachedBone, this.transform, this.selectable);
         }
     }
 
