@@ -1453,13 +1453,11 @@ public final class PipelineParityDump {
         root.add("variants", CanonicalJson.map(axes.variant().options(), PipelineParityDump::entity));
         CanonicalJson.put(root, "variant_default", axes.variant().declared(), JsonPrimitive::new);
         CanonicalJson.put(root, "baby_model", axes.babyModel(), PipelineParityDump::entityModel);
-        CanonicalJson.put(root, "large_shape", axes.largeShape(), shape -> {
-            JsonObject entry = new JsonObject();
-            entry.add("model", entityModel(shape.model()));
-            entry.add("overlays", CanonicalJson.ordered(shape.overlays(), PipelineParityDump::overlay));
-            CanonicalJson.put(entry, "texture_ref", shape.textureRef(), JsonPrimitive::new);
-            return entry;
-        });
+        // One map where there was a bespoke record, on the same terms as the sizes above: a shape form
+        // is a whole sub-definition, so it is emitted as one rather than as the three members the
+        // render used to lift off it.
+        root.add("shapes", CanonicalJson.map(axes.shape().options(), PipelineParityDump::entity));
+        CanonicalJson.put(root, "shape_default", axes.shape().declared(), JsonPrimitive::new);
         return root;
     }
 

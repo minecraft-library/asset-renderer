@@ -108,6 +108,12 @@ public record Entity(
     public static final @NotNull String BASE_STATE = "wild";
 
     /**
+     * The {@code shape} axis option carrying a subject's large body form - the tropical fish's, which
+     * is the corpus's only one. Selected by the pattern's own shape rather than by a caller naming it.
+     */
+    public static final @NotNull String SHAPE_LARGE = "large";
+
+    /**
      * Normalises a never-set {@link #members} to an empty (singleton) list and a never-set
      * {@link #pose} to the pose of a model that poses nothing, so callers can omit either.
      */
@@ -224,17 +230,14 @@ public record Entity(
             EntityModelData flipped = toggled(definition.model(), selectedToggles);
             if (flipped != definition.model()) builder.model(flipped);
             builder.blockOverlays(resolveBlockOverlays(definition, appearance));
-            // The shape axis (tropical fish) swaps to the large body when the selected pattern's Shape is
-            // large: the large mesh, tropical_b base texture, and the pattern overlays cloned onto the
-            // large geometry (the pattern axis still picks the concrete overlay texture via texture_by). A
-            // small/default pattern leaves the small body untouched.
-            if (definition.axes().largeShape().isPresent()
-                && appearance.getPattern().map(p -> p.shape() == TropicalFishPattern.Shape.LARGE).orElse(false)) {
-                LargeShape large = definition.axes().largeShape().get();
-                builder.model(large.model())
-                    .overlays(large.overlays())
-                    .axes(drawing(definition.axes(), large.textureRef()));
-            }
+            // The shape axis (tropical fish) swaps to the large body when the selected pattern's Shape
+            // is large - the large mesh, its tropical_b base texture and the pattern overlays cloned
+            // onto the large geometry, all of it ONE already-built form rather than three members
+            // lifted onto this builder. The pattern axis still picks the concrete overlay texture via
+            // texture_by. A small / default pattern leaves the small body untouched.
+            if (appearance.getPattern().map(p -> p.shape() == TropicalFishPattern.Shape.LARGE).orElse(false))
+                definition.axes().shape().select(SHAPE_LARGE).ifPresent(large -> builder
+                    .model(large.model()).overlays(large.overlays()).axes(large.axes()));
             // The size axis swaps to the selected size's form, which carries whichever of the two
             // vanilla mechanisms its subject uses: a distinct baked mesh (armor stand, pufferfish,
             // salmon) or the base mesh at a multiplied render scale (slime, magma_cube). Both are read
@@ -273,7 +276,7 @@ public record Entity(
         String key = state.declared().orElse(BASE_STATE);
         LinkedHashMap<String, String> options = new LinkedHashMap<>(state.options());
         options.put(key, ref.get());
-        return new Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(), axes.largeShape(),
+        return new Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(), axes.shape(),
             new Axis<>(Map.copyOf(options), Optional.of(key)), axes.size(), axes.variant());
     }
 
@@ -449,8 +452,13 @@ public record Entity(
      * @param babyOverlays the overlay passes materialised on the baby mesh (the villager biome robe, the
      *     trader llama's baby caparison), used in place of {@link Entity#overlays()} when the {@code age}
      *     axis selects {@code baby}; empty unless an overlay declares a baby form
-     * @param largeShape the {@code shape} axis's large alternative (tropical fish): the large body mesh +
-     *     {@code tropical_b} texture + pattern overlays cloned onto it; empty otherwise
+     * @param shape the {@code shape} axis's body forms keyed by option (tropical fish
+     *     {@code small}/{@code large}), each a fully-built sub-definition carrying its own mesh, base
+     *     texture and pattern overlays. Selected by the pattern's own {@link TropicalFishPattern.Shape},
+     *     not by a caller naming a shape. Empty for a family with no shape axis.
+     *     <p>Deliberately NOT folded into {@link #variant}: the group canvas union measures every
+     *     variant option's silhouette so a family's coats share one canvas, and a body shape is
+     *     exactly the thing that must not
      * @param state every base texture this definition can draw, keyed by the behavioural state that
      *     selects it (wolf {@code wild}/{@code tame}/{@code angry}) plus the {@code baby} texture.
      *     <b>The one axis every definition carries</b>: a subject with no alternates still names the
@@ -473,7 +481,7 @@ public record Entity(
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull Optional<EntityPose> babyPose,
         @NotNull List<OverlayLayer> babyOverlays,
-        @NotNull Optional<LargeShape> largeShape,
+        @NotNull Axis<String, Entity> shape,
         @NotNull Axis<String, String> state,
         @NotNull Axis<Size, Entity> size,
         @NotNull Axis<String, Entity> variant
@@ -760,21 +768,5 @@ public record Entity(
                 this.slot, flipped, this.layerType, this.materialAssets);
         }
     }
-
-    /**
-     * The {@code shape} axis's large-body alternative (tropical fish), resolved eagerly at load: the
-     * large body mesh, its base texture, and the pattern overlays materialised onto the large geometry.
-     * the entity definition resolver swaps these in wholesale when the selected pattern's {@code Shape} is
-     * large.
-     *
-     * @param model the large body mesh
-     * @param textureRef the large body base texture ({@code fish/tropical_b})
-     * @param overlays the pattern overlays materialised on the large mesh
-     */
-    public record LargeShape(
-        @NotNull EntityModelData model,
-        @NotNull Optional<String> textureRef,
-        @NotNull List<OverlayLayer> overlays
-    ) {}
 
 }

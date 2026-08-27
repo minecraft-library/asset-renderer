@@ -7,7 +7,6 @@ import dev.simplified.gson.adapter.ColorTypeAdapter;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
 import lib.minecraft.renderer.asset.Entity.EquipmentOverlay;
-import lib.minecraft.renderer.asset.Entity.LargeShape;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -152,7 +151,6 @@ public final class EntityIndexBuilder {
         FamilyContext ctx = new FamilyContext(family, familyId, poseClass, geometries, poses,
             renderTransform, familyOverlays, baseTint, setupYawAddend, rendererScale,
             babyModel, babyPose, babyOverlays,
-            buildLargeShape(family, geometries, poses, renderTransform, familyId),
             equipment, humanoidArmor, stateDefaultOf(family));
 
         RawAxis variant = variantAxis(family);
@@ -184,7 +182,7 @@ public final class EntityIndexBuilder {
         Entity.Axes axes = base.axes();
         return base.mutate()
             .axes(new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(),
-                axes.largeShape(), axes.state(), axes.size(),
+                axes.shape(), axes.state(), axes.size(),
                 new Entity.Axis<>(Map.copyOf(coats), Optional.ofNullable(variant.defaultOption()))))
             .build();
     }
@@ -227,19 +225,20 @@ public final class EntityIndexBuilder {
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend())
             .rendererScale(ctx.rendererScale())
             .pose(pose)
-            .axes(new Entity.Axes(ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), ctx.largeShape(),
+            .axes(new Entity.Axes(ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Entity.Axis.none(),
                 new Entity.Axis<>(states, declaredState(ctx.stateDefault(), states)),
                 Entity.Axis.none(), Entity.Axis.none()))
             .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()))
             .build();
 
-        // Built once WITHOUT the size axis, because a size form is a sub-definition derived from this
-        // row - its own baked mesh over the same overlays, or this row at a multiplied scale - so the
-        // row it derives from has to exist first. A form carries no size axis of its own: it is a leaf.
+        // Built once WITHOUT the size or shape axes, because a form of either is a sub-definition
+        // derived from this row - its own baked mesh over the same overlays, or this row at a
+        // multiplied scale - so the row it derives from has to exist first. A form carries neither
+        // axis of its own: it is a leaf.
         Entity.Axes axes = bare.axes();
         return bare.mutate()
             .axes(new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(),
-                axes.largeShape(), axes.state(),
+                buildShapeAxis(ctx, bare), axes.state(),
                 buildSizeAxis(ctx.family(), ctx.geometries(), bare), axes.variant()))
             .build();
     }
@@ -409,7 +408,6 @@ public final class EntityIndexBuilder {
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull Optional<EntityPose> babyPose,
         @NotNull List<OverlayLayer> babyOverlays,
-        @NotNull Optional<LargeShape> largeShape,
         @NotNull List<EquipmentOverlay> equipment,
         @NotNull Optional<Shell> humanoidArmor,
         @NotNull Optional<String> stateDefault
@@ -987,28 +985,61 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * Resolves the family's {@code shape.large} option (tropical fish) into a {@link LargeShape}: the large
-     * body mesh, its base texture ref, and the pattern overlays materialised on the large geometry.
-     * Empty when the family has no shape axis or its large geometry is missing.
+     * Resolves the family's {@code shape} axis (tropical fish) into a form per option, each a
+     * sub-definition of the row it is a shape of. Empty for a family with no shape axis, or one whose
+     * large geometry is missing.
+     *
+     * <p>Both options are rows so the render swaps one form rather than lifting a mesh, a texture and
+     * an overlay list onto the row it is replacing. The declared option IS the row this derives from,
+     * carried under its own key so the axis can say which shape it is looking at.
+     *
+     * <p><b>The pose stays the row's own.</b> A shape option names its own geometry and the large
+     * coordinate heads its own model class, but nothing has ever read a pose there - the form is posed
+     * as its family is - so reading one here would articulate a subject vanilla does not.
+     *
+     * @param ctx what the whole family shares
+     * @param bare the row these are shapes of
+     * @return the shape axis, or an empty one for a family that has no shapes
      */
-    private static @NotNull Optional<LargeShape> buildLargeShape(
-        @NotNull RawModel family,
-        @NotNull Map<String, EntityModelData> geometries,
-        @NotNull Map<String, EntityPose> poses,
-        @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform,
-        @NotNull String entityId
-    ) {
-        RawAxes axes = family.axes();
-        if (axes == null || axes.shape() == null) return Optional.empty();
-        RawOption large = axes.shape().options().get("large");
-        if (large == null || large.geometry() == null) return Optional.empty();
+    private static @NotNull Entity.Axis<String, Entity> buildShapeAxis(
+        @NotNull FamilyContext ctx, @NotNull Entity bare) {
+
+        RawAxes axes = ctx.family().axes();
+        if (axes == null || axes.shape() == null) return Entity.Axis.none();
+        RawOption large = axes.shape().options().get(Entity.SHAPE_LARGE);
+        if (large == null || large.geometry() == null) return Entity.Axis.none();
         String coord = large.geometry();
-        EntityModelData model = geometries.get(coord);
-        if (model == null) return Optional.empty();
-        List<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), geometries, poses,
-            renderTransform, under(renderTransform, poseOf(poses, coord)), coord, model, entityId);
-        Optional<String> textureRef = large.texture() != null ? Optional.of(large.texture()) : Optional.of("");
-        return Optional.of(new LargeShape(model, textureRef, overlays));
+        EntityModelData model = ctx.geometries().get(coord);
+        if (model == null) return Entity.Axis.none();
+        List<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), ctx.geometries(), ctx.poses(),
+            ctx.renderTransform(), under(ctx.renderTransform(), poseOf(ctx.poses(), coord)), coord, model,
+            ctx.familyId());
+        Entity largeForm = bare.mutate()
+            .model(model)
+            .overlays(overlays)
+            .axes(drawnAs(bare.axes(), large.texture() == null ? "" : large.texture()))
+            .build();
+        LinkedHashMap<String, Entity> forms = new LinkedHashMap<>();
+        forms.put(axes.shape().defaultOption(), bare);
+        forms.put(Entity.SHAPE_LARGE, largeForm);
+        return new Entity.Axis<>(Map.copyOf(forms), Optional.of(axes.shape().defaultOption()));
+    }
+
+    /**
+     * The same axes drawing a different base texture, for a form that swaps the body texture with the
+     * mesh: the state axis with its declared option remapped.
+     *
+     * @param axes the axes to redraw
+     * @param ref the texture the declared state should select
+     * @return the axes selecting {@code ref} for the declared state
+     */
+    private static @NotNull Entity.Axes drawnAs(@NotNull Entity.Axes axes, @NotNull String ref) {
+        Entity.Axis<String, String> state = axes.state();
+        String key = state.declared().orElse(Entity.BASE_STATE);
+        LinkedHashMap<String, String> options = new LinkedHashMap<>(state.options());
+        options.put(key, ref);
+        return new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(), axes.shape(),
+            new Entity.Axis<>(Map.copyOf(options), Optional.of(key)), axes.size(), axes.variant());
     }
 
     /**

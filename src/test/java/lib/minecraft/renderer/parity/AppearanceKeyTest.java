@@ -54,7 +54,7 @@ final class AppearanceKeyTest {
                 Optional.empty(),  // babyModel
                 Optional.empty(),  // babyPose
                 List.of(),         // babyOverlays
-                Optional.empty(),  // largeShape
+                Entity.Axis.none(),                                 // shape
                 Entity.Axis.none(),                                 // state
                 new Entity.Axis<>(Map.of(), sizeDefault),           // size
                 new Entity.Axis<>(variants, variantDefault)))       // variant

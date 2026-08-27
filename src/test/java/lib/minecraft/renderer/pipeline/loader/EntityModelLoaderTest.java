@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -65,6 +66,38 @@ class EntityModelLoaderTest {
                 definition.textureRef(), is(state.select(state.declared().get())));
             assertThat(where + " names a base texture", definition.textureRef().isPresent(), is(true));
         }
+    }
+
+    @Test
+    @DisplayName("the tropical fish carries both its bodies as forms of one axis")
+    void shapeFormsAreWholeDefinitions() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
+        Entity fish = defs.get("minecraft:tropical_fish");
+        Entity.Axis<String, Entity> shape = fish.axes().shape();
+        assertThat("the fish names the shape it is", shape.declared(), is(Optional.of("small")));
+        assertThat("the declared shape is one of its own", shape.options().keySet(),
+            hasItems("small", Entity.SHAPE_LARGE));
+        // The declared form is the row AS A LEAF - same mesh and texture, its own shape axis empty -
+        // rather than the row itself, on the same terms the variant axis already holds its default.
+        Entity small = shape.select("small").orElseThrow();
+        assertThat("the declared form draws the row's mesh", small.model(), sameInstance(fish.model()));
+        assertThat("the declared form draws the row's texture", small.textureRef(), is(fish.textureRef()));
+        assertThat("the declared form is a leaf", small.axes().shape().options(), is(anEmptyMap()));
+
+        Entity large = shape.select(Entity.SHAPE_LARGE).orElseThrow();
+        assertThat("the large body is its own mesh", large.model(), not(sameInstance(fish.model())));
+        assertThat("the large body draws its own base texture",
+            large.textureRef(), is(Optional.of("fish/tropical_b")));
+        assertThat("the large body carries the passes cloned onto it", large.overlays(), not(empty()));
+        // A form is a leaf: carrying a shape axis of its own would let a resolve re-fold forever, and
+        // would make "which shape am I" answerable two ways.
+        assertThat("a shape form carries no shape axis", large.axes().shape().options(), is(anEmptyMap()));
+
+        // Every other subject has no shape axis at all, so nothing else can be swapped by a pattern.
+        for (Entity definition : defs.values())
+            if (!definition.id().id().equals("minecraft:tropical_fish"))
+                assertThat(definition.id() + " has no shape axis",
+                    definition.axes().shape().options(), is(anEmptyMap()));
     }
 
     @Test
