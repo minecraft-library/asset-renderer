@@ -23,6 +23,7 @@ import org.objectweb.asm.tree.VarInsnNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.zip.ZipEntry;
@@ -164,15 +165,20 @@ class RenderTransformWalkTest {
     // ------------------------------------------------------------------------------------
 
     @Test
-    @DisplayName("a shulker's addend is one turn about y, and its attach turn folds away at rest")
+    @DisplayName("a shulker's addend is a facing rather than a step, and its attach turn folds away")
     void shulkerShape() {
-        // The shipped ShulkerRenderer row byte for byte. The 180 rides the delegation's own body
-        // rotation, so it is the same turn about y a mulPose before the base would be - crossed
-        // into the model frame and taken to radians. The rotateAround settles at generation:
-        // attachFace rests DOWN, DOWN's opposite is UP, and UP's rotation is the identity, which
-        // turns nothing whatever the pivot.
-        assertEquals("{\"container\":[{\"y_rot\":{\"const\":-3.1415927}}]}",
-            emitted("fx/ShulkerRenderer", ATTACHED_DOWN));
+        // The 180 rides the delegation's own body rotation, which the base applies as the subject's
+        // FACING - so it leaves here in the degrees vanilla wrote and goes into the mesh, and this
+        // renderer composes no step at all. The rotateAround settles at generation: attachFace rests
+        // DOWN, DOWN's opposite is UP, and UP's rotation is the identity, which turns nothing
+        // whatever the pivot.
+        RenderTransform read = RenderTransformWalk.read(this.cache, "fx/ShulkerRenderer", ATTACHED_DOWN);
+        assertNotNull(read, "the shulker composes a facing");
+        assertTrue(read.isReadable(), "and reads whole");
+        assertEquals(180f, read.facingYaw(), "the facing, in the degrees it was written in");
+        assertEquals(List.of(), read.steps(), "and nothing is left to compose above the mesh");
+        // It writes no row: the table is the steps, and the facing is in the geometry by then.
+        assertEquals("{}", emitted("fx/ShulkerRenderer", ATTACHED_DOWN));
     }
 
     @Test
@@ -198,12 +204,16 @@ class RenderTransformWalkTest {
     }
 
     @Test
-    @DisplayName("an addend the reader's division cannot recover refuses where the degrees are still known")
-    void unrecoverableAddendRefuses() {
-        // 0.031f is a float whose multiply by the degrees factor is not inverted by the division
-        // the reader takes back out - the recovery lands one ulp away.
-        assertRefused("fx/UnrecoverableAddendRenderer",
-            "folds '0.031' into the body rotation, which the reader cannot recover");
+    @DisplayName("an addend no round trip touches is carried in the degrees it was written in")
+    void awkwardAddendSurvives() {
+        // 0.031f used to refuse: the walk crossed it into radians and the reader divided it back
+        // out, and that round trip does not invert for every float. Nothing crosses it now - the
+        // degrees go into the mesh - so the value that could not survive the trip is simply carried.
+        RenderTransform read =
+            RenderTransformWalk.read(this.cache, "fx/UnrecoverableAddendRenderer", NO_CONSTANTS);
+        assertNotNull(read, "the fixture composes a facing");
+        assertTrue(read.isReadable(), "and no longer refuses, there being no division to fail");
+        assertEquals(0.031f, read.facingYaw(), "carried verbatim, in degrees");
     }
 
     @Test

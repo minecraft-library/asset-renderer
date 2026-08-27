@@ -198,7 +198,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         EulerRotation user = options.getOutput().getRotation();
         EulerRotation effective = new EulerRotation(
             user.pitch(),
-            user.yaw() + definition.setupYawAddend(),
+            user.yaw(),
             user.roll()
         );
         // Apply the per-entity scale override (vanilla's combined renderer-scale + state-scale)
@@ -1261,7 +1261,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
      * Unions the screen-space silhouettes of a definition's option-encoded variant coats
-     * ({@link Entity.Axes#variants()}) into {@code bounds}, each measured at its
+     * ({@link Entity.Axes#variant()}) into {@code bounds}, each measured at its
      * own coat texture + render scale (mirroring the group-member walk). A no-op when the definition is
      * absent or carries no variant coats (id-encoded / non-variant models).
      * <p>

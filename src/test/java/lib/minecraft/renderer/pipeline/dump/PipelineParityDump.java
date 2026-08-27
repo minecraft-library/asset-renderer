@@ -1297,7 +1297,6 @@ public final class PipelineParityDump {
         root.addProperty("id", entity.id().id());
         root.add("model", entityModel(entity.model()));
         root.add("base_tint", CanonicalJson.argb(entity.baseTintArgb()));
-        root.add("setup_yaw_addend", CanonicalJson.number(entity.setupYawAddend()));
         root.add("renderer_scale", CanonicalJson.number(entity.rendererScale()));
         root.add("overlays", CanonicalJson.ordered(entity.overlays(), PipelineParityDump::overlay));
         root.add("block_overlays", CanonicalJson.ordered(entity.blockOverlays(), PipelineParityDump::blockOverlay));

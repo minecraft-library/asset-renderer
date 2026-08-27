@@ -121,10 +121,7 @@ public final class EntityIndexBuilder {
         RawRender render = family.render();
         float rendererScale = render == null || render.scale() == null ? 1f : render.scale();
         int baseTint = render == null || render.tint() == null ? WHITE : ColorTypeAdapter.parse(render.tint()).getRGB();
-        List<Map<PoseChannel, PoseExpr>> composed =
-            renderTransformOf(renderTransforms, family);
-        float setupYawAddend = facingYawOf(composed);
-        List<Map<PoseChannel, PoseExpr>> renderTransform = afterFacingYaw(composed);
+        List<Map<PoseChannel, PoseExpr>> renderTransform = renderTransformOf(renderTransforms, family);
 
         RawBones bones = family.bones();
         // The class the body's pose is read against, which is the renderer's own and not always the
@@ -149,7 +146,7 @@ public final class EntityIndexBuilder {
             renderTransform, babyPose.orElse(EntityPose.NONE), babyCoord, babyModel, familyId);
 
         FamilyContext ctx = new FamilyContext(family, familyId, poseClass, geometries, poses,
-            renderTransform, familyOverlays, baseTint, setupYawAddend, rendererScale,
+            renderTransform, familyOverlays, baseTint, rendererScale,
             babyModel, babyPose, babyOverlays,
             equipment, humanoidArmor, stateDefaultOf(family));
 
@@ -222,7 +219,7 @@ public final class EntityIndexBuilder {
             .id(ResourceId.parse(ctx.familyId()))
             .model(model).overlays(overlays)
             .blockOverlays(form.blockOverlays())
-            .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend())
+            .baseTintArgb(ctx.baseTint())
             .rendererScale(ctx.rendererScale())
             .pose(pose)
             .axes(new Entity.Axes(ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Entity.Axis.none(),
@@ -297,54 +294,6 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * Vanilla's own degrees-to-radians factor, which the pose table's steps are written through and
-     * a facing yaw is divided back out by. Refused at generation where the division would not
-     * recover the degrees the renderer wrote.
-     */
-    private static final float DEGREES_TO_RADIANS = (float) (Math.PI / 180d);
-
-    /**
-     * The facing yaw a row's leading steps carry, in the degrees the facing sum takes.
-     *
-     * <p>A leading constant turn about y is the addend a renderer folds into the delegation's own
-     * body rotation - the shulker's {@code + 180f} - and the base applies the body rotation as the
-     * subject's facing. So it reaches every render mode through the facing rather than through the
-     * pose container, which a BIND render never reads, and it is crossed back out of the container
-     * frame here: the container holds the negated radians.
-     *
-     * @param steps the renderer's composed steps, outermost first
-     * @return the summed facing degrees of the leading constant y turns, {@code 0f} for none
-     */
-    private static float facingYawOf(@NotNull List<Map<PoseChannel, PoseExpr>> steps) {
-        float degrees = 0f;
-        for (Map<PoseChannel, PoseExpr> step : steps) {
-            if (!isFacingYaw(step)) break;
-            degrees += -((float) step.get(PoseChannel.Y_ROT).constantValue().orElseThrow()) / DEGREES_TO_RADIANS;
-        }
-        return degrees;
-    }
-
-    /**
-     * The same steps with the facing prefix removed, which is what the pose container seats.
-     *
-     * @param steps the renderer's composed steps, outermost first
-     * @return the steps after the leading constant y turns
-     */
-    private static @NotNull List<Map<PoseChannel, PoseExpr>> afterFacingYaw(
-        @NotNull List<Map<PoseChannel, PoseExpr>> steps) {
-
-        int from = 0;
-        while (from < steps.size() && isFacingYaw(steps.get(from))) from++;
-        return from == 0 ? steps : List.copyOf(steps.subList(from, steps.size()));
-    }
-
-    /** Whether one step is a constant turn about y alone, which is a facing fact rather than a pose one. */
-    private static boolean isFacingYaw(@NotNull Map<PoseChannel, PoseExpr> step) {
-        PoseExpr turn = step.get(PoseChannel.Y_ROT);
-        return step.size() == 1 && turn != null && turn.constantValue().isPresent();
-    }
-
-    /**
      * The pose of whatever model a geometry coordinate names.
      *
      * <p>The join is the coordinate's own head: a coordinate is {@code Class#member} and a pose is
@@ -403,7 +352,6 @@ public final class EntityIndexBuilder {
         @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform,
         @NotNull List<RawOverlay> familyOverlays,
         int baseTint,
-        float setupYawAddend,
         float rendererScale,
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull Optional<EntityPose> babyPose,

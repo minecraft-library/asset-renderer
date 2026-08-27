@@ -60,13 +60,6 @@ import java.util.Set;
  * @param baseTintArgb per-entity multiplicative tint applied to the base mesh, mirroring
  *     {@code LivingEntityRenderer.getModelTint(state)}. Defaults to {@code 0xFFFFFFFF} (white = no-op
  *     MULTIPLY)
- * @param setupYawAddend yaw rotation in degrees the vanilla renderer's {@code setupRotations} folds
- *     into the body rotation it delegates - the leading constant y turn of the pose table's
- *     {@code renderers} row, crossed back to degrees at index build. {@code ShulkerRenderer} is the
- *     canonical case ({@code +180.0F}); every other vanilla renderer passes {@code bodyRot} through
- *     and lands at {@code 0}. The renderer adds this to the user-supplied yaw before applying the
- *     iso pose - it is a facing fact, so it reaches every render mode where a pose container step
- *     never reaches BIND
  * @param rendererScale per-entity render-time scale extracted by {@code EntityRendererScaleResolver};
  *     defaults to {@code 1f} (identity)
  * @param axes the option-axis mesh / texture selections a render appearance chooses among (state
@@ -88,7 +81,6 @@ public record Entity(
     @NotNull List<OverlayLayer> overlays,
     @NotNull List<BlockOverlayLayer> blockOverlays,
     int baseTintArgb,
-    float setupYawAddend,
     float rendererScale,
     @NotNull Axes axes,
     @NotNull Layers layers,
@@ -566,10 +558,10 @@ public record Entity(
 
     /**
      * The baby texture ref when this resolved definition renders the baby mesh - the baby mesh has
-     * its own UV layout, so it binds the matching {@code <variant>_baby} texture carried in
-     * {@link Axes#stateTextures()} under {@code "baby"}. Empty when the render is not a baby, the
-     * entity has no baby mesh, or no baby texture is present, so a caller falls through to the
-     * weathering / state / default texture.
+     * its own UV layout, so it binds the matching {@code <variant>_baby} texture carried on the
+     * {@link Axes#state() state axis} under {@code "baby"}. Empty when the render is not a baby, the
+     * entity has no baby mesh, or no baby texture is present, so a caller falls through to whichever
+     * state the appearance names, and then to the one the definition is already in.
      *
      * @param appearance the axis selections to resolve against
      * @return the baby texture ref, or empty

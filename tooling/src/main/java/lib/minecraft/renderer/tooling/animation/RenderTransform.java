@@ -22,11 +22,17 @@ import java.util.Optional;
  * vanilla's own {@code scale(-1, -1, 1)} to reach a container that sits inside it.
  *
  * @param renderer the renderer class's simple name, which is what the shipped table keys a row by
+ * @param facingYaw the constant turn about y a renderer folds into the body rotation it delegates,
+ *     in the DEGREES vanilla writes it in - the shulker's {@code + 180f}, and {@code 0} for the
+ *     thirteen others. It is not one of the steps and never becomes one: the base applies the body
+ *     rotation as the subject's FACING, so it reaches every render, where a step reaches only the
+ *     renders that pose. It goes into the mesh and no table member states it
  * @param steps the steps, outermost first, each carrying the expression its written channels hold
  * @param refusal why there are no steps here, or empty when the steps are the whole answer
  */
 record RenderTransform(
     @NotNull String renderer,
+    float facingYaw,
     @NotNull List<Map<PoseChannel, PoseExpr>> steps,
     @NotNull Optional<String> refusal
 ) {
@@ -39,20 +45,21 @@ record RenderTransform(
      * @return the refusal
      */
     static @NotNull RenderTransform refused(@NotNull String renderer, @NotNull String reason) {
-        return new RenderTransform(renderer, List.of(), Optional.of(reason));
+        return new RenderTransform(renderer, 0f, List.of(), Optional.of(reason));
     }
 
     /**
-     * The steps a renderer composes, read whole.
+     * The facing turn and steps a renderer composes, read whole.
      *
      * @param renderer the renderer class's simple name
+     * @param facingYaw the turn folded into the delegated body rotation, in degrees
      * @param steps the steps, outermost first
      * @return the transform
      */
     static @NotNull RenderTransform of(
-        @NotNull String renderer, @NotNull List<Map<PoseChannel, PoseExpr>> steps) {
+        @NotNull String renderer, float facingYaw, @NotNull List<Map<PoseChannel, PoseExpr>> steps) {
 
-        return new RenderTransform(renderer, List.copyOf(steps), Optional.empty());
+        return new RenderTransform(renderer, facingYaw, List.copyOf(steps), Optional.empty());
     }
 
     /**

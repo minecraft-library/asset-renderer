@@ -393,10 +393,19 @@ public final class PoseJson {
         return out;
     }
 
-    /** Every renderer's transform, keyed by the renderer's own simple name. */
+    /**
+     * Every renderer's transform, keyed by the renderer's own simple name.
+     *
+     * <p>A readable renderer with no steps writes no row. What it had to say was a facing, and a
+     * facing is in the mesh by the time this runs - so a row here would state nothing, and an empty
+     * one would read as a renderer that composes an empty transform rather than none.
+     */
     static @NotNull Map<String, JsonTree> allTransforms(@NotNull Map<String, RenderTransform> transforms) {
         Map<String, JsonTree> out = new TreeMap<>();
-        transforms.forEach((renderer, transform) -> out.put(renderer, transform(transform)));
+        transforms.forEach((renderer, transform) -> {
+            if (transform.isReadable() && transform.steps().isEmpty()) return;
+            out.put(renderer, transform(transform));
+        });
         return out;
     }
 

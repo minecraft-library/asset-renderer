@@ -12,8 +12,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -85,7 +85,7 @@ public final class PoseFlow {
      * @param renderers the subjects' renderer classes, read for what each composes above its meshes
      * @param out the output path
      */
-    public static @NotNull Set<String> emit(
+    public static @NotNull Emitted emit(
         @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
         @NotNull Map<String, Set<String>> rootBones, @NotNull Set<String> posing,
         @NotNull Set<String> renderers, @NotNull JsonTree models, @NotNull Path out) {
@@ -197,7 +197,90 @@ public final class PoseFlow {
         transforms.values().stream()
             .filter(transform -> !transform.steps().isEmpty())
             .forEach(transform -> composing.add(transform.renderer()));
-        return Collections.unmodifiableSet(composing);
+
+        Map<String, Float> facings = new LinkedHashMap<>();
+        transforms.values()
+            .stream()
+            .filter(transform -> transform.facingYaw() != 0f)
+            .forEach(transform -> facings.put(transform.renderer(), transform.facingYaw()));
+
+        return new Emitted(Collections.unmodifiableSet(composing),
+            Collections.unmodifiableMap(facings), rigidModels(poses, rootBones));
+    }
+
+    /**
+     * What the pose flow settled that the mesh surgeries below it need.
+     *
+     * @param composing the simple names of renderers that compose steps above their meshes
+     * @param facings the constant facing turn each renderer folds into its delegated body rotation,
+     *     in degrees, by renderer simple name - absent for a renderer that folds none
+     * @param rigid the models whose pose a turn about y can NOT be moved past, by simple name -
+     *     stated as the failures so a model nobody posed is absent and therefore safe, which a set of
+     *     the passes could not say apart from a model whose walk found nothing; see {@link #rigidModels}
+     */
+    public record Emitted(
+        @NotNull Set<String> composing,
+        @NotNull Map<String, Float> facings,
+        @NotNull Set<String> rigid
+    ) {}
+
+    /**
+     * The models a constant turn about y can NOT be moved past, so no facing may be baked into their
+     * mesh.
+     *
+     * <p>A facing baked into a cube sits INSIDE the bone's own rotation, where the render applies it
+     * outside every one of them. The two agree only where the turn commutes with what the pose writes
+     * and with where the pose puts the bone: rotations about y commute with each other and with
+     * nothing else, and a pivot the turn leaves alone is one standing on the axis it turns about.
+     *
+     * <p>So a model is rigid when some ROOT bone's pose writes a rotation off the y axis, or moves a
+     * root pivot off it. A child bone is not asked: it rides its parent, and the turn reaches it
+     * through the chain rather than through its own slot. A container is asked on the same terms,
+     * being a parent above every root.
+     *
+     * @param poses every model's outcome
+     * @param rootBones the bones each model's mesh names at top level
+     * @return the models whose pose a turn would not survive
+     */
+    private static @NotNull Set<String> rigidModels(
+        @NotNull Map<String, PoseOutcome> poses, @NotNull Map<String, Set<String>> rootBones) {
+
+        Set<String> out = new LinkedHashSet<>();
+        poses.forEach((model, outcome) -> {
+            if (!(outcome instanceof PoseOutcome.Extracted extracted)) return;
+            PoseProgram program = extracted.program();
+            Set<String> roots = rootBones.getOrDefault(model, Set.of());
+            for (Map.Entry<String, Map<PoseChannel, PoseExpr>> bone : program.bones().entrySet())
+                if (roots.contains(bone.getKey()) && !passesTurn(bone.getValue())) {
+                    out.add(model);
+                    return;
+                }
+            for (Map<PoseChannel, PoseExpr> step : program.container())
+                if (!passesTurn(step)) {
+                    out.add(model);
+                    return;
+                }
+        });
+        return Collections.unmodifiableSet(out);
+    }
+
+    /**
+     * Whether a turn about y survives one written channel map - no rotation off the y axis, and no
+     * displacement off it either. A channel written to a constant zero displaces nothing, which is
+     * what a pose assigning a rest position writes.
+     */
+    private static boolean passesTurn(@NotNull Map<PoseChannel, PoseExpr> written) {
+        for (Map.Entry<PoseChannel, PoseExpr> channel : written.entrySet())
+            switch (channel.getKey()) {
+                case X_ROT, Z_ROT -> {
+                    return false;
+                }
+                case X, Z -> {
+                    if (channel.getValue().constantValue().orElse(Double.NaN) != 0d) return false;
+                }
+                default -> { }
+            }
+        return true;
     }
 
     /**
@@ -359,7 +442,7 @@ public final class PoseFlow {
 
             Map<String, String> subjectRest =
                 reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
-            out.put(renderer, RenderTransform.of(renderer, PoseFold.fold(
+            out.put(renderer, RenderTransform.of(renderer, transform.facingYaw(), PoseFold.fold(
                 program, subjectRest, Map.of(), Map.of(), inputDefaults, DRIVEN).container()));
         }
         return out;

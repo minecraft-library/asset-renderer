@@ -11,6 +11,8 @@ import lib.minecraft.renderer.asset.pose.PoseOperator;
 import lib.minecraft.renderer.asset.pose.PosePredicate;
 import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -126,19 +128,33 @@ class EntityPoseLoadTest {
     }
 
     @Test
-    @DisplayName("a shulker's 180 arrives as facing rather than as a container step")
-    void aFacingYawArrivesAsFacing() {
-        // The renderers row carries the addend the shulker's setupRotations folds into the
-        // delegation's own body rotation, as one constant turn about y. The base applies the body
-        // rotation as the subject's facing, so the index consumes the step into the definition's
-        // yaw - which reaches every render mode, BIND included, where a container step never
-        // could - and seats none of it in the pose container. Exactly 180: the division that
-        // crosses the shipped radians back to degrees is checked at generation.
+    @DisplayName("a shulker's 180 arrives in the mesh, and nothing at load or render adds it")
+    void aFacingYawArrivesInTheMesh() {
+        // The shulker's setupRotations folds a 180 into the body rotation it delegates, and the base
+        // applies that rotation as the subject's FACING - which reaches every render mode, BIND
+        // included, where a container step never could. So it is baked into the mesh at generation
+        // and nothing here recovers it: no member states it, the renderers row states nothing, and
+        // the pose container is empty.
+        //
+        // It sits in the CUBE's slot rather than the bone's because a pose REPLACES a bone channel
+        // it writes, and this pose writes y_rot on two of these three bones. A turn in the bone slot
+        // would survive on 'base' and be discarded on 'head' and 'lid'.
         Entity shulker = entities.get("minecraft:shulker");
         assertNotNull(shulker, "the corpus ships a shulker");
-        assertEquals(180f, shulker.setupYawAddend(), "the delegation's addend, recovered exactly");
         assertEquals(List.of(), shulker.pose().container(),
-            "the row's one step was the facing, so nothing reaches the container");
+            "the facing is in the mesh, so nothing reaches the container");
+
+        shulker.model().getBones().forEach((name, bone) -> {
+            assertEquals(EulerRotation.NONE, bone.getRotation(),
+                name + " keeps its bone slot free for the pose to write");
+            bone.getCubes().forEach(cube -> {
+                assertEquals(180f, cube.getRotation().yaw(), name + " carries the facing in its cube");
+                assertEquals(0f, cube.getRotation().pitch(), name + " turns about y alone");
+                assertEquals(0f, cube.getRotation().roll(), name + " turns about y alone");
+                assertEquals(Vector3f.ZERO, cube.getPivot(),
+                    name + " turns about the bone's own origin, which is where the subject's axis passes");
+            });
+        });
     }
 
     @Test

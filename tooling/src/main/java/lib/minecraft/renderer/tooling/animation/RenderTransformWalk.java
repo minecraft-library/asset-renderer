@@ -133,6 +133,14 @@ final class RenderTransformWalk {
     /** The body-rotation argument, bound so an addend folded into the delegation can be read. */
     private static final @NotNull Object BODY_ROT = new Object();
 
+    /**
+     * The body rotation with a constant turn folded into it, carried in the DEGREES vanilla wrote.
+     *
+     * <p>Degrees because that is the unit it is still in here and the unit the mesh bake wants; it is
+     * never crossed into the container's radians, so nothing has to divide it back out.
+     */
+    private record FacingYaw(float degrees) {}
+
     /** The two references the body is handed, which nothing but their own members may be read of. */
     private enum Ref { STATE, STACK }
 
@@ -171,6 +179,7 @@ final class RenderTransformWalk {
     private @Nullable AbstractInsnNode returned;
     private @Nullable AbstractInsnNode lastReal;
     private boolean delegated;
+    private float facingYaw;
 
     private RenderTransformWalk(
         @NotNull String renderer, @NotNull MethodNode body,
@@ -210,7 +219,9 @@ final class RenderTransformWalk {
         RenderTransform read = new RenderTransformWalk(name, body, resting).walk();
         // A body that composes nothing beyond the base is a renderer with no transform rather than
         // one whose transform is empty, so it gets no row at all and reads as the subject's default.
-        return read.isReadable() && read.steps().isEmpty() ? null : read;
+        // A facing turn is carried out of here even with no steps, because the mesh bake wants it -
+        // it still writes no row, the table being the steps and the turn going into the geometry.
+        return read.isReadable() && read.steps().isEmpty() && read.facingYaw() == 0f ? null : read;
     }
 
     /**
@@ -277,7 +288,7 @@ final class RenderTransformWalk {
         if (this.refusal == null && this.returned != this.lastReal) refuse("returns before its own end");
         return this.refusal != null
             ? RenderTransform.refused(this.renderer, this.refusal)
-            : RenderTransform.of(this.renderer, this.steps);
+            : RenderTransform.of(this.renderer, this.facingYaw, this.steps);
     }
 
     /** One instruction: the grammar's own dispatch, then the block close it may complete. */
@@ -536,10 +547,8 @@ final class RenderTransformWalk {
         this.machine.pop();
         this.machine.pop();
         this.machine.pop();
-        if (body instanceof QuatRef addend) {
-            Map<PoseChannel, PoseExpr> step = new EnumMap<>(PoseChannel.class);
-            step.put(addend.channel(), crossed(addend.channel(), addend.radians()));
-            emit(step);
+        if (body instanceof FacingYaw addend) {
+            this.facingYaw = addend.degrees();
         } else if (body != BODY_ROT) {
             refuse("delegates a body rotation it could not read");
             return;
@@ -680,24 +689,14 @@ final class RenderTransformWalk {
 
         @Override
         public @Nullable Object binary(int opcode, @NotNull Object left, @NotNull Object right) {
-            // An addend folded into the body rotation - vanilla writes bodyRot + 180f - is the
-            // turn about y the base applies as the subject's facing, in the degrees it takes, so
-            // it becomes the built-and-unapplied turn the delegation emits as a step. The reader
-            // recovers the degrees by dividing the folded radians back out, and float division
-            // does not invert every float multiply, so a value the round trip moves is refused
-            // here, where the degrees are still known, rather than shipped an ulp wrong.
+            // An addend folded into the body rotation - vanilla writes bodyRot + 180f - is the turn
+            // about y the base applies as the subject's facing. It leaves here in the degrees it was
+            // written in and goes into the MESH rather than into a step: a container step reaches
+            // only the renders that pose, where a facing reaches every one of them.
             if (opcode == Opcodes.FADD && (left == BODY_ROT || right == BODY_ROT)) {
                 Object other = left == BODY_ROT ? right : left;
                 if (!(other instanceof PoseExpr.Const literal)) return null;
-                float degrees = (float) literal.value();
-                PoseExpr radians = PoseExpr.Op.of(PoseOperator.MUL,
-                    literal, PoseExpr.Const.of(DEGREES_TO_RADIANS));
-                double folded = radians.constantValue().orElse(Double.NaN);
-                if ((float) folded / DEGREES_TO_RADIANS != degrees) {
-                    refuse("folds '%s' into the body rotation, which the reader cannot recover", degrees);
-                    return null;
-                }
-                return new QuatRef(PoseChannel.Y_ROT, radians);
+                return new FacingYaw((float) literal.value());
             }
             PoseOperator operator = switch (opcode) {
                 case Opcodes.FADD -> PoseOperator.ADD;

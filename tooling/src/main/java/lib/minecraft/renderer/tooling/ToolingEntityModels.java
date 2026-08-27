@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.animation.PoseFlow;
+import lib.minecraft.renderer.tooling.entity.EntityMeshFacing;
 import lib.minecraft.renderer.tooling.entity.EntityMeshMarking;
 import lib.minecraft.renderer.tooling.entity.EntityMeshOverlays;
 import lib.minecraft.renderer.tooling.entity.EntityMeshShift;
@@ -66,12 +67,18 @@ public final class ToolingEntityModels {
             // on: a class two subjects pose two ways splits into a row each, and the body that takes
             // one names it in its own row. So the models table is written after, holding the join
             // the pose table actually carries.
-            Set<String> composing = PoseFlow.emit(session, manifest, rootBones, posing, renderers,
+            PoseFlow.Emitted posed = PoseFlow.emit(session, manifest, rootBones, posing, renderers,
                 root.child("models"), session.resolve("entity_poses.json"));
             // With both halves of what each subject rests without now settled, they go onto the mesh
             // that renders rather than beside it, and the members saying so come off the model table.
             EntityMeshMarking.apply(session.diagnostics().child("bones"), root.child("models"), geometries);
-            EntityMeshShift.apply(session.diagnostics().child("bones"), root.child("models"), geometries, composing);
+            EntityMeshShift.apply(session.diagnostics().child("bones"), root.child("models"), geometries,
+                posed.composing());
+            // The facing a renderer folds into its delegated body rotation, which reaches every render
+            // rather than only the ones that pose - so it goes into the mesh and no table states it.
+            // After the shift, whose translate along y leaves a pivot on the axis the turn is about.
+            EntityMeshFacing.apply(session.diagnostics().child("bones"), root.child("models"), geometries,
+                posed.facings(), posed.rigid(), posed.composing());
             // Last of the three, because what a pass derives from is the mesh as it finally stands:
             // an overlay drawing the body's own mesh has to inherit the marking and the shift, which
             // deriving before either would leave behind on a mesh nobody then draws.
