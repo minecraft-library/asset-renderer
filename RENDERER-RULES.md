@@ -597,6 +597,28 @@ multipart assembly.
   not a runtime proxy, so the two repos cannot drift on which blocks are icons.
 - A block entity does not stop a block from having an icon vanilla bakes from a block model.
 
+## The block index and its first variant
+
+**`BlockIndexBuilder.resolveBlockStateModel` resolves a block through whichever apply its variant map
+yields FIRST, so the hash order of that map is a rendered value rather than an implementation
+detail.** The pick settles two things at once: the `model` and `textures` the index entry carries, and
+whether that entry survives the `rendersNothing` filter at all.
+
+- **The two maps that feed it are filled by iteration and put, never collected.**
+  `BlockStateLoader.cleanVariants` and `BlockIndexBuilder.bakeVariants` each build a `HashMap` and put
+  into it. A collector fills its table on its own terms, so substituting one re-rolls the order and
+  resolves a different variant in silence - with the suite green, every sweep sum held, and the
+  shipped tables byte-identical, since none of those reads this map.
+- **A non-empty `default_state_key` is no protection.** Every door declares one and every door is
+  still resolved this way. The default state governs what a named-state render draws; the
+  first-variant pick governs the entry itself, and the two are independent.
+- What moving the order costs, in the shapes it has already taken: a door resolves to its upper half
+  instead of its lower, and the pitcher crop resolves to an apply that renders nothing, which drops
+  the block out of the index entirely rather than drawing it wrongly. A waxed copper lantern, which
+  names no default state at all, resolves hanging instead of standing.
+- Nothing downstream recovers the intended variant, so this order is a contract. A pass that means to
+  iterate either map differently moves rows and owes a promote.
+
 ## Menus
 
 One arithmetic and one painter. `MenuScreen` is where a shipped container puts its cells, `MenuLayout`
