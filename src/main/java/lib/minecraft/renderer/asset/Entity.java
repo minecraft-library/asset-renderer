@@ -115,17 +115,6 @@ public record Entity(
     }
 
     /**
-     * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried} render
-     * toggle (a sheared snow golem, an empty-handed enderman) - dropping both the rendered geometry and
-     * its canvas-bounds contribution.
-     *
-     * @return an otherwise-identical definition with an empty block-overlay list
-     */
-    public @NotNull Entity withoutBlockOverlays() {
-        return mutate().blockOverlays(List.of()).build();
-    }
-
-    /**
      * The vanilla {@code textures/entity/} sub-path this definition draws with by default (without the
      * {@code .png} suffix), resolved at render time via
      * {@link RendererContext#resolveTexture(String) resolveTexture} as {@code minecraft:entity/<ref>}.
@@ -252,24 +241,6 @@ public record Entity(
         // (default) keeps the baked base_tint.
         appearance.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
         return builder.build();
-    }
-
-    /**
-     * The same axes drawing a different base texture - the state axis with its declared option
-     * remapped, for a form that swaps the body texture along with the mesh.
-     *
-     * @param axes the axes to redraw
-     * @param ref the texture the declared state should select, or empty to leave the axes alone
-     * @return the axes selecting {@code ref} for the declared state
-     */
-    private static @NotNull Axes drawing(@NotNull Axes axes, @NotNull Optional<String> ref) {
-        if (ref.isEmpty()) return axes;
-        Axis<String, String> state = axes.state();
-        String key = state.declared().orElse(BASE_STATE);
-        LinkedHashMap<String, String> options = new LinkedHashMap<>(state.options());
-        options.put(key, ref.get());
-        return new Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(), axes.shape(),
-            new Axis<>(Map.copyOf(options), Optional.of(key)), axes.size(), axes.variant());
     }
 
     /**
