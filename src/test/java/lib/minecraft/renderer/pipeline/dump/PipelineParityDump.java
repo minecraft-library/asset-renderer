@@ -1477,7 +1477,6 @@ public final class PipelineParityDump {
             entry.addProperty("slot", equipment.slot());
             entry.add("model", entityModel(equipment.model()));
             entry.addProperty("layer_type", equipment.layerType().getId());
-            entry.addProperty("default_material", equipment.defaultMaterial());
             entry.add("material_assets", CanonicalJson.map(equipment.materialAssets(),
                 assetId -> new JsonPrimitive(assetId.id())));
             return entry;

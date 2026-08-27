@@ -452,8 +452,8 @@ class EntityModelLoaderTest {
         // table is exactly the silent-drop failure this table exists to prevent.
         for (Entity definition : defs.values())
             for (Entity.EquipmentOverlay equipment : definition.layers().equipment())
-                assertThat("equipment layer '" + equipment.layerType().getId() + "' resolves its default material '"
-                        + equipment.defaultMaterial() + "'",
+                assertThat(definition.id() + " equipment layer '" + equipment.layerType().getId()
+                        + "' resolves the material a caller names none for",
                     equipment.assetFor("").isPresent(), is(true));
     }
 
@@ -576,9 +576,13 @@ class EntityModelLoaderTest {
         String material
     ) {
         Entity.EquipmentOverlay equipment = equipmentLayer(defs, entityId, slot);
-        assertThat(entityId + " '" + slot + "' default material", equipment.defaultMaterial(), is(material));
+        // The default is carried as its ASSET under the unselected key rather than as the name of
+        // another key, so what is assertable is that naming nothing and naming the material land on
+        // the same asset - which is the whole of what the name was ever read for.
         assertThat(entityId + " '" + slot + "' resolves the same asset blank as by name",
             equipment.assetFor(""), is(equipment.assetFor(material)));
+        assertThat(entityId + " '" + slot + "' names " + material + " as a material of its own",
+            equipment.assetFor(material).isPresent(), is(true));
     }
 
     /** The equipment layer of an entity gated on {@code slot}. */

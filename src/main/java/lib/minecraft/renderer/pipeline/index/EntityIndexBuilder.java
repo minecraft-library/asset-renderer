@@ -977,8 +977,11 @@ public final class EntityIndexBuilder {
             }
             Map<String, ResourceId> materialAssets = new LinkedHashMap<>();
             row.materialAssets().forEach((material, assetId) -> materialAssets.put(material, ResourceId.parse(assetId)));
-            out.add(new EquipmentOverlay(row.slot(), model, layerType.get(),
-                Map.copyOf(materialAssets), row.defaultMaterial()));
+            // The row's default is one of its own materials, so what a caller naming none gets is an
+            // entry under the unselected key rather than a second member saying which key to read.
+            ResourceId unselected = materialAssets.get(row.defaultMaterial());
+            if (unselected != null) materialAssets.put(EquipmentOverlay.UNSELECTED, unselected);
+            out.add(new EquipmentOverlay(row.slot(), model, layerType.get(), Map.copyOf(materialAssets)));
         }
         return List.copyOf(out);
     }

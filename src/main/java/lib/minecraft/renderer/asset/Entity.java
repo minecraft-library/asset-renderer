@@ -720,28 +720,32 @@ public record Entity(
      * @param layerType the render layer whose texture subdir this overlay's layers sit under
      * @param materialAssets the equipment asset id per selectable material - mostly the material's own
      *     name, but the llama's {@code white} carpet lives in {@code minecraft:white_carpet} and every
-     *     saddle layer shares {@code minecraft:saddle}, so the mapping is data rather than convention
-     * @param defaultMaterial the material substituted when the slot is selected without one
-     *     ({@code saddle} for a saddle, {@code leather} for horse body armor)
+     *     saddle layer shares {@code minecraft:saddle}, so the mapping is data rather than convention.
+     *     {@link #UNSELECTED} is a key like any other, holding what a caller naming no material gets
      */
     public record EquipmentOverlay(
         @NotNull String slot,
         @NotNull EntityModelData model,
         @NotNull LayerType layerType,
-        @NotNull Map<String, ResourceId> materialAssets,
-        @NotNull String defaultMaterial
+        @NotNull Map<String, ResourceId> materialAssets
     ) {
         /**
-         * Resolves the equipment asset id for a selected material; falls back to
-         * {@link #defaultMaterial} when {@code material} is blank (the slot selected without an
-         * explicit material). Empty when the material names no asset of this layer, which renders
-         * nothing rather than substituting a stand-in texture.
+         * The material a caller who named none is asking for - a saddle's {@code saddle}, horse body
+         * armor's {@code leather} - carried in {@link #materialAssets} under this key rather than
+         * named beside the map, so selecting nothing is a selection like any other.
+         */
+        public static final @NotNull String UNSELECTED = "";
+
+        /**
+         * Resolves the equipment asset id for a selected material, answering {@link #UNSELECTED} for a
+         * blank one (the slot selected without an explicit material). Empty when the material names no
+         * asset of this layer, which renders nothing rather than substituting a stand-in texture.
          *
-         * @param material the axis-selected material, or blank to use {@link #defaultMaterial}
+         * @param material the axis-selected material, or blank for the unselected default
          * @return the equipment asset id, or empty when the material is unknown to this layer
          */
         public @NotNull Optional<ResourceId> assetFor(@NotNull String material) {
-            return Optional.ofNullable(this.materialAssets.get(material.isBlank() ? this.defaultMaterial : material));
+            return Optional.ofNullable(this.materialAssets.get(material.isBlank() ? UNSELECTED : material));
         }
 
         /**
@@ -753,7 +757,7 @@ public record Entity(
         @NotNull EquipmentOverlay withToggles(@NotNull Set<String> toggles) {
             EntityModelData flipped = toggled(this.model, toggles);
             return flipped == this.model ? this : new EquipmentOverlay(
-                this.slot, flipped, this.layerType, this.materialAssets, this.defaultMaterial);
+                this.slot, flipped, this.layerType, this.materialAssets);
         }
     }
 
