@@ -210,7 +210,7 @@ class VanillaEntityTransformGoldenTest {
             Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f, cubes, null);
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", bone);
-        EntityModelData model = new EntityModelData(TextureSize.DEFAULT, 0f, bones, false);
+        EntityModelData model = new EntityModelData(TextureSize.DEFAULT, bones, false);
         return EntityGeometryKit.buildTriangles(model, solidTexture(64, 64));
     }
 

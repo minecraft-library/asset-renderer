@@ -120,7 +120,7 @@ public class ElytraKit {
         // New bones: the authored meshes are shared constants, so the seat must never mutate them.
         mesh.getBones().forEach((name, bone) -> seated.put(name, bone.withPivot(
             new Vector3f(bone.getPivot().x(), bone.getPivot().y() + dy, bone.getPivot().z()))));
-        return new EntityModelData(mesh.getTextureSize(), mesh.getInventoryYRotation(), seated, mesh.isCull());
+        return new EntityModelData(mesh.getTextureSize(), seated, mesh.isCull());
     }
 
     /**
@@ -272,7 +272,7 @@ public class ElytraKit {
             scale,
             wingCube(new Vector3f(0f, 0f, 0f), true)
         ));
-        return new EntityModelData(new TextureSize(64, 32), 0f, bones, false);
+        return new EntityModelData(new TextureSize(64, 32), bones, false);
     }
 
     /**

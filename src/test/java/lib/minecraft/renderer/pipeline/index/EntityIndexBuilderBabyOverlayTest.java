@@ -70,7 +70,7 @@ class EntityIndexBuilderBabyOverlayTest {
         bones.put("hat_rim", bone(new Vector3f(0f, 4f, 0f), "hat", grow));
         bones.put("nose", bone(new Vector3f(0f, 5f, 0f), "head", grow));
         bones.put(uniqueBone, bone(new Vector3f(0f, 6f, 0f), "body", grow));
-        return new EntityModelData(TextureSize.DEFAULT, 0f, Concurrent.adoptLinkedMap(bones), false);
+        return new EntityModelData(TextureSize.DEFAULT, Concurrent.adoptLinkedMap(bones), false);
     }
 
     private static EntityModelData.Bone bone(Vector3f pivot, String parent, float grow) {
@@ -86,8 +86,7 @@ class EntityIndexBuilderBabyOverlayTest {
         LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
         source.getBones().forEach((name, bone) -> bones.put(name,
             HEAD_SUBTREE.contains(name) ? bone.withCubes(Concurrent.adoptList(new ArrayList<>())) : bone));
-        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(),
-            Concurrent.adoptLinkedMap(bones), source.isCull());
+        return new EntityModelData(source.getTextureSize(), Concurrent.adoptLinkedMap(bones), source.isCull());
     }
 
     private static Map<String, EntityModelData> geometries() {

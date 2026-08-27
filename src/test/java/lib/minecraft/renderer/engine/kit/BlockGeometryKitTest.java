@@ -288,7 +288,7 @@ class BlockGeometryKitTest {
             new Vector3f(8f, 8f, 8f), EulerRotation.NONE, EulerRotation.NONE, 1f, cubes, null);
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", bone);
-        return new EntityModelData(new TextureSize(16, 16), 0f, bones, false);
+        return new EntityModelData(new TextureSize(16, 16), bones, false);
     }
 
     /** Maps a (mostly-)axis-aligned normal to its cardinal-direction label. */

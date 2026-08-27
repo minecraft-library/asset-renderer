@@ -1629,8 +1629,8 @@ public final class PipelineParityDump {
     /**
      * Returns a block-entity bone model. {@code inventory_transform} is a {@code @Nullable} array of
      * VARIABLE length (the trailing scale slot is optional), not an {@code Optional} - it is omitted
-     * when null. Its sibling {@code inventoryYRotation} here is the LIVE block-path field, distinct
-     * from the identically-named one on the entity mesh.
+     * when null. {@code inventory_y_rotation} is emitted here and nowhere else, this being the only
+     * bone model an inventory yaw reaches.
      * <p>
      * {@code presentation()} is deliberately absent: it is computed from the fields above, so dumping it
      * would double-count them and could mask a diff behind its own arithmetic.
@@ -1667,7 +1667,6 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject entityModel(@NotNull EntityModelData model) {
         JsonObject root = new JsonObject();
         root.add("texture_size", size(model.getTextureWidth(), model.getTextureHeight()));
-        root.add("inventory_y_rotation", CanonicalJson.number(model.getInventoryYRotation()));
         root.addProperty("cull", model.isCull());
         root.add("bones", CanonicalJson.orderedMap(model.getBones(), "name", PipelineParityDump::bone));
         return root;

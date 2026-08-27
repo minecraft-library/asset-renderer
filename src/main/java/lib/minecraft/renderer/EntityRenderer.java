@@ -198,7 +198,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         EulerRotation user = options.getOutput().getRotation();
         EulerRotation effective = new EulerRotation(
             user.pitch(),
-            user.yaw() + model.getInventoryYRotation() + definition.setupYawAddend(),
+            user.yaw() + definition.setupYawAddend(),
             user.roll()
         );
         // Apply the per-entity scale override (vanilla's combined renderer-scale + state-scale)

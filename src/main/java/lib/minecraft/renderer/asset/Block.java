@@ -479,9 +479,8 @@ public record Block(
          *     Y-down (entity space, needing the presentation's {@code cy = -cy} to reach block space)
          * @param inventoryYRotation the GUI-facing yaw in degrees applied about block centre
          *     {@code (8, 8, 8)} to face the model at the standard {@code [30, 225, 0]} iso pose
-         *     (the chest's {@code +180}); the block presentation-yaw home, distinct from the entity
-         *     camera-yaw {@link EntityModelData#getInventoryYRotation()} (same name, two renderers,
-         *     two frames - block render reads only this one)
+         *     (the chest's {@code +180}) - the only home an inventory yaw has, read by the block
+         *     presentation and by nothing on the entity path
          * @param entityFlip whether the entity-render {@code scale(-1, -1, 1)} X negation applies on
          *     the no-inventory-transform path
          * @param inventoryTransform the decomposed {@code [tx, ty, tz, pitch, yaw, roll, scale?]}

@@ -232,8 +232,7 @@ public final class PoseKit {
                     displaced.getOrDefault(bone.getKey(), Map.of()), flattened),
                 (first, second) -> first, LinkedHashMap::new));
         if (!writes.container().isEmpty()) seatUnderContainer(bones, writes.container(), flattened);
-        return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(),
-            Concurrent.adoptLinkedMap(bones), model.isCull());
+        return new EntityModelData(model.getTextureSize(), Concurrent.adoptLinkedMap(bones), model.isCull());
     }
 
     /**

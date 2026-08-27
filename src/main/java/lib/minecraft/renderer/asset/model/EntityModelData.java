@@ -53,21 +53,6 @@ public class EntityModelData {
     private @NotNull TextureSize textureSize = TextureSize.DEFAULT;
 
     /**
-     * The GUI-facing yaw in degrees this model's inventory render applies before rasterization.
-     * Mirrors the per-type transformation each vanilla {@code BlockEntityRenderer} applies in
-     * {@code BlockEntityWithoutLevelRenderer.renderByItem}; e.g. {@code ChestRenderer} reads the
-     * chest's default {@code FACING = NORTH} and yaws {@code -NORTH.toYRot() = 180}.
-     * <p>
-     * Read only on the entity path, where {@code EntityRenderer} folds it into the camera Euler
-     * yaw. Block entities do NOT store their yaw here - it lives on the parallel
-     * {@code Block.Entity.BoneModel.inventoryYRotation}, applied about block centre by the block
-     * presentation. Same name, two homes, two frames (entity camera-yaw vs block presentation-yaw);
-     * on the block path this field stays at its zero default.
-     */
-    @SerializedName("inventory_y_rotation")
-    private float inventoryYRotation = 0f;
-
-    /**
      * The top-level bones keyed by bone name. Backed by {@link ConcurrentLinkedMap} so iteration
      * preserves JSON author order: render priority assigned per bone during triangle assembly
      * determines which face wins at tied depth (e.g. chest body SOUTH vs lid SOUTH are coplanar

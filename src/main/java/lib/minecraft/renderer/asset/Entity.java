@@ -360,8 +360,7 @@ public record Entity(
             bones.put(entry.getKey(), bone.withVisible(!bone.isVisible()));
         }
         if (bones == null) return model;
-        return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(),
-            Concurrent.adoptLinkedMap(bones), model.isCull());
+        return new EntityModelData(model.getTextureSize(), Concurrent.adoptLinkedMap(bones), model.isCull());
     }
 
     /**

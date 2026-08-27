@@ -152,8 +152,7 @@ public class EntityArmorKit {
             Vector3f pivot = bone.getParent() == null ? bone.getPivot().add(seat) : bone.getPivot();
             bones.put(entry.getKey(), bone.withCubes(cubes).withPivot(pivot));
         }
-        return new EntityModelData(tree.getTextureSize(), tree.getInventoryYRotation(),
-            Concurrent.adoptLinkedMap(bones), tree.isCull());
+        return new EntityModelData(tree.getTextureSize(), Concurrent.adoptLinkedMap(bones), tree.isCull());
     }
 
     /**
