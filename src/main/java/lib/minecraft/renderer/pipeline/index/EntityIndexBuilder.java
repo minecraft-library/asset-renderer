@@ -219,13 +219,13 @@ public final class EntityIndexBuilder {
 
         Entity bare = Entity.builder()
             .id(ResourceId.parse(ctx.familyId()))
-            .model(model).textureRef(form.textureRef()).overlays(overlays)
+            .model(model).overlays(overlays)
             .blockOverlays(form.blockOverlays())
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend())
             .rendererScale(ctx.rendererScale())
             .pose(pose)
             .axes(new Entity.Axes(ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), ctx.largeShape(),
-                new Entity.Axis<>(form.stateTextures(), ctx.stateDefault()),
+                new Entity.Axis<>(form.stateTextures(), declaredState(ctx.stateDefault(), form.stateTextures())),
                 Entity.Axis.none(), Entity.Axis.none()))
             .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()))
             .build();
@@ -254,10 +254,10 @@ public final class EntityIndexBuilder {
         @NotNull List<BlockOverlayLayer> blockOverlays) {
 
         Map<String, String> stateTextures = new LinkedHashMap<>();
+        if (adult.texture() != null) stateTextures.put(Entity.BASE_STATE, adult.texture());
         String babyTexture = babyTextureOf(family);
         if (babyTexture != null) stateTextures.put("baby", babyTexture);
-        return new RowForm(adult.geometry(), Optional.ofNullable(adult.texture()),
-            stateTextures, blockOverlays);
+        return new RowForm(adult.geometry(), stateTextures, blockOverlays);
     }
 
     /**
@@ -270,7 +270,6 @@ public final class EntityIndexBuilder {
 
         return new RowForm(
             option.geometry() == null ? baseCoord : option.geometry(),
-            variantWildTexture(option),
             variantStateTextures(option),
             coatBlockOverlays(blockOverlays, option.block()));
     }
@@ -429,10 +428,27 @@ public final class EntityIndexBuilder {
      */
     private record RowForm(
         @NotNull String coordinate,
-        @NotNull Optional<String> textureRef,
         @NotNull Map<String, String> stateTextures,
         @NotNull List<BlockOverlayLayer> blockOverlays
     ) {}
+
+    /**
+     * Which state a row is already in: the one the shipped table declares where it declares one, else
+     * the base state every row carrying a base texture is in.
+     *
+     * <p>Answers absent only for a row naming no base texture at all, which keeps the axis honest
+     * rather than declaring an option it does not carry.
+     *
+     * @param shipped the {@code state.default} the table names, or empty
+     * @param states the row's own state textures
+     * @return the state the row is in, or empty when it names no base texture
+     */
+    private static @NotNull Optional<String> declaredState(
+        @NotNull Optional<String> shipped, @NotNull Map<String, String> states) {
+
+        if (shipped.isPresent()) return shipped;
+        return states.containsKey(Entity.BASE_STATE) ? Optional.of(Entity.BASE_STATE) : Optional.empty();
+    }
 
     /**
      * The family's block overlays as one coat draws them: unchanged when the coat names no block of
@@ -726,16 +742,7 @@ public final class EntityIndexBuilder {
             for (Map.Entry<String, String> texture : optionObj.textures().entrySet())
                 states.put(texture.getKey(), texture.getValue());
         if (optionObj.babyTexture() != null) states.put("baby", optionObj.babyTexture());
-        return states.size() > 1 ? states : Map.of();
-    }
-
-    /**
-     * Returns a variant option's {@code textures.wild} as the base texture ref, or empty when absent.
-     */
-    private static @NotNull Optional<String> variantWildTexture(@NotNull RawOption optionObj) {
-        if (optionObj.textures() == null) return Optional.empty();
-        String wild = optionObj.textures().get("wild");
-        return Optional.ofNullable(wild);
+        return states;
     }
 
     /**

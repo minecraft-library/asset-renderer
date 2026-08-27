@@ -52,9 +52,6 @@ import java.util.Set;
  * @param id the entity's namespaced identifier (e.g. {@code minecraft:zombie})
  * @param model the parsed bone/cube tree (shared across all entities naming the same {@code geometry}
  *     coordinate)
- * @param textureRef the vanilla {@code textures/entity/} sub-path (without the {@code .png} suffix),
- *     resolved at render time via {@link RendererContext#resolveTexture(String) resolveTexture} as
- *     {@code minecraft:entity/<ref>}, or empty when no default texture
  * @param overlays additional geometry/texture pairs rendered on top of the base model in declared
  *     order; populated by the bytecode-derived overlay scan ({@code EntityOverlayResolver}: emissive
  *     eyes, profession layers, pattern layers, equipment-driven decor layers). A baby render draws
@@ -89,7 +86,6 @@ import java.util.Set;
 public record Entity(
     @NotNull ResourceId id,
     @NotNull EntityModelData model,
-    @NotNull Optional<String> textureRef,
     @NotNull List<OverlayLayer> overlays,
     @NotNull List<BlockOverlayLayer> blockOverlays,
     int baseTintArgb,
@@ -100,6 +96,17 @@ public record Entity(
     @NotNull List<String> members,
     @NotNull EntityPose pose
 ) {
+
+    /**
+     * The state every definition is in before a selection names another - the option the state axis
+     * declares, and so the one {@link #textureRef()} reads.
+     *
+     * <p>It is vanilla's own word: the wolf's texture table keys its base coat {@code wild} beside
+     * {@code tame} and {@code angry}, and thirteen further variant families key theirs the same way
+     * with no second state to tell it apart from. A subject with no states at all is in this one
+     * rather than in none, which is what lets every base texture be read the same way.
+     */
+    public static final @NotNull String BASE_STATE = "wild";
 
     /**
      * Normalises a never-set {@link #members} to an empty (singleton) list and a never-set
@@ -119,6 +126,21 @@ public record Entity(
      */
     public @NotNull Entity withoutBlockOverlays() {
         return mutate().blockOverlays(List.of()).build();
+    }
+
+    /**
+     * The vanilla {@code textures/entity/} sub-path this definition draws with by default (without the
+     * {@code .png} suffix), resolved at render time via
+     * {@link RendererContext#resolveTexture(String) resolveTexture} as {@code minecraft:entity/<ref>}.
+     *
+     * <p>A derived view over the state axis rather than a component of its own: the base texture is the
+     * option that axis {@link Axis#declared() declares}, so it is one of the states rather than a
+     * fourth thing beside them, and a caller that has resolved a state has already resolved this.
+     *
+     * @return the default texture ref, or empty when the definition names none
+     */
+    public @NotNull Optional<String> textureRef() {
+        return this.axes.state().declared().flatMap(this.axes.state()::select);
     }
 
     /**
@@ -172,7 +194,8 @@ public record Entity(
         // The worn shell resolves ahead of the age fork and outside it, because the axis that
         // selects a wearer's second shell is the wearer's own - six swap on age and the armor stand
         // on size - and vanilla picks the set off the flag alone rather than off the body mesh.
-        Optional<Shell> armor = definition.layers().humanoidArmor()
+        Optional<Shell> armor = definition.layers()
+            .humanoidArmor()
             .map(shell -> shell.forAppearance(appearance));
         if (appearance.isBaby() && definition.axes().babyModel().isPresent()) {
             // The pose swaps WITH the mesh and never without it. A baby is a different model class,
@@ -209,7 +232,9 @@ public record Entity(
             if (definition.axes().largeShape().isPresent()
                 && appearance.getPattern().map(p -> p.shape() == TropicalFishPattern.Shape.LARGE).orElse(false)) {
                 LargeShape large = definition.axes().largeShape().get();
-                builder.model(large.model()).textureRef(large.textureRef()).overlays(large.overlays());
+                builder.model(large.model())
+                    .overlays(large.overlays())
+                    .axes(drawing(definition.axes(), large.textureRef()));
             }
             // The size axis swaps to the selected size's form, which carries whichever of the two
             // vanilla mechanisms its subject uses: a distinct baked mesh (armor stand, pufferfish,
@@ -227,13 +252,30 @@ public record Entity(
             });
             // A layer's own toggles ride the same selection the wearer's do, so an equipped saddle
             // draws its reins for a ridden subject and its chest panniers for a chested one.
-            builder.layers(new Layers(
-                toggledEquipment(definition.layers().equipment(), selectedToggles), armor));
+            builder.layers(new Layers(toggledEquipment(definition.layers().equipment(), selectedToggles), armor));
         }
         // The base_color axis (tropical fish) overrides the model base_tint with the selected dye; absent
         // (default) keeps the baked base_tint.
         appearance.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
         return builder.build();
+    }
+
+    /**
+     * The same axes drawing a different base texture - the state axis with its declared option
+     * remapped, for a form that swaps the body texture along with the mesh.
+     *
+     * @param axes the axes to redraw
+     * @param ref the texture the declared state should select, or empty to leave the axes alone
+     * @return the axes selecting {@code ref} for the declared state
+     */
+    private static @NotNull Axes drawing(@NotNull Axes axes, @NotNull Optional<String> ref) {
+        if (ref.isEmpty()) return axes;
+        Axis<String, String> state = axes.state();
+        String key = state.declared().orElse(BASE_STATE);
+        LinkedHashMap<String, String> options = new LinkedHashMap<>(state.options());
+        options.put(key, ref.get());
+        return new Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(), axes.largeShape(),
+            new Axis<>(Map.copyOf(options), Optional.of(key)), axes.size(), axes.variant());
     }
 
     /**
@@ -355,7 +397,10 @@ public record Entity(
      * where the shipped table lists only the others.
      *
      * <p>Empty is the honest shape for a definition with no such axis: no options and no declared
-     * one, so every read answers absent rather than a value nothing selected.
+     * one, so every read answers absent rather than a value nothing selected. The state axis is the
+     * exception and is never empty - a subject with no alternate textures is still in
+     * {@link #BASE_STATE} rather than in no state, which is what lets one lookup answer for every
+     * base texture in the corpus.
      *
      * @param <K> the option key - a name for the state and variant axes, {@link Size} for the size one
      * @param <V> what an option selects
@@ -408,10 +453,11 @@ public record Entity(
      *     axis selects {@code baby}; empty unless an overlay declares a baby form
      * @param largeShape the {@code shape} axis's large alternative (tropical fish): the large body mesh +
      *     {@code tropical_b} texture + pattern overlays cloned onto it; empty otherwise
-     * @param state alternate base textures keyed by behavioural state (wolf
-     *     {@code wild}/{@code tame}/{@code angry}) plus the {@code baby} texture, populated for
-     *     multi-state / ageable variant models; empty otherwise. The {@code wild} entry, when present,
-     *     equals the definition's {@code textureRef}
+     * @param state every base texture this definition can draw, keyed by the behavioural state that
+     *     selects it (wolf {@code wild}/{@code tame}/{@code angry}) plus the {@code baby} texture.
+     *     <b>The one axis every definition carries</b>: a subject with no alternates still names the
+     *     state it is in, {@link #BASE_STATE}, so the default texture is a state like any other and
+     *     {@link #textureRef()} reads it there rather than beside it
      * @param size the {@code size} axis's forms keyed by {@link Size}, each a sub-definition carrying
      *     what that size changes - its own baked mesh (armor stand, pufferfish, salmon) or the base
      *     mesh at a multiplied render scale (slime, magma_cube). Vanilla scales one at the mesh and
@@ -506,7 +552,7 @@ public record Entity(
      * @return the texture prefix, or the empty string
      */
     public @NotNull String texturePrefix() {
-        return this.textureRef.map(ref -> {
+        return textureRef().map(ref -> {
             int slash = ref.indexOf('/');
             return slash < 0 ? ref : ref.substring(0, slash);
         }).orElse("");

@@ -47,6 +47,26 @@ import static org.hamcrest.Matchers.sameInstance;
 class EntityModelLoaderTest {
 
     @Test
+    @DisplayName("every subject is in a state, and it is the one its texture ref reads")
+    void everySubjectCarriesAStateAxis() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
+        assertThat("the corpus loaded", defs.size(), greaterThan(0));
+        for (Entity definition : defs.values()) {
+            String where = definition.id().id();
+            Entity.Axis<String, String> state = definition.axes().state();
+            assertThat(where + " names the state it is in", state.declared().isPresent(), is(true));
+            // The axis' own invariant, asserted on the corpus rather than trusted: a declared option
+            // the options do not carry would make textureRef() answer empty for a subject that has
+            // a texture, which renders as a subject with no skin rather than as an error.
+            assertThat(where + " declares one of its own options",
+                state.options().keySet(), hasItem(state.declared().get()));
+            assertThat(where + " reads its texture ref out of the state it is in",
+                definition.textureRef(), is(state.select(state.declared().get())));
+            assertThat(where + " names a base texture", definition.textureRef().isPresent(), is(true));
+        }
+    }
+
+    @Test
     @DisplayName("wolf base texture ref equals the default variant option's wild texture")
     void wolfWildEqualsTextureRef() {
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();

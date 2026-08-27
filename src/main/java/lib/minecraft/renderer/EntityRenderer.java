@@ -424,14 +424,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@link EntityOptions#getTextureId() texture id on options} (user override, authoritative when
      * present - looked up against the Java atlas via the pack stack) &gt; the {@code <variant>_baby}
      * texture when the resolved definition renders the baby mesh &gt; the copper golem's weathered
-     * base when a weathering state is chosen &gt; an
-     * {@link AppearanceOptions#getState() state} selection matching one of the definition's
-     * {@link Entity.Axes#stateTextures() state textures} (wolf
-     * {@code tame}/{@code angry}) &gt; the entity's own
-     * {@link Entity#textureRef() texture_ref}. Each ref candidate is answered by the definition
-     * itself and resolved against the vanilla pack at {@code minecraft:entity/<ref>} via
-     * {@link #resolveEntityTextureAtTick}, so a candidate whose texture is missing falls through to
-     * the next.
+     * base when a weathering state is chosen &gt; an {@link AppearanceOptions#getState() state}
+     * selection the definition carries (wolf {@code tame} / {@code angry}) &gt; the state the
+     * definition is already in, which is its {@link Entity#textureRef() texture_ref}.
+     *
+     * <p>Three of those four are the same lookup at different keys - {@code baby}, the selected state,
+     * and the state axis' declared option - so what orders them is which key to try rather than where
+     * to look. Each is resolved against the vanilla pack at {@code minecraft:entity/<ref>} via
+     * {@link #resolveEntityTextureAtTick}, and a candidate whose texture is MISSING falls through to
+     * the next, which is why they are tried in turn rather than reduced to one key up front.
      */
     private @NotNull Optional<PixelBuffer> resolveEntityTexture(
         @NotNull Entity definition,
