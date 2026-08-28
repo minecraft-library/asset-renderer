@@ -6,7 +6,9 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -14,6 +16,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -47,9 +50,14 @@ class IdleFigureMirrorTest {
     private static final Pattern CONTINUOUS =
         Pattern.compile("^([A-Z][A-Z_]*)\\(\"(\\w+)\", ([-\\d.f]+), ([-\\d.f]+), Shape\\.(\\w+)\\)[,;]$");
 
-    /** A one-hot member, which carries the factor it ramps and nothing else. */
+    /** A one-hot member, which carries the selector it belongs to and the field it drives. */
     private static final Pattern STATE =
-        Pattern.compile("^([A-Z][A-Z_]*)\\(\"(\\w*)\"\\)[,;]$");
+        Pattern.compile("^([A-Z][A-Z_]*)\\(Group\\.(\\w+), \"(\\w*)\"\\)[,;]$");
+
+    /** Which capture of a shape holds the render-state field, the two shapes spelling it differently. */
+    private static final int FIELD_OF_CONTINUOUS = 2;
+
+    private static final int FIELD_OF_STATE = 3;
 
     @Test
     @DisplayName("the harness drives every scalar this side answers, at the same excursion")
@@ -79,24 +87,38 @@ class IdleFigureMirrorTest {
     @DisplayName("every field either roster names is one the lookup answers for")
     void everyFieldIsAnswered() throws IOException {
         for (String line : constantsOf(ASSET_FIGURES, CONTINUOUS)) {
-            String field = fieldOf(CONTINUOUS, line);
+            String field = fieldOf(CONTINUOUS, FIELD_OF_CONTINUOUS, line);
             assertNotNull(IdleFigure.ofField(field),
                 "the scalar roster declares '" + field + "' and its lookup does not answer for it");
         }
         for (String line : constantsOf(ASSET_STATES, STATE)) {
-            String field = fieldOf(STATE, line);
-            // The air state names no factor, and a member that drives none still has to be one.
+            String field = fieldOf(STATE, FIELD_OF_STATE, line);
+            // A member that drives no field is still a member a caller may choose, and the empty
+            // token is not a key - no render-state field is spelled that way.
             if (field.isEmpty()) continue;
             assertNotNull(IdleState.ofField(field),
                 "the one-hot declares '" + field + "' and its lookup does not answer for it");
         }
     }
 
+    @Test
+    @DisplayName("the field a one-hot member names is named by no other member")
+    void everyNamedFieldIsOneMembers() {
+        Map<String, IdleState> byField = new LinkedHashMap<>();
+        for (IdleState member : IdleState.values()) {
+            if (member.field().isEmpty()) continue;
+            IdleState held = byField.put(member.field(), member);
+            assertNull(held,
+                "'" + member.field() + "' is named by " + held + " and by " + member + ", so the "
+                    + "lookup answers whichever was declared first and the other is unreachable");
+        }
+    }
+
     /** The render-state field one constant declaration names. */
-    private static String fieldOf(Pattern shape, String line) {
+    private static String fieldOf(Pattern shape, int capture, String line) {
         Matcher matched = shape.matcher(line);
         assertTrue(matched.matches(), line);
-        return matched.group(2);
+        return matched.group(capture);
     }
 
     /** Every constant of one shape in one source, indent dropped so the two sides compare. */

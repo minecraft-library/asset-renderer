@@ -58708,10 +58708,71 @@
       }
     },
     "BabyDolphinModel": {
+      "shared": [
+        {
+          "eq": [
+            {
+              "input": "isMoving"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "f2d": [
+                {
+                  "mul": [
+                    {
+                      "input": "ageInTicks"
+                    },
+                    {
+                      "const": 0.3
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
       "bones": {
         "body": {
           "x_rot": {
-            "const": 0.0
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "const": 0.0
+              },
+              {
+                "add": [
+                  {
+                    "const": 0.0
+                  },
+                  {
+                    "sub": [
+                      {
+                        "const": -0.05
+                      },
+                      {
+                        "mul": [
+                          {
+                            "const": 0.05
+                          },
+                          {
+                            "ref": 1
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
           },
           "y_rot": {
             "const": 0.0
@@ -58719,17 +58780,51 @@
         },
         "tail": {
           "x_rot": {
-            "bone": [
-              "tail",
-              "x_rot"
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "tail",
+                  "x_rot"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "const": -0.1
+                  },
+                  {
+                    "ref": 1
+                  }
+                ]
+              }
             ]
           }
         },
         "tail_fin": {
           "x_rot": {
-            "bone": [
-              "tail_fin",
-              "x_rot"
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "tail_fin",
+                  "x_rot"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "const": -0.2
+                  },
+                  {
+                    "ref": 1
+                  }
+                ]
+              }
             ]
           }
         }
@@ -65927,10 +66022,71 @@
       }
     },
     "DolphinModel": {
+      "shared": [
+        {
+          "eq": [
+            {
+              "input": "isMoving"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "mth_cos": [
+            {
+              "f2d": [
+                {
+                  "mul": [
+                    {
+                      "input": "ageInTicks"
+                    },
+                    {
+                      "const": 0.3
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
       "bones": {
         "body": {
           "x_rot": {
-            "const": 0.0
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "const": 0.0
+              },
+              {
+                "add": [
+                  {
+                    "const": 0.0
+                  },
+                  {
+                    "sub": [
+                      {
+                        "const": -0.05
+                      },
+                      {
+                        "mul": [
+                          {
+                            "const": 0.05
+                          },
+                          {
+                            "ref": 1
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
           },
           "y_rot": {
             "const": 0.0
@@ -65938,17 +66094,51 @@
         },
         "tail": {
           "x_rot": {
-            "bone": [
-              "tail",
-              "x_rot"
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "tail",
+                  "x_rot"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "const": -0.1
+                  },
+                  {
+                    "ref": 1
+                  }
+                ]
+              }
             ]
           }
         },
         "tail_fin": {
           "x_rot": {
-            "bone": [
-              "tail_fin",
-              "x_rot"
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "tail_fin",
+                  "x_rot"
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "const": -0.2
+                  },
+                  {
+                    "ref": 1
+                  }
+                ]
+              }
             ]
           }
         }

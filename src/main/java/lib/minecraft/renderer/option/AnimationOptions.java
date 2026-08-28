@@ -5,10 +5,10 @@ import dev.simplified.annotations.Getter;
 import lib.minecraft.renderer.asset.pose.IdleFigure;
 import lib.minecraft.renderer.asset.pose.IdleState;
 import lib.minecraft.renderer.engine.compose.Timeline;
+import lib.minecraft.renderer.exception.RendererException;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * The animation timing shared by the animated renderers (item, block, entity, fluid, portal): seed
@@ -63,14 +63,16 @@ public class AnimationOptions {
     private final @NotNull Map<IdleFigure, IdleFigure.Excursion> idleFigures = Map.of();
 
     /**
-     * Which member of a one-hot an idle render selects, where a caller means other than the default.
+     * Which member of each one-hot an idle render selects, where a caller means other than the
+     * group's default.
      *
-     * <p>A selection rather than an excursion, because the factors behind it encode one choice and
-     * moving them apart renders a crossfade between two states. Empty takes
-     * {@link IdleState#DEFAULT}, and {@link IdleState#IN_AIR} is how a caller asks for every factor
-     * of the group to rest.
+     * <p>A selection rather than an excursion, because the fields behind one encode a single choice
+     * and moving them apart renders a crossfade between two states. A group no entry names takes
+     * {@link IdleState.Group#selected()}, and the member of it that drives no field - the axolotl's
+     * {@link IdleState#IN_AIR}, a dolphin's {@link IdleState#STILL} - is how a caller asks for the
+     * whole group to rest.
      */
-    private final @NotNull Optional<IdleState> idleState = Optional.empty();
+    private final @NotNull Map<IdleState.Group, IdleState> idleStates = Map.of();
 
     /**
      * What one idle figure holds at a tick, this caller's override applied where there is one.
@@ -85,13 +87,25 @@ public class AnimationOptions {
     }
 
     /**
-     * What one factor of a one-hot holds, given the member this caller selects.
+     * What one field of a one-hot holds, given the member this caller selects for its group.
      *
-     * @param factor the factor being answered
+     * <p>Refuses a selection from another group rather than answering it. Every field of the group
+     * would answer zero, which is indistinguishable from selecting the member that drives none - so
+     * a caller who keyed the map wrong would get a subject holding still and no way to tell that
+     * from having asked for one.
+     *
+     * @param factor the field being answered
      * @return one where it belongs to the selected member, zero otherwise
+     * @throws RendererException if the selection for a group belongs to a different one
      */
     public float idleValue(@NotNull IdleState factor) {
-        return factor.when(this.idleState.orElse(IdleState.DEFAULT));
+        IdleState.Group group = factor.group();
+        IdleState selected = this.idleStates.getOrDefault(group, group.selected());
+        if (selected.group() != group)
+            throw new RendererException(
+                "idle state: '%s' is selected for '%s' and belongs to '%s'",
+                selected, group, selected.group());
+        return factor.when(selected);
     }
 
     /**

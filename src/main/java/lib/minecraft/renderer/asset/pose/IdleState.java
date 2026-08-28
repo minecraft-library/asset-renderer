@@ -10,10 +10,10 @@ import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A state a subject is IN, carried across several render-state factors as a smoothed one-hot.
+ * A state a subject is IN, carried across the render-state fields of one selector as a one-hot.
  *
- * <p>Vanilla decides one member of an enum and ramps a factor per member toward "am I the one", so
- * the factors are an encoding of a single choice rather than several sliders. An axolotl's is the
+ * <p>Vanilla decides one member of a set and drives a field per member toward "am I the one", so
+ * those fields are an encoding of a single choice rather than several sliders. An axolotl's is the
  * corpus's first: {@code tickAdultAnimations} picks one of {@code PLAYING_DEAD}, {@code IN_WATER},
  * {@code ON_GROUND} and {@code IN_AIR}, then ticks three animators on {@code state == <member>}.
  *
@@ -23,9 +23,11 @@ import org.jetbrains.annotations.NotNull;
  * a pose the one-hot can never reach. A caller SELECTS instead, and the selected member answers one
  * while every other answers zero.
  *
- * <p><b>Selecting is also how the animation is turned off.</b> {@link #IN_AIR} names no factor, so
- * choosing it rests all of them, which is exactly the never-ticked subject this exists to move away
- * from.
+ * <p><b>A selector is a {@link Group} and a caller chooses one member of each.</b> The axolotl's
+ * four are one vanilla enum; a dolphin's two are the arms of one boolean. They are the same shape -
+ * mutually exclusive members over which exactly one holds - and the type carries both rather than
+ * one enum per subject, because what the runtime resolves is a render-state field name and a field
+ * belongs to exactly one selector.
  *
  * <p><b>Not a kind of {@link IdleFigure}, though the two are answered side by side.</b> A figure is
  * a function of the tick and carries no notion of a selection; a state is a function of a selection
@@ -33,10 +35,9 @@ import org.jetbrains.annotations.NotNull;
  * field name, which is a dispatch rather than a behaviour - held under one interface each ignored
  * the other's parameter.
  *
- * <p>The vocabulary is vanilla's own rather than a coinage: these are its enum's members, so a
- * version that adds one adds it here rather than reshaping anything. The same shape is what a
- * clip-driven subject needs - which of several {@code AnimationState} clips is playing is one choice
- * over an enum too - so this is the seam that group grows from.
+ * <p>The vocabulary is vanilla's own rather than a coinage: a member is one of its enum's members or
+ * one arm of its own boolean, so a version that adds one adds it here rather than reshaping
+ * anything.
  *
  * <p><b>Parity.</b> Read by the entity pose runtime alone, so an entity is the whole of what it
  * moves. A caller that selects other than the default has left the reference set behind, which is a
@@ -55,45 +56,97 @@ public enum IdleState {
      * blend rather than being one of its weights - playing dead excludes being in water and being on
      * the ground, so it is a place in the selector and not a fifth slider.
      */
-    PLAYING_DEAD("playingDeadFactor"),
+    PLAYING_DEAD(Group.AXOLOTL, "playingDeadFactor"),
 
     /**
      * An axolotl in water, which is what an idle one selects.
      *
-     * <p>The default because the subject is aquatic: with this selected its model weights hovering
-     * and swimming and rests the two ground blends, so the one continuous factor it carries has
-     * something to blend BETWEEN.
+     * <p>The group's default because the subject is aquatic: with this selected its model weights
+     * hovering and swimming and rests the two ground blends, so the one continuous factor it carries
+     * has something to blend BETWEEN.
      */
-    IN_WATER("inWaterFactor"),
+    IN_WATER(Group.AXOLOTL, "inWaterFactor"),
 
     /** An axolotl on a surface, which weights its crawl and its lie-still blends. */
-    ON_GROUND("onGroundFactor"),
+    ON_GROUND(Group.AXOLOTL, "onGroundFactor"),
 
     /**
-     * An axolotl in neither, which every factor rests through.
+     * An axolotl in neither, which every factor of the group rests through.
      *
-     * <p>Named with the empty token because a state that drives no factor is still a member a caller
-     * may choose, and choosing it is how an idle render asks for the subject to hold still. No
-     * render-state field is spelled that way, so it collides with nothing the lookup answers for.
+     * <p>Named with the empty token because a state that drives no field is still a member a caller
+     * may choose, and choosing it is how an idle render asks for the subject to hold still.
      */
-    IN_AIR("");
+    IN_AIR(Group.AXOLOTL, ""),
 
-    /** Which member an idle render selects where a caller names none. */
-    public static final @NotNull IdleState DEFAULT = IN_WATER;
+    /**
+     * A dolphin under way, which is what an idle one selects.
+     *
+     * <p>{@code DolphinRenderer.extractRenderState} fills the field as
+     * {@code getDeltaMovement().horizontalDistanceSqr() > 1.0E-7}, and a subject nothing has moved
+     * answers false - so the whole of what an offline dolphin holds still is a delta no tick filled.
+     * No draw is anywhere near it. Its model reads the field as a gate rather than as a weight:
+     * under it the body pitches by {@code -0.05 - 0.05 * cos(age * 0.3)} and the tail and its fin
+     * turn by {@code -0.1} and {@code -0.2} of the same cosine, which is the swim every dolphin in
+     * the game is drawn in.
+     */
+    MOVING(Group.DOLPHIN, "isMoving"),
 
-    /** The render-state factor this member ramps, or empty where the member drives none. */
+    /** A dolphin holding station, which its model draws with the body its orientation alone places. */
+    STILL(Group.DOLPHIN, "");
+
+    /**
+     * One selector, over which a caller chooses exactly one member.
+     *
+     * <p>A group is vanilla's own grouping rather than a convention: the axolotl's is the enum
+     * {@code tickAdultAnimations} switches on, and the dolphin's is the two arms of the one boolean
+     * its model branches on. What makes them one type is that both are answered the same way, by
+     * render-state field name.
+     */
+    public enum Group {
+
+        /** An axolotl's place, over {@code AxolotlAnimationState}'s own four members. */
+        AXOLOTL,
+
+        /** Whether a dolphin is under way, over the two arms of {@code DolphinRenderState.isMoving}. */
+        DOLPHIN;
+
+        /**
+         * The member an idle render selects where a caller names none, which is the one vanilla's own
+         * tick settles on.
+         *
+         * @return the group's default member
+         */
+        public @NotNull IdleState selected() {
+            return switch (this) {
+                case AXOLOTL -> IN_WATER;
+                case DOLPHIN -> MOVING;
+            };
+        }
+
+    }
+
+    /** The selector this member belongs to, over which exactly one member holds. */
+    private final @NotNull Group group;
+
+    /**
+     * The render-state field this member drives, or empty where the member drives none.
+     *
+     * <p>The empty token is not a key: no render-state field is spelled that way, so nothing the
+     * lookup is ever asked reaches a member carrying it. Every member that names a field names one
+     * no other member does, which is what makes the lookup an answer rather than a first match.
+     */
     @KeyField
     private final @NotNull String field;
 
     /**
-     * What one factor holds when a given member is the selected one.
+     * What one field holds when a given member of its group is the selected one.
      *
-     * <p>A one-hot and nothing else: the selected member's own factor answers one and every other
+     * <p>A one-hot and nothing else: the selected member's own field answers one and every other
      * answers zero. There is no ramp, because a ramp is the crossfade between two states and an idle
      * subject is already in the one it is in - which is also why this takes no tick.
      *
-     * @param selected the member the caller selected
-     * @return one where this factor belongs to the selected member, zero otherwise
+     * @param selected the member the caller selected for this member's group
+     * @return one where this field belongs to the selected member, zero otherwise
      */
     public float when(@NotNull IdleState selected) {
         return selected == this ? 1f : 0f;

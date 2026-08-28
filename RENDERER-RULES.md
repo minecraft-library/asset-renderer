@@ -540,17 +540,39 @@ those fields on parts nothing renders. `PoseEvaluator.evaluate` passes them over
 throws on all four crossed-arm illagers and the armour stand. It still throws where the disagreement
 is real: a bone the mesh does have, reading one it does not.
 
-**What varies with the tick is elapsed age and nothing else.** An offline subject stands still, so
-`PoseKit`'s frame answers `ageInTicks` as the tick and nothing to everything else - it walks at no
-speed, swings at nothing and holds nothing.
+**A shipped pose names no figure the frame does not answer, and the frame answers a declared
+roster.** `PoseKit.frameAt` is the one place a figure is answered, and outside that roster everything
+rests: elapsed age is the tick, and a field nobody drives reads zero. Everything a subject standing
+still says about itself is resolved where the table is written - which constant an enum member holds,
+what a question of a reference the state holds rests at, what a figure its own render state builds it
+at - so there is nothing a caller can leave out and be wrong about. That is what
+`PoseEvaluator.AT_REST` is, and it is why the evaluator's arms are a literal, a figure, a bone read,
+an operation and a choice, and a choice turns on a numeric comparison alone.
 
-**A shipped pose names no figure but the three the tick drives, and the reader answers nothing to
-anything else.** Everything a subject standing still says about itself is resolved where the table is
-written - which constant an enum member holds, what a question of a reference the state holds rests
-at, what a figure its own render state builds it at - so a channel is a number or a function of
-elapsed age and the stride, and there is nothing a caller can leave out and be wrong about. That is
-what `PoseEvaluator.AT_REST` is, and it is why the evaluator's arms are a literal, a figure, a bone
-read, an operation and a choice, and a choice turns on a numeric comparison alone.
+**The roster is elapsed age, the stride pair, and what a never-ticked subject leaves at zero.** The
+last of those is the one that grows, and it grows on both sides at once: `asset/pose/IdleFigure` is a
+scalar its own vanilla arithmetic bounds, moved from what it RESTS at to what it reaches across one
+strip; `asset/pose/IdleState` is a one-hot over a selector, whose selected member's field answers one
+while every other answers zero. They are two types rather than one interface with two arms - a figure
+is a function of the tick and carries no notion of a selection, a state is the reverse - and what
+they share is only that the frame resolves both by render-state field name.
+
+- **A figure's excursion runs from rest, so tick zero is free.** Frame 0 of a strip, every authored
+  render and every frozen reference answer exactly what they answered before the figure was driven.
+  **A selection has no such property** and does not need one: `BIND` hands back the mesh it was given
+  and every still sweep renders there, so the animated sweep is the only gate a selection reaches.
+- **A boolean render-state field is a figure of this kind, not a flag.** A flag is a bone's
+  visibility, which folds to a literal at generation; a boolean the walk keeps symbolic arrives as a
+  number wherever the body reads it, and a body that branches on one leaves a select comparing that
+  number against zero. So a dolphin's `isMoving` is one arm of a two-member selection, and adding it
+  to the generator's driven set is the whole of what keeping it symbolic takes.
+- **A member that drives no field is spelled with the empty token**, which is how a caller asks for a
+  whole group to rest, and it is not a key: no render-state field is spelled that way. Every member
+  that names a field names one no other member does, and `IdleFigureMirrorTest` pins that - a shared
+  name would make the lookup a first match rather than an answer.
+- **Both sides answer from the same numbers and neither can name the other's type.** The harness
+  declares its own copy in `IdleFigures` and `IdleFigureMirrorTest` compares the two as text, because
+  a value that moved on one side only renders happily and reports as a defect in this renderer.
 `EntityPoseLoadTest` pins it, because the failure mode is a silent zero: the arm a switch ends at is
 not the arm a subject stands in, and it cost the skeleton family a forty-four degree forward swing at
 rest before the fold reached it. **`entity_poses.json` still carries `input_defaults`,

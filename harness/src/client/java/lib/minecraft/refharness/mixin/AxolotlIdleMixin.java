@@ -38,7 +38,7 @@ public abstract class AxolotlIdleMixin {
         at = @At("RETURN"))
     private void refharness$mixFactors(Axolotl entity, AxolotlRenderState state, float partialTick, CallbackInfo ci) {
         if (!Boolean.getBoolean("refharness.headless")) return;
-        IdleFigures.State selected = IdleFigures.State.DEFAULT;
+        IdleFigures.State selected = IdleFigures.Group.AXOLOTL.selected();
         state.inWaterFactor = IdleFigures.select(selected, IdleFigures.State.IN_WATER);
         state.onGroundFactor = IdleFigures.select(selected, IdleFigures.State.ON_GROUND);
         state.playingDeadFactor = IdleFigures.select(selected, IdleFigures.State.PLAYING_DEAD);

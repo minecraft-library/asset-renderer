@@ -51,10 +51,17 @@ public final class PoseFlow {
      *
      * <p>The rest of this set is what vanilla's own {@code tick} would have filled and a never-ticked
      * subject leaves at zero - a tentacle's angle, a wing phase, a lid, an axolotl's four mixing
-     * factors. Folding one to its resting zero holds still something vanilla animates, so they stay
-     * symbolic too and a caller moves each across the range vanilla's arithmetic bounds it to.
-     * <b>None of them needs the entity ticked</b>: what a draw decides on these paths is a rate or an
-     * interval, and every draw but the squid's sits behind a gate an offline subject never passes.
+     * factors, whether a dolphin is under way. Folding one to its resting zero holds still something
+     * vanilla animates, so they stay symbolic too and a caller drives each over the range vanilla's
+     * arithmetic bounds it to. <b>None of them needs the entity ticked</b>: what a draw decides on
+     * these paths is a rate or an interval, and every draw but the squid's sits behind a gate an
+     * offline subject never passes.
+     *
+     * <p><b>A boolean belongs on this list exactly as a float does.</b> A render-state field the
+     * walk keeps symbolic arrives as a number wherever the body reads it, and a body that branches
+     * on one leaves a select comparing that number against zero - so a dolphin's {@code isMoving}
+     * needs no widening of the fold and no second kind of channel. What folds to a literal at
+     * generation is a FLAG, which is a bone's visibility and a different thing entirely.
      *
      * <p>A slime's squash is the one figure of this shape deliberately left off. Both its renderer
      * and a magma cube's read it in the per-renderer {@code scale} this side models nowhere, so
@@ -63,7 +70,7 @@ public final class PoseFlow {
     private static final @NotNull Set<String> DRIVEN = Set.of(
         "ageInTicks", "walkAnimationPos", "walkAnimationSpeed",
         "tentacleAngle", "flapTime", "peekAmount",
-        "inWaterFactor", "movingFactor", "onGroundFactor", "playingDeadFactor");
+        "inWaterFactor", "movingFactor", "onGroundFactor", "playingDeadFactor", "isMoving");
 
     /**
      * What separates a pose key from the frame it stands for, where one class poses more than one

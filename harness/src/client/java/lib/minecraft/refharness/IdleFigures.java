@@ -82,34 +82,61 @@ public final class IdleFigures {
         }
     }
 
+    /** One selector, over which a caller chooses exactly one member. */
+    public enum Group {
+
+        /** An axolotl's place, over {@code AxolotlAnimationState}'s own four members. */
+        AXOLOTL,
+
+        /** Whether a dolphin is under way, over the two arms of {@code DolphinRenderState.isMoving}. */
+        DOLPHIN;
+
+        /** The member an idle render selects where a caller names none. */
+        public State selected() {
+            return switch (this) {
+                case AXOLOTL -> State.IN_WATER;
+                case DOLPHIN -> State.MOVING;
+            };
+        }
+    }
+
     /**
-     * The one-hot roster, whose constants are the asset side's {@code IdleFigure.State} character
-     * for character.
+     * The one-hot roster, whose constants are the asset side's {@code IdleState} character for
+     * character.
      *
-     * <p>A selection rather than an excursion: vanilla decides one member and ramps a factor per
-     * member toward "am I the one", so the selected member's factor answers one and every other
-     * answers zero. {@code IN_AIR} names no factor, so selecting it rests the whole group.
+     * <p>A selection rather than an excursion: vanilla decides one member and drives a field per
+     * member toward "am I the one", so the selected member's field answers one and every other
+     * answers zero. A member naming no field - {@code IN_AIR}, {@code STILL} - rests its whole group.
      */
     public enum State {
 
-        PLAYING_DEAD("playingDeadFactor"),
+        PLAYING_DEAD(Group.AXOLOTL, "playingDeadFactor"),
 
-        IN_WATER("inWaterFactor"),
+        IN_WATER(Group.AXOLOTL, "inWaterFactor"),
 
-        ON_GROUND("onGroundFactor"),
+        ON_GROUND(Group.AXOLOTL, "onGroundFactor"),
 
-        IN_AIR("");
+        IN_AIR(Group.AXOLOTL, ""),
 
-        /** Which member an idle render selects where a caller names none. */
-        public static final State DEFAULT = IN_WATER;
+        MOVING(Group.DOLPHIN, "isMoving"),
+
+        STILL(Group.DOLPHIN, "");
+
+        private final Group group;
 
         private final String field;
 
-        State(String field) {
+        State(Group group, String field) {
+            this.group = group;
             this.field = field;
         }
 
-        /** The render-state factor this member ramps, or empty where the member drives none. */
+        /** The selector this member belongs to. */
+        public Group group() {
+            return this.group;
+        }
+
+        /** The render-state field this member drives, or empty where the member drives none. */
         public String field() {
             return this.field;
         }
@@ -126,18 +153,33 @@ public final class IdleFigures {
     }
 
     /**
-     * What one factor of a one-hot holds, given the member an idle render selects.
+     * What one field of a one-hot holds, given the member an idle render selects.
      *
      * <p>Unlike a scalar this needs no clock: an idle subject is already in the state it is in, and
      * a ramp between two of them is the crossfade this deliberately does not render.
      *
      * @param selected the member selected
-     * @param factor the factor being answered
-     * @return one where that factor belongs to the selected member, zero otherwise
+     * @param factor the field being answered
+     * @return one where that field belongs to the selected member, zero otherwise
      */
     public static float select(State selected, State factor) {
-        if (!HarnessConfig.ANIMATED) return 0f;
-        return selected == factor ? 1f : 0f;
+        return selects(selected, factor) ? 1f : 0f;
+    }
+
+    /**
+     * Whether one arm of a boolean selector is the selected one.
+     *
+     * <p>The same answer {@link #select} gives, for the fields vanilla declares as a boolean rather
+     * than as a factor - a dolphin's {@code isMoving} is one arm of a two-member selection and not a
+     * weight, so it is answered rather than ramped.
+     *
+     * @param selected the member selected
+     * @param factor the field being answered
+     * @return whether that field belongs to the selected member
+     */
+    public static boolean selects(State selected, State factor) {
+        if (!HarnessConfig.ANIMATED) return false;
+        return selected == factor;
     }
 
     /**

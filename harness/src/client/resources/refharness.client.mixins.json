@@ -10,6 +10,7 @@
     "BannerFlagModelMixin",
     "CamelSaddleReinsMixin",
     "DegenerateUvPolygonMixin",
+    "DolphinIdleMixin",
     "DonkeyModelMixin",
     "EnchantTableRendererMixin",
     "EnderDragonIdleMixin",
