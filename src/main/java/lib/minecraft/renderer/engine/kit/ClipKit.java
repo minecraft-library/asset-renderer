@@ -38,12 +38,14 @@ import java.util.function.ToDoubleFunction;
  * and the selection reproduces it: the selected member's field answers one and every other member of
  * its group answers zero, so nothing has to be told which sites conflict.
  *
- * <p><b>What a never-ticked subject plays is nothing, and that is why the group has a member driving
- * no field.</b> A state constructs STOPPED and {@code apply} is {@code ifStarted}, so an offline
- * vanilla subject runs none of these - which is measured rather than assumed: the breeze writes no
- * bone outside its six state-driven clips, and its reference silhouette is identical across every
- * frame of the sampled strip. Selecting nothing for a group is how a render asks for that subject
- * back.
+ * <p><b>What a never-ticked subject plays is nothing, and a group whose vanilla selector has a
+ * resting arm carries a member for it.</b> A state constructs STOPPED and {@code apply} is
+ * {@code ifStarted}, so an offline vanilla subject runs none of these - which is measured rather
+ * than assumed: the breeze writes no bone outside its six state-driven clips, and its reference
+ * silhouette is identical across every frame of the sampled strip. Selecting that member is how a
+ * render asks for a still subject back. <b>It is not offered where vanilla has no such arm</b> - a
+ * bat's own tick stops one of its two states to start the other, so both of its members play a clip
+ * and a never-ticked bat is a frame vanilla draws only before its first tick.
  */
 @UtilityClass
 public final class ClipKit {

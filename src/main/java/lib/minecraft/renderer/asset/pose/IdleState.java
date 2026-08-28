@@ -2,12 +2,14 @@ package lib.minecraft.renderer.asset.pose;
 
 import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
 
 /**
  * A state a subject is IN, carried across the render-state fields of one selector as a one-hot.
@@ -46,7 +48,18 @@ import org.jetbrains.annotations.NotNull;
  *
  * <p>The vocabulary is vanilla's own rather than a coinage: a member is one of its enum's members or
  * one arm of its own boolean, so a version that adds one adds it here rather than reshaping
- * anything.
+ * anything. <b>An animation state is a boolean for this purpose</b> - {@code isStarted()} is
+ * {@code startTick != Integer.MIN_VALUE} and {@code stop()} puts it back - so the arm a clip is not
+ * playing on is vanilla's own and not an off switch invented here. It is also the arm the subject
+ * spends most of its life in: a camel redraws 80 to 120 ticks between two idles and plays one for
+ * the length of the clip.
+ *
+ * <p><b>A group carries a resting member exactly where vanilla has a resting arm, so not every group
+ * has one.</b> An axolotl's {@link #IN_AIR} is a member of vanilla's own enum, a dolphin's
+ * {@link #STILL} is the false arm of a boolean, and the two clip groups rest on a stopped animation
+ * state. {@link Group#BAT} has none: its own {@code setupAnimationStates} stops one of its two
+ * states to start the other on every tick, so a bat is on the wing or hanging and never neither, and
+ * a member for neither would be the coinage the paragraph above rules out.
  *
  * <p><b>Parity.</b> Read by the entity pose runtime alone, so an entity is the whole of what it
  * moves. A caller that selects other than the default has left the reference set behind, which is a
@@ -127,7 +140,12 @@ public enum IdleState {
      */
     IDLING(Group.IDLE_CLIP, "idleAnimationState"),
 
-    /** A subject whose idle timer has not come round, which is every frame between two of them. */
+    /**
+     * A subject whose idle timer has not come round, which is every frame between two of them.
+     *
+     * <p>The stopped arm of the same {@code AnimationState} {@link #IDLING} is the started arm of,
+     * and the one a camel holds for the 80 to 120 ticks its random puts between two plays.
+     */
     NOT_IDLING(Group.IDLE_CLIP, ""),
 
     /**
@@ -139,7 +157,12 @@ public enum IdleState {
      */
     TILTING(Group.HEAD_TILT, "idleHeadTiltAnimationState"),
 
-    /** A rabbit between two head tilts, which is what its own timer leaves it doing. */
+    /**
+     * A rabbit between two head tilts, which is what its own timer leaves it doing.
+     *
+     * <p>The stopped arm of the same {@code AnimationState} {@link #TILTING} is the started arm of,
+     * held for the 180 to 220 ticks its random puts between two plays.
+     */
     NOT_TILTING(Group.HEAD_TILT, "");
 
     /**
@@ -192,18 +215,47 @@ public enum IdleState {
 
     }
 
+    /**
+     * The members that drive a field, which is every member but a group's resting arm.
+     *
+     * <p>Held rather than filtered per call because {@link #ofField} is asked of every field a pose
+     * reads, and {@code values()} hands back a fresh array each time. Safe in an enum's own static
+     * initialiser, the constants being built before any other static field.
+     */
+    private static final @NotNull IdleState[] DRIVERS = Arrays.stream(values())
+        .filter(member -> !member.field.isEmpty())
+        .toArray(IdleState[]::new);
+
     /** The selector this member belongs to, over which exactly one member holds. */
     private final @NotNull Group group;
 
     /**
      * The render-state field this member drives, or empty where the member drives none.
      *
-     * <p>The empty token is not a key: no render-state field is spelled that way, so nothing the
-     * lookup is ever asked reaches a member carrying it. Every member that names a field names one
-     * no other member does, which is what makes the lookup an answer rather than a first match.
+     * <p>Every member that names a field names one no other member does, which is what makes
+     * {@link #ofField} an answer rather than a first match. The empty token is what the members
+     * naming none carry, and there are four of them, so it is the one spelling that would break
+     * that - which is why the lookup passes over them rather than scanning the whole roster.
      */
-    @KeyField
     private final @NotNull String field;
+
+    /**
+     * The member driving one render-state field, or {@code null} where none does.
+     *
+     * <p>Written out rather than generated off a key field, because that lookup is a linear scan
+     * where the first match wins and a group's resting member carries the empty token - so a
+     * generated one answered {@link #IN_AIR} for the empty string, which is a member no caller asked
+     * for standing in for a field nothing spells. Passing the resting members over makes the empty
+     * token unreachable rather than merely unasked for.
+     *
+     * @param field the render-state field being answered
+     * @return the member that drives it, or {@code null} where no member does
+     */
+    public static @Nullable IdleState ofField(@NotNull String field) {
+        for (IdleState member : DRIVERS)
+            if (member.field.equals(field)) return member;
+        return null;
+    }
 
     /**
      * What one field holds when a given member of its group is the selected one.

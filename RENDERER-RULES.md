@@ -567,12 +567,26 @@ they share is only that the frame resolves both by render-state field name.
   number against zero. So a dolphin's `isMoving` is one arm of a two-member selection, and adding it
   to the generator's driven set is the whole of what keeping it symbolic takes.
 - **A member that drives no field is spelled with the empty token**, which is how a caller asks for a
-  whole group to rest, and it is not a key: no render-state field is spelled that way. Every member
-  that names a field names one no other member does, and `IdleFigureMirrorTest` pins that - a shared
-  name would make the lookup a first match rather than an answer.
-- **Both sides answer from the same numbers and neither can name the other's type.** The harness
-  declares its own copy in `IdleFigures` and `IdleFigureMirrorTest` compares the two as text, because
-  a value that moved on one side only renders happily and reports as a defect in this renderer.
+  whole group to rest. Every member that names a field names one no other member does, and
+  `IdleFigureMirrorTest` pins that - a shared name would make the lookup a first match rather than an
+  answer. **The empty token is the one spelling four members share, so `IdleState.ofField` is written
+  out rather than generated off a key field**: the generated lookup is a linear scan where the first
+  match wins, and it answered `IN_AIR` for the empty string. Passing the resting members over makes
+  that token unreachable rather than merely unasked for.
+- **A group carries a resting member only where vanilla has a resting arm.** An axolotl's `IN_AIR` is
+  one of its own enum's members, a dolphin's `STILL` is the false arm of a boolean, and the two clip
+  groups rest on a stopped `AnimationState` - which is a boolean too, `isStarted()` being
+  `startTick != Integer.MIN_VALUE`, and is the arm the subject spends most of its life in. **The bat
+  has none**: its own `setupAnimationStates` stops one of its two states to start the other every
+  tick, so a member for neither would be a coinage, and a still bat is not selectable.
+- **Three builds answer from the same numbers and none can name another's type**, so
+  `IdleFigureMirrorTest` compares all three as text. The harness declares its copy in `IdleFigures`,
+  where a value that moved on one side only renders happily and reports as a defect in this renderer.
+  The generator declares a third in `PoseFlow.DRIVEN`, and its drift is silent a different way: **a
+  field a roster names and the generator folds ships the arm a never-ticked subject takes whatever a
+  caller selects**, which is what cost the rabbit's head 55.73 of delta. The set is the two rosters'
+  named fields plus elapsed age and the stride pair, and the test asserts that equality rather than
+  an inclusion, because a field kept symbolic that no roster names reads zero at every tick.
 `EntityPoseLoadTest` pins it, because the failure mode is a silent zero: the arm a switch ends at is
 not the arm a subject stands in, and it cost the skeleton family a forty-four degree forward swing at
 rest before the fold reached it. **`entity_poses.json` still carries `input_defaults`,

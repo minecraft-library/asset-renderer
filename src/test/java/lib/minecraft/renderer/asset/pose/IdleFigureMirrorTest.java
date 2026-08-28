@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -20,17 +22,21 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Holds the idle roster this renderer answers from and the one the harness drives to one another.
+ * Holds the three copies of the idle roster to one another - this renderer's, the harness's, and the
+ * generator's.
  *
- * <p>The two are separate builds, so neither can name the other's type and each declares its own
- * copy. What goes wrong when they part is silent rather than loud: the harness drives a squid's
- * tentacles to one extent while this side answers another, both render happily, and the parity row
- * reports the difference as a defect in this renderer. Nothing else in either build would catch it,
+ * <p>All three are separate builds, so none can name another's type and each declares its own copy.
+ * What goes wrong when they part is silent rather than loud, and it is a different silence per pair.
+ * The harness drives a squid's tentacles to one extent while this side answers another, both render
+ * happily, and the parity row reports the difference as a defect in this renderer. The generator
+ * FOLDS a field no roster names, so a body that branches on one ships the arm a never-ticked subject
+ * takes and a caller's selection reaches nothing - the shape that cost a rabbit's head 55.73 of
+ * delta with its canvas 18 px wide. Nothing else in any of the three builds would catch either,
  * because each side is internally consistent.
  *
- * <p>So the constants are compared as text, which is why both are written in one declaration per
- * figure with identical spelling. The same shape as the operator roster's mirror, and for the same
- * reason.
+ * <p>So the constants are compared as text, which is why the two rosters are written in one
+ * declaration per figure with identical spelling. The same shape as the operator roster's mirror,
+ * and for the same reason.
  */
 class IdleFigureMirrorTest {
 
@@ -45,6 +51,27 @@ class IdleFigureMirrorTest {
     /** The harness's, which is its own build, holds both rosters and shares no type with this one. */
     private static final Path HARNESS =
         Path.of("harness/src/client/java/lib/minecraft/refharness/IdleFigures.java");
+
+    /** The generator's, a third build again, whose copy decides what the shipped table keeps symbolic. */
+    private static final Path TOOLING =
+        Path.of("tooling/src/main/java/lib/minecraft/renderer/tooling/animation/PoseFlow.java");
+
+    /** The generator's set, whose members are string literals across however many lines it wraps to. */
+    private static final Pattern DRIVEN =
+        Pattern.compile("Set<String> DRIVEN = Set\\.of\\(([^;]*)\\);", Pattern.DOTALL);
+
+    /** One quoted member of it. */
+    private static final Pattern QUOTED = Pattern.compile("\"(\\w+)\"");
+
+    /**
+     * The three figures the frame answers off the tick itself rather than off either roster.
+     *
+     * <p>Named here because they are the part of the driven set that does not grow: elapsed age, and
+     * the stride pair a gait carries. {@code PoseKit.frameAt} answers them directly and no roster
+     * declares them, so the equality below is asserted over what is left.
+     */
+    private static final List<String> FRAME_FIGURES =
+        List.of("ageInTicks", "walkAnimationPos", "walkAnimationSpeed");
 
     /** A scalar constant, which both sides spell the same way once its indent is dropped. */
     private static final Pattern CONTINUOUS =
@@ -93,12 +120,56 @@ class IdleFigureMirrorTest {
         }
         for (String line : constantsOf(ASSET_STATES, STATE)) {
             String field = fieldOf(STATE, FIELD_OF_STATE, line);
-            // A member that drives no field is still a member a caller may choose, and the empty
-            // token is not a key - no render-state field is spelled that way.
+            // A member that drives no field is still a member a caller may choose, and it is the
+            // lookup's job to leave the token it carries unreachable - asserted below.
             if (field.isEmpty()) continue;
             assertNotNull(IdleState.ofField(field),
                 "the one-hot declares '" + field + "' and its lookup does not answer for it");
         }
+    }
+
+    @Test
+    @DisplayName("the token a resting member carries reaches no member at all")
+    void theRestingTokenIsNotAKey() {
+        assertNull(IdleState.ofField(""),
+            "four members carry the empty token, so a lookup that scans the whole roster answers "
+                + "whichever was declared first - a member no caller selected, standing in for a "
+                + "render-state field nothing spells");
+    }
+
+    @Test
+    @DisplayName("the generator keeps symbolic exactly the fields the two rosters answer")
+    void theGeneratorDrivesTheSameRoster() throws IOException {
+        Set<String> declared = new TreeSet<>();
+        for (String line : constantsOf(ASSET_FIGURES, CONTINUOUS))
+            declared.add(fieldOf(CONTINUOUS, FIELD_OF_CONTINUOUS, line));
+        for (String line : constantsOf(ASSET_STATES, STATE)) {
+            String field = fieldOf(STATE, FIELD_OF_STATE, line);
+            if (!field.isEmpty()) declared.add(field);
+        }
+
+        Set<String> driven = new TreeSet<>(drivenOf(TOOLING));
+        assertTrue(driven.removeAll(FRAME_FIGURES),
+            "the generator's driven set names none of " + FRAME_FIGURES + " - it has drifted");
+
+        assertEquals(declared, driven,
+            "the fields the two rosters answer and the fields the generator keeps symbolic have "
+                + "parted. A field a roster names and the generator folds ships the arm a "
+                + "never-ticked subject takes, whatever a caller selects - which cost the rabbit's "
+                + "head 55.73 of delta. A field the generator keeps symbolic and no roster names "
+                + "reads zero at every tick, which is the subject nothing has ticked");
+    }
+
+    /** Every member of the generator's driven set, read as text - it is another build's private. */
+    private static Set<String> drivenOf(Path source) throws IOException {
+        Matcher declaration = DRIVEN.matcher(Files.readString(source));
+        assertTrue(declaration.find(),
+            "no driven set matched in " + source + " - the pattern has drifted");
+        Set<String> members = new TreeSet<>();
+        Matcher member = QUOTED.matcher(declaration.group(1));
+        while (member.find()) members.add(member.group(1));
+        assertFalse(members.isEmpty(), "the generator's driven set read as empty");
+        return members;
     }
 
     @Test
