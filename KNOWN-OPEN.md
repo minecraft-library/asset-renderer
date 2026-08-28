@@ -13,14 +13,22 @@ Delete an entry when it closes.
 ## Most of the clip tables are dead offline, and the live tail is why they have not been shed
 
 Of `entity_poses.json`'s seventy-four clip tables, fifty-seven are reachable only through `state`
-gates - started by something that has not happened to a subject standing still, so `ClipKit`
-answers null for them in every render mode - and two more are named by no play site at all. Together
-they are roughly 300 KB of the member's 359, parsed into records on every boot. They stay because
-the tail is not dead the same way: thirteen of the fifty-seven are locomotion clips vanilla fires
-when the subject actually moves - the axolotl's swim and underwater walk, both rabbits' hop, the
-bat's flight, both camels' dash, the breeze's slide, the armadillo's roll - which is exactly what a
-WALK gate against a genuinely striding reference needs, and WALK has no vanilla reference until the
-harness drives a stride. Shedding now would be re-adding then.
+gates and two more are named by no play site at all. Together they are roughly 300 KB of the member's
+359, parsed into records on every boot.
+
+**Seven of the fifty-seven now play.** A state-gated site names the render-state field its gate reads,
+and a caller selects one member of each group, so `ClipKit` plays the site whose gate the selection
+answers - `BAT_FLYING`, `CAMEL_IDLE`, `CAMEL_BABY_IDLE`, `COPPER_GOLEM_IDLE` and both rabbits'
+`IDLE_HEAD_TILT` at the default selection, and `BAT_RESTING` for a caller who asks for it. **Fifty
+are still dead offline**, their states being ones no roster makes selectable, and that is the number
+a shed would be about.
+
+They stay because the tail is not dead the same way: twelve of the fifty are locomotion clips vanilla
+fires when the subject actually moves - the axolotl's swim and underwater walk, both rabbits' hop,
+both camels' dash, the breeze's slide, the armadillo's roll - which is exactly what a WALK gate
+against a genuinely striding reference needs, and WALK has no vanilla reference until the harness
+drives a stride. Shedding now would be re-adding then. The bat's flight was the thirteenth and is off
+that list: it is an idle animation rather than a locomotion one, and it plays today.
 
 Whoever takes it inherits three constraints. The loader throws on a play site naming a table the
 file does not carry, so sites and tables move together. A prior decision binds the two unread flag
