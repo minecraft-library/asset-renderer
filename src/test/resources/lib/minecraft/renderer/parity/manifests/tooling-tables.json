@@ -36,7 +36,7 @@
     },
     {
       "path": "entity_poses.json",
-      "sha256": "848c23264d4f497558482499eb5b1b5ee8726fd66305d34bdb4581f1ccafd95b"
+      "sha256": "a7ac19208c1cc38c9f94175106777f4dc355812fecf3ef82c0026eb5e38c5ae0"
     },
     {
       "path": "glint_items.json",
@@ -56,15 +56,15 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "f4836d06ffc6424bc1ca04dbe997b83f44313b1249ce368eafc31072d096cd6c",
+    "entityModels": "c0bbf71a69e292c3d9937cc475fd0b8cf3f905de72fb8c255039d2469e63ea9e",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
-    "asset_content_digest": "fc91ddb97f59ef7134897ef7f992b3b7ccc0ba2f2fb3675750f8b0ffde836faa",
+    "asset_content_digest": "f10b7d4fc23858c5ff88ab7ba74956f336711e425ac5d615bd1ca1113ce6f8b7",
     "asset_dirty": false,
-    "asset_sha": "aa12f713781e4ac237256bb1c48c7e8c0eb3870e",
+    "asset_sha": "78deb16284025dd938717cfd467561c9cbbad498",
     "counts": {
       "files": 11,
       "logs": 8
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "entity-bake S1/S2/S5/S7 and the B8 cube bake. Two shipped tables re-emitted at aa12f713: entity_geometry gains pivot+rotation on the shulker's three cubes, entity_poses loses the ShulkerRenderer row, and the flow log gains one 'turned' line - so digest.shipped-tables and manifest.tooling-tables move together and the agreement check holds. The dump moves in three files: entities.json is reshaped by all five commits, and blocks.json + block-entities.json move for one reason only, entityModel() no longer writing inventory_y_rotation (B5) - verified by count, the remaining 210 equalling BoneModel's own source_y_up and entity_flip rather than doubling texture_size. Every render is byte-identical: 90 subjects at BIND, 8 posed shulker frames, 1055 block renders, 17 equipment renders, 5 fish patterns, 3 oxidation levels.",
+    "reason": "A phantom's flap is the clock. Its renderer builds flapTime from an id offset plus ageInTicks, so pinning the offset rather than the sum leaves both sides beating, and the pose table answers the figure the renderer rebuilds instead of a resting zero. The eight animated references were re-rendered against that pin; the pose table, its digest, the two dumps that carry it and the generator log follow the six channels it moved. The row goes 0.0792 to 0.0443 with both canvases agreeing at 592x504. Every frozen sweep held, the still entity sum unchanged at 59.4901 over 402, because the pin is identity at tick zero.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -84,8 +84,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-27T08:39:14Z",
+    "timestamp": "2026-08-28T01:36:28Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 46808
+    "wall_time_ms": 43966
   }
 }

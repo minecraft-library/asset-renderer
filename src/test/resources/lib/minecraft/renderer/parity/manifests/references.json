@@ -1572,35 +1572,35 @@
     },
     {
       "path": "animation/minecraft__phantom/frame_000.png",
-      "sha256": "ca80cd844f027df469556479d832e695f9d7637aa5a767250cdfe20c4d0e5a24"
+      "sha256": "5f60cc649be3a53db15b1420bfb41f4be73dd5181b2949bcb52d6c6dba2004b5"
     },
     {
       "path": "animation/minecraft__phantom/frame_001.png",
-      "sha256": "ca80cd844f027df469556479d832e695f9d7637aa5a767250cdfe20c4d0e5a24"
+      "sha256": "f649bbbf0d541ca6c1240490c035ee00290e6b32d4899179f5dd255c9bfc14ce"
     },
     {
       "path": "animation/minecraft__phantom/frame_002.png",
-      "sha256": "ca80cd844f027df469556479d832e695f9d7637aa5a767250cdfe20c4d0e5a24"
+      "sha256": "0595f019231f583f32a7201fac73bbe70cdb02db28347d003c2aadabd387a655"
     },
     {
       "path": "animation/minecraft__phantom/frame_003.png",
-      "sha256": "ca80cd844f027df469556479d832e695f9d7637aa5a767250cdfe20c4d0e5a24"
+      "sha256": "56d5c0da31502cd835e9ffc09f0db57371067771359d77a6ab18542f2ff3f291"
     },
     {
       "path": "animation/minecraft__phantom/frame_004.png",
-      "sha256": "ca80cd844f027df469556479d832e695f9d7637aa5a767250cdfe20c4d0e5a24"
+      "sha256": "4ffd70dc432bb7bf77aca3af0c28804a6d0d5cf390c0fdb39546d0a61c56e5b5"
     },
     {
       "path": "animation/minecraft__phantom/frame_005.png",
-      "sha256": "ca80cd844f027df469556479d832e695f9d7637aa5a767250cdfe20c4d0e5a24"
+      "sha256": "0d97262f82701df560dec5d5b284f26f645f049ce54186ddb326d6d9f9028e45"
     },
     {
       "path": "animation/minecraft__phantom/frame_006.png",
-      "sha256": "ca80cd844f027df469556479d832e695f9d7637aa5a767250cdfe20c4d0e5a24"
+      "sha256": "6370241b305fea78cf7052c4db8999b51d33180f83cbfc405bfdf28df70a6816"
     },
     {
       "path": "animation/minecraft__phantom/frame_007.png",
-      "sha256": "ca80cd844f027df469556479d832e695f9d7637aa5a767250cdfe20c4d0e5a24"
+      "sha256": "6233d8c8f1eb861ecf835630b630ca04f28270221b543e31c1a04786085d9b7e"
     },
     {
       "path": "animation/minecraft__pig_temperate/frame_000.png",
@@ -12176,8 +12176,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
+    "asset_content_digest": "f10b7d4fc23858c5ff88ab7ba74956f336711e425ac5d615bd1ca1113ce6f8b7",
     "asset_dirty": false,
-    "asset_sha": "d1c6096e53a4f481f702eae3d1d19099f5ea66d9",
+    "asset_sha": "78deb16284025dd938717cfd467561c9cbbad498",
     "counts": {
       "files": 3042
     },
@@ -12187,7 +12188,7 @@
     "mode": "ANIMATION,EVERY",
     "parity_class": "moving",
     "producer": "renderVanillaAllReferences",
-    "reason": "The bee's harness pin removed. isOnGround was forced true for the landed pose, which skips both the wing flap and the body bob; a never-ticked bee reports false and the asset side rests it there, so the pin was a state no subject is in. Inert on every frozen sub-tree - setupAnim is its only reader and that call is cancelled there - and worth the whole difference on the animated one: minecraft__bee 120.4415 -> 0.1115, its canvas agreeing at 256x275 where it had been 272x207, and its eight reference frames going from one repeated still to eight distinct ones. sweep.entity-animation 1160.2271 -> 1039.8971 over 90 rows; manifest.references 8 rows moved of 3042 and nothing else.",
+    "reason": "A phantom's flap is the clock. Its renderer builds flapTime from an id offset plus ageInTicks, so pinning the offset rather than the sum leaves both sides beating, and the pose table answers the figure the renderer rebuilds instead of a resting zero. The eight animated references were re-rendered against that pin; the pose table, its digest, the two dumps that carry it and the generator log follow the six channels it moved. The row goes 0.0792 to 0.0443 with both canvases agreeing at 592x504. Every frozen sweep held, the still entity sum unchanged at 59.4901 over 402, because the pin is identity at tick zero.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -12197,8 +12198,8 @@
       "players": 2
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-08-23T00:33:11Z",
+    "timestamp": "2026-08-28T01:36:27Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 138730
+    "wall_time_ms": 138155
   }
 }

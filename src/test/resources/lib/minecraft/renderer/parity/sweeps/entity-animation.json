@@ -6,8 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.entity-animation",
+    "asset_content_digest": "f10b7d4fc23858c5ff88ab7ba74956f336711e425ac5d615bd1ca1113ce6f8b7",
     "asset_dirty": false,
-    "asset_sha": "850b475bec54cff647ebd34236f70b39112e8b96",
+    "asset_sha": "78deb16284025dd938717cfd467561c9cbbad498",
     "counts": {
       "failed": 0,
       "rows": 90
@@ -15,9 +16,10 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
+    "mode": "ANIMATION,EVERY",
     "parity_class": "moving",
     "producer": "entityAnimationParityVanilla",
-    "reason": "entity animation baseline brought current at the close of the pose effort: the resting-frame resolution, the per-model question defaults and the scrolled wind pass landed since the last promote took the sweep 1039.8971 -> 10.0809 over 90 rows with 84 under 0.25; the posed-rebuild scroll carry landing beside it measured zero movers against the same tree without it",
+    "reason": "A phantom's flap is the clock. Its renderer builds flapTime from an id offset plus ageInTicks, so pinning the offset rather than the sum leaves both sides beating, and the pose table answers the figure the renderer rebuilds instead of a resting zero. The eight animated references were re-rendered against that pin; the pose table, its digest, the two dumps that carry it and the generator log follow the six channels it moved. The row goes 0.0792 to 0.0443 with both canvases agreeing at 592x504. Every frozen sweep held, the still entity sum unchanged at 59.4901 over 402, because the pin is identity at tick zero.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -26,10 +28,10 @@
       "items": 479,
       "players": 2
     },
-    "reference_manifest_digest": "3bf51cb1a7bb5faf0eba227f508e0015464ec888283bd7784d680bb53e964f48",
-    "timestamp": "2026-08-23T22:53:28Z",
+    "reference_manifest_digest": "794a953034bdbbc1f8df4b7a91d42137e1e0b5895f4a057faeeb4086058d964b",
+    "timestamp": "2026-08-28T01:36:34Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 18414
+    "wall_time_ms": 20933
   },
   "rows": [
     {
@@ -670,17 +672,17 @@
       "worst_frame": "0"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.0151",
       "frames": "8",
-      "java_h": "303",
-      "java_w": "538",
-      "mean_argb_delta": "0.0792",
+      "java_h": "504",
+      "java_w": "592",
+      "mean_argb_delta": "0.0443",
       "status": "ok",
       "subject": "minecraft__phantom",
-      "vanilla_h": "303",
-      "vanilla_w": "538",
-      "worst_delta": "0.0792",
-      "worst_frame": "0"
+      "vanilla_h": "504",
+      "vanilla_w": "592",
+      "worst_delta": "0.0540",
+      "worst_frame": "6"
     },
     {
       "frame_spread": "0.0000",
@@ -1214,6 +1216,6 @@
     },
     "failed": 0,
     "rows": 90,
-    "sum": "10.0809"
+    "sum": "10.0460"
   }
 }
