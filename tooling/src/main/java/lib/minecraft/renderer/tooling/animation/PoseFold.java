@@ -134,7 +134,7 @@ final class PoseFold {
 
         List<PoseClipSite> clips = program.clipSites()
             .stream()
-            .map(site -> new PoseClipSite(site.clip(), site.drive(), site.arguments()
+            .map(site -> new PoseClipSite(site.clip(), site.drive(), site.state(), site.arguments()
                 .stream()
                 .map(fold::expression)
                 .collect(Collectors.toUnmodifiableList())))

@@ -24,20 +24,26 @@ import java.util.function.ToDoubleFunction;
  * clip's scale channel rests at zero, which is the same statement from two sides; reading the second
  * as a factor collapses every scaled bone at the instants the clip is at rest.
  *
- * <p><b>A gate decides whether a clip contributes at all, and only one of the three runs for a
- * subject standing still.</b> A walk-driven clip reads its own play site's arguments, which is where
- * a model puts the terms that keep it running at rest - a nautilus advances its swim on elapsed age
- * and floors the amplitude at a fifth, so it swims with nothing walking. A static one is held at its
- * first instant. A state-driven one plays only while its animation state is started, and a state
- * nothing started has not started, so it contributes nothing here.
+ * <p><b>A gate decides whether a clip contributes at all, and each of the three reads a different
+ * thing.</b> A walk-driven clip reads its own play site's arguments, which is where a model puts the
+ * terms that keep it running at rest - a nautilus advances its swim on elapsed age and floors the
+ * amplitude at a fifth, so it swims with nothing walking. A static one is held at its first instant.
+ * A state-driven one plays while the render-state field its gate reads answers non-zero, and that
+ * field is a member of a one-hot a caller selects.
  *
- * <p><b>That the state-driven arm contributes nothing is measured, not assumed.</b> Sixty-seven of
- * the corpus's eighty-eight play sites are state-driven, the breeze's six among them, and the breeze
- * writes no bone outside its clips - so if a state-driven clip ran for a still subject the breeze
- * would move. Its reference silhouette is identical across every frame of the sampled strip, which
- * is what says vanilla runs none of them either. The shipped table records that a site is
- * state-driven and NOT which state drives it, so there is nothing to ask a caller about; a caller
- * that wants one plays it by choosing the named state, which is a selector this does not have yet.
+ * <p><b>A model declares several state-driven sites and at most one of them plays.</b> Sixty-seven
+ * of the corpus's eighty-eight play sites are state-driven and a bat's two are its whole animation,
+ * so a reader that played all of them would draw a bat flying and hanging at once. Vanilla's own
+ * {@code setupAnimationStates} is where the exclusion lives - it stops one state to start another -
+ * and the selection reproduces it: the selected member's field answers one and every other member of
+ * its group answers zero, so nothing has to be told which sites conflict.
+ *
+ * <p><b>What a never-ticked subject plays is nothing, and that is why the group has a member driving
+ * no field.</b> A state constructs STOPPED and {@code apply} is {@code ifStarted}, so an offline
+ * vanilla subject runs none of these - which is measured rather than assumed: the breeze writes no
+ * bone outside its six state-driven clips, and its reference silhouette is identical across every
+ * frame of the sampled strip. Selecting nothing for a group is how a render asks for that subject
+ * back.
  */
 @UtilityClass
 public final class ClipKit {
@@ -45,11 +51,14 @@ public final class ClipKit {
     /** Milliseconds a whole second holds, which is the unit vanilla's clip clock counts in. */
     private static final float MILLIS_PER_SECOND = 1000f;
 
-    /** What a walk-driven play site multiplies its position by before truncating to milliseconds. */
-    private static final float WALK_MILLIS_PER_POSITION = 50f;
+    /** What a play site multiplies its own instant by before truncating to milliseconds - one tick. */
+    private static final float MILLIS_PER_TICK = 50f;
 
     /** How many arguments a walk-driven site carries: position, amplitude, rate and scale. */
     private static final int WALK_ARGUMENTS = 4;
+
+    /** How many a state-driven site carries: the elapsed age its own start tick is subtracted from. */
+    private static final int STATE_ARGUMENTS = 1;
 
     /**
      * What every clip this pose plays displaces each bone by at one instant.
@@ -95,7 +104,7 @@ public final class ClipKit {
     /**
      * Where one play site sits at this instant, or {@code null} where it does not play.
      *
-     * @throws RendererException if a walk-driven site does not carry the four terms one takes
+     * @throws RendererException if a site does not carry the terms its drive takes
      */
     private static Drive driveOf(
         @NotNull EntityPose.Clip site, @NotNull EntityModelData model,
@@ -104,8 +113,21 @@ public final class ClipKit {
         return switch (site.gate()) {
             // Held at its first instant, at the full amplitude - vanilla's own `apply(0L, 1.0f)`.
             case STATIC -> new Drive(0L, 1f);
-            // Started by something that has not happened to a subject standing still.
-            case STATE -> null;
+            // Playing exactly when the frame answers the field the gate reads. That field is a state
+            // a caller selects, the way every other one-hot is selected, and it answers zero for a
+            // state nobody chose - so a model declaring six of them still plays at most the one.
+            case STATE -> {
+                if (frame.applyAsDouble(site.state()) == 0d) yield null;
+                List<Float> terms = PoseEvaluator.values(site.arguments(), model, frame);
+                if (terms.size() != STATE_ARGUMENTS)
+                    throw new RendererException(
+                        "entity clip: '%s' is state-driven on %d term(s), which takes %d",
+                        site.coordinate(), terms.size(), STATE_ARGUMENTS);
+                // Vanilla's `AnimationState.getTimeInMillis`, which is the elapsed age less the tick
+                // the state was started at, truncated to whole milliseconds. A selected state starts
+                // at tick zero on both sides, so the subtraction is of nothing and the term stands.
+                yield new Drive((long) (terms.getFirst() * MILLIS_PER_TICK), 1f);
+            }
             case WALK -> {
                 List<Float> terms = PoseEvaluator.values(site.arguments(), model, frame);
                 if (terms.size() != WALK_ARGUMENTS)
@@ -114,7 +136,7 @@ public final class ClipKit {
                         site.coordinate(), terms.size(), WALK_ARGUMENTS);
                 // Vanilla's applyWalk, operand for operand: the position scales to milliseconds by
                 // the rate and TRUNCATES, and the amplitude is capped at one however hard it walks.
-                long millis = (long) (terms.get(0) * WALK_MILLIS_PER_POSITION * terms.get(2));
+                long millis = (long) (terms.get(0) * MILLIS_PER_TICK * terms.get(2));
                 yield new Drive(millis, Math.min(terms.get(1) * terms.get(3), 1f));
             }
         };

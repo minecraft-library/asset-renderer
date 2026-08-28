@@ -20,17 +20,23 @@ import java.util.List;
  * and nowhere in the clip, so a walk that treated a play site as nothing to record would drop the
  * timing and the amplitude while looking like it had lost nothing.
  *
- * <p>Reference arguments are absent rather than placeheld. The animation state a state-driven clip
- * is gated on is not a number and nothing offline evaluates it; the drive already says the clip sits
- * behind one, so carrying an unreadable operand would add no fact.
+ * <p><b>A state-driven site names the field its gate reads, and every other reference argument is
+ * absent rather than placeheld.</b> Which animation state a clip sits behind is the one fact that
+ * decides whether the clip plays at all, so a site that carried only "it sits behind one" leaves a
+ * reader with nothing to ask a caller - and the reader would have to choose between playing every
+ * state-driven clip a model declares, which is a pose vanilla never draws, and playing none, which
+ * is a subject nothing has ticked. The field is a render-state member like any other, so it is
+ * answered where every other figure is.
  *
  * @param clip the clip coordinate, in the same {@code Class#member} spelling the clip table is keyed by
  * @param drive what decides whether the clip contributes
+ * @param state the render-state field the gate reads, empty where the drive is not a state
  * @param arguments the numeric arguments the call passes, in declaration order
  */
 public record PoseClipSite(
     @NotNull String clip,
     @NotNull Gate drive,
+    @NotNull String state,
     @NotNull List<PoseExpr> arguments
 ) {
 
@@ -52,8 +58,10 @@ public record PoseClipSite(
         WALK("walk"),
 
         /**
-         * Behind a running animation state - a roar, a dig, a sit. Nothing offline starts one, so
-         * these are inert here and are carried to say so rather than to be played.
+         * Behind a running animation state - a roar, a dig, a sit, an idle. Vanilla starts one from
+         * its own {@code setupAnimationStates}, so which of a model's several is running is a
+         * selection over the render-state fields they are held in, and the site names the one it
+         * reads.
          */
         STATE("state");
 

@@ -149,11 +149,16 @@ public final class PoseJson {
      * <p>The arguments are the whole reason a play site is written down beside the clip table, which
      * already says which clip and under what drive: how fast the thing moves and how far are the
      * model's own and live nowhere in the clip.
+     *
+     * <p>A state-driven site carries the render-state field its gate reads, which is what says WHICH
+     * of a model's several clips a caller is choosing between. It is written only where there is one,
+     * so the other two drives spell no empty member.
      */
     private static @NotNull JsonTree clipSite(@NotNull PoseClipSite site, @NotNull Shared shared) {
         JsonTree node = JsonTree.object()
             .put("clip", site.clip())
             .put("gate", site.drive().token());
+        if (!site.state().isEmpty()) node.put("state", site.state());
         if (site.arguments().isEmpty()) return node;
 
         JsonTree arguments = node.childArray("args");

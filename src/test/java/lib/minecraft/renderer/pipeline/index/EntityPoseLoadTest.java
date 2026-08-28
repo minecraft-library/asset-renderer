@@ -264,6 +264,33 @@ class EntityPoseLoadTest {
     }
 
     @Test
+    @DisplayName("every state-driven play site names the state its gate reads")
+    void aStateSiteNamesItsGate() {
+        // Which state a clip sits behind is the only thing saying WHICH of a model's several is
+        // running, and a site that named none would answer zero at render and never play - which
+        // reads exactly like the subject nothing has ticked, so nothing downstream would notice.
+        // The loader refuses one; this is that refusal exercised over the whole shipped corpus
+        // rather than over a hand-built row.
+        //
+        // A named state OUTSIDE the runtime's own roster is not a defect and is deliberately not
+        // asserted against: it answers zero, which is the state nobody selected, and that is what a
+        // subject standing still holds every state it does not play at.
+        Map<String, List<String>> unnamed = new TreeMap<>();
+        for (Map.Entry<String, Entity> subject : entities.entrySet()) {
+            EntityPose pose = subject.getValue().pose();
+            if (!pose.isReadable()) continue;
+            List<String> bare = pose.clips().stream()
+                .filter(clip -> clip.gate() == EntityPose.Gate.STATE)
+                .filter(clip -> clip.state().isEmpty())
+                .map(EntityPose.Clip::coordinate)
+                .toList();
+            if (!bare.isEmpty()) unnamed.put(subject.getKey(), bare);
+        }
+        assertEquals(Map.of(), unnamed,
+            "a state-driven site naming no state is one nothing can ever start, and it is silent");
+    }
+
+    @Test
     @DisplayName("a shipped pose names no figure the runtime cannot answer")
     void nothingButTheTickIsLeftToAnswer() {
         // What the reader rests on. Everything a subject standing still answers about itself - which

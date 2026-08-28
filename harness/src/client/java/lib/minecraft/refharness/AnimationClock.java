@@ -18,10 +18,12 @@ import lib.minecraft.refharness.sweep.EntityAnimationSweep;
  * mixin reads it during that frame - and {@code volatile} for the same reason, the value being
  * written where the sweep steps and read inside a separately compiled injection.
  *
- * <p><b>What varies with the tick is elapsed age and nothing else.</b> An offline subject stands
- * still, so every other animation driver the freeze pins stays pinned: it walks at no speed, swings
- * at nothing and has died no ticks ago. That is the frame the asset-renderer poses at too, so the
- * two sides read one schedule the same way.
+ * <p><b>Elapsed age is what the freeze leaves moving, and it is not the only thing that moves.</b>
+ * Every other animation driver the freeze pins stays pinned - the subject walks at no speed, swings
+ * at nothing and has died no ticks ago - but {@link IdleFigures} drives a declared roster beside it,
+ * the figures vanilla's own {@code tick} fills and a never-ticked subject leaves at zero. Both read
+ * this tick, and the asset-renderer poses at the same one, so the two sides read one schedule the
+ * same way.
  */
 @UtilityClass
 public final class AnimationClock {

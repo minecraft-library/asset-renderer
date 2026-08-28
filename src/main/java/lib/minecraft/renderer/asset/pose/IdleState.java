@@ -24,10 +24,19 @@ import org.jetbrains.annotations.NotNull;
  * while every other answers zero.
  *
  * <p><b>A selector is a {@link Group} and a caller chooses one member of each.</b> The axolotl's
- * four are one vanilla enum; a dolphin's two are the arms of one boolean. They are the same shape -
- * mutually exclusive members over which exactly one holds - and the type carries both rather than
- * one enum per subject, because what the runtime resolves is a render-state field name and a field
+ * four are one vanilla enum; a dolphin's two are the arms of one boolean; a bat's two are the
+ * animation states its own tick stops one of to start the other. They are the same shape - mutually
+ * exclusive members over which exactly one holds - and the type carries them all rather than one
+ * enum per subject, because what the runtime resolves is a render-state field name and a field
  * belongs to exactly one selector.
+ *
+ * <p><b>What the selected field is READ by is not this type's business, and that is what let the
+ * clip-driven subjects in without a second mechanism.</b> An axolotl's factor is a weight a pose
+ * expression multiplies by; a bat's animation state is the gate a play site sits behind. Both are a
+ * render-state field the frame answers, so {@code ClipKit} asks it the same question
+ * {@code PoseEvaluator} asks - and a model declaring six state-driven clips plays the one whose gate
+ * the selection answers, which is vanilla's own exclusion rather than a rule anything here had to be
+ * told.
  *
  * <p><b>Not a kind of {@link IdleFigure}, though the two are answered side by side.</b> A figure is
  * a function of the tick and carries no notion of a selection; a state is a function of a selection
@@ -92,15 +101,61 @@ public enum IdleState {
     MOVING(Group.DOLPHIN, "isMoving"),
 
     /** A dolphin holding station, which its model draws with the body its orientation alone places. */
-    STILL(Group.DOLPHIN, "");
+    STILL(Group.DOLPHIN, ""),
+
+    /**
+     * A bat on the wing, which is what an idle one selects.
+     *
+     * <p>{@code Bat.setupAnimationStates} stops the resting state and starts this one whenever
+     * {@code isResting()} is false, and that flag is one bit of a synched byte its own
+     * {@code defineSynchedData} declares at zero - so a bat the client has built is flying, and the
+     * whole reason an offline one hangs motionless is that nothing has ticked it into either.
+     */
+    FLYING(Group.BAT, "flyAnimationState"),
+
+    /** A bat hanging from a ceiling, which its own resting clip draws. */
+    RESTING(Group.BAT, "restAnimationState"),
+
+    /**
+     * A subject playing the idle clip it keeps on a timer of its own, which is what an idle render
+     * selects.
+     *
+     * <p>Both the camel's and the copper golem's timers start at zero, so the first tick either has
+     * ever taken starts the clip - and what their randoms decide is how long until the NEXT one, the
+     * camel drawing an interval in {@code [80, 120)} ticks and the golem one in {@code [200, 240)}.
+     * A draw that picks an interval picks no shape, which is the finding the whole roster rests on.
+     */
+    IDLING(Group.IDLE_CLIP, "idleAnimationState"),
+
+    /** A subject whose idle timer has not come round, which is every frame between two of them. */
+    NOT_IDLING(Group.IDLE_CLIP, ""),
+
+    /**
+     * A rabbit tilting its head, which is its whole idle and what an idle render selects.
+     *
+     * <p>{@code Rabbit.setupAnimationStates} starts it whenever its own timer has run out and the
+     * subject is neither leashed nor {@code isNoAi()}, both of which a fresh rabbit answers - so the
+     * first tick starts it and the draw sets only the {@code [180, 220)} ticks until the next.
+     */
+    TILTING(Group.HEAD_TILT, "idleHeadTiltAnimationState"),
+
+    /** A rabbit between two head tilts, which is what its own timer leaves it doing. */
+    NOT_TILTING(Group.HEAD_TILT, "");
 
     /**
      * One selector, over which a caller chooses exactly one member.
      *
      * <p>A group is vanilla's own grouping rather than a convention: the axolotl's is the enum
-     * {@code tickAdultAnimations} switches on, and the dolphin's is the two arms of the one boolean
-     * its model branches on. What makes them one type is that both are answered the same way, by
-     * render-state field name.
+     * {@code tickAdultAnimations} switches on, the dolphin's is the two arms of the one boolean its
+     * model branches on, and a clip group's is the set of animation states one
+     * {@code setupAnimationStates} stops to start another of. What makes them one type is that all
+     * of them are answered the same way, by render-state field name.
+     *
+     * <p><b>A group is a selector rather than a subject, and two of them are named for the field
+     * they select over rather than for whoever reads it.</b> A camel and a copper golem both spell
+     * their idle clip's gate {@code idleAnimationState}, and a field name is the whole of what the
+     * frame is asked - so at this resolution they are one selector, and calling the group
+     * {@code CAMEL} would be claiming a distinction nothing downstream can make.
      */
     public enum Group {
 
@@ -108,7 +163,16 @@ public enum IdleState {
         AXOLOTL,
 
         /** Whether a dolphin is under way, over the two arms of {@code DolphinRenderState.isMoving}. */
-        DOLPHIN;
+        DOLPHIN,
+
+        /** Whether a bat is on the wing or hanging, which its own tick stops one to start. */
+        BAT,
+
+        /** Whether the idle clip a camel and a copper golem both spell one way is playing. */
+        IDLE_CLIP,
+
+        /** Whether a rabbit's head tilt is playing, which is the idle it spells apart from those. */
+        HEAD_TILT;
 
         /**
          * The member an idle render selects where a caller names none, which is the one vanilla's own
@@ -120,6 +184,9 @@ public enum IdleState {
             return switch (this) {
                 case AXOLOTL -> IN_WATER;
                 case DOLPHIN -> MOVING;
+                case BAT -> FLYING;
+                case IDLE_CLIP -> IDLING;
+                case HEAD_TILT -> TILTING;
             };
         }
 

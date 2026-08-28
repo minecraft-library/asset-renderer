@@ -51694,6 +51694,7 @@
         {
           "clip": "ArmadilloAnimation#ARMADILLO_ROLL_OUT",
           "gate": "state",
+          "state": "rollOutAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -51703,6 +51704,7 @@
         {
           "clip": "ArmadilloAnimation#ARMADILLO_ROLL_UP",
           "gate": "state",
+          "state": "rollUpAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -51712,6 +51714,7 @@
         {
           "clip": "ArmadilloAnimation#ARMADILLO_PEEK",
           "gate": "state",
+          "state": "peekAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -54423,6 +54426,7 @@
         {
           "clip": "CamelAnimation#CAMEL_SIT",
           "gate": "state",
+          "state": "sitAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -54432,6 +54436,7 @@
         {
           "clip": "CamelAnimation#CAMEL_SIT_POSE",
           "gate": "state",
+          "state": "sitPoseAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -54441,6 +54446,7 @@
         {
           "clip": "CamelAnimation#CAMEL_STANDUP",
           "gate": "state",
+          "state": "sitUpAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -54450,6 +54456,7 @@
         {
           "clip": "CamelAnimation#CAMEL_IDLE",
           "gate": "state",
+          "state": "idleAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -54459,6 +54466,7 @@
         {
           "clip": "CamelAnimation#CAMEL_DASH",
           "gate": "state",
+          "state": "dashAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -56067,13 +56075,51 @@
       }
     },
     "AdultRabbitModel": {
+      "shared": [
+        {
+          "ne": [
+            {
+              "input": "idleHeadTiltAnimationState"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        }
+      ],
       "bones": {
         "head": {
           "x_rot": {
-            "const": 0.0
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "head",
+                  "x_rot"
+                ]
+              },
+              {
+                "const": 0.0
+              }
+            ]
           },
           "y_rot": {
-            "const": 0.0
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "head",
+                  "y_rot"
+                ]
+              },
+              {
+                "const": 0.0
+              }
+            ]
           }
         }
       },
@@ -56081,6 +56127,7 @@
         {
           "clip": "RabbitAnimation#HOP",
           "gate": "state",
+          "state": "hopAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -56090,6 +56137,7 @@
         {
           "clip": "RabbitAnimation#IDLE_HEAD_TILT",
           "gate": "state",
+          "state": "idleHeadTiltAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58142,6 +58190,7 @@
         {
           "clip": "BabyArmadilloAnimation#ARMADILLO_BABY_ROLL_OUT",
           "gate": "state",
+          "state": "rollOutAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58151,6 +58200,7 @@
         {
           "clip": "BabyArmadilloAnimation#ARMADILLO_BABY_ROLL_UP",
           "gate": "state",
+          "state": "rollUpAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58160,6 +58210,7 @@
         {
           "clip": "BabyArmadilloAnimation#ARMADILLO_BABY_PEEK",
           "gate": "state",
+          "state": "peekAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58192,6 +58243,7 @@
         {
           "clip": "BabyAxolotlAnimation#BABY_AXOLOTL_SWIM",
           "gate": "state",
+          "state": "swimAnimation",
           "args": [
             {
               "input": "ageInTicks"
@@ -58201,6 +58253,7 @@
         {
           "clip": "BabyAxolotlAnimation#WALK_FLOOR_UNDERWATER",
           "gate": "state",
+          "state": "walkAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58210,6 +58263,7 @@
         {
           "clip": "BabyAxolotlAnimation#BABY_AXOLOTL_IDLE_FLOOR",
           "gate": "state",
+          "state": "idleOnGroundAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58219,6 +58273,7 @@
         {
           "clip": "BabyAxolotlAnimation#IDLE_UNDERWATER",
           "gate": "state",
+          "state": "idleUnderWaterAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58228,6 +58283,7 @@
         {
           "clip": "BabyAxolotlAnimation#IDLE_FLOOR_UNDERWATER",
           "gate": "state",
+          "state": "idleUnderWaterOnGroundAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58237,6 +58293,7 @@
         {
           "clip": "BabyAxolotlAnimation#BABY_AXOLOTL_PLAY_DEAD",
           "gate": "state",
+          "state": "playDeadAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58475,6 +58532,7 @@
         {
           "clip": "CamelBabyAnimation#CAMEL_BABY_SIT",
           "gate": "state",
+          "state": "sitAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58484,6 +58542,7 @@
         {
           "clip": "CamelBabyAnimation#CAMEL_BABY_SIT_POSE",
           "gate": "state",
+          "state": "sitPoseAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58493,6 +58552,7 @@
         {
           "clip": "CamelBabyAnimation#CAMEL_BABY_STANDUP",
           "gate": "state",
+          "state": "sitUpAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58502,6 +58562,7 @@
         {
           "clip": "CamelBabyAnimation#CAMEL_BABY_IDLE",
           "gate": "state",
+          "state": "idleAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -58511,6 +58572,7 @@
         {
           "clip": "CamelBabyAnimation#CAMEL_BABY_DASH",
           "gate": "state",
+          "state": "dashAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -61990,13 +62052,51 @@
       }
     },
     "BabyRabbitModel": {
+      "shared": [
+        {
+          "ne": [
+            {
+              "input": "idleHeadTiltAnimationState"
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        }
+      ],
       "bones": {
         "head": {
           "x_rot": {
-            "const": 0.0
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "head",
+                  "x_rot"
+                ]
+              },
+              {
+                "const": 0.0
+              }
+            ]
           },
           "y_rot": {
-            "const": 0.0
+            "select": [
+              {
+                "ref": 0
+              },
+              {
+                "bone": [
+                  "head",
+                  "y_rot"
+                ]
+              },
+              {
+                "const": 0.0
+              }
+            ]
           }
         }
       },
@@ -62004,6 +62104,7 @@
         {
           "clip": "BabyRabbitAnimation#HOP",
           "gate": "state",
+          "state": "hopAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -62013,6 +62114,7 @@
         {
           "clip": "BabyRabbitAnimation#IDLE_HEAD_TILT",
           "gate": "state",
+          "state": "idleHeadTiltAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -63773,6 +63875,7 @@
         {
           "clip": "BatAnimation#BAT_FLYING",
           "gate": "state",
+          "state": "flyAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -63782,6 +63885,7 @@
         {
           "clip": "BatAnimation#BAT_RESTING",
           "gate": "state",
+          "state": "restAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -65162,6 +65266,7 @@
         {
           "clip": "BreezeAnimation#IDLE",
           "gate": "state",
+          "state": "idle",
           "args": [
             {
               "input": "ageInTicks"
@@ -65171,6 +65276,7 @@
         {
           "clip": "BreezeAnimation#SHOOT",
           "gate": "state",
+          "state": "shoot",
           "args": [
             {
               "input": "ageInTicks"
@@ -65180,6 +65286,7 @@
         {
           "clip": "BreezeAnimation#SLIDE",
           "gate": "state",
+          "state": "slide",
           "args": [
             {
               "input": "ageInTicks"
@@ -65189,6 +65296,7 @@
         {
           "clip": "BreezeAnimation#SLIDE_BACK",
           "gate": "state",
+          "state": "slideBack",
           "args": [
             {
               "input": "ageInTicks"
@@ -65198,6 +65306,7 @@
         {
           "clip": "BreezeAnimation#INHALE",
           "gate": "state",
+          "state": "inhale",
           "args": [
             {
               "input": "ageInTicks"
@@ -65207,6 +65316,7 @@
         {
           "clip": "BreezeAnimation#JUMP",
           "gate": "state",
+          "state": "longJump",
           "args": [
             {
               "input": "ageInTicks"
@@ -65253,6 +65363,7 @@
         {
           "clip": "CamelAnimation#CAMEL_SIT",
           "gate": "state",
+          "state": "sitAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -65262,6 +65373,7 @@
         {
           "clip": "CamelAnimation#CAMEL_SIT_POSE",
           "gate": "state",
+          "state": "sitPoseAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -65271,6 +65383,7 @@
         {
           "clip": "CamelAnimation#CAMEL_STANDUP",
           "gate": "state",
+          "state": "sitUpAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -65280,6 +65393,7 @@
         {
           "clip": "CamelAnimation#CAMEL_IDLE",
           "gate": "state",
+          "state": "idleAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -65289,6 +65403,7 @@
         {
           "clip": "CamelAnimation#CAMEL_DASH",
           "gate": "state",
+          "state": "dashAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -65698,6 +65813,7 @@
         {
           "clip": "CopperGolemAnimation#COPPER_GOLEM_IDLE",
           "gate": "state",
+          "state": "idleAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -65707,6 +65823,7 @@
         {
           "clip": "CopperGolemAnimation#COPPER_GOLEM_CHEST_INTERACTION_NOITEM_GET",
           "gate": "state",
+          "state": "interactionGetItem",
           "args": [
             {
               "input": "ageInTicks"
@@ -65716,6 +65833,7 @@
         {
           "clip": "CopperGolemAnimation#COPPER_GOLEM_CHEST_INTERACTION_NOITEM_NOGET",
           "gate": "state",
+          "state": "interactionGetNoItem",
           "args": [
             {
               "input": "ageInTicks"
@@ -65725,6 +65843,7 @@
         {
           "clip": "CopperGolemAnimation#COPPER_GOLEM_CHEST_INTERACTION_ITEM_DROP",
           "gate": "state",
+          "state": "interactionDropItem",
           "args": [
             {
               "input": "ageInTicks"
@@ -65734,6 +65853,7 @@
         {
           "clip": "CopperGolemAnimation#COPPER_GOLEM_CHEST_INTERACTION_ITEM_NODROP",
           "gate": "state",
+          "state": "interactionDropNoItem",
           "args": [
             {
               "input": "ageInTicks"
@@ -65894,6 +66014,7 @@
         {
           "clip": "CreakingAnimation#CREAKING_ATTACK",
           "gate": "state",
+          "state": "attackAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -65903,6 +66024,7 @@
         {
           "clip": "CreakingAnimation#CREAKING_INVULNERABLE",
           "gate": "state",
+          "state": "invulnerabilityAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -65912,6 +66034,7 @@
         {
           "clip": "CreakingAnimation#CREAKING_DEATH",
           "gate": "state",
+          "state": "deathAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -70984,6 +71107,7 @@
         {
           "clip": "FrogAnimation#FROG_JUMP",
           "gate": "state",
+          "state": "jumpAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -70993,6 +71117,7 @@
         {
           "clip": "FrogAnimation#FROG_CROAK",
           "gate": "state",
+          "state": "croakAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -71002,6 +71127,7 @@
         {
           "clip": "FrogAnimation#FROG_TONGUE",
           "gate": "state",
+          "state": "tongueAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -71047,6 +71173,7 @@
         {
           "clip": "FrogAnimation#FROG_IDLE_WATER",
           "gate": "state",
+          "state": "swimIdleAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -77547,6 +77674,7 @@
         {
           "clip": "SnifferAnimation#SNIFFER_DIG",
           "gate": "state",
+          "state": "diggingAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -77556,6 +77684,7 @@
         {
           "clip": "SnifferAnimation#SNIFFER_LONGSNIFF",
           "gate": "state",
+          "state": "sniffingAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -77565,6 +77694,7 @@
         {
           "clip": "SnifferAnimation#SNIFFER_STAND_UP",
           "gate": "state",
+          "state": "risingAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -77574,6 +77704,7 @@
         {
           "clip": "SnifferAnimation#SNIFFER_HAPPY",
           "gate": "state",
+          "state": "feelingHappyAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -77583,6 +77714,7 @@
         {
           "clip": "SnifferAnimation#SNIFFER_SNIFFSNIFF",
           "gate": "state",
+          "state": "scentingAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -77642,6 +77774,7 @@
         {
           "clip": "SnifferAnimation#SNIFFER_DIG",
           "gate": "state",
+          "state": "diggingAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -77651,6 +77784,7 @@
         {
           "clip": "SnifferAnimation#SNIFFER_LONGSNIFF",
           "gate": "state",
+          "state": "sniffingAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -77660,6 +77794,7 @@
         {
           "clip": "SnifferAnimation#SNIFFER_STAND_UP",
           "gate": "state",
+          "state": "risingAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -77669,6 +77804,7 @@
         {
           "clip": "SnifferAnimation#SNIFFER_HAPPY",
           "gate": "state",
+          "state": "feelingHappyAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -77678,6 +77814,7 @@
         {
           "clip": "SnifferAnimation#SNIFFER_SNIFFSNIFF",
           "gate": "state",
+          "state": "scentingAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -79128,6 +79265,7 @@
         {
           "clip": "WardenAnimation#WARDEN_ATTACK",
           "gate": "state",
+          "state": "attackAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -79137,6 +79275,7 @@
         {
           "clip": "WardenAnimation#WARDEN_SONIC_BOOM",
           "gate": "state",
+          "state": "sonicBoomAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -79146,6 +79285,7 @@
         {
           "clip": "WardenAnimation#WARDEN_DIG",
           "gate": "state",
+          "state": "diggingAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -79155,6 +79295,7 @@
         {
           "clip": "WardenAnimation#WARDEN_EMERGE",
           "gate": "state",
+          "state": "emergeAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -79164,6 +79305,7 @@
         {
           "clip": "WardenAnimation#WARDEN_ROAR",
           "gate": "state",
+          "state": "roarAnimationState",
           "args": [
             {
               "input": "ageInTicks"
@@ -79173,6 +79315,7 @@
         {
           "clip": "WardenAnimation#WARDEN_SNIFF",
           "gate": "state",
+          "state": "sniffAnimationState",
           "args": [
             {
               "input": "ageInTicks"

@@ -157,7 +157,7 @@ class ClipKitTest {
         // millis is `position * 50 * rate`, and a rate of 20 turns a second of clip into a second.
         EntityPose pose = new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
             Concurrent.newUnmodifiableList(new EntityPose.Clip(
-                "test", EntityPose.Gate.WALK,
+                "test", EntityPose.Gate.WALK, "",
                 Concurrent.newUnmodifiableList(constant(at), constant(1f), constant(WALK_RATE), constant(1f)), clip)),
             Optional.empty());
 
@@ -174,7 +174,7 @@ class ClipKitTest {
                 new PoseClip.Keyframe(0f, 0f, 0f, 0.5f, PoseClip.Interpolation.LINEAR)))));
         return new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
             Concurrent.newUnmodifiableList(new EntityPose.Clip(
-                "test", EntityPose.Gate.STATIC, Concurrent.newUnmodifiableList(), clip)),
+                "test", EntityPose.Gate.STATIC, "", Concurrent.newUnmodifiableList(), clip)),
             Optional.empty());
     }
 

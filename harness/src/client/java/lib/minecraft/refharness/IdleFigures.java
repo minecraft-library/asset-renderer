@@ -2,6 +2,7 @@ package lib.minecraft.refharness;
 
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.refharness.sweep.EntityAnimationSweep;
+import net.minecraft.world.entity.AnimationState;
 
 /**
  * What each figure vanilla's own tick would have filled holds at the tick a render is posed at.
@@ -89,13 +90,25 @@ public final class IdleFigures {
         AXOLOTL,
 
         /** Whether a dolphin is under way, over the two arms of {@code DolphinRenderState.isMoving}. */
-        DOLPHIN;
+        DOLPHIN,
+
+        /** Whether a bat is on the wing or hanging, which its own tick stops one to start. */
+        BAT,
+
+        /** Whether the idle clip a camel and a copper golem both spell one way is playing. */
+        IDLE_CLIP,
+
+        /** Whether a rabbit's head tilt is playing, which is the idle it spells apart from those. */
+        HEAD_TILT;
 
         /** The member an idle render selects where a caller names none. */
         public State selected() {
             return switch (this) {
                 case AXOLOTL -> State.IN_WATER;
                 case DOLPHIN -> State.MOVING;
+                case BAT -> State.FLYING;
+                case IDLE_CLIP -> State.IDLING;
+                case HEAD_TILT -> State.TILTING;
             };
         }
     }
@@ -120,7 +133,19 @@ public final class IdleFigures {
 
         MOVING(Group.DOLPHIN, "isMoving"),
 
-        STILL(Group.DOLPHIN, "");
+        STILL(Group.DOLPHIN, ""),
+
+        FLYING(Group.BAT, "flyAnimationState"),
+
+        RESTING(Group.BAT, "restAnimationState"),
+
+        IDLING(Group.IDLE_CLIP, "idleAnimationState"),
+
+        NOT_IDLING(Group.IDLE_CLIP, ""),
+
+        TILTING(Group.HEAD_TILT, "idleHeadTiltAnimationState"),
+
+        NOT_TILTING(Group.HEAD_TILT, "");
 
         private final Group group;
 
@@ -180,6 +205,28 @@ public final class IdleFigures {
     public static boolean selects(State selected, State factor) {
         if (!HarnessConfig.ANIMATED) return false;
         return selected == factor;
+    }
+
+    /**
+     * Runs one animation state where its own member is the selected one, and stops it otherwise.
+     *
+     * <p>Started at the tick the strip itself starts at, because {@code getTimeInMillis} is the
+     * elapsed age less that tick and the asset side subtracts the same nothing - so a clip's own
+     * instant is the armed tick times fifty on both sides. Vanilla's exclusion is reproduced rather
+     * than assumed: {@code setupAnimationStates} stops one state to start another, so a member that
+     * is not the selected one is stopped here too and a subject declaring six clips plays one.
+     *
+     * <p>Inert on a frozen run, where {@link #selects} answers false for every member and nothing
+     * has started a state anyway - and where {@code SkipSetupAnimMixin} means no play site runs at
+     * all.
+     *
+     * @param selected the member selected
+     * @param factor the member this state belongs to
+     * @param state the animation state to run or stop
+     */
+    public static void play(State selected, State factor, AnimationState state) {
+        if (selects(selected, factor)) state.start(EntityAnimationSweep.START_TICK);
+        else state.stop();
     }
 
     /**

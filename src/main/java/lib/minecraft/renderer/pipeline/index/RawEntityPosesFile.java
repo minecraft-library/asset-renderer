@@ -395,6 +395,15 @@ public record RawEntityPosesFile(
             .orElseThrow(() -> new PipelineException("entity poses: %s drives a clip by '%s', which is not a drive",
                 model, gate.getAsString()));
 
+        // A state-driven site names the field its gate reads, and the other two drives write none.
+        // Refused rather than defaulted: a site the emitter left unnamed would answer zero at render
+        // and never play, which reads exactly like a subject nothing has ticked.
+        JsonElement state = node.get("state");
+        if (drive == EntityPose.Gate.STATE && state == null)
+            throw new PipelineException(
+                "entity poses: %s gates '%s' on an animation state it names nowhere", model,
+                coordinate.getAsString());
+
         JsonElement args = node.get("args");
         ConcurrentList<PoseExpr> arguments = args == null
             ? Concurrent.newUnmodifiableList()
@@ -403,7 +412,8 @@ public record RawEntityPosesFile(
                 .stream()
                 .map(argument -> expression(model, argument, shared))
                 .collect(Concurrent.toUnmodifiableList());
-        return new EntityPose.Clip(coordinate.getAsString(), drive, arguments, table);
+        return new EntityPose.Clip(coordinate.getAsString(), drive,
+            state == null ? "" : state.getAsString(), arguments, table);
     }
 
     /**

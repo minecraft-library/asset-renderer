@@ -78,14 +78,22 @@ public record EntityPose(
      * needs the file's global clip index and a play site naming a clip the file does not carry fails
      * where the file is read.
      *
+     * <p><b>A state-driven site names the render-state field its gate reads</b>, which is what says
+     * WHICH of the several clips a model declares the caller is choosing between. Without it a
+     * reader can play all of them, which is a bat that flies and hangs at once, or none, which is
+     * the subject nothing has ticked. The field is answered where every other figure is, so a
+     * selection needs no vocabulary of its own.
+     *
      * @param coordinate the clip coordinate, keyed the way the table's own clip index is
      * @param gate what drives the clip
+     * @param state the render-state field the gate reads, empty where the drive is not a state
      * @param arguments what the model plays it at, in declaration order
      * @param clip the authored table this site plays
      */
     public record Clip(
         @NotNull String coordinate,
         @NotNull Gate gate,
+        @NotNull String state,
         @NotNull ConcurrentList<PoseExpr> arguments,
         @NotNull PoseClip clip
     ) {}

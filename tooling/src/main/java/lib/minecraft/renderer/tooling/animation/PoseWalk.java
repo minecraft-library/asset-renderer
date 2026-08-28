@@ -2292,12 +2292,26 @@ public final class PoseWalk {
      * declares outright already is. A model writes one of these straight into a bone's visibility
      * and another passes one as an argument, and both work only because it is a number by the time
      * it gets there.
+     *
+     * <p><b>Whether an animation state is running is that state's own value and not a question
+     * about it.</b> A clip's gate is already resolved by naming the state a play site reads, and
+     * which one is running is a caller's selection over the group it belongs to - so the selected
+     * member answers one and every other answers zero, which is the same number the question wants.
+     * Emitting it as the question instead would fold it to a constant, the reader having no arm for
+     * one, and a model that branches on it would ship whichever arm a never-ticked subject takes:
+     * a rabbit whose head the tilt is turning would also have that head assigned from its look
+     * angles, because vanilla writes those only while the tilt is NOT running.
      */
     private static void stateQuestion(@NotNull MethodInsnNode call, @NotNull Context context) {
         PoseValue asked = context.stack().pop();
         if (!(asked instanceof PoseValue.StateRef reference))
             throw new IllegalStateException("asks " + call.name + " of " + kindOf(asked)
                 + ", which is not something the render state holds");
+        if (VanillaSourceClasses.Types.ANIMATION_STATE.equals(reference.type())
+            && VanillaSourceClasses.Methods.IS_STARTED.equals(call.name)) {
+            context.stack().push(num(new PoseExpr.Input(reference.member())));
+            return;
+        }
         context.stack().push(num(new PoseExpr.InputFn(reference.member(), call.name)));
     }
 
@@ -2312,8 +2326,12 @@ public final class PoseWalk {
      * <p>The arguments matter and are the reason this is not simply skipped: a walk-driven clip
      * carries the model's own timing and amplitude constants at its call site and nowhere in the
      * clip, so consuming the call without them would drop how fast the thing moves and how far.
-     * Reference arguments are left out rather than placeheld - the animation state a state-driven
-     * clip is gated on is not a number, and the drive already says the clip sits behind one.
+     *
+     * <p><b>A state-driven site also keeps the field its gate reads.</b> That is the only operand
+     * saying WHICH of a model's several clips is the one running, and a reader without it can play
+     * every one of them or none - a bat that both flies and hangs, or a bat vanilla has not ticked.
+     * It arrives as the reference it is rather than as a number, which is exactly why it is taken
+     * off the operand rather than out of the arguments the expression grammar carries.
      */
     private static void clipSite(@NotNull MethodInsnNode call, @NotNull Context context) {
         PoseClipSite.Gate drive = driveOf(call.name);
@@ -2328,14 +2346,22 @@ public final class PoseWalk {
         if (!(receiver instanceof PoseValue.Clip clip))
             throw new IllegalStateException("applies a clip it could not name");
 
+        String state = "";
         List<PoseExpr> carried = new ArrayList<>(parameters.length);
         for (int index = 0; index < parameters.length; index++) {
-            if (parameters[index].getSort() == Type.OBJECT || parameters[index].getSort() == Type.ARRAY) continue;
+            if (parameters[index].getSort() == Type.OBJECT || parameters[index].getSort() == Type.ARRAY) {
+                if (arguments.get(index) instanceof PoseValue.StateRef gate
+                    && VanillaSourceClasses.Types.ANIMATION_STATE.equals(gate.type())) state = gate.member();
+                continue;
+            }
             if (!(arguments.get(index) instanceof PoseValue.Num number))
                 throw new IllegalStateException("drives '" + clip.coordinate() + "' by a value it could not model");
             carried.add(number.expr());
         }
-        context.clipSites().add(new PoseClipSite(clip.coordinate(), drive, List.copyOf(carried)));
+        if (drive == PoseClipSite.Gate.STATE && state.isEmpty())
+            throw new IllegalStateException(
+                "gates '" + clip.coordinate() + "' on an animation state it could not name");
+        context.clipSites().add(new PoseClipSite(clip.coordinate(), drive, state, List.copyOf(carried)));
     }
 
     /** Which of the three drives a play site names, matching what the clip table already records. */

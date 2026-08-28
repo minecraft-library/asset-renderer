@@ -63,6 +63,14 @@ public final class PoseFlow {
      * needs no widening of the fold and no second kind of channel. What folds to a literal at
      * generation is a FLAG, which is a bone's visibility and a different thing entirely.
      *
+     * <p><b>The animation states are here because a body may ask whether one is running, not because
+     * a clip's gate reads them.</b> A play site names the state it sits behind outright, so the gate
+     * needs nothing of this set. What does is the three models that branch on {@code isStarted} -
+     * a rabbit assigns its head from the look angles only while the head tilt is NOT playing, so a
+     * table that folded the question would turn a head the clip is already turning. Only the states
+     * a caller can select are named: one nobody can start folds to a subject nothing has ticked,
+     * which is what it is.
+     *
      * <p>A slime's squash is the one figure of this shape deliberately left off. Both its renderer
      * and a magma cube's read it in the per-renderer {@code scale} this side models nowhere, so
      * driving it would move a reference in two places and a render in one.
@@ -70,7 +78,9 @@ public final class PoseFlow {
     private static final @NotNull Set<String> DRIVEN = Set.of(
         "ageInTicks", "walkAnimationPos", "walkAnimationSpeed",
         "tentacleAngle", "flapTime", "peekAmount",
-        "inWaterFactor", "movingFactor", "onGroundFactor", "playingDeadFactor", "isMoving");
+        "inWaterFactor", "movingFactor", "onGroundFactor", "playingDeadFactor", "isMoving",
+        "flyAnimationState", "restAnimationState", "idleAnimationState",
+        "idleHeadTiltAnimationState");
 
     /**
      * What separates a pose key from the frame it stands for, where one class poses more than one
