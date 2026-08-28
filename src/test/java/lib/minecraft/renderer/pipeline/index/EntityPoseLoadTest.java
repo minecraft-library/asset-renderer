@@ -6,6 +6,8 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.IdleFigure;
+import lib.minecraft.renderer.asset.pose.IdleState;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
@@ -25,6 +27,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -260,16 +264,24 @@ class EntityPoseLoadTest {
     }
 
     @Test
-    @DisplayName("a shipped pose names no figure but the three the tick drives")
+    @DisplayName("a shipped pose names no figure the runtime cannot answer")
     void nothingButTheTickIsLeftToAnswer() {
         // What the reader rests on. Everything a subject standing still answers about itself - which
         // constant an enum member holds, what a question of a reference the state holds rests at,
         // what a figure its own render state builds it at - is resolved where the table is written,
-        // so a channel is either a number or a function of elapsed age and the stride. A row that
+        // so a channel is either a number or a function of the figures a caller drives. A row that
         // named anything else would be a question nothing offline can answer, and it would answer
         // zero in silence: the arm a switch ends at is not the arm a subject stands in, and it cost
         // the skeleton family a forty-four degree forward swing at rest before it was resolved.
-        Set<String> driven = Set.of("ageInTicks", "walkAnimationPos", "walkAnimationSpeed");
+        //
+        // Taken from the roster the RUNTIME answers rather than typed out, so a table that ships a
+        // figure PoseKit cannot answer fails here rather than rendering it as a silent zero.
+        Set<String> driven = Stream.of(
+                Stream.of("ageInTicks", "walkAnimationPos", "walkAnimationSpeed"),
+                Stream.of(IdleFigure.values()).map(IdleFigure::field),
+                Stream.of(IdleState.values()).map(IdleState::field))
+            .flatMap(figures -> figures)
+            .collect(Collectors.toSet());
         Map<String, Set<String>> named = new TreeMap<>();
         for (Map.Entry<String, Entity> subject : entities.entrySet()) {
             EntityPose pose = subject.getValue().pose();
@@ -284,7 +296,7 @@ class EntityPoseLoadTest {
             if (!reads.isEmpty()) named.put(subject.getKey(), reads);
         }
         assertEquals(Map.of(), named,
-            "a figure the tick does not drive is one nothing offline answers, and it answers zero silently");
+            "a figure no caller drives is one nothing offline answers, and it answers zero silently");
     }
 
     /** Every render-state figure one expression reads, walked once per node rather than once per path. */

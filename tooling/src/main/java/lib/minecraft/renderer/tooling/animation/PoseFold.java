@@ -207,9 +207,16 @@ final class PoseFold {
             case PoseExpr.BoneRead read -> read;
             // A figure the renderer rebuilds from a driven one is that figure, not what its state
             // was constructed holding - the constructed value is a number no render ever reads.
-            case PoseExpr.Input input -> this.free.contains(input.field()) ? input
-                : this.derived.containsKey(input.field())
-                    ? new PoseExpr.Input(this.derived.get(input.field()))
+            //
+            // The derivation is asked FIRST, because it is per model where the free set is one
+            // keyspace across all of them, and the narrower answer has to win: two render states
+            // declare a flapTime and only the phantom's is the clock, so a free set naming that
+            // field would otherwise answer for the dragon's too and beat its wings off the wrong
+            // figure.
+            case PoseExpr.Input input -> this.derived.containsKey(input.field())
+                ? new PoseExpr.Input(this.derived.get(input.field()))
+                : this.free.contains(input.field())
+                    ? input
                     : PoseExpr.Const.of(inputAtRest(input.field()));
             case PoseExpr.Carried ignored -> PoseExpr.Const.of(0f);
             case PoseExpr.InputElement ignored -> PoseExpr.Const.of(0f);

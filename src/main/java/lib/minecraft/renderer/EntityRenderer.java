@@ -338,7 +338,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         IntFunction<ConcurrentList<VisibleTriangle>> buildAtTick = tick -> {
             // The whole subject at this tick, body and every overlay pass, so a pass drawing geometry
             // of its own moves with the body rather than staying where it was authored.
-            Entity posed = PoseKit.posedSubject(options.getPoseMode(), resolved, tick);
+            Entity posed = PoseKit.posedSubject(options.getPoseMode(), resolved, tick, options.getAnimation());
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(texture.get());
             ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(posed.model(), frameTexture,
                 new EntityGeometryKit.EntityBuildParams(
@@ -1049,12 +1049,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer startTexture
     ) {
         int startTick = timeline.tickAt(0);
-        Box bounds = computeScreenBoundsFor(scope, entityId, PoseKit.posedSubject(options.getPoseMode(), resolved, startTick),
+        Box bounds = computeScreenBoundsFor(scope, entityId, PoseKit.posedSubject(options.getPoseMode(), resolved, startTick, options.getAnimation()),
             transform, modelScale, startTexture, startTick);
         for (int frame = 1; frame < timeline.frames(); frame++) {
             int tick = timeline.tickAt(frame);
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(startTexture);
-            bounds = bounds.union(computeScreenBoundsFor(scope, entityId, PoseKit.posedSubject(options.getPoseMode(), resolved, tick),
+            bounds = bounds.union(computeScreenBoundsFor(scope, entityId, PoseKit.posedSubject(options.getPoseMode(), resolved, tick, options.getAnimation()),
                 transform, modelScale, frameTexture, tick));
         }
         return bounds;

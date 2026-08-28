@@ -6,9 +6,12 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.IdleFigure;
+import lib.minecraft.renderer.asset.pose.IdleState;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.option.AnimationOptions;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -90,6 +93,15 @@ public final class PoseKit {
     private static final @NotNull String CONTAINER_BONE = "$container";
 
     /**
+     * The excursions every caller gets who names none, which are the ones the harness drives.
+     *
+     * <p>Held rather than built per call so the default path allocates nothing, and so that a caller
+     * who overrides an idle figure is the only one whose render is not comparable against the
+     * reference set.
+     */
+    private static final @NotNull AnimationOptions DEFAULT_ANIMATION = AnimationOptions.defaults();
+
+    /**
      * The mesh this subject's model leaves it holding at one tick.
      *
      * @param mode the authored pose, or the one its model evaluates at the tick under a gait
@@ -100,8 +112,24 @@ public final class PoseKit {
     public static @NotNull EntityModelData posed(
         @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
 
+        return posed(mode, subject, tick, DEFAULT_ANIMATION);
+    }
+
+    /**
+     * The mesh this subject's model leaves it holding at one tick, at a caller's own excursions.
+     *
+     * @param mode the authored pose, or the one its model evaluates at the tick under a gait
+     * @param subject the resolved subject, supplying the mesh, the pose and what it rests at
+     * @param tick the frame's sample tick
+     * @param animation what each idle figure rests at and reaches
+     * @return the posed mesh, or the subject's own mesh itself where nothing poses it
+     */
+    public static @NotNull EntityModelData posed(
+        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick,
+        @NotNull AnimationOptions animation) {
+
         if (mode == EntityOptions.PoseMode.BIND) return subject.model();
-        return posed(mode, subject.pose(), subject.model(), tick);
+        return posed(mode, subject.pose(), subject.model(), tick, animation);
     }
 
     /**
@@ -120,10 +148,27 @@ public final class PoseKit {
         @NotNull EntityOptions.PoseMode mode, @NotNull EntityPose pose,
         @NotNull EntityModelData model, int tick) {
 
+        return posed(mode, pose, model, tick, DEFAULT_ANIMATION);
+    }
+
+    /**
+     * One mesh where the pose that belongs to it leaves it at one tick, at a caller's own excursions.
+     *
+     * @param mode the authored pose, or the one its model evaluates at the tick under a gait
+     * @param pose the pose belonging to this mesh
+     * @param model the mesh to pose
+     * @param tick the frame's sample tick
+     * @param animation what each idle figure rests at and reaches
+     * @return the posed mesh, or the given mesh itself where nothing poses it
+     */
+    public static @NotNull EntityModelData posed(
+        @NotNull EntityOptions.PoseMode mode, @NotNull EntityPose pose,
+        @NotNull EntityModelData model, int tick, @NotNull AnimationOptions animation) {
+
         if (mode == EntityOptions.PoseMode.BIND) return model;
         if (!pose.isReadable()) return model;
 
-        ToDoubleFunction<String> frame = frameAt(mode, tick);
+        ToDoubleFunction<String> frame = frameAt(mode, tick, animation);
         PoseEvaluator.ChannelWrites writes = PoseEvaluator.evaluate(pose, model, frame);
         // The clips a model plays are applied ON TOP of what its body assigned, because vanilla's
         // three offset members all add to the value already there. So the two are resolved apart and
@@ -154,26 +199,43 @@ public final class PoseKit {
     public static @NotNull Entity posedSubject(
         @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
 
+        return posedSubject(mode, subject, tick, DEFAULT_ANIMATION);
+    }
+
+    /**
+     * The subject with every mesh it draws posed at one tick, at a caller's own excursions.
+     *
+     * @param mode the authored pose, or the one its models evaluate at the tick under a gait
+     * @param subject the resolved subject
+     * @param tick the frame's sample tick
+     * @param animation what each idle figure rests at and reaches
+     * @return the subject carrying the meshes it holds at that tick
+     */
+    public static @NotNull Entity posedSubject(
+        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick,
+        @NotNull AnimationOptions animation) {
+
         if (mode == EntityOptions.PoseMode.BIND) return subject;
-        EntityModelData model = posed(mode, subject, tick);
-        ConcurrentList<Entity.OverlayLayer> overlays = posedOverlays(mode, subject, tick);
+        EntityModelData model = posed(mode, subject, tick, animation);
+        ConcurrentList<Entity.OverlayLayer> overlays = posedOverlays(mode, subject, tick, animation);
         if (model == subject.model() && overlays == subject.overlays()) return subject;
         return subject.mutate().model(model).overlays(overlays).build();
     }
 
     /** Each overlay pass where its own model leaves it, or the list itself when none of them moved. */
     private static @NotNull ConcurrentList<Entity.OverlayLayer> posedOverlays(
-        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
+        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick,
+        @NotNull AnimationOptions animation) {
 
         ConcurrentList<Entity.OverlayLayer> overlays = subject.overlays();
         List<Entity.OverlayLayer> out = new ArrayList<>(overlays.size());
         boolean moved = false;
         for (Entity.OverlayLayer overlay : overlays) {
-            EntityModelData mesh = posed(mode, overlay.pose(), overlay.model(), tick);
+            EntityModelData mesh = posed(mode, overlay.pose(), overlay.model(), tick, animation);
             // The suppressed-pass alternate is the same mesh with a subtree emptied, so it takes the
             // same pose - a villager under a full-hat profession still moves the head it draws none of.
             Optional<EntityModelData> noHat = overlay.noHatModel()
-                .map(alternate -> posed(mode, overlay.pose(), alternate, tick));
+                .map(alternate -> posed(mode, overlay.pose(), alternate, tick, animation));
             moved |= mesh != overlay.model()
                 || !noHat.equals(overlay.noHatModel());
             out.add(new Entity.OverlayLayer(mesh, overlay.textureRef(), overlay.pass(),
@@ -200,11 +262,19 @@ public final class PoseKit {
      * tick times the amplitude and the two are one schedule.
      */
     private static @NotNull ToDoubleFunction<String> frameAt(
-        @NotNull EntityOptions.PoseMode mode, int tick) {
+        @NotNull EntityOptions.PoseMode mode, int tick, @NotNull AnimationOptions animation) {
 
         boolean walking = mode == EntityOptions.PoseMode.WALK;
         return field -> {
             if (AGE_IN_TICKS.equals(field)) return tick;
+            // Answered before the gait, because these are what a subject standing still does: a
+            // walking subject's tentacles do not stop waving, so a gait adds to this rather than
+            // replacing it. Anything the roster does not name still rests, which is what keeps the
+            // contract that a shipped pose names no figure but the ones the tick drives.
+            IdleFigure figure = IdleFigure.ofField(field);
+            if (figure != null) return animation.idleValue(figure, tick);
+            IdleState factor = IdleState.ofField(field);
+            if (factor != null) return animation.idleValue(factor);
             if (!walking) return 0d;
             if (WALK_SPEED.equals(field)) return WALK_AMPLITUDE;
             if (WALK_POSITION.equals(field)) return tick * WALK_AMPLITUDE;

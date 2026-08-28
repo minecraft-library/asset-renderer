@@ -48,9 +48,22 @@ public final class PoseFlow {
      * what a gait adds, and vanilla steps the phase BY the amplitude once a tick rather than deriving
      * it from the clock, so the two are one schedule and a caller naming one without the other has
      * described no gait. Everything else an offline subject answers at rest.
+     *
+     * <p>The rest of this set is what vanilla's own {@code tick} would have filled and a never-ticked
+     * subject leaves at zero - a tentacle's angle, a wing phase, a lid, an axolotl's four mixing
+     * factors. Folding one to its resting zero holds still something vanilla animates, so they stay
+     * symbolic too and a caller moves each across the range vanilla's arithmetic bounds it to.
+     * <b>None of them needs the entity ticked</b>: what a draw decides on these paths is a rate or an
+     * interval, and every draw but the squid's sits behind a gate an offline subject never passes.
+     *
+     * <p>A slime's squash is the one figure of this shape deliberately left off. Both its renderer
+     * and a magma cube's read it in the per-renderer {@code scale} this side models nowhere, so
+     * driving it would move a reference in two places and a render in one.
      */
-    private static final @NotNull Set<String> DRIVEN =
-        Set.of("ageInTicks", "walkAnimationPos", "walkAnimationSpeed");
+    private static final @NotNull Set<String> DRIVEN = Set.of(
+        "ageInTicks", "walkAnimationPos", "walkAnimationSpeed",
+        "tentacleAngle", "flapTime", "peekAmount",
+        "inWaterFactor", "movingFactor", "onGroundFactor", "playingDeadFactor");
 
     /**
      * What separates a pose key from the frame it stands for, where one class poses more than one
