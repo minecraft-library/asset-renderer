@@ -68,6 +68,8 @@ final class PoseFold {
 
     private final @NotNull Set<String> free;
 
+    private final @NotNull Map<String, String> derived;
+
     private final @NotNull Map<PoseExpr, PoseExpr> foldedExpr = new IdentityHashMap<>();
 
     private final @NotNull Map<PoseExpr, OptionalDouble> exprValue = new IdentityHashMap<>();
@@ -77,13 +79,14 @@ final class PoseFold {
     private PoseFold(
         @NotNull Map<String, String> subjectRest, @NotNull Map<String, String> restDefaults,
         @NotNull Map<String, Float> questionDefaults, @NotNull Map<String, Float> inputDefaults,
-        @NotNull Set<String> free) {
+        @NotNull Set<String> free, @NotNull Map<String, String> derived) {
 
         this.subjectRest = subjectRest;
         this.restDefaults = restDefaults;
         this.questionDefaults = questionDefaults;
         this.inputDefaults = inputDefaults;
         this.free = free;
+        this.derived = derived;
     }
 
     /**
@@ -102,16 +105,19 @@ final class PoseFold {
      *     {@code receiver.question}
      * @param inputDefaults what each figure rests at, one keyspace across every model
      * @param free the render-state figures the tick drives, which stay symbolic
+     * @param derived which further figures this model's renderer rebuilds from one of those, and
+     *     from which - per model, because a bare field name does not span one type
      * @return the residual - the same pose with every decided branch taken and every resting leaf
      *     replaced by what it rests at
      */
     static @NotNull PoseProgram fold(
         @NotNull PoseProgram program, @NotNull Map<String, String> subjectRest,
         @NotNull Map<String, String> restDefaults, @NotNull Map<String, Float> questionDefaults,
-        @NotNull Map<String, Float> inputDefaults, @NotNull Set<String> free) {
+        @NotNull Map<String, Float> inputDefaults, @NotNull Set<String> free,
+        @NotNull Map<String, String> derived) {
 
         PoseFold fold =
-            new PoseFold(subjectRest, restDefaults, questionDefaults, inputDefaults, free);
+            new PoseFold(subjectRest, restDefaults, questionDefaults, inputDefaults, free, derived);
 
         List<Map<PoseChannel, PoseExpr>> container = program.container()
             .stream()
@@ -199,8 +205,12 @@ final class PoseFold {
             // A literal is already what it rests at, and a bone read is never folded at all.
             case PoseExpr.Const literal -> literal;
             case PoseExpr.BoneRead read -> read;
-            case PoseExpr.Input input -> this.free.contains(input.field())
-                ? input : PoseExpr.Const.of(inputAtRest(input.field()));
+            // A figure the renderer rebuilds from a driven one is that figure, not what its state
+            // was constructed holding - the constructed value is a number no render ever reads.
+            case PoseExpr.Input input -> this.free.contains(input.field()) ? input
+                : this.derived.containsKey(input.field())
+                    ? new PoseExpr.Input(this.derived.get(input.field()))
+                    : PoseExpr.Const.of(inputAtRest(input.field()));
             case PoseExpr.Carried ignored -> PoseExpr.Const.of(0f);
             case PoseExpr.InputElement ignored -> PoseExpr.Const.of(0f);
             case PoseExpr.InputFn question ->
@@ -275,8 +285,9 @@ final class PoseFold {
         return switch (expr) {
             case PoseExpr.Const literal -> OptionalDouble.of(literal.value());
             case PoseExpr.BoneRead ignored -> OptionalDouble.empty();
-            case PoseExpr.Input input -> this.free.contains(input.field())
-                ? OptionalDouble.empty() : OptionalDouble.of(inputAtRest(input.field()));
+            case PoseExpr.Input input ->
+                this.free.contains(input.field()) || this.derived.containsKey(input.field())
+                    ? OptionalDouble.empty() : OptionalDouble.of(inputAtRest(input.field()));
             case PoseExpr.Carried ignored -> OptionalDouble.of(0f);
             case PoseExpr.InputElement ignored -> OptionalDouble.of(0f);
             case PoseExpr.InputFn question ->

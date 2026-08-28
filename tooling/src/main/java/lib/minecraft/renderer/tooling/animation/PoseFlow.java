@@ -101,8 +101,12 @@ public final class PoseFlow {
         // is a program over the render state, and these are what that state answers at rest.
         Map<String, Float> defaults =
             InputDefaultResolver.resolve(session.cache(), InputDefaultResolver.namedBy(walked), diagnostics);
+        Map<String, Map<String, String>> derivedByState =
+            InputDefaultResolver.derived(session.cache(), InputDefaultResolver.namedBy(walked),
+                DRIVEN, diagnostics);
         Map<String, Map<String, String>> restingByModel = new LinkedHashMap<>();
         Map<String, Map<String, Float>> questionsByModel = new LinkedHashMap<>();
+        Map<String, Map<String, String>> derivedByModel = new LinkedHashMap<>();
         Set<String> switched = InputDefaultResolver.constantsNamedBy(walked);
         Set<String> asked = InputDefaultResolver.questionsNamedBy(walked);
         for (Map.Entry<String, String> model : roster.entrySet()) {
@@ -115,10 +119,13 @@ public final class PoseFlow {
             Map<String, Float> answers =
                 InputDefaultResolver.resolveQuestions(session.cache(), renderState, asked);
             if (!answers.isEmpty()) questionsByModel.put(name, answers);
+            Map<String, String> rebuilt = derivedByState.getOrDefault(renderState, Map.of());
+            if (!rebuilt.isEmpty()) derivedByModel.put(name, rebuilt);
         }
 
         Map<String, PoseOutcome> poses =
-            foldAll(walked, models, restingByModel, questionsByModel, defaults, diagnostics);
+            foldAll(walked, models, restingByModel, questionsByModel, defaults, derivedByModel,
+                diagnostics);
         requirePosersResolve(models, poses);
         mergeRestingUndrawn(models, poses, diagnostics);
         transforms = foldTransforms(transforms, models, defaults, diagnostics);
@@ -314,6 +321,7 @@ public final class PoseFlow {
      * @param restingByModel which constant each enum member rests holding, per model
      * @param questionsByModel what a question rests answering, per model
      * @param inputDefaults what each figure rests at, one keyspace across every model
+     * @param derivedByModel which figures a model's renderer rebuilds from a driven one, per model
      * @param diagnostics the scope a refusal is recorded against
      * @return the residual per row key, a split class answering under each key it was given
      */
@@ -321,7 +329,8 @@ public final class PoseFlow {
         @NotNull Map<String, PoseOutcome> walked, @NotNull JsonTree models,
         @NotNull Map<String, Map<String, String>> restingByModel,
         @NotNull Map<String, Map<String, Float>> questionsByModel,
-        @NotNull Map<String, Float> inputDefaults, @NotNull Diagnostics diagnostics) {
+        @NotNull Map<String, Float> inputDefaults,
+        @NotNull Map<String, Map<String, String>> derivedByModel, @NotNull Diagnostics diagnostics) {
 
         Map<String, Set<String>> bodies = bodyKeysOf(models);
         Map<String, Set<String>> elsewhere = otherKeysOf(models);
@@ -338,6 +347,7 @@ public final class PoseFlow {
 
             Map<String, String> modelRest = restingByModel.getOrDefault(model, Map.of());
             Map<String, Float> modelAnswers = questionsByModel.getOrDefault(model, Map.of());
+            Map<String, String> modelDerived = derivedByModel.getOrDefault(model, Map.of());
             // Grouped by the frame the row can TELL APART rather than by the raw resting maps. A
             // pose asks two questions of a resting state and asks them only of the members it names,
             // so two subjects disagreeing anywhere else are one frame - which is most of them.
@@ -366,7 +376,8 @@ public final class PoseFlow {
                 split.forEach((frame, key) -> {
                     distinct.get(frame).forEach(subject -> namePoser(models, subject, key));
                     out.put(key, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(),
-                        standIn.get(frame), modelRest, modelAnswers, inputDefaults, DRIVEN)));
+                        standIn.get(frame), modelRest, modelAnswers, inputDefaults, DRIVEN,
+                        modelDerived)));
                 });
                 diagnostics.info("%s poses %d ways and each body names the one it takes: %s",
                     model, split.size(), new TreeSet<>(split.values()));
@@ -379,7 +390,7 @@ public final class PoseFlow {
             Map<String, String> subjectRest =
                 reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
             out.put(model, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(), subjectRest,
-                modelRest, modelAnswers, inputDefaults, DRIVEN)));
+                modelRest, modelAnswers, inputDefaults, DRIVEN, modelDerived)));
             folded++;
         }
         diagnostics.info("folded %d of %d walked pose(s) against the frame their subjects rest in",
@@ -452,8 +463,12 @@ public final class PoseFlow {
 
             Map<String, String> subjectRest =
                 reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
+            // No derived figure here: a transform composes above every mesh a renderer submits, and
+            // what a state rebuilds from the clock is read by the models it hands them rather than
+            // by the pose stack it builds first. A renderer that read one would want its own map.
             out.put(renderer, RenderTransform.of(renderer, transform.facingYaw(), PoseFold.fold(
-                program, subjectRest, Map.of(), Map.of(), inputDefaults, DRIVEN).container()));
+                program, subjectRest, Map.of(), Map.of(), inputDefaults, DRIVEN, Map.of())
+                .container()));
         }
         return out;
     }

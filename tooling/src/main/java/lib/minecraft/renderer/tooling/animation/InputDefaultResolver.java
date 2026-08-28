@@ -71,6 +71,11 @@ final class InputDefaultResolver {
     /** What a jar entry for a class ends in, and therefore what its internal name is without. */
     private static final @NotNull String CLASS_SUFFIX = ".class";
 
+    /** The accessor a per-instance offset is a function of, and which both sides rest at zero. */
+    private static final @NotNull String ENTITY_ID = "getId";
+
+    private static final @NotNull String ENTITY_ID_DESC = "()I";
+
     private InputDefaultResolver() {}
 
     /**
@@ -497,6 +502,163 @@ final class InputDefaultResolver {
             }
         }
         return out;
+    }
+
+    /**
+     * The figures a renderer DERIVES from one the tick drives, keyed by the state carrying them.
+     *
+     * <p>Such a figure is not a resting value at all: the renderer rebuilds it from the clock on
+     * every extract, so what its state constructs it at is a number no render ever reads. A
+     * phantom's is the corpus's only one - {@code PhantomRenderer} assigns
+     * {@code flapTime = getUniqueFlapTickOffset() + ageInTicks} - so its wings beat off elapsed age
+     * with no ticked entity anywhere in it, and folding the field to its zero holds a beating wing
+     * flat. Answering the figure it stands for keeps the whole of vanilla's arithmetic and drops
+     * only the offset.
+     *
+     * <p><b>The offset goes because it is an id.</b> A subject's is a counter over every entity the
+     * client has built, so which phase a flap starts at is a function of how many were built before
+     * it rather than of anything about the subject - the same reading that rests a render state's
+     * own {@code entityId} at zero. So the call is followed rather than assumed: it qualifies only
+     * where its whole body is that id and literals, and one reading a field or calling anything
+     * else refuses.
+     *
+     * <p><b>Keyed by the render state, because a bare field name does not span one type.</b> Two
+     * states in the corpus declare a {@code flapTime} and only one of them is the clock: an ender
+     * dragon's is lerped between the pair of per-tick fields its own {@code aiStep} steps, which no
+     * schedule reaches. A flat keyspace would beat a dragon's wings off elapsed age and draw a
+     * subject vanilla never draws.
+     *
+     * @param cache the open client jar
+     * @param wanted the render-state fields the walked poses read
+     * @param driven the figures that stay symbolic through the fold
+     * @param diagnostics the scope findings are recorded against
+     * @return render-state internal name to the field-to-figure map it carries
+     */
+    static @NotNull Map<String, Map<String, String>> derived(
+        @NotNull ClassNodeCache cache, @NotNull Set<String> wanted,
+        @NotNull Set<String> driven, @NotNull Diagnostics diagnostics) {
+
+        Map<String, Map<String, String>> out = new TreeMap<>();
+        for (String entry : cache.list(VanillaSourceClasses.Types.ENTITY_RENDERER_PACKAGE, CLASS_SUFFIX)) {
+            String owner = entry.substring(0, entry.length() - CLASS_SUFFIX.length());
+            ClassNode renderer = cache.load(owner);
+            if (renderer == null) continue;
+            for (MethodNode method : renderer.methods) {
+                if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
+                if ((method.access & Opcodes.ACC_STATIC) != 0) continue;
+                Type[] args = ClassKit.argTypes(method.desc);
+                if (args.length != 3 || args[2].getSort() != Type.FLOAT) continue;
+                int state = 1 + args[0].getSize();
+                String carrier = args[1].getInternalName();
+
+                AsmWalker.over(method)
+                    .on(Insn.of(FieldInsnNode.class, put -> put.getOpcode() == Opcodes.PUTFIELD
+                        && wanted.contains(put.name)), put -> {
+                        String stands = standsFor(cache, put, state, driven);
+                        if (stands == null) return;
+                        out.computeIfAbsent(carrier, key -> new TreeMap<>()).put(put.name, stands);
+                        diagnostics.info(
+                            "'%s' is built from '%s' by %s on every extract, so it answers that figure"
+                                + " rather than a resting value",
+                            put.name, stands, ClassKit.simpleName(owner));
+                    })
+                    .run();
+            }
+        }
+        return Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * The driven figure one assignment stands for, or null where it stands for none.
+     *
+     * <p>Two shapes qualify and everything else refuses, which is deliberate: this reads the
+     * arithmetic vanilla wrote rather than fitting one that evaluates the same. The figure may be
+     * assigned straight across, or it may have an offset added to it, and the offset has to be an
+     * id for the reason {@link #derived} states. Each operand is a one-hop neighbour read rather
+     * than a walk, so what is checked is the instruction that actually produced the operand and not
+     * whatever matched first somewhere in the method.
+     *
+     * @param cache the open client jar
+     * @param put the assignment closing the statement
+     * @param state the local slot the assigned state arrived in
+     * @param driven the figures that stay symbolic through the fold
+     * @return the figure the field stands for, or null
+     */
+    private static @Nullable String standsFor(
+        @NotNull ClassNodeCache cache, @NotNull FieldInsnNode put, int state,
+        @NotNull Set<String> driven) {
+
+        AbstractInsnNode last = AsmWalker.previousReal(put);
+        // Assigned straight across: <aload state> <getfield figure> <putfield>.
+        if (isFigureRead(last, driven) && isStateLoad(AsmWalker.previousReal(last), state))
+            return ((FieldInsnNode) last).name;
+
+        // With an offset: <aload subject> <invoke offset> <i2f> <aload state> <getfield figure> <fadd>.
+        if (last == null || last.getOpcode() != Opcodes.FADD) return null;
+        AbstractInsnNode figure = AsmWalker.previousReal(last);
+        if (!isFigureRead(figure, driven)) return null;
+        AbstractInsnNode load = AsmWalker.previousReal(figure);
+        if (!isStateLoad(load, state)) return null;
+        AbstractInsnNode widen = AsmWalker.previousReal(load);
+        if (widen == null || widen.getOpcode() != Opcodes.I2F) return null;
+        AbstractInsnNode offset = AsmWalker.previousReal(widen);
+        if (!(offset instanceof MethodInsnNode call) || call.getOpcode() != Opcodes.INVOKEVIRTUAL)
+            return null;
+        return fromEntityId(cache, call) ? ((FieldInsnNode) figure).name : null;
+    }
+
+    /**
+     * Whether one instruction reads a driven figure off a render state.
+     *
+     * @param node the instruction, which may be absent
+     * @param driven the figures that stay symbolic through the fold
+     * @return true where it is a read of one of them
+     */
+    private static boolean isFigureRead(@Nullable AbstractInsnNode node, @NotNull Set<String> driven) {
+        return node instanceof FieldInsnNode read
+            && read.getOpcode() == Opcodes.GETFIELD
+            && driven.contains(read.name);
+    }
+
+    /**
+     * Whether one instruction loads the state a statement is assigning to.
+     *
+     * @param node the instruction, which may be absent
+     * @param state the local slot the state arrived in
+     * @return true where it loads that slot
+     */
+    private static boolean isStateLoad(@Nullable AbstractInsnNode node, int state) {
+        return node instanceof VarInsnNode load
+            && load.getOpcode() == Opcodes.ALOAD
+            && load.var == state;
+    }
+
+    /**
+     * Whether one call answers a function of the subject's own id and nothing else.
+     *
+     * <p>A body reading any field or calling anything but the id refuses, so what qualifies is an
+     * arithmetic over the id alone - which is what makes answering it zero the same fact as resting
+     * a render state's {@code entityId} there, rather than a constant chosen to suit one caller.
+     *
+     * @param cache the open client jar
+     * @param call the invocation to follow
+     * @return true where its whole body is the id and literals
+     */
+    private static boolean fromEntityId(@NotNull ClassNodeCache cache, @NotNull MethodInsnNode call) {
+        ClassNode owner = cache.load(call.owner);
+        if (owner == null) return false;
+        MethodNode body = ClassKit.findMethod(owner, call.name, call.desc);
+        if (body == null) return false;
+        boolean[] reachesId = {false};
+        boolean[] refused = {false};
+        AsmWalker.over(body)
+            .on(Insn.of(FieldInsnNode.class, any -> true), any -> refused[0] = true)
+            .on(Insn.of(MethodInsnNode.class, any -> true), inner -> {
+                if (ENTITY_ID.equals(inner.name) && ENTITY_ID_DESC.equals(inner.desc)) reachesId[0] = true;
+                else refused[0] = true;
+            })
+            .run();
+        return reachesId[0] && !refused[0];
     }
 
     /**

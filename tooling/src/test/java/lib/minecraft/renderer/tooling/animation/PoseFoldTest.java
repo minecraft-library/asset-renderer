@@ -91,8 +91,10 @@ class PoseFoldTest {
         assertEquals(PoseFold.frameOf(program, PILLAGER, MODEL_RESTS_NEUTRAL),
             PoseFold.frameOf(program, Map.of(), MODEL_RESTS_NEUTRAL), "the two are one frame");
         assertEquals(
-            PoseFold.fold(program, PILLAGER, MODEL_RESTS_NEUTRAL, Map.of(), Map.of(), Set.of("ageInTicks")),
-            PoseFold.fold(program, Map.of(), MODEL_RESTS_NEUTRAL, Map.of(), Map.of(), Set.of("ageInTicks")),
+            PoseFold.fold(program, PILLAGER, MODEL_RESTS_NEUTRAL, Map.of(), Map.of(),
+                Set.of("ageInTicks"), Map.of()),
+            PoseFold.fold(program, Map.of(), MODEL_RESTS_NEUTRAL, Map.of(), Map.of(),
+                Set.of("ageInTicks"), Map.of()),
             "one frame must fold to one residual whichever subject stands for it");
     }
 

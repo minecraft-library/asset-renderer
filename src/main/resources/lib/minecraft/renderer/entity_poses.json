@@ -71288,35 +71288,129 @@
       }
     },
     "PhantomModel": {
+      "shared": [
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "input": "ageInTicks"
+                },
+                {
+                  "const": 7.448451
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "mul": [
+                {
+                  "mth_cos": [
+                    {
+                      "f2d": [
+                        {
+                          "ref": 0
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "const": 16.0
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        },
+        {
+          "neg": [
+            {
+              "ref": 1
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "neg": [
+                {
+                  "add": [
+                    {
+                      "const": 5.0
+                    },
+                    {
+                      "mul": [
+                        {
+                          "mth_cos": [
+                            {
+                              "f2d": [
+                                {
+                                  "mul": [
+                                    {
+                                      "ref": 0
+                                    },
+                                    {
+                                      "const": 2.0
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "const": 5.0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "const": 0.017453292
+            }
+          ]
+        }
+      ],
       "bones": {
         "left_wing_base": {
           "z_rot": {
-            "const": 0.27925268
+            "ref": 1
           }
         },
         "left_wing_tip": {
           "z_rot": {
-            "const": 0.27925268
+            "ref": 1
           }
         },
         "right_wing_base": {
           "z_rot": {
-            "const": -0.27925268
+            "ref": 2
           }
         },
         "right_wing_tip": {
           "z_rot": {
-            "const": -0.27925268
+            "ref": 2
           }
         },
         "tail_base": {
           "x_rot": {
-            "const": -0.17453292
+            "ref": 3
           }
         },
         "tail_tip": {
           "x_rot": {
-            "const": -0.17453292
+            "ref": 3
           }
         }
       }
