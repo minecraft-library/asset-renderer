@@ -5,11 +5,10 @@
   "key": "subject",
   "kind": "sweep-table",
   "provenance": {
-    "allow_dirty": true,
     "artifact": "sweep.entity-animation",
-    "asset_content_digest": "6c650205d9ffe8cf2828e46279a94425a4ab44aeda1bd2d1aefb1da0f01d0460",
-    "asset_dirty": true,
-    "asset_sha": "fdf0f40e0851cc6468e555ff2e2d817e806ea6c5",
+    "asset_content_digest": "03ddbd3a99eb496bce5a849876fa682179599bb944f093bfa4e75fbb37d7da1f",
+    "asset_dirty": false,
+    "asset_sha": "b89a791daf8643e4e542b45c2b5b170461ba12c1",
     "counts": {
       "failed": 0,
       "rows": 90
@@ -20,7 +19,7 @@
     "mode": "ANIMATION,EVERY",
     "parity_class": "moving",
     "producer": "entityAnimationParityVanilla",
-    "reason": "Five subjects that were byte-identical across their whole strip now animate on both sides. What vanilla's tick would have filled is answered from a declared roster instead: a scalar bounded by vanilla's own arithmetic is moved from what it rests at to what it reaches, and a smoothed one-hot over a vanilla enum is selected rather than swept. No entity is ticked and no random is emulated - what a draw decides on these paths is a rate or an interval, never a shape. Four of the five rows improved and the sum goes 10.0460 to 10.0200 over ninety. Every frozen sweep held, the still entity sum unchanged at 59.4901 over 402, because an excursion runs from rest and the harness half is gated on ANIMATED. Promoted with the dirty-tree exception: the capture's content digest parted from the committed tree over whitespace added to two sources after the capture began, which reaches no emitted byte - the tree measures the same 10.0200 either side of it.",
+    "reason": "Six subjects gain the idle animation vanilla's own tick starts and a never-ticked corpus did not. A dolphin's swim is gated on isMoving, which DolphinRenderer fills as getDeltaMovement().horizontalDistanceSqr() > 1.0E-7 and a subject nothing has moved answers false; a bat, both camels, a copper golem and a rabbit each start an idle clip their own setupAnimationStates starts on the first tick they take, the randoms on those paths setting only the interval until the next play. entity_poses.json carries a select on each driven field and a state member on each state-gated play site, which moves it, the two dumps that serialise it and the shipped-table digest. The 48 reference movers are the six subjects' animated strips, re-rendered deliberately; nothing outside animation/ moved, so the seven frozen sub-trees are byte-identical and the ANIMATED gate holds. Every still sweep held, which is the BIND contract. sweep.entity-animation goes 10.0200 to 10.0501 over 90 with 84 under the bar: each of the six rows is under it, with its canvas on vanilla's to the pixel and its motion agreeing to a hundredth. The rabbit also carried a fold defect worth 55.73 - its head assigned from the look angles while the clip was already turning it - fixed by emitting the isStarted question as the state's own value. Two independent captures of this tree agreed row for row.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -29,10 +28,10 @@
       "items": 479,
       "players": 2
     },
-    "reference_manifest_digest": "c3e99f313e6beaff4405e512c39e009250da949e7244c0c2a27f320379f43581",
-    "timestamp": "2026-08-28T19:52:13Z",
+    "reference_manifest_digest": "9c26e59d36c11f74e6321b6222ffae1db043b5bd53b11cb38d1bbefc9b2270f1",
+    "timestamp": "2026-08-28T21:37:49Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 36284
+    "wall_time_ms": 21482
   },
   "rows": [
     {
@@ -88,17 +87,17 @@
       "worst_frame": "5"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.0835",
       "frames": "8",
-      "java_h": "243",
-      "java_w": "216",
-      "mean_argb_delta": "0.0000",
+      "java_h": "258",
+      "java_w": "314",
+      "mean_argb_delta": "0.0228",
       "status": "ok",
       "subject": "minecraft__bat",
-      "vanilla_h": "243",
-      "vanilla_w": "216",
-      "worst_delta": "0.0000",
-      "worst_frame": "0"
+      "vanilla_h": "258",
+      "vanilla_w": "314",
+      "worst_delta": "0.0843",
+      "worst_frame": "5"
     },
     {
       "frame_spread": "0.1384",
@@ -153,30 +152,30 @@
       "worst_frame": "4"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.0964",
       "frames": "8",
       "java_h": "682",
       "java_w": "612",
-      "mean_argb_delta": "0.1595",
+      "mean_argb_delta": "0.1973",
       "status": "ok",
       "subject": "minecraft__camel",
       "vanilla_h": "682",
       "vanilla_w": "612",
-      "worst_delta": "0.1595",
-      "worst_frame": "0"
+      "worst_delta": "0.2571",
+      "worst_frame": "5"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.0488",
       "frames": "8",
       "java_h": "682",
       "java_w": "612",
-      "mean_argb_delta": "0.0315",
+      "mean_argb_delta": "0.0463",
       "status": "ok",
       "subject": "minecraft__camel_husk",
       "vanilla_h": "682",
       "vanilla_w": "612",
-      "worst_delta": "0.0315",
-      "worst_frame": "0"
+      "worst_delta": "0.0803",
+      "worst_frame": "5"
     },
     {
       "frame_spread": "0.0000",
@@ -231,17 +230,17 @@
       "worst_frame": "7"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.3045",
       "frames": "8",
       "java_h": "389",
-      "java_w": "206",
-      "mean_argb_delta": "0.0826",
+      "java_w": "232",
+      "mean_argb_delta": "0.1846",
       "status": "ok",
       "subject": "minecraft__copper_golem",
       "vanilla_h": "389",
-      "vanilla_w": "206",
-      "worst_delta": "0.0826",
-      "worst_frame": "0"
+      "vanilla_w": "232",
+      "worst_delta": "0.3779",
+      "worst_frame": "4"
     },
     {
       "frame_spread": "0.0000",
@@ -283,17 +282,17 @@
       "worst_frame": "0"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.0589",
       "frames": "8",
-      "java_h": "258",
-      "java_w": "476",
-      "mean_argb_delta": "0.1745",
+      "java_h": "315",
+      "java_w": "478",
+      "mean_argb_delta": "0.1469",
       "status": "ok",
       "subject": "minecraft__dolphin",
-      "vanilla_h": "258",
-      "vanilla_w": "476",
-      "worst_delta": "0.1745",
-      "worst_frame": "0"
+      "vanilla_h": "315",
+      "vanilla_w": "478",
+      "worst_delta": "0.1852",
+      "worst_frame": "2"
     },
     {
       "frame_spread": "0.0000",
@@ -764,17 +763,17 @@
       "worst_frame": "3"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.1671",
       "frames": "8",
-      "java_h": "285",
-      "java_w": "230",
-      "mean_argb_delta": "0.2206",
+      "java_h": "376",
+      "java_w": "264",
+      "mean_argb_delta": "0.1009",
       "status": "ok",
       "subject": "minecraft__rabbit_brown",
-      "vanilla_h": "285",
-      "vanilla_w": "230",
-      "worst_delta": "0.2206",
-      "worst_frame": "0"
+      "vanilla_h": "376",
+      "vanilla_w": "264",
+      "worst_delta": "0.2006",
+      "worst_frame": "3"
     },
     {
       "frame_spread": "0.0000",
@@ -1217,6 +1216,6 @@
     },
     "failed": 0,
     "rows": 90,
-    "sum": "10.0200"
+    "sum": "10.0501"
   }
 }

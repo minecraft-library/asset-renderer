@@ -36,7 +36,7 @@
     },
     {
       "path": "entity_poses.json",
-      "sha256": "fbd5ccf802dceb3378bda57c7b100425a1df094cf86040347ad8fa971e58b6f2"
+      "sha256": "ec169892bd6daa186051ebb84f63c13adf077703141564078ea9258883b507f2"
     },
     {
       "path": "glint_items.json",
@@ -61,11 +61,10 @@
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
-    "allow_dirty": true,
     "artifact": "manifest.tooling-tables",
-    "asset_content_digest": "6c650205d9ffe8cf2828e46279a94425a4ab44aeda1bd2d1aefb1da0f01d0460",
-    "asset_dirty": true,
-    "asset_sha": "fdf0f40e0851cc6468e555ff2e2d817e806ea6c5",
+    "asset_content_digest": "03ddbd3a99eb496bce5a849876fa682179599bb944f093bfa4e75fbb37d7da1f",
+    "asset_dirty": false,
+    "asset_sha": "b89a791daf8643e4e542b45c2b5b170461ba12c1",
     "counts": {
       "files": 11,
       "logs": 8
@@ -75,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "Five subjects that were byte-identical across their whole strip now animate on both sides. What vanilla's tick would have filled is answered from a declared roster instead: a scalar bounded by vanilla's own arithmetic is moved from what it rests at to what it reaches, and a smoothed one-hot over a vanilla enum is selected rather than swept. No entity is ticked and no random is emulated - what a draw decides on these paths is a rate or an interval, never a shape. Four of the five rows improved and the sum goes 10.0460 to 10.0200 over ninety. Every frozen sweep held, the still entity sum unchanged at 59.4901 over 402, because an excursion runs from rest and the harness half is gated on ANIMATED. Promoted with the dirty-tree exception: the capture's content digest parted from the committed tree over whitespace added to two sources after the capture began, which reaches no emitted byte - the tree measures the same 10.0200 either side of it.",
+    "reason": "Six subjects gain the idle animation vanilla's own tick starts and a never-ticked corpus did not. A dolphin's swim is gated on isMoving, which DolphinRenderer fills as getDeltaMovement().horizontalDistanceSqr() > 1.0E-7 and a subject nothing has moved answers false; a bat, both camels, a copper golem and a rabbit each start an idle clip their own setupAnimationStates starts on the first tick they take, the randoms on those paths setting only the interval until the next play. entity_poses.json carries a select on each driven field and a state member on each state-gated play site, which moves it, the two dumps that serialise it and the shipped-table digest. The 48 reference movers are the six subjects' animated strips, re-rendered deliberately; nothing outside animation/ moved, so the seven frozen sub-trees are byte-identical and the ANIMATED gate holds. Every still sweep held, which is the BIND contract. sweep.entity-animation goes 10.0200 to 10.0501 over 90 with 84 under the bar: each of the six rows is under it, with its canvas on vanilla's to the pixel and its motion agreeing to a hundredth. The rabbit also carried a fold defect worth 55.73 - its head assigned from the look angles while the clip was already turning it - fixed by emitting the isStarted question as the state's own value. Two independent captures of this tree agreed row for row.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -85,8 +84,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-28T19:52:05Z",
+    "timestamp": "2026-08-28T21:37:40Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 64466
+    "wall_time_ms": 43846
   }
 }

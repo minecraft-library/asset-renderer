@@ -132,35 +132,35 @@
     },
     {
       "path": "animation/minecraft__bat/frame_000.png",
-      "sha256": "11dc5c7744b330f90b228b6932745cfebcef39858d10ce8d1da074ec33fce75a"
+      "sha256": "36e654eed43a35f57d2e7621fc4516c35ad6f01a9dcc782d26677be60fe252cd"
     },
     {
       "path": "animation/minecraft__bat/frame_001.png",
-      "sha256": "11dc5c7744b330f90b228b6932745cfebcef39858d10ce8d1da074ec33fce75a"
+      "sha256": "f2f74b783b3128a43264ebd42ffebfa44de0525b540e9e3a197434abff07d56a"
     },
     {
       "path": "animation/minecraft__bat/frame_002.png",
-      "sha256": "11dc5c7744b330f90b228b6932745cfebcef39858d10ce8d1da074ec33fce75a"
+      "sha256": "11f630973e7650dca401581b9ec8cc022f63cc9b9316403bb7d3cb757762dbab"
     },
     {
       "path": "animation/minecraft__bat/frame_003.png",
-      "sha256": "11dc5c7744b330f90b228b6932745cfebcef39858d10ce8d1da074ec33fce75a"
+      "sha256": "1b71782e2a3644722f9607caa74a7389e5f70aadcdbde52d3d68dca1a4a96f31"
     },
     {
       "path": "animation/minecraft__bat/frame_004.png",
-      "sha256": "11dc5c7744b330f90b228b6932745cfebcef39858d10ce8d1da074ec33fce75a"
+      "sha256": "cb56c8c60d98805f6dd49f85f319e6168e88b3af8d7b493bfc1c961bdc29fb70"
     },
     {
       "path": "animation/minecraft__bat/frame_005.png",
-      "sha256": "11dc5c7744b330f90b228b6932745cfebcef39858d10ce8d1da074ec33fce75a"
+      "sha256": "5429375aa3f1d89ce23ad443877c678a4f5a0bdcfdf60d7920ad7e22c91f4982"
     },
     {
       "path": "animation/minecraft__bat/frame_006.png",
-      "sha256": "11dc5c7744b330f90b228b6932745cfebcef39858d10ce8d1da074ec33fce75a"
+      "sha256": "b533178e7bd092b79e116c253656f37536d0d138a8c90b789dcce44e92a30171"
     },
     {
       "path": "animation/minecraft__bat/frame_007.png",
-      "sha256": "11dc5c7744b330f90b228b6932745cfebcef39858d10ce8d1da074ec33fce75a"
+      "sha256": "fb16b9aa7d94dde4b28ec934d6382ec6b729bda67960aed50b1e37aab3213344"
     },
     {
       "path": "animation/minecraft__bee/frame_000.png",
@@ -292,67 +292,67 @@
     },
     {
       "path": "animation/minecraft__camel/frame_000.png",
-      "sha256": "fd76208f6d535109c2bf15322722adaf42928882f661385e1745001aa56a9bf6"
+      "sha256": "e409bb1312e198d05d71cd4dad81ebccf65a437aaf908d0fdc32921b7ad5fde3"
     },
     {
       "path": "animation/minecraft__camel/frame_001.png",
-      "sha256": "fd76208f6d535109c2bf15322722adaf42928882f661385e1745001aa56a9bf6"
+      "sha256": "a19bb3b0812b924ac8e60448b8ef4a6c7e41681ba04dc6547d13dd5ef169b1ac"
     },
     {
       "path": "animation/minecraft__camel/frame_002.png",
-      "sha256": "fd76208f6d535109c2bf15322722adaf42928882f661385e1745001aa56a9bf6"
+      "sha256": "b2056b2559697492afdbf51480751322faede4a33dea54eca77af3c48cb2f695"
     },
     {
       "path": "animation/minecraft__camel/frame_003.png",
-      "sha256": "fd76208f6d535109c2bf15322722adaf42928882f661385e1745001aa56a9bf6"
+      "sha256": "efb8a8abee900f76355a86310d6abc2d0bd79e338af669d909bb8dafdb8f908b"
     },
     {
       "path": "animation/minecraft__camel/frame_004.png",
-      "sha256": "fd76208f6d535109c2bf15322722adaf42928882f661385e1745001aa56a9bf6"
+      "sha256": "9b5dcc2df82e7868b01e37e81f93201cbb3d84a0cd742e55886885bf39961c82"
     },
     {
       "path": "animation/minecraft__camel/frame_005.png",
-      "sha256": "fd76208f6d535109c2bf15322722adaf42928882f661385e1745001aa56a9bf6"
+      "sha256": "c3324919688881607f604b6c31b81e461fd41f10ba9a296496a28906e135afc6"
     },
     {
       "path": "animation/minecraft__camel/frame_006.png",
-      "sha256": "fd76208f6d535109c2bf15322722adaf42928882f661385e1745001aa56a9bf6"
+      "sha256": "5d8e8766054040091b7c44665a1c008b36b78395b4f2c2132029ce77c8928636"
     },
     {
       "path": "animation/minecraft__camel/frame_007.png",
-      "sha256": "fd76208f6d535109c2bf15322722adaf42928882f661385e1745001aa56a9bf6"
+      "sha256": "691aed1f42ce387cac03b2f3d71ca09d01153ed5400bfa2b9f917a31317542f9"
     },
     {
       "path": "animation/minecraft__camel_husk/frame_000.png",
-      "sha256": "2fb214b346c3840dcd0efe0ac63103160785dd10fb679627e0255b526c0bdad1"
+      "sha256": "113add55678c77039e9cd08fc327ee108bb2d32590200a20fd34002303ed8e29"
     },
     {
       "path": "animation/minecraft__camel_husk/frame_001.png",
-      "sha256": "2fb214b346c3840dcd0efe0ac63103160785dd10fb679627e0255b526c0bdad1"
+      "sha256": "48013715176e996a8f593cb7bd91f012d7a26769cf4ac398fe6207c27264c9fe"
     },
     {
       "path": "animation/minecraft__camel_husk/frame_002.png",
-      "sha256": "2fb214b346c3840dcd0efe0ac63103160785dd10fb679627e0255b526c0bdad1"
+      "sha256": "a7f90a40937f0a53a12d145c8b27a1a665cb19a4af1b05b3744f485af0dd7539"
     },
     {
       "path": "animation/minecraft__camel_husk/frame_003.png",
-      "sha256": "2fb214b346c3840dcd0efe0ac63103160785dd10fb679627e0255b526c0bdad1"
+      "sha256": "386566014e563271da9427a9c29b383d8a11d154b9c1e5c97da247ce25b7e9b4"
     },
     {
       "path": "animation/minecraft__camel_husk/frame_004.png",
-      "sha256": "2fb214b346c3840dcd0efe0ac63103160785dd10fb679627e0255b526c0bdad1"
+      "sha256": "c2b1d414d20a53fafb894393762ea94fb22ffd7d77551c501d9a9b2a8a0e56a1"
     },
     {
       "path": "animation/minecraft__camel_husk/frame_005.png",
-      "sha256": "2fb214b346c3840dcd0efe0ac63103160785dd10fb679627e0255b526c0bdad1"
+      "sha256": "6397fae0bdec0db53585262115bd92070c24967be348e00ee27db0b604f0046a"
     },
     {
       "path": "animation/minecraft__camel_husk/frame_006.png",
-      "sha256": "2fb214b346c3840dcd0efe0ac63103160785dd10fb679627e0255b526c0bdad1"
+      "sha256": "e2ffe0bf3f8677361f256d4c5c970348d6d2a77803fee3d1c5e0892d10651505"
     },
     {
       "path": "animation/minecraft__camel_husk/frame_007.png",
-      "sha256": "2fb214b346c3840dcd0efe0ac63103160785dd10fb679627e0255b526c0bdad1"
+      "sha256": "5d6859dd169633d1ca2a4978c809264acc180a36db672eb7473eff62fd450a54"
     },
     {
       "path": "animation/minecraft__cat_black/frame_000.png",
@@ -484,35 +484,35 @@
     },
     {
       "path": "animation/minecraft__copper_golem/frame_000.png",
-      "sha256": "e07f601f2938d9d4ddc578028b6cf04616e6c252b000b59495db71d85c8868ac"
+      "sha256": "c7f11119430e9b661908fb536d2d4beaad72525e52834cfab4f9f9a3d8b93188"
     },
     {
       "path": "animation/minecraft__copper_golem/frame_001.png",
-      "sha256": "e07f601f2938d9d4ddc578028b6cf04616e6c252b000b59495db71d85c8868ac"
+      "sha256": "5612729bd9d30c498d28fc9f069a7d30d5aedee2dbc8d5b222c5fa8aea880579"
     },
     {
       "path": "animation/minecraft__copper_golem/frame_002.png",
-      "sha256": "e07f601f2938d9d4ddc578028b6cf04616e6c252b000b59495db71d85c8868ac"
+      "sha256": "5612729bd9d30c498d28fc9f069a7d30d5aedee2dbc8d5b222c5fa8aea880579"
     },
     {
       "path": "animation/minecraft__copper_golem/frame_003.png",
-      "sha256": "e07f601f2938d9d4ddc578028b6cf04616e6c252b000b59495db71d85c8868ac"
+      "sha256": "5612729bd9d30c498d28fc9f069a7d30d5aedee2dbc8d5b222c5fa8aea880579"
     },
     {
       "path": "animation/minecraft__copper_golem/frame_004.png",
-      "sha256": "e07f601f2938d9d4ddc578028b6cf04616e6c252b000b59495db71d85c8868ac"
+      "sha256": "08b723940287cd262e22f4fe52800025cab691d598d05fc1087b0c90d740025e"
     },
     {
       "path": "animation/minecraft__copper_golem/frame_005.png",
-      "sha256": "e07f601f2938d9d4ddc578028b6cf04616e6c252b000b59495db71d85c8868ac"
+      "sha256": "836af5f7bef047ad7d9d7ace400c64895be9d3c1c4d4efc58d701a344a0834ad"
     },
     {
       "path": "animation/minecraft__copper_golem/frame_006.png",
-      "sha256": "e07f601f2938d9d4ddc578028b6cf04616e6c252b000b59495db71d85c8868ac"
+      "sha256": "836af5f7bef047ad7d9d7ace400c64895be9d3c1c4d4efc58d701a344a0834ad"
     },
     {
       "path": "animation/minecraft__copper_golem/frame_007.png",
-      "sha256": "e07f601f2938d9d4ddc578028b6cf04616e6c252b000b59495db71d85c8868ac"
+      "sha256": "836af5f7bef047ad7d9d7ace400c64895be9d3c1c4d4efc58d701a344a0834ad"
     },
     {
       "path": "animation/minecraft__cow_temperate/frame_000.png",
@@ -612,35 +612,35 @@
     },
     {
       "path": "animation/minecraft__dolphin/frame_000.png",
-      "sha256": "48434011ba444417abb938645064f12a0b11491d5c5d6f3e233d39559331a038"
+      "sha256": "ba9e7574f2f7aad1d3165a7390b97f0e4334914eac2bf2f86778a6a800d6ca36"
     },
     {
       "path": "animation/minecraft__dolphin/frame_001.png",
-      "sha256": "48434011ba444417abb938645064f12a0b11491d5c5d6f3e233d39559331a038"
+      "sha256": "ae477c57194e530e5b0632e2691d74c2174e41c3564ff51779e864234ab12f9c"
     },
     {
       "path": "animation/minecraft__dolphin/frame_002.png",
-      "sha256": "48434011ba444417abb938645064f12a0b11491d5c5d6f3e233d39559331a038"
+      "sha256": "fd1cd7ebc7fe72203ca1ec6c169963fa7f446cad31c3c9d8b2d2d1c3d9f8ca4c"
     },
     {
       "path": "animation/minecraft__dolphin/frame_003.png",
-      "sha256": "48434011ba444417abb938645064f12a0b11491d5c5d6f3e233d39559331a038"
+      "sha256": "7e4dd8fcbe611db16c47ff7dec9625e3b6b94df3454eab39ccf6eed65fae9ba3"
     },
     {
       "path": "animation/minecraft__dolphin/frame_004.png",
-      "sha256": "48434011ba444417abb938645064f12a0b11491d5c5d6f3e233d39559331a038"
+      "sha256": "cedb7d4648df38b95481eb569af9c51ceb70bdcbef25e2835b91453b90fafc8a"
     },
     {
       "path": "animation/minecraft__dolphin/frame_005.png",
-      "sha256": "48434011ba444417abb938645064f12a0b11491d5c5d6f3e233d39559331a038"
+      "sha256": "c9cf1c08e50582b651baa16e35b7d9896f4b8a2078385e63d325a69ca51bb334"
     },
     {
       "path": "animation/minecraft__dolphin/frame_006.png",
-      "sha256": "48434011ba444417abb938645064f12a0b11491d5c5d6f3e233d39559331a038"
+      "sha256": "b398e8a7622542bb3fe14b421f7d7b17d5d2228a2d2ff5e9017d8e736865cd8e"
     },
     {
       "path": "animation/minecraft__dolphin/frame_007.png",
-      "sha256": "48434011ba444417abb938645064f12a0b11491d5c5d6f3e233d39559331a038"
+      "sha256": "a3fae38a1a54d0a634871d37315fe073b12628177e812feb5ba770626754537b"
     },
     {
       "path": "animation/minecraft__donkey/frame_000.png",
@@ -1796,35 +1796,35 @@
     },
     {
       "path": "animation/minecraft__rabbit_brown/frame_000.png",
-      "sha256": "29034bc43578be2c0b7da8bf9802c91691adebc3566aa06f50f7530a973b0973"
+      "sha256": "864baed23cd22f8cee089270a4a30be6384c3b068d74678535c73a240dc2fff1"
     },
     {
       "path": "animation/minecraft__rabbit_brown/frame_001.png",
-      "sha256": "29034bc43578be2c0b7da8bf9802c91691adebc3566aa06f50f7530a973b0973"
+      "sha256": "cbcbbc6cd5cb336648ec5bf7fc6991284b37ff8aaf4cb73b1069f87e5659ceba"
     },
     {
       "path": "animation/minecraft__rabbit_brown/frame_002.png",
-      "sha256": "29034bc43578be2c0b7da8bf9802c91691adebc3566aa06f50f7530a973b0973"
+      "sha256": "d9508b533d13337583107976b83bbc7f83bdd0751e9d9a01c715a395b205e1b8"
     },
     {
       "path": "animation/minecraft__rabbit_brown/frame_003.png",
-      "sha256": "29034bc43578be2c0b7da8bf9802c91691adebc3566aa06f50f7530a973b0973"
+      "sha256": "fe4541581ada6092d3a0c935c906cc8be4f1b747d011affeefa314d380703a9c"
     },
     {
       "path": "animation/minecraft__rabbit_brown/frame_004.png",
-      "sha256": "29034bc43578be2c0b7da8bf9802c91691adebc3566aa06f50f7530a973b0973"
+      "sha256": "5b657a24904011e640bc13f1e3aa26777156373ea7d4832b9aee310878a8ec84"
     },
     {
       "path": "animation/minecraft__rabbit_brown/frame_005.png",
-      "sha256": "29034bc43578be2c0b7da8bf9802c91691adebc3566aa06f50f7530a973b0973"
+      "sha256": "90e24f722461f8ed4b7b21f487a40f43e1e13d30475dcee0376ad17c1f32dd37"
     },
     {
       "path": "animation/minecraft__rabbit_brown/frame_006.png",
-      "sha256": "29034bc43578be2c0b7da8bf9802c91691adebc3566aa06f50f7530a973b0973"
+      "sha256": "b4d5a17bc414c1c3b3ed5562c72efaf14214884d29813e1cfb8c7aca4012777f"
     },
     {
       "path": "animation/minecraft__rabbit_brown/frame_007.png",
-      "sha256": "29034bc43578be2c0b7da8bf9802c91691adebc3566aa06f50f7530a973b0973"
+      "sha256": "c1a7350374a7e7f7db55b15505c64b6695daeb585cf3c50c152758604f0135cf"
     },
     {
       "path": "animation/minecraft__ravager/frame_000.png",
@@ -12175,11 +12175,10 @@
   "key": "path",
   "kind": "manifest",
   "provenance": {
-    "allow_dirty": true,
     "artifact": "manifest.references",
-    "asset_content_digest": "6c650205d9ffe8cf2828e46279a94425a4ab44aeda1bd2d1aefb1da0f01d0460",
-    "asset_dirty": true,
-    "asset_sha": "fdf0f40e0851cc6468e555ff2e2d817e806ea6c5",
+    "asset_content_digest": "03ddbd3a99eb496bce5a849876fa682179599bb944f093bfa4e75fbb37d7da1f",
+    "asset_dirty": false,
+    "asset_sha": "b89a791daf8643e4e542b45c2b5b170461ba12c1",
     "counts": {
       "files": 3042
     },
@@ -12189,7 +12188,7 @@
     "mode": "ANIMATION,EVERY",
     "parity_class": "moving",
     "producer": "renderVanillaAllReferences",
-    "reason": "Five subjects that were byte-identical across their whole strip now animate on both sides. What vanilla's tick would have filled is answered from a declared roster instead: a scalar bounded by vanilla's own arithmetic is moved from what it rests at to what it reaches, and a smoothed one-hot over a vanilla enum is selected rather than swept. No entity is ticked and no random is emulated - what a draw decides on these paths is a rate or an interval, never a shape. Four of the five rows improved and the sum goes 10.0460 to 10.0200 over ninety. Every frozen sweep held, the still entity sum unchanged at 59.4901 over 402, because an excursion runs from rest and the harness half is gated on ANIMATED. Promoted with the dirty-tree exception: the capture's content digest parted from the committed tree over whitespace added to two sources after the capture began, which reaches no emitted byte - the tree measures the same 10.0200 either side of it.",
+    "reason": "Six subjects gain the idle animation vanilla's own tick starts and a never-ticked corpus did not. A dolphin's swim is gated on isMoving, which DolphinRenderer fills as getDeltaMovement().horizontalDistanceSqr() > 1.0E-7 and a subject nothing has moved answers false; a bat, both camels, a copper golem and a rabbit each start an idle clip their own setupAnimationStates starts on the first tick they take, the randoms on those paths setting only the interval until the next play. entity_poses.json carries a select on each driven field and a state member on each state-gated play site, which moves it, the two dumps that serialise it and the shipped-table digest. The 48 reference movers are the six subjects' animated strips, re-rendered deliberately; nothing outside animation/ moved, so the seven frozen sub-trees are byte-identical and the ANIMATED gate holds. Every still sweep held, which is the BIND contract. sweep.entity-animation goes 10.0200 to 10.0501 over 90 with 84 under the bar: each of the six rows is under it, with its canvas on vanilla's to the pixel and its motion agreeing to a hundredth. The rabbit also carried a fold defect worth 55.73 - its head assigned from the look angles while the clip was already turning it - fixed by emitting the isStarted question as the state's own value. Two independent captures of this tree agreed row for row.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -12199,8 +12198,8 @@
       "players": 2
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-08-28T19:52:04Z",
+    "timestamp": "2026-08-28T21:37:40Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 137296
+    "wall_time_ms": 137894
   }
 }

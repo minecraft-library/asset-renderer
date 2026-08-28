@@ -41,17 +41,17 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 16490 ms | yes |
 | `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 31712 ms | yes |
 | `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 10 | 13757 ms | yes |
-| `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 90 | 36284 ms | yes |
-| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 3042 | 137296 ms | yes |
+| `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 90 | 21482 ms | yes |
+| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 3042 | 137894 ms | yes |
 | `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | - | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | - | yes |
-| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 28775 ms | yes |
-| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 28775 ms | yes |
+| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 28138 ms | yes |
+| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 28138 ms | yes |
 | `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 17186 ms | yes |
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 12316 ms | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 147676 ms | yes |
-| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 64466 ms | yes |
-| `digest.shipped-tables` | digest-set | STORE | `test` | 1 | 1 | 11 | - | yes |
+| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 43846 ms | yes |
+| `digest.shipped-tables` | digest-set | STORE | `test` | 1 | 2 | 11 | - | yes |
 | `digest.colormap-lut` | digest-set | STORE | `slowTest` | 1 | 2 | 3 | 22053 ms | yes |
 | `digest.dump-sections` | - | EXTERNAL | - | - | - | - | - | - |
 | `pin.vanilla-iso-pose` | pin-set | STORE | `test` | 1 | 2 | 1 | 8133 ms | yes |
