@@ -18,9 +18,8 @@
       "entries": 11,
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
-      "last_duration_ms": 9702,
-      "promoted_at": "78deb16284025dd938717cfd467561c9cbbad498",
-      "sha256": "85a723b341e30f172d9014bcb7da673224cce143c5777483763189f6ed07fdfe"
+      "promoted_at": "fdf0f40e0851cc6468e555ff2e2d817e806ea6c5",
+      "sha256": "95a3720b7339a10ccdad436acff9058e50de0569b0e393e066486129eb1407f0"
     },
     "manifest.dump.packs": {
       "baselined": true,
@@ -28,9 +27,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 27915,
-      "promoted_at": "78deb16284025dd938717cfd467561c9cbbad498",
-      "sha256": "1e4936bf6411316072761f838b18d7dc37e9fd184130052a038856b7e30536e9"
+      "last_duration_ms": 28775,
+      "promoted_at": "fdf0f40e0851cc6468e555ff2e2d817e806ea6c5",
+      "sha256": "6f398ef90c8fe347173d2e9dddf2d826076ccb1fcc7a3fc268b6ce71277fbc41"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
@@ -38,9 +37,9 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 27915,
-      "promoted_at": "78deb16284025dd938717cfd467561c9cbbad498",
-      "sha256": "dff0293cc0ea226df3fcbc3882ecc1800079cd0539a8d23f68d0e0e03d2046d2"
+      "last_duration_ms": 28775,
+      "promoted_at": "fdf0f40e0851cc6468e555ff2e2d817e806ea6c5",
+      "sha256": "74a0d50f2a22b747c854fa54c9b90c3296699ee1d8ab70de1bbafa0400293a4a"
     },
     "manifest.fluid": {
       "baselined": true,
@@ -87,9 +86,9 @@
       "entries": 3042,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 138155,
-      "promoted_at": "78deb16284025dd938717cfd467561c9cbbad498",
-      "sha256": "870e0e323b6f7ead852cd22476a9077449613c73d4e127ee609aa70ac7f722bd"
+      "last_duration_ms": 137296,
+      "promoted_at": "fdf0f40e0851cc6468e555ff2e2d817e806ea6c5",
+      "sha256": "ed3b910a7a574a6aa6082d4d110737e5f0f12c8d98636bacdd5953227b67bd60"
     },
     "manifest.tooling-tables": {
       "baselined": true,
@@ -97,9 +96,9 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 43966,
-      "promoted_at": "78deb16284025dd938717cfd467561c9cbbad498",
-      "sha256": "f62fe57d3f1997f4a994d959601aacd5bdffc6d6563907e3b1cbf03c97066512"
+      "last_duration_ms": 64466,
+      "promoted_at": "fdf0f40e0851cc6468e555ff2e2d817e806ea6c5",
+      "sha256": "e36a8e64f1c3d791e7a0e5578daece5341262f22680e83874b221361b4a684cd"
     },
     "manifest.visual": {
       "baselined": true,
@@ -231,10 +230,10 @@
       "entries": 90,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 20933,
-      "promoted_at": "78deb16284025dd938717cfd467561c9cbbad498",
-      "sha256": "4c4df5e7914ca1c67f1a3c57b989c3501f1adbfed64285969d7fecf5c7a55a67",
-      "sum": "10.0460"
+      "last_duration_ms": 36284,
+      "promoted_at": "fdf0f40e0851cc6468e555ff2e2d817e806ea6c5",
+      "sha256": "fb393ee370729c021d2085613d5fb417fca2e838775f4a2faefcd9c240be4d88",
+      "sum": "10.0200"
     },
     "sweep.glint": {
       "baselined": true,

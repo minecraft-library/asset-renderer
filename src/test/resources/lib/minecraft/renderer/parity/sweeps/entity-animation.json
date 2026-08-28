@@ -5,10 +5,11 @@
   "key": "subject",
   "kind": "sweep-table",
   "provenance": {
+    "allow_dirty": true,
     "artifact": "sweep.entity-animation",
-    "asset_content_digest": "f10b7d4fc23858c5ff88ab7ba74956f336711e425ac5d615bd1ca1113ce6f8b7",
-    "asset_dirty": false,
-    "asset_sha": "78deb16284025dd938717cfd467561c9cbbad498",
+    "asset_content_digest": "6c650205d9ffe8cf2828e46279a94425a4ab44aeda1bd2d1aefb1da0f01d0460",
+    "asset_dirty": true,
+    "asset_sha": "fdf0f40e0851cc6468e555ff2e2d817e806ea6c5",
     "counts": {
       "failed": 0,
       "rows": 90
@@ -19,7 +20,7 @@
     "mode": "ANIMATION,EVERY",
     "parity_class": "moving",
     "producer": "entityAnimationParityVanilla",
-    "reason": "A phantom's flap is the clock. Its renderer builds flapTime from an id offset plus ageInTicks, so pinning the offset rather than the sum leaves both sides beating, and the pose table answers the figure the renderer rebuilds instead of a resting zero. The eight animated references were re-rendered against that pin; the pose table, its digest, the two dumps that carry it and the generator log follow the six channels it moved. The row goes 0.0792 to 0.0443 with both canvases agreeing at 592x504. Every frozen sweep held, the still entity sum unchanged at 59.4901 over 402, because the pin is identity at tick zero.",
+    "reason": "Five subjects that were byte-identical across their whole strip now animate on both sides. What vanilla's tick would have filled is answered from a declared roster instead: a scalar bounded by vanilla's own arithmetic is moved from what it rests at to what it reaches, and a smoothed one-hot over a vanilla enum is selected rather than swept. No entity is ticked and no random is emulated - what a draw decides on these paths is a rate or an interval, never a shape. Four of the five rows improved and the sum goes 10.0460 to 10.0200 over ninety. Every frozen sweep held, the still entity sum unchanged at 59.4901 over 402, because an excursion runs from rest and the harness half is gated on ANIMATED. Promoted with the dirty-tree exception: the capture's content digest parted from the committed tree over whitespace added to two sources after the capture began, which reaches no emitted byte - the tree measures the same 10.0200 either side of it.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -28,10 +29,10 @@
       "items": 479,
       "players": 2
     },
-    "reference_manifest_digest": "794a953034bdbbc1f8df4b7a91d42137e1e0b5895f4a057faeeb4086058d964b",
-    "timestamp": "2026-08-28T01:36:34Z",
+    "reference_manifest_digest": "c3e99f313e6beaff4405e512c39e009250da949e7244c0c2a27f320379f43581",
+    "timestamp": "2026-08-28T19:52:13Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 20933
+    "wall_time_ms": 36284
   },
   "rows": [
     {
@@ -74,17 +75,17 @@
       "worst_frame": "0"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.1141",
       "frames": "8",
-      "java_h": "275",
-      "java_w": "352",
-      "mean_argb_delta": "0.0220",
+      "java_h": "293",
+      "java_w": "388",
+      "mean_argb_delta": "0.1282",
       "status": "ok",
       "subject": "minecraft__axolotl_lucy",
-      "vanilla_h": "275",
-      "vanilla_w": "352",
-      "worst_delta": "0.0220",
-      "worst_frame": "0"
+      "vanilla_h": "293",
+      "vanilla_w": "388",
+      "worst_delta": "0.1775",
+      "worst_frame": "5"
     },
     {
       "frame_spread": "0.0000",
@@ -334,16 +335,16 @@
       "worst_frame": "0"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.0416",
       "frames": "8",
-      "java_h": "699",
-      "java_w": "1024",
-      "mean_argb_delta": "0.0780",
+      "java_h": "1024",
+      "java_w": "984",
+      "mean_argb_delta": "0.0237",
       "status": "ok",
       "subject": "minecraft__ender_dragon",
-      "vanilla_h": "699",
-      "vanilla_w": "1024",
-      "worst_delta": "0.0780",
+      "vanilla_h": "1024",
+      "vanilla_w": "984",
+      "worst_delta": "0.0453",
       "worst_frame": "0"
     },
     {
@@ -438,17 +439,17 @@
       "worst_frame": "5"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.1215",
       "frames": "8",
-      "java_h": "574",
-      "java_w": "274",
-      "mean_argb_delta": "0.0894",
+      "java_h": "605",
+      "java_w": "590",
+      "mean_argb_delta": "0.0871",
       "status": "ok",
       "subject": "minecraft__glow_squid",
-      "vanilla_h": "574",
-      "vanilla_w": "274",
-      "worst_delta": "0.0894",
-      "worst_frame": "0"
+      "vanilla_h": "605",
+      "vanilla_w": "590",
+      "worst_delta": "0.1577",
+      "worst_frame": "3"
     },
     {
       "frame_spread": "0.0000",
@@ -815,17 +816,17 @@
       "worst_frame": "0"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.0289",
       "frames": "8",
-      "java_h": "403",
+      "java_h": "616",
       "java_w": "364",
-      "mean_argb_delta": "0.1025",
+      "mean_argb_delta": "0.0731",
       "status": "ok",
       "subject": "minecraft__shulker",
-      "vanilla_h": "403",
+      "vanilla_h": "616",
       "vanilla_w": "364",
-      "worst_delta": "0.1025",
-      "worst_frame": "0"
+      "worst_delta": "0.0918",
+      "worst_frame": "4"
     },
     {
       "frame_spread": "0.2225",
@@ -919,17 +920,17 @@
       "worst_frame": "0"
     },
     {
-      "frame_spread": "0.0000",
+      "frame_spread": "0.0699",
       "frames": "8",
-      "java_h": "574",
-      "java_w": "274",
-      "mean_argb_delta": "0.1333",
+      "java_h": "605",
+      "java_w": "590",
+      "mean_argb_delta": "0.0871",
       "status": "ok",
       "subject": "minecraft__squid",
-      "vanilla_h": "574",
-      "vanilla_w": "274",
-      "worst_delta": "0.1333",
-      "worst_frame": "0"
+      "vanilla_h": "605",
+      "vanilla_w": "590",
+      "worst_delta": "0.1261",
+      "worst_frame": "3"
     },
     {
       "frame_spread": "0.0438",
@@ -1216,6 +1217,6 @@
     },
     "failed": 0,
     "rows": 90,
-    "sum": "10.0460"
+    "sum": "10.0200"
   }
 }

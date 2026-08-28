@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "91f29a4d6a18010de3d30a287ca8a53f87ed80dac7567053a30908b4f8a62dc9"
+      "sha256": "723f1b639f0c5e2b369fd2b36c847d7388d24e6761ee9ce3d490e5bb668a47e5"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -62,10 +62,11 @@
   "key": "name",
   "kind": "digest-set",
   "provenance": {
+    "allow_dirty": true,
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "f10b7d4fc23858c5ff88ab7ba74956f336711e425ac5d615bd1ca1113ce6f8b7",
-    "asset_dirty": false,
-    "asset_sha": "78deb16284025dd938717cfd467561c9cbbad498",
+    "asset_content_digest": "6c650205d9ffe8cf2828e46279a94425a4ab44aeda1bd2d1aefb1da0f01d0460",
+    "asset_dirty": true,
+    "asset_sha": "fdf0f40e0851cc6468e555ff2e2d817e806ea6c5",
     "counts": {
       "digests": 11
     },
@@ -76,7 +77,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "A phantom's flap is the clock. Its renderer builds flapTime from an id offset plus ageInTicks, so pinning the offset rather than the sum leaves both sides beating, and the pose table answers the figure the renderer rebuilds instead of a resting zero. The eight animated references were re-rendered against that pin; the pose table, its digest, the two dumps that carry it and the generator log follow the six channels it moved. The row goes 0.0792 to 0.0443 with both canvases agreeing at 592x504. Every frozen sweep held, the still entity sum unchanged at 59.4901 over 402, because the pin is identity at tick zero.",
+    "reason": "Five subjects that were byte-identical across their whole strip now animate on both sides. What vanilla's tick would have filled is answered from a declared roster instead: a scalar bounded by vanilla's own arithmetic is moved from what it rests at to what it reaches, and a smoothed one-hot over a vanilla enum is selected rather than swept. No entity is ticked and no random is emulated - what a draw decides on these paths is a rate or an interval, never a shape. Four of the five rows improved and the sum goes 10.0460 to 10.0200 over ninety. Every frozen sweep held, the still entity sum unchanged at 59.4901 over 402, because an excursion runs from rest and the harness half is gated on ANIMATED. Promoted with the dirty-tree exception: the capture's content digest parted from the committed tree over whitespace added to two sources after the capture began, which reaches no emitted byte - the tree measures the same 10.0200 either side of it.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -85,8 +86,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-28T01:36:24Z",
-    "tool_version": "1.0.0",
-    "wall_time_ms": 9702
+    "timestamp": "2026-08-28T19:52:00Z",
+    "tool_version": "1.0.0"
   }
 }
