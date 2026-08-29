@@ -71,14 +71,63 @@ import java.util.stream.Stream;
 @UtilityClass
 public final class TestEntityAnimationParityVanilla {
 
+    /**
+     * Which gait this invocation measures, which is the whole of what separates the two sweeps.
+     *
+     * <p>The subjects, the schedule, the naming, the diff and every artifact written are the same on
+     * both, because none of them is a function of the gait: what differs is the preset the Java side
+     * poses at and the harness sub-tree it is compared against, and the harness produces the two the
+     * same way for the same reason. So this is one driver taking a parameter rather than two
+     * drivers, and a divergence between the two reports cannot be a divergence in how they were
+     * measured.
+     *
+     * @param preset the pose preset the Java side renders at
+     * @param references the harness sub-tree holding the ground truth for it
+     * @param output the directory this sweep's own artifacts are written under
+     */
+    private record Gait(
+        @NotNull EntityOptions.PoseMode preset, @NotNull String references, @NotNull String output) {
+
+        /** A subject standing still, which is what the promoted animation gate measures. */
+        private static final Gait IDLE =
+            new Gait(EntityOptions.PoseMode.IDLE, "animation", "entity-animation-parity-vanilla");
+
+        /** A subject walking as hard as vanilla ever clamps one to. */
+        private static final Gait WALK =
+            new Gait(EntityOptions.PoseMode.WALK, "walk", "entity-walk-parity-vanilla");
+
+        /**
+         * The gait this invocation was launched for.
+         *
+         * <p>Read off a property rather than off an argument because the first argument is already
+         * the subject filter, and because {@code asset.*} is the namespace that forwards into a
+         * {@code JavaExec} fork. Absent is {@link #IDLE}, so every existing invocation means what it
+         * meant.
+         *
+         * @return the selected gait
+         */
+        private static @NotNull Gait selected() {
+            String named = System.getProperty("asset.parity.gait", "idle");
+            return switch (named.toLowerCase(java.util.Locale.ROOT)) {
+                case "idle" -> IDLE;
+                case "walk" -> WALK;
+                default -> throw new IllegalArgumentException(
+                    "asset.parity.gait: '" + named + "' is not a gait this sweep renders");
+            };
+        }
+    }
+
+    /** The gait this invocation measures. */
+    private static final Gait GAIT = Gait.selected();
+
     /** Output directory for the per-subject sub-folders plus the report file. */
-    private static final Path OUTPUT_DIR = Path.of("cache/visual/entity-animation-parity-vanilla");
+    private static final Path OUTPUT_DIR = Path.of("cache/visual").resolve(GAIT.output());
 
     /** TSV report file path. */
     private static final Path REPORT_FILE = OUTPUT_DIR.resolve("parity-report.tsv");
 
-    /** Source of the harness-produced animated references, one directory per subject. */
-    private static final Path VANILLA_DIR = ParityPaths.references("animation");
+    /** Source of the harness-produced posed references, one directory per subject. */
+    private static final Path VANILLA_DIR = ParityPaths.references(GAIT.references());
 
     /** Frames per subject. MUST match the harness {@code EntityAnimationSweep.FRAME_COUNT}. */
     private static final int FRAME_COUNT = 8;
@@ -106,8 +155,8 @@ public final class TestEntityAnimationParityVanilla {
         List<String> filter = args.length > 0 ? List.of(args[0].split(",")) : List.of();
 
         if (!Files.isDirectory(VANILLA_DIR)) {
-            System.err.printf("Animated reference directory missing: %s%n  Run renderVanillaAnimationReferences first.%n",
-                VANILLA_DIR.toAbsolutePath());
+            System.err.printf("Posed reference directory missing: %s%n  Run the harness run that writes '%s/' first.%n",
+                VANILLA_DIR.toAbsolutePath(), GAIT.references());
             return;
         }
         Files.createDirectories(OUTPUT_DIR);
@@ -156,9 +205,9 @@ public final class TestEntityAnimationParityVanilla {
                 .filter(subject -> filter.contains(subject.key().entityId()) || filter.contains(subject.refStem()))
                 .collect(Collectors.toCollection(ArrayList::new));
 
-        System.out.printf("Animated parity sweep (vs vanilla harness): %d subjects x %d frames, ticks %d..%d to %s "
+        System.out.printf("%s parity sweep (vs vanilla harness): %d subjects x %d frames, ticks %d..%d to %s "
                 + "(unresolved harness refs: %d)%n",
-            subjects.size(), FRAME_COUNT, tickOf(0), tickOf(FRAME_COUNT - 1),
+            GAIT.preset(), subjects.size(), FRAME_COUNT, tickOf(0), tickOf(FRAME_COUNT - 1),
             OUTPUT_DIR.toAbsolutePath(), unresolved.size());
 
         long t0 = System.nanoTime();
@@ -222,7 +271,7 @@ public final class TestEntityAnimationParityVanilla {
                 .entityId(Optional.of(subject.key().entityId()))
                 .appearance(subject.key().appearance())
                 .fitMode(EntityOptions.FitMode.GROUP_BOUNDS)
-                .poseMode(EntityOptions.PoseMode.IDLE)
+                .poseMode(GAIT.preset())
                 .animation(AnimationOptions.builder()
                     .startTick(START_TICK)
                     .frameCount(FRAME_COUNT)

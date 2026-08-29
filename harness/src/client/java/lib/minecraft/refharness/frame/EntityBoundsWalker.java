@@ -131,7 +131,7 @@ final class EntityBoundsWalker implements AutoCloseable {
      * and its layers are posed by one decision.
      */
     private static boolean posesBeforeWalking() {
-        return !Boolean.getBoolean("refharness.headless") || HarnessConfig.ANIMATED;
+        return !Boolean.getBoolean("refharness.headless") || HarnessConfig.POSED;
     }
 
     /**

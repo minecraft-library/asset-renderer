@@ -39,7 +39,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <h2>When to remove this mixin</h2>
  * <b>Never, while {@code entities/} is ground truth for the mesh as authored</b> - the same answer
  * {@link SkipSetupAnimMixin} gives, this being one arm of that freeze written out per model. It
- * takes the same {@link lib.minecraft.refharness.HarnessConfig#ANIMATED ANIMATED} gate for the same
+ * takes the same {@link lib.minecraft.refharness.HarnessConfig#POSED POSED} gate for the same
  * reason: a run producing the animated reference set wants the chest bob, and one cancel left
  * standing would make the wither the only subject in it that does not move.
  *
@@ -53,7 +53,7 @@ public abstract class WitherBossModelMixin {
         at = @At("HEAD"),
         cancellable = true)
     private void refharness$skipAnimation(WitherRenderState state, CallbackInfo ci) {
-        if (!Boolean.getBoolean("refharness.headless") || HarnessConfig.ANIMATED) return;
+        if (!Boolean.getBoolean("refharness.headless") || HarnessConfig.POSED) return;
         ci.cancel();
     }
 }

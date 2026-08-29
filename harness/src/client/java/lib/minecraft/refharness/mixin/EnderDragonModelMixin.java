@@ -39,7 +39,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * {@code EnderDragonRenderer} extends {@code EntityRenderer} directly, so the redirect on
  * {@code LivingEntityRenderer.submit} never fires for it. An animated run wants the flight-cycle
  * pose and turns both off together, which is what
- * {@link lib.minecraft.refharness.HarnessConfig#ANIMATED ANIMATED} selects.
+ * {@link lib.minecraft.refharness.HarnessConfig#POSED POSED} selects.
  *
  * <p>Same {@code refharness.headless} gate as the other harness mixins so non-harness
  * consumers of this jar (if any ever exist) keep vanilla animation behaviour.
@@ -51,7 +51,7 @@ public abstract class EnderDragonModelMixin {
         at = @At("HEAD"),
         cancellable = true)
     private void refharness$skipAnimation(EnderDragonRenderState state, CallbackInfo ci) {
-        if (!Boolean.getBoolean("refharness.headless") || HarnessConfig.ANIMATED) return;
+        if (!Boolean.getBoolean("refharness.headless") || HarnessConfig.POSED) return;
         ci.cancel();
     }
 }

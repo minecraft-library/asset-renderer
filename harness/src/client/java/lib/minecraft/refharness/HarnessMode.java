@@ -42,6 +42,15 @@ public enum HarnessMode {
      * by are off for the whole boot, so no sweep that wants them can share it.
      */
     ANIMATION,
+    /**
+     * Only the animated entity references with a stride under them, written to {@code walk/}.
+     *
+     * <p>{@link #ANIMATION}'s run at a gait: the same sweep, the same schedule and the same
+     * subjects, with the two figures a stride is carried on driven rather than held at the zero a
+     * subject nothing has moved holds them at. Alone in its boot for {@link #ANIMATION}'s reason and
+     * separate from it because a subject cannot be standing still and walking in one client.
+     */
+    WALK,
     /** Only the diagnostic pitch x roll pose sweep, which writes outside the reference tree. */
     PITCH_ROLL,
     /** Only the diagnostic depth-quantum probe, which writes outside the reference tree. */
@@ -65,6 +74,7 @@ public enum HarnessMode {
         if (HarnessConfig.ARMOR_ONLY) selected.add(ARMOR);
         if (HarnessConfig.MENUS_ONLY) selected.add(MENUS);
         if (HarnessConfig.ANIMATED) selected.add(ANIMATION);
+        if (HarnessConfig.WALKING) selected.add(WALK);
         if (HarnessConfig.PITCH_ROLL_SWEEP) selected.add(PITCH_ROLL);
         if (HarnessConfig.DEPTH_QUANTUM_PROBE) selected.add(DEPTH_QUANTUM);
         if (selected.size() > 1)
@@ -86,7 +96,7 @@ public enum HarnessMode {
             case PLAYERS -> List.of(new PlayerSweep());
             case ARMOR -> List.of(new ArmorSweep());
             case MENUS -> List.of(new MenuSweep());
-            case ANIMATION -> List.of(new EntityAnimationSweep());
+            case ANIMATION, WALK -> List.of(new EntityAnimationSweep());
             case PITCH_ROLL -> List.of(new PitchRollSweep());
             case DEPTH_QUANTUM -> List.of(new DepthQuantumSweep());
         };

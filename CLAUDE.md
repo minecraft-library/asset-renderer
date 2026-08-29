@@ -123,7 +123,7 @@ list resolving.
 
 The [harness] is `harness/`, its own Gradle build with its own `gradlew`. It
 renders every subject through the real Minecraft client at a locked iso pose; those PNGs are the
-byte-stable ground truth the eight sweeps diff against, one sub-tree each under
+byte-stable ground truth the nine sweeps diff against, one sub-tree each under
 `cache/asset-renderer/vanilla/<mc>/references/`. Internals live in
 [harness/CLAUDE.md]. The Java side walks vanilla model bytecode into
 `entity_models.json` and `entity_geometry.json`.
@@ -133,9 +133,14 @@ byte-stable ground truth the eight sweeps diff against, one sub-tree each under
 - **The player and armour sweeps rescale both sides before diffing, so their delta is a LOOK gauge.**
   Their raw renders are the byte gate: `vanilla.png` / `java.png` are what the renderers produced,
   and `aligned_*.png` is the resample the delta, the diff and the panel come from.
-- **`animation/` is the one sub-tree a whole-tree run needs a second boot for**, seven sweeps
-  freezing `setupAnim` and the eighth lifting it. Every other run leaves that sub-tree exactly as it
-  found it.
+- **`animation/` and `walk/` are the two sub-trees a whole-tree run needs a further boot for**, seven
+  sweeps freezing `setupAnim` and those two lifting it. A freeze is a property of the JVM, so a run
+  that poses every subject cannot freeze any, and a run that walks every subject cannot stand one
+  still - `renderVanillaAllReferences` therefore boots three times. Every other run leaves both
+  sub-trees exactly as it found them.
+- **The two posed sub-trees are one sweep at two gaits**, `-Drefharness.walking=true` selecting the
+  second, and the asset side is one driver at `asset.parity.gait=walk`. Neither doubles: what a gait
+  changes is two render-state fields, not a work list.
 - Re-rendering refreshes ground truth and does not fix a regression, and only
   `renderVanillaAllReferences` refreshes the whole tree.
 - A reference that moves on a re-render with your change stashed was stale, not moved.

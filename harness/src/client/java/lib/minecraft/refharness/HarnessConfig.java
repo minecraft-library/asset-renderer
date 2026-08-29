@@ -131,21 +131,51 @@ public final class HarnessConfig {
 
     /**
      * When {@code true}, the harness runs <em>only</em> the {@link EntityAnimationSweep} - each
-     * entity posed at every tick of one shared schedule, under {@code animation/} - and, being the
-     * one run that wants vanilla's own animation, it is also what turns the two freezes off:
-     * {@code SkipSetupAnimMixin} lets {@code setupAnim} through and
-     * {@code FreezeAnimationStateMixin} answers {@code ageInTicks} as the frame's tick rather than
-     * as zero.
+     * entity posed at every tick of one shared schedule, under {@code animation/}, at the gait a
+     * subject standing still is in.
      *
-     * <p><b>An animated run and a frozen one cannot share a boot.</b> Both mixins decide per render
-     * from a value read once per JVM, so a run that poses one subject poses every subject - and the
-     * seven static sub-trees are defined by those freezes being in force. That is what makes this a
-     * mode of its own rather than an option on {@link lib.minecraft.refharness.sweep.EntitySweep},
-     * and why {@link #EVERY_SWEEP} does not run it: the task that refreshes the whole tree boots the
-     * client twice. Pair with {@code -PrefharnessAnimated=true} on
+     * <p>What turns the freezes off is {@link #POSED} rather than this, because
+     * {@link #WALKING} needs them off too. Pair with {@code -PrefharnessAnimated=true} on
      * {@code renderVanillaAnimationReferences}.
      */
     public static final boolean ANIMATED = Boolean.getBoolean("refharness.animated");
+
+    /**
+     * When {@code true}, the harness runs <em>only</em> the animated entity sweep with a stride
+     * under it, writing to {@code walk/} rather than to {@code animation/} - every subject posed at
+     * every tick of the same schedule, walking as hard as vanilla ever clamps a subject to walk.
+     *
+     * <p><b>It implies {@link #ANIMATED} and is not the same run.</b> A stride reaches a model only
+     * through {@code setupAnim}, so the freezes have to be off for this too; what it adds is that
+     * {@code FreezeAnimationStateMixin} answers the two figures a gait is carried on from the
+     * schedule instead of pinning them at zero. The two sets are two sub-trees because they are two
+     * poses of one subject at one tick - the asset-renderer renders {@code IDLE} against one and
+     * {@code WALK} against the other - so a run that drove the stride into {@code animation/} would
+     * move every row of a promoted gate rather than adding a second one.
+     *
+     * <p>Pair with {@code -PrefharnessWalking=true} on {@code renderVanillaWalkReferences}.
+     */
+    public static final boolean WALKING = Boolean.getBoolean("refharness.walking");
+
+    /**
+     * Whether this run draws the mesh its model poses rather than the mesh as authored, which is
+     * what turns the two freezes off: {@code SkipSetupAnimMixin} lets {@code setupAnim} through and
+     * {@code FreezeAnimationStateMixin} answers {@code ageInTicks} as the frame's tick rather than
+     * as zero.
+     *
+     * <p><b>A posed run and a frozen one cannot share a boot.</b> Both mixins decide per render from
+     * a value read once per JVM, so a run that poses one subject poses every subject - and the seven
+     * static sub-trees are defined by those freezes being in force. That is what makes each posed
+     * run a mode of its own rather than an option on
+     * {@link lib.minecraft.refharness.sweep.EntitySweep}, and why {@link #EVERY_SWEEP} runs neither:
+     * the task that refreshes the whole tree boots the client once per posed sub-tree beside it.
+     *
+     * <p><b>It is the gait that separates the two posed runs, not the freeze.</b> Both lift the same
+     * freezes and sample the same schedule; {@link #WALKING} additionally drives the two figures a
+     * stride is carried on, which every other run leaves at the zero a subject standing still holds
+     * them at.
+     */
+    public static final boolean POSED = ANIMATED || WALKING;
 
     /**
      * Diagnostic flag: when {@code true}, the entity sweeper renders the first filtered

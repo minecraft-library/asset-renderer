@@ -32,11 +32,45 @@ public final class AnimationClock {
     public static volatile int tick;
 
     /**
+     * The stride amplitude a walking run drives, which MUST match the asset-renderer's
+     * {@code PoseKit.WALK_AMPLITUDE}.
+     *
+     * <p>The full one: vanilla clamps what it accumulates into {@code walkAnimationSpeed} to one, so
+     * a subject here is walking as hard as anything ever does and every lesser gait is a fraction of
+     * the same curve. It is also what the phase advances by per tick, the two being one schedule
+     * rather than two inputs - vanilla steps the phase BY the amplitude once a tick rather than
+     * deriving it from the clock, so a run setting one without the other has described no gait.
+     */
+    public static final float WALK_AMPLITUDE = 1.0f;
+
+    /**
      * Returns the elapsed age a render state is stamped with.
      *
-     * @return the armed tick when this run animates, and zero when it freezes
+     * @return the armed tick when this run poses, and zero when it freezes
      */
     public static float ageInTicks() {
-        return HarnessConfig.ANIMATED ? tick : 0.0f;
+        return HarnessConfig.POSED ? tick : 0.0f;
+    }
+
+    /**
+     * Returns how hard the subject is walking.
+     *
+     * @return the full amplitude on a walking run, and zero on every other
+     */
+    public static float walkAnimationSpeed() {
+        return HarnessConfig.WALKING ? WALK_AMPLITUDE : 0.0f;
+    }
+
+    /**
+     * Returns how far through its stride the subject is.
+     *
+     * <p>The tick times the amplitude, because vanilla accumulates the phase by the amplitude once a
+     * tick. A frozen run and an idle one both answer zero, which is what a subject nothing has moved
+     * holds it at.
+     *
+     * @return the armed tick's phase on a walking run, and zero on every other
+     */
+    public static float walkAnimationPos() {
+        return HarnessConfig.WALKING ? tick * WALK_AMPLITUDE : 0.0f;
     }
 }

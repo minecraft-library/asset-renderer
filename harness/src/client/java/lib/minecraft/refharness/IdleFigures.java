@@ -203,7 +203,7 @@ public final class IdleFigures {
      * @return whether that field belongs to the selected member
      */
     public static boolean selects(State selected, State factor) {
-        if (!HarnessConfig.ANIMATED) return false;
+        if (!HarnessConfig.POSED) return false;
         return selected == factor;
     }
 
@@ -241,7 +241,7 @@ public final class IdleFigures {
      * @return its value at the armed tick
      */
     public static float at(float rest, float extent, Shape shape) {
-        if (!HarnessConfig.ANIMATED) return rest;
+        if (!HarnessConfig.POSED) return rest;
         float phase = Math.floorMod(AnimationClock.tick, PERIOD_TICKS) / (float) PERIOD_TICKS;
         float travel = shape == Shape.CYCLE ? phase : 1f - Math.abs(2f * phase - 1f);
         return rest + (extent - rest) * travel;

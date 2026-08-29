@@ -56,6 +56,18 @@ class IdleFigureMirrorTest {
     private static final Path TOOLING =
         Path.of("tooling/src/main/java/lib/minecraft/renderer/tooling/animation/PoseFlow.java");
 
+    /** Where this renderer declares the amplitude its own gait preset walks at. */
+    private static final Path ASSET_STRIDE =
+        Path.of("src/main/java/lib/minecraft/renderer/engine/kit/PoseKit.java");
+
+    /** Where the harness declares the amplitude it drives a walking reference at. */
+    private static final Path HARNESS_STRIDE =
+        Path.of("harness/src/client/java/lib/minecraft/refharness/AnimationClock.java");
+
+    /** The stride amplitude, read as a value rather than as text - the two spell the literal apart. */
+    private static final Pattern AMPLITUDE =
+        Pattern.compile("WALK_AMPLITUDE = ([0-9]*\\.?[0-9]+)f;");
+
     /** The generator's set, whose members are string literals across however many lines it wraps to. */
     private static final Pattern DRIVEN =
         Pattern.compile("Set<String> DRIVEN = Set\\.of\\(([^;]*)\\);", Pattern.DOTALL);
@@ -158,6 +170,25 @@ class IdleFigureMirrorTest {
                 + "never-ticked subject takes, whatever a caller selects - which cost the rabbit's "
                 + "head 55.73 of delta. A field the generator keeps symbolic and no roster names "
                 + "reads zero at every tick, which is the subject nothing has ticked");
+    }
+
+    @Test
+    @DisplayName("the stride the harness drives is the amplitude this renderer poses at")
+    void theStrideAmplitudeIsOneAmplitude() throws IOException {
+        assertEquals(amplitudeOf(ASSET_STRIDE), amplitudeOf(HARNESS_STRIDE),
+            "the amplitude this renderer's gait preset walks at and the one the harness drives a "
+                + "walking reference at have parted. It is the phase as well as the speed - vanilla "
+                + "accumulates the phase BY the amplitude once a tick - so a value that moved on one "
+                + "side only puts the two sides at different points of different strides and reports "
+                + "the whole corpus as a defect in this renderer");
+    }
+
+    /** The stride amplitude one source declares, as a value. */
+    private static float amplitudeOf(Path source) throws IOException {
+        Matcher declared = AMPLITUDE.matcher(Files.readString(source));
+        assertTrue(declared.find(),
+            "no stride amplitude matched in " + source + " - the pattern has drifted");
+        return Float.parseFloat(declared.group(1));
     }
 
     /** Every member of the generator's driven set, read as text - it is another build's private. */

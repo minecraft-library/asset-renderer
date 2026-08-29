@@ -185,6 +185,19 @@ register<JavaExec>("entityAnimationParityVanilla") {
     // script, the same way they reach the still sweep beside it.
 }
 
+register<JavaExec>("entityWalkParityVanilla") {
+    description = "Per-entity WALK parity report: the same driver as entityAnimationParityVanilla with the stride driven on both sides, comparing the Java pipeline at PoseMode.WALK against cache/.../references/walk/<entity>/frame_NNN.png. Writes to cache/visual/entity-walk-parity-vanilla/. Run renderVanillaWalkReferences first. -PentityId=minecraft:zombie"
+    group = "visual"
+    // ONE driver and a gait property, never a second class: the subjects, the schedule, the naming
+    // and every artifact written are the same, so two copies could only ever differ in how they
+    // measured rather than in what they measured.
+    mainClass.set("lib.minecraft.renderer.visual.TestEntityAnimationParityVanilla")
+    classpath = sourceSets["test"].runtimeClasspath
+    systemProperty("asset.parity.gait", "walk")
+    val entityId = project.findProperty("entityId") as String?
+    args = if (entityId != null) listOf(entityId) else listOf()
+}
+
 register<JavaExec>("blockParityVanilla") {
     description = "Per-block parity report comparing Java pipeline vs vanilla-reference-harness ground truth. Output -> cache/visual/block-parity-vanilla/<block>/. Run renderVanillaReferences first if the cache is missing. -PblockId=minecraft:tnt"
     group = "visual"

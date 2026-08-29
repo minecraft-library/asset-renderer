@@ -633,7 +633,8 @@ val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDum
 // because it is in the tree - the reference manifest walks the root for images at any depth, so a
 // sub-tree left out of the list is one every partial run stops naming while the manifest goes on
 // hashing it.
-val referenceSubTrees = listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "animation")
+val referenceSubTrees =
+    listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "animation", "walk")
 
 /** The whole-suite producers, which order a capture step but are never finalized by one. */
 val paritySuiteProducers = setOf("test", "slowTest")
@@ -1073,17 +1074,26 @@ tasks {
         "of one schedule, with vanilla's own setupAnim running. The two freezes are off for the whole boot, " +
         "which is why no other sweep shares it. Then run entityAnimationParityVanilla.")
 
+    registerHarnessRun("renderVanillaWalkReferences", "refharnessWalking", "WALK", true,
+        listOf("walk"),
+        "Runs the harness in WALK mode: references/walk/ only - the ANIMATION run's own subjects and " +
+        "schedule with a stride driven under them, so the two figures a gait is carried on hold the " +
+        "amplitude vanilla clamps them to rather than the zero a subject nothing has moved holds. " +
+        "Then run entityWalkParityVanilla.")
+
     registerHarnessRun("renderVanillaAllReferences", "refharnessEverySweep", "EVERY", true, referenceSubTrees,
-        "Runs every frozen sweep in ONE client boot, then the animated pass in a second one, and writes the " +
-        "whole reference tree. ~152 s for the first, which is 43 s cheaper than the three narrower tasks run " +
-        "separately. The only task that can leave no sub-tree stale.")
-        // The second boot, and the reason there is one: a mixin configuration is a property of the
-        // JVM, so the run that poses every subject cannot also be the run that freezes every subject.
-        // An edge rather than a sweep in the EVERY arm, because what differs is the client rather
-        // than the work list - and it is here rather than left to an operator for the reason this
-        // task exists at all, which is that relying on the narrow runs left stale ground truth on
-        // disk twice. It is what keeps the sentence above true with an eighth sub-tree in the tree.
-        .configure { dependsOn("renderVanillaAnimationReferences") }
+        "Runs every frozen sweep in ONE client boot, then each posed pass in a boot of its own, and writes " +
+        "the whole reference tree. ~152 s for the first, which is 43 s cheaper than the three narrower tasks " +
+        "run separately. The only task that can leave no sub-tree stale.")
+        // The further boots, and the reason there are any: a mixin configuration is a property of the
+        // JVM, so the run that poses every subject cannot also be the run that freezes every subject
+        // - and the run that walks every subject cannot be the one that stands them still, for the
+        // same reason one rung down. Edges rather than sweeps in the EVERY arm, because what differs
+        // is the client rather than the work list - and they are here rather than left to an
+        // operator for the reason this task exists at all, which is that relying on the narrow runs
+        // left stale ground truth on disk twice. They are what keeps the sentence above true with
+        // two posed sub-trees in the tree.
+        .configure { dependsOn("renderVanillaAnimationReferences", "renderVanillaWalkReferences") }
 
     registerHarnessRun("renderVanillaPitchRollProbe", "refharnessPitchRollSweep", "PITCH_ROLL", true, emptyList(),
         "Harness PITCH_ROLL probe: renders the first -PrefharnessTargets subject over a 24x24 pitch/roll " +

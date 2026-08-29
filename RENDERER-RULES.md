@@ -451,8 +451,25 @@ phase is the tick times the amplitude and a caller setting one without the other
 gait. The amplitude is the full one, vanilla clamping what it accumulates to one. The vocabulary is
 a caller's coinage rather than vanilla's - vanilla carries `walkAnimationPos` and
 `walkAnimationSpeed` and no `WALK` constant - so it stays in `option/` and moves no store reach.
-**`WALK` has no vanilla reference**: the animated set was drawn from a never-ticked subject, which
-walks at no speed, so it renders and is not gated until the harness drives a stride too.
+
+**`WALK` has a vanilla reference of its own, and it is `walk/`.** The harness drives the same two
+figures at the same amplitude under `-Drefharness.walking=true`, which is the animated run with a
+stride rather than a run of its own - `AnimationClock.WALK_AMPLITUDE` and `PoseKit.WALK_AMPLITUDE`
+are held to one another by `IdleFigureMirrorTest`, because the amplitude is the phase as well as the
+speed and a value that moved on one side puts the two at different points of different strides.
+`entityWalkParityVanilla` is the sweep, and it is `entityAnimationParityVanilla`'s own driver at
+`asset.parity.gait=walk`: one implementation, so a divergence between the two reports cannot be a
+divergence in how they were measured.
+
+- **A stride reaches only what reads one**, which is measured rather than assumed: 29 of the 90
+  subjects render byte-identical between `animation/` and `walk/`, and `rabbit_brown` and `bat` carry
+  the same delta to the digit under both presets.
+- **A model may declare more than one walk-gated clip, and vanilla plays one.** `ClipKit` accumulates
+  every site whose gate answers, which is right for the state-driven ones - the selection is a
+  one-hot, so at most one answers - and has no counterpart for a walk-driven one, whose gate is the
+  stride itself and answers for every site at once. The corpus's three two-clip models are the whole
+  of the WALK table's top: a copper golem walking and walking-with-an-item, a sniffer walking and
+  sniff-searching, a frog walking and swimming.
 
 **`BIND` is the default and hands back the very instance it was given.** Identity, not equality: an
 equal copy is still a copy, and every float in it is one the authored path never computed. The same

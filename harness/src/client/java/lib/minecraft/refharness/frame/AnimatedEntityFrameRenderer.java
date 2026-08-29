@@ -88,7 +88,7 @@ public final class AnimatedEntityFrameRenderer implements AutoCloseable {
      * refusal rather than a warning.
      */
     private static void armAt(int tick) {
-        if (!HarnessConfig.ANIMATED)
+        if (!HarnessConfig.POSED)
             throw new IllegalStateException(
                 "An animated render needs -Drefharness.animated=true: the freezes read it once per "
                     + "JVM, so without it every tick of the schedule draws the same still");

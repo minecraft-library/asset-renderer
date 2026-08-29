@@ -82,6 +82,10 @@ loom {
             // the whole boot - which is why it is its own run rather than a sweep the whole-tree
             // mode could pick up. Driven by renderVanillaAnimationReferences.
             optionalProperty("refharnessAnimated")?.let { property("refharness.animated", it) }
+            // The same posed run at a gait, under walk/ - it lifts the same freezes and additionally
+            // drives walkAnimationPos / walkAnimationSpeed, which every other run holds at zero.
+            // Driven by renderVanillaWalkReferences.
+            optionalProperty("refharnessWalking")?.let { property("refharness.walking", it) }
             optionalProperty("refharnessBoundsDump")?.let { property("refharness.boundsDump", it) }
             // Per-triangle screen-coord dump - mirror of asset-renderer ModelEngine's prop.
             // Usage: -PentityPixelDump=21,0,21,800 (one column slice for witch x=21 hunt)

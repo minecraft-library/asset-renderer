@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.sweep;
 
+import lib.minecraft.refharness.HarnessConfig;
 import lib.minecraft.refharness.api.Appearance;
 import lib.minecraft.refharness.api.AppearanceRequest;
 import lib.minecraft.refharness.api.Bounds;
@@ -34,6 +35,12 @@ import java.util.stream.IntStream;
  * renders and what 88 of the 90 modelled entities would move away from the moment the freeze came
  * off. So the two are produced by two runs of the client with two mixin configurations, and this one
  * is selected by {@code -Drefharness.animated=true}.
+ *
+ * <p><b>It writes two sub-trees and which one is a gait rather than a work list.</b>
+ * {@code -Drefharness.walking=true} drives the two figures a stride is carried on and sends the same
+ * subjects at the same ticks to {@code walk/} instead, which is what the asset-renderer's
+ * {@code WALK} preset is compared against. Everything below is shared by both because nothing below
+ * is a function of the gait: the subjects, the schedule, the canvas pre-pass and the naming.
  *
  * <p><b>One subject per entity, at its default appearance.</b> The still sweep enumerates coats,
  * babies and per-axis selections because those are what a texture, a mesh and an appearance gate
@@ -110,9 +117,19 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
         return IntStream.range(0, FRAME_COUNT).mapToObj(frame -> START_TICK + frame * TICKS_PER_FRAME).toList();
     }
 
+    /**
+     * The sub-tree this run writes, which is the gait it renders rather than the sweep that renders
+     * it.
+     *
+     * <p>One sweep and two sub-trees, because what separates them is a pair of render-state fields
+     * and not a work list: the subjects, the schedule, the canvas pass and the naming are the same
+     * on both, and the asset-renderer compares one against {@code IDLE} and the other against
+     * {@code WALK}. Driving the stride into {@code animation/} instead would move every row of a
+     * promoted gate rather than adding a second one.
+     */
     @Override
     public String outputDir() {
-        return "animation";
+        return HarnessConfig.WALKING ? "walk" : "animation";
     }
 
     @Override

@@ -62,7 +62,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * writes a {@code ModelPart} pose, so deleting it moves essentially the whole {@code entities/}
  * tree, and the asset-renderer's own default renders the mesh as authored. The animated pose is a
  * second reference set rather than a replacement for this one, and
- * {@link lib.minecraft.refharness.HarnessConfig#ANIMATED ANIMATED} is what selects between them -
+ * {@link lib.minecraft.refharness.HarnessConfig#POSED POSED} is what selects between them -
  * a whole-run switch, because both redirects decide per render and a run producing one kind of
  * reference cannot produce the other.
  *
@@ -79,7 +79,7 @@ public abstract class SkipSetupAnimMixin {
         require = 0
     )
     private void refharness$skipLivingEntityRendererSetupAnim(EntityModel<?> model, Object state) {
-        if (Boolean.getBoolean("refharness.headless") && !HarnessConfig.ANIMATED) return;
+        if (Boolean.getBoolean("refharness.headless") && !HarnessConfig.POSED) return;
         @SuppressWarnings({"unchecked", "rawtypes"})
         EntityModel raw = model;
         raw.setupAnim(state);
@@ -91,7 +91,7 @@ public abstract class SkipSetupAnimMixin {
         require = 0
     )
     private void refharness$skipFeatureRendererSetupAnim(Model<?> model, Object state) {
-        if (Boolean.getBoolean("refharness.headless") && !HarnessConfig.ANIMATED) return;
+        if (Boolean.getBoolean("refharness.headless") && !HarnessConfig.POSED) return;
         @SuppressWarnings({"unchecked", "rawtypes"})
         Model raw = model;
         raw.setupAnim(state);
