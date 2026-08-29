@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
+import lib.minecraft.refharness.IdleFigures;
 import net.minecraft.client.model.monster.witch.WitchModel;
 import net.minecraft.client.renderer.entity.WitchRenderer;
 import net.minecraft.client.renderer.entity.state.WitchRenderState;
@@ -21,10 +22,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * fresh entity per frame. Two runs of the same schedule drew two different noses on every tick but
  * the first, which is the whole of what stopped the animated reference set reproducing.
  *
- * <p>Zero rather than a value picked to look right: the asset-renderer's pose evaluator answers a
- * render-state input nothing supplies at its resting value, and an {@code int} field no constructor
- * writes rests at zero. So the pin is what the two sides already agree on rather than a constant one
- * of them was fitted to.
+ * <p><b>A pin still, and the value is now a choice both sides declare.</b> It was zero, which is
+ * what an {@code int} field no constructor writes rests at - so the two sides agreed without either
+ * of them choosing. They agreed on a nose that never moves: zero is the one frequency in ten at
+ * which the bob is constant. {@link IdleFigures#PINNED_ENTITY_ID} carries the chosen value and the
+ * asset side declares the identical number, held together by {@code IdleFigureMirrorTest} - the same
+ * terms an idle excursion is legitimate on.
  *
  * <h2>Where the pin sits</h2>
  * On {@link WitchRenderer} rather than on the base, for the subclass-ordering reason every pin here
@@ -50,6 +53,6 @@ public abstract class WitchNoseMixin {
         Witch entity, WitchRenderState state, float partialTick, CallbackInfo ci) {
 
         if (!Boolean.getBoolean("refharness.headless")) return;
-        state.entityId = 0;
+        state.entityId = IdleFigures.PINNED_ENTITY_ID;
     }
 }

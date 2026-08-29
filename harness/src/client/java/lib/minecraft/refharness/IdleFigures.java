@@ -34,6 +34,24 @@ public final class IdleFigures {
     public static final int PERIOD_TICKS =
         EntityAnimationSweep.FRAME_COUNT * EntityAnimationSweep.TICKS_PER_FRAME;
 
+    /**
+     * The network id every harness-built subject renders at, which MUST match the asset side's
+     * declared {@code entityId} rest.
+     *
+     * <p>Vanilla spreads an idle animation across a crowd by seeding it from the entity's own id, and
+     * that id comes off a counter over everything the client has ever built - so it reads as
+     * deterministic per subject and is not, and two runs of one schedule drew two different noses.
+     * Pinning it is what makes the set reproduce; WHICH value is a choice, and it is this one.
+     *
+     * <p><b>Nine because the excursion is the point.</b> A witch's nose turns by
+     * {@code sin(ageInTicks * 0.01 * (entityId % 10))}, so the id picks a frequency and nothing else.
+     * Zero is the one frequency in ten at which the bob is a constant, which is a subject held still
+     * rather than one animated; nine is the highest, shows the most of the cycle inside one strip,
+     * and every lower frequency is a fraction of the same curve - the same argument
+     * {@link AnimationClock#WALK_AMPLITUDE} rests on.
+     */
+    public static final int PINNED_ENTITY_ID = 9;
+
     /** How a scalar figure travels between the value it rests at and the one it reaches. */
     public enum Shape {
 

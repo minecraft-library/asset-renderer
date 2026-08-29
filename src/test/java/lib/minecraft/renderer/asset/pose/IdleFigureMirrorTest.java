@@ -64,9 +64,17 @@ class IdleFigureMirrorTest {
     private static final Path HARNESS_STRIDE =
         Path.of("harness/src/client/java/lib/minecraft/refharness/AnimationClock.java");
 
+    /** Where the harness declares the network id it renders every subject at. */
+    private static final Path HARNESS_STRIDE_ID =
+        Path.of("harness/src/client/java/lib/minecraft/refharness/IdleFigures.java");
+
     /** The stride amplitude, read as a value rather than as text - the two spell the literal apart. */
     private static final Pattern AMPLITUDE =
         Pattern.compile("WALK_AMPLITUDE = ([0-9]*\\.?[0-9]+)f;");
+
+    /** The network id both sides render every subject at, spelled apart for the same reason. */
+    private static final Pattern PINNED_ID =
+        Pattern.compile("(?:PINNED_ENTITY_ID = |\"entityId\", )([0-9]+)f?");
 
     /** The generator's set, whose members are string literals across however many lines it wraps to. */
     private static final Pattern DRIVEN =
@@ -181,6 +189,23 @@ class IdleFigureMirrorTest {
                 + "accumulates the phase BY the amplitude once a tick - so a value that moved on one "
                 + "side only puts the two sides at different points of different strides and reports "
                 + "the whole corpus as a defect in this renderer");
+    }
+
+    @Test
+    @DisplayName("the id the harness renders every subject at is the one the generator folded")
+    void thePinnedEntityIdIsOneId() throws IOException {
+        assertEquals(valueOf(TOOLING, PINNED_ID), valueOf(HARNESS_STRIDE_ID, PINNED_ID),
+            "the network id the generator folded a pose against and the one the harness renders at "
+                + "have parted. It picks a FREQUENCY - a witch's nose turns by "
+                + "sin(age * 0.01 * (id % 10)) - so two values are two animations, and the shipped "
+                + "table carries one of them baked while the reference set shows the other");
+    }
+
+    /** One declared value, read as a number - the two builds spell the literal apart. */
+    private static float valueOf(Path source, Pattern shape) throws IOException {
+        Matcher declared = shape.matcher(Files.readString(source));
+        assertTrue(declared.find(), "no value matched in " + source + " - the pattern has drifted");
+        return Float.parseFloat(declared.group(1));
     }
 
     /** The stride amplitude one source declares, as a value. */

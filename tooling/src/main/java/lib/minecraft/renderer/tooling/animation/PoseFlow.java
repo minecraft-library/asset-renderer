@@ -83,7 +83,7 @@ public final class PoseFlow {
         "idleHeadTiltAnimationState");
 
     /**
-     * What a render-state boolean rests at when its entity answers it out of synched data.
+     * What a render-state figure rests at where no constructor settles it and a zero would be wrong.
      *
      * <p><b>Every figure this table does not name rests at zero, and for a boolean that is usually
      * right</b> - a fresh subject is not swimming, not searching, not attacking. It is wrong exactly
@@ -102,10 +102,23 @@ public final class PoseFlow {
      *   <li><b>{@code canMove}</b> - {@code Creaking.defineSynchedData} calls
      *       {@code builder.define(CAN_MOVE, true)}, and {@code Creaking.canMove()} returns that get
      *       unconditionally. Its model plays the walk clip only under it, so a resting zero drops
-     *       the clip vanilla is playing.</li>
+     *       the clip vanilla is playing. A read fact, reached through a token no walk here has a
+     *       term for.</li>
+     *   <li><b>{@code entityId}</b> - a CHOSEN value rather than a read one, and the only entry
+     *       here that is. {@code WitchModel} bobs its nose at {@code 0.01 * (entityId % 10)}, and an
+     *       id is a counter over every entity the client has built - so it is deterministic per
+     *       subject only by accident, and the harness has always pinned it. Pinned at zero it is the
+     *       one frequency in ten at which the bob is a constant, which drew a nose that never moves
+     *       on both sides and agreed about it. <b>Nine because the excursion is the point</b>: the
+     *       frequency is a multiplier, so the highest of the ten shows the most of the cycle inside
+     *       one strip and every lower one is a fraction of the same curve - the same argument the
+     *       stride amplitude rests on. It is a caller's coinage, legitimate on the same terms as an
+     *       idle excursion: the harness answers the identical number, and
+     *       {@code IdleFigureMirrorTest} holds the two together.</li>
      * </ul>
      */
-    private static final @NotNull Map<String, Float> SYNCHED_RESTS = Map.of("canMove", 1f);
+    private static final @NotNull Map<String, Float> DECLARED_RESTS =
+        Map.of("canMove", 1f, "entityId", 9f);
 
     /**
      * What separates a pose key from the frame it stands for, where one class poses more than one
@@ -155,11 +168,11 @@ public final class PoseFlow {
         // Resolved before anything is written, because the fold reads all three: what the walk left
         // is a program over the render state, and these are what that state answers at rest.
         // The resolved seeds first, then the declared ones on top: a field the render state's own
-        // constructor settles is read rather than declared, and SYNCHED_RESTS speaks only for the
+        // constructor settles is read rather than declared, and DECLARED_RESTS speaks only for the
         // fields no constructor touches.
         Map<String, Float> defaults = new LinkedHashMap<>(
             InputDefaultResolver.resolve(session.cache(), InputDefaultResolver.namedBy(walked), diagnostics));
-        SYNCHED_RESTS.forEach(defaults::putIfAbsent);
+        DECLARED_RESTS.forEach(defaults::putIfAbsent);
         Map<String, Map<String, String>> derivedByState =
             InputDefaultResolver.derived(session.cache(), InputDefaultResolver.namedBy(walked),
                 DRIVEN, diagnostics);
