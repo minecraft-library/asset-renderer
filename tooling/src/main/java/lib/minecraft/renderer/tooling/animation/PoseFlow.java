@@ -83,6 +83,31 @@ public final class PoseFlow {
         "idleHeadTiltAnimationState");
 
     /**
+     * What a render-state boolean rests at when its entity answers it out of synched data.
+     *
+     * <p><b>Every figure this table does not name rests at zero, and for a boolean that is usually
+     * right</b> - a fresh subject is not swimming, not searching, not attacking. It is wrong exactly
+     * where vanilla's own {@code defineSynchedData} declares the accessor's backing value as
+     * something else, and then the zero is not a resting value but a value nobody read.
+     *
+     * <p>{@link InputDefaultResolver} cannot reach these. It reads what a render state's own
+     * CONSTRUCTOR settles, and a field like this one is not constructed at all - it is assigned in
+     * {@code extractRenderState} from an accessor whose body is
+     * {@code entityData.get(<static accessor>)}, so the value lives in a builder call in a different
+     * class and travels through a token the walk has no term for.
+     *
+     * <p>Declared with its provenance rather than fitted, one entry per line:
+     *
+     * <ul>
+     *   <li><b>{@code canMove}</b> - {@code Creaking.defineSynchedData} calls
+     *       {@code builder.define(CAN_MOVE, true)}, and {@code Creaking.canMove()} returns that get
+     *       unconditionally. Its model plays the walk clip only under it, so a resting zero drops
+     *       the clip vanilla is playing.</li>
+     * </ul>
+     */
+    private static final @NotNull Map<String, Float> SYNCHED_RESTS = Map.of("canMove", 1f);
+
+    /**
      * What separates a pose key from the frame it stands for, where one class poses more than one
      * way.
      *
@@ -129,8 +154,12 @@ public final class PoseFlow {
 
         // Resolved before anything is written, because the fold reads all three: what the walk left
         // is a program over the render state, and these are what that state answers at rest.
-        Map<String, Float> defaults =
-            InputDefaultResolver.resolve(session.cache(), InputDefaultResolver.namedBy(walked), diagnostics);
+        // The resolved seeds first, then the declared ones on top: a field the render state's own
+        // constructor settles is read rather than declared, and SYNCHED_RESTS speaks only for the
+        // fields no constructor touches.
+        Map<String, Float> defaults = new LinkedHashMap<>(
+            InputDefaultResolver.resolve(session.cache(), InputDefaultResolver.namedBy(walked), diagnostics));
+        SYNCHED_RESTS.forEach(defaults::putIfAbsent);
         Map<String, Map<String, String>> derivedByState =
             InputDefaultResolver.derived(session.cache(), InputDefaultResolver.namedBy(walked),
                 DRIVEN, diagnostics);

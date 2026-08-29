@@ -132,16 +132,48 @@ final class PoseFold {
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> fold.channels(entry.getValue()),
                 (a, b) -> b, LinkedHashMap::new));
 
+        // A site whose branches the frame decides against is DROPPED rather than shipped with a
+        // condition nothing would read: the residual is what the tick can still move, and a clip a
+        // resting subject can never reach is not that. Which is also why the survivors' conditions
+        // are asserted constant rather than emitted - a table member no reader has would be a
+        // silently ignored gate, and a walk clip whose test the fold cannot settle is a shape the
+        // corpus does not have. The three models that choose between two walk clips all test
+        // something a resting subject answers: a frog's `isSwimming`, a copper golem's two
+        // `isEmpty` questions, a sniffer's own state.
         List<PoseClipSite> clips = program.clipSites()
             .stream()
             .map(site -> new PoseClipSite(site.clip(), site.drive(), site.state(), site.arguments()
                 .stream()
                 .map(fold::expression)
-                .collect(Collectors.toUnmodifiableList())))
+                .collect(Collectors.toUnmodifiableList()), fold.expression(site.condition())))
+            .filter(site -> reaches(site, program.model()))
             .collect(Collectors.toList());
 
         return new PoseProgram(program.model(), List.copyOf(container),
             Map.copyOf(bones), List.copyOf(clips));
+    }
+
+    /**
+     * Whether a folded site is one this subject can reach at all.
+     *
+     * <p>Refuses rather than answers where the fold left the condition standing. A shipped site
+     * carries no condition, so one that still depends on something would be read as unconditional -
+     * a clip playing under a test nobody applies, which is the shape that put two walk clips on one
+     * subject in the first place. Stopping the flow says which model and which clip, where a silent
+     * pass says nothing until a render is looked at.
+     *
+     * @param site the folded site
+     * @param model the model being folded, named in the refusal
+     * @return whether the site survives into the residual
+     * @throws IllegalStateException if the fold could not settle the site's condition
+     */
+    private static boolean reaches(@NotNull PoseClipSite site, @NotNull String model) {
+        OptionalDouble settled = site.condition().constantValue();
+        if (settled.isEmpty())
+            throw new IllegalStateException(model + " plays '" + site.clip()
+                + "' under a branch the fold could not settle, and a shipped site carries no "
+                + "condition - so it would play whatever that branch decided");
+        return settled.getAsDouble() != 0d;
     }
 
     /**

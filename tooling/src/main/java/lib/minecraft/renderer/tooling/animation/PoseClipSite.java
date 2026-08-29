@@ -28,17 +28,51 @@ import java.util.List;
  * is a subject nothing has ticked. The field is a render-state member like any other, so it is
  * answered where every other figure is.
  *
+ * <p><b>A site also keeps the branch it sits inside, and a walk-driven one is why.</b> A state's own
+ * gate is the whole of its condition - the field says which clip is running - so a state-driven site
+ * inside a branch needs nothing further. A walk-driven gate is the stride itself, which answers for
+ * every site at once, so a model that chooses between two walk clips chooses with an ordinary
+ * {@code if}: a frog swims or walks on {@code isSwimming}, a copper golem walks or walks-with-an-item
+ * on whether either hand is empty. A walk that recorded both arms and dropped the test would ship a
+ * model playing both clips over each other, which is a pose vanilla never draws.
+ *
  * @param clip the clip coordinate, in the same {@code Class#member} spelling the clip table is keyed by
  * @param drive what decides whether the clip contributes
  * @param state the render-state field the gate reads, empty where the drive is not a state
  * @param arguments the numeric arguments the call passes, in declaration order
+ * @param condition what the branches this site sits inside decided, as an expression that is
+ *     non-zero exactly where they reach it - {@link #ALWAYS} for a site no branch guards
  */
 public record PoseClipSite(
     @NotNull String clip,
     @NotNull Gate drive,
     @NotNull String state,
-    @NotNull List<PoseExpr> arguments
+    @NotNull List<PoseExpr> arguments,
+    @NotNull PoseExpr condition
 ) {
+
+    /** The condition of a site nothing guards, which is what every unbranched call carries. */
+    public static final @NotNull PoseExpr ALWAYS = PoseExpr.Const.of(1f);
+
+    /** The condition of a site the fold proved unreachable, which is what drops it from the table. */
+    public static final @NotNull PoseExpr NEVER = PoseExpr.Const.of(0f);
+
+    /**
+     * This site under one further branch.
+     *
+     * <p>Nested rather than replaced, so a clip two branches deep carries both - the outer select's
+     * false arm is zero, and a zero anywhere in the chain makes the whole condition zero.
+     *
+     * @param condition what the branch tested
+     * @param reached whether this site is on the arm the branch takes
+     * @return the site carrying the branch
+     */
+    public @NotNull PoseClipSite guarded(@NotNull PosePredicate condition, boolean reached) {
+        return new PoseClipSite(this.clip, this.drive, this.state, this.arguments,
+            reached
+                ? new PoseExpr.Select(condition, this.condition, NEVER)
+                : new PoseExpr.Select(condition, NEVER, this.condition));
+    }
 
     /**
      * What decides whether a clip contributes.

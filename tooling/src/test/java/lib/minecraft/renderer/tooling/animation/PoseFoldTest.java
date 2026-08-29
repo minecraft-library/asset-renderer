@@ -75,7 +75,8 @@ class PoseFoldTest {
         // An argument is folded like any other expression, so a frame blind to it would merge two
         // subjects the pose plays a clip at two amplitudes for.
         PoseProgram program = new PoseProgram("Model", List.of(), Map.of(),
-            List.of(new PoseClipSite("Model#clip", PoseClipSite.Gate.STATIC, "", List.of(onArmPose()))));
+            List.of(new PoseClipSite("Model#clip", PoseClipSite.Gate.STATIC, "", List.of(onArmPose()),
+                PoseClipSite.ALWAYS)));
         assertNotEquals(PoseFold.frameOf(program, EVOKER, MODEL_RESTS_NEUTRAL),
             PoseFold.frameOf(program, PILLAGER, MODEL_RESTS_NEUTRAL),
             "a clip argument names members like anything else does");

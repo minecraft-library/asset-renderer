@@ -574,7 +574,7 @@ public final class PoseWalk {
             reconciled(condition, taken.machine(), fallen.machine(), context),
             merge(condition, taken.pose(), fallen.pose()),
             mergeAssigned(condition, taken.assigned(), fallen.assigned()),
-            bothPlayed(taken.clipSites(), fallen.clipSites()));
+            bothPlayed(condition, taken.clipSites(), fallen.clipSites()));
     }
 
     /**
@@ -761,7 +761,7 @@ public final class PoseWalk {
                 reconcile(guard, arm.machine(), folded.machine()),
                 merge(guard, arm.pose(), folded.pose()),
                 mergeAssigned(guard, arm.assigned(), folded.assigned()),
-                bothPlayed(arm.clipSites(), folded.clipSites()));
+                bothPlayed(guard, arm.clipSites(), folded.clipSites()));
         }
         return folded;
     }
@@ -961,19 +961,28 @@ public final class PoseWalk {
     }
 
     /**
-     * Every clip either arm applied, in the order they were reached and without repeats.
+     * Every clip either arm applied, in the order they were reached and without repeats, each
+     * carrying the branch that reached it.
      *
-     * <p>A clip only one arm plays is still a clip the model can play, and it is recorded without a
-     * condition - which is what the clip table already says about every binding it holds, the drive
-     * being the whole of its gate. Recording it twice because both arms walked the same tail would
-     * be a fact about this walk rather than about the model.
+     * <p><b>A clip only one arm plays is a clip the model plays only there, and the condition is
+     * what says so.</b> The drive is not the whole of the gate: a state's gate names the field that
+     * decides it, but a walk's gate is the stride, which answers for every walk site at once - so
+     * two walk clips under one {@code if} would both play, over each other, at every tick a subject
+     * moves. A site both arms played is unguarded, because reaching it did not depend on the test.
+     *
+     * <p>Recording a site twice because both arms walked the same tail would be a fact about this
+     * walk rather than about the model, which is why the second copy joins the first rather than
+     * being appended beside it.
      */
     private static @NotNull List<PoseClipSite> bothPlayed(
-        @NotNull List<PoseClipSite> taken, @NotNull List<PoseClipSite> fallen) {
+        @NotNull PosePredicate condition, @NotNull List<PoseClipSite> taken,
+        @NotNull List<PoseClipSite> fallen) {
 
-        List<PoseClipSite> out = new ArrayList<>(taken);
+        List<PoseClipSite> out = new ArrayList<>();
+        for (PoseClipSite site : taken)
+            out.add(fallen.contains(site) ? site : site.guarded(condition, true));
         for (PoseClipSite site : fallen)
-            if (!out.contains(site)) out.add(site);
+            if (!taken.contains(site)) out.add(site.guarded(condition, false));
         return out;
     }
 
@@ -2361,7 +2370,8 @@ public final class PoseWalk {
         if (drive == PoseClipSite.Gate.STATE && state.isEmpty())
             throw new IllegalStateException(
                 "gates '" + clip.coordinate() + "' on an animation state it could not name");
-        context.clipSites().add(new PoseClipSite(clip.coordinate(), drive, state, List.copyOf(carried)));
+        context.clipSites().add(new PoseClipSite(clip.coordinate(), drive, state, List.copyOf(carried),
+            PoseClipSite.ALWAYS));
     }
 
     /** Which of the three drives a play site names, matching what the clip table already records. */

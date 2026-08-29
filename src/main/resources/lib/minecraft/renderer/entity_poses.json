@@ -58223,24 +58223,6 @@
       "bones": {},
       "clips": [
         {
-          "clip": "BabyAxolotlAnimation#AXOLOTL_WALK_FLOOR",
-          "gate": "walk",
-          "args": [
-            {
-              "input": "walkAnimationPos"
-            },
-            {
-              "input": "walkAnimationSpeed"
-            },
-            {
-              "const": 15.0
-            },
-            {
-              "const": 30.0
-            }
-          ]
-        },
-        {
           "clip": "BabyAxolotlAnimation#BABY_AXOLOTL_SWIM",
           "gate": "state",
           "state": "swimAnimation",
@@ -65793,24 +65775,6 @@
       },
       "clips": [
         {
-          "clip": "CopperGolemAnimation#COPPER_GOLEM_WALK_ITEM",
-          "gate": "walk",
-          "args": [
-            {
-              "input": "walkAnimationPos"
-            },
-            {
-              "input": "walkAnimationSpeed"
-            },
-            {
-              "const": 2.0
-            },
-            {
-              "const": 2.5
-            }
-          ]
-        },
-        {
           "clip": "CopperGolemAnimation#COPPER_GOLEM_IDLE",
           "gate": "state",
           "state": "idleAnimationState",
@@ -71146,24 +71110,6 @@
             },
             {
               "const": 1.5
-            },
-            {
-              "const": 2.5
-            }
-          ]
-        },
-        {
-          "clip": "FrogAnimation#FROG_SWIM",
-          "gate": "walk",
-          "args": [
-            {
-              "input": "walkAnimationPos"
-            },
-            {
-              "input": "walkAnimationSpeed"
-            },
-            {
-              "const": 1.0
             },
             {
               "const": 2.5
@@ -77654,24 +77600,6 @@
           ]
         },
         {
-          "clip": "SnifferAnimation#SNIFFER_SNIFF_SEARCH",
-          "gate": "walk",
-          "args": [
-            {
-              "input": "walkAnimationPos"
-            },
-            {
-              "input": "walkAnimationSpeed"
-            },
-            {
-              "const": 9.0
-            },
-            {
-              "const": 100.0
-            }
-          ]
-        },
-        {
           "clip": "SnifferAnimation#SNIFFER_DIG",
           "gate": "state",
           "state": "diggingAnimationState",
@@ -77737,24 +77665,6 @@
       "clips": [
         {
           "clip": "SnifferAnimation#SNIFFER_WALK",
-          "gate": "walk",
-          "args": [
-            {
-              "input": "walkAnimationPos"
-            },
-            {
-              "input": "walkAnimationSpeed"
-            },
-            {
-              "const": 9.0
-            },
-            {
-              "const": 100.0
-            }
-          ]
-        },
-        {
-          "clip": "SnifferAnimation#SNIFFER_SNIFF_SEARCH",
           "gate": "walk",
           "args": [
             {
@@ -80461,7 +80371,8 @@
     "hasStinger": 1.0,
     "showBasePlate": 1.0,
     "speedValue": 1.0,
-    "tailAngle": 0.62831855
+    "tailAngle": 0.62831855,
+    "canMove": 1.0
   },
   "rest_defaults": {
     "AllayModel": {
