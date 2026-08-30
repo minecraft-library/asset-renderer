@@ -106,12 +106,27 @@ client jar, already matches `Shading.packAsSnormByte` - an `f2i` truncation of `
 and `PoseStack$Pose` renormalises only when a scale is non-uniform in magnitude, which an entity's
 never is.
 
-**So something subject-specific reaches vanilla's shade that this side does not model, and finding it
-is the work.** The illager mesh is baked at `0.9375` where the goat carries no scale, but that is a
-geometry-time scale and leaves a normal cardinal, so it is not yet the answer. Whoever takes it should
-start by measuring a third and fourth subject's west bracket to see whether the split follows a
-family, because the subjects that improve under an `x` offset and those that regress are two clean
-lists.
+**The normal is not where it goes wrong, and that is provable rather than suspected.** A packed
+normal is a lattice point, so a face's factor can only take discrete values - a tilt small enough to
+leave a silhouette unmoved never leaves its integer bin, west's x having to travel `0.0016` to cross.
+Solving the camera-frame light out of four measured lattice points reproduces all four to eight
+places, and enumerating every integer triple within ten of west then yields NO factor inside the
+pillager's bracket at all. The goat's bracket, by contrast, holds the shipped lattice point exactly,
+and every one of its eight measured surfaces - body, nose, four legs, head, horn - reads 100% there.
+So one subject's shade is a packed normal's and the other's cannot be any packed normal's, which
+takes the normal, the lights and the grid out of it together.
+
+**What is left is a second multiplicative term on the fragment that this side does not model**, since
+what the bracket measures is really `output / texel` rather than a shade. A vertex colour that is not
+pure white, a layer submitted twice, a lightmap sample, or a render type bound per subject would each
+show up exactly this way. That is where to look, and normals are not.
+
+The illager mesh is baked at `0.9375` where the goat carries no scale, but that is a geometry-time
+scale and leaves a normal cardinal, so it is not the answer either. Worth knowing while looking: the
+emitter stores bone rotations in degrees round-tripped through float, so vanilla's `55` is written
+`54.99822` and its `22.5` is written `22.500051`, and a quadruped's body rotation is baked into cube
+positions rather than stored at all - the goat carries no body rotation where the illager carries its
+arms at `-42.971836`, which is `-0.75` radians exactly.
 
 Read a bracket with `-Dasset.entity.pixel.dump=x0,y0,x1,y1`, whose `WRITE` records carry the face,
 the texel, the tint, the factor and the output. Three traps. Group by face AND factor: grouping by the
