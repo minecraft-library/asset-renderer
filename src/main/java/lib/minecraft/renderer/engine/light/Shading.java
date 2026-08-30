@@ -19,8 +19,8 @@ import org.jetbrains.annotations.NotNull;
  * lighting entry vanilla binds for it - {@code Lighting.ITEMS_3D} for a block icon,
  * {@code Lighting.ENTITY_IN_UI} for a humanoid. The scalar rides each {@link VisibleTriangle} - baked
  * at build time by the block and fluid kits, resolved by one of the relights here over a folded entity
- * or player stack; {@link #apply} multiplies it into the rasterized texel with vanilla's round-half-up
- * GLSL quantization.
+ * or player stack; {@link #apply} multiplies it into the rasterized texel and quantizes once, at the
+ * tie point {@link #TIE_BIAS} shifts.
  *
  * @see Lighting
  */
@@ -59,9 +59,9 @@ public class Shading {
      * is exactly {@code 1.0f} and multiplying by it is exact, so {@link ColorMath#WHITE} leaves both
      * the factor and the product bit-for-bit what a bare shade would have given.
      *
-     * <p>Vanilla GLSL quantizes via {@code floor(min(1, v) * 255 + 0.5)} (round-half-up), so this
-     * matches with {@link Math#round}. A plain {@code (int)} truncation would bias every shaded
-     * channel ~0.5 LSB low. Alpha is the texel's.
+     * <p>Vanilla GLSL quantizes via {@code floor(min(1, v) * 255 + 0.5)}, so {@link #quantize} is that
+     * floor with the tie point {@link #TIE_BIAS} shifts. A plain {@code (int)} truncation would bias
+     * every shaded channel ~0.5 LSB low. Alpha is the texel's.
      *
      * @param argb the sampled ARGB texel
      * @param tintArgb the vertex tint, {@link ColorMath#WHITE} for none
@@ -70,9 +70,9 @@ public class Shading {
      */
     public static int apply(int argb, int tintArgb, float factor) {
         int a = (argb >>> 24) & 0xFF;
-        int r = Math.round(((argb >>> 16) & 0xFF) * channelScale(tintArgb >>> 16, factor));
-        int g = Math.round(((argb >>> 8) & 0xFF) * channelScale(tintArgb >>> 8, factor));
-        int b = Math.round((argb & 0xFF) * channelScale(tintArgb, factor));
+        int r = quantize(((argb >>> 16) & 0xFF) * channelScale(tintArgb >>> 16, factor));
+        int g = quantize(((argb >>> 8) & 0xFF) * channelScale(tintArgb >>> 8, factor));
+        int b = quantize((argb & 0xFF) * channelScale(tintArgb, factor));
 
         r = Math.clamp(r, 0, 255);
         g = Math.clamp(g, 0, 255);
@@ -90,6 +90,52 @@ public class Shading {
      */
     private static float channelScale(int tintChannel, float factor) {
         return (tintChannel & 0xFF) / 255f * factor;
+    }
+
+    /**
+     * Shift applied to {@link #quantize}'s tie point, absorbing the sub-LSB gap between this
+     * rasterizer's one multiply and the chain a fragment actually takes on a GPU. Empirically tuned at
+     * {@code -0.024}: vanilla's texel reaches the framebuffer through a texture fetch, a multiply by an
+     * INTERPOLATED vertex color and a float-to-{@code UNORM8} write, and what those accumulate leaves
+     * this side about a fortieth of a channel step high wherever a product lands just past a half.
+     *
+     * <p><b>A shade factor cannot absorb it</b>, which is the reason it lives here rather than in
+     * {@link Lighting}. The gap is constant in OUTPUT space rather than proportional to the texel, so it
+     * is a fortieth of a step whether a channel is {@code 30} or {@code 250} - one factor therefore
+     * over-brightens a dark texel and leaves a bright one right. Two subjects whose faces carry the same
+     * normal to eight places consequently demand factors that exclude one another, and no light
+     * direction, vertex-grid rule or rounding mode satisfies both.
+     *
+     * <p>Read off vanilla's own output bytes rather than fitted to a parity sum. Each {@code (texel,
+     * output)} pair pins the tie point to an interval; over {@code 2994216} such constraints drawn from
+     * a goat, a pillager and an evoker at five distinct shade factors, {@code 0} explains
+     * {@code 98.47%} and everything in {@code [-0.050, -0.020]} explains {@code 99.62%}.
+     *
+     * <p>The corpus response is a STEP function, each subject's texels flipping together at the bias
+     * that carries them across a half. Sweeping the animated entity sweep: {@code -0.008} gives
+     * {@code 2.7996}, {@code -0.0229} gives {@code 2.4074}, the plateau {@code [-0.0250, -0.0230]}
+     * gives {@code 2.2295} to {@code 2.2721}, and {@code -0.0255} gives {@code 2.8136}. The plateau's
+     * INTERIOR is taken rather than its {@code -0.0231} minimum, which sits one ten-thousandth from the
+     * step and would flip a large texel set under any later shading change.
+     *
+     * <p><b>Not a standard rounding mode.</b> Half-up, half-even and half-down are each a rule about an
+     * exact tie; this shifts where the tie IS, which is what a bias accumulated before the rounding
+     * looks like from the other side of it.
+     *
+     * <p>Overridable via {@code -Dasset.shade.tieBias=N} for empirical sweeps. {@code 0} restores plain
+     * round-half-up. Every pipeline that shades a texel reads this one constant - entity, player, block
+     * icon and item alike, since all of them arrive through {@link #apply}.
+     */
+    private static final float TIE_BIAS = Float.parseFloat(System.getProperty("asset.shade.tieBias", "-0.024"));
+
+    /**
+     * Quantizes one shaded channel to a byte, at the tie point {@link #TIE_BIAS} shifts.
+     *
+     * @param v the shaded channel value
+     * @return the channel rounded to an integer
+     */
+    private static int quantize(float v) {
+        return (int) Math.floor(v + 0.5f + TIE_BIAS);
     }
 
     // --- block-icon ITEMS_3D relighting (moved out of BlockRenderer) ---

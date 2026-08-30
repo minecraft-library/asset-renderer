@@ -27,9 +27,12 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * The pixel-level shade application and the block-icon relight pass.
  * <p>
- * {@link Shading#apply} is pinned on its quantization: it rounds half up, as vanilla's GLSL
- * {@code floor(v * 255 + 0.5)} does, and a truncating rewrite would bias every shaded channel about
- * half a least-significant bit low without failing anything coarser.
+ * {@link Shading#apply} is pinned on its quantization: it is vanilla's GLSL
+ * {@code floor(v * 255 + 0.5)} with the tie point shifted a fortieth of a step down, which is what
+ * absorbs the sub-LSB gap between one multiply here and a fragment's chain on a GPU. Both edges are
+ * pinned below, because a rewrite that dropped the shift would take every near-tie channel a step high
+ * and one that truncated instead would take every shaded channel about half a step low, and neither
+ * fails anything coarser.
  * <p>
  * A face declaring {@link SurfaceTraits#directionalLight()} {@code false} is left full bright.
  * {@link Shading#relightForItems3d} writes {@code 1.0f} and never evaluates the Lambertian for it,
@@ -51,6 +54,17 @@ class ShadingTest {
 
     private static final double EPS = 1.0e-5;
 
+    /**
+     * The production tie point, written out rather than read from {@code Shading} so that a change to
+     * the shift has to be made here as well and cannot pass unnoticed.
+     *
+     * @param v the shaded channel value
+     * @return the channel rounded as {@code Shading} rounds it
+     */
+    private static int quantize(float v) {
+        return (int) Math.floor(v + 0.5f - 0.024f);
+    }
+
     /** The identity relight frame, where the shading transform is the bare GUI Y-flip */
     private static final LightingFrame FLAT = LightingFrame.tracking(EulerRotation.NONE);
 
@@ -61,20 +75,22 @@ class ShadingTest {
     @Test
     @DisplayName("apply scales only the colour channels and leaves the alpha byte alone")
     void applyPreservesAlpha() {
-        assertThat(Shading.apply(0x40FFFFFF, ColorMath.WHITE, 0.5f), equalTo(0x40808080));
+        assertThat(Shading.apply(0x40FFFFFF, ColorMath.WHITE, 0.5f), equalTo(0x407F7F7F));
         assertThat(Shading.apply(0x00FFFFFF, ColorMath.WHITE, 0f), equalTo(0x00000000));
         assertThat(Shading.apply(0x7B123456, ColorMath.WHITE, 0f), equalTo(0x7B000000));
     }
 
     @Test
-    @DisplayName("apply rounds half up rather than truncating toward zero")
-    void applyRoundsHalfUp() {
-        // 255 * 0.5 is exactly 127.5: rounding half up gives 0x80, truncation would give 0x7F.
-        assertThat(Shading.apply(0xFFFFFFFF, ColorMath.WHITE, 0.5f), equalTo(0xFF808080));
+    @DisplayName("apply quantizes at the shifted tie point, under half up and over truncation")
+    void applyQuantizesAtTheShiftedTie() {
+        // 255 * 0.5 is exactly 127.5, so it sits ON the tie: plain round-half-up answers 0x80 and the
+        // shifted point answers 0x7F. This is the whole of what the shift does, and the only place a
+        // rewrite that dropped it would show.
+        assertThat(Shading.apply(0xFFFFFFFF, ColorMath.WHITE, 0.5f), equalTo(0xFF7F7F7F));
 
-        // The extreme case of the same bias - a channel of 1 halves to exactly 0.5, which survives
-        // as 1 and would truncate to 0, turning a dim texel fully black.
-        assertThat(Shading.apply(0xFF010101, ColorMath.WHITE, 0.5f), equalTo(0xFF010101));
+        // It is still a rounding and not a truncation: 100 * 0.526 is 52.6, which is past the shifted
+        // tie and carries up to 53, where truncating toward zero would answer 52.
+        assertThat(Shading.apply(0xFF646464, ColorMath.WHITE, 0.526f), equalTo(0xFF353535));
     }
 
     @Test
@@ -102,9 +118,9 @@ class ShadingTest {
         // the corpus, and it would still agree with itself.
         for (int argb : new int[]{0xFF804020, 0x7B123456, 0xFF010101, 0xFFFFFFFF}) {
             for (float f : new float[]{0f, 0.4f, 0.5f, 0.6489f, 1f}) {
-                int r = Math.round(((argb >>> 16) & 0xFF) * f);
-                int g = Math.round(((argb >>> 8) & 0xFF) * f);
-                int b = Math.round((argb & 0xFF) * f);
+                int r = quantize(((argb >>> 16) & 0xFF) * f);
+                int g = quantize(((argb >>> 8) & 0xFF) * f);
+                int b = quantize((argb & 0xFF) * f);
                 int expected = (argb & 0xFF000000) | (r << 16) | (g << 8) | b;
                 assertThat(Shading.apply(argb, ColorMath.WHITE, f), equalTo(expected));
             }
