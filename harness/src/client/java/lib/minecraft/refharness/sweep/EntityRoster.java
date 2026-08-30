@@ -453,16 +453,30 @@ public final class EntityRoster {
      * <p>Variants of one type group automatically, since they all key on the same type; an entry is
      * needed only when two distinct types should group.
      *
-     * <p>Stray joins skeleton because they share a mesh: the Java pipeline canvas-fits skeleton with
-     * stray's inflated clothing-layer overlay, so the harness has to apply the same union to keep
-     * skeleton's reference at the same canvas dimensions as stray's.
+     * <p><b>This map is the asset-renderer's {@code Entity.members()} spelled a second time, and the
+     * two are one set.</b> That side derives its list from shared primary geometry and measures every
+     * member of it in the pose the render draws; this side declares the same groups by hand. A group
+     * only one of them carries is a canvas one renderer unions and the other does not, and the
+     * comparison then reports framing rather than the render - measured at 333 of animated delta over
+     * the piglin family while the two disagreed. So a group added on either side is added on both.
      *
-     * <p>Mooshroom is deliberately <b>not</b> grouped into cow. The asset-renderer sizes cow to the
-     * cow body alone and mooshroom to its own body plus mushrooms, so grouping them here would push
-     * the cow reference down by the mushroom height and diverge from the Java render.
+     * <p>These are the cross-type siblings that share a mesh. Their canvases were already equal while
+     * every subject was measured at rest, because the unposed silhouettes nest inside one another;
+     * what a stride does is take that coincidence away.
+     *
+     * <p>Two entries of {@link #GROUP_OF} are deliberately <b>not</b> here, and both for the same
+     * reason: a variant family's canvas is its own coats' union, so the asset-renderer keeps
+     * {@code mooshroom} and {@code trader_llama} out of any group and pushing them in here would size
+     * cow and llama against bodies the Java render never fits them to.
      */
     public static final Map<EntityType<?>, EntityType<?>> FAMILY_OVERRIDES = Map.of(
-        EntityType.STRAY, EntityType.SKELETON
+        EntityType.STRAY, EntityType.SKELETON,
+        EntityType.CAMEL_HUSK, EntityType.CAMEL,
+        EntityType.GLOW_SQUID, EntityType.SQUID,
+        EntityType.ZOGLIN, EntityType.HOGLIN,
+        EntityType.PIGLIN_BRUTE, EntityType.PIGLIN,
+        EntityType.ZOMBIFIED_PIGLIN, EntityType.PIGLIN,
+        EntityType.WANDERING_TRADER, EntityType.VILLAGER
     );
 
     /**

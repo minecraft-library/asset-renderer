@@ -1250,6 +1250,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * membership baked at load from {@code variant_of} / {@code group_of}. A singleton carries an
      * empty member list, so this method collapses to {@link #computeUnionScreenBounds} for
      * non-group-bearing entities.
+     * <p>
+     * <b>This list and the harness's {@code EntityRoster.FAMILY_OVERRIDES} are one set spelled
+     * twice, and they have to stay that way.</b> A member is measured in the pose the render draws,
+     * so a member the harness measures apart would union a canvas vanilla keeps separate - worth 333
+     * of animated delta over the piglin family alone when the two sets disagreed. There is no
+     * mechanism holding them together: the tooling derives this one from shared primary geometry and
+     * the harness declares its one by hand, so a group added on either side is added on both, and
+     * the evidence that they agree is that the two canvases agree.
      */
     private @NotNull Box computeGroupUnionScreenBounds(
         @NotNull String entityId,
@@ -1276,14 +1284,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Optional<PixelBuffer> memberTexture = resolveGroupMemberTexture(memberDef);
             if (memberTexture.isEmpty()) continue;
             float memberScale = memberDef.rendererScale();
-            // Measured where it RESTS, unlike the coats above, and the difference is not a principle
-            // - it is that this list and the harness's family are not the same set. The harness
-            // groups one pair of cross-type siblings and this list groups three piglins the harness
-            // measures apart, and posing them unions three canvases vanilla keeps separate: worth
-            // 333 of IDLE delta over that family alone, against the 3.1 posing them buys on the
-            // skeleton's. The two sets have to be reconciled before this line can pose.
-            Box memberBounds = computeUnionScreenBounds(memberDef, transform, memberScale, memberTexture.get(), tick,
-                memberDef.blockOverlays());
+            // Posed at the tick being measured, like the coats above and for the same reason: a
+            // canvas is a union, so every silhouette in it is measured in the pose the render draws.
+            // What this waited on was not the principle but the SET - measuring a member posed is
+            // only right where the harness unions the same one, and it answers that from
+            // EntityRoster.FAMILY_OVERRIDES, which this list is now held to.
+            Box memberBounds = computeUnionScreenBounds(posedMember(memberDef, options, tick), transform,
+                memberScale, memberTexture.get(), tick, memberDef.blockOverlays());
             bounds = bounds.union(memberBounds);
             bounds = unionVariantSilhouettes(bounds, memberDef, options, transform, tick);
         }
