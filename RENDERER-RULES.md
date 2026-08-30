@@ -246,24 +246,31 @@ rule: their kits bake `Lighting.inventory` at emit time and nothing relights the
 
 ## Depth: the contract
 
-- The `1/400` coverage snap (`ModelEngine.snapToCoverageGrid`) must never move depth:
-  `depthOnUnsnappedPlane` re-reads each vertex's depth off its triangle's unsnapped plane at its
-  snapped position, in `double`.
-- `Projected.z0/z1/z2` is raster depth; `p0/p1/p2.z()` is the camera-space depth the translucent
+- The `1/400` coverage snap (`ModelEngine.snapToCoverageGrid`) must never move depth: `DepthMath.Plane`
+  is solved from the triangle's **unsnapped** screen positions, so the snap moves which samples are
+  covered and not what depth they read.
+- `Projected.z0/z1/z2` is raster depth - the plane's value at each snapped position, which only a
+  perspective lens interpolates; `p0/p1/p2.z()` is the camera-space depth the translucent
   `quadCamDepthKey` sort reads. Do not collapse them.
 - Depth is compared on vanilla's window grid: `DepthMath.onVanillaDepthGrid` rounds each
   interpolated depth through `0.5f - depth * k`, `k = scale / (2 * VANILLA_DEPTH_RANGE)` at
   `VANILLA_DEPTH_RANGE = 1000`, where a `float` step beside `0.5` is `2^-24`.
 - Round the interpolated depth, never the three vertex depths - rounding at the vertices tilts each
   triangle's plane by its own vertices' rounding.
-- Depth comes off a per-triangle `float` plane, `z0 + dzdx*dx + dzdy*dy`, solved once from the snapped
-  positions. A perspective lens keeps the barycentric form.
+- Depth comes off the triangle's own `DepthMath.Plane`, solved once in `double` and read at the sample
+  point, so the only rounding between the solve and the depth test is the one that lands the answer in
+  a `float`. Deriving it a second time - into three vertex depths, then into gradients, then from a
+  vertex anchor - is five more roundings, and two coplanar triangles take them differently enough to
+  separate by a quantum or two a pair the grid would tie. A perspective lens keeps the barycentric form.
 - There is no depth tolerance anywhere: `depthFails` is a bare `depthVal < existingDepth`, with no
   emissive slack, no coincident-overlay clearance inflate and no trim separation.
 - A coplanar pair is last-drawn-wins, as `GL_LEQUAL` is, so `EntityModelData.getBones()`'s insertion
   order is the tied-depth priority - do not swap it for a hash map.
-- The grid quantum is coarser than two `float` plane solutions of one plane differ by, so most
-  coplanar contests fall to draw order, which is a ceiling and not a lever.
+- The grid quantum is coarser than two solutions of one plane differ by, so a coplanar contest falls to
+  draw order. That is a property of the arithmetic and not a given: the worn shell's torso and arm
+  south faces read 2 ULP apart against a quantum near `2e-7`, and a longer `float` chain between the
+  solve and the test puts the same pair 12 ULP apart, which is one to three quanta and decides them
+  outright. Measure the gap against the quantum before believing a contest ties.
 - On an additive pass a coplanar tie is a doubling rather than a tie-break: both fragments accumulate,
   as vanilla's do.
 - `emissive`, `writesDepth` and `sorted` are three independent declarations carried as one

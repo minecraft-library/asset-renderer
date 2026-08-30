@@ -695,32 +695,14 @@ public class ModelEngine {
             SurfaceTraits tr = t.source.traits();
             PassDeclaration pass = tr.pass();
             BlendMode blendMode = pass.blend();
-            // Depth comes off a plane solved once per triangle from the snapped screen positions, the
-            // way graphics hardware sets one up, rather than blended per pixel from barycentric weights.
-            // The two forms describe the same plane and differ only in where they round: solving once
-            // into two gradients gives two coplanar triangles slightly different gradients, so their
-            // depth planes cross somewhere inside any overlap - which is the shape vanilla's own coplanar
-            // contests take, resolving one way over part of a seam and the other way over the rest. A
-            // perspective lens keeps the barycentric form, its depth being the un-fitted model-space one.
-            float dzdx = 0f;
-            float dzdy = 0f;
-            boolean planeDepth = !t.perspectiveCorrect;
-            if (planeDepth) {
-                float ax = t.s1.x() - t.s0.x();
-                float ay = t.s1.y() - t.s0.y();
-                float bx = t.s2.x() - t.s0.x();
-                float by = t.s2.y() - t.s0.y();
-                float det = ax * by - bx * ay;
-
-                if (det == 0f)
-                    planeDepth = false;
-                else {
-                    float az = t.z1 - t.z0;
-                    float bz = t.z2 - t.z0;
-                    dzdx = (az * by - bz * ay) / det;
-                    dzdy = (ax * bz - bx * az) / det;
-                }
-            }
+            // Depth comes off the triangle's own plane, read at the sample point, the way graphics
+            // hardware interpolates one - not blended per pixel from barycentric weights. The two forms
+            // describe the same plane and differ only in where they round, and the plane is the shorter
+            // chain: it is solved once in double from the unsnapped positions and read once per
+            // fragment, so a pair of coplanar triangles is left as far apart as the model's own
+            // rounding put them and no further. A perspective lens keeps the barycentric form, its
+            // depth being the un-fitted model-space one.
+            DepthMath.Plane plane = t.perspectiveCorrect ? null : t.plane;
             float alphaScale = pass.alpha();
 
             // Last texel of the face's own rectangle on each axis, hoisted once per triangle. A
@@ -767,8 +749,8 @@ public class ModelEngine {
                         continue;
                     }
 
-                    float depthVal = planeDepth
-                        ? t.z0 + dzdx * (px + 0.5f - t.s0.x()) + dzdy * (py + 0.5f - t.s0.y())
+                    float depthVal = plane != null
+                        ? plane.depthAt(px + 0.5f, py + 0.5f)
                         : bary[0] * t.z0 + bary[1] * t.z1 + bary[2] * t.z2;
                     if (depthGrid > 0f) depthVal = DepthMath.onVanillaDepthGrid(depthVal, depthGrid);
                     int idx = (py - tileStart) * width + px;
@@ -1019,13 +1001,19 @@ public class ModelEngine {
 
         if (triangle.traits().cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
         RasterMath.EdgeCoefficients edges = RasterMath.EdgeCoefficients.of(s0, s1, s2);
-        float[] rasterDepth = DepthMath.depthOnUnsnappedPlane(r0, r1, r2, s0, s1, s2, p0.z(), p1.z(), p2.z());
+        // The depth plane the unsnapped positions define, and each snapped vertex's depth read off it -
+        // so the coverage snap moves coverage without moving depth. A perspective lens interpolates
+        // those three barycentrically; every parallel one reads the plane at the sample point instead,
+        // which is the same value with none of the rounding in between.
+        DepthMath.Plane plane = DepthMath.Plane.of(r0, r1, r2, p0.z(), p1.z(), p2.z());
         // Per-vertex inverse clip-w for perspective-correct interpolation. depthScale is a flat 1 for
         // parallel projections, where the perspectiveCorrect flag is false and the rasterizer keeps the
         // screen-linear no-divide path.
         boolean perspectiveCorrect = perspective.kind() == Lens.Kind.PERSPECTIVE;
-        return new Projected(triangle, p0, p1, p2, s0, s1, s2, edges,
-            rasterDepth[0], rasterDepth[1], rasterDepth[2],
+        return new Projected(triangle, p0, p1, p2, s0, s1, s2, edges, plane,
+            plane == null ? p0.z() : plane.depthAt(s0.x(), s0.y()),
+            plane == null ? p1.z() : plane.depthAt(s1.x(), s1.y()),
+            plane == null ? p2.z() : plane.depthAt(s2.x(), s2.y()),
             perspective.depthScale(p0.z()), perspective.depthScale(p1.z()), perspective.depthScale(p2.z()),
             perspectiveCorrect);
     }
@@ -1142,9 +1130,11 @@ public class ModelEngine {
      * @param s1 the second vertex projected and coverage-snapped to screen space
      * @param s2 the third vertex projected and coverage-snapped to screen space
      * @param edges the precomputed fixed-point edge coefficients for the incremental coverage walk
-     * @param z0 the first vertex's raster depth - its plane's depth at its snapped position (see
-     *     {@link DepthMath#depthOnUnsnappedPlane}), which is what the per-pixel depth test interpolates;
-     *     {@code p0.z()} stays the true camera-space depth the translucent sort keys off
+     * @param plane the depth plane a parallel projection's fragments are read off, or {@code null} when
+     *     the triangle has no unsnapped screen area to solve one from
+     * @param z0 the first vertex's raster depth - {@code plane}'s depth at its snapped position, which
+     *     is what a perspective lens interpolates barycentrically; {@code p0.z()} stays the true
+     *     camera-space depth the translucent sort keys off
      * @param z1 the second vertex's raster depth
      * @param z2 the third vertex's raster depth
      * @param iw0 the first vertex's inverse clip-{@code w} ({@link Lens#depthScale}), for perspective-correct interpolation
@@ -1161,6 +1151,7 @@ public class ModelEngine {
         @NotNull Vector2f s1,
         @NotNull Vector2f s2,
         @NotNull RasterMath.EdgeCoefficients edges,
+        @Nullable DepthMath.Plane plane,
         float z0,
         float z1,
         float z2,

@@ -78,6 +78,34 @@ subjects a stride reaches are only now measurable. Whoever takes this should tak
 entities animate, not before, because the shape of the answer depends on what the roster of animated
 behaviours actually turns out to be.
 
+## The worn shell's coplanar pair falls the wrong way by two ULP of the bone chain
+
+An inflated shell puts a second mesh's boxes through the first's, and the pairs that intersect are
+genuinely coplanar - the worn chestplate's torso and arm south faces are one plane. On
+`skeleton~armor=iron` at pixel `(128,246)` the two now read two ULP apart with the torso in front,
+which is close enough that they quantise onto adjacent window-grid points rather than onto one, so
+the torso wins. Vanilla paints the arm's texel there, and vanilla draws `body` after `right_arm`, so
+vanilla's torso lost a depth test our torso wins. Two ULP is the model's own vertex rounding: what is
+left is the bone chain, not the raster.
+
+**Draw order is not the lever here, and that is measured rather than assumed.** Emitting every
+model's bones in the order vanilla's `PartDefinition.bake` iterates its `HashMap` - which for the
+humanoid seven is `head, right_arm, left_leg, left_arm, right_leg, hat, body` against our insertion
+order's `head, hat, body, right_arm, left_arm, right_leg, left_leg` - moves **no** `~armor=iron` row
+at all, on any wearer. Those fragments are not tying, so nothing about their order reaches a pixel.
+
+Bone order is a real lever on other rows and splits both ways, which is why it stays as it is: the
+same probe took `drowned~age=baby` from `0.9526` to `0.5836`, `wither_skeleton` from `0.2091` to
+`0.0225` and `armor_stand~toggle=arms` from `0.1686` to `0.0614`, while taking `drowned` from
+`0.1242` to `0.8930` and the three piglins up by `0.05` to `0.19` each - `21.4733` over the fleet
+against `20.9361` for insertion order. An order right for some bone pairs and wrong for others is
+what a key set that is not vanilla's produces, the tooling dropping bones that can never draw and
+their names not being in the shipped data to put back.
+
+So whoever takes this is asked how closely the per-bone chain composition can be made to land where
+vanilla's does, for two bones whose boxes meet at one z. Closing it is either that, or establishing
+that a two-ULP agreement is the floor and which side of the grid it falls on is not recoverable.
+
 ## Two aggregator rows still carry no duration
 
 `manifest.visual` and `manifest.player-raw` are the last rows whose `last_duration_ms` is unset, so
