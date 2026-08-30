@@ -80372,8 +80372,8 @@
     "showBasePlate": 1.0,
     "speedValue": 1.0,
     "tailAngle": 0.62831855,
-    "canMove": 1.0,
-    "entityId": 9.0
+    "entityId": 9.0,
+    "canMove": 1.0
   },
   "rest_defaults": {
     "AllayModel": {
@@ -80885,7 +80885,7 @@
       "refused": "turns by an angle it could not read"
     },
     "CatRenderer": {
-      "refused": "runs opcode 149, which the grammar does not cover"
+      "refused": "compares something other than a float the render state carries"
     },
     "CodRenderer": {
       "container": [
@@ -80946,7 +80946,7 @@
       ]
     },
     "DrownedRenderer": {
-      "refused": "runs opcode 149, which the grammar does not cover"
+      "refused": "compares something other than a float the render state carries"
     },
     "FoxRenderer": {
       "refused": "branches inside a branch"
@@ -80955,10 +80955,86 @@
       "refused": "branches with a half-built value on the stack"
     },
     "IronGolemRenderer": {
-      "refused": "runs opcode 152, which the grammar does not cover"
+      "container": [
+        {
+          "z_rot": {
+            "select": [
+              {
+                "ge": [
+                  {
+                    "input": "walkAnimationSpeed"
+                  },
+                  {
+                    "const": 0.01
+                  }
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "const": 6.5
+                      },
+                      {
+                        "div": [
+                          {
+                            "sub": [
+                              {
+                                "abs": [
+                                  {
+                                    "sub": [
+                                      {
+                                        "rem": [
+                                          {
+                                            "add": [
+                                              {
+                                                "input": "walkAnimationPos"
+                                              },
+                                              {
+                                                "const": 6.0
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "const": 13.0
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "const": 6.5
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "const": 3.25
+                              }
+                            ]
+                          },
+                          {
+                            "const": 3.25
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 0.0
+              }
+            ]
+          }
+        }
+      ]
     },
     "PandaRenderer": {
-      "refused": "runs opcode 149, which the grammar does not cover"
+      "refused": "calls 'Mth.frac'"
     },
     "PhantomRenderer": {
       "container": [

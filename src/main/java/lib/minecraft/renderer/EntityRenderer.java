@@ -1003,6 +1003,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull BoundsScope scope,
         @NotNull String entityId,
         @NotNull Entity definition,
+        @NotNull EntityOptions options,
         @NotNull Matrix4f transform,
         float modelScale,
         @NotNull PixelBuffer texture,
@@ -1011,8 +1012,34 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         return switch (scope) {
             case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, modelScale, texture, tick,
                 boundsBlockOverlays(definition, this.javaEntities.get(entityId)));
-            case GROUP_UNION -> computeGroupUnionScreenBounds(entityId, definition, transform, modelScale, texture, tick);
+            case GROUP_UNION ->
+                computeGroupUnionScreenBounds(entityId, definition, options, transform, modelScale, texture, tick);
         };
+    }
+
+    /**
+     * One further silhouette in the group union, posed the way the subject being measured is.
+     *
+     * <p><b>A canvas is a union, so every member of it has to be measured in the pose the render
+     * draws.</b> The subject arrives already posed; a member and a coat arrive off the index, which
+     * is where they rest. Measuring those unposed frames the whole family to a subject standing
+     * still, and the requested one is then fitted into a canvas too small for the pose it is
+     * actually drawn in - which reads as a silhouette shifted inside its frame rather than as a
+     * canvas that is wrong.
+     *
+     * <p>It was invisible until a gait existed. Every subject a group union spans is one whose
+     * elapsed-age animation is nothing, so at {@code BIND} and {@code IDLE} the posed member and the
+     * resting one are the same mesh and the two sides agreed on every canvas in the corpus.
+     *
+     * @param member the member or coat to measure
+     * @param options the render options supplying the pose mode and the excursions
+     * @param tick the schedule tick being measured
+     * @return the member as it stands at that tick, which is the member itself under {@code BIND}
+     */
+    private static @NotNull Entity posedMember(
+        @NotNull Entity member, @NotNull EntityOptions options, int tick) {
+
+        return PoseKit.posedSubject(options.getPoseMode(), member, tick, options.getAnimation());
     }
 
     /**
@@ -1049,13 +1076,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer startTexture
     ) {
         int startTick = timeline.tickAt(0);
-        Box bounds = computeScreenBoundsFor(scope, entityId, PoseKit.posedSubject(options.getPoseMode(), resolved, startTick, options.getAnimation()),
-            transform, modelScale, startTexture, startTick);
+        Box bounds = computeScreenBoundsFor(scope, entityId,
+            PoseKit.posedSubject(options.getPoseMode(), resolved, startTick, options.getAnimation()),
+            options, transform, modelScale, startTexture, startTick);
         for (int frame = 1; frame < timeline.frames(); frame++) {
             int tick = timeline.tickAt(frame);
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(startTexture);
-            bounds = bounds.union(computeScreenBoundsFor(scope, entityId, PoseKit.posedSubject(options.getPoseMode(), resolved, tick, options.getAnimation()),
-                transform, modelScale, frameTexture, tick));
+            bounds = bounds.union(computeScreenBoundsFor(scope, entityId,
+                PoseKit.posedSubject(options.getPoseMode(), resolved, tick, options.getAnimation()),
+                options, transform, modelScale, frameTexture, tick));
         }
         return bounds;
     }
@@ -1225,6 +1254,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private @NotNull Box computeGroupUnionScreenBounds(
         @NotNull String entityId,
         @NotNull Entity definition,
+        @NotNull EntityOptions options,
         @NotNull Matrix4f transform,
         float modelScale,
         @NotNull PixelBuffer texture,
@@ -1236,7 +1266,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Option-encoded variant coats live on the base definition's axes.variants rather than as
         // separate group-member rows, so union each coat's silhouette here. A no-op while variant is
         // id-encoded (each coat is a member row measured below) or the model has no variant axis.
-        bounds = unionVariantSilhouettes(bounds, base, transform, tick);
+        bounds = unionVariantSilhouettes(bounds, base, options, transform, tick);
         ConcurrentList<String> members = definition.members();
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
@@ -1246,10 +1276,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Optional<PixelBuffer> memberTexture = resolveGroupMemberTexture(memberDef);
             if (memberTexture.isEmpty()) continue;
             float memberScale = memberDef.rendererScale();
+            // Measured where it RESTS, unlike the coats above, and the difference is not a principle
+            // - it is that this list and the harness's family are not the same set. The harness
+            // groups one pair of cross-type siblings and this list groups three piglins the harness
+            // measures apart, and posing them unions three canvases vanilla keeps separate: worth
+            // 333 of IDLE delta over that family alone, against the 3.1 posing them buys on the
+            // skeleton's. The two sets have to be reconciled before this line can pose.
             Box memberBounds = computeUnionScreenBounds(memberDef, transform, memberScale, memberTexture.get(), tick,
                 memberDef.blockOverlays());
             bounds = bounds.union(memberBounds);
-            bounds = unionVariantSilhouettes(bounds, memberDef, transform, tick);
+            bounds = unionVariantSilhouettes(bounds, memberDef, options, transform, tick);
         }
         return bounds;
     }
@@ -1264,14 +1300,18 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@link #boundsBlockOverlays} - so a family whose coats differ only in which block they carry
      * keeps one canvas.
      */
-    private @NotNull Box unionVariantSilhouettes(@NotNull Box bounds, @Nullable Entity definition, @NotNull Matrix4f transform, int tick) {
+    private @NotNull Box unionVariantSilhouettes(
+        @NotNull Box bounds, @Nullable Entity definition, @NotNull EntityOptions options,
+        @NotNull Matrix4f transform, int tick) {
+
         if (definition == null) return bounds;
         for (Entity coat : definition.axes().variant().options().values()) {
             if (coat.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> coatTexture = resolveGroupMemberTexture(coat);
             if (coatTexture.isEmpty()) continue;
-            bounds = bounds.union(computeUnionScreenBounds(coat, transform, coat.rendererScale(),
-                coatTexture.get(), tick, boundsBlockOverlays(coat, definition)));
+            // Posed at the tick being measured, for the reason posedMember carries.
+            bounds = bounds.union(computeUnionScreenBounds(posedMember(coat, options, tick), transform,
+                coat.rendererScale(), coatTexture.get(), tick, boundsBlockOverlays(coat, definition)));
         }
         return bounds;
     }

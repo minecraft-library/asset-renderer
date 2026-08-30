@@ -14,6 +14,7 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -112,6 +114,12 @@ final class RenderTransformWalk {
     /** The descriptor a boolean render-state field carries. */
     private static final @NotNull String BOOLEAN_DESC = "Z";
 
+    /** {@code java/lang/Math}, which an inlined helper reaches directly rather than through Mth. */
+    private static final @NotNull String JAVA_MATH = "java/lang/Math";
+
+    /** The {@code Math.abs} overload an inlined triangle wave takes. */
+    private static final @NotNull String ABS_DESC = "(F)F";
+
     /** The descriptor a float render-state field carries. */
     private static final @NotNull String FLOAT_DESC = "F";
 
@@ -175,8 +183,40 @@ final class RenderTransformWalk {
     private final @NotNull Interp<Object> machine =
         Interp.of(new Domain(), Interp.OnUnknown.SILENT, Interp.Width.FLOAT_AS_FLOAT);
 
+    /** The comparison opcodes that push the sign of a difference for a jump to test. */
+    private static final @NotNull Set<Integer> COMPARISONS =
+        Set.of(Opcodes.FCMPL, Opcodes.FCMPG, Opcodes.DCMPL, Opcodes.DCMPG);
+
+    /**
+     * What each jump over a comparison is TAKEN on, read as the comparison it makes of the two
+     * operands - {@code IFLE} after a compare leaves for {@code left <= right}.
+     */
+    private static final @NotNull Map<Integer, PosePredicate.Comparison> LEAVES_ON = Map.of(
+        Opcodes.IFEQ, PosePredicate.Comparison.EQ,
+        Opcodes.IFNE, PosePredicate.Comparison.NE,
+        Opcodes.IFLT, PosePredicate.Comparison.LT,
+        Opcodes.IFLE, PosePredicate.Comparison.LE,
+        Opcodes.IFGT, PosePredicate.Comparison.GT,
+        Opcodes.IFGE, PosePredicate.Comparison.GE);
+
     private @Nullable String refusal;
     private @Nullable Block block;
+
+    /**
+     * What every step from here to the end is guarded by, where an early return left one standing.
+     *
+     * <p>A block ends and a guard does not: the body has already returned on the other arm, so
+     * nothing below it is unconditional again.
+     */
+    private @Nullable PosePredicate guard;
+
+    /** The early return a guard was read off, which is not the body's own last one. */
+    private @Nullable AbstractInsnNode skipped;
+
+    /** The two sides of the comparison the last jump tested, held for the caller that opens on it. */
+    private @Nullable PoseExpr testedLeft;
+
+    private @Nullable PoseExpr testedRight;
     private @Nullable AbstractInsnNode returned;
     private @Nullable AbstractInsnNode lastReal;
     private boolean delegated;
@@ -312,8 +352,10 @@ final class RenderTransformWalk {
             case Opcodes.ALOAD, Opcodes.FLOAD, Opcodes.ILOAD, Opcodes.DLOAD,
                  Opcodes.ASTORE, Opcodes.FSTORE, Opcodes.ISTORE, Opcodes.DSTORE,
                  Opcodes.FADD, Opcodes.FSUB, Opcodes.FMUL, Opcodes.FDIV, Opcodes.FNEG,
+                 Opcodes.FREM,
                  Opcodes.DADD, Opcodes.DSUB, Opcodes.DMUL, Opcodes.DDIV, Opcodes.DNEG,
-                 Opcodes.F2D, Opcodes.D2F, Opcodes.I2F, Opcodes.I2D, Opcodes.F2I -> { }
+                 Opcodes.F2D, Opcodes.D2F, Opcodes.I2F, Opcodes.I2D, Opcodes.F2I,
+                 Opcodes.FCMPL, Opcodes.FCMPG, Opcodes.DCMPL, Opcodes.DCMPG -> { }
             case Opcodes.LDC, Opcodes.BIPUSH, Opcodes.SIPUSH,
                  Opcodes.FCONST_0, Opcodes.FCONST_1, Opcodes.FCONST_2,
                  Opcodes.DCONST_0, Opcodes.DCONST_1,
@@ -323,8 +365,12 @@ final class RenderTransformWalk {
             case Opcodes.GETFIELD -> readInput((FieldInsnNode) node);
             case Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL,
                  Opcodes.INVOKEINTERFACE, Opcodes.INVOKESPECIAL -> call((MethodInsnNode) node);
-            case Opcodes.IFEQ, Opcodes.IFNE -> open((JumpInsnNode) node);
+            case Opcodes.IFEQ, Opcodes.IFNE, Opcodes.IFLT, Opcodes.IFLE,
+                 Opcodes.IFGT, Opcodes.IFGE -> open((JumpInsnNode) node);
             case Opcodes.RETURN -> {
+                // The early return a guard was read off is the one arm of that guard, not the
+                // body's own end - it is where the body stops when the steps below do not run.
+                if (node == this.skipped) return;
                 if (this.returned != null) refuse("returns before its own end");
                 this.returned = node;
             }
@@ -399,6 +445,12 @@ final class RenderTransformWalk {
         if (VanillaSourceClasses.Types.MTH.equals(invoke.owner) && TRIGONOMETRY_DESC.equals(invoke.desc)
             && ("sin".equals(invoke.name) || "cos".equals(invoke.name))) {
             trigonometry("sin".equals(invoke.name) ? PoseOperator.MTH_SIN : PoseOperator.MTH_COS);
+            return;
+        }
+        if (JAVA_MATH.equals(invoke.owner) && "abs".equals(invoke.name) && ABS_DESC.equals(invoke.desc)) {
+            // An inlined `Mth.triangleWave` is the only shape that reaches for this: the body writes
+            // out (abs(v % p - p/2) - p/4) / (p/4) rather than calling the helper.
+            trigonometry(PoseOperator.ABS);
             return;
         }
         if (VanillaSourceClasses.Types.DIRECTION.equals(invoke.owner) && GET_OPPOSITE.equals(invoke.name)) {
@@ -571,12 +623,11 @@ final class RenderTransformWalk {
             refuse("branches with a half-built value on the stack");
             return;
         }
-        AbstractInsnNode read = AsmWalker.previousReal(jump);
-        if (!(read instanceof FieldInsnNode field) || read.getOpcode() != Opcodes.GETFIELD
-            || !BOOLEAN_DESC.equals(field.desc)) {
-            refuse("branches on something other than a boolean the render state carries");
-            return;
-        }
+        PosePredicate.Comparison taken = tested(jump);
+        if (taken == null) return;
+        PoseExpr left = this.testedLeft;
+        PoseExpr right = this.testedRight;
+
         AbstractInsnNode target = AsmWalker.nextReal(jump.label);
         AbstractInsnNode last = AsmWalker.previousReal(target);
         if (target == null || last == null
@@ -584,12 +635,109 @@ final class RenderTransformWalk {
             refuse("branches backwards or out of its own body");
             return;
         }
-        // The jump is taken on the condition the block does NOT run, so what is recorded is its
-        // opposite: an IFEQ leaves the block for a zero, which is to say it runs on anything else.
-        PosePredicate runs = PosePredicate.Compare.of(
-            jump.getOpcode() == Opcodes.IFEQ ? PosePredicate.Comparison.NE : PosePredicate.Comparison.EQ,
-            new PoseExpr.Input(field.name), PoseExpr.Const.of(0));
+        // The jump is taken on the condition the block does NOT run, so what is recorded is the
+        // OPPOSED comparison: an IFEQ leaves the block for a zero, which is to say it runs on
+        // anything else. Opposed rather than negated, because a negation wraps where a comparison
+        // has an opposite of its own kind - and the wrapped form is a second spelling of one test.
+        PosePredicate runs = PosePredicate.Compare.of(opposed(taken), left, right);
+
+        // A jump over a bare RETURN is an early exit rather than a block, and what it guards is
+        // everything AFTER it: the body returns where the test holds and runs on where it does not.
+        // Read as a block it would guard the return and leave the steps below unconditional, which
+        // is an iron golem lurching sideways while it stands still.
+        if (last == AsmWalker.nextReal(jump) && last.getOpcode() == Opcodes.RETURN) {
+            // What the remainder runs on is what the jump is TAKEN on, the fall-through having
+            // returned - so this is the comparison the walk read rather than its opposite.
+            this.guard = PosePredicate.Compare.of(taken, left, right);
+            this.skipped = last;
+            return;
+        }
         this.block = new Block(runs, last, this.machine.snapshot());
+    }
+
+    /**
+     * What a jump LEAVES its block on, or null having refused.
+     *
+     * <p>Two shapes, and the second is why four renderers were refused. A boolean the render state
+     * carries is tested by the jump itself. A float or a double is compared first - the comparison
+     * pushes the sign of the difference and the jump tests THAT against zero - so the operands are
+     * read off the instructions rather than off the machine, which has already applied both.
+     *
+     * @param jump the conditional jump
+     * @return the predicate under which the jump is taken, or null
+     */
+    private PosePredicate.@Nullable Comparison tested(@NotNull JumpInsnNode jump) {
+        AbstractInsnNode read = AsmWalker.previousReal(jump);
+        if (read instanceof FieldInsnNode field && read.getOpcode() == Opcodes.GETFIELD
+            && BOOLEAN_DESC.equals(field.desc)) {
+            if (jump.getOpcode() != Opcodes.IFEQ && jump.getOpcode() != Opcodes.IFNE) {
+                refuse("tests a boolean with opcode %d", jump.getOpcode());
+                return null;
+            }
+            this.testedLeft = new PoseExpr.Input(field.name);
+            this.testedRight = PoseExpr.Const.of(0);
+            return jump.getOpcode() == Opcodes.IFEQ
+                ? PosePredicate.Comparison.EQ : PosePredicate.Comparison.NE;
+        }
+        if (read == null || !COMPARISONS.contains(read.getOpcode())) {
+            refuse("branches on something other than a boolean the render state carries "
+                + "or a comparison of one of its numbers");
+            return null;
+        }
+        AbstractInsnNode against = AsmWalker.previousReal(read);
+        Double literal = numberOf(against);
+        if (literal == null) {
+            refuse("compares against something that is not a literal");
+            return null;
+        }
+        // A double comparison widens the field first, so the read is one further back.
+        AbstractInsnNode widen = AsmWalker.previousReal(against);
+        AbstractInsnNode source = widen != null && widen.getOpcode() == Opcodes.F2D
+            ? AsmWalker.previousReal(widen) : widen;
+        if (!(source instanceof FieldInsnNode field) || source.getOpcode() != Opcodes.GETFIELD
+            || !FLOAT_DESC.equals(field.desc)) {
+            refuse("compares something other than a float the render state carries");
+            return null;
+        }
+        PosePredicate.Comparison taken = LEAVES_ON.get(jump.getOpcode());
+        if (taken == null) {
+            refuse("branches on comparison opcode %d, which the grammar does not cover",
+                jump.getOpcode());
+            return null;
+        }
+        this.testedLeft = new PoseExpr.Input(field.name);
+        this.testedRight = PoseExpr.Const.of(literal.floatValue());
+        return taken;
+    }
+
+    /**
+     * A comparison's opposite - the test that holds exactly where it does not.
+     *
+     * @param comparison the comparison read off the jump
+     * @return the comparison that holds on the other arm
+     */
+    private static PosePredicate.@NotNull Comparison opposed(PosePredicate.@NotNull Comparison comparison) {
+        return switch (comparison) {
+            case EQ -> PosePredicate.Comparison.NE;
+            case NE -> PosePredicate.Comparison.EQ;
+            case LT -> PosePredicate.Comparison.GE;
+            case GE -> PosePredicate.Comparison.LT;
+            case LE -> PosePredicate.Comparison.GT;
+            case GT -> PosePredicate.Comparison.LE;
+        };
+    }
+
+    /** The literal one instruction pushes, or null where it pushes something else. */
+    private static @Nullable Double numberOf(@Nullable AbstractInsnNode node) {
+        if (node == null) return null;
+        return switch (node.getOpcode()) {
+            case Opcodes.FCONST_0, Opcodes.DCONST_0 -> 0d;
+            case Opcodes.FCONST_1, Opcodes.DCONST_1 -> 1d;
+            case Opcodes.FCONST_2 -> 2d;
+            case Opcodes.LDC -> node instanceof LdcInsnNode push && push.cst instanceof Number value
+                ? value.doubleValue() : null;
+            default -> null;
+        };
     }
 
     /**
@@ -625,14 +773,15 @@ final class RenderTransformWalk {
      * turns a conditional STATEMENT back into a value.
      */
     private void emit(@NotNull Map<PoseChannel, PoseExpr> step) {
-        if (this.block == null) {
+        PosePredicate runs = this.block != null ? this.block.runs() : this.guard;
+        if (runs == null) {
             this.steps.add(Map.copyOf(step));
             return;
         }
         Map<PoseChannel, PoseExpr> guarded = step.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey,
-                entry -> new PoseExpr.Select(this.block.runs(), entry.getValue(), PoseExpr.Const.of(0f)),
+                entry -> new PoseExpr.Select(runs, entry.getValue(), PoseExpr.Const.of(0f)),
                 (first, second) -> second, () -> new EnumMap<PoseChannel, PoseExpr>(PoseChannel.class)));
         this.steps.add(Map.copyOf(guarded));
     }
@@ -710,6 +859,9 @@ final class RenderTransformWalk {
                 case Opcodes.DSUB -> PoseOperator.DSUB;
                 case Opcodes.DMUL -> PoseOperator.DMUL;
                 case Opcodes.DDIV -> PoseOperator.DDIV;
+                // A remainder reaches a body only through an INLINED helper: vanilla writes
+                // Mth.triangleWave out longhand in one renderer rather than calling it.
+                case Opcodes.FREM -> PoseOperator.REM;
                 default -> null;
             };
             if (operator == null || !(left instanceof PoseExpr lhs) || !(right instanceof PoseExpr rhs)) return null;

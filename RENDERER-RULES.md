@@ -464,12 +464,19 @@ divergence in how they were measured.
 - **A stride reaches only what reads one**, which is measured rather than assumed: 29 of the 90
   subjects render byte-identical between `animation/` and `walk/`, and `rabbit_brown` and `bat` carry
   the same delta to the digit under both presets.
-- **A model may declare more than one walk-gated clip, and vanilla plays one.** `ClipKit` accumulates
-  every site whose gate answers, which is right for the state-driven ones - the selection is a
-  one-hot, so at most one answers - and has no counterpart for a walk-driven one, whose gate is the
-  stride itself and answers for every site at once. The corpus's three two-clip models are the whole
-  of the WALK table's top: a copper golem walking and walking-with-an-item, a sniffer walking and
-  sniff-searching, a frog walking and swimming.
+- **A walk-gated clip carries the branch it sits inside, where a state-gated one needs none.** A
+  state's gate names the clip that is running, so the exclusion is the selection; a walk's gate is
+  the stride, which answers for every site at once, so a model choosing between two walk clips
+  chooses with an ordinary `if`. The site records that test and the fold settles it against the
+  frame its subjects rest in, dropping what it proves unreachable and refusing what it cannot
+  settle.
+- **A canvas is a union, so every silhouette in it is measured in the pose the render draws.** The
+  requested subject arrives posed; a variant coat is posed here too. **A group MEMBER is not**, and
+  the reason is that this list and the harness's family are different sets - the harness groups one
+  pair of cross-type siblings where `Entity.members()` groups three piglins it measures apart, so
+  posing them unions three canvases vanilla keeps separate. Worth 333 of IDLE delta over that family
+  against the 3.1 it buys on the skeleton's, measured both ways. The two sets have to be reconciled
+  before the member walk can pose.
 
 **`BIND` is the default and hands back the very instance it was given.** Identity, not equality: an
 equal copy is still a copy, and every float in it is one the authored path never computed. The same
