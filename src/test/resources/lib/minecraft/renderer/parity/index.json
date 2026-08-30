@@ -58,7 +58,7 @@
       "entries": 18,
       "file": "manifests/player-raw.json",
       "kind": "manifest",
-      "last_duration_ms": 25697,
+      "last_duration_ms": 24153,
       "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
       "sha256": "26c09399d7d463768378e9a14a29274a02f291a681cd1457eaba7b42b4292b0e"
     },
@@ -108,7 +108,7 @@
       "entries": 210,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "last_duration_ms": 112973,
+      "last_duration_ms": 106423,
       "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
       "sha256": "8435f20a84b1f79e8c2c96b00a3170d27519af31446810cbbbf88d03c6275112"
     },
@@ -118,6 +118,7 @@
       "entries": 3,
       "file": "pins/block-crc.json",
       "kind": "pin-set",
+      "last_duration_ms": 19235,
       "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
       "sha256": "45a4bce0ff6262aae2af0273c9cc0b981cb5c475b86108546b5a631ef3c6fa87"
     },
@@ -157,6 +158,7 @@
       "entries": 3,
       "file": "pins/player-crc.json",
       "kind": "pin-set",
+      "last_duration_ms": 19235,
       "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
       "sha256": "5d16b919b03917c48ce7ba07c79e88a5970680aa72a237d7d6706b8d7489272b"
     },

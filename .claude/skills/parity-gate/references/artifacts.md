@@ -43,8 +43,8 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 10 | 11898 ms | yes |
 | `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 90 | 19533 ms | yes |
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 3762 | 139919 ms | yes |
-| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | 112973 ms | yes |
-| `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | 25697 ms | yes |
+| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | 106423 ms | yes |
+| `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | 24153 ms | yes |
 | `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 23258 ms | yes |
 | `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 23258 ms | yes |
 | `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 14885 ms | yes |
@@ -57,8 +57,8 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `pin.vanilla-iso-pose` | pin-set | STORE | `test` | 1 | 2 | 1 | 8133 ms | yes |
 | `pin.kit-corners` | pin-set | STORE | `test` | 1 | 2 | 1 | 8133 ms | yes |
 | `pin.corpus-count` | pin-set | STORE | `test` | 1 | 1 | 4 | 6718 ms | yes |
-| `pin.player-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | - | yes |
-| `pin.block-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | - | yes |
+| `pin.player-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | 19235 ms | yes |
+| `pin.block-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | 19235 ms | yes |
 | `pin.portal-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 2 | 22053 ms | yes |
 | `pin.fluid-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 13 | 22053 ms | yes |
 | `pin.armor-span` | - | SOURCE | - | - | - | - | - | - |
