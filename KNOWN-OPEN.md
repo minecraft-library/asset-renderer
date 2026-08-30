@@ -13,35 +13,54 @@ Delete an entry when it closes.
 ## Most of the clip tables are dead offline, and the live tail is why they have not been shed
 
 Of `entity_poses.json`'s seventy-four clip tables, fifty-seven are reachable only through `state`
-gates and two more are named by no play site at all. Together they are roughly 300 KB of the member's
+gates and six more are named by no play site at all. Together they are roughly 300 KB of the member's
 359, parsed into records on every boot.
 
 **Seven of the fifty-seven now play.** A state-gated site names the render-state field its gate reads,
 and a caller selects one member of each group, so `ClipKit` plays the site whose gate the selection
 answers - `BAT_FLYING`, `CAMEL_IDLE`, `CAMEL_BABY_IDLE`, `COPPER_GOLEM_IDLE` and both rabbits'
 `IDLE_HEAD_TILT` at the default selection, and `BAT_RESTING` for a caller who asks for it. **Fifty
-are still dead offline**, their states being ones no roster makes selectable, and that is the number
-a shed would be about.
+are still dead offline**, their states being ones no roster makes selectable; with the six a play
+site no longer names, a shed would be about fifty-six.
 
 They stay because the tail is not dead the same way: twelve of the fifty are locomotion clips vanilla
 fires when the subject actually moves - the axolotl's swim and underwater walk, both rabbits' hop,
-both camels' dash, the breeze's slide, the armadillo's roll. **WALK has a reference set now**, so
-what those twelve wait on is no longer the harness but a selector: they are gated on animation states
-no roster makes selectable, exactly like the other thirty-eight, and a stride alone does not start
-one. Shedding now would still be re-adding then. The bat's flight was the thirteenth and is off that
-list: it is an idle animation rather than a locomotion one, and it plays today.
+both camels' dash, the breeze's slide, the armadillo's roll.
+
+**WALK has a reference set, and it did not make those twelve measurable.** Vanilla's own `walk/`
+references are byte-identical to its `animation/` references on all eight frames for `axolotl_lucy`,
+`rabbit_brown` and `breeze` - 29 of the 90 subjects are identical between the two gaits, and those
+three are among them. So the walking client starts none of those animation states either, and a
+selector on this side alone would animate a subject vanilla holds still, which is a regression rather
+than coverage. What the twelve wait on is the harness after all: an arm per state, and the reference
+re-render a harness change owes.
+
+**The armadillo and the two camels look like counter-evidence and are not.** Their references do
+differ between the gaits, because each carries a second clip a `walk` gate reaches - `ARMADILLO_WALK`,
+`CAMEL_WALK` - which the stride starts and which plays today. Ten tables are reached by a walk gate
+and every one of them plays; the twelve are reached by a `state` gate alone. Which gate a site
+carries is what decides whether a gait reaches its clip, and reading a subject's delta rather than
+its gates hides that.
+
+The mechanism is not the missing part either. `IdleFigures.play` starts one animation state where its
+own member is the selected one and stops it otherwise, and four mixins drive it already, so an arm is
+a roster line on both sides and a three-line mixin in the harness. Shedding now would still be
+re-adding then. The bat's flight was the thirteenth and is off that list: it is an idle animation
+rather than a locomotion one, and it plays today.
 
 **Five sites left this member for the opposite reason** - a walk-driven clip behind a branch a
 resting subject decides against, which the fold now settles and drops rather than shipping. Those are
-gone from the table rather than dead in it.
+gone from the table rather than dead in it, and four of the six tables a play site no longer names
+are theirs.
 
 Whoever takes it inherits three constraints. The loader throws on a play site naming a table the
 file does not carry, so sites and tables move together. A prior decision binds the two unread flag
 channels and the three defaults tables - which the emitter still writes and nothing reads - to
 whatever commit sheds the clips. And `EntityPoseLoadTest` pins the turtle's egg-belly bone through
-a channel map the flag shed empties, so its pins move with the emitter. Closing it is either the
-harness stride (WALK gets a reference, the thirteen become measurable, and the genuinely dead rest
-shed behind them) or an owner ruling that the offline renderer never plays a state-driven clip.
+a channel map the flag shed empties, so its pins move with the emitter. Closing it is either an arm
+per locomotion state on the harness side - which makes the twelve measurable and lets the genuinely
+dead rest shed behind them - or an owner ruling that the offline renderer never plays a state-driven
+clip.
 
 ## The pose presets and the animation knobs are one question answered in four places
 
