@@ -795,13 +795,13 @@ public class ModelEngine {
                         continue;
                     }
 
-                    int afterTint = t.source.tintArgb() != ColorMath.WHITE
-                        ? ColorMath.blend(t.source.tintArgb(), rawTexel, BlendMode.MULTIPLY)
-                        : rawTexel;
-
-                    int afterShade = pass.emissive()
-                        ? afterTint
-                        : Shading.apply(afterTint, shading);
+                    // Tint and shade are one multiply, not two. Vanilla carries the tint as the vertex
+                    // colour, so its shader folds it into the light accumulation and quantises once at
+                    // the framebuffer write; rounding the tinted texel and then rounding the shaded
+                    // result costs a channel step wherever the intermediate lands near a boundary. An
+                    // emissive pass takes no light, which is the same expression at full brightness.
+                    int afterShade = Shading.applyTinted(rawTexel, t.source.tintArgb(),
+                        pass.emissive() ? Shading.UNLIT : shading);
                     // Per-overlay opacity multiplier: scale the fragment's alpha before compositing.
                     // Default 1.0 (no-op) for every body / cutout / texture-alpha surface; only an
                     // overlay declaring an explicit alpha node (the warden pulsating-spots glow at
@@ -830,7 +830,7 @@ public class ModelEngine {
 
                     RendererDebug.pixelWrite(px, py, depthVal, t.source.debugTag(),
                         u, v, tx, ty,
-                        rawTexel, t.source.tintArgb(), afterTint,
+                        rawTexel, t.source.tintArgb(),
                         shading, afterShade, blendMode, outArgb);
                     // Depth is written when the pass declares it - vanilla's
                     // DepthStencilState.writeDepth, carried per overlay rather than inferred from

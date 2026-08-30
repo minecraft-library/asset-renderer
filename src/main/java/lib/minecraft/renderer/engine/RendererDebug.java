@@ -150,7 +150,7 @@ public final class RendererDebug {
      */
     public static void pixelWrite(int px, int py, float depthVal, @Nullable String tag,
                                    float u, float v, int tx, int ty,
-                                   int rawTexel, int tintArgb, int afterTint,
+                                   int rawTexel, int tintArgb,
                                    float shading, int afterShade,
                                    @NotNull BlendMode blendMode, int outArgb) {
         if (!pixelDumpContains(px, py)) return;
@@ -159,7 +159,6 @@ public final class RendererDebug {
             + "\t" + u + "\t" + v + "\t" + tx + "\t" + ty
             + "\t" + hexArgb(rawTexel)
             + "\t" + hexArgb(tintArgb)
-            + "\t" + hexArgb(afterTint)
             + "\t" + shading
             + "\t" + hexArgb(afterShade)
             + "\t" + blendMode

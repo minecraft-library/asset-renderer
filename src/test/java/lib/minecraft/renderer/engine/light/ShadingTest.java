@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.light;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
@@ -89,6 +90,32 @@ class ShadingTest {
     void applyClampsAboveFullBright() {
         assertThat(Shading.apply(0xFF808080, 4f), equalTo(0xFFFFFFFF));
         assertThat(Shading.apply(0xFF804020, 2f), equalTo(0xFFFF8040));
+    }
+
+    @Test
+    @DisplayName("a white tint leaves apply's own answer bit-for-bit")
+    void whiteTintIsTheUntintedAnswer() {
+        // apply IS this method at a white tint, which holds because 255 / 255f is exactly 1.0f and a
+        // multiply by it is exact. A tint folded in after the texel instead would round differently
+        // here and move every untinted surface in the corpus.
+        for (float f : new float[]{0f, 0.4f, 0.5f, 0.6489f, 1f, 4f}) {
+            assertThat(Shading.applyTinted(0xFF804020, ColorMath.WHITE, f), equalTo(Shading.apply(0xFF804020, f)));
+            assertThat(Shading.applyTinted(0x7B123456, ColorMath.WHITE, f), equalTo(Shading.apply(0x7B123456, f)));
+        }
+    }
+
+    @Test
+    @DisplayName("tint and shade quantise once, not once each")
+    void tintAndShadeQuantiseOnce() {
+        // Vanilla folds the tint into the vertex colour, so a fragment is quantised at the framebuffer
+        // write and nowhere else. Tinting the texel to an int first and shading that rounds twice: a
+        // channel of 1 under a half tint and a half shade is 0.251, which is 0 once and 1 twice.
+        assertThat(Shading.applyTinted(0xFF010101, 0xFF808080, 0.5f), equalTo(0xFF000000));
+
+        // The same fragment through the two-step arithmetic, spelled out - this is what the rasterizer
+        // used to compute, and it is a whole channel step brighter.
+        int tintedFirst = Math.round(1 * 128 / 255f);
+        assertThat(Math.round(tintedFirst * 0.5f), equalTo(1));
     }
 
     @Test

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.engine.light;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.Face;
@@ -50,18 +51,56 @@ public class Shading {
      * @return the shaded ARGB pixel
      */
     public static int apply(int argb, float factor) {
-        // Vanilla GLSL quantizes via `floor(min(1, v) * 255 + 0.5)` (round-half-up), so match it with
-        // Math.round. A plain (int) truncation would bias every shaded channel ~0.5 LSB low and leave
-        // a single-LSB precision floor across un-tinted entities (goat / husk / zombie / skeleton etc).
+        return applyTinted(argb, ColorMath.WHITE, factor);
+    }
+
+    /**
+     * Multiplies an ARGB texel by a vertex tint and a shading factor, quantising once.
+     *
+     * <p>Vanilla carries the tint as the VERTEX COLOUR, so the vertex shader folds it into the light
+     * accumulation and the fragment shader multiplies the sampled texel by that one value - the
+     * framebuffer write being the only quantisation. Tinting the texel and then shading the result
+     * rounds twice, and the two part company by a channel step wherever the intermediate lands near a
+     * boundary. That is a property of the tint rather than of any subject, so it reaches every tinted
+     * surface at once: a dyed collar, a sheep's wool, a tropical fish's two patterns, a biome-tinted
+     * block.
+     *
+     * <p>The tint is combined with the factor BEFORE the texel, which is the order vanilla composes
+     * them in and is what makes {@link #apply} an instance of this rather than a second arithmetic:
+     * {@code 255 / 255f} is exactly {@code 1.0f} and multiplying by it is exact, so a white tint
+     * leaves the factor and the product bit-for-bit unchanged.
+     *
+     * <p>Vanilla GLSL quantizes via {@code floor(min(1, v) * 255 + 0.5)} (round-half-up), so this
+     * matches with {@link Math#round}. A plain {@code (int)} truncation would bias every shaded
+     * channel ~0.5 LSB low. Alpha is the texel's.
+     *
+     * @param argb the sampled ARGB texel
+     * @param tintArgb the vertex tint, {@link ColorMath#WHITE} for none
+     * @param factor the shading factor in {@code [0, 1]}
+     * @return the tinted and shaded ARGB pixel
+     */
+    public static int applyTinted(int argb, int tintArgb, float factor) {
         int a = (argb >>> 24) & 0xFF;
-        int r = Math.round(((argb >>> 16) & 0xFF) * factor);
-        int g = Math.round(((argb >>> 8) & 0xFF) * factor);
-        int b = Math.round((argb & 0xFF) * factor);
+        int r = Math.round(((argb >>> 16) & 0xFF) * channelScale(tintArgb >>> 16, factor));
+        int g = Math.round(((argb >>> 8) & 0xFF) * channelScale(tintArgb >>> 8, factor));
+        int b = Math.round((argb & 0xFF) * channelScale(tintArgb, factor));
 
         r = Math.clamp(r, 0, 255);
         g = Math.clamp(g, 0, 255);
         b = Math.clamp(b, 0, 255);
         return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    /**
+     * The scalar one channel of a fragment is multiplied by - vanilla's interpolated vertex colour,
+     * which is the tint channel and the light accumulation composed before either meets a texel.
+     *
+     * @param tintChannel the tint's channel, in the low byte
+     * @param factor the shading factor
+     * @return the combined per-channel scale
+     */
+    private static float channelScale(int tintChannel, float factor) {
+        return (tintChannel & 0xFF) / 255f * factor;
     }
 
     // --- block-icon ITEMS_3D relighting (moved out of BlockRenderer) ---
