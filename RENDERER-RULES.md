@@ -470,13 +470,19 @@ divergence in how they were measured.
   chooses with an ordinary `if`. The site records that test and the fold settles it against the
   frame its subjects rest in, dropping what it proves unreachable and refusing what it cannot
   settle.
-- **A canvas is a union, so every silhouette in it is measured in the pose the render draws.** The
-  requested subject arrives posed; a variant coat is posed here too. **A group MEMBER is not**, and
-  the reason is that this list and the harness's family are different sets - the harness groups one
-  pair of cross-type siblings where `Entity.members()` groups three piglins it measures apart, so
-  posing them unions three canvases vanilla keeps separate. Worth 333 of IDLE delta over that family
-  against the 3.1 it buys on the skeleton's, measured both ways. The two sets have to be reconciled
-  before the member walk can pose.
+- **A canvas is a union, so every silhouette in it is measured in the pose the render draws** - the
+  requested subject, each variant coat, and every group member alike. **What that rests on is that
+  `Entity.members()` and the harness's `EntityRoster.FAMILY_OVERRIDES` are one set**, and they are
+  held together by nothing but the two being written to agree: the tooling derives this side's from
+  shared primary geometry and the harness declares its own by hand. A group only one of them carries
+  is a canvas one renderer unions and the other does not, worth 333 of animated delta over the piglin
+  family while the two disagreed, so a group added on either side is added on both and the evidence
+  that they agree is that the two canvases agree.
+- **The disagreement was invisible for as long as every subject was measured at rest**, because the
+  unposed silhouettes nest inside one another - the still sweep had `java_w == vanilla_w` on every
+  grouped row throughout. Reconciling the sets and posing the members re-rendered the whole reference
+  tree and moved 48 of 3762 files, all of them the three piglins under the two posed gaits, with
+  `entities/` untouched.
 - **A clip channel named `root` is the CONTAINER and not a bone.** `ModelPart.createPartLookup` seeds
   its map with `root -> this` - the model's own root part, which the geometry flow flattens away and
   names nowhere - and adds the named children only afterwards, so a mesh that declares a bone of that
