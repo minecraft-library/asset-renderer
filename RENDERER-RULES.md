@@ -249,9 +249,9 @@ rule: their kits bake `Lighting.inventory` at emit time and nothing relights the
 - The `1/400` coverage snap (`ModelEngine.snapToCoverageGrid`) must never move depth: `DepthMath.Plane`
   is solved from the triangle's **unsnapped** screen positions, so the snap moves which samples are
   covered and not what depth they read.
-- `Projected.z0/z1/z2` is raster depth - the plane's value at each snapped position, which only a
-  perspective lens interpolates; `p0/p1/p2.z()` is the camera-space depth the translucent
-  `quadCamDepthKey` sort reads. Do not collapse them.
+- `Projected.plane` is raster depth; `p0/p1/p2.z()` is the camera-space depth the translucent
+  `quadCamDepthKey` sort reads. Do not collapse them - the plane is read at a sample point and the
+  vertex depths are read per triangle, and only the second is a sort key.
 - Depth is compared on vanilla's window grid: `DepthMath.onVanillaDepthGrid` rounds each
   interpolated depth through `0.5f - depth * k`, `k = scale / (2 * VANILLA_DEPTH_RANGE)` at
   `VANILLA_DEPTH_RANGE = 1000`, where a `float` step beside `0.5` is `2^-24`.
@@ -261,7 +261,11 @@ rule: their kits bake `Lighting.inventory` at emit time and nothing relights the
   point, so the only rounding between the solve and the depth test is the one that lands the answer in
   a `float`. Deriving it a second time - into three vertex depths, then into gradients, then from a
   vertex anchor - is five more roundings, and two coplanar triangles take them differently enough to
-  separate by a quantum or two a pair the grid would tie. A perspective lens keeps the barycentric form.
+  separate by a quantum or two a pair the grid would tie.
+- **Every lens reads that one plane**, perspective included: depth is affine in screen space under all
+  three, and blending the three vertex depths barycentrically reaches the same affine function only
+  because each of them *is* the plane's value at its snapped position. There is no perspective-correct
+  depth path. `perspectiveCorrect` forks uv and nothing else.
 - There is no depth tolerance anywhere: `depthFails` is a bare `depthVal < existingDepth`, with no
   emissive slack, no coincident-overlay clearance inflate and no trim separation.
 - A coplanar pair is last-drawn-wins, as `GL_LEQUAL` is, so `EntityModelData.getBones()`'s insertion

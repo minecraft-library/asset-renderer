@@ -5,7 +5,6 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Vector2f;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Static helpers for the depth half of the rasterization math - the window-depth grid vanilla
@@ -100,9 +99,9 @@ public class DepthMath {
      * The plane a triangle's fragment depths are read off - the one its three <b>unsnapped</b> screen
      * positions and camera-space depths define, anchored at the first of them.
      *
-     * <p>Depth is affine in screen space here (there is no perspective-correct depth path - see the
-     * rasterizer's {@code depthVal}), so three vertices fix it exactly, and reading it off the
-     * unsnapped positions is what keeps the {@code 1/400} coverage snap
+     * <p>Depth is affine in screen space under every lens (there is no perspective-correct depth
+     * path - see the rasterizer's {@code depthVal}), so three vertices fix it exactly, and reading it
+     * off the unsnapped positions is what keeps the {@code 1/400} coverage snap
      * ({@link ModelEngine#snapToCoverageGrid}) from moving depth. A plane solved from the snapped
      * vertices instead is tilted by how far each of them moved, which is a different tilt per
      * triangle: two <em>genuinely coplanar</em> triangles - the worn-armour chestplate's torso box
@@ -135,16 +134,17 @@ public class DepthMath {
          * @param z0 the first vertex's camera-space depth
          * @param z1 the second vertex's camera-space depth
          * @param z2 the third vertex's camera-space depth
-         * @return the plane, or {@code null} when the triangle has no unsnapped screen area to read one off
+         * @return the plane, flat at the first vertex's depth when the triangle has no unsnapped screen
+         *     area to tilt one over
          */
-        public static @Nullable Plane of(
+        public static @NotNull Plane of(
             @NotNull Vector2f r0, @NotNull Vector2f r1, @NotNull Vector2f r2, float z0, float z1, float z2) {
             double dx1 = (double) r1.x() - r0.x();
             double dy1 = (double) r1.y() - r0.y();
             double dx2 = (double) r2.x() - r0.x();
             double dy2 = (double) r2.y() - r0.y();
             double denominator = dx1 * dy2 - dx2 * dy1;
-            if (denominator == 0d) return null;
+            if (denominator == 0d) return new Plane(r0.x(), r0.y(), z0, 0d, 0d);
 
             double dz1 = (double) z1 - z0;
             double dz2 = (double) z2 - z0;
