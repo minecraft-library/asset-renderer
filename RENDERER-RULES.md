@@ -269,7 +269,13 @@ rule: their kits bake `Lighting.inventory` at emit time and nothing relights the
 - There is no depth tolerance anywhere: `depthFails` is a bare `depthVal < existingDepth`, with no
   emissive slack, no coincident-overlay clearance inflate and no trim separation.
 - A coplanar pair is last-drawn-wins, as `GL_LEQUAL` is, so `EntityModelData.getBones()`'s insertion
-  order is the tied-depth priority - do not swap it for a hash map.
+  order is the tied-depth priority - do not swap it for a hash map. Measured at both seams that carry
+  one: over the fleet the base mesh reordered that way reads `21.4733` against `20.9361`, and a worn
+  shell reordered at `ShellWalk.of` takes `skeleton~armor=iron` from `0.2046` to `0.6577`.
+- **A worn shell's emission order is `ShellWalk.of`, not the geometry kit's bone loop.** Its triangles
+  come from `ArmorKit.buildArmor3D` walking `ShellWalk.parts`, so a probe that reorders
+  `EntityGeometryKit` reaches the base mesh alone and answers nothing about a shell - it will report
+  no armour row moving, which is the probe missing them rather than a result.
 - The grid quantum is coarser than two solutions of one plane differ by, so a coplanar contest falls to
   draw order. That is a property of the arithmetic and not a given: the worn shell's torso and arm
   south faces read 2 ULP apart against a quantum near `2e-7`, and a longer `float` chain between the
