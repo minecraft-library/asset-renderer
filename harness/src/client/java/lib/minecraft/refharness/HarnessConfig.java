@@ -158,24 +158,38 @@ public final class HarnessConfig {
     public static final boolean WALKING = Boolean.getBoolean("refharness.walking");
 
     /**
-     * Whether this run draws the mesh its model poses rather than the mesh as authored, which is
-     * what turns the two freezes off: {@code SkipSetupAnimMixin} lets {@code setupAnim} through and
-     * {@code FreezeAnimationStateMixin} answers {@code ageInTicks} as the frame's tick rather than
-     * as zero.
+     * Comma-separated {@link HarnessMode} names this run performs, case-insensitively - the way to
+     * ask one boot for more than one sub-tree ({@code -Drefharness.modes=EVERY,ANIMATION,WALK}).
      *
-     * <p><b>A posed run and a frozen one cannot share a boot.</b> Both mixins decide per render from
-     * a value read once per JVM, so a run that poses one subject poses every subject - and the seven
-     * static sub-trees are defined by those freezes being in force. That is what makes each posed
-     * run a mode of its own rather than an option on
-     * {@link lib.minecraft.refharness.sweep.EntitySweep}, and why {@link #EVERY_SWEEP} runs neither:
-     * the task that refreshes the whole tree boots the client once per posed sub-tree beside it.
+     * <p>The single-mode booleans above each name one mode and compose with this, so a task that sets
+     * one resolves exactly what it always did. Empty and no boolean set is {@link HarnessMode#FULL}.
      *
-     * <p><b>It is the gait that separates the two posed runs, not the freeze.</b> Both lift the same
-     * freezes and sample the same schedule; {@link #WALKING} additionally drives the two figures a
-     * stride is carried on, which every other run leaves at the zero a subject standing still holds
-     * them at.
+     * <p><b>What a posed run needs is a {@link Gait}, and a gait is armed per sweep rather than per
+     * JVM.</b> {@code SkipSetupAnimMixin}'s redirects both decide per render, so the freezes never
+     * needed to be a property of the boot; {@link PoseState} holds the armed one and
+     * {@link HarnessMode#resolve} orders a run so no sweep is handed a mesh a later gait mutated.
      */
-    public static final boolean POSED = ANIMATED || WALKING;
+    public static final String MODES = System.getProperty("refharness.modes", "");
+
+    /**
+     * How many subjects one client tick renders. Defaults to {@code 8}; it was effectively {@code 1}
+     * for the harness's whole life, and that was the run's largest single cost.
+     *
+     * <p>A client ticks twenty times a second whatever the machine can draw, so one render per tick
+     * priced a 2310-reference run at nearly two minutes of waiting on the tick clock alone - the
+     * largest single cost in the run, ahead of the boot. What held it there was the read-back:
+     * {@code PipTarget} closed its colour texture on a canvas resize, and only the length of a tick
+     * kept a copy in flight from meeting a released one. The texture is retired rather than closed
+     * now, so this is a throughput knob rather than the correctness fence it used to be.
+     *
+     * <p>It is still a knob rather than a constant because the ceiling is the machine's: each render
+     * queues a copy the GPU has to execute, and asking for more per tick than it can retire just moves
+     * the wait. Measured on the whole tree, every one of them byte-identical: {@code 1} renders it in
+     * {@code 3m 28s}, {@code 4} in {@code 1m 13s}, {@code 16} in {@code 1m 7s} and {@code 32} in
+     * {@code 1m 8s}. Past the low tens the run is boot-bound rather than tick-bound, so the default
+     * sits where the curve flattens rather than at the fastest single reading.
+     */
+    public static final int RENDERS_PER_TICK = Math.max(1, Integer.getInteger("refharness.rendersPerTick", 8));
 
     /**
      * Diagnostic flag: when {@code true}, the entity sweeper renders the first filtered

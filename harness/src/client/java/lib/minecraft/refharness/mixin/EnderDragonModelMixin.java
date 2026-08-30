@@ -1,6 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
-import lib.minecraft.refharness.HarnessConfig;
+import lib.minecraft.refharness.PoseState;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.monster.dragon.EnderDragonModel;
 import net.minecraft.client.renderer.entity.state.EnderDragonRenderState;
@@ -39,7 +39,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * {@code EnderDragonRenderer} extends {@code EntityRenderer} directly, so the redirect on
  * {@code LivingEntityRenderer.submit} never fires for it. An animated run wants the flight-cycle
  * pose and turns both off together, which is what
- * {@link lib.minecraft.refharness.HarnessConfig#POSED POSED} selects.
+ * {@link lib.minecraft.refharness.PoseState#posed() the armed gait} selects.
  *
  * <p>Same {@code refharness.headless} gate as the other harness mixins so non-harness
  * consumers of this jar (if any ever exist) keep vanilla animation behaviour.
@@ -51,7 +51,7 @@ public abstract class EnderDragonModelMixin {
         at = @At("HEAD"),
         cancellable = true)
     private void refharness$skipAnimation(EnderDragonRenderState state, CallbackInfo ci) {
-        if (!Boolean.getBoolean("refharness.headless") || HarnessConfig.POSED) return;
+        if (!Boolean.getBoolean("refharness.headless") || PoseState.posed()) return;
         ci.cancel();
     }
 }

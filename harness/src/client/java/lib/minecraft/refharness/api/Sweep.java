@@ -1,5 +1,8 @@
 package lib.minecraft.refharness.api;
 
+import lib.minecraft.refharness.Gait;
+import lib.minecraft.refharness.HarnessMode;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -20,6 +23,21 @@ public interface Sweep<S> {
      * Returns the reference-tree directory this sweep writes into, relative to the output root.
      */
     String outputDir();
+
+    /**
+     * The {@link Gait} this sweep's references are ground truth for, which the runner arms before it
+     * enumerates or renders anything.
+     *
+     * <p>{@link Gait#BIND} for all but the two posed sweeps, which is what the seven static sub-trees
+     * are. A sweep declaring one rather than a run selecting one is what lets a single boot render
+     * both kinds - and {@link HarnessMode#sweeps} orders a run by it, because the freezes skip
+     * {@code setupAnim} rather than undoing it.
+     *
+     * @return the gait to render at
+     */
+    default Gait gait() {
+        return Gait.BIND;
+    }
 
     /**
      * Enumerates every subject this sweep will render, in render order. One element is one output

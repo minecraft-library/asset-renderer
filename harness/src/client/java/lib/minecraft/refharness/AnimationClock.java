@@ -49,7 +49,7 @@ public final class AnimationClock {
      * @return the armed tick when this run poses, and zero when it freezes
      */
     public static float ageInTicks() {
-        return HarnessConfig.POSED ? tick : 0.0f;
+        return PoseState.posed() ? tick : 0.0f;
     }
 
     /**
@@ -58,7 +58,7 @@ public final class AnimationClock {
      * @return the full amplitude on a walking run, and zero on every other
      */
     public static float walkAnimationSpeed() {
-        return HarnessConfig.WALKING ? WALK_AMPLITUDE : 0.0f;
+        return PoseState.walking() ? WALK_AMPLITUDE : 0.0f;
     }
 
     /**
@@ -71,6 +71,6 @@ public final class AnimationClock {
      * @return the armed tick's phase on a walking run, and zero on every other
      */
     public static float walkAnimationPos() {
-        return HarnessConfig.WALKING ? tick * WALK_AMPLITUDE : 0.0f;
+        return PoseState.walking() ? tick * WALK_AMPLITUDE : 0.0f;
     }
 }

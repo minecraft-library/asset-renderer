@@ -3,6 +3,7 @@ package lib.minecraft.refharness.api;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import lib.minecraft.refharness.Gait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,9 +15,10 @@ import java.util.List;
  * Drives one {@link Sweep} a subject at a time - the work index, the tally, and the completion
  * latch every sweep would otherwise keep for itself.
  *
- * <p>Exactly one subject advances per call, which is exactly one PNG. The frame renderers reuse a
- * single colour texture whose read-back completes on a later frame, so starting the next render
- * before the previous read-back lands would corrupt it.
+ * <p>One {@link #step} is one subject, which is one PNG; {@link #stepBatch} is how many of them a
+ * tick carries. The frame renderers reuse a colour texture per canvas size whose read-back completes
+ * on a later frame, and {@code PipTarget} retires a replaced texture rather than closing it - which
+ * is what makes several renders in flight safe, and what turned the pacing from a fence into a knob.
  *
  * @param <S> the subject descriptor the sweep enumerates
  */
@@ -45,6 +47,33 @@ public final class SweepRunner<S> implements AutoCloseable {
      */
     public static <S> SweepRunner<S> of(Sweep<S> sweep) {
         return new SweepRunner<>(sweep);
+    }
+
+    /**
+     * The gait this runner's sweep renders at, which the orchestrator arms before stepping it.
+     *
+     * @return the sweep's gait
+     */
+    public Gait gait() {
+        return sweep.gait();
+    }
+
+    /**
+     * Advances up to {@code limit} subjects, stopping early when the sweep finishes.
+     *
+     * <p>The pacing this replaces was one subject per client tick, which is 20 a second whatever the
+     * machine can draw - so a 2310-reference run spent nearly two minutes waiting on the tick clock.
+     * What made it one was the read-back: {@code PipTarget} reused one colour texture per renderer
+     * and <em>closed</em> it whenever the canvas changed size, so a copy still in flight could be
+     * handed a released texture. A tick was long enough that it never was. The texture is retired
+     * rather than closed now, so several renders can be in flight and the limit is a throughput knob
+     * rather than a correctness one.
+     *
+     * @param ctx the sweep context for this tick
+     * @param limit the most subjects to advance
+     */
+    public void stepBatch(SweepContext ctx, int limit) {
+        for (int i = 0; i < limit && !done; i++) step(ctx);
     }
 
     /**

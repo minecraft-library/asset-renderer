@@ -1,6 +1,6 @@
 package lib.minecraft.refharness.sweep;
 
-import lib.minecraft.refharness.HarnessConfig;
+import lib.minecraft.refharness.Gait;
 import lib.minecraft.refharness.api.Appearance;
 import lib.minecraft.refharness.api.AppearanceRequest;
 import lib.minecraft.refharness.api.Bounds;
@@ -58,6 +58,27 @@ import java.util.stream.IntStream;
  */
 @Parity(claim = "harness-animation-sweep", mode = Mode.DEMOTE, subject = Subject.ENTITY)
 public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Frame> {
+
+    /**
+     * The gait this instance renders, which is also the sub-tree it writes. Held rather than read
+     * from a property so one boot can run both: two instances of one sweep are two sub-trees, where
+     * a static read made them two runs.
+     */
+    private final Gait gait;
+
+    /**
+     * Constructs a sweep that renders one gait.
+     *
+     * @param gait the gait to render, which decides both the stride and the output directory
+     */
+    public EntityAnimationSweep(Gait gait) {
+        this.gait = gait;
+    }
+
+    @Override
+    public Gait gait() {
+        return this.gait;
+    }
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
@@ -129,7 +150,7 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
      */
     @Override
     public String outputDir() {
-        return HarnessConfig.WALKING ? "walk" : "animation";
+        return this.gait == Gait.WALK ? "walk" : "animation";
     }
 
     @Override

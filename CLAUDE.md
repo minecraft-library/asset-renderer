@@ -133,11 +133,12 @@ byte-stable ground truth the nine sweeps diff against, one sub-tree each under
 - **The player and armour sweeps rescale both sides before diffing, so their delta is a LOOK gauge.**
   Their raw renders are the byte gate: `vanilla.png` / `java.png` are what the renderers produced,
   and `aligned_*.png` is the resample the delta, the diff and the panel come from.
-- **`animation/` and `walk/` are the two sub-trees a whole-tree run needs a further boot for**, seven
-  sweeps freezing `setupAnim` and those two lifting it. A freeze is a property of the JVM, so a run
-  that poses every subject cannot freeze any, and a run that walks every subject cannot stand one
-  still - `renderVanillaAllReferences` therefore boots three times. Every other run leaves both
-  sub-trees exactly as it found them.
+- **`renderVanillaAllReferences` writes the whole tree in ONE boot**, all nine sweeps, `animation/`
+  and `walk/` included. A freeze is armed per sweep off `PoseState` rather than read once per JVM, and
+  `HarnessMode.resolve` orders a run `BIND` before `IDLE` before `WALK` - which is a correctness
+  requirement, not tidiness: a freeze SKIPS `setupAnim` rather than undoing it, so a posed sweep ahead
+  of a frozen one would leave every bone it touched posed and the frozen sub-trees would record that.
+  Every narrower run still leaves the sub-trees it does not name exactly as it found them.
 - **The two posed sub-trees are one sweep at two gaits**, `-Drefharness.walking=true` selecting the
   second, and the asset side is one driver at `asset.parity.gait=walk`. Neither doubles: what a gait
   changes is two render-state fields, not a work list.

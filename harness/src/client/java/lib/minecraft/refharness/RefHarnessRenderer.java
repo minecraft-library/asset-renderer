@@ -58,17 +58,19 @@ public final class RefHarnessRenderer {
         client.player.setDeltaMovement(0, 0, 0);
         client.options.hideGui = true;
 
-        HarnessMode mode = HarnessMode.resolve();
-        LOG.info("RefHarnessRenderer: mode={}", mode);
+        List<HarnessMode> modes = HarnessMode.resolve();
+        List<Sweep<?>> sweeps = HarnessMode.sweeps(modes);
+        LOG.info("RefHarnessRenderer: modes={}, sweeps={}", modes,
+            sweeps.stream().map(sweep -> sweep.outputDir() + "@" + sweep.gait()).toList());
 
         // Every sweep other than the glint sweep renders any foil subject it meets at whatever phase
         // the wall clock happened to be at, which made the always-foil items the only
         // non-reproducible references in the tree. Pin the glint to the same instant the glint sweep
         // captures as its frame 0. The glint sweep drives the clock itself, one value per frame.
-        if (mode != HarnessMode.GLINT) GlintClock.overrideT = 0;
+        if (!modes.equals(List.of(HarnessMode.GLINT))) GlintClock.overrideT = 0;
 
         List<SweepRunner<?>> built = new ArrayList<>();
-        for (Sweep<?> sweep : mode.sweeps()) built.add(SweepRunner.of(sweep));
+        for (Sweep<?> sweep : sweeps) built.add(SweepRunner.of(sweep));
         runners = List.copyOf(built);
     }
 
@@ -127,9 +129,14 @@ public final class RefHarnessRenderer {
     static void tick(Minecraft client) {
         SweepContext ctx = new SweepContext(client, HarnessConfig.OUTPUT_DIR, TARGETS);
         for (SweepRunner<?> runner : runners) {
-            // Returning after the first incomplete runner is what preserves the strictly sequential,
-            // one-subject-per-tick pacing the asynchronous read-back requires.
-            if (!runner.isDone()) { runner.step(ctx); return; }
+            if (runner.isDone()) continue;
+            // Armed before the step rather than once at start, because one boot renders sweeps at
+            // more than one gait now. Every reader - both setupAnim redirects, the two model
+            // cancels, the clock, the idle figures and the bounds walk - asks PoseState per render,
+            // so arming here covers the enumerate and the canvas pre-pass as well as the draw.
+            PoseState.arm(runner.gait());
+            runner.stepBatch(ctx, HarnessConfig.RENDERS_PER_TICK);
+            return;
         }
     }
 }

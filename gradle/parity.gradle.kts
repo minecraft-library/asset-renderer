@@ -623,16 +623,14 @@ fun resolveParityArtifacts(spec: String?): List<ParityArtifact> {
 
 // ---- the harness runs, and the capture steps ----------------------------------------------------
 /** Composable harness diagnostics: stdout only, so a run carrying one still produces the same bytes. */
-val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDump")
+val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDump", "refharnessRendersPerTick")
 
 // Every sub-tree the reference tree holds, so a partial run can name what it did NOT refresh.
 //
-// `animation` is the one no single client boot can be written alongside: the two setupAnim freezes
-// are read once per JVM and the seven sub-trees above are defined by them being in force, so the
-// whole-tree task boots the client twice rather than running an eighth sweep. It is in this list
-// because it is in the tree - the reference manifest walks the root for images at any depth, so a
-// sub-tree left out of the list is one every partial run stops naming while the manifest goes on
-// hashing it.
+// `animation` and `walk` are written in the same boot as the seven above now - the freezes are armed
+// per sweep off PoseState rather than read once per JVM. They are in this list because they are in
+// the tree: the reference manifest walks the root for images at any depth, so a sub-tree left out of
+// the list is one every partial run stops naming while the manifest goes on hashing it.
 val referenceSubTrees =
     listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "animation", "walk")
 
@@ -665,7 +663,9 @@ val parityHarnessModesRun: MutableSet<String> = sortedSetOf()
  *
  * @receiver the task container the run joins
  * @param name the task name
- * @param modeFlag the harness -P selecting the mode, or null for the harness's full mode
+ * @param modeFlag the harness -P selecting the mode, or null for the harness's full mode. A flag
+ *   carrying its own `=value` is passed through as written, which is how one run names several modes;
+ *   a bare flag is passed as `=true`.
  * @param mode the HarnessMode constant that flag resolves to, held against the harness's own
  *   declaration of it and stamped on this invocation's captures when the run refreshes something
  * @param forwardsTargets whether -PrefharnessTargets is honoured by the sweeps this mode runs
@@ -710,7 +710,7 @@ fun TaskContainer.registerHarnessRun(
     // -P propagates through the harness's build.gradle to its Loom run config, which sets the system
     // property the mod reads. -D would only reach the wrapper's JVM, never the forked client.
     argv += "-PrefharnessOutputDir=${outputDir.absolutePath}"
-    if (modeFlag != null) argv += "-P$modeFlag=true"
+    if (modeFlag != null) argv += if (modeFlag.contains('=')) "-P$modeFlag" else "-P$modeFlag=true"
     if (forwardsTargets && project.hasProperty("refharnessTargets"))
         argv += "-PrefharnessTargets=${project.property("refharnessTargets")}"
     harnessDiagnosticProperties.filter { project.hasProperty(it) }
@@ -1081,19 +1081,17 @@ tasks {
         "amplitude vanilla clamps them to rather than the zero a subject nothing has moved holds. " +
         "Then run entityWalkParityVanilla.")
 
-    registerHarnessRun("renderVanillaAllReferences", "refharnessEverySweep", "EVERY", true, referenceSubTrees,
-        "Runs every frozen sweep in ONE client boot, then each posed pass in a boot of its own, and writes " +
-        "the whole reference tree. ~152 s for the first, which is 43 s cheaper than the three narrower tasks " +
-        "run separately. The only task that can leave no sub-tree stale.")
-        // The further boots, and the reason there are any: a mixin configuration is a property of the
-        // JVM, so the run that poses every subject cannot also be the run that freezes every subject
-        // - and the run that walks every subject cannot be the one that stands them still, for the
-        // same reason one rung down. Edges rather than sweeps in the EVERY arm, because what differs
-        // is the client rather than the work list - and they are here rather than left to an
-        // operator for the reason this task exists at all, which is that relying on the narrow runs
-        // left stale ground truth on disk twice. They are what keeps the sentence above true with
-        // two posed sub-trees in the tree.
-        .configure { dependsOn("renderVanillaAnimationReferences", "renderVanillaWalkReferences") }
+    // ONE boot for the whole tree, posed sub-trees included. The freezes were never a property of the
+    // JVM - both of SkipSetupAnimMixin's redirects branch per render - so what made each posed pass a
+    // boot of its own was HarnessConfig.POSED being a static final read of a system property.
+    // PoseState holds the armed Gait instead and the runner arms it per sweep. HarnessMode.resolve
+    // orders them BIND before IDLE before WALK, which is a correctness requirement rather than
+    // tidiness: a freeze SKIPS setupAnim and does not undo it, so a posed sweep ahead of a frozen one
+    // would leave every bone it touched holding a posed value and the frozen sub-trees would record it.
+    registerHarnessRun("renderVanillaAllReferences", "refharnessModes=EVERY,ANIMATION,WALK",
+        "EVERY,ANIMATION,WALK", true, referenceSubTrees,
+        "Runs every sweep there is - frozen and both posed - in ONE client boot, and writes the whole " +
+        "reference tree. The only task that can leave no sub-tree stale.")
 
     registerHarnessRun("renderVanillaPitchRollProbe", "refharnessPitchRollSweep", "PITCH_ROLL", true, emptyList(),
         "Harness PITCH_ROLL probe: renders the first -PrefharnessTargets subject over a 24x24 pitch/roll " +

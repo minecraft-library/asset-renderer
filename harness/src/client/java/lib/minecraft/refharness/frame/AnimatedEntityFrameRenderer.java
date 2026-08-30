@@ -2,6 +2,7 @@ package lib.minecraft.refharness.frame;
 
 import lib.minecraft.refharness.AnimationClock;
 import lib.minecraft.refharness.HarnessConfig;
+import lib.minecraft.refharness.PoseState;
 import lib.minecraft.refharness.api.Bounds;
 import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.FrameRenderer;
@@ -88,7 +89,7 @@ public final class AnimatedEntityFrameRenderer implements AutoCloseable {
      * refusal rather than a warning.
      */
     private static void armAt(int tick) {
-        if (!HarnessConfig.POSED)
+        if (!PoseState.posed())
             throw new IllegalStateException(
                 "An animated render needs -Drefharness.animated=true: the freezes read it once per "
                     + "JVM, so without it every tick of the schedule draws the same still");

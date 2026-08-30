@@ -6,6 +6,7 @@ import com.mojang.math.Axis;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.AllArgsConstructor;
 import lib.minecraft.refharness.HarnessConfig;
+import lib.minecraft.refharness.PoseState;
 import lib.minecraft.refharness.api.AppearanceRequest;
 import lib.minecraft.refharness.api.Bounds;
 import lib.minecraft.refharness.pip.PipScope;
@@ -131,7 +132,7 @@ final class EntityBoundsWalker implements AutoCloseable {
      * and its layers are posed by one decision.
      */
     private static boolean posesBeforeWalking() {
-        return !Boolean.getBoolean("refharness.headless") || HarnessConfig.POSED;
+        return !Boolean.getBoolean("refharness.headless") || PoseState.posed();
     }
 
     /**
@@ -339,10 +340,57 @@ final class EntityBoundsWalker implements AutoCloseable {
     ) {
         net.fabricmc.fabric.api.client.renderer.v1.sprite.SpriteFinder finder = blockAtlasSpriteFinder();
         if (finder == null) return;
-        for (RenderLayer<?, ?> layer : layersOf(renderer)) {
-            if (!isLayerActiveForState(layer, state)) continue;
-            if (!findLayerModels(layer, state).isEmpty()) continue; // EntityModel layer - handled by walkLayerExtents
-            captureBlockSubmits(layer, state, ps, finder, expand);
+        // The layer reads its bones off the renderer's own mutable model field rather than off
+        // anything handed in, so the walk has to pin that field the way tryGetModel already pins what
+        // it measures directly - see pinSelectedModel.
+        Model<?> selected = tryGetModel(renderer, state);
+        Model<?> previous = pinSelectedModel(renderer, selected);
+        try {
+            for (RenderLayer<?, ?> layer : layersOf(renderer)) {
+                if (!isLayerActiveForState(layer, state)) continue;
+                if (!findLayerModels(layer, state).isEmpty()) continue; // EntityModel layer - handled by walkLayerExtents
+                captureBlockSubmits(layer, state, ps, finder, expand);
+            }
+        } finally {
+            if (previous != null) pinSelectedModel(renderer, previous);
+        }
+    }
+
+    /**
+     * Points {@code LivingEntityRenderer.model} at the model this subject selects for the duration of
+     * a block-overlay walk, and answers the one it replaced so the caller can put it back.
+     *
+     * <p><b>{@link #tryGetModel} makes what the walk measures directly independent of render order;
+     * this is the same fix for what a LAYER measures.</b> A block-model layer is invoked through its
+     * own {@code submit}, and it reaches its anchor bone through {@code getParentModel()} - the
+     * renderer's mutable field - rather than through anything the walk passes in. So the two paths
+     * disagreed whenever that field held another subject's model, which {@code AgeableMobRenderer}
+     * leaves it holding: its {@code submit} assigns {@code isBaby ? babyModel : adultModel} and never
+     * puts it back.
+     *
+     * <p>Measured on the mooshroom, the only subject in the corpus whose model composes block
+     * geometry. Its layer places three mushrooms - two at constants, and one through
+     * {@code ModelPart.translateAndRotate} on a bone it reads off that field. Measuring an adult
+     * after a baby had rendered moved that third mushroom by {@code 0.1252} of a block and took the
+     * canvas from {@code 388x564} to {@code 386x564}; the other two never moved, and neither did any
+     * cube the walk measures itself. It cost nothing while each posed sweep booted its own client,
+     * because the sweep that renders a baby mooshroom was in a different JVM.
+     *
+     * @param renderer the renderer whose field to pin
+     * @param selected the model this subject selects, or {@code null} to leave the field alone
+     * @return the model the field held, or {@code null} if it was not pinned
+     */
+    private static Model<?> pinSelectedModel(EntityRenderer<?, ?> renderer, Model<?> selected) {
+        if (selected == null || !(renderer instanceof LivingEntityRenderer<?, ?, ?> living)) return null;
+        try {
+            Field field = LivingEntityRenderer.class.getDeclaredField("model");
+            field.setAccessible(true);
+            Object held = field.get(living);
+            if (held == selected) return null;
+            field.set(living, selected);
+            return held instanceof Model<?> model ? model : null;
+        } catch (NoSuchFieldException | IllegalAccessException | RuntimeException ignored) {
+            return null;
         }
     }
 

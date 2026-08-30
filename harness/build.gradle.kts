@@ -78,14 +78,21 @@ loom {
             // renderer two sweeps share cannot leave one of them behind. Driven by
             // renderVanillaAllReferences.
             optionalProperty("refharnessEverySweep")?.let { property("refharness.everySweep", it) }
-            // Animated entity references under animation/, with the two setupAnim freezes off for
-            // the whole boot - which is why it is its own run rather than a sweep the whole-tree
-            // mode could pick up. Driven by renderVanillaAnimationReferences.
+            // Animated entity references under animation/, at the gait a subject standing still is
+            // in. Driven by renderVanillaAnimationReferences.
             optionalProperty("refharnessAnimated")?.let { property("refharness.animated", it) }
-            // The same posed run at a gait, under walk/ - it lifts the same freezes and additionally
-            // drives walkAnimationPos / walkAnimationSpeed, which every other run holds at zero.
-            // Driven by renderVanillaWalkReferences.
+            // The same posed sweep at a gait, under walk/ - it lifts the same freezes and
+            // additionally drives walkAnimationPos / walkAnimationSpeed, which every other run holds
+            // at zero. Driven by renderVanillaWalkReferences.
             optionalProperty("refharnessWalking")?.let { property("refharness.walking", it) }
+            // Comma-separated mode names, which is how ONE boot renders more than one sub-tree
+            // (-PrefharnessModes=EVERY,ANIMATION,WALK). The booleans above each name one mode and
+            // compose with this, so every task that sets one resolves what it always did. The gait
+            // is armed per sweep rather than per JVM, which is what makes a shared boot legal at all.
+            optionalProperty("refharnessModes")?.let { property("refharness.modes", it) }
+            // How many subjects one client tick renders. A client ticks 20 times a second whatever
+            // the machine can draw, so this is the run's dominant cost above the boot.
+            optionalProperty("refharnessRendersPerTick")?.let { property("refharness.rendersPerTick", it) }
             optionalProperty("refharnessBoundsDump")?.let { property("refharness.boundsDump", it) }
             // Per-triangle screen-coord dump - mirror of asset-renderer ModelEngine's prop.
             // Usage: -PentityPixelDump=21,0,21,800 (one column slice for witch x=21 hunt)
