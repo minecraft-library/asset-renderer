@@ -6,17 +6,18 @@
   "kind": "pin-set",
   "provenance": {
     "artifact": "pin.block-crc",
-    "asset_dirty": false,
-    "asset_sha": "00a006307ac6443e243d30caf238849e20cd9c60",
+    "asset_content_digest": "a2e22680f652e6e78a59059314ca0f9f43b81861d30a56f074d6ccbb32a037b3",
+    "asset_dirty": true,
+    "asset_sha": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
     "counts": {
       "values": 3
     },
-    "determinism_runs": 2,
+    "determinism_runs": 1,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
+    "parity_class": "moving",
     "producer": "slowTest",
-    "reason": "P12: the eight render CRCs, the forty golden floats and the two corpus counts move out of Java literals into the store, carried across verbatim - every value equals the literal deleted at 00a00630^. pin.fluid-crc's thirteen values are new: the test compared run A to run B and pinned nothing",
+    "reason": "Six ungated renderer commits land together: the entity SNORM vertex normal, the single-rounding tint, the folded shade application, the vanilla alpha cutout, and the two depth-plane commits. sweep.entity 59.4901 -> 20.9361, sweep.entity-animation 9.9736 -> 3.1497, sweep.block 131.5270 -> 129.8391, sweep.armor 18.2471 -> 17.9895, sweep.glint 528.0484 -> 528.0469, sweep.player 8.4315 -> 8.4556; sweep.item and sweep.menu held. Each commit body carries its own measurement.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -25,7 +26,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-01T11:35:28Z",
+    "timestamp": "2026-08-30T06:33:45Z",
     "tool_version": "1.0.0"
   },
   "values": {
@@ -40,7 +41,7 @@
       "type": "crc32"
     },
     "white_banner_tiled": {
-      "crc32": "0x33396D6E",
+      "crc32": "0xDCFF79A0",
       "subject": "minecraft:white_banner, ISOMETRIC_3D, canvas 256, ssaa 2, aa off - coplanar body + pole",
       "type": "crc32"
     }

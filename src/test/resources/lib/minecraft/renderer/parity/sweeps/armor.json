@@ -6,8 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.armor",
-    "asset_dirty": false,
-    "asset_sha": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
+    "asset_content_digest": "a2e22680f652e6e78a59059314ca0f9f43b81861d30a56f074d6ccbb32a037b3",
+    "asset_dirty": true,
+    "asset_sha": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
     "counts": {
       "failed": 0,
       "rows": 7
@@ -15,11 +16,9 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "mode": "EVERY",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "armorParityVanilla",
-    "reason": "Whole-store capture on a clean tree at the end of the parity-cleanup follow-up. Twenty-three of twenty-four artifacts are byte-identical to the previous baseline, including all six sweeps after a full ground-truth re-render, so the six landed phases moved no hashed byte and the reference tree had no staleness to shed. manifest.visual gains 46 rows and moves none: its membership was widened from six sub-trees to eight, and entity-projections and projection-smoke are hashed here for the first time.",
+    "reason": "Six ungated renderer commits land together: the entity SNORM vertex normal, the single-rounding tint, the folded shade application, the vanilla alpha cutout, and the two depth-plane commits. sweep.entity 59.4901 -> 20.9361, sweep.entity-animation 9.9736 -> 3.1497, sweep.block 131.5270 -> 129.8391, sweep.armor 18.2471 -> 17.9895, sweep.glint 528.0484 -> 528.0469, sweep.player 8.4315 -> 8.4556; sweep.item and sweep.menu held. Each commit body carries its own measurement.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -28,64 +27,64 @@
       "items": 479,
       "players": 2
     },
-    "reference_manifest_digest": "d380e24f3d253cf6ccb5f9c3beb1ba1b9e12a827c438ec3898dc38acbf29d170",
-    "timestamp": "2026-08-07T16:43:10Z",
+    "reference_manifest_digest": "5712ea935c03943d942661a6e5df6cbba3df77b188b41d3117b68fe7e36d14e2",
+    "timestamp": "2026-08-30T06:33:47Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 16490
+    "wall_time_ms": 13646
   },
   "rows": [
     {
-      "differing_pixels": "10361",
+      "differing_pixels": "6928",
       "java_coverage": "0.2983",
-      "mean_argb_delta": "2.4906",
+      "mean_argb_delta": "2.4775",
       "status": "ok",
       "subject": "minecraft__piglin_iron",
       "vanilla_coverage": "0.2986"
     },
     {
-      "differing_pixels": "16223",
+      "differing_pixels": "4737",
       "java_coverage": "0.4312",
-      "mean_argb_delta": "1.8954",
+      "mean_argb_delta": "1.7782",
       "status": "ok",
       "subject": "minecraft__piglin_iron_baby",
       "vanilla_coverage": "0.4322"
     },
     {
-      "differing_pixels": "28892",
+      "differing_pixels": "30782",
       "java_coverage": "0.4312",
-      "mean_argb_delta": "2.0604",
+      "mean_argb_delta": "2.0303",
       "status": "ok",
       "subject": "minecraft__piglin_leather-dyeb04030_baby",
       "vanilla_coverage": "0.4322"
     },
     {
-      "differing_pixels": "8492",
+      "differing_pixels": "5776",
       "java_coverage": "0.2970",
-      "mean_argb_delta": "2.4299",
+      "mean_argb_delta": "2.4151",
       "status": "ok",
       "subject": "minecraft__zombie_iron",
       "vanilla_coverage": "0.2996"
     },
     {
-      "differing_pixels": "16226",
+      "differing_pixels": "6882",
       "java_coverage": "0.3907",
-      "mean_argb_delta": "3.2188",
+      "mean_argb_delta": "3.1150",
       "status": "ok",
       "subject": "minecraft__zombie_iron_baby",
       "vanilla_coverage": "0.3948"
     },
     {
-      "differing_pixels": "25665",
+      "differing_pixels": "28494",
       "java_coverage": "0.2990",
-      "mean_argb_delta": "2.4841",
+      "mean_argb_delta": "2.4981",
       "status": "ok",
       "subject": "minecraft__zombie_leather-dyeb04030",
       "vanilla_coverage": "0.3016"
     },
     {
-      "differing_pixels": "28952",
+      "differing_pixels": "36181",
       "java_coverage": "0.3907",
-      "mean_argb_delta": "3.6679",
+      "mean_argb_delta": "3.6753",
       "status": "ok",
       "subject": "minecraft__zombie_leather-dyeb04030_baby",
       "vanilla_coverage": "0.3948"
@@ -102,6 +101,6 @@
     },
     "failed": 0,
     "rows": 7,
-    "sum": "18.2471"
+    "sum": "17.9895"
   }
 }

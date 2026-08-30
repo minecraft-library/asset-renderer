@@ -34,22 +34,22 @@ because a floor that doubled as the record would let a declaration pass for evid
 
 | artifact | kind | home | producer | floor | runs | entries | cost | baselined |
 |---|---|---|---|---:|---:|---:|---:|---|
-| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 402 | 23999 ms | yes |
-| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1055 | 50027 ms | yes |
-| `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 129288 ms | yes |
-| `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 13402 ms | yes |
-| `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 16490 ms | yes |
-| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 31712 ms | yes |
-| `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 10 | 13757 ms | yes |
-| `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 90 | 22261 ms | yes |
+| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 402 | 20930 ms | yes |
+| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1055 | 46545 ms | yes |
+| `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 131730 ms | yes |
+| `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 12051 ms | yes |
+| `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 13646 ms | yes |
+| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 27870 ms | yes |
+| `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 10 | 11898 ms | yes |
+| `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 90 | 19533 ms | yes |
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 3762 | 139919 ms | yes |
-| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | - | yes |
-| `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | - | yes |
+| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | 112973 ms | yes |
+| `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | 25697 ms | yes |
 | `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 23258 ms | yes |
 | `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 23258 ms | yes |
-| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 17186 ms | yes |
-| `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 12316 ms | yes |
-| `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 147676 ms | yes |
+| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 14885 ms | yes |
+| `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 10611 ms | yes |
+| `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 151112 ms | yes |
 | `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 43846 ms | yes |
 | `digest.shipped-tables` | digest-set | STORE | `test` | 1 | 1 | 11 | 10310 ms | yes |
 | `digest.colormap-lut` | digest-set | STORE | `slowTest` | 1 | 2 | 3 | 22053 ms | yes |
@@ -57,8 +57,8 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `pin.vanilla-iso-pose` | pin-set | STORE | `test` | 1 | 2 | 1 | 8133 ms | yes |
 | `pin.kit-corners` | pin-set | STORE | `test` | 1 | 2 | 1 | 8133 ms | yes |
 | `pin.corpus-count` | pin-set | STORE | `test` | 1 | 1 | 4 | 6718 ms | yes |
-| `pin.player-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | 22053 ms | yes |
-| `pin.block-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 3 | 22053 ms | yes |
+| `pin.player-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | - | yes |
+| `pin.block-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | - | yes |
 | `pin.portal-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 2 | 22053 ms | yes |
 | `pin.fluid-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 13 | 22053 ms | yes |
 | `pin.armor-span` | - | SOURCE | - | - | - | - | - | - |

@@ -20,30 +20,30 @@ Values this store holds, one file each.
 | `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `79547e95e32c77c0b28a3a5bfcc3224af3712de1` | yes |
 | `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `7d66335b02176ad98c08f990d280f621ac1ff341` | yes |
 | `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `7d66335b02176ad98c08f990d280f621ac1ff341` | yes |
-| `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
-| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
+| `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
+| `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
+| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.references` | `manifests/references.json` | 3762 | 3762 entries | `79547e95e32c77c0b28a3a5bfcc3224af3712de1` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `b89a791daf8643e4e542b45c2b5b170461ba12c1` | yes |
-| `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `b1778c95cf10c827862e269cb33a7e7ba24686b0` | yes |
-| `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
+| `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
+| `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `pin.kit-corners` | `pins/kit-corners.json` | 1 | 1 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
-| `pin.player-crc` | `pins/player-crc.json` | 3 | 3 entries | `23fdf579e8e9da8054f22dc3f4a5ac09d032da8c` | yes |
+| `pin.player-crc` | `pins/player-crc.json` | 3 | 3 entries | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
 | `pin.portal-crc` | `pins/portal-crc.json` | 2 | 2 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `pin.vanilla-iso-pose` | `pins/vanilla-iso-pose.json` | 1 | 1 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `report.oracle-index` | `index.json` | - | - | - | **no** |
 | `roster.blindness-rules` | `blindness.json` | - | - | - | **no** |
-| `sweep.armor` | `sweeps/armor.json` | 7 | sum 18.2471 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
-| `sweep.block` | `sweeps/block.json` | 1055 | sum 131.5270 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
-| `sweep.entity` | `sweeps/entity.json` | 402 | sum 59.4901 | `b1778c95cf10c827862e269cb33a7e7ba24686b0` | yes |
-| `sweep.entity-animation` | `sweeps/entity-animation.json` | 90 | sum 9.9736 | `79547e95e32c77c0b28a3a5bfcc3224af3712de1` | yes |
-| `sweep.glint` | `sweeps/glint.json` | 11 | sum 528.0484 | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
+| `sweep.armor` | `sweeps/armor.json` | 7 | sum 17.9895 | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
+| `sweep.block` | `sweeps/block.json` | 1055 | sum 129.8391 | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
+| `sweep.entity` | `sweeps/entity.json` | 402 | sum 20.9361 | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
+| `sweep.entity-animation` | `sweeps/entity-animation.json` | 90 | sum 3.1497 | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
+| `sweep.glint` | `sweeps/glint.json` | 11 | sum 528.0469 | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
 | `sweep.item` | `sweeps/item.json` | 479 | sum 128.9575 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
-| `sweep.player` | `sweeps/player.json` | 2 | sum 8.4315 | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
+| `sweep.player` | `sweeps/player.json` | 2 | sum 8.4556 | `bca1fa5bbedc35bcdce15bd592517a9f72add4a0` | yes |
 
 ## Pointers
 

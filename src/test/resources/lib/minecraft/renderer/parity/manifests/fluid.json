@@ -16,11 +16,11 @@
     },
     {
       "path": "water_animated_iso.gif",
-      "sha256": "5d37f305bdec1bd00834d74299e859afa5f432a7107da65b7834b1b41a1dc7f6"
+      "sha256": "1bfdfd8ac384f40d689a212434a6873e9e32636d2e0119178a317490c481e840"
     },
     {
       "path": "water_cherry_grove.png",
-      "sha256": "525ba64df3d38f14bbfa18aa83034be4dfdced9708cd6a706c1714babae4c516"
+      "sha256": "117aca51b0faa83ae1fc2c7b8a6897a37b6b3b7a5b8cbf7633b7734e9aa9555e"
     },
     {
       "path": "water_face_2d.png",
@@ -28,7 +28,7 @@
     },
     {
       "path": "water_level_4_flow_ne.png",
-      "sha256": "bc99dc32d88d1ef34ee64c0aeaec917904b07f3455f251ff4ea220d75403b68f"
+      "sha256": "577ed0342039f7222c16928c71b3f7e14211042ce7602cc0205c9827072cfa41"
     },
     {
       "path": "water_override_magenta.png",
@@ -36,19 +36,19 @@
     },
     {
       "path": "water_plains.png",
-      "sha256": "f20a490008637fb114092494de7f637a514e4f1ebc2da5b5b3f81fe1a620a779"
+      "sha256": "e0ed18587aba601e3e965035fbc17e87ec97edecc8a1dc6dff96338bc2d8f16d"
     },
     {
       "path": "water_source_iso.png",
-      "sha256": "f20a490008637fb114092494de7f637a514e4f1ebc2da5b5b3f81fe1a620a779"
+      "sha256": "e0ed18587aba601e3e965035fbc17e87ec97edecc8a1dc6dff96338bc2d8f16d"
     },
     {
       "path": "water_swamp.png",
-      "sha256": "c7317af8ed308e74220e68d5f7447b03c7a334b3bcbc494f5f0c5819482e80fb"
+      "sha256": "ad2cf35866f410cb574b34c7eb0610324c43357a5b9afb8ffa61a88eaa2fe96d"
     },
     {
       "path": "water_warm_ocean.png",
-      "sha256": "0b60bf339a8dfd50d553414eddad0b6d063a755edbe14cebd7acc54de4d3d0ab"
+      "sha256": "18bde91e5d1e4a17b437db8e22df68b1bda27d7857a18cd9f75a5d9a90444494"
     }
   ],
   "format": 1,
@@ -56,17 +56,18 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.fluid",
-    "asset_dirty": false,
-    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "asset_content_digest": "a2e22680f652e6e78a59059314ca0f9f43b81861d30a56f074d6ccbb32a037b3",
+    "asset_dirty": true,
+    "asset_sha": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
     "counts": {
       "files": 12
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
+    "parity_class": "moving",
     "producer": "fluidRenderer",
-    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 4/5, render manifests: player-sheets 104, fluid 12, portal 12, visual 153 measured rather than asserted; 0 movers across the pair on all four. Fluid and portal are digest-for-digest identical to the P0 fp-run1 capture. Against p11-base, manifest.visual drops 625 entries that all fall inside a declared exclusion - the entity diff-panel tree and the three sub-trees with manifests of their own - adds 98 that are all inside member directories, and differs on exactly one: block-render-3d/minecraft_oak_stairs.png, the unsuffixed render alone with all six state-named oak_stairs renders unchanged, which is the fingerprint of the landed block-icon branch that takes a null variant only when the caller names no state. manifest.player-sheets has no independent operand anywhere and is promoted on determinism and population alone.",
+    "reason": "Six ungated renderer commits land together: the entity SNORM vertex normal, the single-rounding tint, the folded shade application, the vanilla alpha cutout, and the two depth-plane commits. sweep.entity 59.4901 -> 20.9361, sweep.entity-animation 9.9736 -> 3.1497, sweep.block 131.5270 -> 129.8391, sweep.armor 18.2471 -> 17.9895, sweep.glint 528.0484 -> 528.0469, sweep.player 8.4315 -> 8.4556; sweep.item and sweep.menu held. Each commit body carries its own measurement.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -76,7 +77,8 @@
       "players": 2
     },
     "root": "cache/visual/fluid-renderer",
-    "timestamp": "2026-08-01T02:51:11Z",
-    "tool_version": "1.0.0"
+    "timestamp": "2026-08-30T06:33:43Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 10611
   }
 }

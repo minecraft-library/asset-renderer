@@ -48,9 +48,9 @@
       "entries": 12,
       "file": "manifests/fluid.json",
       "kind": "manifest",
-      "last_duration_ms": 12316,
-      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
-      "sha256": "a1a1fa683e06dc3f0540db23770c8197149bf6e564f6e3c1d988375108274994"
+      "last_duration_ms": 10611,
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "f166026d82f0df44b108f51f32a521cb3bca506bee43c0c317cacb5be8a489d3"
     },
     "manifest.player-raw": {
       "baselined": true,
@@ -58,8 +58,9 @@
       "entries": 18,
       "file": "manifests/player-raw.json",
       "kind": "manifest",
-      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
-      "sha256": "3e98ada0a106bce9f8eabfc8127c0d4a6981a8193aee0dae20c4b25428818c6e"
+      "last_duration_ms": 25697,
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "26c09399d7d463768378e9a14a29274a02f291a681cd1457eaba7b42b4292b0e"
     },
     "manifest.player-sheets": {
       "baselined": true,
@@ -67,9 +68,9 @@
       "entries": 104,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 17186,
-      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
-      "sha256": "145f7b81ebca1e1913ef0a1d35f92dd584764504bc5636e77ff5314ff220d3ac"
+      "last_duration_ms": 14885,
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "506490a9d9e9a54a7a67537dfd611fa20f85089ca4d8abda5826f0b68e10f774"
     },
     "manifest.portal": {
       "baselined": true,
@@ -77,7 +78,7 @@
       "entries": 12,
       "file": "manifests/portal.json",
       "kind": "manifest",
-      "last_duration_ms": 147676,
+      "last_duration_ms": 151112,
       "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
       "sha256": "14920840b5c76ec7b3a8c19c22a4d6bc2faed60d1438800670c06569ca159c17"
     },
@@ -107,8 +108,9 @@
       "entries": 210,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "promoted_at": "b1778c95cf10c827862e269cb33a7e7ba24686b0",
-      "sha256": "60e16cffaa3bf323fee261205e649c609a5216d49a8a75f2aa2fa3aaf2da7822"
+      "last_duration_ms": 112973,
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "8435f20a84b1f79e8c2c96b00a3170d27519af31446810cbbbf88d03c6275112"
     },
     "pin.block-crc": {
       "baselined": true,
@@ -116,9 +118,8 @@
       "entries": 3,
       "file": "pins/block-crc.json",
       "kind": "pin-set",
-      "last_duration_ms": 22053,
-      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
-      "sha256": "0e20474a93858bc39f1202548e48263e48bf28753211a2237809922f95fcde67"
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "45a4bce0ff6262aae2af0273c9cc0b981cb5c475b86108546b5a631ef3c6fa87"
     },
     "pin.corpus-count": {
       "baselined": true,
@@ -156,9 +157,8 @@
       "entries": 3,
       "file": "pins/player-crc.json",
       "kind": "pin-set",
-      "last_duration_ms": 22053,
-      "promoted_at": "23fdf579e8e9da8054f22dc3f4a5ac09d032da8c",
-      "sha256": "3b62eb0bf517429e18a4ee3d121f39d577ad5de3fd18da3118030dfaf4a7e282"
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "5d16b919b03917c48ce7ba07c79e88a5970680aa72a237d7d6706b8d7489272b"
     },
     "pin.portal-crc": {
       "baselined": true,
@@ -198,10 +198,10 @@
       "entries": 7,
       "file": "sweeps/armor.json",
       "kind": "sweep-table",
-      "last_duration_ms": 16490,
-      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
-      "sha256": "f0b5898e1646bcb168220beacd5ade875c14ce4f434ccc0c876d22ac4037bf6d",
-      "sum": "18.2471"
+      "last_duration_ms": 13646,
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "b71a105db94fb4dba1d2b0893bb7d2a0bcb5ebb3ec85da48aae0c88cabab5c37",
+      "sum": "17.9895"
     },
     "sweep.block": {
       "baselined": true,
@@ -209,10 +209,10 @@
       "entries": 1055,
       "file": "sweeps/block.json",
       "kind": "sweep-table",
-      "last_duration_ms": 50027,
-      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
-      "sha256": "03b29294dfacd32f908fc717672da845782800afb540bd6f9ebc730f4d4299ab",
-      "sum": "131.5270"
+      "last_duration_ms": 46545,
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "ea764c73a932fb1b3ba5365f1001f6ca20cb4309a35def0dd5b59a6dc060ca80",
+      "sum": "129.8391"
     },
     "sweep.entity": {
       "baselined": true,
@@ -220,10 +220,10 @@
       "entries": 402,
       "file": "sweeps/entity.json",
       "kind": "sweep-table",
-      "last_duration_ms": 23999,
-      "promoted_at": "b1778c95cf10c827862e269cb33a7e7ba24686b0",
-      "sha256": "57c0127d69d608cc51bdc64999fced7d61f3dacb37874b8812e9c3522d464721",
-      "sum": "59.4901"
+      "last_duration_ms": 20930,
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "798891037faa3eaae9713cad9b731fc85f926bfa63a15ec87bfe339c5ec2cf9d",
+      "sum": "20.9361"
     },
     "sweep.entity-animation": {
       "baselined": true,
@@ -231,10 +231,10 @@
       "entries": 90,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 22261,
-      "promoted_at": "79547e95e32c77c0b28a3a5bfcc3224af3712de1",
-      "sha256": "17b78e1e02f8f4f53ac9708537bd460ae163f22413a1bccf3947878699b2f70f",
-      "sum": "9.9736"
+      "last_duration_ms": 19533,
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "a10c2dee77b2e85e8028a8bcd1c2675bdc6543c319735d8468a1b0fab079b427",
+      "sum": "3.1497"
     },
     "sweep.glint": {
       "baselined": true,
@@ -242,10 +242,10 @@
       "entries": 11,
       "file": "sweeps/glint.json",
       "kind": "sweep-table",
-      "last_duration_ms": 31712,
-      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
-      "sha256": "6e47574cbbe96d0fc6dc4ea1e962f0e4f863e89bc49f21309a9e15226723d446",
-      "sum": "528.0484"
+      "last_duration_ms": 27870,
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "a9a90583ae5ac86ed8cbb6e723b31b15fbe6d98b8268c724c96adaec2179c0af",
+      "sum": "528.0469"
     },
     "sweep.item": {
       "baselined": true,
@@ -253,7 +253,7 @@
       "entries": 479,
       "file": "sweeps/item.json",
       "kind": "sweep-table",
-      "last_duration_ms": 129288,
+      "last_duration_ms": 131730,
       "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
       "sha256": "c87bf90ba4d1576c149518279650710dd185e9ae217e116815e5927e09f68112",
       "sum": "128.9575"
@@ -264,7 +264,7 @@
       "entries": 10,
       "file": "sweeps/menu.json",
       "kind": "sweep-table",
-      "last_duration_ms": 13757,
+      "last_duration_ms": 11898,
       "promoted_at": "f7aa87338a8bc20907a03f0db6cba69c7a22cbdc",
       "sha256": "660d220aad82d0bf439267c9ef9f0a2681d8e52fb4acf774eb8cddf1568cac07",
       "sum": "0.0407"
@@ -275,10 +275,10 @@
       "entries": 2,
       "file": "sweeps/player.json",
       "kind": "sweep-table",
-      "last_duration_ms": 13402,
-      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
-      "sha256": "56f1f177ae2c1053a5e89050c946920bdb77b757aa64b928b465e902fae60c96",
-      "sum": "8.4315"
+      "last_duration_ms": 12051,
+      "promoted_at": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+      "sha256": "6dbd5da2341210b2110ee89f7b66c3e454a2f9fb8a278bea6aaf2a33acde5bd5",
+      "sum": "8.4556"
     }
   },
   "external": {

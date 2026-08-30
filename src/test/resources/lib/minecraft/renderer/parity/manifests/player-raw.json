@@ -4,7 +4,7 @@
   "files": [
     {
       "path": "armor-parity-vanilla/minecraft__piglin_iron/java.png",
-      "sha256": "e256bc6c94676b228511ebc0eac30beda433e76676e4443af73f4e26f65804b6"
+      "sha256": "db6c50834505037b6a2d872eb6ea04e8bb2edc8457cbe4fd5b136982cd85917f"
     },
     {
       "path": "armor-parity-vanilla/minecraft__piglin_iron/vanilla.png",
@@ -12,7 +12,7 @@
     },
     {
       "path": "armor-parity-vanilla/minecraft__piglin_iron_baby/java.png",
-      "sha256": "c6818fb4fced6a90ced954753c380ce62da2f3f910de6d279347f5f21e0bf82c"
+      "sha256": "3ade29920d0bd14e867ecdd3961cbbadb1748c93fae4fcc03f0bd323fd002304"
     },
     {
       "path": "armor-parity-vanilla/minecraft__piglin_iron_baby/vanilla.png",
@@ -20,7 +20,7 @@
     },
     {
       "path": "armor-parity-vanilla/minecraft__piglin_leather-dyeb04030_baby/java.png",
-      "sha256": "6674519c7389eb0954efd46890c55bcd584af69751ff60ec43aa83f47d173ddd"
+      "sha256": "563a63146ad38fa008440356ac5d7ef044eadd9db48721522b800bb6f3d0c7aa"
     },
     {
       "path": "armor-parity-vanilla/minecraft__piglin_leather-dyeb04030_baby/vanilla.png",
@@ -28,7 +28,7 @@
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_iron/java.png",
-      "sha256": "6b6fb446f505a0b10f06e1135617549ba1bd9cb67b410f5c523d779a1d959e26"
+      "sha256": "d19da0bcb81edf892075a023e9a6632674f97793f3cf42b52a6fbd7f453e665d"
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_iron/vanilla.png",
@@ -36,7 +36,7 @@
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_iron_baby/java.png",
-      "sha256": "d098f9abadf4a46e03b7d102ba5555c0b8df104e852a2e32baf92ce81f4900ba"
+      "sha256": "7c95773f113a592735195fbe9dbb57d91ec2a479b380349a669f2c2f579c44e5"
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_iron_baby/vanilla.png",
@@ -44,7 +44,7 @@
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030/java.png",
-      "sha256": "5f5e5a9d2dd5527e2a5e320c440843322534e30332da4b195da7bf4e326605ac"
+      "sha256": "4ae134548fac8a49a99a14aa841d25bc6070d29b3583a22d1808204e388f1dcc"
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030/vanilla.png",
@@ -52,7 +52,7 @@
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030_baby/java.png",
-      "sha256": "35e5b5170028762627097c6e66cb48b1c3d75d13d9dbb7a8b3ddfc6827dbb9e2"
+      "sha256": "0943c84c3c3973cf9908720479164292fc645c22d0303c4c302d815638823ba8"
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030_baby/vanilla.png",
@@ -60,7 +60,7 @@
     },
     {
       "path": "player-parity-vanilla/full/java.png",
-      "sha256": "abbd4abb09773fd8ab89fb25b169090068dde921adb127e351106f8ae9c77886"
+      "sha256": "5e77f35a2081c653e7197c77e856169921b90757d3af35b73b8c471dfa0fefd8"
     },
     {
       "path": "player-parity-vanilla/full/vanilla.png",
@@ -68,7 +68,7 @@
     },
     {
       "path": "player-parity-vanilla/skull/java.png",
-      "sha256": "26fb36788bcae73db20bf424da3ddb1dd0fd2bbf86296bfe48236f9b69f9be48"
+      "sha256": "a9b0205bf5a30873a248d28c13f4f221bac2b0a03b133d493e7dfe2dff34b69f"
     },
     {
       "path": "player-parity-vanilla/skull/vanilla.png",
@@ -80,8 +80,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.player-raw",
-    "asset_dirty": false,
-    "asset_sha": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
+    "asset_content_digest": "a2e22680f652e6e78a59059314ca0f9f43b81861d30a56f074d6ccbb32a037b3",
+    "asset_dirty": true,
+    "asset_sha": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
     "counts": {
       "files": 18
     },
@@ -90,7 +91,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "playerRawSweepSet",
-    "reason": "The 3D player leaves the four-cardinal block bucket for vanilla's ENTITY_IN_UI Lambertian, the entry the client binds for a humanoid drawn in a GUI. Per-face shade on the skull goes 1.00000/0.59941/0.79873 to 1.00000/0.56864/0.44985, which is the harness reference's own measured triple; sweep.player 29.1376 to 8.4315 (skull 17.2847 to 4.1766, full 11.8529 to 4.2549) with the remainder silhouette and texel-boundary residual from this renderer's own body boxes - outside the edges the skull's mean absolute delta is 0.06 of 765. manifest.player-sheets moves its 76 THREE_D members and none of its 28 TWO_D ones; sweep.glint moves the four leather rows that are player renders. Block, item, entity and armour sweeps and the fluid, portal and visual manifests hold at zero movers.",
+    "reason": "Six ungated renderer commits land together: the entity SNORM vertex normal, the single-rounding tint, the folded shade application, the vanilla alpha cutout, and the two depth-plane commits. sweep.entity 59.4901 -> 20.9361, sweep.entity-animation 9.9736 -> 3.1497, sweep.block 131.5270 -> 129.8391, sweep.armor 18.2471 -> 17.9895, sweep.glint 528.0484 -> 528.0469, sweep.player 8.4315 -> 8.4556; sweep.item and sweep.menu held. Each commit body carries its own measurement.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -100,7 +101,8 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-13T06:16:25Z",
-    "tool_version": "1.0.0"
+    "timestamp": "2026-08-30T06:33:43Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 25697
   }
 }
