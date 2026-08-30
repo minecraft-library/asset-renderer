@@ -545,8 +545,10 @@ public class ModelEngine {
         List<Projected> inEmissionOrder = new ArrayList<>(total - backToFrontCount);
         List<Projected> backToFront = new ArrayList<>(backToFrontCount);
         for (Projected p : prepared) {
-            if (sortsBackToFront(p)) backToFront.add(p);
-            else inEmissionOrder.add(p);
+            if (sortsBackToFront(p))
+                backToFront.add(p);
+            else
+                inEmissionOrder.add(p);
         }
         // Smaller depth value = farther in our convention; we want farthest first so closer
         // fragments blend over them last. Sort by the parent QUAD's depth (via {@link #quadCamDepthKey}),
@@ -693,9 +695,10 @@ public class ModelEngine {
                 float bx = t.s2.x() - t.s0.x();
                 float by = t.s2.y() - t.s0.y();
                 float det = ax * by - bx * ay;
-                if (det == 0f) {
+
+                if (det == 0f)
                     planeDepth = false;
-                } else {
+                else {
                     float az = t.z1 - t.z0;
                     float bz = t.z2 - t.z0;
                     dzdx = (az * by - bz * ay) / det;
@@ -725,13 +728,12 @@ public class ModelEngine {
             long row20 = ec.a20() * sxStart + ec.b20() * syStart + ec.c20();
             long row01 = ec.a01() * sxStart + ec.b01() * syStart + ec.c01();
 
-            for (int py = pyStart; py <= pyEnd; py++,
-                    row12 += ec.stepY12(), row20 += ec.stepY20(), row01 += ec.stepY01()) {
+            for (int py = pyStart; py <= pyEnd; py++, row12 += ec.stepY12(), row20 += ec.stepY20(), row01 += ec.stepY01()) {
                 long e12 = row12;
                 long e20 = row20;
                 long e01 = row01;
-                for (int px = bounds[0]; px <= bounds[2]; px++,
-                        e12 += ec.stepX12(), e20 += ec.stepX20(), e01 += ec.stepX01()) {
+
+                for (int px = bounds[0]; px <= bounds[2]; px++, e12 += ec.stepX12(), e20 += ec.stepX20(), e01 += ec.stepX01()) {
                     // Computed for every sample of the bounding box, covered or not, and deliberately
                     // so. Moving it behind the coverage test to save the two divisions on an uncovered
                     // pixel was benchmarked and is SLOWER: the piston micro went 0.212 to 0.224 ms/op
@@ -828,10 +830,12 @@ public class ModelEngine {
                     // (px, py); the depth `idx` below is per-tile and must not be reused here.
                     if (glintMask != null && tr.glinted()) glintMask.mark(px, py);
 
-                    RendererDebug.pixelWrite(px, py, depthVal, t.source.debugTag(),
+                    RendererDebug.pixelWrite(
+                        px, py, depthVal, t.source.debugTag(),
                         u, v, tx, ty,
                         rawTexel, t.source.tintArgb(),
-                        shading, afterShade, blendMode, outArgb);
+                        shading, afterShade, blendMode, outArgb
+                    );
                     // Depth is written when the pass declares it - vanilla's
                     // DepthStencilState.writeDepth, carried per overlay rather than inferred from
                     // any other flag. A pass registered write-disabled (the eyes pipelines) lets its
@@ -1027,7 +1031,12 @@ public class ModelEngine {
      * @return the screen-space point
      */
     private static @NotNull Vector2f project2D(
-        @NotNull Lens lens, @NotNull Vector3f p, float scale, float offsetX, float offsetY, @Nullable Fit2D fit
+        @NotNull Lens lens,
+        @NotNull Vector3f p,
+        float scale,
+        float offsetX,
+        float offsetY,
+        @Nullable Fit2D fit
     ) {
         if (fit == null) return lens.project(p, scale, offsetX, offsetY);
         Vector2f raw = lens.project(p, scale, 0f, 0f);
@@ -1079,8 +1088,7 @@ public class ModelEngine {
      * @return {@code true} if the projected winding is back-facing (non-negative signed area)
      */
     private static boolean isBackFacing(@NotNull Vector2f v0, @NotNull Vector2f v1, @NotNull Vector2f v2) {
-        float signedArea = (v1.x() - v0.x()) * (v2.y() - v0.y())
-            - (v2.x() - v0.x()) * (v1.y() - v0.y());
+        float signedArea = (v1.x() - v0.x()) * (v2.y() - v0.y()) - (v2.x() - v0.x()) * (v1.y() - v0.y());
         return signedArea >= 0f;
     }
 
@@ -1093,7 +1101,8 @@ public class ModelEngine {
      * @return the composed model-space rotation matrix
      */
     private static @NotNull Matrix4f buildModelRotation(@NotNull EulerRotation rotation) {
-        if (rotation.pitch() == 0f && rotation.yaw() == 0f && rotation.roll() == 0f) return Matrix4f.IDENTITY;
+        if (rotation.pitch() == 0f && rotation.yaw() == 0f && rotation.roll() == 0f)
+            return Matrix4f.IDENTITY;
 
         Matrix4f yaw = Matrix4f.createRotationY(rotation.yawRadians());
         Matrix4f pitch = Matrix4f.createRotationX(rotation.pitchRadians());
