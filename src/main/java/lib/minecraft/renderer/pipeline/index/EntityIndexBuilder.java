@@ -25,6 +25,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
+import lib.minecraft.renderer.asset.pose.PoseOperator;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.parity.Parity;
@@ -71,6 +72,26 @@ import java.util.stream.Stream;
 public final class EntityIndexBuilder {
 
     private static final int WHITE = 0xFFFFFFFF;
+
+    /**
+     * The step that carries a renderer's sequence from the frame it composes in down to the mesh's
+     * own, which is a translate of {@code 1.501} blocks in model pixels.
+     *
+     * <p>{@code LivingEntityRenderer.submit} translates the stack by that much - inside the
+     * chirality flip, so along the mesh's own downward y and needing no crossing - between the
+     * {@code setupRotations} it has just run and the mesh it is about to submit. So a renderer turns
+     * the subject about the ground it stands on, and a mesh's origin is roughly a head above that:
+     * the sequence has to reach the roots through this or it turns the subject about its neck.
+     *
+     * <p><b>It is rigid, so it moves no silhouette and only ever moves where one stands</b> - which
+     * reads as a canvas of the wrong size rather than as a transform of the wrong shape. And it is
+     * inert wherever the angle is settled: a constant turn displaces the subject by a constant and
+     * the fit centres whatever it measured, so the fish and the phantom were exact without it and
+     * the iron golem's lurch, which a tick changes about an axis this offset is not parallel to,
+     * was not.
+     */
+    private static final @NotNull Map<PoseChannel, PoseExpr> GROUND_FRAME = Map.of(
+        PoseChannel.Y, new PoseExpr.Const(-1.501f * 16f, PoseOperator.Width.FLOAT));
 
     /**
      * Assembles the entity index from the raw model tree and the geometry table.
@@ -327,6 +348,11 @@ public final class EntityIndexBuilder {
      * the subject's meshes take gets the same sequence, seated once here rather than per frame. A
      * renderer that composes nothing hands back the pose itself.
      *
+     * <p>The {@link #GROUND_FRAME} closes that sequence, because this is the one place both halves
+     * are in hand: what a renderer composes is in the frame of the ground its subject stands on, and
+     * what a model's own container writes is in the frame of the mesh, and the two meet exactly
+     * here.
+     *
      * <p>A pose that could not be read stays unreadable rather than becoming a container with no
      * bones under it: a subject whose model nothing could walk is not one a transform can place, and
      * placing it anyway would draw a mesh that is neither authored nor posed.
@@ -340,7 +366,7 @@ public final class EntityIndexBuilder {
 
         if (steps.isEmpty() || !pose.isReadable()) return pose;
         ConcurrentList<Map<PoseChannel, PoseExpr>> container =
-            Stream.concat(steps.stream(), pose.container().stream())
+            Stream.concat(Stream.concat(steps.stream(), Stream.of(GROUND_FRAME)), pose.container().stream())
                 .collect(Concurrent.toUnmodifiableList());
         return new EntityPose(container, pose.bones(), pose.clips(), pose.refusal());
     }
