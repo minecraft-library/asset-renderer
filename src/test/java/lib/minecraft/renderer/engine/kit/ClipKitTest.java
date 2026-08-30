@@ -162,7 +162,7 @@ class ClipKitTest {
             Optional.empty());
 
         Map<PoseChannel, Float> written =
-            ClipKit.deltas(pose, mesh, PoseEvaluator.AT_REST).get("body");
+            ClipKit.deltas(pose, mesh, PoseEvaluator.AT_REST).bones().get("body");
         assertNotNull(written, "the clip displaces the bone it names");
         return written.get(PoseChannel.X_ROT);
     }

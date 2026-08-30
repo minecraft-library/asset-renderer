@@ -174,7 +174,7 @@ public final class PoseKit {
         // three offset members all add to the value already there. So the two are resolved apart and
         // composed here rather than merged into one write set, which is also what keeps the replace
         // rule and the add rule from having to be told apart per channel further down.
-        Map<String, Map<PoseChannel, Float>> displaced = ClipKit.deltas(pose, model, frame);
+        ClipKit.Displacement displaced = ClipKit.deltas(pose, model, frame);
         if (writes.isEmpty() && displaced.isEmpty()) return model;
         return rebuild(model, writes, displaced);
     }
@@ -285,7 +285,7 @@ public final class PoseKit {
     /** The mesh with every written channel applied, or the mesh itself when none of them moved it. */
     private static @NotNull EntityModelData rebuild(
         @NotNull EntityModelData model, @NotNull PoseEvaluator.ChannelWrites writes,
-        @NotNull Map<String, Map<PoseChannel, Float>> displaced) {
+        @NotNull ClipKit.Displacement displaced) {
 
         if (writes.container().isEmpty() && displaced.isEmpty()
             && writes.bones().values().stream().allMatch(Map::isEmpty)) return model;
@@ -300,10 +300,43 @@ public final class PoseKit {
             .collect(Collectors.toMap(Map.Entry::getKey,
                 bone -> displacedBone(bone.getValue(), bone.getKey(),
                     writes.bones().getOrDefault(bone.getKey(), Map.of()),
-                    displaced.getOrDefault(bone.getKey(), Map.of()), flattened),
+                    displaced.of(bone.getKey()), flattened),
                 (first, second) -> first, LinkedHashMap::new));
-        if (!writes.container().isEmpty()) seatUnderContainer(bones, writes.container(), flattened);
+        List<Map<PoseChannel, Float>> container =
+            displacedContainer(writes.container(), displaced.container());
+        if (!container.isEmpty()) seatUnderContainer(bones, container, flattened);
         return new EntityModelData(model.getTextureSize(), Concurrent.adoptLinkedMap(bones), model.isCull());
+    }
+
+    /**
+     * The container's steps carrying what its clips displace it by, folded onto the innermost.
+     *
+     * <p><b>It folds onto a step rather than becoming one</b>, for the reason
+     * {@link #displacedBone} sums onto a bone: vanilla holds one part pose for the root and
+     * {@code offsetPos} and {@code offsetRotation} add into the very fields a body assigned, so the
+     * two are one step and not two. A container the pose leaves unwritten starts at rest, which is
+     * what makes the sum on an untouched channel the displacement itself.
+     *
+     * <p>The innermost is the right seat whichever step it turns out to be. Where the pose writes
+     * the root the step IS the root and the fold is vanilla's own addition; where the innermost is
+     * instead the frame a renderer's sequence closes with, that step turns nothing, and a translate
+     * composes by addition either way - so folding into it and hanging a further step below it are
+     * the same transform.
+     *
+     * @param written the steps the pose writes, outermost first
+     * @param displaced what the clips displace the container by
+     * @return the steps to seat, which is {@code written} itself where no clip reaches the container
+     */
+    private static @NotNull List<Map<PoseChannel, Float>> displacedContainer(
+        @NotNull List<Map<PoseChannel, Float>> written, @NotNull Map<PoseChannel, Float> displaced) {
+
+        if (displaced.isEmpty()) return written;
+        if (written.isEmpty()) return List.of(displaced);
+        List<Map<PoseChannel, Float>> steps = new ArrayList<>(written);
+        Map<PoseChannel, Float> innermost = new EnumMap<>(steps.getLast());
+        displaced.forEach((channel, delta) -> innermost.merge(channel, delta, Float::sum));
+        steps.set(steps.size() - 1, innermost);
+        return steps;
     }
 
     /**

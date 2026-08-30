@@ -63,7 +63,46 @@ public final class ClipKit {
     private static final int STATE_ARGUMENTS = 1;
 
     /**
-     * What every clip this pose plays displaces each bone by at one instant.
+     * The channel name vanilla reserves for the part every bone hangs from.
+     *
+     * <p>{@code ModelPart.createPartLookup} seeds its map with {@code root -> this} and adds the
+     * named children afterwards, so a channel spelled this way reaches the model's own root - which
+     * is the container, flattened away and named nowhere - and a mesh that declares a bone of this
+     * name overwrites the entry and takes it back. Ten of the corpus's meshes do, so the precedence
+     * is read off that map rather than assumed either way.
+     */
+    private static final @NotNull String ROOT_PART = "root";
+
+    /**
+     * What a pose's clips displace at one instant: every bone they reach, and the container.
+     *
+     * <p>The container is held apart for the reason {@link PoseEvaluator.ChannelWrites} holds it
+     * apart - it is not a bone, and nothing downstream can seat it as one.
+     *
+     * @param bones the displacement each written channel takes, by bone name
+     * @param container the displacement the container takes, empty where no clip reaches it
+     */
+    public record Displacement(
+        @NotNull Map<String, Map<PoseChannel, Float>> bones,
+        @NotNull Map<PoseChannel, Float> container
+    ) {
+
+        /** What a pose playing no clip displaces, which is nothing anywhere. */
+        public static final @NotNull Displacement NONE = new Displacement(Map.of(), Map.of());
+
+        /** Whether no clip reaches a bone or the container. */
+        public boolean isEmpty() {
+            return this.bones.isEmpty() && this.container.isEmpty();
+        }
+
+        /** What the clips displace one bone by, which is nothing for a bone none of them reach. */
+        public @NotNull Map<PoseChannel, Float> of(@NotNull String bone) {
+            return this.bones.getOrDefault(bone, Map.of());
+        }
+    }
+
+    /**
+     * What every clip this pose plays displaces at one instant.
      *
      * <p>Accumulated across clips rather than resolved per clip, because two sites can drive one
      * bone and vanilla adds both onto the same part. A bone the mesh does not declare is passed
@@ -71,26 +110,32 @@ public final class ClipKit {
      * model class where a mesh belongs to a subject, and the two part company wherever a bone rests
      * undrawn and took its subtree with it.
      *
+     * <p><b>{@link #ROOT_PART} is the one name that is not a bone at all</b>, and a clip that walks
+     * a subject rocks it with one - the camel's stride carries a two-and-a-half degree roll of the
+     * whole animal there. Passed over as an undeclared bone it is silently nothing, which is a camel
+     * that walks without leaning and a canvas measured around one.
+     *
      * @param pose the model's pose, read for the clips it plays
      * @param model the mesh being posed, which is what says a bone exists to displace
      * @param frame what each render-state figure reads as
-     * @return the displacement each written channel takes, by bone name, empty when nothing plays
+     * @return what the clips displace, empty when nothing plays
      */
-    public static @NotNull Map<String, Map<PoseChannel, Float>> deltas(
+    public static @NotNull Displacement deltas(
         @NotNull EntityPose pose, @NotNull EntityModelData model,
         @NotNull ToDoubleFunction<String> frame) {
 
-        if (pose.clips().isEmpty()) return Map.of();
+        if (pose.clips().isEmpty()) return Displacement.NONE;
 
         // Order-preserving rather than Map.copyOf, for the reason the evaluator's own return is:
         // what comes out is read in order downstream and copyOf salts its iteration per JVM launch.
-        Map<String, Map<PoseChannel, Float>> out = new LinkedHashMap<>();
+        Map<String, Map<PoseChannel, Float>> bones = new LinkedHashMap<>();
+        Map<PoseChannel, Float> container = new EnumMap<>(PoseChannel.class);
         for (EntityPose.Clip site : pose.clips()) {
             Drive drive = driveOf(site, model, frame);
             if (drive == null) continue;
-            accumulate(out, site.clip(), drive, model);
+            accumulate(bones, container, site.clip(), drive, model);
         }
-        return out;
+        return new Displacement(bones, container);
     }
 
     // ------------------------------------------------------------------------------------
@@ -146,21 +191,38 @@ public final class ClipKit {
 
     /** Adds one clip's displacement at this instant onto what the others already contributed. */
     private static void accumulate(
-        @NotNull Map<String, Map<PoseChannel, Float>> out, @NotNull PoseClip clip,
+        @NotNull Map<String, Map<PoseChannel, Float>> bones,
+        @NotNull Map<PoseChannel, Float> container, @NotNull PoseClip clip,
         @NotNull Drive drive, @NotNull EntityModelData model) {
 
         float elapsed = drive.millis() / MILLIS_PER_SECOND;
         if (clip.looping()) elapsed %= clip.lengthSeconds();
 
         for (PoseClip.Channel channel : clip.channels()) {
-            if (!model.getBones().containsKey(channel.bone())) continue;
-            Map<PoseChannel, Float> written =
-                out.computeIfAbsent(channel.bone(), bone -> new EnumMap<>(PoseChannel.class));
+            Map<PoseChannel, Float> written = target(bones, container, channel.bone(), model);
+            if (written == null) continue;
             for (int axis = 0; axis < 3; axis++) {
                 float displaced = component(channel, elapsed, drive.amplitude(), axis);
                 written.merge(channel.target().channel(axis), displaced, Float::sum);
             }
         }
+    }
+
+    /**
+     * Where one channel's displacement accumulates, or {@code null} where the mesh has nothing for it.
+     *
+     * <p>The lookup vanilla builds, in vanilla's own order: the root part answers {@link #ROOT_PART}
+     * and every named bone answers its own name, the bones being added second so one of them spelled
+     * that way wins.
+     */
+    private static Map<PoseChannel, Float> target(
+        @NotNull Map<String, Map<PoseChannel, Float>> bones,
+        @NotNull Map<PoseChannel, Float> container, @NotNull String named,
+        @NotNull EntityModelData model) {
+
+        if (model.getBones().containsKey(named))
+            return bones.computeIfAbsent(named, bone -> new EnumMap<>(PoseChannel.class));
+        return ROOT_PART.equals(named) ? container : null;
     }
 
     /**
