@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.entity-animation",
-    "asset_content_digest": "9a82238d9ca96e8141f4762b012af90c92c03e35200e9bae27f2e825c1865eef",
+    "asset_content_digest": "96a5968518bed8563258a034d761a1ca1ff2089aad5f8e06e25faac763ade2b3",
     "asset_dirty": true,
-    "asset_sha": "7d66335b02176ad98c08f990d280f621ac1ff341",
+    "asset_sha": "79547e95e32c77c0b28a3a5bfcc3224af3712de1",
     "counts": {
       "failed": 0,
       "rows": 90
@@ -16,9 +16,11 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
+    "mode": "ANIMATION,EVERY,WALK",
     "parity_class": "moving",
+    "population_changed": true,
     "producer": "entityAnimationParityVanilla",
-    "reason": "A renderer's container turns its subject about the ground it stands on, and a clip channel named root reaches the container rather than a bone. The sweep's fish and phantom rows are the first fix's float residue, its witch row the id the harness and the generator now both choose, and the dump's entities.json carries the ground-frame step on the six poses whose renderers compose one - measured against a dump taken with the edit stashed, which differs in those pose digests and in nothing else. The iron golem falls 49.2599 to 0.1139 and the two camels 18.66 and 18.60 to 0.14 and 0.21 under a stride, which no still sweep sees.",
+    "reason": "The canvas-group set this side derives from shared primary geometry and the family the harness declares are one set now, so a group member is measured in the pose the render draws like every other silhouette in its union. The whole reference tree re-rendered and 48 of 3762 files moved, all three piglins in animation/ and walk/ and nothing else - entities/ untouched, which is what says the unposed union was inert while every subject was measured at rest. manifest.references also takes in the walk/ sub-tree, 720 references entering it for the first time, and the seven witch frames the chosen id moved. digest.shipped-tables re-bases entity_poses.json, regenerated three times since that row was last promoted and licensed rather than fixed until now. skeleton 3.1786 to 0.1228 under a stride; no canvas in either animated table now differs from vanilla's.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -27,10 +29,10 @@
       "items": 479,
       "players": 2
     },
-    "reference_manifest_digest": "3138eb7ad10f90bb9362671031edf60f9cef0f679cf2a7ec55cfa102cb838c1c",
-    "timestamp": "2026-08-30T01:28:12Z",
+    "reference_manifest_digest": "5712ea935c03943d942661a6e5df6cbba3df77b188b41d3117b68fe7e36d14e2",
+    "timestamp": "2026-08-30T02:11:19Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 19206
+    "wall_time_ms": 22261
   },
   "rows": [
     {
@@ -697,29 +699,29 @@
       "worst_frame": "0"
     },
     {
-      "frame_spread": "0.2714",
+      "frame_spread": "0.1983",
       "frames": "8",
       "java_h": "528",
-      "java_w": "252",
-      "mean_argb_delta": "0.2001",
+      "java_w": "324",
+      "mean_argb_delta": "0.1605",
       "status": "ok",
       "subject": "minecraft__piglin",
       "vanilla_h": "528",
-      "vanilla_w": "252",
-      "worst_delta": "0.3370",
+      "vanilla_w": "324",
+      "worst_delta": "0.2596",
       "worst_frame": "6"
     },
     {
-      "frame_spread": "0.2429",
+      "frame_spread": "0.1756",
       "frames": "8",
       "java_h": "528",
-      "java_w": "252",
-      "mean_argb_delta": "0.2052",
+      "java_w": "324",
+      "mean_argb_delta": "0.1619",
       "status": "ok",
       "subject": "minecraft__piglin_brute",
       "vanilla_h": "528",
-      "vanilla_w": "252",
-      "worst_delta": "0.3277",
+      "vanilla_w": "324",
+      "worst_delta": "0.2487",
       "worst_frame": "6"
     },
     {
@@ -843,8 +845,8 @@
       "frame_spread": "0.0772",
       "frames": "8",
       "java_h": "518",
-      "java_w": "238",
-      "mean_argb_delta": "0.1553",
+      "java_w": "260",
+      "mean_argb_delta": "0.1558",
       "status": "ok",
       "subject": "minecraft__skeleton",
       "vanilla_h": "518",
@@ -1191,16 +1193,16 @@
       "worst_frame": "5"
     },
     {
-      "frame_spread": "0.1146",
+      "frame_spread": "0.1210",
       "frames": "8",
       "java_h": "528",
-      "java_w": "316",
-      "mean_argb_delta": "0.1858",
+      "java_w": "324",
+      "mean_argb_delta": "0.1866",
       "status": "ok",
       "subject": "minecraft__zombified_piglin",
       "vanilla_h": "528",
-      "vanilla_w": "316",
-      "worst_delta": "0.2507",
+      "vanilla_w": "324",
+      "worst_delta": "0.2579",
       "worst_frame": "3"
     }
   ],
@@ -1215,6 +1217,6 @@
     },
     "failed": 0,
     "rows": 90,
-    "sum": "10.0552"
+    "sum": "9.9736"
   }
 }
