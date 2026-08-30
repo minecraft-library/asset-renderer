@@ -429,6 +429,36 @@ class Apply(Base):
         promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
         self.assertIs(self.store.index()["artifacts"]["sweep.entity"]["baselined"], True)
 
+    def test_a_moved_row_keeps_a_duration_its_own_run_did_not_measure(self):
+        """A wall time is a property of the RUN, and a producer reached as somebody else's
+        `dependsOn` stamps none. The `unchanged` arm keeps and refreshes what the row had, so a row
+        that MOVED losing it would make two arms of one promotion disagree - which took
+        `pin.block-crc` and `pin.player-crc` from 19235 ms to nothing.
+        """
+        self.store.write("report.oracle-index", registered(*REGISTERED, last_duration_ms=19235))
+        self.store.write("sweep.entity", artifact(delta="2.0000"))
+        self._capture(artifact())
+        entries = promote.plan(self.root, self.store)
+        self.assertEqual(entries[0].action, "replace")
+        promote.apply(self.root, self.store, entries, "r")
+        self.assertEqual(self.store.index()["artifacts"]["sweep.entity"]["last_duration_ms"], 19235)
+
+    def test_a_run_that_did_measure_one_replaces_the_value_it_kept(self):
+        """Kept until a run measures a new one, never instead of one."""
+        self.store.write("report.oracle-index", registered(*REGISTERED, last_duration_ms=19235))
+        self.store.write("sweep.entity", artifact(delta="2.0000"))
+        measured = artifact()
+        measured["provenance"]["wall_time_ms"] = 41
+        self._capture(measured)
+        promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
+        self.assertEqual(self.store.index()["artifacts"]["sweep.entity"]["last_duration_ms"], 41)
+
+    def test_a_row_that_never_carried_one_still_carries_none(self):
+        """Absence is an answer rather than a zero, or the budget would price an unmeasured row."""
+        self._capture(artifact())
+        promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
+        self.assertNotIn("last_duration_ms", self.store.index()["artifacts"]["sweep.entity"])
+
     def test_there_is_no_provenance_directory_on_either_side(self):
         self._capture(artifact())
         promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")

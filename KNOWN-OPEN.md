@@ -77,11 +77,3 @@ growing - the walk gate landed a reference set, the walk-clip exclusion landed a
 subjects a stride reaches are only now measurable. Whoever takes this should take it when most
 entities animate, not before, because the shape of the answer depends on what the roster of animated
 behaviours actually turns out to be.
-
-## Two aggregator rows still carry no duration
-
-`manifest.visual` and `manifest.player-raw` are the last rows whose `last_duration_ms` is unset, so
-`parityPlan`'s BUDGET still prints as a floor wherever either is planned. Nothing is wrong with them:
-their producers aggregate through `dependsOn` and could not stamp a wall time at all until the build
-learned to sum a dependency's, and no capture has run since it did. The next capture of either
-records one, and this closes when it has.

@@ -69,6 +69,20 @@ def floor_for(artifact: str, index: dict) -> int:
     return int(declared)
 
 
+def duration_for(artifact: str, index: dict) -> int | None:
+    """The wall time this artifact's row already carries, or ``None`` where it carries none.
+
+    Absence is an answer here rather than a refusal, which is the whole difference from
+    :func:`floor_for`: a floor is a registration every artifact owes before it can be judged, and a
+    duration is a measurement a row acquires the first time a run times its producer.
+
+    :param artifact: the artifact id
+    :param index: the production store's index envelope
+    :return: the last recorded duration in milliseconds, or ``None``
+    """
+    return ((index.get("artifacts") or {}).get(artifact) or {}).get("last_duration_ms")
+
+
 @dataclass
 class Entry:
     artifact: str
@@ -347,7 +361,8 @@ def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry],
             record["population_changed"] = True
         target.write(entry.artifact, payload)
         index["artifacts"][entry.artifact] = _index_row(entry, payload,
-                                                        floor_for(entry.artifact, index))
+                                                        floor_for(entry.artifact, index),
+                                                        duration_for(entry.artifact, index))
         written.append(entry.artifact)
 
     index.setdefault("//", "parity.report.oracle-index · regen: ./gradlew parityPromote")
@@ -360,7 +375,7 @@ def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry],
             "parity_class": parity_class}
 
 
-def _index_row(entry: Entry, payload: dict, floor: int) -> dict:
+def _index_row(entry: Entry, payload: dict, floor: int, previous_duration: int | None = None) -> dict:
     """Rebuild one artifact's index row from the payload being promoted.
 
     The row is built field by field rather than merged over the one it replaces, so anything a row
@@ -368,9 +383,18 @@ def _index_row(entry: Entry, payload: dict, floor: int) -> dict:
     it is a registration rather than a measurement, so it is read off the row this one replaces and
     written back, which is what keeps the value in one place while the row is rebuilt.
 
+    ``previous_duration`` arrives the same way and for a sharper reason. A wall time is a property of
+    the RUN rather than of the value, and a producer only stamps one when it is invoked directly -
+    run as somebody else's ``dependsOn`` it stamps nothing. So a row that MOVED would lose the
+    duration it already carried whenever the capture that moved it reached its producer indirectly,
+    while the ``unchanged`` arm above keeps and refreshes one. Two arms of one promotion disagreeing
+    about whether a duration survives is what took `pin.block-crc` and `pin.player-crc` from 19235 ms
+    to nothing. The last measured duration is kept until a run measures a new one.
+
     :param entry: the plan entry
     :param payload: the captured artifact being written
     :param floor: the artifact's declared determinism floor
+    :param previous_duration: the duration the row being replaced carried, or ``None``
     :return: the row
     """
     record = payload.get("provenance", {})
@@ -397,6 +421,8 @@ def _index_row(entry: Entry, payload: dict, floor: int) -> dict:
     if entries_count is not None:
         row[ENTRIES_FIELD] = entries_count
     wall = record.get("wall_time_ms")
+    if wall is None:
+        wall = previous_duration
     if wall is not None:
         row["last_duration_ms"] = wall
     # The headline a reader wants first, lifted out of the payload's own derived summary rather than
