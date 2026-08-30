@@ -78,38 +78,6 @@ subjects a stride reaches are only now measurable. Whoever takes this should tak
 entities animate, not before, because the shape of the answer depends on what the roster of animated
 behaviours actually turns out to be.
 
-## The worn shell's coplanar pair falls the wrong way by two ULP of the bone chain
-
-An inflated shell puts a second mesh's boxes through the first's, and the pairs that intersect are
-genuinely coplanar - the worn chestplate's torso and arm south faces are one plane. On
-`skeleton~armor=iron` at pixel `(128,246)` the two now read two ULP apart with the torso in front,
-which is close enough that they quantise onto adjacent window-grid points rather than onto one, so
-the torso wins. Vanilla paints the arm's texel there, and vanilla draws `body` after `right_arm`, so
-vanilla's torso lost a depth test our torso wins. Two ULP is the model's own vertex rounding: what is
-left is the bone chain, not the raster.
-
-**Most of the seam already ties.** Over a rect across the torso/arm seam, 1543 of the 1708 pixels
-both faces contest are a true tie - both fragments pass and both draw - and the shell's own emission
-order settles them. The residue is the other 165, which the two ULP separates far enough to survive
-the grid, and it is not even: 125 fall to the torso and 40 to the arm.
-
-**Draw order is not the lever, and the seam to measure it at is `ShellWalk.of` rather than
-`EntityGeometryKit`.** A worn shell's triangles come from `ArmorKit.buildArmor3D` walking
-`ShellWalk.parts`, so reordering the geometry kit's bone loop reaches the base mesh and never the
-shell - a probe that does only that moves no `~armor=iron` row and means nothing about them.
-Reordering the walk itself into the order vanilla's `PartDefinition.bake` iterates its `HashMap`
-- `head, right_arm, left_leg, left_arm, right_leg, hat, body` against our declaration order's
-`head, hat, body, right_arm, left_arm, right_leg, left_leg` - takes `skeleton~armor=iron` from
-`0.2046` to `0.6577` and its differing pixels from 818 to 1727. Order reaches roughly nine hundred
-pixels of this one row, and the order already shipped is much the better of the two.
-
-So whoever takes this is asked how closely the per-bone chain composition can be made to land where
-vanilla's does, for two bones whose boxes meet at one z. That is a question about the fit: our chain
-carries a measured `scale · translate(-centre) · scale(modelScale)` where the harness carries its own
-pose, and two matrices that agree mathematically still round a pivot differently. Closing it means
-making those agree to the last ULP - or establishing that a two-ULP agreement is the floor and which
-side of the grid it falls on is not recoverable.
-
 ## Two aggregator rows still carry no duration
 
 `manifest.visual` and `manifest.player-raw` are the last rows whose `last_duration_ms` is unset, so

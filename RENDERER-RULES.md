@@ -838,6 +838,22 @@ Renderer-wide:
   catches exist so one bad model never aborts a batch, and a missing client-jar class must abort it.
 - Do not plan a light sweep on the `-Dasset.entity.L<idx>d{x,y,z}` knobs - they are inert downstream
   of `Lighting.resolveEntity` while `-Dasset.depth.range` moves the same rows.
+- **Do not swap the two legs in a shell's walk on the strength of the humanoid rows.** A worn shell
+  inflates both leg boxes until they intersect, and their south faces are coplanar to the bit - both
+  read `-0.73667854` at one contested pixel - so the pair is a true tie that `ShellWalk.of`'s bone
+  order settles. Ours draws `left_leg` last; every plausible bone key set puts `left_leg` in a lower
+  `HashMap` bucket than `right_leg`, so vanilla's bake draws `right_leg` last, and the swap is worth
+  `skeleton~armor=iron` `0.2046 -> 0.0269`, 818 differing pixels to 73. It is not applied because the
+  same swap costs six other wearers about as much as it wins the eight - `piglin`, `piglin_brute`,
+  `zombified_piglin` and `zombie_villager` each `+0.21`, `wither_skeleton` `+0.19`, `giant` `+0.16`,
+  for a fleet of `20.7366` against `20.9361`. The losers carry a large unrelated defect already
+  (`wither_skeleton` spreads 2104 tail pixels over its whole silhouette where `skeleton` has 615 in
+  two bands), so what the swap interacts with there is not the leg tie and is not understood. A
+  constant that helps eight rows and hurts six is a fitted constant.
+- Do not reorder a shell's bones into vanilla's whole bake order either: `body`'s bucket moves with
+  the key set, and the tooling records declaration order rather than the pre-drop key set vanilla
+  hashed, so `body` lands last on the seven names we ship and that is much worse - `skeleton~armor=iron`
+  `0.6577`. The leg pair is the one relative order that is stable across every key set tried.
 
 Geometry:
 
