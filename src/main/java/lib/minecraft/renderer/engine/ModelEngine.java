@@ -73,6 +73,22 @@ import java.util.stream.IntStream;
 public class ModelEngine {
 
     /**
+     * Highest texel alpha a fragment is discarded at - vanilla's {@code ALPHA_CUTOUT} shader define,
+     * which nineteen of its pipelines declare at {@code 0.1f} and which discards anything below
+     * {@code 0.1 * 255}, so a texel of {@code 25} or less never reaches the framebuffer.
+     *
+     * <p>Vanilla declares it per pipeline and this side applies it to every pass, which is wider than
+     * the source and is measured rather than assumed: at this threshold the block and item sweeps are
+     * byte-identical over 1534 rows and only entities move. Nothing translucent in the corpus lives
+     * this close to invisible - the warden's pulsating spots, the dimmest layer anything declares, sit
+     * at {@code 0.25} - so the two readings have no row between them today.
+     *
+     * <p>Sweepable via {@code -Dasset.raster.alpha.cutout}; {@code 0} drops only a fully transparent
+     * texel, which is what this rasterizer did before the define was read.
+     */
+    private static final int ALPHA_CUTOUT = Integer.getInteger("asset.raster.alpha.cutout", 25);
+
+    /**
      * Minimum framebuffer height (in pixels) before tiled parallel rasterization kicks in.
      * Below this threshold the tiled path's overhead (ForkJoin splits, per-tile depth-slice
      * allocation, triangle iteration per tile) outweighs the parallel speedup. Small renders
@@ -792,7 +808,7 @@ public class ModelEngine {
                         ? Math.floorMod((int) (v * texture.height()), texture.height())
                         : Math.clamp((int) (v * texture.height()), 0, lastTexelY);
                     int rawTexel = texture.getPixel(tx, ty);
-                    if (ColorMath.alpha(rawTexel) == 0) {
+                    if (ColorMath.alpha(rawTexel) <= ALPHA_CUTOUT) {
                         RendererDebug.pixelSkipAlpha(px, py, depthVal, t.source.debugTag(), u, v, tx, ty, rawTexel);
                         continue;
                     }
