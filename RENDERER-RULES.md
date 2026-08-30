@@ -477,6 +477,15 @@ divergence in how they were measured.
   posing them unions three canvases vanilla keeps separate. Worth 333 of IDLE delta over that family
   against the 3.1 it buys on the skeleton's, measured both ways. The two sets have to be reconciled
   before the member walk can pose.
+- **A clip channel named `root` is the CONTAINER and not a bone.** `ModelPart.createPartLookup` seeds
+  its map with `root -> this` - the model's own root part, which the geometry flow flattens away and
+  names nowhere - and adds the named children only afterwards, so a mesh that declares a bone of that
+  name takes the entry back and ten of the corpus's meshes do. `ClipKit.target` reads the precedence
+  off that map rather than assuming it either way, and `PoseKit.displacedContainer` folds what the
+  clips displace the container by onto the INNERMOST step rather than hanging a step of its own,
+  because vanilla holds one part pose for the root and `offsetPos` and `offsetRotation` add into the
+  very fields a body assigned. Passed over as an undeclared bone it is silently nothing, which is a
+  camel that walks without leaning into its stride and a canvas measured around one.
 
 **`BIND` is the default and hands back the very instance it was given.** Identity, not equality: an
 equal copy is still a copy, and every float in it is one the authored path never computed. The same
@@ -532,6 +541,20 @@ pass's, and the alternate a suppressed pass carries. A transform reaching the bo
 tropical fish out from under its own pattern overlays. It is keyed by renderer rather than by model
 because one renderer answers for several model classes, and `entity_models.json`'s `renderer` member
 is what a subject joins on.
+
+- **A renderer composes in the frame of the GROUND its subject stands on, and a mesh's origin is not
+  it.** `LivingEntityRenderer.submit` translates the stack `1.501` blocks along the flipped y between
+  the `setupRotations` it has just run and the mesh it submits, so the sequence reaches the roots
+  through a translate of `1.501 * 16` model pixels or it turns the subject about its neck.
+  `EntityIndexBuilder.under` emits it as the step closing the sequence, that being the one place a
+  renderer's steps and a model's own container write are both in hand. It is INSIDE the chirality
+  flip, so unlike every step above it it crosses no frame and is not conjugated.
+- **That offset is rigid, so it moves no silhouette and only ever moves where one stands** - which
+  reads as a canvas of the wrong size rather than as a transform of the wrong shape, and is what
+  makes it a canvas question until it is read. It is inert wherever the angle is settled at
+  generation: a constant turn is a constant displacement and the fit centres whatever it measured. So
+  it reaches only a container angle a tick changes about an axis it is not parallel to, which today
+  is the iron golem's lurch alone - the fish turn about y, which this offset lies along.
 
 - **A world transform crosses a frame to reach the container.** `setupRotations` runs OUTSIDE
   vanilla's own `scale(-1, -1, 1)` where a container sits inside it, so a step is
