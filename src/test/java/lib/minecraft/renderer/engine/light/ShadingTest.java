@@ -61,46 +61,53 @@ class ShadingTest {
     @Test
     @DisplayName("apply scales only the colour channels and leaves the alpha byte alone")
     void applyPreservesAlpha() {
-        assertThat(Shading.apply(0x40FFFFFF, 0.5f), equalTo(0x40808080));
-        assertThat(Shading.apply(0x00FFFFFF, 0f), equalTo(0x00000000));
-        assertThat(Shading.apply(0x7B123456, 0f), equalTo(0x7B000000));
+        assertThat(Shading.apply(0x40FFFFFF, ColorMath.WHITE, 0.5f), equalTo(0x40808080));
+        assertThat(Shading.apply(0x00FFFFFF, ColorMath.WHITE, 0f), equalTo(0x00000000));
+        assertThat(Shading.apply(0x7B123456, ColorMath.WHITE, 0f), equalTo(0x7B000000));
     }
 
     @Test
     @DisplayName("apply rounds half up rather than truncating toward zero")
     void applyRoundsHalfUp() {
         // 255 * 0.5 is exactly 127.5: rounding half up gives 0x80, truncation would give 0x7F.
-        assertThat(Shading.apply(0xFFFFFFFF, 0.5f), equalTo(0xFF808080));
+        assertThat(Shading.apply(0xFFFFFFFF, ColorMath.WHITE, 0.5f), equalTo(0xFF808080));
 
         // The extreme case of the same bias - a channel of 1 halves to exactly 0.5, which survives
         // as 1 and would truncate to 0, turning a dim texel fully black.
-        assertThat(Shading.apply(0xFF010101, 0.5f), equalTo(0xFF010101));
+        assertThat(Shading.apply(0xFF010101, ColorMath.WHITE, 0.5f), equalTo(0xFF010101));
     }
 
     @Test
     @DisplayName("apply at unity is the identity on every channel")
     void applyAtUnityIsIdentity() {
-        assertThat(Shading.apply(0xFF000000, 1f), equalTo(0xFF000000));
-        assertThat(Shading.apply(0x0089ABCD, 1f), equalTo(0x0089ABCD));
-        assertThat(Shading.apply(0xFFFFFFFF, 1f), equalTo(0xFFFFFFFF));
+        assertThat(Shading.apply(0xFF000000, ColorMath.WHITE, 1f), equalTo(0xFF000000));
+        assertThat(Shading.apply(0x0089ABCD, ColorMath.WHITE, 1f), equalTo(0x0089ABCD));
+        assertThat(Shading.apply(0xFFFFFFFF, ColorMath.WHITE, 1f), equalTo(0xFFFFFFFF));
     }
 
     @Test
     @DisplayName("apply clamps a factor that overshoots rather than wrapping the channel")
     void applyClampsAboveFullBright() {
-        assertThat(Shading.apply(0xFF808080, 4f), equalTo(0xFFFFFFFF));
-        assertThat(Shading.apply(0xFF804020, 2f), equalTo(0xFFFF8040));
+        assertThat(Shading.apply(0xFF808080, ColorMath.WHITE, 4f), equalTo(0xFFFFFFFF));
+        assertThat(Shading.apply(0xFF804020, ColorMath.WHITE, 2f), equalTo(0xFFFF8040));
     }
 
     @Test
-    @DisplayName("a white tint leaves apply's own answer bit-for-bit")
-    void whiteTintIsTheUntintedAnswer() {
-        // apply IS this method at a white tint, which holds because 255 / 255f is exactly 1.0f and a
-        // multiply by it is exact. A tint folded in after the texel instead would round differently
-        // here and move every untinted surface in the corpus.
-        for (float f : new float[]{0f, 0.4f, 0.5f, 0.6489f, 1f, 4f}) {
-            assertThat(Shading.applyTinted(0xFF804020, ColorMath.WHITE, f), equalTo(Shading.apply(0xFF804020, f)));
-            assertThat(Shading.applyTinted(0x7B123456, ColorMath.WHITE, f), equalTo(Shading.apply(0x7B123456, f)));
+    @DisplayName("a white tint is a bare shade, bit-for-bit")
+    void whiteTintIsABareShade() {
+        // One method serves a tinted surface and a plain one, which holds because 255 / 255f is
+        // exactly 1.0f and a multiply by it is exact. Asserted against the bare arithmetic rather
+        // than against another call of the same method, or it says nothing: folding the tint in
+        // AFTER the texel instead would round differently here and move every untinted surface in
+        // the corpus, and it would still agree with itself.
+        for (int argb : new int[]{0xFF804020, 0x7B123456, 0xFF010101, 0xFFFFFFFF}) {
+            for (float f : new float[]{0f, 0.4f, 0.5f, 0.6489f, 1f}) {
+                int r = Math.round(((argb >>> 16) & 0xFF) * f);
+                int g = Math.round(((argb >>> 8) & 0xFF) * f);
+                int b = Math.round((argb & 0xFF) * f);
+                int expected = (argb & 0xFF000000) | (r << 16) | (g << 8) | b;
+                assertThat(Shading.apply(argb, ColorMath.WHITE, f), equalTo(expected));
+            }
         }
     }
 
@@ -110,7 +117,7 @@ class ShadingTest {
         // Vanilla folds the tint into the vertex colour, so a fragment is quantised at the framebuffer
         // write and nowhere else. Tinting the texel to an int first and shading that rounds twice: a
         // channel of 1 under a half tint and a half shade is 0.251, which is 0 once and 1 twice.
-        assertThat(Shading.applyTinted(0xFF010101, 0xFF808080, 0.5f), equalTo(0xFF000000));
+        assertThat(Shading.apply(0xFF010101, 0xFF808080, 0.5f), equalTo(0xFF000000));
 
         // The same fragment through the two-step arithmetic, spelled out - this is what the rasterizer
         // used to compute, and it is a whole channel step brighter.
@@ -133,7 +140,7 @@ class ShadingTest {
         assertThat(relit.shading(), equalTo(1.0f));
 
         // Which makes the pair an identity end to end: the face keeps the colour it sampled.
-        assertThat(Shading.apply(0xFF804020, relit.shading()), equalTo(0xFF804020));
+        assertThat(Shading.apply(0xFF804020, ColorMath.WHITE, relit.shading()), equalTo(0xFF804020));
 
         // Not an early exit from the cull composition - the forced flag still applies.
         assertThat(relit.traits().cullBackFaces(), is(true));

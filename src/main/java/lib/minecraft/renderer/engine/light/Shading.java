@@ -44,17 +44,6 @@ public class Shading {
     // --- shading ---
 
     /**
-     * Multiplies an ARGB pixel's RGB channels by a shading factor, preserving the alpha channel.
-     *
-     * @param argb the source ARGB pixel
-     * @param factor the shading factor in {@code [0, 1]}
-     * @return the shaded ARGB pixel
-     */
-    public static int apply(int argb, float factor) {
-        return applyTinted(argb, ColorMath.WHITE, factor);
-    }
-
-    /**
      * Multiplies an ARGB texel by a vertex tint and a shading factor, quantising once.
      *
      * <p>Vanilla carries the tint as the VERTEX COLOUR, so the vertex shader folds it into the light
@@ -66,9 +55,9 @@ public class Shading {
      * block.
      *
      * <p>The tint is combined with the factor BEFORE the texel, which is the order vanilla composes
-     * them in and is what makes {@link #apply} an instance of this rather than a second arithmetic:
-     * {@code 255 / 255f} is exactly {@code 1.0f} and multiplying by it is exact, so a white tint
-     * leaves the factor and the product bit-for-bit unchanged.
+     * them in and is what lets one method serve a tinted surface and a plain one: {@code 255 / 255f}
+     * is exactly {@code 1.0f} and multiplying by it is exact, so {@link ColorMath#WHITE} leaves both
+     * the factor and the product bit-for-bit what a bare shade would have given.
      *
      * <p>Vanilla GLSL quantizes via {@code floor(min(1, v) * 255 + 0.5)} (round-half-up), so this
      * matches with {@link Math#round}. A plain {@code (int)} truncation would bias every shaded
@@ -79,7 +68,7 @@ public class Shading {
      * @param factor the shading factor in {@code [0, 1]}
      * @return the tinted and shaded ARGB pixel
      */
-    public static int applyTinted(int argb, int tintArgb, float factor) {
+    public static int apply(int argb, int tintArgb, float factor) {
         int a = (argb >>> 24) & 0xFF;
         int r = Math.round(((argb >>> 16) & 0xFF) * channelScale(tintArgb >>> 16, factor));
         int g = Math.round(((argb >>> 8) & 0xFF) * channelScale(tintArgb >>> 8, factor));
