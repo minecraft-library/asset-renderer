@@ -40,43 +40,43 @@
     },
     {
       "path": "armor-3d.png",
-      "sha256": "bdc42f5c7d2f03f3529107cf06686fcf28f48af98e81c0b75cbac915c0ab30ee"
+      "sha256": "d9cfc3c13247733273213c9db76aa00a18aff0ea21c01b2def6e98e46322d839"
     },
     {
       "path": "armor-3d/chainmail_THREE_D.png",
-      "sha256": "7ff9e62c148f640ce08dcc835115fbf3513c0726b4a97291ad6496d11a2c5172"
+      "sha256": "6cc6e202a440e0038a89f024513b635d4603dfebe875991fb4c4b65067797dea"
     },
     {
       "path": "armor-3d/copper_THREE_D.png",
-      "sha256": "4a5b4432a61483368a549963e9a3d50d730dfcc164823e6ce7394a1d04ba9a87"
+      "sha256": "e2f35f88c9885c6420f858ee3a67e4eb683ff59a7c6c7ff5d7080eec9bf6cf7c"
     },
     {
       "path": "armor-3d/diamond_THREE_D.png",
-      "sha256": "6865cec583c483decccbeb3856687305a175597e08943aed7c06a74d99be1ccf"
+      "sha256": "5847c3eb39b2d67102ba020aba6aa0b47e73047e38d2f700f4d5b2d69e8a8c0a"
     },
     {
       "path": "armor-3d/golden_THREE_D.png",
-      "sha256": "0ede9678603130176b353c23261d2380dad75458eca9c0795dc122e38bc43f97"
+      "sha256": "098d22eed218607d892b2640eb85a2c87a1a180b2d602d74177f04aa6dabc35c"
     },
     {
       "path": "armor-3d/iron_THREE_D.png",
-      "sha256": "ae269d4d3839dc4abacccbe8a630360963bd0bf798271cca9cdfbda0df2534e3"
+      "sha256": "dfba04bdd4c7ddf4e8bee147a0c7ab886082fb74e721127297b098306b19e711"
     },
     {
       "path": "armor-3d/leather_THREE_D.png",
-      "sha256": "94f9874aff38f876fce3b66efb22ddc4eeeac9acce2c4330442dc9ab9071cef6"
+      "sha256": "c98fc8419f98bc2ae070c92b5f4d5462a1fd18d87fdd78de9df99ff97b969b9a"
     },
     {
       "path": "armor-3d/netherite_THREE_D.png",
-      "sha256": "0a72042b6f57fe7d598097e4c12cb7c60ba1f55586f1d66750ddd35817af07f4"
+      "sha256": "4ed0b21ad80e00a5cebebec2f59b5cd7545fc8c48317083a92b1d5a6ba92b62f"
     },
     {
       "path": "armor-3d/turtle_scute_THREE_D.png",
-      "sha256": "aebad5e99af0cf5654f96911cae614bb5f6f93a7398442119ecb0d25988baf51"
+      "sha256": "f3e4794f342db7f14fe083d5b63e6de00fe8a83c27d3786d0d473a7a391e0cbe"
     },
     {
       "path": "armor-per-slot.png",
-      "sha256": "f6f154f807233aa47e59803b0ec9f463a94428993a8c975a7de4866d05227a5f"
+      "sha256": "810c4e1db1c9ec2e7b3ccd301f85025c660c3d29c62a632289ab4fe219075d8e"
     },
     {
       "path": "armor-per-slot/boots_only_2D.png",
@@ -84,7 +84,7 @@
     },
     {
       "path": "armor-per-slot/boots_only_3D.png",
-      "sha256": "104b30c4395ae6aefff7ec7dbebce188eff40b68829604af373bc86467cb34bd"
+      "sha256": "477540038eb2f7ebeff803b14196466fcf7acb07d010ed55670173720aed8313"
     },
     {
       "path": "armor-per-slot/chestplate_only_2D.png",
@@ -92,11 +92,11 @@
     },
     {
       "path": "armor-per-slot/chestplate_only_3D.png",
-      "sha256": "9a05c51dcebf0e55005bff00b87df4f1d712cefb7e5afcfaddaee708158f5bde"
+      "sha256": "077b344462d2716004ed383380af56d1707bdbc1a7eba9e594f8b4b2eb924ccf"
     },
     {
       "path": "armor-per-slot/enchanted_iron_3D.png",
-      "sha256": "183eb7c821f0754e3e1929cb9b6911e7be9720b6d021394a02540de4cbb3d9e3"
+      "sha256": "498e02bd39b93152a3309489b904a7765aba84d2396d96562e92dade1028993b"
     },
     {
       "path": "armor-per-slot/helmet_only_2D.png",
@@ -104,7 +104,7 @@
     },
     {
       "path": "armor-per-slot/helmet_only_3D.png",
-      "sha256": "f8c33f7e526c32afccc3dd3c0674cdd2defe50e4ca60e1329d8a24b5d5a6f22c"
+      "sha256": "0773f024e35c36d66f4e259f108ef04925af2a739c84d7ae65e89d51b3d4f95e"
     },
     {
       "path": "armor-per-slot/leggings_only_2D.png",
@@ -112,15 +112,15 @@
     },
     {
       "path": "armor-per-slot/leggings_only_3D.png",
-      "sha256": "4eaeb69b4b9a15877106a301aa057d86bef68e095abe19c3305193eb441f9d42"
+      "sha256": "840a2926ce229a536cec8a0ac79565fabd88de5266729424fa317d295f264645"
     },
     {
       "path": "core-matrix.png",
-      "sha256": "d3587f40c2c9ab09f547b72eb6d2bea1c2f0ef00c87d8d5dff463fe4510af70e"
+      "sha256": "4376835bcbadc41e0db999885750112f83a812f8850269c2457537832e34b9c0"
     },
     {
       "path": "core-matrix/BUST_THREE_D.png",
-      "sha256": "4565bbe16ad6d35e6e60cb23ed56bf87a09530a9ae20e0da69ee0dbabbb6f6a5"
+      "sha256": "70d33b2a41277d1109704da0d9570c4df24f5a4af117c6d1dfc07850dfa52bb8"
     },
     {
       "path": "core-matrix/BUST_TWO_D.png",
@@ -128,7 +128,7 @@
     },
     {
       "path": "core-matrix/FULL_THREE_D.png",
-      "sha256": "d99d65f641a648a755dbaf47147eed10ea2f49f9ecbde879ef0d5c183408e888"
+      "sha256": "1dafe817f30f4aab781230690034094a0552c8e14761a812125cf8c17647109d"
     },
     {
       "path": "core-matrix/FULL_TWO_D.png",
@@ -136,7 +136,7 @@
     },
     {
       "path": "core-matrix/SKULL_THREE_D.png",
-      "sha256": "1bf7fdfdf741f2ae51b496947a6bfe47b98360f71ea6b52c1c01cea9bb4a2d41"
+      "sha256": "924c47b7fa6a8b38558935d44ada29e350105cf29dd75d78c812ae1daacb2d4b"
     },
     {
       "path": "core-matrix/SKULL_TWO_D.png",
@@ -144,15 +144,15 @@
     },
     {
       "path": "facing.png",
-      "sha256": "d9780174feadefde67da76784b4ba76854671ffa2bf93ef5ddaf2af755d1f9c1"
+      "sha256": "a45ebc7afa16bdc89ac3a5a84eca363873af4fac3e15e8851e296329f215f7db"
     },
     {
       "path": "facing/cavalier_default.png",
-      "sha256": "53dc5b876bd3de9242bc93a099a088074b72288ce9c9fbfcad233bfa76fb3dfc"
+      "sha256": "717b9eb852c80a1dcfe884c7f1165fd077f892fc0de8c1918244331a312e6807"
     },
     {
       "path": "facing/cavalier_mirrored.png",
-      "sha256": "8a80dbe1d14d4602831e691f6fa58077dadb8e605bf5181eade2c74ca5a3a1fa"
+      "sha256": "678d52d2dfbaa41cf5d4f3523cbd6517948aaf876525e0794eb74eb9a96f5a5c"
     },
     {
       "path": "facing/portrait_--.png",
@@ -160,15 +160,15 @@
     },
     {
       "path": "facing/portrait_-F.png",
-      "sha256": "a033637bffba22517eb1d43f4053df1c0653119ec0441fcdd799079f2ed2d44a"
+      "sha256": "4f997cfbdc7d91cb4879f2f7cf53cc7077733f7b88b8e9ab296c60ec4a2563f5"
     },
     {
       "path": "facing/portrait_M-.png",
-      "sha256": "0ddab3ff0c02f388dab0f888fa10e386aebc0e0af04e042152c68fbb11ae27b5"
+      "sha256": "0f5b00c5642c9377133c0728ed65fc5805ea18ce09a88a4c42a851d784d57dea"
     },
     {
       "path": "facing/portrait_MF.png",
-      "sha256": "f7e52df83646e7ead12ed419b5ff1518d4ff60d9e43aa5ff3e8c9d81c0f60241"
+      "sha256": "a91beafdf0cbe06ad024e793022ad0dbca24ce872b2757ff65a82a28447fd7b3"
     },
     {
       "path": "glint-per-slot/all_slots_2D.gif",
@@ -176,7 +176,7 @@
     },
     {
       "path": "glint-per-slot/all_slots_3D.gif",
-      "sha256": "fe1a165ceee456acdb876a7c822e3286176b7885e591e6561473c30a1b7c6fb5"
+      "sha256": "db946a46a2e83ba191722e1cc35b18501e6039f031b132a1715391b2eb501618"
     },
     {
       "path": "glint-per-slot/boots_2D.gif",
@@ -184,7 +184,7 @@
     },
     {
       "path": "glint-per-slot/boots_3D.gif",
-      "sha256": "fe75d50d3592a51d2c9587eee5a4c4f01a8e0944b87eea4f2090c1b0362bd21f"
+      "sha256": "de21061e65748924969d6a0ef8d58269274f509e46f2465b6fb75e2cf43f47bd"
     },
     {
       "path": "glint-per-slot/chestplate_2D.gif",
@@ -192,7 +192,7 @@
     },
     {
       "path": "glint-per-slot/chestplate_3D.gif",
-      "sha256": "f450b4ab163f504992153aed156e616a9176bb54ad5403f1187e0281d3b047e5"
+      "sha256": "32369fb845f0bb95efa37bd4f313e8ebfeedd50fbd76671df96bf062a1776433"
     },
     {
       "path": "glint-per-slot/helmet_2D.gif",
@@ -200,7 +200,7 @@
     },
     {
       "path": "glint-per-slot/helmet_3D.gif",
-      "sha256": "38c32afaa42e892d3eb3b1f4c6edeaa089479be34249c158fd7d1afc7b2b2e3b"
+      "sha256": "b54b99b0d25cc3d70fc6e94326770b70871e185a7bdb547d3f553d67e6c0f4e9"
     },
     {
       "path": "glint-per-slot/leggings_2D.gif",
@@ -208,15 +208,15 @@
     },
     {
       "path": "glint-per-slot/leggings_3D.gif",
-      "sha256": "0c03e02b7d0635c495cb259e1f004748a2d1a8410874e08b80ae18b68e29656d"
+      "sha256": "dc220ac190b974e18971e6996fe4890ddab1add18026d04c06d73f1fda3edfad"
     },
     {
       "path": "leather-dye.png",
-      "sha256": "0347aefd99715f458ebfd4b7d73e745aea03fb7f56dd4e90e2bd020e2de932ce"
+      "sha256": "d501c17841bce4ece7b35dc18e0d0fbeb0f3233c0573ebad531596727cc87df0"
     },
     {
       "path": "leather-dye/blue_THREE_D.png",
-      "sha256": "eaf640f42e14efadfad265527f2b6c9ff68e9b50a3264cf8fd20b43ff09cb274"
+      "sha256": "d3c70a7be1050d39acf610780356cf788cb8c68570712336cd8b1803525f95d4"
     },
     {
       "path": "leather-dye/blue_TWO_D.png",
@@ -224,7 +224,7 @@
     },
     {
       "path": "leather-dye/cyan_THREE_D.png",
-      "sha256": "08bb0c5627387bb35ca1a2a5cc6f438335643b1061e8054218d21fd95e4f2bf3"
+      "sha256": "4e9d224239c18d2f1b95b02116a5ad837e87f5fc96ff246755d05ac0b053f2fd"
     },
     {
       "path": "leather-dye/cyan_TWO_D.png",
@@ -232,7 +232,7 @@
     },
     {
       "path": "leather-dye/default_THREE_D.png",
-      "sha256": "94f9874aff38f876fce3b66efb22ddc4eeeac9acce2c4330442dc9ab9071cef6"
+      "sha256": "c98fc8419f98bc2ae070c92b5f4d5462a1fd18d87fdd78de9df99ff97b969b9a"
     },
     {
       "path": "leather-dye/default_TWO_D.png",
@@ -240,7 +240,7 @@
     },
     {
       "path": "leather-dye/green_THREE_D.png",
-      "sha256": "e00dde3b4148469ce3bb2f9d1174f471c74d9e0ba3f3f875a6a62fb59ae106c9"
+      "sha256": "dda92820938899130f292026188a57acaf21d63293bbbd867d234ced3fbc0cf4"
     },
     {
       "path": "leather-dye/green_TWO_D.png",
@@ -248,7 +248,7 @@
     },
     {
       "path": "leather-dye/orange_THREE_D.png",
-      "sha256": "128305aa7013a49817a6e64e38dc5ad850fee898c1cc46f5d99a7a7a48e86e94"
+      "sha256": "9548dabe77eae26f5fb4d4d5d1661ee372062d26e746ff1b7c1bb79c1ec27854"
     },
     {
       "path": "leather-dye/orange_TWO_D.png",
@@ -256,7 +256,7 @@
     },
     {
       "path": "leather-dye/red_THREE_D.png",
-      "sha256": "889a545a851f311e03dbe71de4fe35c5ddb431a5f61478a1e4d359ef577ee3c0"
+      "sha256": "2fcede7d30ca11ec81f3da50d1dd25b5887d2d93019865748f5e3265b67ab4f4"
     },
     {
       "path": "leather-dye/red_TWO_D.png",
@@ -264,23 +264,23 @@
     },
     {
       "path": "projections.png",
-      "sha256": "08336eea5497e41c8ad3e7156ebf89e63d940557c42e5163d159aaf415d8d968"
+      "sha256": "1dbf566296bfb4a9889baf7766c0b2f5fb32ca9fa38093793fe95f85f94b123d"
     },
     {
       "path": "projections/cabinet.png",
-      "sha256": "d898e8be7832f3d180674e51b6c951e90057458a8caba29ed922d090f2c71a1d"
+      "sha256": "5ebeb35612688afbd5a4d79d5fc586a5140aaeeaddf74dd72e4c7ceeb02c5992"
     },
     {
       "path": "projections/cavalier.png",
-      "sha256": "53dc5b876bd3de9242bc93a099a088074b72288ce9c9fbfcad233bfa76fb3dfc"
+      "sha256": "717b9eb852c80a1dcfe884c7f1165fd077f892fc0de8c1918244331a312e6807"
     },
     {
       "path": "projections/dimetric.png",
-      "sha256": "fcf07c36deb4c74723f2353ed58564f9b14524db02fea1c734b30fa41fab7939"
+      "sha256": "195859ec2711eb2cd1edb4e3f78e30f96945be1dd03a820018bee9e4c9b4ebff"
     },
     {
       "path": "projections/isometric.png",
-      "sha256": "2897160acb217211d81a7a68e904f286e7a1c05c00ddf13ed6d6ff0d822af126"
+      "sha256": "985e16dcced02fffa55a165265f64453cae2fcac59730de8db4a292975838a08"
     },
     {
       "path": "projections/military.png",
@@ -288,7 +288,7 @@
     },
     {
       "path": "projections/one_point.png",
-      "sha256": "fd3ca41a21d3d77123a66bf7b6495d2e708dd75c09f251e6bc709bebb56623d6"
+      "sha256": "92885e038bb39609014a526f3b50d63cb03e50a550fb41dad23bcbf8becbaf15"
     },
     {
       "path": "projections/portrait.png",
@@ -296,27 +296,27 @@
     },
     {
       "path": "projections/three_point.png",
-      "sha256": "6690b247081291f1b9d2fae7c0eb5528038978ca8ef0a5fc20c97642a5df7b60"
+      "sha256": "d32213ddc3f093a8a805c662cf875594a24bb902e7cf66924224c11dd5f334e2"
     },
     {
       "path": "projections/trimetric.png",
-      "sha256": "474e049c1b59673018728ed4d22de849c5981c5e7b25f92768ad8e7c60cf90ca"
+      "sha256": "b3fefb7c4fe5b281060eee50aed19351e763b7f4e6b2146c30b41a361368d71b"
     },
     {
       "path": "projections/two_point.png",
-      "sha256": "f4884cebda20e9246970e4218bea0a3cfdffaf7c929f3bf53098caed3a453797"
+      "sha256": "383e873c5d36387032992c093597b657530e3507dae833807b7f3f57e5e6e323"
     },
     {
       "path": "projections/vanilla_gui_item.png",
-      "sha256": "fd3ca41a21d3d77123a66bf7b6495d2e708dd75c09f251e6bc709bebb56623d6"
+      "sha256": "92885e038bb39609014a526f3b50d63cb03e50a550fb41dad23bcbf8becbaf15"
     },
     {
       "path": "projections/vanilla_iso.png",
-      "sha256": "1bf7fdfdf741f2ae51b496947a6bfe47b98360f71ea6b52c1c01cea9bb4a2d41"
+      "sha256": "924c47b7fa6a8b38558935d44ada29e350105cf29dd75d78c812ae1daacb2d4b"
     },
     {
       "path": "toggles.png",
-      "sha256": "9257584fe4648e7c92877d4c64b3963aa0e5a0a373be067c0b44b1ebbf7160a2"
+      "sha256": "055b02d6c51113e8312a316480a4a03a20b7c9629d1a01a89e5f3cdc49448855"
     },
     {
       "path": "toggles/2D_bg_solid.png",
@@ -324,99 +324,99 @@
     },
     {
       "path": "toggles/FULL_3D_base.png",
-      "sha256": "d99d65f641a648a755dbaf47147eed10ea2f49f9ecbde879ef0d5c183408e888"
+      "sha256": "1dafe817f30f4aab781230690034094a0552c8e14761a812125cf8c17647109d"
     },
     {
       "path": "toggles/bg_checkerboard.png",
-      "sha256": "937b216c7863b9ba0b4d967f21d5ed66f2cd5baec349b7697d210184b23e58b2"
+      "sha256": "3088e5d72c82a646ac407a8f7e34bbf1b9bebc341f0d80e271bbc6aca5d270f7"
     },
     {
       "path": "toggles/bg_solid_grey.png",
-      "sha256": "d9898c62acd70b73b95fdcddb57cf472e3b22f3c8f27cea5ff0a93fba827dd36"
+      "sha256": "fcf087eb066cce518cf5fd4743168c396f499bd910b32663ddfc88723f9d8f1c"
     },
     {
       "path": "toggles/cape_front_.png",
-      "sha256": "003a785d134eaccfa1281af67b3293f16206a77509acfcf906f51bf5369ec32a"
+      "sha256": "d3826ab43dd04cf1fce6c526927db012df8919e1e0f3711aae0f227cd2d5fda2"
     },
     {
       "path": "toggles/cape_rear_.png",
-      "sha256": "e080fd0a30a1b9f1824536df887c0d74e41b05bf96ad6f8f0dcce9eea9d9f6ec"
+      "sha256": "391ade5c2bd410f58990a3480e668fd722bf723f17daac8b429261f22df5c9aa"
     },
     {
       "path": "toggles/elytra_cape_3_4_.png",
-      "sha256": "b130005c05cd25972537131daa87dc26070e1acc8405bdef7c0883e4d6d8fc4f"
+      "sha256": "16a0fdc4d0ae333c06172b4feacb42cf26f3d2a0fb3cc045d4ae5529704f410d"
     },
     {
       "path": "toggles/elytra_only_3_4_.png",
-      "sha256": "f07316dce84759dd60fe03c218aad192e4993ff09db947abd266c2bb91a41d04"
+      "sha256": "16b88b2e3ec412600c1304e6bc839353c16b9b06a8bcc70b0ea953e58b8e711d"
     },
     {
       "path": "toggles/overlay_off.png",
-      "sha256": "909a2355151364477289f76603b85212e7b5d4ca6ed7d199aac85243be6307fb"
+      "sha256": "81d6938e2ae251ae1e94bba650b781d27eab07fe8ad113f7a497b402614f4c67"
     },
     {
       "path": "toggles/rot_0_0_0_front_.png",
-      "sha256": "d99d65f641a648a755dbaf47147eed10ea2f49f9ecbde879ef0d5c183408e888"
+      "sha256": "1dafe817f30f4aab781230690034094a0552c8e14761a812125cf8c17647109d"
     },
     {
       "path": "toggles/rot_15_210_0.png",
-      "sha256": "8c1384d14259865501ced71e31a460d68ba52c784592fde72935890b4e149800"
+      "sha256": "2021ef589fe9c3474be916d52db9b1dd212ed1ce96a815305e72eacaa9aa0744"
     },
     {
       "path": "toggles/ssaa_1_raw_.png",
-      "sha256": "12ec5934d62a508439c636d0a10066367ff6225c8c7fbdd6c8809b019c103e37"
+      "sha256": "25b2235a323b51c7cba6608efb7701b111d7a94227294f8196e27bcc2f94569a"
     },
     {
       "path": "toggles/ssaa_4_fxaa.png",
-      "sha256": "dc4012bd64449a3b834acb8533c2303de4a59aa06d50c35cc7e3b45cd41df72c"
+      "sha256": "05c180a09d040ab3611bdced0177249842dd1fefa3075b4ba930dac5144926c6"
     },
     {
       "path": "trims.png",
-      "sha256": "af721f28eeec47110e977d8803172e8b86c396c6ad4c731644ed741e071e6fc9"
+      "sha256": "ee878fcddbe45dc14f551ef2d3aa8fbb0c140b969c7e9df250befd5ca5bb28ea"
     },
     {
       "path": "trims/all_slots_tide_copper.png",
-      "sha256": "cb0fc2c3c1d8e409850136a26cedeaa978d01d07b2c14f8471f0781d2a05fd55"
+      "sha256": "1cd9c503298b0ba68557c71f5bbd732113cb91347e87b32c6dca932ca68a970d"
     },
     {
       "path": "trims/coast_lapis.png",
-      "sha256": "19f8f58a088fe8c3ac11979038d15863315685af1de465aa7ea2eb3ed602dbf6"
+      "sha256": "828cce7876453d89ac33b65010f699f799ac09a228ea3f3c1475da7307f3732b"
     },
     {
       "path": "trims/eye_redstone.png",
-      "sha256": "7e00dde660e9aaa3201e56c180e8aa7b0e17718da2635db1d850d1cbc8a2edf7"
+      "sha256": "19f7d5d3ac66e4b5c31020b23d849fc2086a6acbad3b6a689f7411421402abab"
     },
     {
       "path": "trims/sentry_gold.png",
-      "sha256": "a70354e09f88e23c072d26c76d2f718af7a1c2906ef900fe64394f94a7f5c528"
+      "sha256": "f7a6974d58f68a71d6650e0eb661529e17a477c3202b8b403a658b9906f09b31"
     },
     {
       "path": "trims/silence_copper_chest.png",
-      "sha256": "12510e74bad993523556f5b7479aad08cf55d6749e24d4df6a37f16ce525ccb5"
+      "sha256": "be70338a4c087bd88f5d3b60fb242581bc96da1515a32b57391278501e7634da"
     },
     {
       "path": "trims/silence_diamond_chest.png",
-      "sha256": "4b74c644aacdf3fe8d0bf4969865eb143705342631cb15ca2a61982b824ebf82"
+      "sha256": "0bb313864c0adcee387889181d6b12c22688f782ae2023d3f1af00b1b12c238d"
     },
     {
       "path": "trims/silence_gold_chest.png",
-      "sha256": "8f3b4b6c62c7a1643c41946089cba80230c8be5f10598e9780293d2694d51575"
+      "sha256": "db0dbf92bc7540f5197e62f38182efa6e41735dc86506f150908d4e873e95687"
     },
     {
       "path": "trims/silence_netherite_darker_chest.png",
-      "sha256": "9f61b5330ad83e2641e8ffb51c94a119ad3f974bd8f6abcfb2a7e398a9cdf01e"
+      "sha256": "0fd85c6dde048d4cf395f043ad1175b2705325cd08e019b257a051e9ffdba5c3"
     },
     {
       "path": "trims/spire_amethyst.png",
-      "sha256": "2ee80ef7a4ea21d4b6a7324fad4d9bb29541f55a9a4916a2ea075cea20fc6cc1"
+      "sha256": "1f14eef75e46d7988d2bfbd7df5828ab29950b5db8c10ebd4a087b87f40ca3ee"
     },
     {
       "path": "trims/ward_iron_darker.png",
-      "sha256": "fb88c4c8057a7a528d520754e37e71e5e22f6698aa0926b50145a09184167e76"
+      "sha256": "10cddf718ac6b1a841e417e1e5f85c5e7879298356d4ef891dff0dc3685381f4"
     },
     {
       "path": "trims/wild_emerald.png",
-      "sha256": "1fbb296465d81c228c266041ee814745c9ed358e9bddd955d20e48c70d7b159f"
+      "sha256": "fe89f662cfbc6095cb9c9cf9a9bf4929457fdb2fcc772104e90df625bb3e8d88"
     }
   ],
   "format": 1,
@@ -424,9 +424,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.player-sheets",
-    "asset_content_digest": "a2e22680f652e6e78a59059314ca0f9f43b81861d30a56f074d6ccbb32a037b3",
+    "asset_content_digest": "f4982a28324408e9bbf7b9588c8d60064c61736a0a8ec464a6f0cbb875370323",
     "asset_dirty": true,
-    "asset_sha": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+    "asset_sha": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
     "counts": {
       "files": 104
     },
@@ -435,7 +435,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "playerRender",
-    "reason": "Six ungated renderer commits land together: the entity SNORM vertex normal, the single-rounding tint, the folded shade application, the vanilla alpha cutout, and the two depth-plane commits. sweep.entity 59.4901 -> 20.9361, sweep.entity-animation 9.9736 -> 3.1497, sweep.block 131.5270 -> 129.8391, sweep.armor 18.2471 -> 17.9895, sweep.glint 528.0484 -> 528.0469, sweep.player 8.4315 -> 8.4556; sweep.item and sweep.menu held. Each commit body carries its own measurement.",
+    "reason": "Shading.apply quantizes at a tie point shifted -0.024 of a channel step, absorbing the sub-LSB gap between one multiply here and a fragment's chain on a GPU. Read off vanilla's own output bytes: over 2994216 (texel, output) constraints from a goat, a pillager and an evoker at five shade factors, a zero shift explains 98.47% and the plateau this sits in explains 99.62%. A shade factor cannot absorb it - the gap is constant in output space, so one factor over-brightens a dark texel and leaves a bright one right. Every sweep falls but one: block 129.8391 to 117.9441, entity 20.9361 to 17.7543, entity-animation 3.1497 to 2.2489, player 8.4556 to 8.3792, armor 17.9895 to 17.9822, item 128.9575 to 128.9549, menu unmoved; glint rises 0.0281 across four leather rows already between 84 and 120.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -445,8 +445,8 @@
       "players": 2
     },
     "root": "cache/visual/player-render",
-    "timestamp": "2026-08-30T06:33:44Z",
+    "timestamp": "2026-08-30T20:31:19Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 14885
+    "wall_time_ms": 16789
   }
 }

@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.glint",
-    "asset_content_digest": "a2e22680f652e6e78a59059314ca0f9f43b81861d30a56f074d6ccbb32a037b3",
+    "asset_content_digest": "f4982a28324408e9bbf7b9588c8d60064c61736a0a8ec464a6f0cbb875370323",
     "asset_dirty": true,
-    "asset_sha": "bca1fa5bbedc35bcdce15bd592517a9f72add4a0",
+    "asset_sha": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
     "counts": {
       "failed": 0,
       "rows": 11
@@ -18,7 +18,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "glintParityVanilla",
-    "reason": "Six ungated renderer commits land together: the entity SNORM vertex normal, the single-rounding tint, the folded shade application, the vanilla alpha cutout, and the two depth-plane commits. sweep.entity 59.4901 -> 20.9361, sweep.entity-animation 9.9736 -> 3.1497, sweep.block 131.5270 -> 129.8391, sweep.armor 18.2471 -> 17.9895, sweep.glint 528.0484 -> 528.0469, sweep.player 8.4315 -> 8.4556; sweep.item and sweep.menu held. Each commit body carries its own measurement.",
+    "reason": "Shading.apply quantizes at a tie point shifted -0.024 of a channel step, absorbing the sub-LSB gap between one multiply here and a fragment's chain on a GPU. Read off vanilla's own output bytes: over 2994216 (texel, output) constraints from a goat, a pillager and an evoker at five shade factors, a zero shift explains 98.47% and the plateau this sits in explains 99.62%. A shade factor cannot absorb it - the gap is constant in output space, so one factor over-brightens a dark texel and leaves a bright one right. Every sweep falls but one: block 129.8391 to 117.9441, entity 20.9361 to 17.7543, entity-animation 3.1497 to 2.2489, player 8.4556 to 8.3792, armor 17.9895 to 17.9822, item 128.9575 to 128.9549, menu unmoved; glint rises 0.0281 across four leather rows already between 84 and 120.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -28,9 +28,9 @@
       "players": 2
     },
     "reference_manifest_digest": "5712ea935c03943d942661a6e5df6cbba3df77b188b41d3117b68fe7e36d14e2",
-    "timestamp": "2026-08-30T06:33:55Z",
+    "timestamp": "2026-08-30T20:31:31Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 27870
+    "wall_time_ms": 31409
   },
   "rows": [
     {
@@ -81,7 +81,7 @@
     {
       "diagnostic": "true",
       "frames": "30",
-      "mean_argb_delta": "103.7742",
+      "mean_argb_delta": "103.7827",
       "status": "ok",
       "subject": "minecraft__leather_boots",
       "vanilla_present": "true",
@@ -90,7 +90,7 @@
     {
       "diagnostic": "true",
       "frames": "30",
-      "mean_argb_delta": "111.2714",
+      "mean_argb_delta": "111.2847",
       "status": "ok",
       "subject": "minecraft__leather_chestplate",
       "vanilla_present": "true",
@@ -99,7 +99,7 @@
     {
       "diagnostic": "true",
       "frames": "30",
-      "mean_argb_delta": "120.5823",
+      "mean_argb_delta": "120.5878",
       "status": "ok",
       "subject": "minecraft__leather_helmet",
       "vanilla_present": "true",
@@ -108,7 +108,7 @@
     {
       "diagnostic": "true",
       "frames": "30",
-      "mean_argb_delta": "84.4814",
+      "mean_argb_delta": "84.4822",
       "status": "ok",
       "subject": "minecraft__leather_leggings",
       "vanilla_present": "true",
@@ -144,6 +144,6 @@
     },
     "failed": 0,
     "rows": 11,
-    "sum": "528.0469"
+    "sum": "528.0750"
   }
 }
