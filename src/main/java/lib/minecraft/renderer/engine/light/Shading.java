@@ -200,9 +200,10 @@ public class Shading {
      * {@link Turn#MIRROR_Z} the player's upright frame, the two sitting a {@link Turn#HALF_X} apart.
      * <p>
      * A face declaring no directional light keeps the full-bright {@code 1.0f} scalar, as it does under
-     * {@link #relightForItems3d}. Nothing is snapped to a cardinal and nothing is packed onto vanilla's
-     * signed-byte grid by {@link #packAsSnormByte}: the Lambertian is continuous in the normal, so a
-     * rotated bone shades off its own direction rather than off the nearest cube face.
+     * {@link #relightForItems3d}. Nothing is snapped to a cardinal: the Lambertian is continuous in the
+     * normal, so a rotated bone shades off its own direction rather than off the nearest cube face. The
+     * normal is still put on vanilla's signed-byte vertex grid by {@link #onVanillaVertexGrid}, which
+     * is a property of the vertex format rather than of the lighting model and so binds both entries.
      * <p>
      * {@link Lighting.EntityLighting#shade} reads the cull flag to pick a face's camera-facing
      * orientation, so a two-sided surface is shaded by whichever of its two orientations points at the
@@ -226,11 +227,37 @@ public class Shading {
                 t.uv0(), t.uv1(), t.uv2(),
                 t.texture(), t.tintArgb(), t.normal(),
                 t.traits().directionalLight()
-                    ? basis.shade(intoKitFrame.apply(t.normal()), t.traits().cullBackFaces())
-                    : 1.0f,
+                    ? basis.shade(
+                        onVanillaVertexGrid(basis, intoKitFrame.apply(t.normal())),
+                        t.traits().cullBackFaces()
+                    ) : 1.0f,
                 t.traits(), t.debugTag()
             ))
             .collect(Concurrent.toUnmodifiableList());
+    }
+
+    /**
+     * Quantises a kit-frame entity normal onto vanilla's signed-byte vertex grid, in the frame vanilla
+     * packs one in, and carries it back to the kit frame the lights are expressed in.
+     *
+     * <p>{@code ModelPart$Cube.compile} transforms each polygon normal by the POSE STACK - which
+     * carries the display pose - before handing it to the vertex consumer, so what the shader unpacks
+     * is a camera-frame direction on the {@code 1/127} lattice. This side carries the display pose
+     * into the LIGHTS instead and leaves the normal in the kit frame, where a cube face is still
+     * cardinal and lands on the lattice exactly - so packing it there is the identity and the
+     * quantisation goes unmodelled. Rotating into the camera frame first is what puts a face off the
+     * lattice; the round trip is what lets the kit-frame dot stand.
+     *
+     * @param basis the resolved entity lighting basis carrying the two frame turns
+     * @param normal the kit-frame outward normal
+     * @return the same direction, quantised where vanilla quantises it
+     */
+    private static @NotNull Vector3f onVanillaVertexGrid(
+        @NotNull Lighting.EntityLighting basis,
+        @NotNull Vector3f normal
+    ) {
+        return packAsSnormByte(normal.transformNormal(basis.kitToCamera()))
+            .transformNormal(basis.cameraToKit());
     }
 
     /**

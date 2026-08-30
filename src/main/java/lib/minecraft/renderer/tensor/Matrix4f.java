@@ -1,6 +1,9 @@
 package lib.minecraft.renderer.tensor;
 
+import dev.simplified.annotations.EqualsAndHashCode;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Arrays;
 
 /**
  * An immutable 4x4 float matrix in column-major storage with column-vector application semantics
@@ -29,7 +32,11 @@ import org.jetbrains.annotations.NotNull;
  * per-vertex or per-pixel allocation pressure to optimise. {@link #multiply} silently dispatches
  * to a JDK Vector API implementation when the incubator module is loaded; otherwise it runs a
  * bit-identical scalar fallback. Callers never see the difference.
+ * <p>
+ * Equality compares the sixteen entries rather than reference identity, so a matrix answers as
+ * {@link Vector3f} does and a record holding one stays a value.
  */
+@EqualsAndHashCode
 public final class Matrix4f {
 
     /**
@@ -484,6 +491,14 @@ public final class Matrix4f {
      */
     public @NotNull Matrix4f rotateZ(float radians) {
         return rotate(Quaternionf.rotationXYZ(0f, 0f, radians));
+    }
+
+    /**
+     * @return the sixteen entries in the column-major order {@link #m} stores them
+     */
+    @Override
+    public @NotNull String toString() {
+        return "Matrix4f" + Arrays.toString(this.m);
     }
 
 }

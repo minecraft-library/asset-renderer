@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.engine.light;
 
 import lib.minecraft.renderer.engine.camera.LightingFrame;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.junit.jupiter.api.DisplayName;
@@ -47,5 +48,24 @@ class LightingResolveEntityTest {
     @DisplayName("resolveEntity is pure - the same frame yields an equal basis")
     void resolveEntityIsPure() {
         assertEquals(Lighting.resolveEntity(ENTITY), Lighting.resolveEntity(ENTITY));
+    }
+
+    @Test
+    @DisplayName("the two camera turns are inverses, on the plain frame and on the mirrored one")
+    void cameraTurnsAreInverses() {
+        // The kit-to-camera chain is written out as the reverse of the light chain with each angle
+        // negated rather than derived by inversion, so nothing but this holds the two in step - and a
+        // pair that has drifted quantises an entity normal in a frame that is not vanilla's, which
+        // reads as a shade a fraction off rather than as anything structural.
+        for (LightingFrame frame : new LightingFrame[]{ENTITY, ENTITY.mirroredHorizontally()}) {
+            Lighting.EntityLighting basis = Lighting.resolveEntity(frame);
+            for (Face face : Face.values()) {
+                Vector3f n = face.normal();
+                Vector3f round = n.transformNormal(basis.kitToCamera()).transformNormal(basis.cameraToKit());
+                assertEquals(n.x(), round.x(), EPS, face + ".x on " + frame.mirror());
+                assertEquals(n.y(), round.y(), EPS, face + ".y on " + frame.mirror());
+                assertEquals(n.z(), round.z(), EPS, face + ".z on " + frame.mirror());
+            }
+        }
     }
 }

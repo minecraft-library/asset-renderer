@@ -63,30 +63,29 @@ public class Lighting {
     // --- entity inventory lighting calibration (vanilla Lighting.ENTITY_IN_UI parity) ---
 
     /**
-     * The empirical GPU-calibration offset applied to the first derived entity light, summed with
-     * any {@code -Dasset.entity.L0d{x,y,z}} sweep override.
+     * The residual calibration offset applied to the first derived entity light, summed with any
+     * {@code -Dasset.entity.L0d{x,y,z}} sweep override.
      * <p>
-     * The lighting GLSL formula and the raw {@code INVENTORY_DIFFUSE_LIGHT} directions are
-     * bit-matched to vanilla, and {@link EntityLighting#shade} reproduces the ideal Lambertian
-     * shade exactly. But vanilla rasterises on the GPU and we on the CPU, so the per-face shade still
-     * drifts ~0.003 from the harness - invisible on dark textures, but {@code +/-1} channel across
-     * near-white entities (goat 0.63, copper_golem, husk, illager family, pig). A fleet sweep
-     * (tunable via the {@code -Dasset.entity.L<idx>d{x,y,z}} knobs, forwarded to the parity fork)
-     * found that nudging {@code L0.y} by {@code +0.0015} and {@code L1.z} by {@code +0.005} in kit
-     * frame pulls the per-face shades toward the GPU output: 58 entities improved, 5 within-bucket
-     * regressions, goat {@code 0.63 -> 0.48}, entity buckets {@code 88/98/99/100 -> 88/99/99/100}.
+     * The GLSL formula, the raw {@code INVENTORY_DIFFUSE_LIGHT} directions and the signed-byte vertex
+     * grid {@code Shading.onVanillaVertexGrid} puts a normal on are each modelled from vanilla, and
+     * what is left over is this: a per-face shade that still drifts enough to move a channel on a
+     * near-white entity. It is a fitted constant and the one in this class, so it is the first thing
+     * to re-derive when a shading mechanism lands - the grid alone moved its optimum, taking the
+     * second light's offset to zero. A sweep drives the knobs, which are forwarded to the parity fork
+     * and default to 0, so an unqualified run carries the baked figure.
+     * <p>
      * Block lighting uses its own {@link #BLOCK_ITEMS_3D_LIGHT_0 ITEMS_3D} directions and is
-     * unaffected. The knobs default to 0 so the production offsets are the baked calibration; pass
-     * overrides to re-sweep.
+     * unaffected.
      */
     private static final @NotNull Vector3f ENTITY_LIGHT_0_OFFSET = calibrationOffset(0, 0f, 0.0015f, 0f);
 
     /**
-     * The empirical GPU-calibration offset applied to the second derived entity light, summed with
-     * any {@code -Dasset.entity.L1d{x,y,z}} sweep override. See {@link #ENTITY_LIGHT_0_OFFSET} for
-     * the sweep that produced the baked figures.
+     * The residual calibration offset applied to the second derived entity light, summed with any
+     * {@code -Dasset.entity.L1d{x,y,z}} sweep override. It is zero - the second light needs no
+     * residual once a normal is quantised where vanilla quantises it - and is kept because the knobs
+     * are what a re-sweep drives. See {@link #ENTITY_LIGHT_0_OFFSET}.
      */
-    private static final @NotNull Vector3f ENTITY_LIGHT_1_OFFSET = calibrationOffset(1, 0f, 0f, 0.005f);
+    private static final @NotNull Vector3f ENTITY_LIGHT_1_OFFSET = calibrationOffset(1, 0f, 0f, 0f);
 
     /**
      * Sums a light's baked calibration with its sweep overrides, read once at class load like every
@@ -167,11 +166,15 @@ public class Lighting {
      * @param viewDirection the standard {@code (0,0,-1)} GL view vector rotated into the kit frame
      * @param light0 the first diffuse light direction in the kit frame
      * @param light1 the second diffuse light direction in the kit frame
+     * @param kitToCamera the turn taking a kit-frame normal into the camera frame vanilla packs one in
+     * @param cameraToKit the inverse turn, carrying a packed normal back to dot against the kit lights
      */
     public record EntityLighting(
         @NotNull Vector3f viewDirection,
         @NotNull Vector3f light0,
-        @NotNull Vector3f light1
+        @NotNull Vector3f light1,
+        @NotNull Matrix4f kitToCamera,
+        @NotNull Matrix4f cameraToKit
     ) {
 
         /**
@@ -236,7 +239,15 @@ public class Lighting {
             .scale(mirrorX, 1f, -1f);
         Vector3f light0 = calibrateEntityLight(deriveKitLight(0.2f, -1f, 1f, lightToKit), ENTITY_LIGHT_0_OFFSET);
         Vector3f light1 = calibrateEntityLight(deriveKitLight(-0.2f, -1f, 0f, lightToKit), ENTITY_LIGHT_1_OFFSET);
-        return new EntityLighting(viewDirection, light0, light1);
+        // The reverse of lightToKit, written out rather than inverted: every factor is a rotation or a
+        // sign-flipping scale, so the inverse is the same chain reversed with each angle negated.
+        Matrix4f kitToCamera = Matrix4f.IDENTITY
+            .scale(mirrorX, 1f, -1f)
+            .rotateX(rotation.pitchRadians())
+            .rotateY(rotation.yawRadians())
+            .rotateX((float) Math.PI)
+            .scale(1f, -1f, 1f);
+        return new EntityLighting(viewDirection, light0, light1, kitToCamera, lightToKit);
     }
 
     /**

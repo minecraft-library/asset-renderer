@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.engine.light;
 
 import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -229,14 +230,15 @@ class LightingTest {
 
     /**
      * Builds an entity lighting basis around the unrotated view vector so a test can name its two
-     * light directions directly.
+     * light directions directly. The frame carries no display pose, so the turn into the frame vanilla
+     * packs a normal in is the identity.
      *
      * @param light0 the first diffuse light direction
      * @param light1 the second diffuse light direction
      * @return the basis to shade against
      */
     private static Lighting.EntityLighting basis(Vector3f light0, Vector3f light1) {
-        return new Lighting.EntityLighting(VIEW, light0, light1);
+        return new Lighting.EntityLighting(VIEW, light0, light1, Matrix4f.IDENTITY, Matrix4f.IDENTITY);
     }
 
 }
