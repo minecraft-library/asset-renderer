@@ -80052,8 +80052,8 @@
     "showBasePlate": 1.0,
     "speedValue": 1.0,
     "tailAngle": 0.62831855,
-    "entityId": 9.0,
-    "canMove": 1.0
+    "canMove": 1.0,
+    "entityId": 9.0
   },
   "rest_defaults": {
     "AllayModel": {

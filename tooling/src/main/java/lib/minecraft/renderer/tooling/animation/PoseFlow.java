@@ -137,9 +137,23 @@ public final class PoseFlow {
      *       idle excursion: the harness answers the identical number, and
      *       {@code IdleFigureMirrorTest} holds the two together.</li>
      * </ul>
+     *
+     * <p><b>Ordered, and a {@code Map.of} here was a table that flapped per JVM launch.</b> Every
+     * entry lands in the emitted {@code input_defaults} through one {@code putIfAbsent} apiece into
+     * an insertion-ordered map, so this map's ITERATION order is shipped bytes - and
+     * {@code Map.of} salts that order per launch from two entries up. Two runs of the same flow on
+     * the same tree emitted the two keys either way round, which reads as a table that does not
+     * reproduce and cost a parity capture a mover nothing had changed.
      */
-    private static final @NotNull Map<String, Float> DECLARED_RESTS =
-        Map.of("canMove", 1f, "entityId", 9f);
+    private static final @NotNull Map<String, Float> DECLARED_RESTS = declaredRests();
+
+    /** The declared rests in the order this class documents them, which is the order they ship in. */
+    private static @NotNull Map<String, Float> declaredRests() {
+        Map<String, Float> rests = new LinkedHashMap<>();
+        rests.put("canMove", 1f);
+        rests.put("entityId", 9f);
+        return Collections.unmodifiableMap(rests);
+    }
 
     /**
      * What separates a pose key from the frame it stands for, where one class poses more than one
