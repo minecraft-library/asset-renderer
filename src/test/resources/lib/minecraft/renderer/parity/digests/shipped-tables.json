@@ -35,17 +35,17 @@
     "entity_geometry": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "1d0cac1f584882771837cfc73f12d06326343a1f26fa4deefec8ab6fe1826374"
+      "sha256": "d32163099b5ec804893da2e05c88a8fb69555d92ea833d7e6952a750c80ede0d"
     },
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "a947ad09eac14743bcd24d0f4d2cbd9db2e0a08becc9365eee0b7420e1527a0a"
+      "sha256": "873f7459b0ccd147912426dd7f744265b168c8b69662f1b24eec89c3fb2570b7"
     },
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "249f7a24bd7b6bf88c3c5d2e564699929504294412f8fa01eaa65ac8b9315362"
+      "sha256": "17d9a4ad3a8a63f8cc56343d770d8de1ae6cef71609c62e29ea081bec0ca9c3b"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "96a5968518bed8563258a034d761a1ca1ff2089aad5f8e06e25faac763ade2b3",
-    "asset_dirty": true,
-    "asset_sha": "79547e95e32c77c0b28a3a5bfcc3224af3712de1",
+    "asset_content_digest": "be22b6039d2766957ea5c781f1a40682d1a818dbdc8b6ac042c9e0a3067c33a7",
+    "asset_dirty": false,
+    "asset_sha": "025f72321fc90222aaa51470122ccd3e3eb75d54",
     "counts": {
       "digests": 11
     },
@@ -75,9 +75,8 @@
     },
     "mc_version": "26.1.2",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "test",
-    "reason": "The canvas-group set this side derives from shared primary geometry and the family the harness declares are one set now, so a group member is measured in the pose the render draws like every other silhouette in its union. The whole reference tree re-rendered and 48 of 3762 files moved, all three piglins in animation/ and walk/ and nothing else - entities/ untouched, which is what says the unposed union was inert while every subject was measured at rest. manifest.references also takes in the walk/ sub-tree, 720 references entering it for the first time, and the seven witch frames the chosen id moved. digest.shipped-tables re-bases entity_poses.json, regenerated three times since that row was last promoted and licensed rather than fixed until now. skeleton 3.1786 to 0.1228 under a stride; no canvas in either animated table now differs from vanilla's.",
+    "reason": "A geometry coordinate is headed at the class that bakes the mesh and a client-registered mesh is a request rather than a derivation, so the baby drowned merges onto the baby zombie and the llama's inflate onto its grow; the baby harness vanilla declares and never draws stops being emitted. entity_geometry 158 to 155 entries carrying 155 distinct bone sets, entity_models re-referenced, entity_poses loses BabyDrownedModel from poses and rest_defaults because it now bakes nothing, and the entityModels log gains the registered-rather-than-derived line. Proved by every rendered sweep holding: entity, block, item, armor, glint, animation, walk and player all green in the same compare, so the keys moved and no pixel did.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -86,8 +85,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-30T02:11:10Z",
-    "tool_version": "1.0.0",
-    "wall_time_ms": 10310
+    "timestamp": "2026-08-31T21:41:32Z",
+    "tool_version": "1.0.0"
   }
 }
