@@ -2316,6 +2316,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/kit/ClipKitContainerTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/kit/ClipKitTest": {
       "artifacts": [],
       "source": "derived"

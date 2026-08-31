@@ -214,6 +214,15 @@ public final class ClipKit {
      * <p>The lookup vanilla builds, in vanilla's own order: the root part answers {@link #ROOT_PART}
      * and every named bone answers its own name, the bones being added second so one of them spelled
      * that way wins.
+     *
+     * <p><b>The container answers to the name the MESH gave it as well as to {@link #ROOT_PART}</b>,
+     * and it has to, because vanilla's own lookup is built before the flattening this side does.
+     * {@code createPartLookup} seeds {@code root -> this} and then adds every named DESCENDANT, so a
+     * model whose root holds one named part above the rest resolves a clip channel at that part's
+     * own name - and the geometry flow dissolves exactly such a part into the bones below it, which
+     * leaves the name spelled nowhere a bone lookup can reach. Passed over as an undeclared bone it
+     * is silently nothing, and that is not a small loss: it cost the breeze the whole six-pixel
+     * shove its slide gives the body, against a reference that had it.
      */
     private static Map<PoseChannel, Float> target(
         @NotNull Map<String, Map<PoseChannel, Float>> bones,
@@ -222,7 +231,30 @@ public final class ClipKit {
 
         if (model.getBones().containsKey(named))
             return bones.computeIfAbsent(named, bone -> new EnumMap<>(PoseChannel.class));
-        return ROOT_PART.equals(named) ? container : null;
+        return isContainer(named, model) ? container : null;
+    }
+
+    /**
+     * Whether a name the mesh declares no bone for is the container every top-level bone hangs from.
+     *
+     * <p>Read off the mesh rather than carried beside it, because the mesh already says it: the flow
+     * dissolves the container's pose into the bones below it and leaves each of them naming it as a
+     * PARENT, so a dangling parent reference is what a flattened container is. It is the same test
+     * {@code PoseKit.isTopLevel} applies from the other side - a bone whose parent the mesh does not
+     * declare hangs from the container - asked of the parent instead of the child.
+     *
+     * <p><b>One dangling name per mesh is what makes this an answer rather than a guess</b>, and it
+     * is a property of the emitted corpus rather than an assumption: of the geometries shipped
+     * today exactly one carries a dangling parent at all, and no mesh carries two. A second would
+     * mean a surgery had dropped an intermediate bone and left its children pointing at it, which
+     * is a different thing wearing the same shape, so {@code ClipKitContainerTest} holds the corpus
+     * to one.
+     */
+    private static boolean isContainer(@NotNull String named, @NotNull EntityModelData model) {
+        if (ROOT_PART.equals(named)) return true;
+        for (EntityModelData.Bone bone : model.getBones().values())
+            if (named.equals(bone.getParent())) return true;
+        return false;
     }
 
     /**
