@@ -661,7 +661,7 @@
               "texture": "zombie/drowned"
             },
             "baby": {
-              "geometry": "BabyDrownedModel#createBodyLayer",
+              "geometry": "BabyZombieModel#createBodyLayer",
               "texture": "zombie/drowned_baby"
             }
           }
@@ -677,7 +677,7 @@
             "blend": "cutout"
           },
           "baby": {
-            "geometry": "BabyDrownedModel#createBodyLayer@grow=0.25",
+            "geometry": "BabyZombieModel#createBodyLayer@grow=0.25",
             "texture": "zombie/drowned_outer_layer_baby"
           }
         }
@@ -953,8 +953,7 @@
             "red_harness": "minecraft:red_harness",
             "white_harness": "minecraft:white_harness",
             "yellow_harness": "minecraft:yellow_harness"
-          },
-          "baby_geometry": "HappyGhastHarnessModel#createHarnessLayer@scaled=0.2375@iparam=0:0"
+          }
         }
       ]
     },
@@ -2501,7 +2500,7 @@
         {
           "source": "LlamaDecorLayer",
           "layer_index": 0,
-          "geometry": "LlamaModel#createBodyLayer@inflate=0.5",
+          "geometry": "LlamaModel#createBodyLayer@grow=0.5",
           "texture": "equipment/llama_body/trader_llama",
           "skip_bounds": true,
           "baby": {

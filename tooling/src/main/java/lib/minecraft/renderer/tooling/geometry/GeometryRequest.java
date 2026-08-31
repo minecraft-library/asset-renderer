@@ -82,6 +82,23 @@ public record GeometryRequest(
     }
 
     /**
+     * Returns a copy headed at the class that declares the mesh body.
+     *
+     * <p>Rewrites the stored request rather than only the minted key, so the {@code source} twin, the
+     * parse and the cull scan all read one coordinate rather than needing a rule each.
+     *
+     * @param declaringClass the class whose body builds the mesh
+     * @return this request when it already heads that class, else a copy that does
+     */
+    public @NotNull GeometryRequest atDeclaringClass(@NotNull String declaringClass) {
+        if (this.factoryClass.equals(declaringClass)) return this;
+        return new GeometryRequest(declaringClass, this.factoryMethod, this.subjectId, this.yAxis,
+            this.texWidthOverride, this.texHeightOverride, this.paramIntValues, this.paramFloatValues,
+            this.grow, this.appliedMeshTransformerScale, this.refParam, this.poseParam,
+            this.babyTransform);
+    }
+
+    /**
      * Binds an object-reference parameter slot to a concrete enum constant, letting the
      * parser resolve a method's {@code if (param == Owner.VALUE)} branch dispatch at a
      * chosen variant (hanging-sign CEILING / WALL).

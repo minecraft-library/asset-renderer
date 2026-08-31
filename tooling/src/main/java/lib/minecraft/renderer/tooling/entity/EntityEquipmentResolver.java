@@ -219,11 +219,12 @@ final class EntityEquipmentResolver {
             .put("layer_type", layerTypeId)
             .put("default_material", defaultMaterial(layerTypeId, materials))
             .put("material_assets", materialAssets);
-        if (babyField != null) {
-            String babyKey = registerMesh(babyField);
-            if (babyKey != null) overlay.put("baby_geometry", babyKey);
-        }
-        this.diagnostics.info("equipment row '%s' (%s) meshes adult=%s baby=%s over %d materials",
+        // The baby mesh is DECLARED by the layer and never drawn. Vanilla's own render of a ghastling
+        // with its body slot equipped is byte-identical to the same ghastling with nothing equipped, so
+        // registering the second ModelLayers static would ship a mesh no subject can reach - an entry
+        // the closure walk keeps alive and no consumer ever resolves. The field is named in the
+        // diagnostic because what vanilla declares is worth reading; it is not registered.
+        this.diagnostics.info("equipment row '%s' (%s) meshes adult=%s (baby %s declared, undrawn) over %d materials",
             slot, layerTypeId, adultField, babyField, materials.size());
         return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
@@ -231,12 +232,6 @@ final class EntityEquipmentResolver {
             .put("id", slot)
             .put("when", JsonTree.object().put("equipment", slot))
             .put("overlay", overlay);
-    }
-
-    /** Registers an equipment mesh request off its index entry, or {@code null} when unindexed. */
-    private @Nullable String registerMesh(@NotNull String meshField) {
-        GeometryRequest request = meshRequest(meshField);
-        return request == null ? null : this.manifest.register(request);
     }
 
     /** The request an equipment mesh's index entry describes, or {@code null} when unindexed. */

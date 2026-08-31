@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
@@ -114,7 +115,7 @@ class EntityMeshOverlaysTest {
         JsonTree pass = JsonTree.object().put("geometry", COORD)
             .putStrings("retain_bones", "head", "hat");
 
-        EntityMeshOverlays.apply(diagnostics, models(pass), geometries);
+        EntityMeshOverlays.apply(diagnostics, models(pass), geometries, new GeometryManifest());
 
         String key = COORD + "@retain=hat,head";
         assertTrue(draws(geometries, key, "head"), "head is named and has no named ancestor, so it draws");
@@ -129,7 +130,7 @@ class EntityMeshOverlaysTest {
         Map<String, JsonTree> geometries = geometries();
         JsonTree pass = JsonTree.object().put("geometry", COORD).putStrings("retain_bones", "head");
 
-        EntityMeshOverlays.apply(diagnostics, models(pass), geometries);
+        EntityMeshOverlays.apply(diagnostics, models(pass), geometries, new GeometryManifest());
 
         JsonTree before = mesh().getObject("bones");
         JsonTree after = bonesOf(geometries, COORD + "@retain=head");
@@ -152,7 +153,7 @@ class EntityMeshOverlaysTest {
         Map<String, JsonTree> geometries = geometries();
         JsonTree pass = JsonTree.object().put("geometry", COORD).put("grow", 0.5f);
 
-        EntityMeshOverlays.apply(diagnostics, models(pass), geometries);
+        EntityMeshOverlays.apply(diagnostics, models(pass), geometries, new GeometryManifest());
 
         String key = COORD + "@inflate=0.5";
         for (String name : new String[]{"body", "head", "hat", "hat_rim", "nose", "right_leg"})
@@ -167,7 +168,7 @@ class EntityMeshOverlaysTest {
         JsonTree pass = JsonTree.object().put("geometry", COORD)
             .putStrings("retain_bones", "head").put("grow", 0.5f);
 
-        EntityMeshOverlays.apply(diagnostics, models(pass), geometries);
+        EntityMeshOverlays.apply(diagnostics, models(pass), geometries, new GeometryManifest());
 
         String key = COORD + "@retain=head@inflate=0.5";
         assertTrue(geometries.containsKey(key), "the key spells both, in the canonical order");
@@ -185,7 +186,7 @@ class EntityMeshOverlaysTest {
         Map<String, JsonTree> geometries = geometries();
         JsonTree pass = JsonTree.object().put("geometry", COORD).put("no_hat_root", "head");
 
-        EntityMeshOverlays.apply(diagnostics, models(pass), geometries);
+        EntityMeshOverlays.apply(diagnostics, models(pass), geometries, new GeometryManifest());
 
         String key = COORD + "@cleared=head";
         for (String name : new String[]{"head", "hat", "hat_rim", "nose"})
@@ -201,7 +202,7 @@ class EntityMeshOverlaysTest {
         JsonTree pass = JsonTree.object().put("geometry", COORD).put("no_hat_root", "head");
         JsonTree models = models(pass);
 
-        EntityMeshOverlays.apply(diagnostics, models, geometries);
+        EntityMeshOverlays.apply(diagnostics, models, geometries, new GeometryManifest());
 
         JsonTree row = rowOf(models);
         assertEquals(COORD, row.getString("geometry", null),
@@ -217,7 +218,7 @@ class EntityMeshOverlaysTest {
         Map<String, JsonTree> geometries = geometries();
         JsonTree pass = JsonTree.object().put("geometry", COORD).put("no_hat_root", "head");
 
-        EntityMeshOverlays.apply(diagnostics, models(pass), geometries);
+        EntityMeshOverlays.apply(diagnostics, models(pass), geometries, new GeometryManifest());
 
         assertTrue(draws(geometries, COORD, "head"), "the primary mesh still draws its head");
         assertTrue(draws(geometries, COORD, "hat"), "the primary mesh still draws its hat");
@@ -230,7 +231,7 @@ class EntityMeshOverlaysTest {
         JsonTree pass = JsonTree.object().put("geometry", COORD).put("no_hat_root", "snout");
         JsonTree models = models(pass);
 
-        EntityMeshOverlays.apply(diagnostics, models, geometries);
+        EntityMeshOverlays.apply(diagnostics, models, geometries, new GeometryManifest());
 
         assertEquals(List.of(COORD), List.copyOf(geometries.keySet()), "nothing was derived");
         assertFalse(rowOf(models).has("no_hat_geometry"),
@@ -249,7 +250,7 @@ class EntityMeshOverlaysTest {
         JsonTree pass = JsonTree.object().put("geometry", "Spots#layer").putStrings("retain_bones", "head");
         JsonTree models = models(pass);
 
-        EntityMeshOverlays.apply(diagnostics, models, geometries);
+        EntityMeshOverlays.apply(diagnostics, models, geometries, new GeometryManifest());
 
         assertEquals(List.of("Spots#layer"), List.copyOf(geometries.keySet()),
             "nothing to distinguish, so no discriminator and no orphan left behind");
@@ -265,7 +266,7 @@ class EntityMeshOverlaysTest {
         JsonTree pass = JsonTree.object().put("geometry", COORD).put("grow", 0.5f);
         JsonTree models = models(pass);
 
-        EntityMeshOverlays.apply(diagnostics, models, geometries);
+        EntityMeshOverlays.apply(diagnostics, models, geometries, new GeometryManifest());
 
         assertTrue(geometries.containsKey(COORD), "the body draws the mesh as it is, so the bare key stays");
         assertEquals(0.25f, growOf(geometries, COORD, "head"), "and is not deformed on the pass's behalf");
@@ -281,7 +282,7 @@ class EntityMeshOverlaysTest {
         JsonTree models = models(JsonTree.object().put("geometry", COORD).put("no_hat_root", "head"));
         models.getObject("minecraft:test").put("armor", armor);
 
-        EntityMeshOverlays.apply(diagnostics, models, geometries);
+        EntityMeshOverlays.apply(diagnostics, models, geometries, new GeometryManifest());
 
         JsonTree kept = models.getObject("minecraft:test").getObject("armor").getObject("grow");
         assertEquals(0.5f, kept.getFloat("inner", 0f), "the leggings deformation survives");
@@ -300,7 +301,7 @@ class EntityMeshOverlaysTest {
             .put("variant", JsonTree.object().put("options", coats));
 
         ToolingException refused = assertThrows(ToolingException.class, () ->
-            EntityMeshOverlays.apply(diagnostics, models, geometries));
+            EntityMeshOverlays.apply(diagnostics, models, geometries, new GeometryManifest()));
         assertTrue(refused.getMessage().contains("different mesh"),
             "the refusal says what it could not name: " + refused.getMessage());
     }

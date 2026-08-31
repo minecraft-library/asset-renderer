@@ -530,7 +530,7 @@ manifest.visual and manifest.player-raw both take cache/visual as their source a
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead
 
-Every test here drives hand-built ASM nodes, a ZipOutputStream jar under @TempDir, or reflection over the tooling classes themselves. None runs a flow, so none writes a shipped table or a flow log, and no stored artifact can see one change. The gate is the suite, which `check` schedules by shelling into the tooling wrapper, because a separate build is one this one compiles nothing of. This is the tooling half of what B33 says for src/test/java.
+Every test here either drives hand-built ASM nodes, a ZipOutputStream jar under @TempDir and reflection over the tooling classes, or READS a shipped table off disk to assert over it - PosePartIndexTest, PoseWalkTest, GeometryParserTest, GeometryRefClosureTest and ShippedTableCapacityTest do the second, so this suite's verdict is a function of the renderer's committed tables. Neither shape WRITES: none runs a flow, so none emits a shipped table or a flow log, and no stored artifact can see a change to these files. The gate is the suite, which `check` schedules by shelling into the tooling wrapper, because a separate build is one this one compiles nothing of. This is the tooling half of what B33 says for src/test/java.
 
 *Probe:* run ./gradlew toolingTest, then capture any artifact and confirm it is byte-identical
 

@@ -70,13 +70,12 @@ class GeometryRefClosureTest {
     }
 
     /** The members that name a mesh, any of which is a reference the pair has to close over. */
-    private static final Set<String> GEOMETRY_MEMBERS =
-        Set.of("geometry", "baby_geometry", "no_hat_geometry");
+    private static final Set<String> GEOMETRY_MEMBERS = Set.of("geometry", "no_hat_geometry");
 
     /**
      * Recursively collects every string-valued mesh reference under {@code element}:
-     * {@code geometry}, the equipment rows' captured {@code baby_geometry}, and the
-     * {@code no_hat_geometry} an overlay pass names its suppressed form with.
+     * {@code geometry} and the {@code no_hat_geometry} an overlay pass names its suppressed form
+     * with.
      */
     private static void collectGeometryRefs(@NotNull JsonElement element, @NotNull Set<String> out) {
         if (element instanceof JsonObject object) {

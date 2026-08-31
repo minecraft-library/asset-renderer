@@ -43,7 +43,7 @@ public final class ToolingEntityModels {
             List<EntitySubject> subjects = EntityRegistryDiscovery.discover(session);
             JsonTree root = session.envelope(
                 "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain");
-            GeometryManifest manifest = new GeometryManifest();
+            GeometryManifest manifest = new GeometryManifest(session.cache());
             EntityRegistryWalk.run(session, subjects, manifest, root);
             // Parsed but not yet written: which bones a subject rests without is settled by the pose
             // flow below, and that answer belongs in the mesh rather than beside it - so the entries
@@ -84,7 +84,7 @@ public final class ToolingEntityModels {
             // Last of the three, because what a pass derives from is the mesh as it finally stands:
             // an overlay drawing the body's own mesh has to inherit the marking and the shift, which
             // deriving before either would leave behind on a mesh nobody then draws.
-            EntityMeshOverlays.apply(session.diagnostics().child("overlays"), root.child("models"), geometries);
+            EntityMeshOverlays.apply(session.diagnostics().child("overlays"), root.child("models"), geometries, manifest);
             GeometryFlow.write(session, geometries, session.resolve("entity_geometry.json"));
             session.write(root, "entity_models.json");
             session.failOnStrictGate();

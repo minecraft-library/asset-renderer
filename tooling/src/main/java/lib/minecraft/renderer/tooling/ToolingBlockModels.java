@@ -35,7 +35,7 @@ public final class ToolingBlockModels {
             List<BlockEntitySubject> subjects = BlockEntityRegistryDiscovery.discover(session);
             JsonTree root = session.envelope(
                 "BlockEntityRenderers.<clinit> registration order x BlockFamilyPolicies split order");
-            GeometryManifest manifest = new GeometryManifest();
+            GeometryManifest manifest = new GeometryManifest(session.cache());
             BlockEntityRegistryWalk.run(session, subjects, manifest, root);
             session.write(root, "block_models.json");
             GeometryFlow.write(session, GeometryFlow.parse(session, manifest),

@@ -250,8 +250,13 @@ overlay surgeries - the `retainExactParts` subset, the `CubeDeformation` inflate
 `clearChild().clearRecursively()` a suppressed pass draws - are `EntityMeshOverlays`, which mints
 `@retain=` / `@inflate=` / `@cleared=` through `GeometryIds`. An inflate is NOT the request's
 `@grow=`: that pre-seeds the factory's default deformation, which a cube deformed inline overrides,
-where an inflate adds to whatever a cube ended up carrying. The drowned's `hat` is deformed inline at
-0.5 and its pass's 0.25 takes it to 0.75, so the two never share a spelling.
+where an inflate adds to whatever a cube ended up carrying. The equine's `body` is deformed inline at
+0.05 and the request's `@grow=0.1` leaves it there, where an inflate of the same amount would have
+taken it to 0.15; the baby zombie's `head` is built with an explicit zero and stays absent under
+`@grow=0.25` while its `body` takes the seed. So the two never share a spelling. The drowned is not a
+witness either way - its `hat` reaches `HumanoidModel.createMesh` through `param.extend(0.5f)`, a
+relative extension that composes additively, so its pass's 0.25 taking it to 0.75 is what an inflate
+would have done too.
 
 **A mesh every site derives the same way is derived where it stands; one the body also draws mints a
 key.** Deriving a shared mesh in place would deform the body along with the pass, and minting for a
@@ -353,9 +358,16 @@ The pose walk keeps what the fold reads:
 
 `./gradlew test` is this build's suite - hand-built ASM nodes, a `ZipOutputStream` jar under
 `@TempDir`, and reflection over the tooling classes. It reaches neither the network nor `cache/`.
-`./gradlew slowTest` is the two that do. The renderer's `check` schedules the fast one through the
-wrapper, because a separate build is one it compiles nothing of and a mistake here would otherwise
-wait for a version bump.
+`./gradlew slowTest` is the five that do - `EnumConstantTableTest`, `KeyframeDefinitionParserTest`,
+`PosePartIndexTest`, `PoseWalkTest` and `GeometryParserTest`. The renderer's `check` schedules the
+fast one through the wrapper, because a separate build is one it compiles nothing of and a mistake
+here would otherwise wait for a version bump.
+
+**Three of the five are the only value-level and population pins on the geometry table**, so a
+geometry change that leaves the fast suite green has not been tested by anything until this task has
+run. `GeometryParserTest` value-matches shipped entries with floats exact, and `PosePartIndexTest` and
+`PoseWalkTest` hold class rosters the table's coordinates feed. `slowTest` is not scheduled by
+`check`, by the renderer's `check`, or by any gate skill, so it is asked for by name or not at all.
 
 Every parity gate in the renderer reads the **shipped** JSON, which a refactor here does not
 regenerate, so a green gate is no evidence about a change in this build. Re-run the flow and compare

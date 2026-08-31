@@ -154,6 +154,23 @@ class ArmorKitTest {
     }
 
     @Test
+    @DisplayName("a scaled wearer's shell seats at the feet anchor")
+    void shellSeatsAtTheFeetAnchor() {
+        // The generator bakes a scaled wearer's own bone pivots about the same anchor, under its own
+        // name, in the other Gradle build - so the two agreeing is what puts a shell on a body rather
+        // than beside it, and nothing compares them. The tooling's half is pinned by its exact-float
+        // parse of the ghast; this is the renderer's half, written as a literal so an edit to the
+        // constant moves a test rather than a render.
+        Shell giant = EntityModelLoader.load()
+            .get("minecraft:giant").humanoidArmor().orElseThrow();
+
+        assertThat(giant.meshScale(), equalTo(6f));
+        assertThat(giant.meshOffset().y(), equalTo(-120.08f));
+        // The identity scale seats at the origin, which is why the term is invisible on most wearers.
+        assertThat(genericShell().meshOffset().y(), equalTo(0f));
+    }
+
+    @Test
     @DisplayName("both trim paths resolve the same triple in the same order, differing only in the base id")
     void trimPathsDifferOnlyInTheBaseId() {
         // The two paths share one resolve, so what has to be pinned is that only the first of the three

@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryIds.Derivation;
 import lib.minecraft.renderer.tooling.geometry.GeometryIds;
+import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
@@ -32,8 +33,14 @@ import java.util.stream.Collectors;
  *
  * <p><b>An inflate is not the request grow under another name.</b> The request's grow pre-seeds the
  * factory's default deformation, which a cube the factory deforms inline overrides; an inflate adds
- * to whatever a cube ended up carrying. The drowned's {@code hat} is deformed inline at 0.5, which
- * one takes to 0.75 and the other leaves at 0.5, so the two never share a spelling.
+ * to whatever a cube ended up carrying. The equine's {@code body} is deformed inline at 0.05 and a
+ * request's {@code @grow=0.1} leaves it there, where an inflate of the same amount would take it to
+ * 0.15, so the two never share a spelling.
+ *
+ * <p><b>But a mesh the CLIENT registers is a request rather than a derivation.</b> Where vanilla
+ * builds a layer by handing the same factory the same deformation, the mesh a pass wants already
+ * ships under its own key, and minting an {@code @inflate=} beside it would model one registration
+ * twice with one bone set between the two. The pass names the registered mesh instead.
  *
  * <p><b>The suppressed pass's mesh ships BESIDE the primary, never in place of it.</b> Both subjects
  * carrying one name their pass's mesh with the body's own coordinate, and a pass drawing the body's
@@ -57,11 +64,11 @@ public final class EntityMeshOverlays {
      */
     public static void apply(
         @NotNull Diagnostics diagnostics, @NotNull JsonTree models,
-        @NotNull Map<String, JsonTree> geometries) {
+        @NotNull Map<String, JsonTree> geometries, @NotNull GeometryManifest manifest) {
 
         List<Site> sites = sitesIn(models);
         byCoordinate(sites).forEach((coordinate, states) ->
-            derive(diagnostics, geometries, coordinate, states));
+            derive(diagnostics, geometries, manifest, coordinate, states));
         for (Site site : sites) site.strip();
     }
 
@@ -79,7 +86,8 @@ public final class EntityMeshOverlays {
      */
     private static void derive(
         @NotNull Diagnostics diagnostics, @NotNull Map<String, JsonTree> geometries,
-        @NotNull String coordinate, @NotNull Map<Map<Derivation, String>, List<Site>> states) {
+        @NotNull GeometryManifest manifest, @NotNull String coordinate,
+        @NotNull Map<Map<Derivation, String>, List<Site>> states) {
 
         JsonTree entry = geometries.get(coordinate);
         if (entry == null) return;                              // a dangling ref the closure test owns
@@ -101,13 +109,22 @@ public final class EntityMeshOverlays {
                 diagnostics.info("derived '%s' where it stands, as %s",
                     coordinate, materialisation.values());
             } else {
-                key = GeometryIds.derived(coordinate, materialisation);
-                mesh = entry.deepCopy();
-                GeometryIds.stampSource(mesh, materialisation);
-                materialise(mesh, group.getFirst().surgery());
-                geometries.put(key, mesh);
-                for (Site site : group) site.node().put("geometry", key);
-                diagnostics.info("derived '%s' as '%s' for %d site(s)", coordinate, key, group.size());
+                String registered = registeredAsRequest(manifest, coordinate, materialisation);
+                if (registered != null) {
+                    key = registered;
+                    mesh = geometries.get(registered);
+                    for (Site site : group) site.node().put("geometry", registered);
+                    diagnostics.info("'%s' is registered as '%s' rather than derived, for %d site(s)",
+                        coordinate, registered, group.size());
+                } else {
+                    key = GeometryIds.derived(coordinate, materialisation);
+                    mesh = entry.deepCopy();
+                    GeometryIds.stampSource(mesh, materialisation);
+                    materialise(mesh, group.getFirst().surgery());
+                    geometries.put(key, mesh);
+                    for (Site site : group) site.node().put("geometry", key);
+                    diagnostics.info("derived '%s' as '%s' for %d site(s)", coordinate, key, group.size());
+                }
             }
 
             for (Site site : group) {
@@ -118,6 +135,39 @@ public final class EntityMeshOverlays {
             }
         }
         if (!bare && !inPlace) geometries.remove(coordinate);
+    }
+
+    /**
+     * The key vanilla's own registration already holds this derivation's mesh under, or {@code null}
+     * where the derivation is this flow's and not the client's.
+     *
+     * <p>An inflate adds to whatever a cube ended up carrying and a request's {@code grow} pre-seeds
+     * the factory's default deformation, so the two are different operations and keep different
+     * spellings. But where the CLIENT builds a layer by handing the same factory the same deformation,
+     * the mesh a pass wants is one {@code LayerDefinitions} already registers - and minting an
+     * {@code @inflate=} beside it models one registration twice, under two keys, with one bone set
+     * between them.
+     *
+     * <p>Answered off the manifest, which is the record of what was registered, rather than by
+     * comparing materialised payloads: byte-equality would collapse the pair for the wrong reason and
+     * would say nothing where the two operations differ but the meshes still coincide.
+     *
+     * @param manifest the registered requests
+     * @param coordinate the key of the mesh being derived from
+     * @param materialisation what the derivation does to it
+     * @return the registered key, or {@code null} where nothing registers this mesh
+     */
+    private static @Nullable String registeredAsRequest(
+        @NotNull GeometryManifest manifest, @NotNull String coordinate,
+        @NotNull Map<Derivation, String> materialisation) {
+
+        if (materialisation.size() != 1) return null;
+        String inflate = materialisation.get(Derivation.INFLATE);
+        if (inflate == null) return null;
+        // A request spells its pre-seed FIRST among the discriminators, so the registered mesh for a
+        // bare coordinate is that coordinate with the pre-seed appended.
+        String candidate = coordinate + "@grow=" + inflate;
+        return manifest.entries().containsKey(candidate) ? candidate : null;
     }
 
     /**

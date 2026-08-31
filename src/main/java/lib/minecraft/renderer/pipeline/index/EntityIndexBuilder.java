@@ -516,8 +516,9 @@ public final class EntityIndexBuilder {
             } else {
                 overlayModel = geometries.get(coord);
                 if (overlayModel == null) {
-                    // TODO: restore pipeline diagnostics
-                    // diagnostics.warn("entity '%s' overlay references geometry '%s' absent from entity_geometry", entityId, coord);
+                    System.err.printf(
+                        "entity '%s' overlay references geometry '%s' absent from entity_geometry; pass dropped%n",
+                        entityId, coord);
                     continue;
                 }
             }
@@ -638,8 +639,9 @@ public final class EntityIndexBuilder {
         // drop loadOverlays warns about for an adult pass, warned about here rather than silently
         // returning an empty list that reads as "no row declares a baby form".
         if (babyModel.isEmpty()) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' baby overlay references geometry '%s' absent from entity_geometry", entityId, babyCoord);
+            System.err.printf(
+                "entity '%s' baby overlay references geometry '%s' absent from entity_geometry; every baby form dropped%n",
+                entityId, babyCoord);
             return Concurrent.newUnmodifiableList();
         }
         return loadOverlays(forms, geometries, poses, renderTransform, babyPose, babyCoord, babyModel.get(), entityId);
@@ -857,17 +859,17 @@ public final class EntityIndexBuilder {
     ) {
         Optional<AppearanceGate> when = parseAlternateGate(raw.when());
         if (when.isEmpty()) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' alternate armor shell names no appearance selection - wearer dropped", entityId);
+            System.err.printf(
+                "entity '%s' alternate armor shell names no appearance selection; wearer dropped%n", entityId);
             return Optional.empty();
         }
         Optional<ArmorForm> form = raw.form() == null
             ? Optional.of(ArmorForm.ADULT)
             : enumOf(ArmorForm.class, raw.form());
         if (form.isEmpty()) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' alternate armor shell names unknown form '%s' - wearer dropped",
-            // entityId, raw.form());
+            System.err.printf(
+                "entity '%s' alternate armor shell names unknown form '%s'; wearer dropped%n",
+                entityId, raw.form());
             return Optional.empty();
         }
         return shellOf(raw.geometry(), raw.grow(), raw.scaled(), form.get(), Optional.empty(),
@@ -913,16 +915,16 @@ public final class EntityIndexBuilder {
         @NotNull String entityId
     ) {
         if (geometry == null || grow == null || grow.inner() == null || grow.outer() == null) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' %s armor shell carries no mesh reference or deformations - wearer dropped",
-            // entityId, form.name().toLowerCase(Locale.ROOT));
+            System.err.printf(
+                "entity '%s' %s armor shell carries no mesh reference or deformations; wearer dropped%n",
+                entityId, form.name().toLowerCase(Locale.ROOT));
             return Optional.empty();
         }
         EntityModelData mesh = geometries.get(geometry);
         if (mesh == null) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' %s armor shell references geometry '%s' absent from entity_geometry",
-            // entityId, form.name().toLowerCase(Locale.ROOT), geometry);
+            System.err.printf(
+                "entity '%s' %s armor shell references geometry '%s' absent from entity_geometry; wearer dropped%n",
+                entityId, form.name().toLowerCase(Locale.ROOT), geometry);
             return Optional.empty();
         }
         return Optional.of(new Shell(mesh, grow.inner(), grow.outer(),
@@ -954,14 +956,16 @@ public final class EntityIndexBuilder {
             String coord = row.geometry();
             EntityModelData model = geometries.get(coord);
             if (model == null) {
-                // TODO: restore pipeline diagnostics
-                // diagnostics.warn("entity '%s' equipment row references geometry '%s' absent from entity_geometry", entityId, coord);
+                System.err.printf(
+                    "entity '%s' equipment row references geometry '%s' absent from entity_geometry; row dropped%n",
+                    entityId, coord);
                 continue;
             }
             Optional<LayerType> layerType = LayerType.findById(row.layerType());
             if (layerType.isEmpty()) {
-                // TODO: restore pipeline diagnostics
-                // diagnostics.warn("entity '%s' equipment row names unknown layer type '%s'", entityId, row.layerType());
+                System.err.printf(
+                    "entity '%s' equipment row names unknown layer type '%s'; row dropped%n",
+                    entityId, row.layerType());
                 continue;
             }
             LinkedHashMap<String, ResourceId> materialAssets = new LinkedHashMap<>();

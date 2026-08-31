@@ -87,6 +87,22 @@ public final class GeometryParser {
      */
     private static final @NotNull String MESH_TRANSFORMER_DESC = VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF;
 
+    /**
+     * The entity feet anchor a whole-mesh scale is taken about, in model units - vanilla's
+     * {@code MeshTransformer.scaling} expands to
+     * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, and {@code 24.016} is {@code 1.501}
+     * blocks at 16 units a block, the living-entity render chain's own {@code translate(0, -1.501, 0)}.
+     *
+     * <p>The renderer names the same number {@code Shell.FEET_ANCHOR} and expands it the same way, so
+     * that a shell seated on a scaled wearer lands where this pass put the wearer's own bone pivots.
+     * The two are one contract written in two builds and nothing compares them across the boundary,
+     * so each side pins its own value and an edit to either moves a test rather than a render. This
+     * side is pinned by {@code GeometryParserTest}'s ghast, whose in-factory scale of 4.5 reaches
+     * this expansion and is value-matched against the shipped entry with floats exact; the renderer's
+     * side is pinned by {@code ArmorKitTest.shellSeatsAtTheFeetAnchor}.
+     */
+    private static final float FEET_ANCHOR = 24.016f;
+
 
     /**
      * Parses one {@link GeometryRequest}'s factory bytecode and returns the raw parse
@@ -333,8 +349,7 @@ public final class GeometryParser {
      * {@code MeshTransformer.scaling(F)} call(s) on the {@code LayerDefinition}) into every
      * emitted bone. Vanilla's expansion is, per {@code PartPose},
      * {@code pose.scaled(F).translated(0, 24.016*(1-F), 0)} - scales bone pivots uniformly
-     * around the entity's feet anchor at {@code y=24.016 pixels} (= {@code 1.501 blocks * 16
-     * px/block}, the LER chain's {@code translate(0, -1.501, 0)}) and multiplies the bone's
+     * around {@link #FEET_ANCHOR}, which carries the derivation, and multiplies the bone's
      * {@code PartPose.scale} field by F. Both halves land here together; the kit's
      * {@code EntityGeometryKit#buildTriangles} consumes the
      * {@code scale} field to multiply local cube vertices by F at the pivot translate, which
@@ -395,7 +410,7 @@ public final class GeometryParser {
     private static void applyMeshTransformerScaling(@NotNull WalkState state) {
         float f = state.meshTransformerScale;
         if (f == 1f) return;
-        float dy = 24.016f * (1f - f);
+        float dy = FEET_ANCHOR * (1f - f);
         for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
             JsonObject bone = entry.getValue().getAsJsonObject();
             // Only top-level bones (no parent) get the feet-anchor +dy translate; descendants
@@ -1501,7 +1516,7 @@ public final class GeometryParser {
         // {@code LayerDefinition.create(...).apply(MeshTransformer.scaling(N))} chain
         // (PolarBearModel = 1.2, GhastModel = 4.5, HappyGhastModel = 4.0, etc). Vanilla
         // expands this per {@code PartPose} as {@code pose.scaled(F).translated(0,
-        // 24.016*(1-F), 0)} - scales pivots around the entity's feet anchor (y=24.016) AND
+        // FEET_ANCHOR*(1-F), 0)} - scales pivots around the feet anchor AND
         // multiplies the bone's {@code PartPose.scale} field by F, which the kit consumes
         // via {@link Bone#getScale()}
         // when emitting the bone's cubes. We capture F here, then re-walk the emitted bone

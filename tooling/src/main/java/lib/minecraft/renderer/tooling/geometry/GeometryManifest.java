@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.geometry;
 
+import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -27,15 +28,41 @@ public final class GeometryManifest {
     private final @NotNull Map<String, GeometryRequest> entries = new LinkedHashMap<>();
 
     /**
+     * The class source a coordinate is resolved to its declaring class through, or {@code null} where
+     * a caller registers requests whose classes it has already settled.
+     */
+    private final @Nullable ClassNodeCache cache;
+
+    /** A manifest that takes every request's coordinate as given. */
+    public GeometryManifest() {
+        this(null);
+    }
+
+    /**
+     * A manifest that resolves each request's coordinate to the class declaring its mesh body.
+     *
+     * @param cache the class source, or {@code null} to take every coordinate as given
+     */
+    public GeometryManifest(@Nullable ClassNodeCache cache) {
+        this.cache = cache;
+    }
+
+    /**
      * Registers a request, deduping by key identity, and returns the minted key the caller
      * embeds as its {@code geometry} reference.
      *
-     * @param request the parse request
-     * @return the factory-coordinate key
+     * @param offered the parse request, headed at whichever class the caller reached it through
+     * @return the factory-coordinate key, headed at the class declaring the mesh body
      * @throws ToolingException if the key is already held by a DIFFERENT factory class
      *     (simple-name collision across packages)
      */
-    public @NotNull String register(@NotNull GeometryRequest request) {
+    public @NotNull String register(@NotNull GeometryRequest offered) {
+        // Headed at the class that DECLARES the mesh before the key is minted, so a factory whose
+        // whole body hands its arguments to another class registers under that class rather than
+        // minting a second coordinate for one method. Rewritten on the request, so the twin, the
+        // parse and the cull scan follow from this without a rule each.
+        GeometryRequest request = this.cache == null ? offered : offered.atDeclaringClass(
+            MeshDeclarationSite.resolve(this.cache, offered.factoryClass(), offered.factoryMethod()));
         String key = GeometryIds.of(request);
         GeometryRequest existing = this.entries.putIfAbsent(key, request);
         if (existing == null) return key;

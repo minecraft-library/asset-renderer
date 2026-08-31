@@ -85,12 +85,29 @@ class PosePartIndexTest {
                 for (String bone : array.getValue())
                     if (!mesh.contains(bone)) dangling.add(simple + "." + array.getKey() + "[] -> " + bone);
         }
-        // The piglin is vanilla's own, not a walk failure. Its mesh clears the hat child that
-        // HumanoidModel's constructor still caches a field for, so the field names a bone the mesh
-        // does not declare - which is exactly why a pose has to be joined against the mesh rather
-        // than trusted from the field map. Thirty-four other meshes do declare a hat.
-        assertEquals(List.of("AdultPiglinModel.hat -> hat"), dangling,
-            "part fields naming a bone no mesh of that model declares");
+        // Every one of these is vanilla's own rather than a walk failure, and together they are why a
+        // pose has to be joined against the MESH rather than trusted from the field map. Sorted, so
+        // the pin does not ride the iteration order of two maps.
+        //
+        // A cached field whose bone the mesh clears - HumanoidModel's constructor caches `hat` and
+        // these two meshes carry no such bone, where thirty-four other meshes do declare one.
+        // A part the adult carries and the baby does not - the donkey's and llama's chests.
+        // A field name the mesh spells differently - the armadillo declares `head_cube`,
+        // `right_ear_cube` and `left_ear_cube`, so the bare snake-case fallback names no bone at all.
+        // A bone the mesh does not carry - the frog's croaking body, whose shipped pose folds its
+        // visibility to a constant false precisely because nothing draws it.
+        dangling.sort(null);
+        assertEquals(List.of(
+                "AdultArmadilloModel.cube -> cube",
+                "AdultPiglinModel.hat -> hat",
+                "ArmorStandModel.hat -> hat",
+                "BabyArmadilloModel.cube -> cube",
+                "BabyDonkeyModel.leftChest -> left_chest",
+                "BabyDonkeyModel.rightChest -> right_chest",
+                "BabyLlamaModel.leftChest -> left_chest",
+                "BabyLlamaModel.rightChest -> right_chest",
+                "FrogModel.croakingBody -> croaking_body"),
+            dangling, "part fields naming a bone no mesh of that model declares");
     }
 
     @Test
