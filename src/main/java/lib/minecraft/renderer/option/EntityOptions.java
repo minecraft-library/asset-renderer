@@ -132,9 +132,15 @@ public class EntityOptions implements RenderOptions {
      * each frame's tick. Defaults to {@link PoseMode#BIND}, the authored pose, so a caller that asks
      * for nothing renders the still subject it always did.
      *
-     * <p>Orthogonal to {@link #getAnimation() animation}, which chooses the instants that are
-     * sampled rather than whether anything moves between them: a caller wanting a subject that moves
-     * sets both, and one setting this alone gets a single frame of a subject posed at one tick.
+     * <p>The three named presets are orthogonal to {@link #getAnimation() animation}, which chooses
+     * the instants that are sampled rather than whether anything moves between them: a caller wanting
+     * a subject that moves sets both, and one setting a named preset alone gets a single frame of a
+     * subject posed at one tick.
+     *
+     * <p><b>{@link PoseMode#ANIMATED} is the exception, and is the whole of why it exists.</b> It
+     * answers both halves - the gait that moves this subject, and the strip that movement plays over -
+     * so a caller asking for a moving entity is not also obliged to know how long its movement takes.
+     * A frame count the caller named is theirs and is kept.
      */
     private final @NotNull PoseMode poseMode = PoseMode.BIND;
 
@@ -247,10 +253,29 @@ public class EntityOptions implements RenderOptions {
          * at that value is walking as hard as anything in the corpus ever walks, and every lesser
          * gait is a fraction of the same curve rather than a different one.
          *
-         * <p><b>There is no vanilla reference for this yet</b>, so it renders and is not gated: the
-         * animated reference set was drawn from a never-ticked subject, which walks at no speed.
          */
-        WALK
+        WALK,
+
+        /**
+         * Whatever moves this subject, chosen per subject instead of named by the caller.
+         *
+         * <p>Resolves to the least preset that reaches the subject's own movement - {@link #IDLE}
+         * where elapsed age already moves it, {@link #WALK} where everything it animates rides a
+         * stride resting at zero. What it resolves to is read off the subject's own poses, evaluated
+         * across one excursion at both, so a caller asking for movement needs to know nothing about
+         * which figures the subject happens to read.
+         *
+         * <p><b>It supplies the strip as well as the gait</b>, so what comes back is an animation
+         * rather than one instant of one. A caller who named a frame count keeps it; one who named
+         * none is given the excursion the subject's own movement plays over, which loops.
+         *
+         * <p><b>A subject nothing drives resolves to {@link #IDLE}, stands still, and stays a single
+         * frame.</b> That is the honest answer rather than a defect: some subjects animate on a figure
+         * only a ticking world fills, and others write nothing the tick drives at all. Walking one of
+         * those would invent a gait its own model never asked for, and wrapping it in an animated
+         * container would claim a movement that is not there.
+         */
+        ANIMATED
 
     }
 

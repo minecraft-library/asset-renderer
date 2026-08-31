@@ -40,6 +40,7 @@ Values this store holds, one file each.
 | `sweep.block` | `sweeps/block.json` | 1055 | sum 117.9441 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.entity` | `sweeps/entity.json` | 402 | sum 17.7543 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.entity-animation` | `sweeps/entity-animation.json` | 90 | sum 2.2489 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
+| `sweep.entity-walk` | `sweeps/entity-walk.json` | 90 | sum 3.2513 | `4699a82be11fd94e8647020073d11d8decc9b151` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 528.0750 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.item` | `sweeps/item.json` | 479 | sum 128.9549 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |

@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
+import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -150,18 +151,56 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * every layer in one shared depth pass through {@link ModelEngine}. Returns an empty frame at any
      * step that cannot produce geometry (absent / unknown id, missing texture, no bones).
      */
-    private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
-        if (options.getEntityId().isEmpty())
+    /**
+     * What a request for movement resolves to - the gait that moves this subject, over the strip its
+     * movement plays across.
+     *
+     * <p><b>A moving subject asked for at one frame is being asked for as a still picture of something
+     * that moves</b>, so the strip is supplied where the caller named none. A caller who named their
+     * own frame count keeps it, having already said how they want it sampled.
+     *
+     * <p><b>A subject nothing moves keeps its single frame.</b> Eight copies of a standing armour
+     * stand is a worse answer than one, and an animated container around one repeated image claims a
+     * movement that is not there.
+     *
+     * @param requested what the caller asked for
+     * @param subject the resolved subject, which is what decides both halves
+     * @return the request with the gait and the strip settled
+     */
+    private static @NotNull EntityOptions animated(
+        @NotNull EntityOptions requested, @NotNull Entity subject) {
+
+        AnimationOptions animation = requested.getAnimation();
+        MotionSource motion = PoseKit.motionOf(subject, animation);
+        AnimationOptions strip = motion.animates() && animation.getFrameCount() <= 1
+            ? AnimationOptions.excursion(animation)
+            : animation;
+        return requested.mutate()
+            .poseMode(motion.gait())
+            .animation(strip)
+            .build();
+    }
+
+    private @NotNull ImageData renderEntity(@NotNull EntityOptions requested) {
+        if (requested.getEntityId().isEmpty())
             return Timeline.empty();
 
-        Entity definition = this.javaEntities.get(options.getEntityId().get());
+        Entity definition = this.javaEntities.get(requested.getEntityId().get());
         if (definition == null)
             return Timeline.empty();
 
         // Fold the age / carried policy into a single resolved definition up front, so every
         // downstream site (texture, ortho bounds, geometry contributors) reads it unconditionally
         // with no scattered !baby gates. The resolve is a no-op for a non-baby, non-carried appearance.
-        Entity resolved = definition.resolve(options.getAppearance());
+        Entity resolved = definition.resolve(requested.getAppearance());
+        // Settle what movement means for this subject here, so every site below reads a named preset
+        // over a decided strip. Which gait moves a subject is a question about the subject rather than
+        // about the instant, and answering it costs a whole excursion's evaluation - asking per tick
+        // would pay that once per frame, and asking it separately on the bounds pass and the build
+        // pass could answer twice.
+        EntityOptions options = requested.getPoseMode() == EntityOptions.PoseMode.ANIMATED
+            ? animated(requested, resolved)
+            : requested;
         EntityModelData model = resolved.model();
 
         // Resolve the base texture at the timeline's start tick: frame 0 of a sidecar-carrying

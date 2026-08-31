@@ -113,6 +113,13 @@ public final class ParityArtifacts {
         // above are what those freezes are ground truth FOR. Same floor, for the same reason - a
         // sweep is a pure function of two file sets.
         Registration.store("sweep.entity-animation", 2, "entityAnimationParityVanilla"),
+        // The ninth is the eighth at a gait, against the walk/ sub-tree the same boot writes. It is a
+        // row of its own rather than a column of that one because the two measure disjoint halves of
+        // the corpus: the subjects whose every animation rides a stride hold still on BOTH sides of
+        // the animation sweep, so nothing it compares can report one of them posed wrongly, and they
+        // are the only subjects this row is the gate for. Same floor, a sweep being a pure function of
+        // two file sets.
+        Registration.store("sweep.entity-walk", 2, "entityWalkParityVanilla"),
 
         // --- render-manifest. Two-run reproducibility is the precondition that makes a digest
         // comparison admissible at all.

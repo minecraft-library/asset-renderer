@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.IdleFigure;
 import lib.minecraft.renderer.asset.pose.IdleState;
+import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.exception.RendererException;
@@ -19,12 +20,14 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
@@ -128,8 +131,9 @@ public final class PoseKit {
         @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick,
         @NotNull AnimationOptions animation) {
 
-        if (mode == EntityOptions.PoseMode.BIND) return subject.model();
-        return posed(mode, subject.pose(), subject.model(), tick, animation);
+        EntityOptions.PoseMode gait = gaitOf(mode, subject, animation);
+        if (gait == EntityOptions.PoseMode.BIND) return subject.model();
+        return posed(gait, subject.pose(), subject.model(), tick, animation);
     }
 
     /**
@@ -168,7 +172,13 @@ public final class PoseKit {
         if (mode == EntityOptions.PoseMode.BIND) return model;
         if (!pose.isReadable()) return model;
 
-        ToDoubleFunction<String> frame = frameAt(mode, tick, animation);
+        // A lone mesh answers for itself. The subject-level entries resolve before they reach here, so
+        // this arm is only taken by a caller who has one mesh and no subject to ask about - and a mesh
+        // on its own cannot scroll, there being no pass to carry the rate.
+        EntityOptions.PoseMode gait = mode == EntityOptions.PoseMode.ANIMATED
+            ? motionOf(List.of(new Drawn(pose, model)), false, animation).gait()
+            : mode;
+        ToDoubleFunction<String> frame = frameAt(gait, tick, animation);
         PoseEvaluator.ChannelWrites writes = PoseEvaluator.evaluate(pose, model, frame);
         // The clips a model plays are applied ON TOP of what its body assigned, because vanilla's
         // three offset members all add to the value already there. So the two are resolved apart and
@@ -215,11 +225,55 @@ public final class PoseKit {
         @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick,
         @NotNull AnimationOptions animation) {
 
-        if (mode == EntityOptions.PoseMode.BIND) return subject;
-        EntityModelData model = posed(mode, subject, tick, animation);
-        ConcurrentList<Entity.OverlayLayer> overlays = posedOverlays(mode, subject, tick, animation);
+        EntityOptions.PoseMode gait = gaitOf(mode, subject, animation);
+        if (gait == EntityOptions.PoseMode.BIND) return subject;
+        EntityModelData model = posed(gait, subject, tick, animation);
+        ConcurrentList<Entity.OverlayLayer> overlays = posedOverlays(gait, subject, tick, animation);
         if (model == subject.model() && overlays == subject.overlays()) return subject;
         return subject.mutate().model(model).overlays(overlays).build();
+    }
+
+    /**
+     * The preset a request resolves to for this subject - the request itself, unless it asked for
+     * movement without naming a gait.
+     *
+     * <p>Worth calling once and carrying where a subject is posed at more than one tick: the answer
+     * is a property of the subject rather than of the instant, and reaching it evaluates a whole
+     * excursion.
+     *
+     * @param mode what the caller asked for
+     * @param subject the resolved subject
+     * @param animation what each idle figure rests at and reaches
+     * @return the preset to pose with, which is never {@link EntityOptions.PoseMode#ANIMATED}
+     */
+    public static EntityOptions.@NotNull PoseMode gaitOf(
+        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject,
+        @NotNull AnimationOptions animation) {
+
+        if (mode != EntityOptions.PoseMode.ANIMATED) return mode;
+        return motionOf(subject, animation).gait();
+    }
+
+    /**
+     * What carries this subject's movement, read off the poses it draws through.
+     *
+     * <p>Every mesh the subject draws is evaluated across one excursion at both moving presets, and
+     * what varied decides the answer. So this is a question about the shipped tables and the
+     * excursions in force rather than about the entity, and a caller who flattens an excursion gets a
+     * subject that genuinely no longer moves.
+     *
+     * <p><b>Answered for the subject as an appearance left it</b>, passes included, so a gate that
+     * dropped a pass drops what that pass would have moved: an uncharged creeper does not scroll,
+     * because the swirl that scrolls is not one of the overlays it draws.
+     *
+     * @param subject the resolved subject, supplying every mesh it draws and the pose belonging to each
+     * @param animation what each idle figure rests at and reaches
+     * @return what moves it, and so which gait reaches that movement
+     */
+    public static @NotNull MotionSource motionOf(
+        @NotNull Entity subject, @NotNull AnimationOptions animation) {
+
+        return motionOf(drawnBy(subject), scrolls(subject), animation);
     }
 
     /** Each overlay pass where its own model leaves it, or the list itself when none of them moved. */
@@ -280,6 +334,111 @@ public final class PoseKit {
             if (WALK_POSITION.equals(field)) return tick * WALK_AMPLITUDE;
             return 0d;
         };
+    }
+
+    /** One mesh a subject draws, and the pose belonging to it. */
+    private record Drawn(@NotNull EntityPose pose, @NotNull EntityModelData model) {}
+
+    /** What every mesh a subject draws writes and displaces at one tick. */
+    private record Instant(
+        @NotNull List<PoseEvaluator.ChannelWrites> writes,
+        @NotNull List<ClipKit.Displacement> clips
+    ) {}
+
+    /** What moves a set of meshes, told apart by what varies across one excursion. */
+    private static @NotNull MotionSource motionOf(
+        @NotNull List<Drawn> drawn, boolean scrolls, @NotNull AnimationOptions animation) {
+
+        List<Instant> resting = strip(drawn, EntityOptions.PoseMode.IDLE, animation);
+        if (varies(resting, Instant::writes)) return MotionSource.LIVE;
+        if (varies(resting, Instant::clips)) return MotionSource.CLIP;
+        // Asked after the geometry rather than before it: a pass that scrolls decides the answer only
+        // where nothing about the mesh moved, this being a question about which gait to ask for.
+        if (scrolls) return MotionSource.SCROLL;
+        List<Instant> walking = strip(drawn, EntityOptions.PoseMode.WALK, animation);
+        if (varies(walking, Instant::writes) || varies(walking, Instant::clips)) return MotionSource.STRIDE;
+        return readsUndriven(drawn, animation) ? MotionSource.TICKED : MotionSource.INERT;
+    }
+
+    /** Every mesh the subject draws, each carrying the pose its own model class wrote. */
+    private static @NotNull List<Drawn> drawnBy(@NotNull Entity subject) {
+        List<Drawn> out = new ArrayList<>();
+        out.add(new Drawn(subject.pose(), subject.model()));
+        for (Entity.OverlayLayer overlay : subject.overlays()) {
+            out.add(new Drawn(overlay.pose(), overlay.model()));
+            // The suppressed-pass alternate is the same mesh with a subtree emptied and takes the same
+            // pose, so it moves wherever the pass it stands in for moves.
+            overlay.noHatModel().ifPresent(alternate -> out.add(new Drawn(overlay.pose(), alternate)));
+        }
+        return out;
+    }
+
+    /** Whether any pass this subject draws translates its texture rather than its geometry. */
+    private static boolean scrolls(@NotNull Entity subject) {
+        return subject.overlays().stream().anyMatch(overlay -> overlay.textureScroll().isPresent());
+    }
+
+    /** What each tick of one excursion evaluates to, at one preset. */
+    private static @NotNull List<Instant> strip(
+        @NotNull List<Drawn> drawn, @NotNull EntityOptions.PoseMode mode,
+        @NotNull AnimationOptions animation) {
+
+        List<Instant> out = new ArrayList<>(IdleFigure.PERIOD_TICKS);
+        for (int tick = 0; tick < IdleFigure.PERIOD_TICKS; tick++) {
+            ToDoubleFunction<String> frame = frameAt(mode, tick, animation);
+            List<PoseEvaluator.ChannelWrites> writes = new ArrayList<>(drawn.size());
+            List<ClipKit.Displacement> clips = new ArrayList<>(drawn.size());
+            for (Drawn one : drawn) {
+                if (!one.pose().isReadable()) continue;
+                writes.add(PoseEvaluator.evaluate(one.pose(), one.model(), frame));
+                clips.add(ClipKit.deltas(one.pose(), one.model(), frame));
+            }
+            out.add(new Instant(writes, clips));
+        }
+        return out;
+    }
+
+    /** Whether one half of a strip answers differently at any two of its ticks. */
+    private static boolean varies(
+        @NotNull List<Instant> strip, @NotNull Function<Instant, Object> part) {
+
+        Object first = part.apply(strip.getFirst());
+        return strip.stream().anyMatch(instant -> !first.equals(part.apply(instant)));
+    }
+
+    /**
+     * Whether the poses read a render-state figure nothing here answers, which is what separates a
+     * subject whose animation has no driver from one carrying no animation at all.
+     *
+     * <p>Recorded off the evaluation rather than read off the table, so a figure named only down a
+     * branch nothing takes is not counted - what decides this is what the subject actually asked for.
+     */
+    private static boolean readsUndriven(
+        @NotNull List<Drawn> drawn, @NotNull AnimationOptions animation) {
+
+        Set<String> read = new HashSet<>();
+        for (int tick = 0; tick < IdleFigure.PERIOD_TICKS; tick++) {
+            ToDoubleFunction<String> driven = frameAt(EntityOptions.PoseMode.WALK, tick, animation);
+            ToDoubleFunction<String> recording = field -> {
+                read.add(field);
+                return driven.applyAsDouble(field);
+            };
+            for (Drawn one : drawn) {
+                if (!one.pose().isReadable()) continue;
+                PoseEvaluator.evaluate(one.pose(), one.model(), recording);
+                ClipKit.deltas(one.pose(), one.model(), recording);
+            }
+        }
+        return read.stream().anyMatch(field -> !answered(field));
+    }
+
+    /** Whether a render answers this render-state figure with anything but the resting zero. */
+    private static boolean answered(@NotNull String field) {
+        return AGE_IN_TICKS.equals(field)
+            || WALK_POSITION.equals(field)
+            || WALK_SPEED.equals(field)
+            || IdleFigure.ofField(field) != null
+            || IdleState.ofField(field) != null;
     }
 
     /** The mesh with every written channel applied, or the mesh itself when none of them moved it. */

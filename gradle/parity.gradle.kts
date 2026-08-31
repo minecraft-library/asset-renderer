@@ -468,6 +468,13 @@ val parityArtifacts = listOf(
     // it was taken off, exactly as the seven above do.
     ParityArtifact("sweep.entity-animation", listOf("entityAnimationParityVanilla"),
         "cache/visual/entity-animation-parity-vanilla", listOf("entityId")),
+    // The same driver at a gait, measured against walk/ rather than animation/ - so the two rows are
+    // the same measurement over the two sub-trees, and each carries the digest of the ground truth it
+    // was taken off. It is a gate rather than a report because a subject that holds still under IDLE
+    // and moves under a stride is animated THROUGH this row and through no other: the animation sweep
+    // holds those subjects still on both sides, so nothing it compares can report them moving wrongly.
+    ParityArtifact("sweep.entity-walk", listOf("entityWalkParityVanilla"),
+        "cache/visual/entity-walk-parity-vanilla", listOf("entityId")),
     ParityArtifact("manifest.references", listOf("renderVanillaAllReferences"), parityReferenceRoot, listOf("refharnessTargets")),
     ParityArtifact("manifest.visual", listOf("visualSweepSet"), "cache/visual"),
     // Shares manifest.visual's parent and its member mechanism, and covers a disjoint file set: that

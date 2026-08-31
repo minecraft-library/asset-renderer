@@ -80,7 +80,11 @@ final class SweepSortDirectionTest {
     @DisplayName("the writers named here are the ones the sweep producers run")
     void theNamedSetIsWhatTheSweepProducersRun() {
         ProducerWriters resolved = writersTheSweepProducersRun();
-        List<String> run = resolved.writers();
+        // Distinct, because a writer is a FILE and two artifacts can share one: the walk sweep is the
+        // animation sweep's driver at a gait, which is what keeps the pair one implementation rather
+        // than two that could differ in how they measured rather than in what they measured. Naming
+        // it twice would read the same source twice for every case below.
+        List<String> run = resolved.writers().stream().distinct().toList();
         List<String> present = writerFilesInTheDirectory();
 
         assertThat("sweep producers whose writer the build file does not name",

@@ -19,6 +19,15 @@ import java.util.Map;
 public class AnimationOptions {
 
     /**
+     * How many frames {@link #excursion} samples one excursion at.
+     *
+     * <p>The divisor rather than the cadence, so the strip covers {@link IdleFigure#PERIOD_TICKS}
+     * exactly however that period is set: a frame count that did not divide it would either stop
+     * short of the excursion or run past its own start.
+     */
+    private static final int EXCURSION_FRAMES = 8;
+
+    /**
      * Animation seed tick - frame 0 samples at this tick.
      */
     private final int startTick = 0;
@@ -115,6 +124,29 @@ public class AnimationOptions {
      */
     public static @NotNull AnimationOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * These options sampled across one whole excursion, so what they render moves rather than holding
+     * a single instant of movement.
+     *
+     * <p>The strip is {@link IdleFigure#PERIOD_TICKS} long by construction, divided into
+     * {@link #EXCURSION_FRAMES} frames - so it shows one whole excursion, its last frame does not
+     * repeat its first, and the render loops. At {@link Schedule#TEXTURE_STRIP} each frame holds for
+     * the span of game time it covers, so the excursion plays at the speed it happens at.
+     *
+     * <p>Everything but the strip is carried through: a caller's own excursions, selections, seed tick
+     * and playback schedule are left as they were, because what this supplies is the sampling they
+     * did not name rather than a different animation.
+     *
+     * @param base the options to sample across one excursion
+     * @return the same options over an excursion-long strip
+     */
+    public static @NotNull AnimationOptions excursion(@NotNull AnimationOptions base) {
+        return base.mutate()
+            .frameCount(EXCURSION_FRAMES)
+            .ticksPerFrame(IdleFigure.PERIOD_TICKS / EXCURSION_FRAMES)
+            .build();
     }
 
     /**

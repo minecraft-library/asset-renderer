@@ -132,6 +132,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/EntityRendererAnimatedTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/EntityRendererFacingTest": {
       "artifacts": [],
       "source": "derived"
@@ -1550,6 +1554,16 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/pose/MotionSource": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/pose/PoseChannel": {
       "artifacts": [
         "manifest.dump.packs",
@@ -2501,6 +2515,10 @@
         "sweep.entity",
         "sweep.entity-animation"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/kit/PoseKitMotionTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/kit/PoseKitTest": {

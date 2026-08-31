@@ -238,6 +238,17 @@
       "sha256": "e148dd19a182a97a0aa9f0eb6af89e51c4ae43580cf4be7fa5eb4afc46dcf542",
       "sum": "2.2489"
     },
+    "sweep.entity-walk": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 90,
+      "file": "sweeps/entity-walk.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 21889,
+      "promoted_at": "4699a82be11fd94e8647020073d11d8decc9b151",
+      "sha256": "44510169b8cc3622488e7608777ee2ccd374db3bee73d5deefe85e707d56d2e9",
+      "sum": "3.2513"
+    },
     "sweep.glint": {
       "baselined": true,
       "determinism_floor": 2,
