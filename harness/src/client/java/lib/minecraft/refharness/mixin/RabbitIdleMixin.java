@@ -17,8 +17,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * tick it takes starts the clip. Its random sets the {@code [180, 220)} ticks until the next one and
  * reaches nothing else.
  *
- * <p>The hop state beside it stays stopped, which is what a rabbit standing still holds it at:
- * vanilla starts that one only while {@code jumpTicks} is positive.
+ * <p><b>The hop is the same selector's second arm, and a walking run is what reaches it.</b>
+ * {@code setupAnimationStates} is a three-way: an idle due starts the tilt, otherwise
+ * {@code jumpTicks > 0} starts the hop and stops the tilt, otherwise both are stopped. A rabbit
+ * travels by hopping and carries no walk-gated clip at all, so a walking reference without this
+ * swings the legs of an animal vanilla draws mid-hop.
  */
 @Mixin(RabbitRenderer.class)
 public abstract class RabbitIdleMixin {
@@ -29,7 +32,8 @@ public abstract class RabbitIdleMixin {
         Rabbit entity, RabbitRenderState state, float partialTick, CallbackInfo ci) {
 
         if (!Boolean.getBoolean("refharness.headless")) return;
-        IdleFigures.play(IdleFigures.Group.HEAD_TILT.selected(), IdleFigures.State.TILTING,
-            state.idleHeadTiltAnimationState);
+        IdleFigures.State selected = IdleFigures.selected(IdleFigures.Group.RABBIT);
+        IdleFigures.play(selected, IdleFigures.State.TILTING, state.idleHeadTiltAnimationState);
+        IdleFigures.play(selected, IdleFigures.State.HOPPING, state.hopAnimationState);
     }
 }

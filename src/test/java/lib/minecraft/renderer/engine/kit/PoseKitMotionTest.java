@@ -62,14 +62,25 @@ class PoseKitMotionTest {
     @DisplayName("each member's clearest subject is classified as that member")
     void theNamedSubjectsAreClassified() {
         // One subject per member, each chosen because what moves it is not in dispute: a squid's
-        // tentacles wave on a written channel, a bat writes no bone outside its clips, a breeze holds
-        // still and scrolls, a creeper moves only once something walks it, and an armour stand does
-        // nothing at all.
+        // tentacles wave on a written channel, a bat writes no bone outside its clips, a charged
+        // creeper's swirl scrolls over a mesh that holds still, an uncharged one moves only once
+        // something walks it, and an armour stand does nothing at all.
+        //
+        // The scroll witness is a DEFINITION rather than a subject, because the only two passes in
+        // the corpus that scroll belong to a creeper's swirl, which an uncharged one does not draw,
+        // and to a breeze, whose whirl is a clip that runs on every ticked subject.
+        Entity charged = entities.get("minecraft:creeper");
+        assertNotNull(charged, "minecraft:creeper is expected to load");
         assertEquals(MotionSource.LIVE, motionOf("minecraft:squid"));
         assertEquals(MotionSource.CLIP, motionOf("minecraft:bat"));
-        assertEquals(MotionSource.SCROLL, motionOf("minecraft:breeze"));
+        assertEquals(MotionSource.SCROLL, PoseKit.motionOf(charged, ANIMATION));
         assertEquals(MotionSource.STRIDE, motionOf("minecraft:creeper"));
         assertEquals(MotionSource.INERT, motionOf("minecraft:armor_stand"));
+
+        // A breeze is a clip subject rather than a scrolling one, and that is the whirl its own tick
+        // starts unconditionally: `Breeze.tick` runs `idle.startIfStopped` before the pose switch and
+        // regardless of it, so the mesh moves and a scroll is only asked about after the geometry.
+        assertEquals(MotionSource.CLIP, motionOf("minecraft:breeze"));
     }
 
     @Test

@@ -31,6 +31,7 @@ public abstract class DolphinIdleMixin {
     private void refharness$driveSwim(Dolphin entity, DolphinRenderState state, float partialTick, CallbackInfo ci) {
         if (!Boolean.getBoolean("refharness.headless")) return;
         state.isMoving =
-            IdleFigures.selects(IdleFigures.Group.DOLPHIN.selected(), IdleFigures.State.MOVING);
+            IdleFigures.selects(IdleFigures.selected(IdleFigures.Group.DOLPHIN),
+                IdleFigures.State.MOVING);
     }
 }

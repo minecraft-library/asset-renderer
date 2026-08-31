@@ -18,9 +18,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * random decides is how long until the NEXT one, an interval in {@code [80, 120)} ticks, and an
  * interval is not a shape.
  *
- * <p>The four states beside it stay stopped, which is what a camel that is neither sitting, standing
- * up nor dashing holds them at. One state serves both meshes the subject draws: the saddle poses off
- * this same render state, so its own copy of the clip runs with the body's.
+ * <p>The four states beside it are a selector of their own, resting where a camel is neither sitting,
+ * standing up nor dashing - so a default run drives them all stopped. <b>The dash is not what a
+ * stride reaches</b>: it is a synched flag a rider sets, and the animal's ordinary walk is a
+ * walk-gated clip that already plays under a stride, so selecting it under {@code WALK} would draw a
+ * sprint vanilla does not run for a camel merely walking. One state serves both meshes the subject
+ * draws: the saddle poses off this same render state, so its own copy of the clip runs with the
+ * body's.
  *
  * <p><b>Two renderers rather than one, because a husk camel is a sibling and not a subclass.</b>
  * {@code CamelHuskRenderer} extends {@code MobRenderer} directly and declares its own
@@ -34,7 +38,13 @@ public abstract class CamelIdleMixin {
         at = @At("RETURN"))
     private void refharness$startIdle(Camel entity, CamelRenderState state, float partialTick, CallbackInfo ci) {
         if (!Boolean.getBoolean("refharness.headless")) return;
-        IdleFigures.play(IdleFigures.Group.IDLE_CLIP.selected(), IdleFigures.State.IDLING,
+        IdleFigures.play(IdleFigures.selected(IdleFigures.Group.IDLE_CLIP), IdleFigures.State.IDLING,
             state.idleAnimationState);
+
+        IdleFigures.State stance = IdleFigures.selected(IdleFigures.Group.CAMEL_STANCE);
+        IdleFigures.play(stance, IdleFigures.State.SITTING_DOWN, state.sitAnimationState);
+        IdleFigures.play(stance, IdleFigures.State.SITTING, state.sitPoseAnimationState);
+        IdleFigures.play(stance, IdleFigures.State.STANDING_UP, state.sitUpAnimationState);
+        IdleFigures.play(stance, IdleFigures.State.DASHING, state.dashAnimationState);
     }
 }

@@ -29,7 +29,7 @@ public abstract class BatIdleMixin {
         at = @At("RETURN"))
     private void refharness$startFlight(Bat entity, BatRenderState state, float partialTick, CallbackInfo ci) {
         if (!Boolean.getBoolean("refharness.headless")) return;
-        IdleFigures.State selected = IdleFigures.Group.BAT.selected();
+        IdleFigures.State selected = IdleFigures.selected(IdleFigures.Group.BAT);
         IdleFigures.play(selected, IdleFigures.State.FLYING, state.flyAnimationState);
         IdleFigures.play(selected, IdleFigures.State.RESTING, state.restAnimationState);
     }

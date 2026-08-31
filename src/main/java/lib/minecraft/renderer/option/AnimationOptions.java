@@ -77,9 +77,13 @@ public class AnimationOptions {
      *
      * <p>A selection rather than an excursion, because the fields behind one encode a single choice
      * and moving them apart renders a crossfade between two states. A group no entry names takes
-     * {@link IdleState.Group#selected()}, and the member of it that drives no field - the axolotl's
-     * {@link IdleState#IN_AIR}, a dolphin's {@link IdleState#STILL} - is how a caller asks for the
-     * whole group to rest.
+     * {@link IdleState.Group#selected(boolean)} at the gait being rendered, and the member of it that
+     * drives no field - the axolotl's {@link IdleState#IN_AIR}, a dolphin's {@link IdleState#STILL} -
+     * is how a caller asks for the whole group to rest.
+     *
+     * <p><b>An entry here overrides the gait as well as the default.</b> Two groups answer a
+     * different member under a stride, so a caller that names one has said which member it wants at
+     * every gait rather than only at rest.
      */
     private final @NotNull Map<IdleState.Group, IdleState> idleStates = Map.of();
 
@@ -103,13 +107,18 @@ public class AnimationOptions {
      * a caller who keyed the map wrong would get a subject holding still and no way to tell that
      * from having asked for one.
      *
+     * <p>The gait reaches the DEFAULT alone. A rabbit travels by hopping and a breeze by sliding, so
+     * the member each rests at is not the member each moves at; a caller that named one has already
+     * said which it wants.
+     *
      * @param factor the field being answered
+     * @param walking whether the render drives a stride
      * @return one where it belongs to the selected member, zero otherwise
      * @throws RendererException if the selection for a group belongs to a different one
      */
-    public float idleValue(@NotNull IdleState factor) {
+    public float idleValue(@NotNull IdleState factor, boolean walking) {
         IdleState.Group group = factor.group();
-        IdleState selected = this.idleStates.getOrDefault(group, group.selected());
+        IdleState selected = this.idleStates.getOrDefault(group, group.selected(walking));
         if (selected.group() != group)
             throw new RendererException(
                 "idle state: '%s' is selected for '%s' and belongs to '%s'",

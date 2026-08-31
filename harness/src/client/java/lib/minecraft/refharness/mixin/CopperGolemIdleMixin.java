@@ -17,8 +17,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * that field at zero and takes its first tick at zero, so the two meet and the clip starts there.
  * The random sets only when the next one comes round, an interval in {@code [200, 240)} ticks.
  *
- * <p>The four chest-interaction states beside it stay stopped, which is what a golem carrying
- * nothing and reaching for nothing holds them at.
+ * <p>The four chest-interaction states are a selector of their own rather than arms of that one: a
+ * golem plays its idle clip on its own timer whether or not it is at a container, so the two are
+ * concurrent. Their group rests at {@code NOT_INTERACTING}, which is what a golem carrying nothing
+ * and reaching for nothing holds them at, so a default run drives them all stopped.
  */
 @Mixin(CopperGolemRenderer.class)
 public abstract class CopperGolemIdleMixin {
@@ -29,7 +31,13 @@ public abstract class CopperGolemIdleMixin {
         CopperGolem entity, CopperGolemRenderState state, float partialTick, CallbackInfo ci) {
 
         if (!Boolean.getBoolean("refharness.headless")) return;
-        IdleFigures.play(IdleFigures.Group.IDLE_CLIP.selected(), IdleFigures.State.IDLING,
+        IdleFigures.play(IdleFigures.selected(IdleFigures.Group.IDLE_CLIP), IdleFigures.State.IDLING,
             state.idleAnimationState);
+
+        IdleFigures.State interaction = IdleFigures.selected(IdleFigures.Group.CHEST_INTERACTION);
+        IdleFigures.play(interaction, IdleFigures.State.GETTING_ITEM, state.interactionGetItem);
+        IdleFigures.play(interaction, IdleFigures.State.GETTING_NOTHING, state.interactionGetNoItem);
+        IdleFigures.play(interaction, IdleFigures.State.DROPPING_ITEM, state.interactionDropItem);
+        IdleFigures.play(interaction, IdleFigures.State.DROPPING_NOTHING, state.interactionDropNoItem);
     }
 }

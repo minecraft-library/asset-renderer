@@ -71,6 +71,15 @@ public final class PoseFlow {
      * a caller can select are named: one nobody can start folds to a subject nothing has ticked,
      * which is what it is.
      *
+     * <p><b>Two states a caller CAN select are still left off, and the other two of those three
+     * models are why.</b> {@code FrogModel} reads {@code croakAnimationState.isStarted()} to decide
+     * whether the croaking body is drawn, which is a FLAG - and every flag folds to a literal here,
+     * so a driven croak is one the fold cannot settle and a subject the flow refuses.
+     * {@code BabyAxolotlModel} reads {@code walkAnimationState.isStarted()} to gate a WALK-driven
+     * play site, so driving that state puts back a site the fold settles and drops. Both are named
+     * on the asset side's own roster where the group that would have held them is declared, so the
+     * two sides state one omission rather than disagreeing silently.
+     *
      * <p>A slime's squash is the one figure of this shape deliberately left off. Both its renderer
      * and a magma cube's read it in the per-renderer {@code scale} this side models nowhere, so
      * driving it would move a reference in two places and a render in one.
@@ -80,7 +89,19 @@ public final class PoseFlow {
         "tentacleAngle", "flapTime", "peekAmount",
         "inWaterFactor", "movingFactor", "onGroundFactor", "playingDeadFactor", "isMoving",
         "flyAnimationState", "restAnimationState", "idleAnimationState",
-        "idleHeadTiltAnimationState");
+        "idleHeadTiltAnimationState", "hopAnimationState",
+        "rollUpAnimationState", "rollOutAnimationState", "peekAnimationState",
+        "sitAnimationState", "sitPoseAnimationState", "sitUpAnimationState", "dashAnimationState",
+        "idle", "slide", "slideBack", "inhale", "shoot", "longJump",
+        "interactionGetItem", "interactionGetNoItem", "interactionDropItem",
+        "interactionDropNoItem",
+        "jumpAnimationState", "tongueAnimationState", "swimIdleAnimationState",
+        "swimAnimation", "idleUnderWaterOnGroundAnimationState", "idleUnderWaterAnimationState",
+        "idleOnGroundAnimationState", "playDeadAnimationState",
+        "attackAnimationState", "diggingAnimationState", "roarAnimationState",
+        "sniffAnimationState", "emergeAnimationState", "sonicBoomAnimationState",
+        "invulnerabilityAnimationState", "deathAnimationState", "sniffingAnimationState",
+        "risingAnimationState", "feelingHappyAnimationState", "scentingAnimationState");
 
     /**
      * What a render-state figure rests at where no constructor settles it and a zero would be wrong.

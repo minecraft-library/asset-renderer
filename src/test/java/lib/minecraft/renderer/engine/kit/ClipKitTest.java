@@ -96,21 +96,25 @@ class ClipKitTest {
     }
 
     @Test
-    @DisplayName("a state-driven clip contributes nothing to a subject standing still")
+    @DisplayName("a state-driven clip contributes nothing while its own gate answers zero")
     void aStateDrivenClipDoesNotPlay() {
-        // Sixty-seven of the corpus's play sites are state-driven and the breeze's six are among
-        // them - and the breeze writes no bone outside its clips, so if one ran it would move. Its
-        // own reference is identical across every frame of the strip, which is what says vanilla
-        // runs none of them either. Asserted as identity: the mesh is handed back, not rebuilt.
+        // Most of the corpus's play sites are state-driven and the breeze's six are among them, so
+        // it is the subject that says what a gate decides. Asked of the GATE rather than through a
+        // render, because which member a group rests at is the roster's business and this is not:
+        // what is pinned here is that a site whose state answers zero displaces nothing, whatever
+        // put that zero there, and that the same site displaces something once it answers one.
         Entity breeze = subject("minecraft:breeze");
         assertFalse(breeze.pose().clips().isEmpty(), "a breeze plays clips");
         assertTrue(breeze.pose().clips().stream().allMatch(clip -> clip.gate() == EntityPose.Gate.STATE),
             "and every one of them is state-driven");
 
-        for (int tick : new int[] {0, 3, 9, 21})
-            assertEquals(breeze.model(), PoseKit.posed(
-                    EntityOptions.PoseMode.IDLE, breeze, tick),
-                "a breeze standing still holds still at tick " + tick);
+        assertTrue(ClipKit.deltas(breeze.pose(), breeze.model(), field -> 0d).isEmpty(),
+            "a frame answering zero for every state plays none of the six");
+
+        // The whirl its own tick starts unconditionally, which is the one a default render selects.
+        assertFalse(ClipKit.deltas(breeze.pose(), breeze.model(),
+                field -> "idle".equals(field) ? 1d : 0d).isEmpty(),
+            "and the one state a frame answers is the one that displaces a bone");
     }
 
     @Test

@@ -38,10 +38,24 @@ public abstract class AxolotlIdleMixin {
         at = @At("RETURN"))
     private void refharness$mixFactors(Axolotl entity, AxolotlRenderState state, float partialTick, CallbackInfo ci) {
         if (!Boolean.getBoolean("refharness.headless")) return;
-        IdleFigures.State selected = IdleFigures.Group.AXOLOTL.selected();
+        IdleFigures.State selected = IdleFigures.selected(IdleFigures.Group.AXOLOTL);
         state.inWaterFactor = IdleFigures.select(selected, IdleFigures.State.IN_WATER);
         state.onGroundFactor = IdleFigures.select(selected, IdleFigures.State.ON_GROUND);
         state.playingDeadFactor = IdleFigures.select(selected, IdleFigures.State.PLAYING_DEAD);
         state.movingFactor = IdleFigures.at(IdleFigures.Continuous.MOVING_FACTOR);
+
+        // The BABY mesh of the same animal answers through keyframe clips where the adult weights
+        // these factors, so one render state carries both encodings and they are two selectors. The
+        // underwater walk is deliberately not among them: its model gates a walk-driven site on
+        // isStarted, and driving it puts back a play site the generator's fold settles and drops.
+        IdleFigures.State clip = IdleFigures.selected(IdleFigures.Group.AXOLOTL_CLIP);
+        IdleFigures.play(clip, IdleFigures.State.BABY_SWIMMING, state.swimAnimation);
+        IdleFigures.play(clip, IdleFigures.State.BABY_IDLING_UNDERWATER_ON_GROUND,
+            state.idleUnderWaterOnGroundAnimationState);
+        IdleFigures.play(clip, IdleFigures.State.BABY_IDLING_UNDERWATER,
+            state.idleUnderWaterAnimationState);
+        IdleFigures.play(clip, IdleFigures.State.BABY_IDLING_ON_GROUND,
+            state.idleOnGroundAnimationState);
+        IdleFigures.play(clip, IdleFigures.State.BABY_PLAYING_DEAD, state.playDeadAnimationState);
     }
 }

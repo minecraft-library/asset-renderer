@@ -116,17 +116,56 @@ public final class IdleFigures {
         /** Whether the idle clip a camel and a copper golem both spell one way is playing. */
         IDLE_CLIP,
 
-        /** Whether a rabbit's head tilt is playing, which is the idle it spells apart from those. */
-        HEAD_TILT;
+        /** Which of a head tilt, a hop or neither a rabbit is doing, over its own three-way. */
+        RABBIT,
 
-        /** The member an idle render selects where a caller names none. */
-        public State selected() {
+        /** Where an armadillo is in its shell, over {@code ArmadilloState}'s own four members. */
+        ARMADILLO_SHELL,
+
+        /** Whether a camel is sitting, rising, dashing or standing, over its own tick's arms. */
+        CAMEL_STANCE,
+
+        /** Whether a breeze's whirl is running, which its own tick starts unconditionally. */
+        BREEZE_WHIRL,
+
+        /** Which pose clip a breeze is playing, over the arms of {@code Pose} its tick switches on. */
+        BREEZE_POSE,
+
+        /** Which container interaction a copper golem is playing, over its own four. */
+        CHEST_INTERACTION,
+
+        /** Which action clip a frog is playing, over the three its model gates without a flag. */
+        FROG_ACTION,
+
+        /** Which keyframe clip a baby axolotl is playing, its adult answering through factors. */
+        AXOLOTL_CLIP,
+
+        /** Which one-shot action clip a warden, a creaking or a sniffer is playing. */
+        ACTION_CLIP;
+
+        /**
+         * The member a render selects where a caller names none.
+         *
+         * <p>MUST match the asset side's {@code IdleState.Group.selected}. Two groups answer
+         * differently under a stride, both being subjects whose locomotion is a state-gated clip
+         * rather than a walk-gated one - a rabbit hops and a breeze slides, and neither carries a
+         * walk-gated clip at all.
+         */
+        public State selected(boolean walking) {
             return switch (this) {
                 case AXOLOTL -> State.IN_WATER;
                 case DOLPHIN -> State.MOVING;
                 case BAT -> State.FLYING;
                 case IDLE_CLIP -> State.IDLING;
-                case HEAD_TILT -> State.TILTING;
+                case RABBIT -> walking ? State.HOPPING : State.TILTING;
+                case ARMADILLO_SHELL -> State.UNBALLED;
+                case CAMEL_STANCE -> State.STANDING;
+                case BREEZE_WHIRL -> State.WHIRLING;
+                case BREEZE_POSE -> walking ? State.SLIDING : State.GROUNDED;
+                case CHEST_INTERACTION -> State.NOT_INTERACTING;
+                case FROG_ACTION -> State.FROG_RESTING;
+                case AXOLOTL_CLIP -> State.BABY_AXOLOTL_STILL;
+                case ACTION_CLIP -> State.NOT_ACTING;
             };
         }
     }
@@ -161,9 +200,99 @@ public final class IdleFigures {
 
         NOT_IDLING(Group.IDLE_CLIP, ""),
 
-        TILTING(Group.HEAD_TILT, "idleHeadTiltAnimationState"),
+        TILTING(Group.RABBIT, "idleHeadTiltAnimationState"),
 
-        NOT_TILTING(Group.HEAD_TILT, "");
+        HOPPING(Group.RABBIT, "hopAnimationState"),
+
+        NOT_TILTING(Group.RABBIT, ""),
+
+        ROLLING_UP(Group.ARMADILLO_SHELL, "rollUpAnimationState"),
+
+        ROLLING_OUT(Group.ARMADILLO_SHELL, "rollOutAnimationState"),
+
+        PEEKING(Group.ARMADILLO_SHELL, "peekAnimationState"),
+
+        UNBALLED(Group.ARMADILLO_SHELL, ""),
+
+        SITTING_DOWN(Group.CAMEL_STANCE, "sitAnimationState"),
+
+        SITTING(Group.CAMEL_STANCE, "sitPoseAnimationState"),
+
+        STANDING_UP(Group.CAMEL_STANCE, "sitUpAnimationState"),
+
+        DASHING(Group.CAMEL_STANCE, "dashAnimationState"),
+
+        STANDING(Group.CAMEL_STANCE, ""),
+
+        WHIRLING(Group.BREEZE_WHIRL, "idle"),
+
+        SLIDING(Group.BREEZE_POSE, "slide"),
+
+        SLIDING_BACK(Group.BREEZE_POSE, "slideBack"),
+
+        INHALING(Group.BREEZE_POSE, "inhale"),
+
+        SHOOTING(Group.BREEZE_POSE, "shoot"),
+
+        LONG_JUMPING(Group.BREEZE_POSE, "longJump"),
+
+        GROUNDED(Group.BREEZE_POSE, ""),
+
+        GETTING_ITEM(Group.CHEST_INTERACTION, "interactionGetItem"),
+
+        GETTING_NOTHING(Group.CHEST_INTERACTION, "interactionGetNoItem"),
+
+        DROPPING_ITEM(Group.CHEST_INTERACTION, "interactionDropItem"),
+
+        DROPPING_NOTHING(Group.CHEST_INTERACTION, "interactionDropNoItem"),
+
+        NOT_INTERACTING(Group.CHEST_INTERACTION, ""),
+
+        JUMPING(Group.FROG_ACTION, "jumpAnimationState"),
+
+        TONGUING(Group.FROG_ACTION, "tongueAnimationState"),
+
+        SWIM_IDLING(Group.FROG_ACTION, "swimIdleAnimationState"),
+
+        FROG_RESTING(Group.FROG_ACTION, ""),
+
+        BABY_SWIMMING(Group.AXOLOTL_CLIP, "swimAnimation"),
+
+        BABY_IDLING_UNDERWATER_ON_GROUND(Group.AXOLOTL_CLIP, "idleUnderWaterOnGroundAnimationState"),
+
+        BABY_IDLING_UNDERWATER(Group.AXOLOTL_CLIP, "idleUnderWaterAnimationState"),
+
+        BABY_IDLING_ON_GROUND(Group.AXOLOTL_CLIP, "idleOnGroundAnimationState"),
+
+        BABY_PLAYING_DEAD(Group.AXOLOTL_CLIP, "playDeadAnimationState"),
+
+        BABY_AXOLOTL_STILL(Group.AXOLOTL_CLIP, ""),
+
+        ATTACKING(Group.ACTION_CLIP, "attackAnimationState"),
+
+        DIGGING(Group.ACTION_CLIP, "diggingAnimationState"),
+
+        ROARING(Group.ACTION_CLIP, "roarAnimationState"),
+
+        WARDEN_SNIFFING(Group.ACTION_CLIP, "sniffAnimationState"),
+
+        EMERGING(Group.ACTION_CLIP, "emergeAnimationState"),
+
+        SONIC_BOOMING(Group.ACTION_CLIP, "sonicBoomAnimationState"),
+
+        INVULNERABLE(Group.ACTION_CLIP, "invulnerabilityAnimationState"),
+
+        DYING(Group.ACTION_CLIP, "deathAnimationState"),
+
+        SNIFFER_SNIFFING(Group.ACTION_CLIP, "sniffingAnimationState"),
+
+        RISING(Group.ACTION_CLIP, "risingAnimationState"),
+
+        FEELING_HAPPY(Group.ACTION_CLIP, "feelingHappyAnimationState"),
+
+        SCENTING(Group.ACTION_CLIP, "scentingAnimationState"),
+
+        NOT_ACTING(Group.ACTION_CLIP, "");
 
         private final Group group;
 
@@ -193,6 +322,20 @@ public final class IdleFigures {
      */
     public static float at(Continuous figure) {
         return at(figure.rest, figure.extent, figure.shape);
+    }
+
+    /**
+     * The member one selector holds at the gait this render is at.
+     *
+     * <p>The one way a mixin should reach a default, because the gait is not optional: two groups
+     * answer a different member under a stride, and a call site that resolved the group without it
+     * would leave a rabbit tilting its head while its legs swing.
+     *
+     * @param group the selector being asked
+     * @return the member selected at the armed gait
+     */
+    public static State selected(Group group) {
+        return group.selected(PoseState.walking());
     }
 
     /**

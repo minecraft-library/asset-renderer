@@ -101,6 +101,16 @@ class IdleFigureMirrorTest {
     private static final Pattern STATE =
         Pattern.compile("^([A-Z][A-Z_]*)\\(Group\\.(\\w+), \"(\\w*)\"\\)[,;]$");
 
+    /**
+     * One arm of a group's default, the harness qualifying the member and this side not.
+     *
+     * <p>Read as the pair it is - the group, and the member or the two a gait chooses between -
+     * rather than as text, because the two builds spell the arm apart and only what it ANSWERS is
+     * the shared fact.
+     */
+    private static final Pattern SELECTED =
+        Pattern.compile("^case (\\w+) -> (?:walking \\? )?(?:State\\.)?(\\w+)(?: : (?:State\\.)?(\\w+))?;$");
+
     /** Which capture of a shape holds the render-state field, the two shapes spelling it differently. */
     private static final int FIELD_OF_CONTINUOUS = 2;
 
@@ -145,6 +155,49 @@ class IdleFigureMirrorTest {
             if (field.isEmpty()) continue;
             assertNotNull(IdleState.ofField(field),
                 "the one-hot declares '" + field + "' and its lookup does not answer for it");
+        }
+    }
+
+    @Test
+    @DisplayName("the harness defaults to the same member this side does, at both gaits")
+    void theGroupDefaultsAreOneDefault() throws IOException {
+        Map<String, String> asset = defaultsOf(ASSET_STATES);
+        assertFalse(asset.isEmpty(),
+            "no group default matched in " + ASSET_STATES + " - the pattern has drifted");
+        assertEquals(asset, defaultsOf(HARNESS),
+            "the member each group rests at on this side and the one the harness drives it to have "
+                + "parted. Nothing else compares these: the constants are held to one another as "
+                + "text and the generator's set is held to their fields, so a default that moved on "
+                + "one side alone renders a subject in one animation here and another there and "
+                + "reports as a defect in this renderer");
+    }
+
+    @Test
+    @DisplayName("every group answers a default, and it belongs to the group answering it")
+    void everyGroupSelectsOneOfItsOwn() {
+        for (IdleState.Group group : IdleState.Group.values())
+            for (boolean walking : new boolean[]{false, true}) {
+                IdleState selected = group.selected(walking);
+                assertEquals(group, selected.group(),
+                    group + " defaults to " + selected + ", which belongs to " + selected.group()
+                        + " - a caller that named none would be handed a member of another "
+                        + "selector, and every field of this one would answer zero");
+            }
+    }
+
+    @Test
+    @DisplayName("a group answering two members across the gaits drives a field at each")
+    void aGaitedGroupMovesBetweenTwoDrivers() {
+        // The point of the gaited arm, asserted where it is visible. A rabbit travels by hopping and
+        // a breeze by sliding, and neither carries a walk-gated clip - so a walking render that came
+        // back with the resting arm would swing the legs of a subject vanilla draws in a clip.
+        for (IdleState.Group group : IdleState.Group.values()) {
+            IdleState resting = group.selected(false);
+            IdleState moving = group.selected(true);
+            if (resting == moving) continue;
+            assertFalse(moving.field().isEmpty(),
+                group + " answers " + moving + " under a stride, and that member drives no field - "
+                    + "so asking for movement asks for the group to rest");
         }
     }
 
@@ -214,6 +267,25 @@ class IdleFigureMirrorTest {
         assertTrue(declared.find(),
             "no stride amplitude matched in " + source + " - the pattern has drifted");
         return Float.parseFloat(declared.group(1));
+    }
+
+    /**
+     * What each group defaults to in one source, by group name.
+     *
+     * <p>The value is the resting arm, or both arms where a gait chooses between them - kept as one
+     * string so a side that gained or lost a gaited arm reads as a difference rather than as two
+     * equal halves.
+     */
+    private static Map<String, String> defaultsOf(Path source) throws IOException {
+        Map<String, String> answers = new LinkedHashMap<>();
+        for (String line : constantsOf(source, SELECTED)) {
+            Matcher arm = SELECTED.matcher(line);
+            assertTrue(arm.matches(), line);
+            String held = answers.put(arm.group(1),
+                arm.group(3) == null ? arm.group(2) : arm.group(3) + "/" + arm.group(2));
+            assertNull(held, "'" + arm.group(1) + "' answers twice in " + source);
+        }
+        return answers;
     }
 
     /** Every member of the generator's driven set, read as text - it is another build's private. */

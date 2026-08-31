@@ -321,14 +321,18 @@ public final class PoseKit {
         boolean walking = mode == EntityOptions.PoseMode.WALK;
         return field -> {
             if (AGE_IN_TICKS.equals(field)) return tick;
-            // Answered before the gait, because these are what a subject standing still does: a
-            // walking subject's tentacles do not stop waving, so a gait adds to this rather than
+            // Answered before the stride pair, because these are what a subject standing still does:
+            // a walking subject's tentacles do not stop waving, so a gait adds to this rather than
             // replacing it. Anything the roster does not name still rests, which is what keeps the
             // contract that a shipped pose names no figure but the ones the tick drives.
+            //
+            // A scalar figure is answered without the gait and a one-hot WITH it: a figure is a
+            // function of the tick alone, where the member a group rests at is not the member it
+            // moves at for a subject whose locomotion is a state-gated clip.
             IdleFigure figure = IdleFigure.ofField(field);
             if (figure != null) return animation.idleValue(figure, tick);
             IdleState factor = IdleState.ofField(field);
-            if (factor != null) return animation.idleValue(factor);
+            if (factor != null) return animation.idleValue(factor, walking);
             if (!walking) return 0d;
             if (WALK_SPEED.equals(field)) return WALK_AMPLITUDE;
             if (WALK_POSITION.equals(field)) return tick * WALK_AMPLITUDE;
