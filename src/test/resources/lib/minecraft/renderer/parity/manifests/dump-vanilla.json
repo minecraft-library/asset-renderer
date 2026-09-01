@@ -16,7 +16,7 @@
     },
     {
       "path": "entities.json",
-      "sha256": "962e55ceee338563cc8882a838ffe7e95bdc4003472b0eabdb783325f503c65d"
+      "sha256": "328e2325ef3b53a14ba8c960cfbf43963af28f8545084ceb1b1fd3e9dfff40a8"
     },
     {
       "path": "item-models.json",
@@ -64,9 +64,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.vanilla",
-    "asset_content_digest": "7c5a48bed5cb8a73cfa6902422f6dff1fdbfec46f8ee646f25e7966cec4bcd2f",
+    "asset_content_digest": "6083bea5c715cc96082c88a6091e19590cf9b8e643dafdaebfe7b510e5537914",
     "asset_dirty": false,
-    "asset_sha": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
+    "asset_sha": "5b82eb6d137caf1540b4cb3fefe6807330cec07a",
     "counts": {
       "files": 14
     },
@@ -74,9 +74,8 @@
     "flags": {},
     "mc_version": "26.1.2",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "parityDump",
-    "reason": "A frog's croak sac becomes a toggled bone, and both posed sweeps enumerate a baby. The five moved digests are one cause: EntityBoneResolver reads <AnimationState>.isStarted() as a visibility gate, so croaking_body is kept resting hidden under a croak toggle where the fold used to settle it undrawn and drop it - which moves entity_geometry, the two dumps that serialise it, and the entityModels log line that named it undrawn. Nothing existing moved: 0 unexpected rows across sweep.entity, sweep.entity-animation and sweep.entity-walk, and all 3762 pre-existing references are byte-identical. The additions are the coverage - 673 references, one frog toggle row, and 42 baby rows per posed gait, one subject per POSE rather than per entity. Read rather than counted: 40 of 42 baby rows are under 0.25 idle and 35 of 42 walking, and the adult halves are unchanged at 2.1233 and 3.1548. Seven rows over five subjects diverge and every one is a canvas disagreement of 2 to 72 px rather than a pose - snifflet both gaits, baby zombified piglin both gaits, and the three baby equines under a stride only. Those are first baselines recording a divergence rather than endorsing it, which is what makes the next change comparable against them.",
+    "reason": "The entity tables move to format 3 with the shipped style catalog: play sites state their drive as motion-source tokens, containers arrive composed with the ground frame, the defaults tables, flag channels and renderers table stop being emitted, and entity_models.json carries period_ticks plus 180 style rows over 86 entities. The dump manifests carry the same loaded data respelled - drive tokens none/stride/select under the dump's gate key, and the loaded catalog. Load equality proven bit-exact old-vs-new over all 90 entities; the emitted inventory agrees with the live classifier on 135 subjects.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -86,8 +85,8 @@
       "players": 2
     },
     "root": "cache/parity-dump/head/vanilla",
-    "timestamp": "2026-09-01T01:33:39Z",
+    "timestamp": "2026-09-01T21:14:27Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 28303
+    "wall_time_ms": 28525
   }
 }

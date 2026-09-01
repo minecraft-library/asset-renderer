@@ -32,11 +32,11 @@
     },
     {
       "path": "entity_models.json",
-      "sha256": "770c60a8eb0436d6dcd3b455baabf81bdcc223d6909e78da02dd83ea995d4e55"
+      "sha256": "c571c8869145aef3bd5e45c1900338c4898b617f1e483bead75104a1d46b6f58"
     },
     {
       "path": "entity_poses.json",
-      "sha256": "69ed10269fcff3b0a89b3bc4bfaef86890b2da73e62d8e1802620c9842af0f5d"
+      "sha256": "c673c73d12df27ce2c28402e295db4d011ca6775d38fe684a4c4f4f2e55eb555"
     },
     {
       "path": "glint_items.json",
@@ -56,15 +56,15 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "cff94d748c139442117280210cba951b62c8483bdbc3f36b9c75e189db25ec6c",
+    "entityModels": "048db8a25938f67bd7acf82150a023d73594faf759cc3fa5ba465df595356c1a",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
-    "asset_content_digest": "7c5a48bed5cb8a73cfa6902422f6dff1fdbfec46f8ee646f25e7966cec4bcd2f",
+    "asset_content_digest": "6083bea5c715cc96082c88a6091e19590cf9b8e643dafdaebfe7b510e5537914",
     "asset_dirty": false,
-    "asset_sha": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
+    "asset_sha": "5b82eb6d137caf1540b4cb3fefe6807330cec07a",
     "counts": {
       "files": 11,
       "logs": 8
@@ -73,9 +73,8 @@
     "flags": {},
     "mc_version": "26.1.2",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "A frog's croak sac becomes a toggled bone, and both posed sweeps enumerate a baby. The five moved digests are one cause: EntityBoneResolver reads <AnimationState>.isStarted() as a visibility gate, so croaking_body is kept resting hidden under a croak toggle where the fold used to settle it undrawn and drop it - which moves entity_geometry, the two dumps that serialise it, and the entityModels log line that named it undrawn. Nothing existing moved: 0 unexpected rows across sweep.entity, sweep.entity-animation and sweep.entity-walk, and all 3762 pre-existing references are byte-identical. The additions are the coverage - 673 references, one frog toggle row, and 42 baby rows per posed gait, one subject per POSE rather than per entity. Read rather than counted: 40 of 42 baby rows are under 0.25 idle and 35 of 42 walking, and the adult halves are unchanged at 2.1233 and 3.1548. Seven rows over five subjects diverge and every one is a canvas disagreement of 2 to 72 px rather than a pose - snifflet both gaits, baby zombified piglin both gaits, and the three baby equines under a stride only. Those are first baselines recording a divergence rather than endorsing it, which is what makes the next change comparable against them.",
+    "reason": "The entity tables move to format 3 with the shipped style catalog: play sites state their drive as motion-source tokens, containers arrive composed with the ground frame, the defaults tables, flag channels and renderers table stop being emitted, and entity_models.json carries period_ticks plus 180 style rows over 86 entities. The dump manifests carry the same loaded data respelled - drive tokens none/stride/select under the dump's gate key, and the loaded catalog. Load equality proven bit-exact old-vs-new over all 90 entities; the emitted inventory agrees with the live classifier on 135 subjects.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -85,8 +84,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-09-01T01:33:43Z",
+    "timestamp": "2026-09-01T21:14:28Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 43418
+    "wall_time_ms": 44656
   }
 }
