@@ -610,6 +610,28 @@ those fields on parts nothing renders. `PoseEvaluator.evaluate` passes them over
 throws on all four crossed-arm illagers and the armour stand. It still throws where the disagreement
 is real: a bone the mesh does have, reading one it does not.
 
+**A CLIP channel is the exception, because vanilla resolved it before the flattening.**
+`createPartLookup` seeds `root -> this` and adds every named DESCENDANT, so a model whose root holds
+one named part above the rest resolves a channel at that part's own name - and the geometry flow
+dissolves exactly such a part into the bones below it, leaving the name spelled nowhere a bone lookup
+reaches. **`ClipKit` answers it as the container, read off the mesh rather than carried beside it**:
+the flow leaves every bone that hung from the container naming it as a PARENT, so a dangling parent
+reference IS a flattened container, which is `PoseKit.isTopLevel`'s own test asked of the parent
+instead of the child. It is an answer rather than a guess only while one such name exists per mesh -
+exactly one of the shipped geometries carries a dangling parent and none carries two - and
+`ClipKitContainerTest` holds the corpus to that, a second meaning a surgery dropped an intermediate
+bone and left its children pointing at it.
+
+- **Only a dangling PARENT is a container; an absent bone is still absent.** Three of the four models
+  whose clips name a bone their mesh does not declare are not this and stay passed over: an
+  armadillo's `cube` is its shell body and a frog's `croaking_body` its croak sac, both flag-only
+  bones the mesh drops because nothing can draw them.
+- **It was silent, and only a clip could reach it.** The breeze's slide shoves its body six model
+  pixels and the reference had that shove where the render did not, which reads as a canvas
+  disagreement rather than a dropped channel - widths and x offsets agreeing on all eight frames
+  while the two contents grew and shrank apart. Worth `82.3441` of walk delta against `0.01` with the
+  channel landing.
+
 **A shipped pose names no figure the frame does not answer, and the frame answers a declared
 roster.** `PoseKit.frameAt` is the one place a figure is answered, and outside that roster everything
 rests: elapsed age is the tick, and a field nobody drives reads zero. Everything a subject standing
@@ -644,11 +666,33 @@ they share is only that the frame resolves both by render-state field name.
   match wins, and it answered `IN_AIR` for the empty string. Passing the resting members over makes
   that token unreachable rather than merely unasked for.
 - **A group carries a resting member only where vanilla has a resting arm.** An axolotl's `IN_AIR` is
-  one of its own enum's members, a dolphin's `STILL` is the false arm of a boolean, and the two clip
+  one of its own enum's members, a dolphin's `STILL` is the false arm of a boolean, and the clip
   groups rest on a stopped `AnimationState` - which is a boolean too, `isStarted()` being
-  `startTick != Integer.MIN_VALUE`, and is the arm the subject spends most of its life in. **The bat
-  has none**: its own `setupAnimationStates` stops one of its two states to start the other every
-  tick, so a member for neither would be a coinage, and a still bat is not selectable.
+  `startTick != Integer.MIN_VALUE`, and is the arm the subject spends most of its life in. **Two have
+  none.** A bat's own `setupAnimationStates` stops one of its two states to start the other every
+  tick, so a bat is on the wing or hanging and never neither; a breeze's whirl is started
+  unconditionally - `Breeze.tick` runs `idle.startIfStopped` before the pose switch and regardless of
+  which arm it takes - so its group has one member and nothing to select against. A member for either
+  absence would be a coinage, and neither still subject is selectable.
+- **A group is a selector rather than a subject, and a shared field name merges two.** `IDLE_CLIP` is
+  a camel's idle and a copper golem's; `ACTION_CLIP` is a warden's, a creaking's and a sniffer's,
+  because the first pair spell an attack `attackAnimationState` and the second spell a dig
+  `diggingAnimationState`. A field name is the whole of what the frame is asked, so splitting those
+  per subject would make `IdleState.ofField` a first match rather than an answer.
+- **A gait reaches the DEFAULT of a group, and only where the subject's locomotion IS a state-gated
+  clip.** `Group.selected(boolean)` answers a different member under a stride for `RABBIT` and
+  `BREEZE_POSE` alone: a rabbit travels by hopping and a breeze by sliding, and neither carries a
+  walk-gated clip at all, so a walking render left at the resting arm swings the legs of a subject
+  vanilla draws in a clip. Every other group answers the same member either way, because what a stride
+  reaches for those subjects is a walk-gated clip that already plays - a camel's dash is a synched
+  flag a rider sets and an armadillo's roll is fear, and selecting either under `WALK` would animate
+  something vanilla does not do when the animal merely walks. **Reading a subject's delta between the
+  two gaits rather than its gates is what makes those look like locomotion.**
+- **Two states vanilla drives are left off the roster for a mechanism reason**, and both are named
+  where the group that would have held them is declared. A frog's `croakAnimationState` decides
+  whether the croaking body is DRAWN and a flag folds to a literal at generation, so a driven croak is
+  one the fold cannot settle and a subject the flow refuses. A baby axolotl's `walkAnimationState`
+  gates a walk-driven play site the fold settles and drops, so driving it puts that site back.
 - **Three builds answer from the same numbers and none can name another's type**, so
   `IdleFigureMirrorTest` compares all three as text. The harness declares its copy in `IdleFigures`,
   where a value that moved on one side only renders happily and reports as a defect in this renderer.

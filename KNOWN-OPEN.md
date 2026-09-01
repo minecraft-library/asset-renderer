@@ -10,57 +10,39 @@ it, and in the `reason` recorded with the baseline it moved.
 
 Delete an entry when it closes.
 
-## Most of the clip tables are dead offline, and the live tail is why they have not been shed
+## A driven flag channel has no symbolic form, so one clip gate stays unreachable
 
-Of `entity_poses.json`'s seventy-four clip tables, fifty-seven are reachable only through `state`
-gates and six more are named by no play site at all. Together they are roughly 300 KB of the member's
-359, parsed into records on every boot.
+Every render-state field the pose walk keeps symbolic arrives at render as a number, which is what
+let the animation states onto the driven roster without a second mechanism. A bone's VISIBILITY does
+not: every flag folds to a literal where the table is written, and there is no channel for one the
+fold cannot settle.
 
-**Seven of the fifty-seven now play.** A state-gated site names the render-state field its gate reads,
-and a caller selects one member of each group, so `ClipKit` plays the site whose gate the selection
-answers - `BAT_FLYING`, `CAMEL_IDLE`, `CAMEL_BABY_IDLE`, `COPPER_GOLEM_IDLE` and both rabbits'
-`IDLE_HEAD_TILT` at the default selection, and `BAT_RESTING` for a caller who asks for it. **Fifty
-are still dead offline**, their states being ones no roster makes selectable; with the six a play
-site no longer names, a shed would be about fifty-six.
+`FrogModel.setupAnim` reads `croakAnimationState.isStarted()` to decide whether the croaking body is
+drawn at all, so it is the one clip gate the roster cannot carry - driving it leaves the generator a
+flag with no literal, and the flow refuses the subject rather than shipping a guess. Every other clip
+table in the corpus is selectable.
 
-They stay because the tail is not dead the same way: twelve of the fifty are locomotion clips vanilla
-fires when the subject actually moves - the axolotl's swim and underwater walk, both rabbits' hop,
-both camels' dash, the breeze's slide, the armadillo's roll.
+Whoever takes it is choosing between two things. A symbolic flag channel is a shipped-table shape, a
+loader arm and a render-time read of a channel that is documented today as read by nothing, which is
+a wider change than one croak is worth on its own. Leaving it is cheap and stays correct; what it
+costs is that the roster's claim to carry vanilla's own selectors has exactly one exception, and an
+exception nobody has written a reason for reads as an oversight to the next person.
 
-**WALK has a reference set, and it did not make those twelve measurable.** Vanilla's own `walk/`
-references are byte-identical to its `animation/` references on all eight frames for `axolotl_lucy`,
-`rabbit_brown` and `breeze` - 29 of the 90 subjects are identical between the two gaits, and those
-three are among them. So the walking client starts none of those animation states either, and a
-selector on this side alone would animate a subject vanilla holds still, which is a regression rather
-than coverage. What the twelve wait on is the harness after all: an arm per state, and the reference
-re-render a harness change owes.
+## The posed sweeps render one appearance per entity, so a baby's clips are selectable and ungated
 
-**The armadillo and the two camels look like counter-evidence and are not.** Their references do
-differ between the gaits, because each carries a second clip a `walk` gate reaches - `ARMADILLO_WALK`,
-`CAMEL_WALK` - which the stride starts and which plays today. Ten tables are reached by a walk gate
-and every one of them plays; the twelve are reached by a `state` gate alone. Which gate a site
-carries is what decides whether a gait reaches its clip, and reading a subject's delta rather than
-its gates hides that.
+`animation/` and `walk/` enumerate 90 subjects, one per entity and every one an adult, where the
+still `entities/` sweep holds 402 including babies and equipment variants. So the clips on a baby
+mesh - every `SniffletModel` site, and the baby armadillo's, rabbit's, camel's and axolotl's - are
+reachable by a caller and compared against nothing.
 
-The mechanism is not the missing part either. `IdleFigures.play` starts one animation state where its
-own member is the selected one and stops it otherwise, and four mixins drive it already, so an arm is
-a roster line on both sides and a three-line mixin in the harness. Shedding now would still be
-re-adding then. The bat's flight was the thirteenth and is off that list: it is an idle animation
-rather than a locomotion one, and it plays today.
+That is not a gap in the roster, which carries them, nor in the renderer, which draws them. It is
+what the reference set enumerates. Widening `EntityAnimationSweep` would gate them, and the cost is
+the obvious one: the two posed sub-trees are 720 references each today, against an enumeration of 402
+subjects rather than 90.
 
-**Five sites left this member for the opposite reason** - a walk-driven clip behind a branch a
-resting subject decides against, which the fold now settles and drops rather than shipping. Those are
-gone from the table rather than dead in it, and four of the six tables a play site no longer names
-are theirs.
-
-Whoever takes it inherits three constraints. The loader throws on a play site naming a table the
-file does not carry, so sites and tables move together. A prior decision binds the two unread flag
-channels and the three defaults tables - which the emitter still writes and nothing reads - to
-whatever commit sheds the clips. And `EntityPoseLoadTest` pins the turtle's egg-belly bone through
-a channel map the flag shed empties, so its pins move with the emitter. Closing it is either an arm
-per locomotion state on the harness side - which makes the twelve measurable and lets the genuinely
-dead rest shed behind them - or an owner ruling that the offline renderer never plays a state-driven
-clip.
+Whoever takes it should decide what the posed sweeps are FOR before widening them. Every appearance
+is not obviously the answer - a collar colour changes no pose - where every distinct MESH plainly is,
+and that is a much smaller widening than the appearance count suggests.
 
 ## The pose presets and the animation knobs are one question answered in four places
 
