@@ -5,11 +5,10 @@
   "key": "subject",
   "kind": "sweep-table",
   "provenance": {
-    "allow_dirty": true,
     "artifact": "sweep.entity-walk",
-    "asset_content_digest": "2282b1f032dfcfc6c0524b10be4d54073ba78211fcb1fb1f195e08a7ce2266f8",
+    "asset_content_digest": "c279785b4bff98f88d5b176ac3597c70768b1b9d65e961ae2ceeee5824b2ca3e",
     "asset_dirty": true,
-    "asset_sha": "4699a82be11fd94e8647020073d11d8decc9b151",
+    "asset_sha": "9d479358489791723d9805105f9c5f5c6f1c26c8",
     "counts": {
       "failed": 0,
       "rows": 90
@@ -17,9 +16,10 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
+    "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "moving",
     "producer": "entityWalkParityVanilla",
-    "reason": "Coins the walk sweep as a gate. The 38 subjects whose every animation rides a stride hold still on BOTH sides of the animation sweep, so no artifact could report one of them posed wrongly; this row is the only gate over them, and PoseMode.ANIMATED renders them through it. Rows reproduce bit-identically across two capture roots - only timestamp and wall_time_ms differ - so the declared floor of 2 is measured rather than assumed.",
+    "reason": "Arms every clip table as a selection, and lets a stride reach the two clips that ARE a subject's locomotion. The breeze whirls because Breeze.tick starts idle unconditionally, so its references were the frame vanilla draws only before a first tick: animation 0.1317 -> 0.0061. Its walk row carries that plus the slide, and the slide exposed a dropped channel - ClipKit knew the container under one spelling where the mesh had flattened a named part - which is 82.3441 unfixed and 0.0087 with it landing. The rabbit hops under a stride, having no walk-gated clip at all, and its walk row moves 0.0529 -> 0.0794 measuring an animal in motion rather than one held still. The pose table's two declared-rest keys were ordered by a Map.of salt that flapped per JVM launch and are now insertion-ordered, verified over three separate launches.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -28,10 +28,10 @@
       "items": 479,
       "players": 2
     },
-    "reference_manifest_digest": "5712ea935c03943d942661a6e5df6cbba3df77b188b41d3117b68fe7e36d14e2",
-    "timestamp": "2026-08-31T08:28:10Z",
+    "reference_manifest_digest": "ff2285e70d8bd48daa637d92ea6840ac090fe8f5a36f2ec1cb07b72e32dfbb4d",
+    "timestamp": "2026-09-01T00:13:31Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 21889
+    "wall_time_ms": 19105
   },
   "rows": [
     {
@@ -139,17 +139,17 @@
       "worst_frame": "7"
     },
     {
-      "frame_spread": "0.0025",
+      "frame_spread": "0.0181",
       "frames": "8",
       "java_h": "462",
-      "java_w": "408",
-      "mean_argb_delta": "0.1317",
+      "java_w": "462",
+      "mean_argb_delta": "0.0087",
       "status": "ok",
       "subject": "minecraft__breeze",
       "vanilla_h": "462",
-      "vanilla_w": "408",
-      "worst_delta": "0.1330",
-      "worst_frame": "6"
+      "vanilla_w": "462",
+      "worst_delta": "0.0195",
+      "worst_frame": "5"
     },
     {
       "frame_spread": "0.0534",
@@ -763,17 +763,17 @@
       "worst_frame": "3"
     },
     {
-      "frame_spread": "0.0602",
+      "frame_spread": "0.0350",
       "frames": "8",
-      "java_h": "376",
-      "java_w": "264",
-      "mean_argb_delta": "0.0529",
+      "java_h": "326",
+      "java_w": "300",
+      "mean_argb_delta": "0.0794",
       "status": "ok",
       "subject": "minecraft__rabbit_brown",
-      "vanilla_h": "376",
-      "vanilla_w": "264",
-      "worst_delta": "0.0791",
-      "worst_frame": "1"
+      "vanilla_h": "326",
+      "vanilla_w": "300",
+      "worst_delta": "0.0972",
+      "worst_frame": "0"
     },
     {
       "frame_spread": "0.4167",
@@ -1216,6 +1216,6 @@
     },
     "failed": 0,
     "rows": 90,
-    "sum": "3.2513"
+    "sum": "3.1548"
   }
 }

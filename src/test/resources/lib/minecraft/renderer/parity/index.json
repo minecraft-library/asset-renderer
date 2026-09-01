@@ -19,8 +19,8 @@
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
       "last_duration_ms": 10310,
-      "promoted_at": "025f72321fc90222aaa51470122ccd3e3eb75d54",
-      "sha256": "68653d8b0ad9f2b7fe690946c88949749a8f8236bf23cfc1131ec0069591c929"
+      "promoted_at": "9d479358489791723d9805105f9c5f5c6f1c26c8",
+      "sha256": "21d1a14dc3beed7c5619cf8c1323800d13a9e314a3de49acbcb7843744fc8e88"
     },
     "manifest.dump.packs": {
       "baselined": true,
@@ -88,9 +88,9 @@
       "entries": 3762,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 139919,
-      "promoted_at": "79547e95e32c77c0b28a3a5bfcc3224af3712de1",
-      "sha256": "bd0083333b614b8a00edf7ceed849cb4f2fadfa777615a6b71b8f1464c2ebd99"
+      "last_duration_ms": 67763,
+      "promoted_at": "9d479358489791723d9805105f9c5f5c6f1c26c8",
+      "sha256": "cded4cad5acc6d998dbb4b792ff72e8f146fa9aa248e29dff496d7886674ca8f"
     },
     "manifest.tooling-tables": {
       "baselined": true,
@@ -98,9 +98,9 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 43262,
-      "promoted_at": "025f72321fc90222aaa51470122ccd3e3eb75d54",
-      "sha256": "581abba3b9da56be5b23936fdde2ab200666b1492611f19939e6468b738dbbbb"
+      "last_duration_ms": 42966,
+      "promoted_at": "9d479358489791723d9805105f9c5f5c6f1c26c8",
+      "sha256": "ffa7e1593b0f0776c75c84bf640a134774cbd7353f0e61fe8a74a5a18dae98c7"
     },
     "manifest.visual": {
       "baselined": true,
@@ -233,10 +233,10 @@
       "entries": 90,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 20737,
-      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
-      "sha256": "e148dd19a182a97a0aa9f0eb6af89e51c4ae43580cf4be7fa5eb4afc46dcf542",
-      "sum": "2.2489"
+      "last_duration_ms": 18796,
+      "promoted_at": "9d479358489791723d9805105f9c5f5c6f1c26c8",
+      "sha256": "8b68ddbcbe039c9ab018458760777f9ca8fa59f2eb25502a588a7387614fe262",
+      "sum": "2.1233"
     },
     "sweep.entity-walk": {
       "baselined": true,
@@ -244,10 +244,10 @@
       "entries": 90,
       "file": "sweeps/entity-walk.json",
       "kind": "sweep-table",
-      "last_duration_ms": 21889,
-      "promoted_at": "4699a82be11fd94e8647020073d11d8decc9b151",
-      "sha256": "44510169b8cc3622488e7608777ee2ccd374db3bee73d5deefe85e707d56d2e9",
-      "sum": "3.2513"
+      "last_duration_ms": 19105,
+      "promoted_at": "9d479358489791723d9805105f9c5f5c6f1c26c8",
+      "sha256": "abd89661ef7d08a9e49e1fdaafa1c2a746c31932fca0e0647e2c494042da998c",
+      "sum": "3.1548"
     },
     "sweep.glint": {
       "baselined": true,

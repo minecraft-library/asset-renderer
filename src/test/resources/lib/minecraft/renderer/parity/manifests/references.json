@@ -260,35 +260,35 @@
     },
     {
       "path": "animation/minecraft__breeze/frame_000.png",
-      "sha256": "8fb2c14a6ee38a6d42426c1bfd2fbdb0f294ed66a8b07ca3dedd311b6f1f68b6"
+      "sha256": "2f93863d7fe8eeea82f7e4700a632053adba48ad2903edc2d2e4eeb1e16298b3"
     },
     {
       "path": "animation/minecraft__breeze/frame_001.png",
-      "sha256": "109bf30590fe9ebc76a0a5b985bc3f8374b915d499ad141244bfff4145ad62df"
+      "sha256": "380fc0d1c588bf0a9d07b0dbcb7e4325a47a78c06eb9b9b1008fb3b01c80d991"
     },
     {
       "path": "animation/minecraft__breeze/frame_002.png",
-      "sha256": "f45efadc7ada072684c91ed6b804558da90c627e83428760c69cfdd73860ce54"
+      "sha256": "e5e2e7cc7fcce309e56da8da4d2bc6ea7e415717493ac2d2b14734c2b26d3599"
     },
     {
       "path": "animation/minecraft__breeze/frame_003.png",
-      "sha256": "daf23ad3f1575ba94c7ad3619f5a6e09e429d47253dbfb59ddfb894400b37884"
+      "sha256": "b9f67c7dfb662aacd50888f69d8894de3b71c7e26e524465b9601b1748786296"
     },
     {
       "path": "animation/minecraft__breeze/frame_004.png",
-      "sha256": "18a46fa94af1bbd9511f2181f74744b43eabb7eea13a92aff1879321b8ad9f4e"
+      "sha256": "f818f28a45fce2a570a4d0bbf111f85548a0a11d8fb52a1045d3f2ce46382818"
     },
     {
       "path": "animation/minecraft__breeze/frame_005.png",
-      "sha256": "551c0b5314ee3c96f77025261e1b4e42dbebe5e940bdeeed59dcd01bee885986"
+      "sha256": "b1fe45f5d3f9de7ab443c4ba33ed9f15961707ee4de6d1bc56febddc76c86498"
     },
     {
       "path": "animation/minecraft__breeze/frame_006.png",
-      "sha256": "4b509b8b9c1fa781fe3cdd4bd67d816b69e76e4ffd562d465f0d55ee0076143b"
+      "sha256": "58eae06f1089c57e8f502c561c464752d16bbd92a8266c1bbb28dd09f1f70103"
     },
     {
       "path": "animation/minecraft__breeze/frame_007.png",
-      "sha256": "45ac0463486b883d6103221e1dcb684eff1b49d86620258cf2dc5e1796d31b10"
+      "sha256": "cb36158666248ae2bb9943b0d5b639dcf1aa8dd5d3f9fe318cdf8fb1ebe512d4"
     },
     {
       "path": "animation/minecraft__camel/frame_000.png",
@@ -12428,35 +12428,35 @@
     },
     {
       "path": "walk/minecraft__breeze/frame_000.png",
-      "sha256": "8fb2c14a6ee38a6d42426c1bfd2fbdb0f294ed66a8b07ca3dedd311b6f1f68b6"
+      "sha256": "11656da23349f3ab83df7024458d11b45ed018c0281164cdcc57eab09bbe49e0"
     },
     {
       "path": "walk/minecraft__breeze/frame_001.png",
-      "sha256": "109bf30590fe9ebc76a0a5b985bc3f8374b915d499ad141244bfff4145ad62df"
+      "sha256": "1cf826eb75b9a3cc50c6fa535f940634c8245626f8eb0c025798ca04134d2972"
     },
     {
       "path": "walk/minecraft__breeze/frame_002.png",
-      "sha256": "f45efadc7ada072684c91ed6b804558da90c627e83428760c69cfdd73860ce54"
+      "sha256": "9565bb231a71d3940a1890dedd018ac4aa40cde6bb8791255a06e96d1b1a735f"
     },
     {
       "path": "walk/minecraft__breeze/frame_003.png",
-      "sha256": "daf23ad3f1575ba94c7ad3619f5a6e09e429d47253dbfb59ddfb894400b37884"
+      "sha256": "ac817e292692b34d5a1d6e39ce6c6ab6f154e82fb0f3db79c4d8d006a3999413"
     },
     {
       "path": "walk/minecraft__breeze/frame_004.png",
-      "sha256": "18a46fa94af1bbd9511f2181f74744b43eabb7eea13a92aff1879321b8ad9f4e"
+      "sha256": "c88cbcb56170bc5decde45409bc722cbaddfb039f718e00fae0446e9fa3b0bac"
     },
     {
       "path": "walk/minecraft__breeze/frame_005.png",
-      "sha256": "551c0b5314ee3c96f77025261e1b4e42dbebe5e940bdeeed59dcd01bee885986"
+      "sha256": "29759df0fc784b34c12256fc12fbaf126e0441c73a0a2e6d7fb727c93b2d90ca"
     },
     {
       "path": "walk/minecraft__breeze/frame_006.png",
-      "sha256": "4b509b8b9c1fa781fe3cdd4bd67d816b69e76e4ffd562d465f0d55ee0076143b"
+      "sha256": "c1a9ce6866354facf9b926f600c3339cf04c2932a4b4aff9695c88a56531aa37"
     },
     {
       "path": "walk/minecraft__breeze/frame_007.png",
-      "sha256": "45ac0463486b883d6103221e1dcb684eff1b49d86620258cf2dc5e1796d31b10"
+      "sha256": "0e524c7efd9ecd0ad6a1992ec54a4cd186d3cb07ba0f549f7e35186bfd734ae0"
     },
     {
       "path": "walk/minecraft__camel/frame_000.png",
@@ -13964,35 +13964,35 @@
     },
     {
       "path": "walk/minecraft__rabbit_brown/frame_000.png",
-      "sha256": "864baed23cd22f8cee089270a4a30be6384c3b068d74678535c73a240dc2fff1"
+      "sha256": "f8d7c26c3e15985f0fc921e476a6cf27094d72f3bb10616a05c6c37d4bad1947"
     },
     {
       "path": "walk/minecraft__rabbit_brown/frame_001.png",
-      "sha256": "cbcbbc6cd5cb336648ec5bf7fc6991284b37ff8aaf4cb73b1069f87e5659ceba"
+      "sha256": "9c7998749d79ddce95bd9ba78cf188f151ac07a2e23569181697d7485cf20152"
     },
     {
       "path": "walk/minecraft__rabbit_brown/frame_002.png",
-      "sha256": "d9508b533d13337583107976b83bbc7f83bdd0751e9d9a01c715a395b205e1b8"
+      "sha256": "9c3f6adca4e97540eda3c8a6170a31a6e08f45637a0b1f99353326756ef43208"
     },
     {
       "path": "walk/minecraft__rabbit_brown/frame_003.png",
-      "sha256": "fe4541581ada6092d3a0c935c906cc8be4f1b747d011affeefa314d380703a9c"
+      "sha256": "7b77bbcd1d441e885ad1a3b8cdb2ffb45e756624c8a186da1de8ab3c30867d33"
     },
     {
       "path": "walk/minecraft__rabbit_brown/frame_004.png",
-      "sha256": "5b657a24904011e640bc13f1e3aa26777156373ea7d4832b9aee310878a8ec84"
+      "sha256": "de6608bc74190d7de6f09a37d1a2c95cde2eca0f6f80bab38f3410946cdc5c30"
     },
     {
       "path": "walk/minecraft__rabbit_brown/frame_005.png",
-      "sha256": "90e24f722461f8ed4b7b21f487a40f43e1e13d30475dcee0376ad17c1f32dd37"
+      "sha256": "f8d7c26c3e15985f0fc921e476a6cf27094d72f3bb10616a05c6c37d4bad1947"
     },
     {
       "path": "walk/minecraft__rabbit_brown/frame_006.png",
-      "sha256": "b4d5a17bc414c1c3b3ed5562c72efaf14214884d29813e1cfb8c7aca4012777f"
+      "sha256": "9c7998749d79ddce95bd9ba78cf188f151ac07a2e23569181697d7485cf20152"
     },
     {
       "path": "walk/minecraft__rabbit_brown/frame_007.png",
-      "sha256": "c1a7350374a7e7f7db55b15505c64b6695daeb585cf3c50c152758604f0135cf"
+      "sha256": "9c3f6adca4e97540eda3c8a6170a31a6e08f45637a0b1f99353326756ef43208"
     },
     {
       "path": "walk/minecraft__ravager/frame_000.png",
@@ -15056,20 +15056,19 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "96a5968518bed8563258a034d761a1ca1ff2089aad5f8e06e25faac763ade2b3",
+    "asset_content_digest": "c279785b4bff98f88d5b176ac3597c70768b1b9d65e961ae2ceeee5824b2ca3e",
     "asset_dirty": true,
-    "asset_sha": "79547e95e32c77c0b28a3a5bfcc3224af3712de1",
+    "asset_sha": "9d479358489791723d9805105f9c5f5c6f1c26c8",
     "counts": {
       "files": 3762
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "mode": "ANIMATION,EVERY,WALK",
+    "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "renderVanillaAllReferences",
-    "reason": "The canvas-group set this side derives from shared primary geometry and the family the harness declares are one set now, so a group member is measured in the pose the render draws like every other silhouette in its union. The whole reference tree re-rendered and 48 of 3762 files moved, all three piglins in animation/ and walk/ and nothing else - entities/ untouched, which is what says the unposed union was inert while every subject was measured at rest. manifest.references also takes in the walk/ sub-tree, 720 references entering it for the first time, and the seven witch frames the chosen id moved. digest.shipped-tables re-bases entity_poses.json, regenerated three times since that row was last promoted and licensed rather than fixed until now. skeleton 3.1786 to 0.1228 under a stride; no canvas in either animated table now differs from vanilla's.",
+    "reason": "Arms every clip table as a selection, and lets a stride reach the two clips that ARE a subject's locomotion. The breeze whirls because Breeze.tick starts idle unconditionally, so its references were the frame vanilla draws only before a first tick: animation 0.1317 -> 0.0061. Its walk row carries that plus the slide, and the slide exposed a dropped channel - ClipKit knew the container under one spelling where the mesh had flattened a named part - which is 82.3441 unfixed and 0.0087 with it landing. The rabbit hops under a stride, having no walk-gated clip at all, and its walk row moves 0.0529 -> 0.0794 measuring an animal in motion rather than one held still. The pose table's two declared-rest keys were ordered by a Map.of salt that flapped per JVM launch and are now insertion-ordered, verified over three separate launches.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -15079,8 +15078,8 @@
       "players": 2
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-08-30T02:11:12Z",
+    "timestamp": "2026-09-01T00:13:19Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 139919
+    "wall_time_ms": 67763
   }
 }
