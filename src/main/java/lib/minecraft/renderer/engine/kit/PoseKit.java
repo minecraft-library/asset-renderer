@@ -319,8 +319,10 @@ public final class PoseKit {
      * {@link EntityOptions.PoseMode#WALK} answers the two a stride is carried on: vanilla steps the
      * phase by the amplitude once a tick rather than deriving it from the clock, so the phase is the
      * tick times the amplitude and the two are one schedule.
+     *
+     * <p>Package-visible as the seam the oracle-equivalence test reads this classifier through.
      */
-    private static @NotNull ToDoubleFunction<String> frameAt(
+    static @NotNull ToDoubleFunction<String> frameAt(
         @NotNull EntityOptions.PoseMode mode, int tick, @NotNull AnimationOptions animation) {
 
         boolean walking = mode == EntityOptions.PoseMode.WALK;

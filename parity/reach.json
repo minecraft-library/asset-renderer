@@ -1680,7 +1680,15 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/pose/StyleCatalogMirrorTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/pose/StyleCatalogTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/asset/pose/StyleCohortTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -2574,6 +2582,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/kit/NineSliceKitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/kit/OracleEquivalenceTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -3806,6 +3818,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/pipeline/index/EntityRenderTransformJoinTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pipeline/index/EntitySelectJoinTest": {
       "artifacts": [],
       "source": "derived"
     },

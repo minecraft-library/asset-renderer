@@ -40,6 +40,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -105,7 +108,9 @@ public final class EntityIndexBuilder {
      * @param poses the pose of each model class, by the simple name a coordinate is headed with
      * @param renderTransforms the steps each renderer composes above its meshes, by renderer simple name
      * @return definitions keyed by namespaced entity id, in file order
-     * @throws PipelineException if an entity references a geometry coordinate absent from the geometry file
+     * @throws PipelineException if an entity references a geometry coordinate absent from the
+     *     geometry file, or plays a selection-driven clip on a field another family's style rows
+     *     drive while its own do not
      */
     public static @NotNull ConcurrentMap<String, Entity> assemble(
         @NotNull Map<String, EntityModelData> geometries,
@@ -115,13 +120,16 @@ public final class EntityIndexBuilder {
     ) {
         Map<String, RawModel> models = rawFile.models();
         if (models == null) return Concurrent.newMap();
-        return models.entrySet()
+        Set<String> corpusDriven = drivenFields(models);
+        ConcurrentMap<String, Entity> built = models.entrySet()
             .stream()
             .filter(entry -> entry.getValue() != null)
             .collect(Concurrent.toLinkedMap(
                 Map.Entry::getKey,
                 entry -> readDefinition(entry.getKey(), entry.getValue(), geometries, poses,
                     renderTransforms, rawFile.periodTicks())));
+        built.forEach((id, definition) -> validateSelectJoins(id, definition, corpusDriven));
+        return built;
     }
 
     // ------------------------------------------------------------------------------------
@@ -1349,6 +1357,95 @@ public final class EntityIndexBuilder {
             .orElseThrow(() -> new PipelineException(
                 "Entity '%s' style '%s' applies to '%s', which is not an age",
                 familyId, row.id(), row.age())));
+    }
+
+    // ------------------------------------------------------------------------------------
+    // select-join validation
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Every render-state field any family's style rows drive - the corpus-wide answered set the
+     * select-join validation reads.
+     *
+     * @param models the raw model catalog
+     * @return the union of every {@code drives} entry's field across every family's rows
+     */
+    private static @NotNull Set<String> drivenFields(@NotNull Map<String, RawModel> models) {
+        Set<String> out = new HashSet<>();
+        for (RawModel family : models.values()) {
+            if (family == null) continue;
+            for (RawStyleRow row : nullToEmpty(family.styles()))
+                for (RawDrive drive : nullToEmpty(row.drives()))
+                    if (drive.field() != null) out.add(drive.field());
+        }
+        return out;
+    }
+
+    /**
+     * Validates every selection-driven play site of the meshes one entity draws against the styles
+     * joined to it: a {@code select} site's field is either driven by one of the entity's own style
+     * rows, or driven by no family's rows at all.
+     *
+     * <p>The two arms are one rule about who answers the field. A field the entity's own rows drive
+     * has a style a caller selects to play the clip through. A field NO family's rows drive is a
+     * state vanilla never selects a distinct output for - the baby axolotl's locomotion clip sits
+     * behind {@code walkAnimationState}, which nothing drives, so the site rests and resting is the
+     * shipped answer. What is refused is the field in between: one some other family's rows drive
+     * while this entity's do not, which is a site wired to a selection its own catalog cannot reach
+     * - caught here, where the table is read, rather than surfacing as a clip that silently never
+     * plays.
+     *
+     * @param entityId the entity being validated, for the refusal
+     * @param definition the assembled row, every form of it walked
+     * @param corpusDriven every field any family's style rows drive
+     * @throws PipelineException if a select site names a field another family's style rows drive
+     *     and this entity's do not
+     */
+    private static void validateSelectJoins(
+        @NotNull String entityId, @NotNull Entity definition, @NotNull Set<String> corpusDriven) {
+
+        Set<String> own = new HashSet<>();
+        for (PoseStyle style : definition.styles().styles()) own.addAll(style.drivers().keySet());
+        validateForms(entityId, definition, own, corpusDriven,
+            Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    /**
+     * One form and every form derived from it - the coats, shapes and sizes an axis holds - each
+     * drawn mesh's pose validated once.
+     */
+    private static void validateForms(
+        @NotNull String entityId, @NotNull Entity form, @NotNull Set<String> own,
+        @NotNull Set<String> corpusDriven, @NotNull Set<Entity> walked) {
+
+        if (!walked.add(form)) return;
+        validateSites(entityId, form.pose(), own, corpusDriven);
+        for (OverlayLayer overlay : form.overlays())
+            validateSites(entityId, overlay.pose(), own, corpusDriven);
+        form.axes().babyPose().ifPresent(pose -> validateSites(entityId, pose, own, corpusDriven));
+        for (OverlayLayer overlay : form.axes().babyOverlays())
+            validateSites(entityId, overlay.pose(), own, corpusDriven);
+        for (Entity shape : form.axes().shape().options().values())
+            validateForms(entityId, shape, own, corpusDriven, walked);
+        for (Entity size : form.axes().size().options().values())
+            validateForms(entityId, size, own, corpusDriven, walked);
+        for (Entity coat : form.axes().variant().options().values())
+            validateForms(entityId, coat, own, corpusDriven, walked);
+    }
+
+    /** The select sites of one pose, each field checked against the two answering sets. */
+    private static void validateSites(
+        @NotNull String entityId, @NotNull EntityPose pose, @NotNull Set<String> own,
+        @NotNull Set<String> corpusDriven) {
+
+        for (EntityPose.Clip site : pose.clips()) {
+            if (site.drive() != MotionSource.SELECT) continue;
+            String field = site.field().orElse(null);
+            if (field == null || own.contains(field) || !corpusDriven.contains(field)) continue;
+            throw new PipelineException(
+                "Entity '%s' plays a clip selected on '%s', which no style row of it drives while another family's does",
+                entityId, field);
+        }
     }
 
     // ------------------------------------------------------------------------------------
