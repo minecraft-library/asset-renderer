@@ -83,7 +83,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
      * @param family the family root the canvas is shared across
      * @param cohort the group within that family whose silhouettes are comparable
      */
-    private record CanvasKey(EntityType<?> family, Appearance.Cohort cohort) {}
+    record CanvasKey(EntityType<?> family, Appearance.Cohort cohort) {}
 
     /**
      * One rendered entity - a type, optionally reconstructed from a variant payload.
@@ -111,7 +111,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         }
 
         /** The canvas group this subject is sized within. */
-        private CanvasKey canvasKey() {
+        CanvasKey canvasKey() {
             return new CanvasKey(EntityRoster.familyRoot(type), appearance.cohort());
         }
     }
@@ -131,7 +131,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
      * type's baby is, or a baby is enumerated for rendering against a canvas that was never measured -
      * which is a silently skipped reference rather than a loud failure.
      */
-    private static Optional<Subject> babyOf(SweepContext ctx, EntityType<?> type) {
+    static Optional<Subject> babyOf(SweepContext ctx, EntityType<?> type) {
         Subject baby = new Subject(type, defaultOf(type).appearance().asBaby(), defaultOf(type).qualifier());
         Entity probe = AppearanceApplier.build(ctx, type, Appearance.DEFAULT);
         if (probe == null || !AppearanceApplier.supportsBaby(probe)) return Optional.empty();

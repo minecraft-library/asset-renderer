@@ -42,13 +42,19 @@ import java.util.stream.IntStream;
  * {@code WALK} preset is compared against. Everything below is shared by both because nothing below
  * is a function of the gait: the subjects, the schedule, the canvas pre-pass and the naming.
  *
- * <p><b>One subject per entity, at its default appearance.</b> The still sweep enumerates coats,
- * babies and per-axis selections because those are what a texture, a mesh and an appearance gate
- * answer for; a pose answers for none of them. A pose belongs to the model class the renderer hands
- * the model, and every coat of a family shares one - so a second coat would render the same bones in
- * the same places under a different skin and say nothing about the table this sweep exists to
- * measure. The name each subject takes is the still sweep's own for that same appearance, so a strip
- * and the frame it is compared against are one spelling.
+ * <p><b>One subject per POSE, which is the adult and the baby and neither a coat nor a toggle.</b>
+ * The still sweep enumerates coats and per-axis selections because those are what a texture and an
+ * appearance gate answer for; a pose answers for neither. A pose belongs to the model class the
+ * renderer hands the model, and every coat of a family shares one - so a second coat would render
+ * the same bones in the same places under a different skin and say nothing about the table this
+ * sweep exists to measure.
+ *
+ * <p><b>A baby is the one appearance that fails that test.</b> It is a different model class for 39
+ * of the 41 that have one, so it is a different row of the pose table rather than the same row under
+ * another skin; and for the two that share their adult's class it is still a different mesh, so the
+ * same row lands on geometry of another size. Either way what it exercises is not what the adult
+ * exercised, which is the whole criterion. The name each subject takes is the still sweep's own for
+ * that same appearance, so a strip and the frame it is compared against are one spelling.
  *
  * <p><b>No bone is pinned.</b> {@link EntityRoster#bonePins} forces the flags vanilla writes from
  * {@code setupAnim} precisely because the still sweep does not run it; here it does, so the real
@@ -111,8 +117,8 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
 
     private final AnimatedEntityFrameRenderer frameRenderer = new AnimatedEntityFrameRenderer();
 
-    /** One canvas per family root, measured by {@link #prepare} across every member and every tick. */
-    private Map<EntityType<?>, Canvas> familyFits = Map.of();
+    /** One canvas per family COHORT, measured by {@link #prepare} across every member and tick. */
+    private Map<EntitySweep.CanvasKey, Canvas> familyFits = Map.of();
 
     /**
      * One frame of one subject.
@@ -157,8 +163,12 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
     public List<Frame> enumerate(SweepContext ctx) {
         List<Frame> frames = new ArrayList<>();
         for (EntityType<?> type : EntitySweep.selectTypes(ctx)) {
-            EntitySweep.Subject subject = EntitySweep.defaultOf(type);
-            for (int frame = 0; frame < FRAME_COUNT; frame++) frames.add(new Frame(subject, frame));
+            for (int frame = 0; frame < FRAME_COUNT; frame++)
+                frames.add(new Frame(EntitySweep.defaultOf(type), frame));
+            // A baby is the one appearance that is a different POSE rather than a different skin, so
+            // it is enumerated where the coats are not - see the class doc.
+            for (EntitySweep.Subject baby : EntitySweep.babyOf(ctx, type).stream().toList())
+                for (int frame = 0; frame < FRAME_COUNT; frame++) frames.add(new Frame(baby, frame));
         }
         LOG.info("EntityAnimationSweep built: {} frames over {} subjects ({} frames each, {} ticks apart)",
             frames.size(), frames.size() / FRAME_COUNT, FRAME_COUNT, TICKS_PER_FRAME);
@@ -181,26 +191,36 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
      */
     @Override
     public void prepare(SweepContext ctx, List<Frame> subjects) {
-        Map<EntityType<?>, Bounds> familyBounds = new LinkedHashMap<>();
+        Map<EntitySweep.CanvasKey, Bounds> familyBounds = new LinkedHashMap<>();
         long t0 = System.nanoTime();
         int measured = 0;
-        for (EntityType<?> type : EntitySweep.selectTypes(ctx))
+        for (EntityType<?> type : EntitySweep.selectTypes(ctx)) {
             for (EntitySweep.Subject member : EntitySweep.canvasMembers(ctx, type)) {
                 Bounds bounds = measure(ctx, member);
                 if (bounds == null) continue;
-                familyBounds.merge(EntityRoster.familyRoot(type), bounds, Bounds::union);
+                familyBounds.merge(member.canvasKey(), bounds, Bounds::union);
                 measured++;
             }
+            // Keyed apart from the adults for the reason the still sweep keys it apart: unioning a
+            // baby into its family grows every adult frame in it, and unioning an adult into the
+            // babies leaves every baby adrift in a frame sized for a body it is not drawn on.
+            for (EntitySweep.Subject baby : EntitySweep.babyOf(ctx, type).stream().toList()) {
+                Bounds bounds = measure(ctx, baby);
+                if (bounds == null) continue;
+                familyBounds.merge(baby.canvasKey(), bounds, Bounds::union);
+                measured++;
+            }
+        }
 
-        Map<EntityType<?>, Canvas> fits = new LinkedHashMap<>();
-        for (Map.Entry<EntityType<?>, Bounds> entry : familyBounds.entrySet())
+        Map<EntitySweep.CanvasKey, Canvas> fits = new LinkedHashMap<>();
+        for (Map.Entry<EntitySweep.CanvasKey, Bounds> entry : familyBounds.entrySet())
             fits.put(entry.getKey(), EntitySweep.canvasFitting(entry.getValue()));
         familyFits = Map.copyOf(fits);
-        LOG.info("EntityAnimationSweep: canvas pre-pass measured {} subjects in {} families ({} ms)",
+        LOG.info("EntityAnimationSweep: canvas pre-pass measured {} subjects in {} cohorts ({} ms)",
             measured, fits.size(), (System.nanoTime() - t0) / 1_000_000L);
         fits.entrySet().stream()
-            .map(fit -> String.format("  fit %s -> %dx%d @ %.6f (%.6f, %.6f)",
-                EntityType.getKey(fit.getKey()),
+            .map(fit -> String.format("  fit %s/%s -> %dx%d @ %.6f (%.6f, %.6f)",
+                EntityType.getKey(fit.getKey().family()), fit.getKey().cohort(),
                 fit.getValue().width(), fit.getValue().height(),
                 fit.getValue().fit().orElseThrow().scale(),
                 fit.getValue().fit().orElseThrow().anchorX(),
@@ -239,7 +259,7 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
 
     @Override
     public Canvas canvas(SweepContext ctx, Frame subject) {
-        return familyFits.get(EntityRoster.familyRoot(subject.subject().type()));
+        return familyFits.get(subject.subject().canvasKey());
     }
 
     @Override
