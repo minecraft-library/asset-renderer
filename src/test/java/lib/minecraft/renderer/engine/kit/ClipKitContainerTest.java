@@ -51,6 +51,12 @@ class ClipKitContainerTest {
     /** What that keyframe shoves the body by, in model pixels, straight off the clip table. */
     private static final float SLIDE_BODY_SHOVE = -6f;
 
+    /** The bone a frog's croak both draws and moves, which no other clip in the corpus does. */
+    private static final @NotNull String CROAK_BONE = "croaking_body";
+
+    /** A tick inside the croak's three-second run, so the sac is somewhere off its resting size. */
+    private static final int CROAK_MID_TICK = 20;
+
     private static ConcurrentMap<String, Entity> entities;
 
     @BeforeAll
@@ -107,6 +113,36 @@ class ClipKitContainerTest {
                 + "belongs to the container and not to nothing");
         assertEquals(SLIDE_BODY_SHOVE, displaced.container().get(PoseChannel.Z), 0f,
             "and it shoves the container the whole authored amount along z");
+    }
+
+    @Test
+    @DisplayName("a clip whose own state also draws its bone reaches a bone the mesh kept")
+    void aClipThatDrawsItsBoneReachesIt() {
+        // The frog's croak is the corpus's one: FrogModel writes croakingBody.visible from the same
+        // state the clip is gated on, and the clip writes that bone and nothing else. So the two
+        // halves are inseparable - a mesh that dropped the sac would leave the clip displacing
+        // nothing, which is what it did until the generator read `isStarted()` as a gate.
+        //
+        // The sac is kept and rests hidden, carrying the toggle a caller flips. It also rests INSIDE
+        // the body at `grow: -0.1`, so what makes it visible is this displacement rather than the
+        // toggle alone - which is the whole reason the clip has to reach it.
+        Entity frog = subject("minecraft:frog");
+        EntityModelData mesh = frog.model();
+        EntityModelData.Bone sac = mesh.getBones().get(CROAK_BONE);
+        assertNotNull(sac, "the mesh is expected to keep the sac the croak draws");
+        assertFalse(sac.isVisible(), "and to rest it hidden, which is a frog no croak has started");
+
+        assertTrue(ClipKit.deltas(frog.pose(), mesh, field -> 0d).of(CROAK_BONE).isEmpty(),
+            "a frog nothing has croaked displaces the sac by nothing");
+
+        ClipKit.Displacement croaking = ClipKit.deltas(frog.pose(), mesh,
+            field -> switch (field) {
+                case "croakAnimationState" -> 1d;
+                case "ageInTicks" -> CROAK_MID_TICK;
+                default -> 0d;
+            });
+        assertFalse(croaking.of(CROAK_BONE).isEmpty(),
+            "and one mid-croak displaces it, which is the clip reaching the bone its own gate draws");
     }
 
     @Test

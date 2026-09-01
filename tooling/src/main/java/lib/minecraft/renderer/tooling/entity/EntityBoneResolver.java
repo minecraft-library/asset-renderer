@@ -50,6 +50,9 @@ import java.util.stream.Collectors;
  */
 final class EntityBoneResolver {
 
+    /** What vanilla suffixes an animation state's field with, which names the type and not the clip. */
+    private static final @NotNull String ANIMATION_STATE_SUFFIX = "AnimationState";
+
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
     private final @Nullable EntityGeometryRefResolver geometryRef;
@@ -246,10 +249,51 @@ final class EntityBoneResolver {
         AbstractInsnNode valueInsn = AsmWalker.previousReal(in);
         if (valueInsn == null) return null;
         BooleanStores.BooleanStore value = BooleanStores.decodeBooleanStore(valueInsn);
+        if (value == null) value = decodeStartedGate(valueInsn);
         if (value == null) return null;
         AbstractInsnNode target = AsmWalker.previousReal(value.valueStart());
         if (target == null) return null;
         return new VisibleWrite(target, value);
+    }
+
+    /**
+     * The gate {@code BooleanStores} has no arm for - a bone drawn while an animation state runs.
+     *
+     * <p>{@code decodeBooleanStore} reads a boolean by DESCRIPTOR, so it answers for a {@code :Z}
+     * field and for {@code javac}'s compiled negation of one and for nothing else. An animation
+     * state is a boolean of a different shape: the field is an {@code AnimationState} and the
+     * boolean is what {@code isStarted()} answers about it, which is the same question asked one
+     * call further out. Decoded HERE rather than widened into the shared reader, because that reader
+     * is sealed over two arms and every consumer switches on them, where this is one flow's gate.
+     *
+     * <p>Answered as a {@code POSITIVE} store over the STATE field, which is what makes the rest of
+     * {@link #collectGates} work unchanged: the toggle is named off that field, the receiver is the
+     * render state the gate is read from, and the value start is that receiver - so the bone the
+     * write targets is found by the same step back that a plain field gate uses.
+     *
+     * <p><b>The frog is the only model in the corpus that writes a visibility this way</b>, and the
+     * other two that call {@code isStarted} branch on it rather than storing it, so widening the
+     * decode reaches one bone. Its croaking body is drawn only while the croak runs, which makes
+     * that bone a selection rather than one nothing can draw.
+     *
+     * @param valueInsn the value-producing instruction immediately before the visibility store
+     * @return the gate read as a store over the animation-state field, or {@code null}
+     */
+    private static BooleanStores.@Nullable FieldStore decodeStartedGate(@NotNull AbstractInsnNode valueInsn) {
+        if (valueInsn.getOpcode() != Opcodes.INVOKEVIRTUAL
+            || !(valueInsn instanceof MethodInsnNode call)
+            || !VanillaSourceClasses.Types.ANIMATION_STATE.equals(call.owner)
+            || !VanillaSourceClasses.Methods.IS_STARTED.equals(call.name)
+            || !"()Z".equals(call.desc)) return null;
+
+        AbstractInsnNode stateInsn = AsmWalker.previousReal(valueInsn);
+        if (stateInsn == null
+            || stateInsn.getOpcode() != Opcodes.GETFIELD
+            || !(stateInsn instanceof FieldInsnNode state)) return null;
+        AbstractInsnNode receiver = AsmWalker.previousReal(stateInsn);
+        if (receiver == null) return null;
+        return new BooleanStores.FieldStore(
+            state, receiver, BooleanStores.Polarity.POSITIVE, false, receiver);
     }
 
     /**
@@ -258,8 +302,14 @@ final class EntityBoneResolver {
      * element of a {@code ModelPart[]} field groups the whole array under its flag; a positive
      * gate on a {@code getChild(LDC)} target records the bone name (goat horns); a
      * negated-branch gate ({@code visible = !state.<flag>}, bogged) groups with the
-     * branch-polarity default. The flag must be a non-model-owned {@code :Z} field read off
-     * a non-{@code this} load - detected by descriptor, not by name prefix.
+     * branch-polarity default. The flag must be a non-model-owned field read off a non-{@code this}
+     * load - detected by descriptor, not by name prefix.
+     *
+     * <p>Two descriptors answer, and the second is one call further out: a {@code :Z} field is the
+     * boolean itself, and an {@code AnimationState} field is one that {@code isStarted()} asks the
+     * same question of. {@link #decodeStartedGate} reads the second as a store over the state field,
+     * so a bone drawn while a clip runs is a toggle on the same terms a bone drawn while a flag is
+     * set is.
      */
     private static void collectGates(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull HierarchyScan scan) {
         Map<Integer, String> arrayElements = partArrayElementLocals(owner, method);
@@ -530,6 +580,11 @@ final class EntityBoneResolver {
             : flag.startsWith("is") ? flag.substring(2)
             : flag.startsWith("show") ? flag.substring(4)
             : flag;
+        // An animation state is named for the clip it runs and the type it is - `croakAnimationState`
+        // - where a toggle is named for what it draws. The suffix is the type half, so a toggle that
+        // kept it would read `croak_animation_state` beside `stinger`, `arms` and `horn`.
+        if (stem.endsWith(ANIMATION_STATE_SUFFIX) && stem.length() > ANIMATION_STATE_SUFFIX.length())
+            stem = stem.substring(0, stem.length() - ANIMATION_STATE_SUFFIX.length());
         return StringUtil.toSnakeCase(stem);
     }
 

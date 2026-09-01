@@ -12,14 +12,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Runs the action clip a frog's selection names, and stops the two beside it.
  *
- * <p>A frog nothing has ticked holds all three stopped, which is the group's resting arm and the
+ * <p>A frog nothing has ticked holds all four stopped, which is the group's resting arm and the
  * default here. Its walk is a separate walk-gated clip that plays under a stride already.
  *
- * <p><b>The croak is deliberately absent, and it is a generator constraint rather than an
- * oversight.</b> {@code FrogModel.setupAnim} reads {@code croakAnimationState.isStarted()} to decide
- * whether the croaking body is DRAWN at all - a bone's visibility, which folds to a literal where
- * the shipped table is written. Driving the state leaves that flag unsettleable and the pose flow
- * refuses the subject, so the croak waits on a symbolic flag channel that does not exist.
+ * <p><b>The croak DRAWS its bone as well as moving it, so it is half of a pair.</b>
+ * {@code FrogModel.setupAnim} writes {@code croakingBody.visible} from this same state, and the clip
+ * writes that bone and nothing else - so the sac exists only while the croak runs. The mesh rests it
+ * undrawn carrying a {@code croak} toggle, and a reference that wants the croak selects that
+ * appearance as well as this state, which is why {@code EntityRoster} names the toggle beside the
+ * stand's arms and the goat's horns.
  */
 @Mixin(FrogRenderer.class)
 public abstract class FrogIdleMixin {
@@ -34,5 +35,6 @@ public abstract class FrogIdleMixin {
         IdleFigures.play(selected, IdleFigures.State.JUMPING, state.jumpAnimationState);
         IdleFigures.play(selected, IdleFigures.State.TONGUING, state.tongueAnimationState);
         IdleFigures.play(selected, IdleFigures.State.SWIM_IDLING, state.swimIdleAnimationState);
+        IdleFigures.play(selected, IdleFigures.State.CROAKING, state.croakAnimationState);
     }
 }

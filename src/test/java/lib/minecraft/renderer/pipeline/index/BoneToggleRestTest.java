@@ -98,7 +98,15 @@ class BoneToggleRestTest {
         assertEquals(List.of(), restingHidden("minecraft:evoker"),
             "so it rests hiding nothing - what it rests without simply is not there");
 
-        assertFalse(hasBone("minecraft:frog", "croaking_body"), "a frog at rest is not mid-croak");
+        // A frog's croak sac is the third shape: drawn by nothing at rest, and asked for by a
+        // selection - so it is KEPT and hidden rather than dropped. Its gate is an animation state
+        // rather than a boolean field, which is the one place the two shapes are told apart, so it
+        // is here to catch a generator that stopped reading that gate and dropped the bone again.
+        assertTrue(hasBone("minecraft:frog", "croaking_body"),
+            "a frog keeps the sac a croak selection draws");
+        assertEquals(List.of("croaking_body"), restingHidden("minecraft:frog"),
+            "and rests it hidden, which is the frog no croak has been started on");
+
         assertEquals(List.of(), restingHidden("minecraft:goat"),
             "a goat rests with everything its toggles flip");
     }

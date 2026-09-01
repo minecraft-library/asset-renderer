@@ -351,7 +351,8 @@ public final class EntityRoster {
         EntityType.LLAMA, List.of("chest"),
         EntityType.TRADER_LLAMA, List.of("chest"),
         EntityType.GOAT, List.of("horn"),
-        EntityType.TURTLE, List.of("egg"));
+        EntityType.TURTLE, List.of("egg"),
+        EntityType.FROG, List.of("croak"));
 
     /**
      * The bones a subject's selections force, mapped to the visibility they force them to.
@@ -394,6 +395,9 @@ public final class EntityRoster {
             case "stinger" -> Map.of("stinger", false);
             case "chest" -> Map.of("left_chest", true, "right_chest", true);
             case "horn" -> Map.of("left_horn", false, "right_horn", false);
+            // A frog rests with the sac undrawn - its model draws it only while the croak state
+            // runs, and nothing has started one - so selecting it is the frog mid-croak.
+            case "croak" -> Map.of("croaking_body", true);
             case "egg" -> Map.of("egg_belly", true);
             default -> throw new IllegalArgumentException("No bone toggle named '" + toggle + "'");
         };

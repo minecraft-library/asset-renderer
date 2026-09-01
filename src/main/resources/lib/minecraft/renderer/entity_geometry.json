@@ -14467,6 +14467,35 @@
             }
           ]
         },
+        "croaking_body": {
+          "pivot": [
+            0.0,
+            -1.0,
+            -5.0
+          ],
+          "parent": "body",
+          "cubes": [
+            {
+              "origin": [
+                -3.5,
+                -0.1,
+                -2.9
+              ],
+              "size": [
+                7.0,
+                2.0,
+                3.0
+              ],
+              "uv": [
+                26,
+                5
+              ],
+              "grow": -0.1
+            }
+          ],
+          "visible": false,
+          "toggle": "croak"
+        },
         "tongue": {
           "pivot": [
             0.0,

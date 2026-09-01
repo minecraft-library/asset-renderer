@@ -346,10 +346,12 @@ class ReferenceCounts(unittest.TestCase):
     @unittest.skipUnless(REFERENCE_TREE is not None, "reference tree absent")
     def test_the_live_tree_counts_per_subtree(self):
         counts = provenance.reference_counts(REPO)
-        self.assertEqual(counts.get("entities"), 402)
+        # 403 since the frog gained a `croak` toggle: its model draws the sac only while the croak
+        # state runs, which the generator now reads as a gate rather than folding to "never drawn".
+        self.assertEqual(counts.get("entities"), 403)
         self.assertEqual(counts.get("armor"), 7)
         self.assertEqual(counts.get("players"), 2)
-        self.assertEqual(sum(counts.values()), 2311)
+        self.assertEqual(sum(counts.values()), 2312)
 
 
 if __name__ == "__main__":

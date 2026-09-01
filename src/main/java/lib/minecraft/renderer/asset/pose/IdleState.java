@@ -69,12 +69,15 @@ import java.util.Arrays;
  * name is the whole of what the frame is asked, so splitting those per subject would make
  * {@link #ofField} a first match rather than an answer.
  *
- * <p><b>Two states vanilla drives are deliberately absent, and both are absent for a mechanism
- * reason rather than an oversight.</b> A frog's {@code croakAnimationState} decides whether the
- * croaking body is DRAWN, and a bone's visibility folds to a literal where the table is written -
- * so driving it leaves the generator a flag it cannot settle. A baby axolotl's
- * {@code walkAnimationState} gates a walk-driven play site the fold settles and drops, so driving it
- * puts that site back. Both are named where the group that would have held them is declared.
+ * <p><b>One state vanilla drives is deliberately absent, for a mechanism reason rather than an
+ * oversight.</b> A baby axolotl's {@code walkAnimationState} gates a walk-driven play site the
+ * generator's fold settles and drops, so driving it would put that site back. It is named where the
+ * group that would have held it is declared.
+ *
+ * <p><b>A member whose state also DRAWS its bone is half of a pair.</b> {@link #CROAKING} is the
+ * corpus's one: the frog's sac is drawn only while the croak runs, so the mesh rests it undrawn
+ * carrying a toggle and a render that wants the croak selects the appearance as well as the state.
+ * Nothing here couples the two, because an appearance is resolved before any of these are.
  *
  * <p><b>Parity.</b> Read by the entity pose runtime alone, so an entity is the whole of what it
  * moves. A caller that selects other than the default has left the reference set behind, which is a
@@ -330,13 +333,19 @@ public enum IdleState {
     SWIM_IDLING(Group.FROG_ACTION, "swimIdleAnimationState"),
 
     /**
-     * A frog sitting on land doing none of those, which is what a fresh one holds.
+     * A frog croaking, which inflates the sac under its chin and is the one clip in the corpus that
+     * DRAWS a bone as well as moving it.
      *
-     * <p>The group's resting member. <b>The croak is deliberately not an arm of this group</b>: its
-     * model reads {@code croakAnimationState.isStarted()} to decide whether the croaking body is
-     * drawn at all, and a bone's visibility folds to a literal where the table is written, so a
-     * driven croak is a flag the generator cannot settle and a flow that refuses the subject.
+     * <p>{@code FrogModel.setupAnim} writes {@code croakingBody.visible} from this state, so the
+     * clip and the bone are inseparable - the clip writes that bone and nothing else, and the bone
+     * exists only while the clip runs. <b>Which is why selecting this alone is half an answer</b>:
+     * the mesh rests the sac undrawn carrying a {@code croak} toggle, so a render that wants the
+     * croak asks for that appearance as well. Two selections rather than one, on the same terms an
+     * armour stand's arms take.
      */
+    CROAKING(Group.FROG_ACTION, "croakAnimationState"),
+
+    /** A frog sitting on land doing none of those, which is what a fresh one holds. */
     FROG_RESTING(Group.FROG_ACTION, ""),
 
     /** A baby axolotl swimming, which its own swim state plays. */
@@ -477,7 +486,7 @@ public enum IdleState {
         /** Which container interaction a copper golem is playing, over its own four. */
         CHEST_INTERACTION,
 
-        /** Which action clip a frog is playing, over the three its model gates without a flag. */
+        /** Which action clip a frog is playing, over its own four. */
         FROG_ACTION,
 
         /** Which keyframe clip a baby axolotl is playing, its adult answering through factors. */

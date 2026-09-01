@@ -80,6 +80,19 @@ class IdleFigureMirrorTest {
     private static final Pattern DRIVEN =
         Pattern.compile("Set<String> DRIVEN = Set\\.of\\(([^;]*)\\);", Pattern.DOTALL);
 
+    /**
+     * The half of it the generator folds a FLAG against, which must be the scalar roster and no more.
+     *
+     * <p>A flag gated on a figure blinks with the clock and no toggle can carry it, so it stays
+     * symbolic and the flow refuses. A flag gated on a STATE is a bone a selection draws, so the
+     * generator settles it and the mesh's toggle carries the choice. Getting a field onto the wrong
+     * side of that line is silent both ways: a state listed here would refuse a subject the toggle
+     * could have carried, and a figure left off would settle a blink into whichever arm tick zero
+     * happens to take.
+     */
+    private static final Pattern DRIVEN_FIGURES =
+        Pattern.compile("Set<String> DRIVEN_FIGURES = Set\\.of\\(([^;]*)\\);", Pattern.DOTALL);
+
     /** One quoted member of it. */
     private static final Pattern QUOTED = Pattern.compile("\"(\\w+)\"");
 
@@ -234,6 +247,21 @@ class IdleFigureMirrorTest {
     }
 
     @Test
+    @DisplayName("the fields the generator folds a flag against are the scalars and nothing else")
+    void theFlagFreeSetIsTheScalarRoster() throws IOException {
+        Set<String> figures = new TreeSet<>(FRAME_FIGURES);
+        for (String line : constantsOf(ASSET_FIGURES, CONTINUOUS))
+            figures.add(fieldOf(CONTINUOUS, FIELD_OF_CONTINUOUS, line));
+
+        assertEquals(figures, new TreeSet<>(setOf(TOOLING, DRIVEN_FIGURES)),
+            "the generator folds a flag channel against this set and keeps every other driven field "
+                + "symbolic there, so it is the line between a bone a selection can draw and one "
+                + "that blinks with the clock. A one-hot state listed here would settle a flag the "
+                + "mesh's toggle was going to carry; a scalar left off would fold a blink into "
+                + "whichever arm tick zero happens to take, and neither says anything at render");
+    }
+
+    @Test
     @DisplayName("the stride the harness drives is the amplitude this renderer poses at")
     void theStrideAmplitudeIsOneAmplitude() throws IOException {
         assertEquals(amplitudeOf(ASSET_STRIDE), amplitudeOf(HARNESS_STRIDE),
@@ -290,13 +318,18 @@ class IdleFigureMirrorTest {
 
     /** Every member of the generator's driven set, read as text - it is another build's private. */
     private static Set<String> drivenOf(Path source) throws IOException {
-        Matcher declaration = DRIVEN.matcher(Files.readString(source));
+        return setOf(source, DRIVEN);
+    }
+
+    /** Every quoted member of one of the generator's declared sets, read as text. */
+    private static Set<String> setOf(Path source, Pattern shape) throws IOException {
+        Matcher declaration = shape.matcher(Files.readString(source));
         assertTrue(declaration.find(),
-            "no driven set matched in " + source + " - the pattern has drifted");
+            "no set matched " + shape.pattern() + " in " + source + " - the pattern has drifted");
         Set<String> members = new TreeSet<>();
         Matcher member = QUOTED.matcher(declaration.group(1));
         while (member.find()) members.add(member.group(1));
-        assertFalse(members.isEmpty(), "the generator's driven set read as empty");
+        assertFalse(members.isEmpty(), "the generator's set read as empty in " + source);
         return members;
     }
 

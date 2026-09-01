@@ -71,14 +71,16 @@ public final class PoseFlow {
      * a caller can select are named: one nobody can start folds to a subject nothing has ticked,
      * which is what it is.
      *
-     * <p><b>Two states a caller CAN select are still left off, and the other two of those three
-     * models are why.</b> {@code FrogModel} reads {@code croakAnimationState.isStarted()} to decide
-     * whether the croaking body is drawn, which is a FLAG - and every flag folds to a literal here,
-     * so a driven croak is one the fold cannot settle and a subject the flow refuses.
-     * {@code BabyAxolotlModel} reads {@code walkAnimationState.isStarted()} to gate a WALK-driven
-     * play site, so driving that state puts back a site the fold settles and drops. Both are named
-     * on the asset side's own roster where the group that would have held them is declared, so the
-     * two sides state one omission rather than disagreeing silently.
+     * <p><b>One state a caller CAN select is still left off, and one of those three models is
+     * why.</b> {@code BabyAxolotlModel} reads {@code walkAnimationState.isStarted()} to gate a
+     * WALK-driven play site, so driving that state puts back a site the fold settles and drops. It
+     * is named on the asset side's own roster where the group that would have held it is declared,
+     * so the two sides state one omission rather than disagreeing silently.
+     *
+     * <p>{@code FrogModel}'s croak reads the same way and IS here, because what its state gates is a
+     * FLAG and {@link #DRIVEN_FIGURES} is the line that lets one through: the fold settles a flag
+     * against the figures alone, so a bone gated on a selection resolves to the arm a resting
+     * subject stands in and the mesh's own toggle carries the choice.
      *
      * <p>A slime's squash is the one figure of this shape deliberately left off. Both its renderer
      * and a magma cube's read it in the per-renderer {@code scale} this side models nowhere, so
@@ -89,7 +91,7 @@ public final class PoseFlow {
         "tentacleAngle", "flapTime", "peekAmount",
         "inWaterFactor", "movingFactor", "onGroundFactor", "playingDeadFactor", "isMoving",
         "flyAnimationState", "restAnimationState", "idleAnimationState",
-        "idleHeadTiltAnimationState", "hopAnimationState",
+        "idleHeadTiltAnimationState", "hopAnimationState", "croakAnimationState",
         "rollUpAnimationState", "rollOutAnimationState", "peekAnimationState",
         "sitAnimationState", "sitPoseAnimationState", "sitUpAnimationState", "dashAnimationState",
         "idle", "slide", "slideBack", "inhale", "shoot", "longJump",
@@ -102,6 +104,26 @@ public final class PoseFlow {
         "sniffAnimationState", "emergeAnimationState", "sonicBoomAnimationState",
         "invulnerabilityAnimationState", "deathAnimationState", "sniffingAnimationState",
         "risingAnimationState", "feelingHappyAnimationState", "scentingAnimationState");
+
+    /**
+     * The half of {@link #DRIVEN} that is a FIGURE rather than a one-hot state, which is the free set
+     * a flag channel is folded against.
+     *
+     * <p><b>The distinction is what a bone's visibility could be carried BY.</b> A flag gated on a
+     * state is a bone a selection draws - the mesh keeps it, resting at the arm a never-ticked subject
+     * stands in and naming the toggle that flips it - so the fold settles the state and the toggle
+     * carries the choice. A flag gated on a FIGURE is a bone that blinks with the clock, and no
+     * toggle can say that, so it stays symbolic here and {@link #restingUndrawn} refuses it. Keeping
+     * both halves symbolic refused a frog whose croaking body is exactly the first case.
+     *
+     * <p>The membership is the asset side's own split, one roster each: the three the frame answers
+     * off the tick, plus every {@code IdleFigure}. Everything else in {@code DRIVEN} is an
+     * {@code IdleState}, and {@code IdleFigureMirrorTest} holds this set to that roster so a figure
+     * added on one side cannot arrive here as a state.
+     */
+    private static final @NotNull Set<String> DRIVEN_FIGURES = Set.of(
+        "ageInTicks", "walkAnimationPos", "walkAnimationSpeed",
+        "tentacleAngle", "flapTime", "peekAmount", "movingFactor");
 
     /**
      * What a render-state figure rests at where no constructor settles it and a zero would be wrong.
@@ -484,7 +506,7 @@ public final class PoseFlow {
                     distinct.get(frame).forEach(subject -> namePoser(models, subject, key));
                     out.put(key, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(),
                         standIn.get(frame), modelRest, modelAnswers, inputDefaults, DRIVEN,
-                        modelDerived)));
+                        DRIVEN_FIGURES, modelDerived)));
                 });
                 diagnostics.info("%s poses %d ways and each body names the one it takes: %s",
                     model, split.size(), new TreeSet<>(split.values()));
@@ -497,7 +519,7 @@ public final class PoseFlow {
             Map<String, String> subjectRest =
                 reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
             out.put(model, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(), subjectRest,
-                modelRest, modelAnswers, inputDefaults, DRIVEN, modelDerived)));
+                modelRest, modelAnswers, inputDefaults, DRIVEN, DRIVEN_FIGURES, modelDerived)));
             folded++;
         }
         diagnostics.info("folded %d of %d walked pose(s) against the frame their subjects rest in",
@@ -574,8 +596,8 @@ public final class PoseFlow {
             // what a state rebuilds from the clock is read by the models it hands them rather than
             // by the pose stack it builds first. A renderer that read one would want its own map.
             out.put(renderer, RenderTransform.of(renderer, transform.facingYaw(), PoseFold.fold(
-                program, subjectRest, Map.of(), Map.of(), inputDefaults, DRIVEN, Map.of())
-                .container()));
+                program, subjectRest, Map.of(), Map.of(), inputDefaults, DRIVEN, DRIVEN_FIGURES,
+                Map.of()).container()));
         }
         return out;
     }

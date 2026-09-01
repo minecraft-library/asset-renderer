@@ -134,7 +134,7 @@ public final class IdleFigures {
         /** Which container interaction a copper golem is playing, over its own four. */
         CHEST_INTERACTION,
 
-        /** Which action clip a frog is playing, over the three its model gates without a flag. */
+        /** Which action clip a frog is playing, over its own four. */
         FROG_ACTION,
 
         /** Which keyframe clip a baby axolotl is playing, its adult answering through factors. */
@@ -253,6 +253,8 @@ public final class IdleFigures {
         TONGUING(Group.FROG_ACTION, "tongueAnimationState"),
 
         SWIM_IDLING(Group.FROG_ACTION, "swimIdleAnimationState"),
+
+        CROAKING(Group.FROG_ACTION, "croakAnimationState"),
 
         FROG_RESTING(Group.FROG_ACTION, ""),
 

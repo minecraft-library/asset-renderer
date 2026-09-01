@@ -302,12 +302,12 @@ class PoseKitTest {
     }
 
     @Test
-    @DisplayName("the four subjects whose models write visibility with no toggle over them")
+    @DisplayName("the four subjects whose models write visibility outside every branch")
     void theFrameDrivenVisibilityWritersLandWhereVanillaPutsThem() {
-        // These four write visibility with nothing selecting it. Vanilla decides each of them
-        // outside every branch a still subject could take, so each has one right answer - resolved
-        // at generation into the tables' undrawn lists - and this is what says the render still
-        // lands where vanilla puts it, at every tick a pose is asked for.
+        // These four write visibility with nothing a still subject could branch on selecting it.
+        // Vanilla decides each outside every such branch, so each has one right answer - resolved at
+        // generation - and this is what says the render still lands where vanilla puts it, at every
+        // tick a pose is asked for.
         //
         // Three draw. FoxModel.setupAnim calls setWalkingPose - which sets all four legs visible -
         // before it tests anything, leaving only setSleepingPose behind an isSleeping that rests
@@ -321,6 +321,10 @@ class PoseKitTest {
         // throat. The sac is a whole opaque cube sitting inside the body with its flanks exactly
         // coplanar with the body's, so drawing it would paint a tan patch over the brown - which is
         // what makes this assertable from the render rather than only from the bytecode.
+        //
+        // It is KEPT and hidden rather than dropped, because that state is one a caller can select:
+        // the mesh carries a `croak` toggle over it, so what rests undrawn is not what can never be
+        // drawn. The other three carry no toggle and their answer is the whole answer.
         for (int tick : TICKS) {
             EntityModelData fox = PoseKit.posed(EntityOptions.PoseMode.IDLE, subject("minecraft:fox"), tick);
             for (String leg : new String[] {"left_front_leg", "right_front_leg", "left_hind_leg", "right_hind_leg"})
@@ -330,8 +334,11 @@ class PoseKitTest {
                     .getBones().containsKey("eye"), id + " keeps its eye at tick " + tick);
             assertTrue(PoseKit.posed(EntityOptions.PoseMode.IDLE, subject("minecraft:enderman"), tick)
                 .getBones().containsKey("head"), "an enderman keeps its head at tick " + tick);
-            assertFalse(PoseKit.posed(EntityOptions.PoseMode.IDLE, subject("minecraft:frog"), tick)
-                .getBones().containsKey("croaking_body"), "a frog is not mid-croak at tick " + tick);
+
+            EntityModelData frog = PoseKit.posed(EntityOptions.PoseMode.IDLE, subject("minecraft:frog"), tick);
+            EntityModelData.Bone sac = frog.getBones().get("croaking_body");
+            assertNotNull(sac, "a frog keeps the sac a croak selection draws, at tick " + tick);
+            assertFalse(sac.isVisible(), "and is not mid-croak at tick " + tick);
         }
     }
 

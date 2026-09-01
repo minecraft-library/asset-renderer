@@ -105,6 +105,9 @@ final class PoseFold {
      *     {@code receiver.question}
      * @param inputDefaults what each figure rests at, one keyspace across every model
      * @param free the render-state figures the tick drives, which stay symbolic
+     * @param settled the narrower free set a FLAG channel is folded against - the figures alone, so
+     *     a bone's visibility gated on a selection resolves to the arm a resting subject stands in
+     *     while one gated on a clock stays symbolic and is refused downstream
      * @param derived which further figures this model's renderer rebuilds from one of those, and
      *     from which - per model, because a bare field name does not span one type
      * @return the residual - the same pose with every decided branch taken and every resting leaf
@@ -114,14 +117,21 @@ final class PoseFold {
         @NotNull PoseProgram program, @NotNull Map<String, String> subjectRest,
         @NotNull Map<String, String> restDefaults, @NotNull Map<String, Float> questionDefaults,
         @NotNull Map<String, Float> inputDefaults, @NotNull Set<String> free,
-        @NotNull Map<String, String> derived) {
+        @NotNull Set<String> settled, @NotNull Map<String, String> derived) {
 
         PoseFold fold =
             new PoseFold(subjectRest, restDefaults, questionDefaults, inputDefaults, free, derived);
+        // A FLAG is resolved further than the rest, and against a narrower free set: a one-hot state
+        // is settled at the arm a resting subject stands in, where a figure stays symbolic. Nothing
+        // at render reads a flag channel, so a flag left symbolic has nowhere to surface - and the
+        // two halves of `free` differ in whether a selection could carry it. A separate instance
+        // rather than a second pass, so each keeps its own identity memo and the graph stays a graph.
+        PoseFold flags = new PoseFold(subjectRest, restDefaults, questionDefaults, inputDefaults,
+            settled, derived);
 
         List<Map<PoseChannel, PoseExpr>> container = program.container()
             .stream()
-            .map(fold::channels)
+            .map(written -> fold.channels(written, flags))
             .collect(Collectors.toList());
 
         // In the mesh's own bone order, which is the tied-depth priority a coplanar pair is decided
@@ -129,8 +139,8 @@ final class PoseFold {
         Map<String, Map<PoseChannel, PoseExpr>> bones = program.bones()
             .entrySet()
             .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, entry -> fold.channels(entry.getValue()),
-                (a, b) -> b, LinkedHashMap::new));
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                entry -> fold.channels(entry.getValue(), flags), (a, b) -> b, LinkedHashMap::new));
 
         // A site whose branches the frame decides against is DROPPED rather than shipped with a
         // condition nothing would read: the residual is what the tick can still move, and a clip a
@@ -210,11 +220,19 @@ final class PoseFold {
         return out;
     }
 
-    /** One channel map with every expression in it folded, in the vocabulary's own order. */
-    private @NotNull Map<PoseChannel, PoseExpr> channels(@NotNull Map<PoseChannel, PoseExpr> written) {
+    /**
+     * One channel map with every expression in it folded, in the vocabulary's own order.
+     *
+     * <p>A flag channel is folded by {@code flags} rather than by this instance, which resolves the
+     * one-hot states this one keeps symbolic - see {@link #fold}.
+     */
+    private @NotNull Map<PoseChannel, PoseExpr> channels(
+        @NotNull Map<PoseChannel, PoseExpr> written, @NotNull PoseFold flags) {
+
         Map<PoseChannel, PoseExpr> out = written.entrySet()
             .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, entry -> expression(entry.getValue()),
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                entry -> (entry.getKey().isFlag() ? flags : this).expression(entry.getValue()),
                 (a, b) -> b, LinkedHashMap::new));
         return Map.copyOf(out);
     }
