@@ -404,11 +404,40 @@ public final class PoseKit {
             List<ClipKit.Displacement> clips = new ArrayList<>(drawn.size());
             for (Drawn one : drawn) {
                 if (!one.pose().isReadable()) continue;
-                writes.add(PoseEvaluator.evaluate(one.pose(), one.model(), frame));
-                clips.add(ClipKit.deltas(one.pose(), one.model(), frame));
+                writes.add(canonical(PoseEvaluator.evaluate(one.pose(), one.model(), frame)));
+                clips.add(canonical(ClipKit.deltas(one.pose(), one.model(), frame)));
             }
             out.add(new Instant(writes, clips));
         }
+        return out;
+    }
+
+    /**
+     * The writes with the two float zeros held together - they compare equal as primitives and
+     * unequal boxed, and a write flipping the sign of zero is not a change a render can show.
+     */
+    private static PoseEvaluator.@NotNull ChannelWrites canonical(PoseEvaluator.@NotNull ChannelWrites writes) {
+        return new PoseEvaluator.ChannelWrites(
+            writes.container().stream().map(PoseKit::canonical).toList(),
+            canonicalBones(writes.bones()));
+    }
+
+    /** The displacements with the two float zeros held together, as {@link #canonical(PoseEvaluator.ChannelWrites)}. */
+    private static ClipKit.@NotNull Displacement canonical(ClipKit.@NotNull Displacement clips) {
+        return new ClipKit.Displacement(canonicalBones(clips.bones()), canonical(clips.container()));
+    }
+
+    private static @NotNull Map<String, Map<PoseChannel, Float>> canonicalBones(
+        @NotNull Map<String, Map<PoseChannel, Float>> bones) {
+
+        Map<String, Map<PoseChannel, Float>> out = new LinkedHashMap<>(bones.size());
+        bones.forEach((bone, channels) -> out.put(bone, canonical(channels)));
+        return out;
+    }
+
+    private static @NotNull Map<PoseChannel, Float> canonical(@NotNull Map<PoseChannel, Float> channels) {
+        Map<PoseChannel, Float> out = new LinkedHashMap<>(channels.size());
+        channels.forEach((channel, value) -> out.put(channel, value == 0f ? 0f : value));
         return out;
     }
 

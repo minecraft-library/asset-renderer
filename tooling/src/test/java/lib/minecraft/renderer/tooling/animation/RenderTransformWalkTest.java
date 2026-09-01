@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.zip.ZipEntry;
@@ -120,17 +121,18 @@ class RenderTransformWalkTest {
     @Test
     @DisplayName("a fish's yaw, out-of-water translate and roll are three steps, each crossed into the model frame")
     void fishShape() {
-        // The shipped CodRenderer row byte for byte. The yaw is NEGATED and the roll is not, which is
-        // the whole of the frame crossing: diag(-1, -1, 1) is a half turn about z, so it turns the x
-        // and y axes around and leaves z where it is. The un-negated yaw renders a fish that swims
-        // the wrong way and costs 57 of delta against 0.17.
+        // The steps the shipped cod row's container leads with, byte for byte. The yaw is NEGATED
+        // and the roll is not, which is the whole of the frame crossing: diag(-1, -1, 1) is a half
+        // turn about z, so it turns the x and y axes around and leaves z where it is. The un-negated
+        // yaw renders a fish that swims the wrong way and costs 57 of delta against 0.17.
         assertEquals("{\"shared\":[{\"eq\":[{\"input\":\"isInWater\"},{\"iconst\":0}]},"
                 + "{\"select\":[{\"ref\":0},{\"const\":-1.6},{\"const\":0.0}]}],"
                 + "\"container\":[{\"y_rot\":{\"neg\":[{\"mul\":[{\"mul\":[{\"const\":4.3},"
                 + "{\"mth_sin\":[{\"f2d\":[{\"mul\":[{\"const\":0.6},{\"input\":\"ageInTicks\"}]}]}]}]},"
                 + "{\"const\":0.017453292}]}]}},"
                 + "{\"x\":{\"ref\":1},\"y\":{\"ref\":1},\"z\":{\"ref\":1}},"
-                + "{\"z_rot\":{\"select\":[{\"ref\":0},{\"const\":1.5707964},{\"const\":0.0}]}}]}",
+                + "{\"z_rot\":{\"select\":[{\"ref\":0},{\"const\":1.5707964},{\"const\":0.0}]}}],"
+                + "\"bones\":{}}",
             emitted("fx/FishRenderer"));
     }
 
@@ -141,7 +143,7 @@ class RenderTransformWalkTest {
         // crossing rather than a scale, and it rides the expression rather than being folded away.
         assertEquals("{\"container\":[{\"y\":{\"neg\":[{\"mul\":[{\"mul\":[{\"mth_cos\":[{\"f2d\":"
                 + "[{\"mul\":[{\"input\":\"ageInTicks\"},{\"const\":0.05}]}]}]},{\"const\":0.08}]},"
-                + "{\"const\":16.0}]}]}}]}",
+                + "{\"const\":16.0}]}]}}],\"bones\":{}}",
             emitted("fx/PufferRenderer"));
     }
 
@@ -156,7 +158,7 @@ class RenderTransformWalkTest {
                 + "{\"select\":[{\"ref\":0},{\"const\":1.3},{\"const\":1.0}]},{\"const\":4.3}]},"
                 + "{\"mth_sin\":[{\"f2d\":[{\"mul\":[{\"mul\":["
                 + "{\"select\":[{\"ref\":0},{\"const\":1.7},{\"const\":1.0}]},{\"const\":0.6}]},"
-                + "{\"input\":\"ageInTicks\"}]}]}]}]},{\"const\":0.017453292}]}]}}]}",
+                + "{\"input\":\"ageInTicks\"}]}]}]}]},{\"const\":0.017453292}]}]}}],\"bones\":{}}",
             emitted("fx/AmplitudeRenderer"));
     }
 
@@ -177,8 +179,8 @@ class RenderTransformWalkTest {
         assertTrue(read.isReadable(), "and reads whole");
         assertEquals(180f, read.facingYaw(), "the facing, in the degrees it was written in");
         assertEquals(List.of(), read.steps(), "and nothing is left to compose above the mesh");
-        // It writes no row: the table is the steps, and the facing is in the geometry by then.
-        assertEquals("{}", emitted("fx/ShulkerRenderer", ATTACHED_DOWN));
+        // It seats nothing in any container: the facing is in the geometry by then.
+        assertEquals("{\"bones\":{}}", emitted("fx/ShulkerRenderer", ATTACHED_DOWN));
     }
 
     @Test
@@ -277,14 +279,18 @@ class RenderTransformWalkTest {
         return emitted(renderer, NO_CONSTANTS);
     }
 
-    /** The shipped bytes one fixture's transform writes. */
+    /**
+     * The shipped bytes one fixture's transform writes - the steps seated in a pose row's container,
+     * which is where a composed sequence ships.
+     */
     private @NotNull String emitted(
         @NotNull String renderer, @NotNull BiFunction<String, String, Optional<String>> resting) {
 
         RenderTransform read = RenderTransformWalk.read(this.cache, renderer, resting);
         assertNotNull(read, renderer + " composed no transform");
         assertTrue(read.isReadable(), renderer + " refused: " + read.refusal().orElse(""));
-        return PoseJson.transform(read).toGson().toString();
+        return PoseJson.of(new PoseOutcome.Extracted(
+            new PoseProgram(renderer, read.steps(), Map.of(), List.of()))).toGson().toString();
     }
 
     /** Asserts one fixture refuses under no resting constants, and refuses for the stated reason. */

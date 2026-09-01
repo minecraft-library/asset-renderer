@@ -12,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -32,7 +33,7 @@ import java.util.stream.Stream;
  * clip is keyed the way a mesh is, {@code Class#member}, and a pose is keyed by the same class the
  * geometry coordinates are headed with - so a reader that has resolved a mesh has everything it
  * needs to find the pose that mesh takes, and each pose row carries the play sites its own body
- * reaches, gate and arguments included.
+ * reaches, drive and arguments included.
  *
  * <p>Every declared clip is emitted, including the two no model plays. Dropping them would make a
  * table that lost a clip indistinguishable from a walk that failed to find one, and the count is
@@ -202,6 +203,21 @@ public final class PoseFlow {
     private static final @NotNull String OVERLAYS = "overlays";
 
     /**
+     * The step that carries a renderer's composed sequence from the frame it works in down to the
+     * mesh's own - a translate of {@code 1.501} blocks in model pixels, along the mesh's downward y.
+     *
+     * <p>Vanilla's {@code LivingEntityRenderer.submit} translates the stack by that much between the
+     * {@code setupRotations} it has just run and the mesh it is about to submit, so a renderer turns
+     * the subject about the ground it stands on while a mesh's origin sits roughly a head above it.
+     * A composed sequence reaches the roots through this step or it turns the subject about its
+     * neck, so it closes every step sequence written into a pose row's container - and ONLY those: a
+     * row whose renderer composes nothing has no sequence for the step to close, and a lone
+     * translate would move where a subject stands for nothing.
+     */
+    private static final @NotNull Map<PoseChannel, PoseExpr> GROUND_FRAME =
+        Map.of(PoseChannel.Y, PoseExpr.Const.of(-1.501f * 16f));
+
+    /**
      * Parses every clip and every binding, then writes the pose table.
      *
      * @param session the live session
@@ -258,69 +274,16 @@ public final class PoseFlow {
         requirePosersResolve(models, poses);
         mergeRestingUndrawn(models, poses, diagnostics);
         transforms = foldTransforms(transforms, models, defaults, diagnostics);
+        poses = composeContainers(poses, models, transforms, diagnostics);
+        nameExplicitPoses(models, poses.keySet(), diagnostics);
 
         JsonTree root = session.envelope("definitions-package listing order for clips; "
-            + "model simple name for poses, and bone name within a pose");
+            + "model simple name for poses, and bone name within a pose", 3);
         JsonTree clipsNode = root.child("clips");
         for (KeyframeClip clip : clips) clipsNode.put(clip.coordinate(), clipNode(clip));
 
         JsonTree posesNode = root.child("poses");
         PoseJson.all(poses).forEach(posesNode::put);
-
-        // What a figure reads as before anything has happened to the subject, for the figures whose
-        // own render state builds them at something other than nothing. Written at the root because
-        // a figure is named by its bare field name, which is one keyspace across every model.
-        if (!defaults.isEmpty()) {
-            JsonTree defaultsNode = root.child("input_defaults");
-            defaults.forEach(defaultsNode::put);
-        }
-
-        // Which constant each enum member rests holding, for the members a pose switches on. Held
-        // apart from the figures because answering nothing is a real answer for one and no answer at
-        // all for the other: a figure nobody models rests at zero, where an enum member that matches
-        // no constant is in a state no enum is in.
-        //
-        // Keyed by MODEL rather than written flat, because the keyspace a bare field name spans is
-        // not one type. Two unrelated states declare a 'pose' and two more a 'rightArmPose', and a
-        // flat table cannot say which a subject reads - where the model can, its own setupAnim
-        // naming the state its members are read off.
-        //
-        // What a QUESTION rests answering rides the same keying and the same walk of the state
-        // chain, because it is the same question about a different kind of member: a reference the
-        // state holds is a whole value, and every component of it is an answer a subject stands at.
-        //
-        // Written under the ROW's key rather than the class's, which are the same string until a
-        // class poses more than one way: the reader looks a default up by the key it read the row
-        // under, so a class that split would otherwise leave its answers under a name no row carries.
-        JsonTree restingNode = JsonTree.object();
-        restingByModel.forEach((model, resting) -> {
-            for (String key : rowsOf(poses, model)) {
-                JsonTree perRow = JsonTree.object();
-                resting.forEach(perRow::put);
-                restingNode.put(key, perRow);
-            }
-        });
-        JsonTree questionsNode = JsonTree.object();
-        questionsByModel.forEach((model, answers) -> {
-            for (String key : rowsOf(poses, model)) {
-                JsonTree perRow = JsonTree.object();
-                answers.forEach(perRow::put);
-                questionsNode.put(key, perRow);
-            }
-        });
-        if (!restingNode.isEmpty()) root.put("rest_defaults", restingNode);
-        if (!questionsNode.isEmpty()) root.put("question_defaults", questionsNode);
-
-        // What each RENDERER puts above every mesh it submits, which is a fact about the renderer
-        // rather than about any one model: a subject draws its body and its overlay passes through
-        // several model classes and one transform reaches all of them. Keyed by renderer simple
-        // name, which is what the model table already carries per subject.
-        //
-        // Written last so nothing above it moves a byte.
-        if (!transforms.isEmpty()) {
-            JsonTree renderersNode = root.child("renderers");
-            PoseJson.allTransforms(transforms).forEach(renderersNode::put);
-        }
 
         reportDeadClips(clips, poses, diagnostics);
         reportRefusedPoses(poses, diagnostics);
@@ -342,12 +305,16 @@ public final class PoseFlow {
             .collect(Collectors.toMap(RenderTransform::renderer, RenderTransform::facingYaw,
                 (a, b) -> b, LinkedHashMap::new));
 
+        Map<String, KeyframeClip> byCoordinate = new LinkedHashMap<>();
+        for (KeyframeClip clip : clips) byCoordinate.putIfAbsent(clip.coordinate(), clip);
+
         return new Emitted(Collections.unmodifiableSet(composing),
-            Collections.unmodifiableMap(facings), rigidModels(poses, rootBones));
+            Collections.unmodifiableMap(facings), rigidModels(poses, rootBones),
+            Collections.unmodifiableMap(poses), Collections.unmodifiableMap(byCoordinate));
     }
 
     /**
-     * What the pose flow settled that the mesh surgeries below it need.
+     * What the pose flow settled that the passes below it need.
      *
      * @param composing the simple names of renderers that compose steps above their meshes
      * @param facings the constant facing turn each renderer folds into its delegated body rotation,
@@ -355,11 +322,17 @@ public final class PoseFlow {
      * @param rigid the models whose pose a turn about y can NOT be moved past, by simple name -
      *     stated as the failures so a model nobody posed is absent and therefore safe, which a set of
      *     the passes could not say apart from a model whose walk found nothing; see {@link #rigidModels}
+     * @param poses every pose row exactly as the table carries it - walked, folded, split and
+     *     container-composed - which is what the style emitter evaluates offline
+     * @param clips every parsed keyframe clip by the {@code Class#member} coordinate the play sites
+     *     name it with
      */
     public record Emitted(
         @NotNull Set<String> composing,
         @NotNull Map<String, Float> facings,
-        @NotNull Set<String> rigid
+        @NotNull Set<String> rigid,
+        @NotNull Map<String, PoseOutcome> poses,
+        @NotNull Map<String, KeyframeClip> clips
     ) {}
 
     /**
@@ -603,6 +576,83 @@ public final class PoseFlow {
     }
 
     /**
+     * Writes into each pose row the steps its subjects' renderer composes above the meshes it
+     * submits, the {@link #GROUND_FRAME} closing the sequence and the row's own container following
+     * it - so a row carries its container COMPLETE and the reader joins nothing at load.
+     *
+     * <p>A transform is the RENDERER's fact where a container is the row's, and this is where the
+     * two keyspaces meet: every subject reaching a row must bring the same steps, because one row
+     * answers for all of them. A row two renderers reach with different sequences would need a key
+     * per sequence, and until the corpus grows one it is refused here instead - loudly, where a
+     * version bump surfaces it. A row whose subjects' renderers compose nothing is left exactly as
+     * the fold left it, ground frame included, because the frame only says where a composed
+     * sequence meets the mesh and a row with no sequence has nothing to meet.
+     *
+     * @param poses the rows the table carries, as the fold left them
+     * @param models the model table, read for which subjects reach which row and through which renderer
+     * @param transforms the residual steps per renderer
+     * @param diagnostics the scope the composition is recorded against
+     * @return the rows, the reached ones carrying their renderer's steps ahead of their own container
+     * @throws ToolingException if one row is reached by renderers whose steps disagree, or a row
+     *     taking steps is missing from the table
+     */
+    static @NotNull Map<String, PoseOutcome> composeContainers(
+        @NotNull Map<String, PoseOutcome> poses, @NotNull JsonTree models,
+        @NotNull Map<String, RenderTransform> transforms, @NotNull Diagnostics diagnostics) {
+
+        Map<String, Set<String>> bodies = bodyKeysOf(models);
+        Map<String, Set<String>> elsewhere = otherKeysOf(models);
+        Map<String, List<Map<PoseChannel, PoseExpr>>> stepsByRow = new LinkedHashMap<>();
+        models.members().forEach((entity, row) -> {
+            List<Map<PoseChannel, PoseExpr>> steps = rendererSteps(transforms, row);
+            Set<String> reached = new LinkedHashSet<>(bodies.getOrDefault(entity, Set.of()));
+            reached.addAll(elsewhere.getOrDefault(entity, Set.of()));
+            for (String key : reached) {
+                List<Map<PoseChannel, PoseExpr>> held = stepsByRow.putIfAbsent(key, steps);
+                if (held != null && !held.equals(steps))
+                    throw new ToolingException(
+                        "'%s' is reached by renderers whose steps disagree, which one container cannot carry",
+                        key);
+            }
+        });
+
+        Map<String, PoseOutcome> out = new TreeMap<>(poses);
+        Set<String> composed = new TreeSet<>();
+        stepsByRow.forEach((key, steps) -> {
+            if (steps.isEmpty()) return;
+            PoseOutcome held = poses.get(key);
+            if (held == null)
+                throw new ToolingException(
+                    "'%s' takes renderer steps and the pose table carries no row for it", key);
+            // A refusal keeps reading as one: a subject whose model nothing could walk is not one a
+            // transform can place, and the reader passes over a refused row's container either way.
+            if (!(held instanceof PoseOutcome.Extracted extracted)) return;
+            PoseProgram program = extracted.program();
+            List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>(steps);
+            container.add(GROUND_FRAME);
+            container.addAll(program.container());
+            out.put(key, new PoseOutcome.Extracted(new PoseProgram(program.model(),
+                List.copyOf(container), program.bones(), program.clipSites())));
+            composed.add(key);
+        });
+        if (!composed.isEmpty())
+            diagnostics.info("composed renderer steps and the ground frame into %d pose row(s): %s",
+                composed.size(), composed);
+        return out;
+    }
+
+    /** The residual steps one subject's renderer composes, empty where it composes none or refused. */
+    private static @NotNull List<Map<PoseChannel, PoseExpr>> rendererSteps(
+        @NotNull Map<String, RenderTransform> transforms, @NotNull JsonTree row) {
+
+        RenderTransform transform = row.findString("renderer")
+            .map(ClassKit::simpleName)
+            .map(transforms::get)
+            .orElse(null);
+        return transform == null || !transform.isReadable() ? List.of() : transform.steps();
+    }
+
+    /**
      * The key each frame's row is written under, or empty where the class cannot be split.
      *
      * <p>The suffix names the members the frames DISAGREE on and nothing else, so a key says what
@@ -640,25 +690,6 @@ public final class PoseFlow {
         return Set.copyOf(out.values()).size() == frames.size() ? out : Map.of();
     }
 
-    /**
-     * The rows one model class answers for - its own where it poses one way, and the keys a split
-     * gave it where it does not.
-     *
-     * @param poses the rows the table carries
-     * @param model the model class's simple name
-     * @return the keys, in the order the table carries them
-     */
-    private static @NotNull List<String> rowsOf(
-        @NotNull Map<String, PoseOutcome> poses, @NotNull String model) {
-
-        if (poses.containsKey(model)) return List.of(model);
-        String prefix = model + SPLIT;
-        return poses.keySet()
-            .stream()
-            .filter(key -> key.startsWith(prefix))
-            .collect(Collectors.toList());
-    }
-
     /** The members the frames do not agree on, which is what a key has to name to tell them apart. */
     private static @NotNull Set<String> disagreeing(@NotNull Set<Map<String, String>> frames) {
         Set<String> named = frames.stream()
@@ -672,7 +703,9 @@ public final class PoseFlow {
     }
 
     /**
-     * Writes into one subject's row the pose key its body takes.
+     * Writes into one subject's row the pose key its body takes - held on the family {@code bones}
+     * node while the flow still reads it there, until {@link #nameExplicitPoses} moves every key
+     * onto the forms themselves.
      *
      * <p>The bones node is rebuilt rather than added to, because the member order a row carries is
      * the resolver's own put chain and {@code pose} opens that node there.
@@ -686,6 +719,132 @@ public final class PoseFlow {
             if (!"pose".equals(member)) named.put(member, held);
         }));
         row.put("bones", named);
+    }
+
+    /**
+     * States every form's pose key explicitly, then takes the family {@code bones.pose} member off -
+     * the model table's last mutation, after every read of that member is done.
+     *
+     * <p>A form is what resolves a pose at load: the adult age option, the baby age option, each
+     * variant coat, each size option and each shape option. What is written is exactly what the
+     * derivation answers for that form - the family's named poser for a body site, the coordinate's
+     * own head for the rest - so an explicit key and a derived one are one answer, and the member is
+     * omitted where that answer names a row the table does not carry: the reader falls back to the
+     * same head and resolves the same nothing.
+     *
+     * <p>An equipment layer's {@code bones.pose} is left standing. Its mesh is posed through the
+     * class the layer is handed rather than the one that baked it, and that node is where the fact
+     * stays said.
+     *
+     * @param models the model table, rewritten in place ahead of being written
+     * @param rows the keys the pose table carries
+     * @param diagnostics the scope the pass is recorded against
+     * @throws ToolingException if a named poser resolves no row, which an omitted member would
+     *     silently swap for the coordinate's own head
+     */
+    static void nameExplicitPoses(
+        @NotNull JsonTree models, @NotNull Set<String> rows, @NotNull Diagnostics diagnostics) {
+
+        int[] named = {0};
+        models.members().forEach((entity, row) -> {
+            String poser = namedPoser(row);
+            // A coat naming no mesh of its own draws the family's, so its pose derives from the
+            // adult coordinate the same way the loader falls back to it.
+            String adultCoordinate = row.findPath("axes", AGE, OPTIONS, ADULT)
+                .flatMap(adult -> adult.findString(GEOMETRY))
+                .orElse(null);
+            row.findPath("axes", AGE, OPTIONS, ADULT).ifPresent(adult ->
+                named[0] += nameForm(entity, adult, poser, null, rows));
+            row.findPath("axes", AGE, OPTIONS, "baby").ifPresent(baby ->
+                named[0] += nameForm(entity, baby, null, null, rows));
+            row.findPath("axes", VARIANT, OPTIONS).ifPresent(options ->
+                options.members().forEach((coat, chosen) ->
+                    named[0] += nameForm(entity, chosen, poser, adultCoordinate, rows)));
+            row.findPath("axes", "size", OPTIONS).ifPresent(options ->
+                options.members().forEach((option, chosen) ->
+                    named[0] += nameForm(entity, chosen, null, null, rows)));
+            row.findPath("axes", "shape", OPTIONS).ifPresent(options ->
+                options.members().forEach((option, chosen) ->
+                    named[0] += nameForm(entity, chosen, null, null, rows)));
+            stripFamilyPoser(row);
+        });
+        diagnostics.info("explicit pose stated on %d form(s)", named[0]);
+    }
+
+    /**
+     * States one form's pose key, where the derivation resolves a row the table carries.
+     *
+     * @param entity the subject being written, for the refusal
+     * @param option the form's option node
+     * @param poser the family's named poser, or {@code null} where the coordinate answers
+     * @param reserveCoordinate the coordinate a mesh-less form draws, or {@code null}
+     * @param rows the keys the pose table carries
+     * @return how many members were written - one, or none for a form that resolves no pose
+     */
+    private static int nameForm(
+        @NotNull String entity, @NotNull JsonTree option, @Nullable String poser,
+        @Nullable String reserveCoordinate, @NotNull Set<String> rows) {
+
+        String coordinate = option.findString(GEOMETRY).orElse(reserveCoordinate);
+        String key = poser != null ? poser : poseHead(coordinate);
+        if (key == null) return 0;
+        if (!rows.contains(key)) {
+            // Only a coordinate head can be absent - a named poser is checked to resolve before
+            // this runs - and the reader's fallback IS that head, so omitting the member resolves
+            // the same nothing. A poser landing here anyway is a derivation that has drifted.
+            if (poser != null)
+                throw new ToolingException(
+                    "'%s' derives pose '%s' for a form, and the pose table does not carry it",
+                    entity, key);
+            return 0;
+        }
+        insertPose(option, key);
+        return 1;
+    }
+
+    /**
+     * Places a form's {@code pose} member directly after its {@code geometry}, appending where the
+     * option names no mesh of its own.
+     */
+    private static void insertPose(@NotNull JsonTree option, @NotNull String key) {
+        List<String> held = option.keys().toList();
+        Map<String, JsonTree> members = held.stream()
+            .collect(Collectors.toMap(member -> member,
+                member -> option.find(member).orElseThrow(), (a, b) -> b, LinkedHashMap::new));
+        option.clear();
+        boolean placed = false;
+        for (String member : held) {
+            option.put(member, members.get(member));
+            if (!placed && GEOMETRY.equals(member)) {
+                option.put("pose", key);
+                placed = true;
+            }
+        }
+        if (!placed) option.put("pose", key);
+    }
+
+    /**
+     * Takes the family {@code bones.pose} member off one row, and the {@code bones} node with it
+     * where the poser was all it held. An equipment layer's node is not visited.
+     */
+    private static void stripFamilyPoser(@NotNull JsonTree row) {
+        JsonTree bones = row.find("bones").orElse(null);
+        if (bones == null || bones.findString("pose").isEmpty()) return;
+        JsonTree rebuilt = JsonTree.object();
+        bones.members().forEach((member, held) -> {
+            if (!"pose".equals(member)) rebuilt.put(member, held);
+        });
+        if (!rebuilt.isEmpty()) {
+            row.put("bones", rebuilt);
+            return;
+        }
+        List<String> held = row.keys().toList();
+        Map<String, JsonTree> members = held.stream()
+            .collect(Collectors.toMap(member -> member,
+                member -> row.find(member).orElseThrow(), (a, b) -> b, LinkedHashMap::new));
+        row.clear();
+        for (String member : held)
+            if (!"bones".equals(member)) row.put(member, members.get(member));
     }
 
     /**

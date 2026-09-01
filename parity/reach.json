@@ -3750,11 +3750,19 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pipeline/dump/FormatMigrationStructuralDiff": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pipeline/dump/PipelineParityDump": {
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pipeline/dump/StyleInventoryVsMotionOf": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/pipeline/index/BlockIndexBuilder": {

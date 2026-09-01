@@ -1192,6 +1192,11 @@ public final class EntityIndexBuilder {
      * <p>Each row's drivers are composed FLAT against its {@code base} chain here, once, so the
      * loaded row already holds the whole answer and nothing at render walks a chain.
      *
+     * <p>Two rows may share one id where their {@code age} members split them - the axolotl ships
+     * {@code play_dead} as a baby clip row beside an adult factor row. Each composes its own
+     * drives, and a {@code base} naming a shared id resolves to its first row, the row
+     * {@link StyleCatalog#byId} answers.
+     *
      * @param family the raw model
      * @param familyId the entity being read, for refusals
      * @param periodTicks the file header's {@code period_ticks}, or {@code null} where it names none
@@ -1212,7 +1217,7 @@ public final class EntityIndexBuilder {
         for (RawStyleRow row : rows) {
             if (row.id() == null)
                 throw new PipelineException("Entity '%s' ships a style row naming no id", familyId);
-            byId.put(row.id(), row);
+            byId.putIfAbsent(row.id(), row);
         }
 
         Map<String, ConcurrentMap<String, StyleDriver>> composed = new LinkedHashMap<>();
@@ -1220,7 +1225,7 @@ public final class EntityIndexBuilder {
         for (RawStyleRow row : rows)
             styles.add(new PoseStyle(row.id(),
                 styleSources(row, familyId),
-                composedDrivers(row.id(), byId, composed, familyId, new LinkedHashSet<>()),
+                composedDrivers(row, byId, composed, familyId, new LinkedHashSet<>()),
                 row.toggles() == null
                     ? Concurrent.newUnmodifiableList() : Concurrent.newUnmodifiableList(row.toggles()),
                 styleAge(row, familyId)));
@@ -1231,10 +1236,11 @@ public final class EntityIndexBuilder {
      * One row's drivers composed flat against its {@code base} chain: the base's composed map is
      * copied, then each own drive is put by its field - a drive naming a {@code group} first evicts
      * any still-inherited driver carrying that group, and an own drive always wins its own field
-     * key. Memoized per row, so a base shared by several rows composes once.
+     * key. Composed per row, so the rows of an age-split pair each keep their own drives; memoized
+     * by id for an id's first row, which is the row a {@code base} resolves through.
      *
-     * @param id the row being composed
-     * @param rows every row of the family, by id
+     * @param row the row being composed
+     * @param rows the first row of each id, which is what a base names
      * @param composed the rows already composed, by id
      * @param familyId the entity being read, for refusals
      * @param resolving the ids on the current chain, for the cycle refusal
@@ -1242,24 +1248,28 @@ public final class EntityIndexBuilder {
      * @throws PipelineException if the base names no sibling row, or the chain cycles
      */
     private static @NotNull ConcurrentMap<String, StyleDriver> composedDrivers(
-        @NotNull String id,
+        @NotNull RawStyleRow row,
         @NotNull Map<String, RawStyleRow> rows,
         @NotNull Map<String, ConcurrentMap<String, StyleDriver>> composed,
         @NotNull String familyId,
         @NotNull Set<String> resolving) {
 
-        ConcurrentMap<String, StyleDriver> held = composed.get(id);
-        if (held != null) return held;
+        String id = row.id();
+        boolean first = rows.get(id) == row;
+        if (first) {
+            ConcurrentMap<String, StyleDriver> held = composed.get(id);
+            if (held != null) return held;
+        }
         if (!resolving.add(id))
             throw new PipelineException("Entity '%s' style '%s' composes over itself", familyId, id);
 
-        RawStyleRow row = rows.get(id);
         Map<String, StyleDriver> inherited = Map.of();
         if (row.base() != null) {
-            if (!rows.containsKey(row.base()))
+            RawStyleRow over = rows.get(row.base());
+            if (over == null)
                 throw new PipelineException("Entity '%s' style '%s' composes over '%s', which no row carries",
                     familyId, id, row.base());
-            inherited = composedDrivers(row.base(), rows, composed, familyId, resolving);
+            inherited = composedDrivers(over, rows, composed, familyId, resolving);
         }
 
         LinkedHashMap<String, StyleDriver> out = new LinkedHashMap<>(inherited);
@@ -1272,7 +1282,7 @@ public final class EntityIndexBuilder {
             out.put(driver.field(), driver);
         }
         ConcurrentMap<String, StyleDriver> built = Concurrent.adoptLinkedMap(out).toUnmodifiable();
-        composed.put(id, built);
+        if (first) composed.put(id, built);
         return built;
     }
 

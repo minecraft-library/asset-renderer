@@ -30,9 +30,9 @@ class BundledResourceTest {
     @Test
     @DisplayName("reads a bundled resource through the absence-tolerating entry point too")
     void readsPresentResourceGracefully() {
-        Optional<ResourceDocument> doc = BundledResource.read("entity_models.json");
+        Optional<ResourceDocument> doc = BundledResource.read("potion_colors.json");
 
-        assertTrue(doc.isPresent(), "entity_models.json is present, so the tolerant read still yields it");
+        assertTrue(doc.isPresent(), "potion_colors.json is present, so the tolerant read still yields it");
     }
 
     @Test

@@ -430,11 +430,11 @@ class PoseWalkTest {
         // adult's constant reached from the baby's own animation class. The table binds ONE walk clip
         // per model and every model that binds any binds exactly one, which is the rule this pins.
         assertEquals(Map.of(
-                "BabyAxolotlModel", Set.of("BabyAxolotlAnimation#AXOLOTL_WALK_FLOOR/walk"),
-                "CopperGolemModel", Set.of("CopperGolemAnimation#COPPER_GOLEM_WALK_ITEM/walk"),
-                "FrogModel", Set.of("FrogAnimation#FROG_SWIM/walk"),
-                "SnifferModel", Set.of("SnifferAnimation#SNIFFER_SNIFF_SEARCH/walk"),
-                "SniffletModel", Set.of("SnifferAnimation#SNIFFER_SNIFF_SEARCH/walk")),
+                "BabyAxolotlModel", Set.of("BabyAxolotlAnimation#AXOLOTL_WALK_FLOOR/stride"),
+                "CopperGolemModel", Set.of("CopperGolemAnimation#COPPER_GOLEM_WALK_ITEM/stride"),
+                "FrogModel", Set.of("FrogAnimation#FROG_SWIM/stride"),
+                "SnifferModel", Set.of("SnifferAnimation#SNIFFER_SNIFF_SEARCH/stride"),
+                "SniffletModel", Set.of("SnifferAnimation#SNIFFER_SNIFF_SEARCH/stride")),
             excess, "clips the walk reaches that the shipped table does not bind");
     }
 
@@ -447,7 +447,7 @@ class PoseWalkTest {
         // success. Two models applying one clip at different constants is the case that proves it.
         List<PoseClipSite> walkDriven = extracted.values().stream()
             .flatMap(program -> program.clipSites().stream())
-            .filter(site -> site.drive() == PoseClipSite.Gate.WALK)
+            .filter(site -> site.drive() == PoseClipSite.Gate.STRIDE)
             .toList();
 
         assertTrue(!walkDriven.isEmpty(), "the corpus is expected to drive clips off the walk");
@@ -465,7 +465,7 @@ class PoseWalkTest {
     void stateDrivenClipsCarryOnlyTheTick() {
         List<PoseClipSite> stateDriven = extracted.values().stream()
             .flatMap(program -> program.clipSites().stream())
-            .filter(site -> site.drive() == PoseClipSite.Gate.STATE)
+            .filter(site -> site.drive() == PoseClipSite.Gate.SELECT)
             .toList();
 
         assertTrue(!stateDriven.isEmpty(), "the corpus is expected to gate clips behind animation states");
@@ -535,10 +535,10 @@ class PoseWalkTest {
                 dangling.add(program.model() + " -> " + bone);
         }));
         // A pose may name a bone its mesh does not declare, and the shipped table carries every one of
-        // these - the frog's `croaking_body` sits in `poses` with its visibility folded to a constant
-        // false while the mesh declares no such bone. They are the same four causes PosePartIndexTest
-        // enumerates: a part the adult carries and the baby does not, and a field name the mesh spells
-        // differently. What the join drops is a channel that would have written nowhere.
+        // these - a baby donkey's chests sit in `poses` while its mesh declares no such bones. They
+        // are the same causes PosePartIndexTest enumerates: a part the adult carries and the baby
+        // does not, and a field name the mesh spells differently. What the join drops is a channel
+        // that would have written nowhere.
         //
         // Sorted, because the walk order over two maps is not a property worth pinning; what is worth
         // pinning is that no NEW one appears.
@@ -549,8 +549,7 @@ class PoseWalkTest {
                 "BabyDonkeyModel -> left_chest",
                 "BabyDonkeyModel -> right_chest",
                 "BabyLlamaModel -> left_chest",
-                "BabyLlamaModel -> right_chest",
-                "FrogModel -> croaking_body"),
+                "BabyLlamaModel -> right_chest"),
             dangling, "posed bones no mesh of that model declares");
     }
 
@@ -1062,9 +1061,16 @@ class PoseWalkTest {
         return report.toString();
     }
 
-    /** What the shipped pose table says each model plays, keyed the way the walk names a model. */
+    /**
+     * What the shipped pose table says each model plays, keyed the way the walk names a model.
+     *
+     * <p>Format-aware, because the walk's own tokens are the format 3 drive names: a format 3 table
+     * carries them verbatim under {@code drive}, and a format 2 one carries the old gate spellings
+     * under {@code gate}, mapped here onto the same vocabulary so the comparison reads one.
+     */
     private static @NotNull Map<String, Set<String>> shippedBindings() {
         JsonElement root = GSON.fromJson(read(SHIPPED_POSES), JsonElement.class);
+        boolean format3 = root.getAsJsonObject().get("format").getAsInt() == 3;
         Map<String, Set<String>> out = new TreeMap<>();
         // A binding is a member of the model's own pose row - `poses/<SimpleModelName>/clips[]` -
         // rather than a table of its own, and a row that plays nothing carries no `clips` at all.
@@ -1073,11 +1079,22 @@ class PoseWalkTest {
             if (bindings == null) return;
             Set<String> clips = new TreeSet<>();
             bindings.forEach(binding -> clips.add(
-                binding.getAsJsonObject().get("clip").getAsString()
-                    + "/" + binding.getAsJsonObject().get("gate").getAsString()));
+                binding.getAsJsonObject().get("clip").getAsString() + "/" + (format3
+                    ? binding.getAsJsonObject().get("drive").getAsString()
+                    : driveTokenOf(binding.getAsJsonObject().get("gate").getAsString()))));
             out.put(entry.getKey(), clips);
         });
         return out;
+    }
+
+    /** The drive token a format 2 gate spelling maps onto - the reader's own mapping, restated. */
+    private static @NotNull String driveTokenOf(@NotNull String gate) {
+        return switch (gate) {
+            case "static" -> "none";
+            case "walk" -> "stride";
+            case "state" -> "select";
+            default -> throw new IllegalStateException("'" + gate + "' is not a format 2 gate");
+        };
     }
 
     private static @NotNull List<String> rosterClasses() {

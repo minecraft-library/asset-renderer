@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.animation.PoseFlow;
+import lib.minecraft.renderer.tooling.animation.StyleFlow;
 import lib.minecraft.renderer.tooling.entity.EntityMeshFacing;
 import lib.minecraft.renderer.tooling.entity.EntityMeshMarking;
 import lib.minecraft.renderer.tooling.entity.EntityMeshOverlays;
@@ -33,6 +34,12 @@ import java.util.stream.Collectors;
 public final class ToolingEntityModels {
 
     /**
+     * The ticks one whole idle excursion spans, stated once in the table's header for every
+     * family's style catalog rather than restated per row.
+     */
+    private static final int PERIOD_TICKS = 24;
+
+    /**
      * Runs the flow, writes its table, and applies the session's strict gate.
      *
      * @param args ignored - all paths are fixed
@@ -42,7 +49,8 @@ public final class ToolingEntityModels {
             GeometryFlow.requireModelPackage(session);
             List<EntitySubject> subjects = EntityRegistryDiscovery.discover(session);
             JsonTree root = session.envelope(
-                "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain");
+                "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain", 3);
+            root.putInt("period_ticks", PERIOD_TICKS);
             GeometryManifest manifest = new GeometryManifest(session.cache());
             EntityRegistryWalk.run(session, subjects, manifest, root);
             // Parsed but not yet written: which bones a subject rests without is settled by the pose
@@ -85,6 +93,11 @@ public final class ToolingEntityModels {
             // an overlay drawing the body's own mesh has to inherit the marking and the shift, which
             // deriving before either would leave behind on a mesh nobody then draws.
             EntityMeshOverlays.apply(session.diagnostics().child("overlays"), root.child("models"), geometries, manifest);
+            // The style catalog is derived over the table as it finally stands - the explicit pose
+            // keys, the minted overlay meshes and the settled no-hat alternates are its join - so
+            // it runs after every mesh surgery and ahead of the write.
+            StyleFlow.emit(session.diagnostics().child("styles"), root.child("models"),
+                posed.poses(), posed.clips(), PERIOD_TICKS);
             GeometryFlow.write(session, geometries, session.resolve("entity_geometry.json"));
             session.write(root, "entity_models.json");
             session.failOnStrictGate();

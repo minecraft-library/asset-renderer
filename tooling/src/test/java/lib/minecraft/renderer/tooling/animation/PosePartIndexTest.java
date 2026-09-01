@@ -94,8 +94,6 @@ class PosePartIndexTest {
         // A part the adult carries and the baby does not - the donkey's and llama's chests.
         // A field name the mesh spells differently - the armadillo declares `head_cube`,
         // `right_ear_cube` and `left_ear_cube`, so the bare snake-case fallback names no bone at all.
-        // A bone the mesh does not carry - the frog's croaking body, whose shipped pose folds its
-        // visibility to a constant false precisely because nothing draws it.
         dangling.sort(null);
         assertEquals(List.of(
                 "AdultArmadilloModel.cube -> cube",
@@ -105,8 +103,7 @@ class PosePartIndexTest {
                 "BabyDonkeyModel.leftChest -> left_chest",
                 "BabyDonkeyModel.rightChest -> right_chest",
                 "BabyLlamaModel.leftChest -> left_chest",
-                "BabyLlamaModel.rightChest -> right_chest",
-                "FrogModel.croakingBody -> croaking_body"),
+                "BabyLlamaModel.rightChest -> right_chest"),
             dangling, "part fields naming a bone no mesh of that model declares");
     }
 

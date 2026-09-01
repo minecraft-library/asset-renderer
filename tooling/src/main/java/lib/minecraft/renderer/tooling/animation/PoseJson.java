@@ -88,11 +88,14 @@ public final class PoseJson {
         JsonTree written = node.child("bones");
         // Sorted, and every channel of a bone written in the vocabulary's own order: a pose holds
         // one expression per channel and says nothing by the order it holds them in, so the only
-        // thing an order can do here is make two runs disagree.
+        // thing an order can do here is make two runs disagree. A flag channel is not written at
+        // all: every one folds to a literal at generation and the model table's undrawn lists are
+        // the read copy, so nothing at render reads one.
         bones.forEach((bone, channels) -> {
             JsonTree posed = JsonTree.object();
             for (PoseChannel channel : PoseChannel.values())
-                if (channels.containsKey(channel)) posed.put(channel.token(), shared.use(channels.get(channel)));
+                if (!channel.isFlag() && channels.containsKey(channel))
+                    posed.put(channel.token(), shared.use(channels.get(channel)));
             written.put(bone, posed);
         });
 
@@ -100,32 +103,6 @@ public final class PoseJson {
             JsonTree plays = node.childArray("clips");
             for (PoseClipSite site : program.clipSites()) plays.add(clipSite(site, shared));
         }
-        return node;
-    }
-
-    /**
-     * What one renderer's own {@code setupRotations} composes, or the record of why it could not be
-     * read.
-     *
-     * <p>The steps are written the way a pose's container is, because that is what they are: a
-     * sequence of part poses above every bone a mesh names at top level. What differs is only where
-     * they come from and therefore what they are keyed by - a renderer rather than a model, one
-     * renderer answering for every mesh the subject submits.
-     *
-     * @param transform the transform to write
-     * @return the node to file under the renderer's name
-     */
-    static @NotNull JsonTree transform(@NotNull RenderTransform transform) {
-        if (!transform.isReadable())
-            return JsonTree.object().put(REFUSED, transform.refusal().orElseThrow());
-
-        Shared shared = Shared.of(transform.steps(), Map.of(), List.of());
-        JsonTree node = JsonTree.object();
-        if (!shared.table().isEmpty()) {
-            JsonTree declared = node.childArray(SHARED);
-            for (JsonTree entry : shared.table()) declared.add(entry);
-        }
-        container(node, transform.steps(), shared);
         return node;
     }
 
@@ -150,15 +127,15 @@ public final class PoseJson {
      * already says which clip and under what drive: how fast the thing moves and how far are the
      * model's own and live nowhere in the clip.
      *
-     * <p>A state-driven site carries the render-state field its gate reads, which is what says WHICH
-     * of a model's several clips a caller is choosing between. It is written only where there is one,
-     * so the other two drives spell no empty member.
+     * <p>A select-driven site carries the render-state {@code field} its gate reads, which is what
+     * says WHICH of a model's several clips a caller is choosing between. It is written only where
+     * there is one, so the other two drives spell no empty member.
      */
     private static @NotNull JsonTree clipSite(@NotNull PoseClipSite site, @NotNull Shared shared) {
         JsonTree node = JsonTree.object()
             .put("clip", site.clip())
-            .put("gate", site.drive().token());
-        if (!site.state().isEmpty()) node.put("state", site.state());
+            .put("drive", site.drive().token());
+        if (!site.state().isEmpty()) node.put("field", site.state());
         if (site.arguments().isEmpty()) return node;
 
         JsonTree arguments = node.childArray("args");
@@ -234,9 +211,11 @@ public final class PoseJson {
             for (Map<PoseChannel, PoseExpr> step : container)
                 for (PoseChannel channel : PoseChannel.values())
                     if (step.containsKey(channel)) root.accept(step.get(channel));
+            // A flag channel's expression is never written, so it is never a root: an entry only
+            // flag channels reach would otherwise be declared under `shared` for nothing to name.
             bones.forEach((bone, channels) -> {
                 for (PoseChannel channel : PoseChannel.values())
-                    if (channels.containsKey(channel)) root.accept(channels.get(channel));
+                    if (!channel.isFlag() && channels.containsKey(channel)) root.accept(channels.get(channel));
             });
             for (PoseClipSite site : sites)
                 for (PoseExpr argument : site.arguments()) root.accept(argument);
@@ -396,21 +375,6 @@ public final class PoseJson {
         return outcomes.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> of(entry.getValue()),
-                (a, b) -> b, TreeMap::new));
-    }
-
-    /**
-     * Every renderer's transform, keyed by the renderer's own simple name.
-     *
-     * <p>A readable renderer with no steps writes no row. What it had to say was a facing, and a
-     * facing is in the mesh by the time this runs - so a row here would state nothing, and an empty
-     * one would read as a renderer that composes an empty transform rather than none.
-     */
-    static @NotNull Map<String, JsonTree> allTransforms(@NotNull Map<String, RenderTransform> transforms) {
-        return transforms.entrySet()
-            .stream()
-            .filter(entry -> !(entry.getValue().isReadable() && entry.getValue().steps().isEmpty()))
-            .collect(Collectors.toMap(Map.Entry::getKey, entry -> transform(entry.getValue()),
                 (a, b) -> b, TreeMap::new));
     }
 

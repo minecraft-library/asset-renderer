@@ -1,7 +1,8 @@
 {
   "//": "tooling.entityModels · regen: ./gradlew entityModels · order: EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain",
-  "format": 2,
+  "format": 3,
   "source_version": "26.1",
+  "period_ticks": 24,
   "models": {
     "minecraft:allay": {
       "renderer": "net/minecraft/client/renderer/entity/AllayRenderer",
@@ -10,11 +11,47 @@
           "options": {
             "adult": {
               "geometry": "AllayModel#createBodyLayer",
+              "pose": "AllayModel",
               "texture": "allay/allay"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:armadillo": {
       "renderer": "net/minecraft/client/renderer/entity/ArmadilloRenderer",
@@ -23,15 +60,99 @@
           "options": {
             "adult": {
               "geometry": "AdultArmadilloModel#createBodyLayer",
+              "pose": "AdultArmadilloModel",
               "texture": "armadillo/armadillo"
             },
             "baby": {
               "geometry": "BabyArmadilloModel#createBodyLayer",
+              "pose": "BabyArmadilloModel",
               "texture": "armadillo/armadillo_baby"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "roll_up",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "rollUpAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "armadillo_shell"
+            }
+          ]
+        },
+        {
+          "id": "roll_out",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "rollOutAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "armadillo_shell"
+            }
+          ]
+        },
+        {
+          "id": "peek",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "peekAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "armadillo_shell"
+            }
+          ]
+        }
+      ]
     },
     "minecraft:armor_stand": {
       "renderer": "net/minecraft/client/renderer/entity/ArmorStandRenderer",
@@ -40,6 +161,7 @@
           "options": {
             "adult": {
               "geometry": "ArmorStandModel#createBodyLayer",
+              "pose": "ArmorStandModel",
               "texture": "armorstand/armorstand"
             }
           }
@@ -48,7 +170,8 @@
           "default": "large",
           "options": {
             "small": {
-              "geometry": "ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER"
+              "geometry": "ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER",
+              "pose": "ArmorStandModel"
             }
           }
         }
@@ -84,45 +207,214 @@
               "textures": {
                 "wild": "axolotl/axolotl_lucy"
               },
-              "baby_texture": "axolotl/axolotl_lucy_baby"
+              "baby_texture": "axolotl/axolotl_lucy_baby",
+              "pose": "AdultAxolotlModel"
             },
             "wild": {
               "textures": {
                 "wild": "axolotl/axolotl_wild"
               },
-              "baby_texture": "axolotl/axolotl_wild_baby"
+              "baby_texture": "axolotl/axolotl_wild_baby",
+              "pose": "AdultAxolotlModel"
             },
             "gold": {
               "textures": {
                 "wild": "axolotl/axolotl_gold"
               },
-              "baby_texture": "axolotl/axolotl_gold_baby"
+              "baby_texture": "axolotl/axolotl_gold_baby",
+              "pose": "AdultAxolotlModel"
             },
             "cyan": {
               "textures": {
                 "wild": "axolotl/axolotl_cyan"
               },
-              "baby_texture": "axolotl/axolotl_cyan_baby"
+              "baby_texture": "axolotl/axolotl_cyan_baby",
+              "pose": "AdultAxolotlModel"
             },
             "blue": {
               "textures": {
                 "wild": "axolotl/axolotl_blue"
               },
-              "baby_texture": "axolotl/axolotl_blue_baby"
+              "baby_texture": "axolotl/axolotl_blue_baby",
+              "pose": "AdultAxolotlModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "AdultAxolotlModel#createBodyLayer"
+              "geometry": "AdultAxolotlModel#createBodyLayer",
+              "pose": "AdultAxolotlModel"
             },
             "baby": {
-              "geometry": "BabyAxolotlModel#createBodyLayer"
+              "geometry": "BabyAxolotlModel#createBodyLayer",
+              "pose": "BabyAxolotlModel"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "age": "adult",
+          "sources": [
+            "tick",
+            "figure",
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "movingFactor",
+              "wave": "sweep",
+              "rest": 0.0,
+              "extent": 1.0
+            },
+            {
+              "field": "inWaterFactor",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "axolotl"
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "age": "adult",
+          "sources": [
+            "tick",
+            "figure",
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "play_dead",
+          "base": "idle",
+          "age": "adult",
+          "sources": [],
+          "drives": [
+            {
+              "field": "playingDeadFactor",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "axolotl"
+            }
+          ]
+        },
+        {
+          "id": "on_ground",
+          "base": "idle",
+          "age": "adult",
+          "sources": [
+            "tick",
+            "figure",
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "onGroundFactor",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "axolotl"
+            }
+          ]
+        },
+        {
+          "id": "swim",
+          "base": "idle",
+          "age": "baby",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "swimAnimation",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "axolotl_clip"
+            }
+          ]
+        },
+        {
+          "id": "idle_under_water_on_ground",
+          "base": "idle",
+          "age": "baby",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "idleUnderWaterOnGroundAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "axolotl_clip"
+            }
+          ]
+        },
+        {
+          "id": "idle_under_water",
+          "base": "idle",
+          "age": "baby",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "idleUnderWaterAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "axolotl_clip"
+            }
+          ]
+        },
+        {
+          "id": "idle_on_ground",
+          "base": "idle",
+          "age": "baby",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "idleOnGroundAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "axolotl_clip"
+            }
+          ]
+        },
+        {
+          "id": "play_dead",
+          "base": "idle",
+          "age": "baby",
+          "sources": [],
+          "drives": [
+            {
+              "field": "playDeadAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "axolotl_clip"
+            }
+          ]
+        }
+      ]
     },
     "minecraft:bat": {
       "renderer": "net/minecraft/client/renderer/entity/BatRenderer",
@@ -131,11 +423,65 @@
           "options": {
             "adult": {
               "geometry": "BatModel#createBodyLayer",
+              "pose": "BatModel",
               "texture": "bat/bat"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "flyAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "bat"
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "rest",
+          "base": "idle",
+          "sources": [],
+          "drives": [
+            {
+              "field": "restAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "bat"
+            }
+          ]
+        }
+      ]
     },
     "minecraft:bee": {
       "renderer": "net/minecraft/client/renderer/entity/BeeRenderer",
@@ -144,15 +490,51 @@
           "options": {
             "adult": {
               "geometry": "AdultBeeModel#createBodyLayer",
+              "pose": "AdultBeeModel",
               "texture": "bee/bee"
             },
             "baby": {
               "geometry": "BabyBeeModel#createBodyLayer",
+              "pose": "BabyBeeModel",
               "texture": "bee/bee_baby"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:blaze": {
       "renderer": "net/minecraft/client/renderer/entity/BlazeRenderer",
@@ -161,11 +543,46 @@
           "options": {
             "adult": {
               "geometry": "BlazeModel#createBodyLayer",
+              "pose": "BlazeModel",
               "texture": "blaze/blaze"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:bogged": {
       "renderer": "net/minecraft/client/renderer/entity/BoggedRenderer",
@@ -174,6 +591,7 @@
           "options": {
             "adult": {
               "geometry": "BoggedModel#createBodyLayer",
+              "pose": "BoggedModel",
               "texture": "skeleton/bogged"
             }
           }
@@ -198,7 +616,42 @@
           "inner": 0.5,
           "outer": 1.0
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:breeze": {
       "renderer": "net/minecraft/client/renderer/entity/BreezeRenderer",
@@ -207,6 +660,7 @@
           "options": {
             "adult": {
               "geometry": "BreezeModel#createBodyLayer",
+              "pose": "BreezeModel",
               "texture": "breeze/breeze"
             }
           }
@@ -238,6 +692,118 @@
             "sorted": true
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "select",
+            "scroll"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "idle",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "breeze_whirl"
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "select",
+            "scroll"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "slide",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "breeze_pose"
+            }
+          ]
+        },
+        {
+          "id": "slide_back",
+          "base": "idle",
+          "sources": [
+            "select",
+            "scroll"
+          ],
+          "drives": [
+            {
+              "field": "slideBack",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "breeze_pose"
+            }
+          ]
+        },
+        {
+          "id": "inhale",
+          "base": "idle",
+          "sources": [
+            "select",
+            "scroll"
+          ],
+          "drives": [
+            {
+              "field": "inhale",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "breeze_pose"
+            }
+          ]
+        },
+        {
+          "id": "shoot",
+          "base": "idle",
+          "sources": [
+            "select",
+            "scroll"
+          ],
+          "drives": [
+            {
+              "field": "shoot",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "breeze_pose"
+            }
+          ]
+        },
+        {
+          "id": "long_jump",
+          "base": "idle",
+          "sources": [
+            "select",
+            "scroll"
+          ],
+          "drives": [
+            {
+              "field": "longJump",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "breeze_pose"
+            }
+          ]
+        }
       ]
     },
     "minecraft:camel": {
@@ -247,10 +813,12 @@
           "options": {
             "adult": {
               "geometry": "AdultCamelModel#createBodyLayer",
+              "pose": "AdultCamelModel",
               "texture": "camel/camel"
             },
             "baby": {
               "geometry": "BabyCamelModel#createBodyLayer",
+              "pose": "BabyCamelModel",
               "texture": "camel/camel_baby"
             }
           }
@@ -272,6 +840,107 @@
       "members": [
         "minecraft:camel",
         "minecraft:camel_husk"
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "idleAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "idle_clip"
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "select",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "sit",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "sitAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "camel_stance"
+            }
+          ]
+        },
+        {
+          "id": "sit_pose",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "sitPoseAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "camel_stance"
+            }
+          ]
+        },
+        {
+          "id": "sit_up",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "sitUpAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "camel_stance"
+            }
+          ]
+        },
+        {
+          "id": "dash",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "dashAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "camel_stance"
+            }
+          ]
+        }
       ]
     },
     "minecraft:camel_husk": {
@@ -281,6 +950,7 @@
           "options": {
             "adult": {
               "geometry": "AdultCamelModel#createBodyLayer",
+              "pose": "AdultCamelModel",
               "texture": "camel/camel_husk"
             }
           }
@@ -302,13 +972,111 @@
       "members": [
         "minecraft:camel",
         "minecraft:camel_husk"
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "idleAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "idle_clip"
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "select",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "sit",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "sitAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "camel_stance"
+            }
+          ]
+        },
+        {
+          "id": "sit_pose",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "sitPoseAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "camel_stance"
+            }
+          ]
+        },
+        {
+          "id": "sit_up",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "sitUpAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "camel_stance"
+            }
+          ]
+        },
+        {
+          "id": "dash",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "dashAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "camel_stance"
+            }
+          ]
+        }
       ]
     },
     "minecraft:cat": {
       "renderer": "net/minecraft/client/renderer/entity/CatRenderer",
-      "bones": {
-        "pose": "AdultCatModel"
-      },
       "axes": {
         "variant": {
           "default": "black",
@@ -317,77 +1085,90 @@
               "textures": {
                 "wild": "cat/cat_all_black"
               },
-              "baby_texture": "cat/cat_all_black_baby"
+              "baby_texture": "cat/cat_all_black_baby",
+              "pose": "AdultCatModel"
             },
             "black": {
               "textures": {
                 "wild": "cat/cat_black"
               },
-              "baby_texture": "cat/cat_black_baby"
+              "baby_texture": "cat/cat_black_baby",
+              "pose": "AdultCatModel"
             },
             "british_shorthair": {
               "textures": {
                 "wild": "cat/cat_british_shorthair"
               },
-              "baby_texture": "cat/cat_british_shorthair_baby"
+              "baby_texture": "cat/cat_british_shorthair_baby",
+              "pose": "AdultCatModel"
             },
             "calico": {
               "textures": {
                 "wild": "cat/cat_calico"
               },
-              "baby_texture": "cat/cat_calico_baby"
+              "baby_texture": "cat/cat_calico_baby",
+              "pose": "AdultCatModel"
             },
             "jellie": {
               "textures": {
                 "wild": "cat/cat_jellie"
               },
-              "baby_texture": "cat/cat_jellie_baby"
+              "baby_texture": "cat/cat_jellie_baby",
+              "pose": "AdultCatModel"
             },
             "persian": {
               "textures": {
                 "wild": "cat/cat_persian"
               },
-              "baby_texture": "cat/cat_persian_baby"
+              "baby_texture": "cat/cat_persian_baby",
+              "pose": "AdultCatModel"
             },
             "ragdoll": {
               "textures": {
                 "wild": "cat/cat_ragdoll"
               },
-              "baby_texture": "cat/cat_ragdoll_baby"
+              "baby_texture": "cat/cat_ragdoll_baby",
+              "pose": "AdultCatModel"
             },
             "red": {
               "textures": {
                 "wild": "cat/cat_red"
               },
-              "baby_texture": "cat/cat_red_baby"
+              "baby_texture": "cat/cat_red_baby",
+              "pose": "AdultCatModel"
             },
             "siamese": {
               "textures": {
                 "wild": "cat/cat_siamese"
               },
-              "baby_texture": "cat/cat_siamese_baby"
+              "baby_texture": "cat/cat_siamese_baby",
+              "pose": "AdultCatModel"
             },
             "tabby": {
               "textures": {
                 "wild": "cat/cat_tabby"
               },
-              "baby_texture": "cat/cat_tabby_baby"
+              "baby_texture": "cat/cat_tabby_baby",
+              "pose": "AdultCatModel"
             },
             "white": {
               "textures": {
                 "wild": "cat/cat_white"
               },
-              "baby_texture": "cat/cat_white_baby"
+              "baby_texture": "cat/cat_white_baby",
+              "pose": "AdultCatModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "AdultFelineModel#createBodyMesh@scaled=0.8"
+              "geometry": "AdultFelineModel#createBodyMesh@scaled=0.8",
+              "pose": "AdultCatModel"
             },
             "baby": {
-              "geometry": "BabyFelineModel#createBabyLayer"
+              "geometry": "BabyFelineModel#createBabyLayer",
+              "pose": "BabyFelineModel"
             }
           }
         }
@@ -404,6 +1185,31 @@
           "texture": "cat/cat_collar",
           "tint_by": "collar_color"
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:cave_spider": {
@@ -413,6 +1219,7 @@
           "options": {
             "adult": {
               "geometry": "SpiderModel#createSpiderBodyLayer@scaled=0.7",
+              "pose": "SpiderModel",
               "texture": "spider/cave_spider"
             }
           }
@@ -430,6 +1237,31 @@
             "sorted": true
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:chicken": {
@@ -443,33 +1275,63 @@
                 "wild": "chicken/chicken_cold"
               },
               "baby_texture": "chicken/chicken_cold_baby",
-              "geometry": "ColdChickenModel#createBodyLayer"
+              "geometry": "ColdChickenModel#createBodyLayer",
+              "pose": "ColdChickenModel"
             },
             "temperate": {
               "textures": {
                 "wild": "chicken/chicken_temperate"
               },
-              "baby_texture": "chicken/chicken_temperate_baby"
+              "baby_texture": "chicken/chicken_temperate_baby",
+              "pose": "AdultChickenModel"
             },
             "warm": {
               "textures": {
                 "wild": "chicken/chicken_warm"
               },
-              "baby_texture": "chicken/chicken_warm_baby"
+              "baby_texture": "chicken/chicken_warm_baby",
+              "pose": "AdultChickenModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "AdultChickenModel#createBodyLayer"
+              "geometry": "AdultChickenModel#createBodyLayer",
+              "pose": "AdultChickenModel"
             },
             "baby": {
-              "geometry": "BabyChickenModel#createBodyLayer"
+              "geometry": "BabyChickenModel#createBodyLayer",
+              "pose": "BabyChickenModel"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:cod": {
       "renderer": "net/minecraft/client/renderer/entity/CodRenderer",
@@ -481,11 +1343,46 @@
           "options": {
             "adult": {
               "geometry": "CodModel#createBodyLayer",
+              "pose": "CodModel",
               "texture": "fish/cod"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:copper_golem": {
       "renderer": "net/minecraft/client/renderer/entity/CopperGolemRenderer",
@@ -494,6 +1391,7 @@
           "options": {
             "adult": {
               "geometry": "CopperGolemModel#createBodyLayer",
+              "pose": "CopperGolemModel",
               "texture": "copper_golem/copper_golem"
             }
           }
@@ -512,6 +1410,107 @@
             "sorted": true
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "idleAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "idle_clip"
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "select",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "interaction_get_item",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "interactionGetItem",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "chest_interaction"
+            }
+          ]
+        },
+        {
+          "id": "interaction_get_no_item",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "interactionGetNoItem",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "chest_interaction"
+            }
+          ]
+        },
+        {
+          "id": "interaction_drop_item",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "interactionDropItem",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "chest_interaction"
+            }
+          ]
+        },
+        {
+          "id": "interaction_drop_no_item",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "interactionDropNoItem",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "chest_interaction"
+            }
+          ]
+        }
       ]
     },
     "minecraft:cow": {
@@ -525,34 +1524,64 @@
                 "wild": "cow/cow_cold"
               },
               "baby_texture": "cow/cow_cold_baby",
-              "geometry": "ColdCowModel#createBodyLayer"
+              "geometry": "ColdCowModel#createBodyLayer",
+              "pose": "ColdCowModel"
             },
             "temperate": {
               "textures": {
                 "wild": "cow/cow_temperate"
               },
-              "baby_texture": "cow/cow_temperate_baby"
+              "baby_texture": "cow/cow_temperate_baby",
+              "pose": "CowModel"
             },
             "warm": {
               "textures": {
                 "wild": "cow/cow_warm"
               },
               "baby_texture": "cow/cow_warm_baby",
-              "geometry": "WarmCowModel#createBodyLayer"
+              "geometry": "WarmCowModel#createBodyLayer",
+              "pose": "WarmCowModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "CowModel#createBodyLayer"
+              "geometry": "CowModel#createBodyLayer",
+              "pose": "CowModel"
             },
             "baby": {
-              "geometry": "BabyCowModel#createBodyLayer"
+              "geometry": "BabyCowModel#createBodyLayer",
+              "pose": "BabyCowModel"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:creaking": {
       "renderer": "net/minecraft/client/renderer/entity/CreakingRenderer",
@@ -561,11 +1590,94 @@
           "options": {
             "adult": {
               "geometry": "CreakingModel#createBodyLayer",
+              "pose": "CreakingModel",
               "texture": "creaking/creaking"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "attack",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "attackAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        },
+        {
+          "id": "invulnerability",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "invulnerabilityAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        },
+        {
+          "id": "death",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "deathAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        }
+      ]
     },
     "minecraft:creeper": {
       "renderer": "net/minecraft/client/renderer/entity/CreeperRenderer",
@@ -574,6 +1686,7 @@
           "options": {
             "adult": {
               "geometry": "CreeperModel#createBodyLayer",
+              "pose": "CreeperModel",
               "texture": "creeper/creeper"
             }
           }
@@ -599,6 +1712,47 @@
             "v": 0.01
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            {
+              "source": "scroll",
+              "gate": "charged"
+            }
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "stride",
+            {
+              "source": "scroll",
+              "gate": "charged"
+            }
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:dolphin": {
@@ -608,15 +1762,59 @@
           "options": {
             "adult": {
               "geometry": "DolphinModel#createBodyLayer",
+              "pose": "DolphinModel",
               "texture": "dolphin/dolphin"
             },
             "baby": {
               "geometry": "BabyDolphinModel#createBodyLayer",
+              "pose": "BabyDolphinModel",
               "texture": "dolphin/dolphin_baby"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick",
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "isMoving",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "dolphin"
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:donkey": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
@@ -625,10 +1823,12 @@
           "options": {
             "adult": {
               "geometry": "DonkeyModel#createBodyLayer@fparam=0.87",
+              "pose": "DonkeyModel",
               "texture": "horse/donkey"
             },
             "baby": {
               "geometry": "BabyDonkeyModel#createBabyLayer",
+              "pose": "BabyDonkeyModel",
               "texture": "horse/donkey_baby"
             }
           }
@@ -649,6 +1849,31 @@
             "saddle": "minecraft:saddle"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:drowned": {
@@ -658,10 +1883,12 @@
           "options": {
             "adult": {
               "geometry": "DrownedModel#createBodyLayer",
+              "pose": "DrownedModel",
               "texture": "zombie/drowned"
             },
             "baby": {
               "geometry": "BabyZombieModel#createBodyLayer",
+              "pose": "BabyZombieModel",
               "texture": "zombie/drowned_baby"
             }
           }
@@ -709,7 +1936,42 @@
           },
           "form": "baby"
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:elder_guardian": {
       "renderer": "net/minecraft/client/renderer/entity/ElderGuardianRenderer",
@@ -718,11 +1980,46 @@
           "options": {
             "adult": {
               "geometry": "GuardianModel#createElderGuardianLayer",
+              "pose": "GuardianModel",
               "texture": "guardian/guardian_elder"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:enderman": {
       "renderer": "net/minecraft/client/renderer/entity/EndermanRenderer",
@@ -731,6 +2028,7 @@
           "options": {
             "adult": {
               "geometry": "EndermanModel#createBodyLayer",
+              "pose": "EndermanModel",
               "texture": "enderman/enderman"
             }
           }
@@ -787,6 +2085,41 @@
             }
           ]
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:endermite": {
@@ -796,11 +2129,46 @@
           "options": {
             "adult": {
               "geometry": "EndermiteModel#createBodyLayer",
+              "pose": "EndermiteModel",
               "texture": "endermite/endermite"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:ender_dragon": {
       "renderer": "net/minecraft/client/renderer/entity/EnderDragonRenderer",
@@ -812,6 +2180,7 @@
           "options": {
             "adult": {
               "geometry": "EnderDragonModel#createBodyLayer",
+              "pose": "EnderDragonModel",
               "texture": "enderdragon/dragon"
             }
           }
@@ -828,6 +2197,46 @@
             "sorted": true
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "figure"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "flapTime",
+              "wave": "cycle",
+              "rest": 0.0,
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "figure"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:evoker": {
@@ -836,19 +2245,42 @@
         "armPose": "CROSSED",
         "mainArm": "RIGHT"
       },
-      "bones": {
-        "pose": "IllagerModel@armPose=CROSSED"
-      },
       "axes": {
         "age": {
           "options": {
             "adult": {
               "geometry": "IllagerModel#createBodyLayer@scaled=0.9375@rest=hat,left_arm,right_arm",
+              "pose": "IllagerModel@armPose=CROSSED",
               "texture": "illager/evoker"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:fox": {
       "renderer": "net/minecraft/client/renderer/entity/FoxRenderer",
@@ -857,15 +2289,42 @@
           "options": {
             "adult": {
               "geometry": "AdultFoxModel#createBodyLayer",
+              "pose": "AdultFoxModel",
               "texture": "fox/fox"
             },
             "baby": {
               "geometry": "BabyFoxModel#createBodyLayer",
+              "pose": "BabyFoxModel",
               "texture": "fox/fox_baby"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:frog": {
       "renderer": "net/minecraft/client/renderer/entity/FrogRenderer",
@@ -876,28 +2335,134 @@
             "cold": {
               "textures": {
                 "wild": "frog/frog_cold"
-              }
+              },
+              "pose": "FrogModel"
             },
             "temperate": {
               "textures": {
                 "wild": "frog/frog_temperate"
-              }
+              },
+              "pose": "FrogModel"
             },
             "warm": {
               "textures": {
                 "wild": "frog/frog_warm"
-              }
+              },
+              "pose": "FrogModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "FrogModel#createBodyLayer"
+              "geometry": "FrogModel#createBodyLayer",
+              "pose": "FrogModel"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "jump",
+          "sources": [],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "jumpAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "frog_action"
+            }
+          ]
+        },
+        {
+          "id": "tongue",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "tongueAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "frog_action"
+            }
+          ]
+        },
+        {
+          "id": "swim_idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "swimIdleAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "frog_action"
+            }
+          ]
+        },
+        {
+          "id": "croak",
+          "sources": [
+            "select"
+          ],
+          "toggles": [
+            "croak"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "croakAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "frog_action"
+            }
+          ]
+        }
+      ]
     },
     "minecraft:ghast": {
       "renderer": "net/minecraft/client/renderer/entity/GhastRenderer",
@@ -906,11 +2471,46 @@
           "options": {
             "adult": {
               "geometry": "GhastModel#createBodyLayer",
+              "pose": "GhastModel",
               "texture": "ghast/ghast"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:happy_ghast": {
       "renderer": "net/minecraft/client/renderer/entity/HappyGhastRenderer",
@@ -919,10 +2519,12 @@
           "options": {
             "adult": {
               "geometry": "HappyGhastModel#createBodyLayer",
+              "pose": "HappyGhastModel",
               "texture": "ghast/happy_ghast"
             },
             "baby": {
               "geometry": "HappyGhastModel#createBodyLayer@scaled=0.2375",
+              "pose": "HappyGhastModel",
               "texture": "ghast/happy_ghast_baby"
             }
           }
@@ -955,18 +2557,50 @@
             "yellow_harness": "minecraft:yellow_harness"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:giant": {
       "renderer": "net/minecraft/client/renderer/entity/GiantMobRenderer",
-      "bones": {
-        "pose": "GiantZombieModel"
-      },
       "axes": {
         "age": {
           "options": {
             "adult": {
               "geometry": "HumanoidModel#createMesh@scaled=6.0",
+              "pose": "GiantZombieModel",
               "texture": "zombie/zombie"
             }
           }
@@ -981,7 +2615,42 @@
           "outer": 1.0
         },
         "scaled": 6.0
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:glow_squid": {
       "renderer": "net/minecraft/client/renderer/entity/GlowSquidRenderer",
@@ -990,10 +2659,12 @@
           "options": {
             "adult": {
               "geometry": "SquidModel#createBodyLayer",
+              "pose": "SquidModel",
               "texture": "squid/glow_squid"
             },
             "baby": {
               "geometry": "BabySquidModel#createBodyLayer",
+              "pose": "BabySquidModel",
               "texture": "squid/glow_squid_baby"
             }
           }
@@ -1002,6 +2673,46 @@
       "members": [
         "minecraft:glow_squid",
         "minecraft:squid"
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "figure"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "tentacleAngle",
+              "wave": "sweep",
+              "rest": 0.0,
+              "extent": 0.7853982
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "figure"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:goat": {
@@ -1011,15 +2722,42 @@
           "options": {
             "adult": {
               "geometry": "GoatModel#createBodyLayer",
+              "pose": "GoatModel",
               "texture": "goat/goat"
             },
             "baby": {
               "geometry": "BabyGoatModel#createBodyLayer",
+              "pose": "BabyGoatModel",
               "texture": "goat/goat_baby"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:guardian": {
       "renderer": "net/minecraft/client/renderer/entity/GuardianRenderer",
@@ -1028,11 +2766,46 @@
           "options": {
             "adult": {
               "geometry": "GuardianModel#createBodyLayer",
+              "pose": "GuardianModel",
               "texture": "guardian/guardian"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:hoglin": {
       "renderer": "net/minecraft/client/renderer/entity/HoglinRenderer",
@@ -1041,10 +2814,12 @@
           "options": {
             "adult": {
               "geometry": "HoglinModel#createBodyLayer",
+              "pose": "HoglinModel",
               "texture": "hoglin/hoglin"
             },
             "baby": {
               "geometry": "BabyHoglinModel#createBodyLayer",
+              "pose": "BabyHoglinModel",
               "texture": "hoglin/hoglin_baby"
             }
           }
@@ -1053,13 +2828,35 @@
       "members": [
         "minecraft:hoglin",
         "minecraft:zoglin"
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:horse": {
       "renderer": "net/minecraft/client/renderer/entity/HorseRenderer",
-      "bones": {
-        "pose": "HorseModel"
-      },
       "axes": {
         "variant": {
           "default": "white",
@@ -1068,53 +2865,62 @@
               "textures": {
                 "wild": "horse/horse_white"
               },
-              "baby_texture": "horse/horse_white_baby"
+              "baby_texture": "horse/horse_white_baby",
+              "pose": "HorseModel"
             },
             "creamy": {
               "textures": {
                 "wild": "horse/horse_creamy"
               },
-              "baby_texture": "horse/horse_creamy_baby"
+              "baby_texture": "horse/horse_creamy_baby",
+              "pose": "HorseModel"
             },
             "chestnut": {
               "textures": {
                 "wild": "horse/horse_chestnut"
               },
-              "baby_texture": "horse/horse_chestnut_baby"
+              "baby_texture": "horse/horse_chestnut_baby",
+              "pose": "HorseModel"
             },
             "brown": {
               "textures": {
                 "wild": "horse/horse_brown"
               },
-              "baby_texture": "horse/horse_brown_baby"
+              "baby_texture": "horse/horse_brown_baby",
+              "pose": "HorseModel"
             },
             "black": {
               "textures": {
                 "wild": "horse/horse_black"
               },
-              "baby_texture": "horse/horse_black_baby"
+              "baby_texture": "horse/horse_black_baby",
+              "pose": "HorseModel"
             },
             "gray": {
               "textures": {
                 "wild": "horse/horse_gray"
               },
-              "baby_texture": "horse/horse_gray_baby"
+              "baby_texture": "horse/horse_gray_baby",
+              "pose": "HorseModel"
             },
             "dark_brown": {
               "textures": {
                 "wild": "horse/horse_darkbrown"
               },
-              "baby_texture": "horse/horse_darkbrown_baby"
+              "baby_texture": "horse/horse_darkbrown_baby",
+              "pose": "HorseModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "AbstractEquineModel#createBodyMesh@scaled=1.1"
+              "geometry": "AbstractEquineModel#createBodyMesh@scaled=1.1",
+              "pose": "HorseModel"
             },
             "baby": {
-              "geometry": "BabyHorseModel#createBabyMesh"
+              "geometry": "BabyHorseModel#createBabyMesh",
+              "pose": "BabyHorseModel"
             }
           }
         }
@@ -1173,22 +2979,46 @@
             "saddle": "minecraft:saddle"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:husk": {
       "renderer": "net/minecraft/client/renderer/entity/HuskRenderer",
-      "bones": {
-        "pose": "ZombieModel"
-      },
       "axes": {
         "age": {
           "options": {
             "adult": {
               "geometry": "HumanoidModel#createMesh@scaled=1.0625",
+              "pose": "ZombieModel",
               "texture": "zombie/husk"
             },
             "baby": {
               "geometry": "BabyZombieModel#createBodyLayer",
+              "pose": "BabyZombieModel",
               "texture": "zombie/husk_baby"
             }
           }
@@ -1222,7 +3052,42 @@
           },
           "form": "baby"
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:illusioner": {
       "renderer": "net/minecraft/client/renderer/entity/IllusionerRenderer",
@@ -1235,14 +3100,37 @@
           "options": {
             "adult": {
               "geometry": "IllagerModel#createBodyLayer@scaled=0.9375@rest=left_arm,right_arm",
+              "pose": "IllagerModel@armPose=CROSSED",
               "texture": "illager/illusioner"
             }
           }
         }
       },
-      "bones": {
-        "pose": "IllagerModel@armPose=CROSSED"
-      }
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:iron_golem": {
       "renderer": "net/minecraft/client/renderer/entity/IronGolemRenderer",
@@ -1251,6 +3139,7 @@
           "options": {
             "adult": {
               "geometry": "IronGolemModel#createBodyLayer",
+              "pose": "IronGolemModel",
               "texture": "iron_golem/iron_golem"
             }
           }
@@ -1311,6 +3200,31 @@
             }
           ]
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:llama": {
@@ -1323,35 +3237,41 @@
               "textures": {
                 "wild": "llama/llama_creamy"
               },
-              "baby_texture": "llama/llama_creamy_baby"
+              "baby_texture": "llama/llama_creamy_baby",
+              "pose": "LlamaModel"
             },
             "white": {
               "textures": {
                 "wild": "llama/llama_white"
               },
-              "baby_texture": "llama/llama_white_baby"
+              "baby_texture": "llama/llama_white_baby",
+              "pose": "LlamaModel"
             },
             "brown": {
               "textures": {
                 "wild": "llama/llama_brown"
               },
-              "baby_texture": "llama/llama_brown_baby"
+              "baby_texture": "llama/llama_brown_baby",
+              "pose": "LlamaModel"
             },
             "gray": {
               "textures": {
                 "wild": "llama/llama_gray"
               },
-              "baby_texture": "llama/llama_gray_baby"
+              "baby_texture": "llama/llama_gray_baby",
+              "pose": "LlamaModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "LlamaModel#createBodyLayer"
+              "geometry": "LlamaModel#createBodyLayer",
+              "pose": "LlamaModel"
             },
             "baby": {
-              "geometry": "BabyLlamaModel#createBodyLayer"
+              "geometry": "BabyLlamaModel#createBodyLayer",
+              "pose": "BabyLlamaModel"
             }
           }
         }
@@ -1385,6 +3305,31 @@
             "yellow": "minecraft:yellow_carpet"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:magma_cube": {
@@ -1394,6 +3339,7 @@
           "options": {
             "adult": {
               "geometry": "MagmaCubeModel#createBodyLayer",
+              "pose": "MagmaCubeModel",
               "texture": "slime/magmacube"
             }
           }
@@ -1422,23 +3368,27 @@
                 "wild": "cow/mooshroom_brown"
               },
               "baby_texture": "cow/mooshroom_brown_baby",
-              "block": "minecraft:brown_mushroom"
+              "block": "minecraft:brown_mushroom",
+              "pose": "CowModel"
             },
             "red": {
               "textures": {
                 "wild": "cow/mooshroom_red"
               },
-              "baby_texture": "cow/mooshroom_red_baby"
+              "baby_texture": "cow/mooshroom_red_baby",
+              "pose": "CowModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "CowModel#createBodyLayer"
+              "geometry": "CowModel#createBodyLayer",
+              "pose": "CowModel"
             },
             "baby": {
-              "geometry": "BabyCowModel#createBodyLayer"
+              "geometry": "BabyCowModel#createBodyLayer",
+              "pose": "BabyCowModel"
             }
           }
         }
@@ -1548,6 +3498,31 @@
             }
           ]
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:mule": {
@@ -1557,10 +3532,12 @@
           "options": {
             "adult": {
               "geometry": "DonkeyModel#createBodyLayer@fparam=0.92",
+              "pose": "DonkeyModel",
               "texture": "horse/mule"
             },
             "baby": {
               "geometry": "BabyDonkeyModel#createBabyLayer",
+              "pose": "BabyDonkeyModel",
               "texture": "horse/mule_baby"
             }
           }
@@ -1581,6 +3558,31 @@
             "saddle": "minecraft:saddle"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:nautilus": {
@@ -1590,10 +3592,12 @@
           "options": {
             "adult": {
               "geometry": "NautilusModel#createBodyLayer",
+              "pose": "NautilusModel",
               "texture": "nautilus/nautilus"
             },
             "baby": {
               "geometry": "NautilusModel#createBabyBodyLayer",
+              "pose": "NautilusModel",
               "texture": "nautilus/nautilus_baby"
             }
           }
@@ -1626,27 +3630,86 @@
             "saddle": "minecraft:saddle"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:ocelot": {
       "renderer": "net/minecraft/client/renderer/entity/OcelotRenderer",
-      "bones": {
-        "pose": "AdultOcelotModel"
-      },
       "axes": {
         "age": {
           "options": {
             "adult": {
               "geometry": "AdultFelineModel#createBodyMesh",
+              "pose": "AdultOcelotModel",
               "texture": "cat/ocelot"
             },
             "baby": {
               "geometry": "BabyFelineModel#createBabyLayer",
+              "pose": "BabyFelineModel",
               "texture": "cat/ocelot_baby"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:panda": {
       "renderer": "net/minecraft/client/renderer/entity/PandaRenderer",
@@ -1658,57 +3721,91 @@
               "textures": {
                 "wild": "panda/panda"
               },
-              "baby_texture": "panda/panda_baby"
+              "baby_texture": "panda/panda_baby",
+              "pose": "PandaModel"
             },
             "lazy": {
               "textures": {
                 "wild": "panda/panda_lazy"
               },
-              "baby_texture": "panda/lazy_panda_baby"
+              "baby_texture": "panda/lazy_panda_baby",
+              "pose": "PandaModel"
             },
             "worried": {
               "textures": {
                 "wild": "panda/panda_worried"
               },
-              "baby_texture": "panda/worried_panda_baby"
+              "baby_texture": "panda/worried_panda_baby",
+              "pose": "PandaModel"
             },
             "playful": {
               "textures": {
                 "wild": "panda/panda_playful"
               },
-              "baby_texture": "panda/playful_panda_baby"
+              "baby_texture": "panda/playful_panda_baby",
+              "pose": "PandaModel"
             },
             "brown": {
               "textures": {
                 "wild": "panda/panda_brown"
               },
-              "baby_texture": "panda/brown_panda_baby"
+              "baby_texture": "panda/brown_panda_baby",
+              "pose": "PandaModel"
             },
             "weak": {
               "textures": {
                 "wild": "panda/panda_weak"
               },
-              "baby_texture": "panda/weak_panda_baby"
+              "baby_texture": "panda/weak_panda_baby",
+              "pose": "PandaModel"
             },
             "aggressive": {
               "textures": {
                 "wild": "panda/panda_aggressive"
               },
-              "baby_texture": "panda/aggressive_panda_baby"
+              "baby_texture": "panda/aggressive_panda_baby",
+              "pose": "PandaModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "PandaModel#createBodyLayer"
+              "geometry": "PandaModel#createBodyLayer",
+              "pose": "PandaModel"
             },
             "baby": {
-              "geometry": "BabyPandaModel#createBodyLayer"
+              "geometry": "BabyPandaModel#createBodyLayer",
+              "pose": "BabyPandaModel"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:parched": {
       "renderer": "net/minecraft/client/renderer/entity/ParchedRenderer",
@@ -1717,6 +3814,7 @@
           "options": {
             "adult": {
               "geometry": "SkeletonModel#createSingleModelDualBodyLayer",
+              "pose": "SkeletonModel",
               "texture": "skeleton/parched"
             }
           }
@@ -1730,7 +3828,42 @@
           "inner": 0.5,
           "outer": 1.0
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:parrot": {
       "renderer": "net/minecraft/client/renderer/entity/ParrotRenderer",
@@ -1739,11 +3872,37 @@
           "options": {
             "adult": {
               "geometry": "ParrotModel#createBodyLayer",
+              "pose": "ParrotModel",
               "texture": "parrot/parrot_red_blue"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:phantom": {
       "renderer": "net/minecraft/client/renderer/entity/PhantomRenderer",
@@ -1752,6 +3911,7 @@
           "options": {
             "adult": {
               "geometry": "PhantomModel#createBodyLayer",
+              "pose": "PhantomModel",
               "texture": "phantom/phantom"
             }
           }
@@ -1769,6 +3929,40 @@
             "sorted": true
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:pig": {
@@ -1782,29 +3976,34 @@
                 "wild": "pig/pig_cold"
               },
               "baby_texture": "pig/pig_cold_baby",
-              "geometry": "ColdPigModel#createBodyLayer"
+              "geometry": "ColdPigModel#createBodyLayer",
+              "pose": "ColdPigModel"
             },
             "temperate": {
               "textures": {
                 "wild": "pig/pig_temperate"
               },
-              "baby_texture": "pig/pig_temperate_baby"
+              "baby_texture": "pig/pig_temperate_baby",
+              "pose": "PigModel"
             },
             "warm": {
               "textures": {
                 "wild": "pig/pig_warm"
               },
-              "baby_texture": "pig/pig_warm_baby"
+              "baby_texture": "pig/pig_warm_baby",
+              "pose": "PigModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "PigModel#createBodyLayer"
+              "geometry": "PigModel#createBodyLayer",
+              "pose": "PigModel"
             },
             "baby": {
-              "geometry": "BabyPigModel#createBodyLayer"
+              "geometry": "BabyPigModel#createBodyLayer",
+              "pose": "BabyPigModel"
             }
           }
         }
@@ -1821,6 +4020,31 @@
             "saddle": "minecraft:saddle"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:piglin": {
@@ -1833,10 +4057,12 @@
           "options": {
             "adult": {
               "geometry": "AdultPiglinModel#createBodyLayer",
+              "pose": "AdultPiglinModel",
               "texture": "piglin/piglin"
             },
             "baby": {
               "geometry": "BabyPiglinModel#createBodyLayer",
+              "pose": "BabyPiglinModel",
               "texture": "piglin/piglin_baby"
             }
           }
@@ -1866,6 +4092,41 @@
         "minecraft:piglin",
         "minecraft:piglin_brute",
         "minecraft:zombified_piglin"
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:piglin_brute": {
@@ -1878,6 +4139,7 @@
           "options": {
             "adult": {
               "geometry": "AdultPiglinModel#createBodyLayer",
+              "pose": "AdultPiglinModel",
               "texture": "piglin/piglin_brute"
             }
           }
@@ -1896,6 +4158,41 @@
         "minecraft:piglin",
         "minecraft:piglin_brute",
         "minecraft:zombified_piglin"
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:pillager": {
@@ -1904,19 +4201,42 @@
         "armPose": "NEUTRAL",
         "mainArm": "RIGHT"
       },
-      "bones": {
-        "pose": "IllagerModel@armPose=NEUTRAL"
-      },
       "axes": {
         "age": {
           "options": {
             "adult": {
               "geometry": "IllagerModel#createBodyLayer@scaled=0.9375@rest=arms,hat",
+              "pose": "IllagerModel@armPose=NEUTRAL",
               "texture": "illager/pillager"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:polar_bear": {
       "renderer": "net/minecraft/client/renderer/entity/PolarBearRenderer",
@@ -1925,15 +4245,42 @@
           "options": {
             "adult": {
               "geometry": "PolarBearModel#createBodyLayer",
+              "pose": "PolarBearModel",
               "texture": "bear/polarbear"
             },
             "baby": {
               "geometry": "BabyPolarBearModel#createBodyLayer",
+              "pose": "BabyPolarBearModel",
               "texture": "bear/polarbear_baby"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:pufferfish": {
       "renderer": "net/minecraft/client/renderer/entity/PufferfishRenderer",
@@ -1945,6 +4292,7 @@
           "options": {
             "adult": {
               "geometry": "PufferfishBigModel#createBodyLayer",
+              "pose": "PufferfishBigModel",
               "texture": "fish/pufferfish"
             }
           }
@@ -1953,14 +4301,50 @@
           "default": "large",
           "options": {
             "small": {
-              "geometry": "PufferfishSmallModel#createBodyLayer"
+              "geometry": "PufferfishSmallModel#createBodyLayer",
+              "pose": "PufferfishSmallModel"
             },
             "medium": {
-              "geometry": "PufferfishMidModel#createBodyLayer"
+              "geometry": "PufferfishMidModel#createBodyLayer",
+              "pose": "PufferfishMidModel"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:rabbit": {
       "renderer": "net/minecraft/client/renderer/entity/RabbitRenderer",
@@ -1972,57 +4356,112 @@
               "textures": {
                 "wild": "rabbit/rabbit_brown"
               },
-              "baby_texture": "rabbit/rabbit_brown_baby"
+              "baby_texture": "rabbit/rabbit_brown_baby",
+              "pose": "AdultRabbitModel"
             },
             "white_splotched": {
               "textures": {
                 "wild": "rabbit/rabbit_white_splotched"
               },
-              "baby_texture": "rabbit/rabbit_white_splotched_baby"
+              "baby_texture": "rabbit/rabbit_white_splotched_baby",
+              "pose": "AdultRabbitModel"
             },
             "evil": {
               "textures": {
                 "wild": "rabbit/rabbit_caerbannog"
               },
-              "baby_texture": "rabbit/rabbit_caerbannog_baby"
+              "baby_texture": "rabbit/rabbit_caerbannog_baby",
+              "pose": "AdultRabbitModel"
             },
             "white": {
               "textures": {
                 "wild": "rabbit/rabbit_white"
               },
-              "baby_texture": "rabbit/rabbit_white_baby"
+              "baby_texture": "rabbit/rabbit_white_baby",
+              "pose": "AdultRabbitModel"
             },
             "gold": {
               "textures": {
                 "wild": "rabbit/rabbit_gold"
               },
-              "baby_texture": "rabbit/rabbit_gold_baby"
+              "baby_texture": "rabbit/rabbit_gold_baby",
+              "pose": "AdultRabbitModel"
             },
             "black": {
               "textures": {
                 "wild": "rabbit/rabbit_black"
               },
-              "baby_texture": "rabbit/rabbit_black_baby"
+              "baby_texture": "rabbit/rabbit_black_baby",
+              "pose": "AdultRabbitModel"
             },
             "salt": {
               "textures": {
                 "wild": "rabbit/rabbit_salt"
               },
-              "baby_texture": "rabbit/rabbit_salt_baby"
+              "baby_texture": "rabbit/rabbit_salt_baby",
+              "pose": "AdultRabbitModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "AdultRabbitModel#createBodyLayer"
+              "geometry": "AdultRabbitModel#createBodyLayer",
+              "pose": "AdultRabbitModel"
             },
             "baby": {
-              "geometry": "BabyRabbitModel#createBodyLayer"
+              "geometry": "BabyRabbitModel#createBodyLayer",
+              "pose": "BabyRabbitModel"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "idleHeadTiltAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "rabbit"
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "hopAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "rabbit"
+            }
+          ]
+        }
+      ]
     },
     "minecraft:ravager": {
       "renderer": "net/minecraft/client/renderer/entity/RavagerRenderer",
@@ -2031,11 +4470,37 @@
           "options": {
             "adult": {
               "geometry": "RavagerModel#createBodyLayer",
+              "pose": "RavagerModel",
               "texture": "illager/ravager"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:salmon": {
       "renderer": "net/minecraft/client/renderer/entity/SalmonRenderer",
@@ -2047,6 +4512,7 @@
           "options": {
             "adult": {
               "geometry": "SalmonModel#createBodyLayer",
+              "pose": "SalmonModel",
               "texture": "fish/salmon"
             }
           }
@@ -2055,14 +4521,50 @@
           "default": "medium",
           "options": {
             "small": {
-              "geometry": "SalmonModel#createBodyLayer@scaled=0.5"
+              "geometry": "SalmonModel#createBodyLayer@scaled=0.5",
+              "pose": "SalmonModel"
             },
             "large": {
-              "geometry": "SalmonModel#createBodyLayer@scaled=1.5"
+              "geometry": "SalmonModel#createBodyLayer@scaled=1.5",
+              "pose": "SalmonModel"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:sheep": {
       "renderer": "net/minecraft/client/renderer/entity/SheepRenderer",
@@ -2071,10 +4573,12 @@
           "options": {
             "adult": {
               "geometry": "SheepModel#createBodyLayer",
+              "pose": "SheepModel",
               "texture": "sheep/sheep"
             },
             "baby": {
               "geometry": "BabySheepModel#createBodyLayer",
+              "pose": "BabySheepModel",
               "texture": "sheep/sheep_baby"
             }
           }
@@ -2114,6 +4618,31 @@
             "texture": "sheep/sheep_wool_baby"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:shulker": {
@@ -2123,11 +4652,54 @@
           "options": {
             "adult": {
               "geometry": "ShulkerModel#createBodyLayer",
+              "pose": "ShulkerModel",
               "texture": "shulker/shulker"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick",
+            "figure"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "peekAmount",
+              "wave": "sweep",
+              "rest": 0.0,
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "figure"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:silverfish": {
       "renderer": "net/minecraft/client/renderer/entity/SilverfishRenderer",
@@ -2136,11 +4708,46 @@
           "options": {
             "adult": {
               "geometry": "SilverfishModel#createBodyLayer",
+              "pose": "SilverfishModel",
               "texture": "silverfish/silverfish"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:skeleton": {
       "renderer": "net/minecraft/client/renderer/entity/SkeletonRenderer",
@@ -2149,6 +4756,7 @@
           "options": {
             "adult": {
               "geometry": "SkeletonModel#createBodyLayer",
+              "pose": "SkeletonModel",
               "texture": "skeleton/skeleton"
             }
           }
@@ -2166,22 +4774,56 @@
       "members": [
         "minecraft:skeleton",
         "minecraft:stray"
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:skeleton_horse": {
       "renderer": "net/minecraft/client/renderer/entity/UndeadHorseRenderer",
-      "bones": {
-        "pose": "HorseModel"
-      },
       "axes": {
         "age": {
           "options": {
             "adult": {
               "geometry": "AbstractEquineModel#createBodyMesh",
+              "pose": "HorseModel",
               "texture": "horse/horse_skeleton"
             },
             "baby": {
               "geometry": "BabyHorseModel#createBabyMesh",
+              "pose": "BabyHorseModel",
               "texture": "horse/horse_skeleton_baby"
             }
           }
@@ -2218,6 +4860,31 @@
             "saddle": "minecraft:saddle"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:slime": {
@@ -2230,6 +4897,7 @@
           "options": {
             "adult": {
               "geometry": "SlimeModel#createInnerBodyLayer",
+              "pose": "SlimeModel",
               "texture": "slime/slime"
             }
           }
@@ -2266,15 +4934,137 @@
           "options": {
             "adult": {
               "geometry": "SnifferModel#createBodyLayer",
+              "pose": "SnifferModel",
               "texture": "sniffer/sniffer"
             },
             "baby": {
               "geometry": "SniffletModel#createBodyLayer",
+              "pose": "SniffletModel",
               "texture": "sniffer/snifflet"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "digging",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "diggingAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        },
+        {
+          "id": "sniffing",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "sniffingAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        },
+        {
+          "id": "rising",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "risingAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        },
+        {
+          "id": "feeling_happy",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "feelingHappyAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        },
+        {
+          "id": "scenting",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "scentingAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        }
+      ]
     },
     "minecraft:snow_golem": {
       "renderer": "net/minecraft/client/renderer/entity/SnowGolemRenderer",
@@ -2283,6 +5073,7 @@
           "options": {
             "adult": {
               "geometry": "SnowGolemModel#createBodyLayer",
+              "pose": "SnowGolemModel",
               "texture": "snow_golem/snow_golem"
             }
           }
@@ -2330,6 +5121,7 @@
           "options": {
             "adult": {
               "geometry": "SpiderModel#createSpiderBodyLayer",
+              "pose": "SpiderModel",
               "texture": "spider/spider"
             }
           }
@@ -2347,6 +5139,31 @@
             "sorted": true
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:squid": {
@@ -2356,10 +5173,12 @@
           "options": {
             "adult": {
               "geometry": "SquidModel#createBodyLayer",
+              "pose": "SquidModel",
               "texture": "squid/squid"
             },
             "baby": {
               "geometry": "BabySquidModel#createBodyLayer",
+              "pose": "BabySquidModel",
               "texture": "squid/squid_baby"
             }
           }
@@ -2368,6 +5187,46 @@
       "members": [
         "minecraft:glow_squid",
         "minecraft:squid"
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "figure"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "tentacleAngle",
+              "wave": "sweep",
+              "rest": 0.0,
+              "extent": 0.7853982
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "figure"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:stray": {
@@ -2377,6 +5236,7 @@
           "options": {
             "adult": {
               "geometry": "SkeletonModel#createBodyLayer",
+              "pose": "SkeletonModel",
               "texture": "skeleton/stray"
             }
           }
@@ -2405,6 +5265,41 @@
       "members": [
         "minecraft:skeleton",
         "minecraft:stray"
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:strider": {
@@ -2414,10 +5309,12 @@
           "options": {
             "adult": {
               "geometry": "AdultStriderModel#createBodyLayer",
+              "pose": "AdultStriderModel",
               "texture": "strider/strider"
             },
             "baby": {
               "geometry": "BabyStriderModel#createBodyLayer",
+              "pose": "BabyStriderModel",
               "texture": "strider/strider_baby"
             }
           }
@@ -2435,6 +5332,41 @@
             "saddle": "minecraft:saddle"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:tadpole": {
@@ -2447,11 +5379,46 @@
           "options": {
             "adult": {
               "geometry": "TadpoleModel#createBodyLayer",
+              "pose": "TadpoleModel",
               "texture": "tadpole/tadpole"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:trader_llama": {
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
@@ -2463,35 +5430,41 @@
               "textures": {
                 "wild": "llama/llama_creamy"
               },
-              "baby_texture": "llama/llama_creamy_baby"
+              "baby_texture": "llama/llama_creamy_baby",
+              "pose": "LlamaModel"
             },
             "white": {
               "textures": {
                 "wild": "llama/llama_white"
               },
-              "baby_texture": "llama/llama_white_baby"
+              "baby_texture": "llama/llama_white_baby",
+              "pose": "LlamaModel"
             },
             "brown": {
               "textures": {
                 "wild": "llama/llama_brown"
               },
-              "baby_texture": "llama/llama_brown_baby"
+              "baby_texture": "llama/llama_brown_baby",
+              "pose": "LlamaModel"
             },
             "gray": {
               "textures": {
                 "wild": "llama/llama_gray"
               },
-              "baby_texture": "llama/llama_gray_baby"
+              "baby_texture": "llama/llama_gray_baby",
+              "pose": "LlamaModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "LlamaModel#createBodyLayer"
+              "geometry": "LlamaModel#createBodyLayer",
+              "pose": "LlamaModel"
             },
             "baby": {
-              "geometry": "BabyLlamaModel#createBodyLayer"
+              "geometry": "BabyLlamaModel#createBodyLayer",
+              "pose": "BabyLlamaModel"
             }
           }
         }
@@ -2538,6 +5511,31 @@
             "yellow": "minecraft:yellow_carpet"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:tropical_fish": {
@@ -2553,6 +5551,7 @@
           "options": {
             "adult": {
               "geometry": "TropicalFishSmallModel#createBodyLayer",
+              "pose": "TropicalFishSmallModel",
               "texture": "fish/tropical_a"
             }
           }
@@ -2562,6 +5561,7 @@
           "options": {
             "large": {
               "geometry": "TropicalFishLargeModel#createBodyLayer",
+              "pose": "TropicalFishLargeModel",
               "texture": "fish/tropical_b",
               "overlays": [
                 {
@@ -2594,6 +5594,40 @@
             "blend": "cutout"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:turtle": {
@@ -2603,15 +5637,42 @@
           "options": {
             "adult": {
               "geometry": "AdultTurtleModel#createBodyLayer",
+              "pose": "AdultTurtleModel",
               "texture": "turtle/turtle"
             },
             "baby": {
               "geometry": "BabyTurtleModel#createBodyLayer",
+              "pose": "BabyTurtleModel",
               "texture": "turtle/turtle_baby"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:vex": {
       "renderer": "net/minecraft/client/renderer/entity/VexRenderer",
@@ -2620,11 +5681,46 @@
           "options": {
             "adult": {
               "geometry": "VexModel#createBodyLayer",
+              "pose": "VexModel",
               "texture": "illager/vex"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:villager": {
       "renderer": "net/minecraft/client/renderer/entity/VillagerRenderer",
@@ -2633,10 +5729,12 @@
           "options": {
             "adult": {
               "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
+              "pose": "VillagerModel",
               "texture": "villager/villager"
             },
             "baby": {
               "geometry": "BabyVillagerModel#createBodyModel",
+              "pose": "BabyVillagerModel",
               "texture": "villager/villager_baby"
             }
           }
@@ -2673,6 +5771,31 @@
       "members": [
         "minecraft:villager",
         "minecraft:wandering_trader"
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:vindicator": {
@@ -2681,19 +5804,42 @@
         "armPose": "CROSSED",
         "mainArm": "RIGHT"
       },
-      "bones": {
-        "pose": "IllagerModel@armPose=CROSSED"
-      },
       "axes": {
         "age": {
           "options": {
             "adult": {
               "geometry": "IllagerModel#createBodyLayer@scaled=0.9375@rest=hat,left_arm,right_arm",
+              "pose": "IllagerModel@armPose=CROSSED",
               "texture": "illager/vindicator"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:wandering_trader": {
       "renderer": "net/minecraft/client/renderer/entity/WanderingTraderRenderer",
@@ -2702,6 +5848,7 @@
           "options": {
             "adult": {
               "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
+              "pose": "VillagerModel",
               "texture": "wandering_trader/wandering_trader"
             }
           }
@@ -2710,6 +5857,31 @@
       "members": [
         "minecraft:villager",
         "minecraft:wandering_trader"
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:warden": {
@@ -2719,6 +5891,7 @@
           "options": {
             "adult": {
               "geometry": "WardenModel#createBodyLayer",
+              "pose": "WardenModel",
               "texture": "warden/warden"
             }
           }
@@ -2750,6 +5923,137 @@
           },
           "skip_bounds": true
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "attack",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "attackAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        },
+        {
+          "id": "digging",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "diggingAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        },
+        {
+          "id": "roar",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "roarAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        },
+        {
+          "id": "sniff",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "sniffAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        },
+        {
+          "id": "emerge",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "emergeAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        },
+        {
+          "id": "sonic_boom",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "sonicBoomAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "action_clip"
+            }
+          ]
+        }
       ]
     },
     "minecraft:witch": {
@@ -2759,11 +6063,47 @@
           "options": {
             "adult": {
               "geometry": "WitchModel#createBodyLayer@scaled=0.9375",
+              "pose": "WitchModel",
               "texture": "witch/witch"
             }
           }
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:wither": {
       "renderer": "net/minecraft/client/renderer/entity/WitherBossRenderer",
@@ -2775,6 +6115,7 @@
           "options": {
             "adult": {
               "geometry": "WitherBossModel#createBodyLayer",
+              "pose": "WitherBossModel",
               "texture": "wither/wither"
             }
           }
@@ -2796,6 +6137,40 @@
             "sorted": true
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:wither_skeleton": {
@@ -2805,6 +6180,7 @@
           "options": {
             "adult": {
               "geometry": "SkeletonModel#createBodyLayer@scaled=1.2",
+              "pose": "SkeletonModel",
               "texture": "skeleton/wither_skeleton"
             }
           }
@@ -2819,7 +6195,42 @@
           "outer": 1.0
         },
         "scaled": 1.2
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:wolf": {
       "renderer": "net/minecraft/client/renderer/entity/WolfRenderer",
@@ -2833,7 +6244,8 @@
                 "angry": "wolf/wolf_ashen_angry",
                 "tame": "wolf/wolf_ashen_tame"
               },
-              "baby_texture": "wolf/wolf_ashen_baby"
+              "baby_texture": "wolf/wolf_ashen_baby",
+              "pose": "AdultWolfModel"
             },
             "black": {
               "textures": {
@@ -2841,7 +6253,8 @@
                 "angry": "wolf/wolf_black_angry",
                 "tame": "wolf/wolf_black_tame"
               },
-              "baby_texture": "wolf/wolf_black_baby"
+              "baby_texture": "wolf/wolf_black_baby",
+              "pose": "AdultWolfModel"
             },
             "chestnut": {
               "textures": {
@@ -2849,7 +6262,8 @@
                 "angry": "wolf/wolf_chestnut_angry",
                 "tame": "wolf/wolf_chestnut_tame"
               },
-              "baby_texture": "wolf/wolf_chestnut_baby"
+              "baby_texture": "wolf/wolf_chestnut_baby",
+              "pose": "AdultWolfModel"
             },
             "pale": {
               "textures": {
@@ -2857,7 +6271,8 @@
                 "angry": "wolf/wolf_angry",
                 "tame": "wolf/wolf_tame"
               },
-              "baby_texture": "wolf/wolf_baby"
+              "baby_texture": "wolf/wolf_baby",
+              "pose": "AdultWolfModel"
             },
             "rusty": {
               "textures": {
@@ -2865,7 +6280,8 @@
                 "angry": "wolf/wolf_rusty_angry",
                 "tame": "wolf/wolf_rusty_tame"
               },
-              "baby_texture": "wolf/wolf_rusty_baby"
+              "baby_texture": "wolf/wolf_rusty_baby",
+              "pose": "AdultWolfModel"
             },
             "snowy": {
               "textures": {
@@ -2873,7 +6289,8 @@
                 "angry": "wolf/wolf_snowy_angry",
                 "tame": "wolf/wolf_snowy_tame"
               },
-              "baby_texture": "wolf/wolf_snowy_baby"
+              "baby_texture": "wolf/wolf_snowy_baby",
+              "pose": "AdultWolfModel"
             },
             "spotted": {
               "textures": {
@@ -2881,7 +6298,8 @@
                 "angry": "wolf/wolf_spotted_angry",
                 "tame": "wolf/wolf_spotted_tame"
               },
-              "baby_texture": "wolf/wolf_spotted_baby"
+              "baby_texture": "wolf/wolf_spotted_baby",
+              "pose": "AdultWolfModel"
             },
             "striped": {
               "textures": {
@@ -2889,7 +6307,8 @@
                 "angry": "wolf/wolf_striped_angry",
                 "tame": "wolf/wolf_striped_tame"
               },
-              "baby_texture": "wolf/wolf_striped_baby"
+              "baby_texture": "wolf/wolf_striped_baby",
+              "pose": "AdultWolfModel"
             },
             "woods": {
               "textures": {
@@ -2897,7 +6316,8 @@
                 "angry": "wolf/wolf_woods_angry",
                 "tame": "wolf/wolf_woods_tame"
               },
-              "baby_texture": "wolf/wolf_woods_baby"
+              "baby_texture": "wolf/wolf_woods_baby",
+              "pose": "AdultWolfModel"
             }
           }
         },
@@ -2912,10 +6332,12 @@
         "age": {
           "options": {
             "adult": {
-              "geometry": "AdultWolfModel#createBodyLayer"
+              "geometry": "AdultWolfModel#createBodyLayer",
+              "pose": "AdultWolfModel"
             },
             "baby": {
-              "geometry": "BabyWolfModel#createBodyLayer"
+              "geometry": "BabyWolfModel#createBodyLayer",
+              "pose": "BabyWolfModel"
             }
           }
         }
@@ -2945,6 +6367,31 @@
             "armadillo_scute": "minecraft:armadillo_scute"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:zoglin": {
@@ -2954,10 +6401,12 @@
           "options": {
             "adult": {
               "geometry": "HoglinModel#createBodyLayer",
+              "pose": "HoglinModel",
               "texture": "hoglin/zoglin"
             },
             "baby": {
               "geometry": "BabyHoglinModel#createBodyLayer",
+              "pose": "BabyHoglinModel",
               "texture": "hoglin/zoglin_baby"
             }
           }
@@ -2966,22 +6415,46 @@
       "members": [
         "minecraft:hoglin",
         "minecraft:zoglin"
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:zombie": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieRenderer",
-      "bones": {
-        "pose": "ZombieModel"
-      },
       "axes": {
         "age": {
           "options": {
             "adult": {
               "geometry": "HumanoidModel#createMesh",
+              "pose": "ZombieModel",
               "texture": "zombie/zombie"
             },
             "baby": {
               "geometry": "BabyZombieModel#createBodyLayer",
+              "pose": "BabyZombieModel",
               "texture": "zombie/zombie_baby"
             }
           }
@@ -3014,22 +6487,56 @@
           },
           "form": "baby"
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:zombie_horse": {
       "renderer": "net/minecraft/client/renderer/entity/UndeadHorseRenderer",
-      "bones": {
-        "pose": "HorseModel"
-      },
       "axes": {
         "age": {
           "options": {
             "adult": {
               "geometry": "AbstractEquineModel#createBodyMesh",
+              "pose": "HorseModel",
               "texture": "horse/horse_zombie"
             },
             "baby": {
               "geometry": "BabyHorseModel#createBabyMesh",
+              "pose": "BabyHorseModel",
               "texture": "horse/horse_zombie_baby"
             }
           }
@@ -3066,6 +6573,31 @@
             "saddle": "minecraft:saddle"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "stride",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:zombie_nautilus": {
@@ -3077,20 +6609,23 @@
             "temperate": {
               "textures": {
                 "wild": "nautilus/zombie_nautilus"
-              }
+              },
+              "pose": "NautilusModel"
             },
             "warm": {
               "textures": {
                 "wild": "nautilus/zombie_nautilus_coral"
               },
-              "geometry": "ZombieNautilusCoralModel#createBodyLayer"
+              "geometry": "ZombieNautilusCoralModel#createBodyLayer",
+              "pose": "ZombieNautilusCoralModel"
             }
           }
         },
         "age": {
           "options": {
             "adult": {
-              "geometry": "NautilusModel#createBodyLayer"
+              "geometry": "NautilusModel#createBodyLayer",
+              "pose": "NautilusModel"
             }
           }
         }
@@ -3122,6 +6657,41 @@
             "saddle": "minecraft:saddle"
           }
         }
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:zombie_villager": {
@@ -3131,10 +6701,12 @@
           "options": {
             "adult": {
               "geometry": "ZombieVillagerModel#createBodyLayer",
+              "pose": "ZombieVillagerModel",
               "texture": "zombie_villager/zombie_villager"
             },
             "baby": {
               "geometry": "BabyZombieVillagerModel#createBodyLayer",
+              "pose": "BabyZombieVillagerModel",
               "texture": "zombie_villager/zombie_villager_baby"
             }
           }
@@ -3195,22 +6767,56 @@
           },
           "form": "baby"
         }
-      }
+      },
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:zombified_piglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZombifiedPiglinRenderer",
-      "bones": {
-        "pose": "AdultZombifiedPiglinModel"
-      },
       "axes": {
         "age": {
           "options": {
             "adult": {
               "geometry": "AdultPiglinModel#createBodyLayer",
+              "pose": "AdultZombifiedPiglinModel",
               "texture": "piglin/zombified_piglin"
             },
             "baby": {
               "geometry": "BabyPiglinModel#createBodyLayer",
+              "pose": "BabyPiglinModel",
               "texture": "piglin/zombified_piglin_baby"
             }
           }
@@ -3240,6 +6846,41 @@
         "minecraft:piglin",
         "minecraft:piglin_brute",
         "minecraft:zombified_piglin"
+      ],
+      "styles": [
+        {
+          "id": "idle",
+          "sources": [
+            "tick"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            }
+          ]
+        }
       ]
     }
   }

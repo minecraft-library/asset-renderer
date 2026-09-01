@@ -86,10 +86,10 @@ public record PoseClipSite(
     public enum Gate {
 
         /** Held at its first frame unconditionally - the only clip kind that always contributes. */
-        STATIC("static"),
+        NONE("none"),
 
         /** Driven by the walk inputs, so it contributes exactly as far as the subject is walking. */
-        WALK("walk"),
+        STRIDE("stride"),
 
         /**
          * Behind a running animation state - a roar, a dig, a sit, an idle. Vanilla starts one from
@@ -97,7 +97,7 @@ public record PoseClipSite(
          * selection over the render-state fields they are held in, and the site names the one it
          * reads.
          */
-        STATE("state");
+        SELECT("select");
 
         /** The token this gate is spelled with in the shipped table. */
         private final @NotNull String token;

@@ -154,6 +154,31 @@ class EntityStyleCatalogJoinTest {
     }
 
     @Test
+    @DisplayName("an age-split pair sharing one id loads apart, and byId answers the first row")
+    void anAgeSplitPairLoadsApart() {
+        StyleCatalog catalog = assemble(styled("""
+            [ { "id": "idle", "drives": [ { "field": "swayAngle", "wave": "ramp" } ] },
+              { "id": "play_dead", "base": "idle", "age": "adult", "sources": [],
+                "drives": [ { "field": "playingDeadFactor", "wave": "hold" } ] },
+              { "id": "play_dead", "base": "idle", "age": "baby", "sources": [],
+                "drives": [ { "field": "playDeadAnimationState", "wave": "hold" } ] } ]"""))
+            .styles();
+        List<PoseStyle> pair = catalog.styles().stream()
+            .filter(style -> "play_dead".equals(style.id()))
+            .toList();
+        assertEquals(List.of(Optional.of(Age.ADULT), Optional.of(Age.BABY)),
+            pair.stream().map(PoseStyle::age).toList(), "both rows load, in shipped order");
+        assertEquals(List.of("swayAngle", "playingDeadFactor"),
+            List.copyOf(pair.getFirst().drivers().keySet()),
+            "the adult row composes its own drives over the shared base");
+        assertEquals(List.of("swayAngle", "playDeadAnimationState"),
+            List.copyOf(pair.getLast().drivers().keySet()),
+            "and the baby row its own, never its twin's");
+        assertSame(pair.getFirst(), catalog.byId("play_dead").orElseThrow(),
+            "byId answers the first-shipped row of a shared id");
+    }
+
+    @Test
     @DisplayName("an explicit pose member wins over the coordinate-head derivation, on both ages")
     void anExplicitPoseMemberWins() {
         EntityPose byHead = pose(-1f);

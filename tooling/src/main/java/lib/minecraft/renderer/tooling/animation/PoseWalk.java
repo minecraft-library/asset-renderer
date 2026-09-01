@@ -2367,7 +2367,7 @@ public final class PoseWalk {
                 throw new IllegalStateException("drives '" + clip.coordinate() + "' by a value it could not model");
             carried.add(number.expr());
         }
-        if (drive == PoseClipSite.Gate.STATE && state.isEmpty())
+        if (drive == PoseClipSite.Gate.SELECT && state.isEmpty())
             throw new IllegalStateException(
                 "gates '" + clip.coordinate() + "' on an animation state it could not name");
         context.clipSites().add(new PoseClipSite(clip.coordinate(), drive, state, List.copyOf(carried),
@@ -2376,9 +2376,9 @@ public final class PoseWalk {
 
     /** Which of the three drives a play site names, matching what the clip table already records. */
     private static @Nullable PoseClipSite.Gate driveOf(@NotNull String method) {
-        if (VanillaSourceClasses.Methods.APPLY.equals(method)) return PoseClipSite.Gate.STATE;
-        if (VanillaSourceClasses.Methods.APPLY_WALK.equals(method)) return PoseClipSite.Gate.WALK;
-        if (VanillaSourceClasses.Methods.APPLY_STATIC.equals(method)) return PoseClipSite.Gate.STATIC;
+        if (VanillaSourceClasses.Methods.APPLY.equals(method)) return PoseClipSite.Gate.SELECT;
+        if (VanillaSourceClasses.Methods.APPLY_WALK.equals(method)) return PoseClipSite.Gate.STRIDE;
+        if (VanillaSourceClasses.Methods.APPLY_STATIC.equals(method)) return PoseClipSite.Gate.NONE;
         return null;
     }
 
