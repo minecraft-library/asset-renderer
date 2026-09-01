@@ -10,40 +10,6 @@ it, and in the `reason` recorded with the baseline it moved.
 
 Delete an entry when it closes.
 
-## A driven flag channel has no symbolic form, so one clip gate stays unreachable
-
-Every render-state field the pose walk keeps symbolic arrives at render as a number, which is what
-let the animation states onto the driven roster without a second mechanism. A bone's VISIBILITY does
-not: every flag folds to a literal where the table is written, and there is no channel for one the
-fold cannot settle.
-
-`FrogModel.setupAnim` reads `croakAnimationState.isStarted()` to decide whether the croaking body is
-drawn at all, so it is the one clip gate the roster cannot carry - driving it leaves the generator a
-flag with no literal, and the flow refuses the subject rather than shipping a guess. Every other clip
-table in the corpus is selectable.
-
-Whoever takes it is choosing between two things. A symbolic flag channel is a shipped-table shape, a
-loader arm and a render-time read of a channel that is documented today as read by nothing, which is
-a wider change than one croak is worth on its own. Leaving it is cheap and stays correct; what it
-costs is that the roster's claim to carry vanilla's own selectors has exactly one exception, and an
-exception nobody has written a reason for reads as an oversight to the next person.
-
-## The posed sweeps render one appearance per entity, so a baby's clips are selectable and ungated
-
-`animation/` and `walk/` enumerate 90 subjects, one per entity and every one an adult, where the
-still `entities/` sweep holds 402 including babies and equipment variants. So the clips on a baby
-mesh - every `SniffletModel` site, and the baby armadillo's, rabbit's, camel's and axolotl's - are
-reachable by a caller and compared against nothing.
-
-That is not a gap in the roster, which carries them, nor in the renderer, which draws them. It is
-what the reference set enumerates. Widening `EntityAnimationSweep` would gate them, and the cost is
-the obvious one: the two posed sub-trees are 720 references each today, against an enumeration of 402
-subjects rather than 90.
-
-Whoever takes it should decide what the posed sweeps are FOR before widening them. Every appearance
-is not obviously the answer - a collar colour changes no pose - where every distinct MESH plainly is,
-and that is a much smaller widening than the appearance count suggests.
-
 ## The pose presets and the animation knobs are one question answered in four places
 
 **Stated as a goal by the owner, and deliberately not built yet.** The intended end state is two base

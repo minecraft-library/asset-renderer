@@ -688,11 +688,22 @@ they share is only that the frame resolves both by render-state field name.
   flag a rider sets and an armadillo's roll is fear, and selecting either under `WALK` would animate
   something vanilla does not do when the animal merely walks. **Reading a subject's delta between the
   two gaits rather than its gates is what makes those look like locomotion.**
-- **Two states vanilla drives are left off the roster for a mechanism reason**, and both are named
-  where the group that would have held them is declared. A frog's `croakAnimationState` decides
-  whether the croaking body is DRAWN and a flag folds to a literal at generation, so a driven croak is
-  one the fold cannot settle and a subject the flow refuses. A baby axolotl's `walkAnimationState`
-  gates a walk-driven play site the fold settles and drops, so driving it puts that site back.
+- **One state vanilla drives is left off the roster for a mechanism reason**, and it is named where
+  the group that would have held it is declared: a baby axolotl's `walkAnimationState` gates a
+  walk-driven play site the fold settles and drops, so driving it puts that site back.
+- **A flag is folded against the FIGURES alone, which is what lets a state gate one.** Nothing at
+  render reads a flag channel, so a bone's visibility has to be settled where the table is written -
+  but the two halves of the driven set differ in whether a selection could carry it. A flag gated on
+  a one-hot STATE is a bone a selection draws, so the fold settles the state and the mesh keeps the
+  bone resting undrawn with a toggle over it; a flag gated on a FIGURE is a bone that blinks with the
+  clock, which no toggle can say, so it stays symbolic and the flow refuses. `PoseFlow.DRIVEN_FIGURES`
+  is that line and `IdleFigureMirrorTest` holds it to the scalar roster, a field on the wrong side
+  being silent either way.
+- **A bone drawn only while a clip runs is a toggle, and the frog's croak is the corpus's one.**
+  `EntityBoneResolver` reads a gate by descriptor, so `<AnimationState>.isStarted()` is matched beside
+  a plain `:Z` field read and the toggle is named off the state with its type suffix dropped. The
+  clip and the bone are then inseparable and a render wanting the croak asks for both - the state, and
+  the `croak` appearance - which is the same pair an armour stand's arms already take.
 - **Three builds answer from the same numbers and none can name another's type**, so
   `IdleFigureMirrorTest` compares all three as text. The harness declares its copy in `IdleFigures`,
   where a value that moved on one side only renders happily and reports as a defect in this renderer.
