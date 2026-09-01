@@ -35,7 +35,7 @@
     "entity_geometry": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "d32163099b5ec804893da2e05c88a8fb69555d92ea833d7e6952a750c80ede0d"
+      "sha256": "5ca9403af05c24ab28a349b94fd0a9fa88ab596e98a2c506b5b5fb82499fcc6d"
     },
     "entity_models": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "c279785b4bff98f88d5b176ac3597c70768b1b9d65e961ae2ceeee5824b2ca3e",
-    "asset_dirty": true,
-    "asset_sha": "9d479358489791723d9805105f9c5f5c6f1c26c8",
+    "asset_content_digest": "7c5a48bed5cb8a73cfa6902422f6dff1fdbfec46f8ee646f25e7966cec4bcd2f",
+    "asset_dirty": false,
+    "asset_sha": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
     "counts": {
       "digests": 11
     },
@@ -75,17 +75,18 @@
     },
     "mc_version": "26.1.2",
     "parity_class": "moving",
+    "population_changed": true,
     "producer": "test",
-    "reason": "Arms every clip table as a selection, and lets a stride reach the two clips that ARE a subject's locomotion. The breeze whirls because Breeze.tick starts idle unconditionally, so its references were the frame vanilla draws only before a first tick: animation 0.1317 -> 0.0061. Its walk row carries that plus the slide, and the slide exposed a dropped channel - ClipKit knew the container under one spelling where the mesh had flattened a named part - which is 82.3441 unfixed and 0.0087 with it landing. The rabbit hops under a stride, having no walk-gated clip at all, and its walk row moves 0.0529 -> 0.0794 measuring an animal in motion rather than one held still. The pose table's two declared-rest keys were ordered by a Map.of salt that flapped per JVM launch and are now insertion-ordered, verified over three separate launches.",
+    "reason": "A frog's croak sac becomes a toggled bone, and both posed sweeps enumerate a baby. The five moved digests are one cause: EntityBoneResolver reads <AnimationState>.isStarted() as a visibility gate, so croaking_body is kept resting hidden under a croak toggle where the fold used to settle it undrawn and drop it - which moves entity_geometry, the two dumps that serialise it, and the entityModels log line that named it undrawn. Nothing existing moved: 0 unexpected rows across sweep.entity, sweep.entity-animation and sweep.entity-walk, and all 3762 pre-existing references are byte-identical. The additions are the coverage - 673 references, one frog toggle row, and 42 baby rows per posed gait, one subject per POSE rather than per entity. Read rather than counted: 40 of 42 baby rows are under 0.25 idle and 35 of 42 walking, and the adult halves are unchanged at 2.1233 and 3.1548. Seven rows over five subjects diverge and every one is a canvas disagreement of 2 to 72 px rather than a pose - snifflet both gaits, baby zombified piglin both gaits, and the three baby equines under a stride only. Those are first baselines recording a divergence rather than endorsing it, which is what makes the next change comparable against them.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 402,
+      "entities": 403,
       "glint": 330,
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-09-01T00:13:14Z",
+    "timestamp": "2026-09-01T01:33:38Z",
     "tool_version": "1.0.0"
   }
 }

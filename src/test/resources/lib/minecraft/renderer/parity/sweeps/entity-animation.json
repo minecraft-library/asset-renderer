@@ -6,32 +6,33 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.entity-animation",
-    "asset_content_digest": "c279785b4bff98f88d5b176ac3597c70768b1b9d65e961ae2ceeee5824b2ca3e",
-    "asset_dirty": true,
-    "asset_sha": "9d479358489791723d9805105f9c5f5c6f1c26c8",
+    "asset_content_digest": "7c5a48bed5cb8a73cfa6902422f6dff1fdbfec46f8ee646f25e7966cec4bcd2f",
+    "asset_dirty": false,
+    "asset_sha": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
     "counts": {
       "failed": 0,
-      "rows": 90
+      "rows": 132
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
     "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "moving",
+    "population_changed": true,
     "producer": "entityAnimationParityVanilla",
-    "reason": "Arms every clip table as a selection, and lets a stride reach the two clips that ARE a subject's locomotion. The breeze whirls because Breeze.tick starts idle unconditionally, so its references were the frame vanilla draws only before a first tick: animation 0.1317 -> 0.0061. Its walk row carries that plus the slide, and the slide exposed a dropped channel - ClipKit knew the container under one spelling where the mesh had flattened a named part - which is 82.3441 unfixed and 0.0087 with it landing. The rabbit hops under a stride, having no walk-gated clip at all, and its walk row moves 0.0529 -> 0.0794 measuring an animal in motion rather than one held still. The pose table's two declared-rest keys were ordered by a Map.of salt that flapped per JVM launch and are now insertion-ordered, verified over three separate launches.",
+    "reason": "A frog's croak sac becomes a toggled bone, and both posed sweeps enumerate a baby. The five moved digests are one cause: EntityBoneResolver reads <AnimationState>.isStarted() as a visibility gate, so croaking_body is kept resting hidden under a croak toggle where the fold used to settle it undrawn and drop it - which moves entity_geometry, the two dumps that serialise it, and the entityModels log line that named it undrawn. Nothing existing moved: 0 unexpected rows across sweep.entity, sweep.entity-animation and sweep.entity-walk, and all 3762 pre-existing references are byte-identical. The additions are the coverage - 673 references, one frog toggle row, and 42 baby rows per posed gait, one subject per POSE rather than per entity. Read rather than counted: 40 of 42 baby rows are under 0.25 idle and 35 of 42 walking, and the adult halves are unchanged at 2.1233 and 3.1548. Seven rows over five subjects diverge and every one is a canvas disagreement of 2 to 72 px rather than a pose - snifflet both gaits, baby zombified piglin both gaits, and the three baby equines under a stride only. Those are first baselines recording a divergence rather than endorsing it, which is what makes the next change comparable against them.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 402,
+      "entities": 403,
       "glint": 330,
       "items": 479,
       "players": 2
     },
-    "reference_manifest_digest": "ff2285e70d8bd48daa637d92ea6840ac090fe8f5a36f2ec1cb07b72e32dfbb4d",
-    "timestamp": "2026-09-01T00:13:29Z",
+    "reference_manifest_digest": "7d9ba10407fcb89d06ae28737cb32681f7eff8a4f1766d3784aee3e68a403c44",
+    "timestamp": "2026-09-01T01:33:53Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 18796
+    "wall_time_ms": 23158
   },
   "rows": [
     {
@@ -63,6 +64,19 @@
     {
       "frame_spread": "0.0000",
       "frames": "8",
+      "java_h": "156",
+      "java_w": "172",
+      "mean_argb_delta": "0.0379",
+      "status": "ok",
+      "subject": "minecraft__armadillo~age=baby",
+      "vanilla_h": "156",
+      "vanilla_w": "172",
+      "worst_delta": "0.0379",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
       "java_h": "495",
       "java_w": "272",
       "mean_argb_delta": "0.0036",
@@ -84,6 +98,19 @@
       "vanilla_h": "293",
       "vanilla_w": "388",
       "worst_delta": "0.0542",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "293",
+      "java_w": "388",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "minecraft__axolotl_lucy~age=baby",
+      "vanilla_h": "293",
+      "vanilla_w": "388",
+      "worst_delta": "0.0000",
       "worst_frame": "0"
     },
     {
@@ -110,6 +137,19 @@
       "vanilla_h": "275",
       "vanilla_w": "256",
       "worst_delta": "0.0321",
+      "worst_frame": "6"
+    },
+    {
+      "frame_spread": "0.0348",
+      "frames": "8",
+      "java_h": "166",
+      "java_w": "124",
+      "mean_argb_delta": "0.0171",
+      "status": "ok",
+      "subject": "minecraft__bee~age=baby",
+      "vanilla_h": "166",
+      "vanilla_w": "124",
+      "worst_delta": "0.0348",
       "worst_frame": "6"
     },
     {
@@ -178,6 +218,19 @@
       "worst_frame": "6"
     },
     {
+      "frame_spread": "0.0128",
+      "frames": "8",
+      "java_h": "682",
+      "java_w": "612",
+      "mean_argb_delta": "0.0191",
+      "status": "ok",
+      "subject": "minecraft__camel~age=baby",
+      "vanilla_h": "682",
+      "vanilla_w": "612",
+      "worst_delta": "0.0282",
+      "worst_frame": "2"
+    },
+    {
       "frame_spread": "0.0000",
       "frames": "8",
       "java_h": "204",
@@ -188,6 +241,19 @@
       "vanilla_h": "204",
       "vanilla_w": "334",
       "worst_delta": "0.0009",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "204",
+      "java_w": "334",
+      "mean_argb_delta": "0.0104",
+      "status": "ok",
+      "subject": "minecraft__cat_black~age=baby",
+      "vanilla_h": "204",
+      "vanilla_w": "334",
+      "worst_delta": "0.0104",
       "worst_frame": "0"
     },
     {
@@ -214,6 +280,19 @@
       "vanilla_h": "256",
       "vanilla_w": "194",
       "worst_delta": "0.0062",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "256",
+      "java_w": "194",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "minecraft__chicken_temperate~age=baby",
+      "vanilla_h": "256",
+      "vanilla_w": "194",
+      "worst_delta": "0.0000",
       "worst_frame": "0"
     },
     {
@@ -258,6 +337,19 @@
     {
       "frame_spread": "0.0000",
       "frames": "8",
+      "java_h": "482",
+      "java_w": "442",
+      "mean_argb_delta": "0.0086",
+      "status": "ok",
+      "subject": "minecraft__cow_temperate~age=baby",
+      "vanilla_h": "482",
+      "vanilla_w": "442",
+      "worst_delta": "0.0086",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
       "java_h": "654",
       "java_w": "250",
       "mean_argb_delta": "0.0402",
@@ -295,6 +387,19 @@
       "worst_frame": "7"
     },
     {
+      "frame_spread": "0.0557",
+      "frames": "8",
+      "java_h": "202",
+      "java_w": "320",
+      "mean_argb_delta": "0.0184",
+      "status": "ok",
+      "subject": "minecraft__dolphin~age=baby",
+      "vanilla_h": "202",
+      "vanilla_w": "320",
+      "worst_delta": "0.0560",
+      "worst_frame": "3"
+    },
+    {
       "frame_spread": "0.0000",
       "frames": "8",
       "java_h": "450",
@@ -305,6 +410,19 @@
       "vanilla_h": "450",
       "vanilla_w": "440",
       "worst_delta": "0.0891",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "405",
+      "java_w": "364",
+      "mean_argb_delta": "0.0092",
+      "status": "ok",
+      "subject": "minecraft__donkey~age=baby",
+      "vanilla_h": "405",
+      "vanilla_w": "364",
+      "worst_delta": "0.0092",
       "worst_frame": "0"
     },
     {
@@ -319,6 +437,19 @@
       "vanilla_w": "328",
       "worst_delta": "0.1099",
       "worst_frame": "2"
+    },
+    {
+      "frame_spread": "0.0085",
+      "frames": "8",
+      "java_h": "266",
+      "java_w": "168",
+      "mean_argb_delta": "0.0358",
+      "status": "ok",
+      "subject": "minecraft__drowned~age=baby",
+      "vanilla_h": "266",
+      "vanilla_w": "168",
+      "worst_delta": "0.0422",
+      "worst_frame": "0"
     },
     {
       "frame_spread": "0.0003",
@@ -401,6 +532,19 @@
     {
       "frame_spread": "0.0000",
       "frames": "8",
+      "java_h": "168",
+      "java_w": "222",
+      "mean_argb_delta": "0.0781",
+      "status": "ok",
+      "subject": "minecraft__fox~age=baby",
+      "vanilla_h": "168",
+      "vanilla_w": "222",
+      "worst_delta": "0.0781",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
       "java_h": "191",
       "java_w": "262",
       "mean_argb_delta": "0.0000",
@@ -451,6 +595,19 @@
       "worst_frame": "3"
     },
     {
+      "frame_spread": "0.0049",
+      "frames": "8",
+      "java_h": "605",
+      "java_w": "590",
+      "mean_argb_delta": "0.0209",
+      "status": "ok",
+      "subject": "minecraft__glow_squid~age=baby",
+      "vanilla_h": "605",
+      "vanilla_w": "590",
+      "worst_delta": "0.0230",
+      "worst_frame": "1"
+    },
+    {
       "frame_spread": "0.0000",
       "frames": "8",
       "java_h": "383",
@@ -461,6 +618,19 @@
       "vanilla_h": "383",
       "vanilla_w": "362",
       "worst_delta": "0.0808",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "214",
+      "java_w": "212",
+      "mean_argb_delta": "0.0006",
+      "status": "ok",
+      "subject": "minecraft__goat~age=baby",
+      "vanilla_h": "214",
+      "vanilla_w": "212",
+      "worst_delta": "0.0006",
       "worst_frame": "0"
     },
     {
@@ -490,6 +660,19 @@
       "worst_frame": "0"
     },
     {
+      "frame_spread": "0.0003",
+      "frames": "8",
+      "java_h": "403",
+      "java_w": "344",
+      "mean_argb_delta": "0.0122",
+      "status": "ok",
+      "subject": "minecraft__happy_ghast~age=baby",
+      "vanilla_h": "403",
+      "vanilla_w": "344",
+      "worst_delta": "0.0125",
+      "worst_frame": "4"
+    },
+    {
       "frame_spread": "0.0000",
       "frames": "8",
       "java_h": "556",
@@ -500,6 +683,19 @@
       "vanilla_h": "556",
       "vanilla_w": "638",
       "worst_delta": "0.0057",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "556",
+      "java_w": "638",
+      "mean_argb_delta": "0.0001",
+      "status": "ok",
+      "subject": "minecraft__hoglin~age=baby",
+      "vanilla_h": "556",
+      "vanilla_w": "638",
+      "worst_delta": "0.0001",
       "worst_frame": "0"
     },
     {
@@ -516,6 +712,19 @@
       "worst_frame": "0"
     },
     {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "548",
+      "java_w": "556",
+      "mean_argb_delta": "0.0095",
+      "status": "ok",
+      "subject": "minecraft__horse_white~age=baby",
+      "vanilla_h": "548",
+      "vanilla_w": "556",
+      "worst_delta": "0.0095",
+      "worst_frame": "0"
+    },
+    {
       "frame_spread": "0.0247",
       "frames": "8",
       "java_h": "555",
@@ -527,6 +736,19 @@
       "vanilla_w": "334",
       "worst_delta": "0.0479",
       "worst_frame": "2"
+    },
+    {
+      "frame_spread": "0.0045",
+      "frames": "8",
+      "java_h": "259",
+      "java_w": "162",
+      "mean_argb_delta": "0.0199",
+      "status": "ok",
+      "subject": "minecraft__husk~age=baby",
+      "vanilla_h": "259",
+      "vanilla_w": "162",
+      "worst_delta": "0.0229",
+      "worst_frame": "1"
     },
     {
       "frame_spread": "0.0000",
@@ -570,6 +792,19 @@
     {
       "frame_spread": "0.0000",
       "frames": "8",
+      "java_h": "547",
+      "java_w": "386",
+      "mean_argb_delta": "0.0285",
+      "status": "ok",
+      "subject": "minecraft__llama_creamy~age=baby",
+      "vanilla_h": "547",
+      "vanilla_w": "386",
+      "worst_delta": "0.0285",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
       "java_h": "202",
       "java_w": "182",
       "mean_argb_delta": "0.0000",
@@ -596,6 +831,19 @@
     {
       "frame_spread": "0.0000",
       "frames": "8",
+      "java_h": "564",
+      "java_w": "388",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "minecraft__mooshroom_red~age=baby",
+      "vanilla_h": "564",
+      "vanilla_w": "388",
+      "worst_delta": "0.0000",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
       "java_h": "476",
       "java_w": "464",
       "mean_argb_delta": "0.0018",
@@ -604,6 +852,19 @@
       "vanilla_h": "476",
       "vanilla_w": "464",
       "worst_delta": "0.0018",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "405",
+      "java_w": "364",
+      "mean_argb_delta": "0.0051",
+      "status": "ok",
+      "subject": "minecraft__mule~age=baby",
+      "vanilla_h": "405",
+      "vanilla_w": "364",
+      "worst_delta": "0.0051",
       "worst_frame": "0"
     },
     {
@@ -618,6 +879,19 @@
       "vanilla_w": "450",
       "worst_delta": "0.0390",
       "worst_frame": "4"
+    },
+    {
+      "frame_spread": "0.0423",
+      "frames": "8",
+      "java_h": "191",
+      "java_w": "218",
+      "mean_argb_delta": "0.0465",
+      "status": "ok",
+      "subject": "minecraft__nautilus~age=baby",
+      "vanilla_h": "191",
+      "vanilla_w": "218",
+      "worst_delta": "0.0804",
+      "worst_frame": "7"
     },
     {
       "frame_spread": "0.0000",
@@ -635,11 +909,37 @@
     {
       "frame_spread": "0.0000",
       "frames": "8",
+      "java_h": "134",
+      "java_w": "196",
+      "mean_argb_delta": "0.0440",
+      "status": "ok",
+      "subject": "minecraft__ocelot~age=baby",
+      "vanilla_h": "134",
+      "vanilla_w": "196",
+      "worst_delta": "0.0440",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
       "java_h": "528",
       "java_w": "566",
       "mean_argb_delta": "0.0000",
       "status": "ok",
       "subject": "minecraft__panda_normal",
+      "vanilla_h": "528",
+      "vanilla_w": "566",
+      "worst_delta": "0.0000",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "528",
+      "java_w": "566",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "minecraft__panda_normal~age=baby",
       "vanilla_h": "528",
       "vanilla_w": "566",
       "worst_delta": "0.0000",
@@ -698,6 +998,19 @@
       "worst_frame": "0"
     },
     {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "348",
+      "java_w": "364",
+      "mean_argb_delta": "0.0180",
+      "status": "ok",
+      "subject": "minecraft__pig_temperate~age=baby",
+      "vanilla_h": "348",
+      "vanilla_w": "364",
+      "worst_delta": "0.0180",
+      "worst_frame": "0"
+    },
+    {
       "frame_spread": "0.0497",
       "frames": "8",
       "java_h": "528",
@@ -721,6 +1034,19 @@
       "vanilla_h": "528",
       "vanilla_w": "324",
       "worst_delta": "0.0593",
+      "worst_frame": "3"
+    },
+    {
+      "frame_spread": "0.0037",
+      "frames": "8",
+      "java_h": "528",
+      "java_w": "324",
+      "mean_argb_delta": "0.0012",
+      "status": "ok",
+      "subject": "minecraft__piglin~age=baby",
+      "vanilla_h": "528",
+      "vanilla_w": "324",
+      "worst_delta": "0.0038",
       "worst_frame": "3"
     },
     {
@@ -750,6 +1076,19 @@
       "worst_frame": "0"
     },
     {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "252",
+      "java_w": "272",
+      "mean_argb_delta": "0.0022",
+      "status": "ok",
+      "subject": "minecraft__polar_bear~age=baby",
+      "vanilla_h": "252",
+      "vanilla_w": "272",
+      "worst_delta": "0.0022",
+      "worst_frame": "0"
+    },
+    {
       "frame_spread": "0.0738",
       "frames": "8",
       "java_h": "233",
@@ -774,6 +1113,19 @@
       "vanilla_w": "264",
       "worst_delta": "0.0791",
       "worst_frame": "1"
+    },
+    {
+      "frame_spread": "0.0157",
+      "frames": "8",
+      "java_h": "376",
+      "java_w": "264",
+      "mean_argb_delta": "0.0224",
+      "status": "ok",
+      "subject": "minecraft__rabbit_brown~age=baby",
+      "vanilla_h": "376",
+      "vanilla_w": "264",
+      "worst_delta": "0.0287",
+      "worst_frame": "2"
     },
     {
       "frame_spread": "0.0000",
@@ -812,6 +1164,19 @@
       "vanilla_h": "430",
       "vanilla_w": "368",
       "worst_delta": "0.0146",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "223",
+      "java_w": "188",
+      "mean_argb_delta": "0.0258",
+      "status": "ok",
+      "subject": "minecraft__sheep~age=baby",
+      "vanilla_h": "223",
+      "vanilla_w": "188",
+      "worst_delta": "0.0258",
       "worst_frame": "0"
     },
     {
@@ -869,6 +1234,19 @@
     {
       "frame_spread": "0.0000",
       "frames": "8",
+      "java_h": "354",
+      "java_w": "352",
+      "mean_argb_delta": "0.0023",
+      "status": "ok",
+      "subject": "minecraft__skeleton_horse~age=baby",
+      "vanilla_h": "354",
+      "vanilla_w": "352",
+      "worst_delta": "0.0023",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
       "java_h": "202",
       "java_w": "182",
       "mean_argb_delta": "0.0002",
@@ -890,6 +1268,19 @@
       "vanilla_h": "848",
       "vanilla_w": "906",
       "worst_delta": "0.0023",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "442",
+      "java_w": "520",
+      "mean_argb_delta": "67.7951",
+      "status": "ok",
+      "subject": "minecraft__sniffer~age=baby",
+      "vanilla_h": "432",
+      "vanilla_w": "494",
+      "worst_delta": "67.7951",
       "worst_frame": "0"
     },
     {
@@ -932,6 +1323,19 @@
       "worst_frame": "3"
     },
     {
+      "frame_spread": "0.0046",
+      "frames": "8",
+      "java_h": "605",
+      "java_w": "590",
+      "mean_argb_delta": "0.0069",
+      "status": "ok",
+      "subject": "minecraft__squid~age=baby",
+      "vanilla_h": "605",
+      "vanilla_w": "590",
+      "worst_delta": "0.0102",
+      "worst_frame": "4"
+    },
+    {
       "frame_spread": "0.0498",
       "frames": "8",
       "java_h": "518",
@@ -956,6 +1360,19 @@
       "vanilla_w": "518",
       "worst_delta": "0.0076",
       "worst_frame": "7"
+    },
+    {
+      "frame_spread": "0.0123",
+      "frames": "8",
+      "java_h": "233",
+      "java_w": "170",
+      "mean_argb_delta": "0.0041",
+      "status": "ok",
+      "subject": "minecraft__strider~age=baby",
+      "vanilla_h": "233",
+      "vanilla_w": "170",
+      "worst_delta": "0.0123",
+      "worst_frame": "4"
     },
     {
       "frame_spread": "0.0000",
@@ -984,6 +1401,19 @@
       "worst_frame": "0"
     },
     {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "547",
+      "java_w": "386",
+      "mean_argb_delta": "0.0221",
+      "status": "ok",
+      "subject": "minecraft__trader_llama_creamy~age=baby",
+      "vanilla_h": "547",
+      "vanilla_w": "386",
+      "worst_delta": "0.0221",
+      "worst_frame": "0"
+    },
+    {
       "frame_spread": "0.1432",
       "frames": "8",
       "java_h": "99",
@@ -1006,6 +1436,19 @@
       "subject": "minecraft__turtle",
       "vanilla_h": "361",
       "vanilla_w": "572",
+      "worst_delta": "0.0000",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "88",
+      "java_w": "142",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "minecraft__turtle~age=baby",
+      "vanilla_h": "88",
+      "vanilla_w": "142",
       "worst_delta": "0.0000",
       "worst_frame": "0"
     },
@@ -1040,6 +1483,19 @@
       "frames": "8",
       "java_h": "516",
       "java_w": "260",
+      "mean_argb_delta": "0.0035",
+      "status": "ok",
+      "subject": "minecraft__villager~age=baby",
+      "vanilla_h": "516",
+      "vanilla_w": "260",
+      "worst_delta": "0.0035",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "516",
+      "java_w": "260",
       "mean_argb_delta": "0.0008",
       "status": "ok",
       "subject": "minecraft__vindicator",
@@ -1056,6 +1512,19 @@
       "mean_argb_delta": "0.0011",
       "status": "ok",
       "subject": "minecraft__wandering_trader",
+      "vanilla_h": "516",
+      "vanilla_w": "260",
+      "worst_delta": "0.0011",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "516",
+      "java_w": "260",
+      "mean_argb_delta": "0.0011",
+      "status": "ok",
+      "subject": "minecraft__wandering_trader~age=baby",
       "vanilla_h": "516",
       "vanilla_w": "260",
       "worst_delta": "0.0011",
@@ -1129,6 +1598,19 @@
     {
       "frame_spread": "0.0000",
       "frames": "8",
+      "java_h": "291",
+      "java_w": "318",
+      "mean_argb_delta": "0.0274",
+      "status": "ok",
+      "subject": "minecraft__wolf_pale~age=baby",
+      "vanilla_h": "291",
+      "vanilla_w": "318",
+      "worst_delta": "0.0274",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
       "java_h": "556",
       "java_w": "638",
       "mean_argb_delta": "0.0076",
@@ -1137,6 +1619,19 @@
       "vanilla_h": "556",
       "vanilla_w": "638",
       "worst_delta": "0.0076",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "556",
+      "java_w": "638",
+      "mean_argb_delta": "0.0001",
+      "status": "ok",
+      "subject": "minecraft__zoglin~age=baby",
+      "vanilla_h": "556",
+      "vanilla_w": "638",
+      "worst_delta": "0.0001",
       "worst_frame": "0"
     },
     {
@@ -1166,6 +1661,19 @@
       "worst_frame": "0"
     },
     {
+      "frame_spread": "0.0000",
+      "frames": "8",
+      "java_h": "378",
+      "java_w": "378",
+      "mean_argb_delta": "0.0041",
+      "status": "ok",
+      "subject": "minecraft__zombie_horse~age=baby",
+      "vanilla_h": "378",
+      "vanilla_w": "378",
+      "worst_delta": "0.0041",
+      "worst_frame": "0"
+    },
+    {
       "frame_spread": "0.0034",
       "frames": "8",
       "java_h": "430",
@@ -1192,6 +1700,32 @@
       "worst_frame": "7"
     },
     {
+      "frame_spread": "0.0044",
+      "frames": "8",
+      "java_h": "282",
+      "java_w": "178",
+      "mean_argb_delta": "0.0106",
+      "status": "ok",
+      "subject": "minecraft__zombie_villager~age=baby",
+      "vanilla_h": "282",
+      "vanilla_w": "178",
+      "worst_delta": "0.0136",
+      "worst_frame": "0"
+    },
+    {
+      "frame_spread": "0.0167",
+      "frames": "8",
+      "java_h": "259",
+      "java_w": "162",
+      "mean_argb_delta": "0.0206",
+      "status": "ok",
+      "subject": "minecraft__zombie~age=baby",
+      "vanilla_h": "259",
+      "vanilla_w": "162",
+      "worst_delta": "0.0342",
+      "worst_frame": "7"
+    },
+    {
       "frame_spread": "0.0413",
       "frames": "8",
       "java_h": "528",
@@ -1203,19 +1737,32 @@
       "vanilla_w": "324",
       "worst_delta": "0.0510",
       "worst_frame": "1"
+    },
+    {
+      "frame_spread": "0.5090",
+      "frames": "8",
+      "java_h": "528",
+      "java_w": "252",
+      "mean_argb_delta": "68.3821",
+      "status": "ok",
+      "subject": "minecraft__zombified_piglin~age=baby",
+      "vanilla_h": "528",
+      "vanilla_w": "324",
+      "worst_delta": "68.6665",
+      "worst_frame": "7"
     }
   ],
   "summary": {
     "buckets": {
-      "<0.25": 90,
-      "<0.50": 90,
-      "<0.75": 90,
-      "<1.00": 90,
+      "<0.25": 130,
+      "<0.50": 130,
+      "<0.75": 130,
+      "<1.00": 130,
       "failed": 0,
-      "total": 90
+      "total": 132
     },
     "failed": 0,
-    "rows": 90,
-    "sum": "2.1233"
+    "rows": 132,
+    "sum": "138.8948"
   }
 }
