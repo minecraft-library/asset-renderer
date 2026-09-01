@@ -20,9 +20,11 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 /**
@@ -210,6 +212,24 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
                 familyBounds.merge(baby.canvasKey(), bounds, Bounds::union);
                 measured++;
             }
+        }
+
+        // A derived cohort takes in the cohort it builds on exactly where the still sweep does, and
+        // for the same reason: the asset-renderer unions a baby with the adult coats of its own
+        // model, so a harness that sized the baby against its own extent alone would compare a
+        // subject framed two ways and report the framing rather than the render. Keying the cohorts
+        // apart WITHOUT this seeding is what put a baby cow in a 262x274 frame against the java
+        // side's 442x482 and read as 139.6790 of delta on a row that renders correctly.
+        for (Map.Entry<EntitySweep.CanvasKey, Bounds> entry : Map.copyOf(familyBounds).entrySet()
+            .stream()
+            .sorted(Comparator.comparingInt(e -> e.getKey().cohort().name().length()))
+            .toList()) {
+            if (!EntityRoster.sharesDefaultCanvas(entry.getKey().family())) continue;
+            Optional<Appearance.Cohort> base = entry.getKey().cohort().base();
+            if (base.isEmpty()) continue;
+            Bounds seed =
+                familyBounds.get(new EntitySweep.CanvasKey(entry.getKey().family(), base.get()));
+            if (seed != null) familyBounds.merge(entry.getKey(), seed, Bounds::union);
         }
 
         Map<EntitySweep.CanvasKey, Canvas> fits = new LinkedHashMap<>();
