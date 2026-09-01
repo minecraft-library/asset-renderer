@@ -157,14 +157,14 @@ public final class ClipKit {
         @NotNull EntityPose.Clip site, @NotNull EntityModelData model,
         @NotNull ToDoubleFunction<String> frame) {
 
-        return switch (site.gate()) {
+        return switch (site.drive()) {
             // Held at its first instant, at the full amplitude - vanilla's own `apply(0L, 1.0f)`.
-            case STATIC -> new Drive(0L, 1f);
+            case NONE -> new Drive(0L, 1f);
             // Playing exactly when the frame answers the field the gate reads. That field is a state
             // a caller selects, the way every other one-hot is selected, and it answers zero for a
             // state nobody chose - so a model declaring six of them still plays at most the one.
-            case STATE -> {
-                if (frame.applyAsDouble(site.state()) == 0d) yield null;
+            case SELECT -> {
+                if (frame.applyAsDouble(site.field().orElseThrow()) == 0d) yield null;
                 List<Float> terms = PoseEvaluator.values(site.arguments(), model, frame);
                 if (terms.size() != STATE_ARGUMENTS)
                     throw new RendererException(
@@ -175,7 +175,7 @@ public final class ClipKit {
                 // at tick zero on both sides, so the subtraction is of nothing and the term stands.
                 yield new Drive((long) (terms.getFirst() * MILLIS_PER_TICK), 1f);
             }
-            case WALK -> {
+            case STRIDE -> {
                 List<Float> terms = PoseEvaluator.values(site.arguments(), model, frame);
                 if (terms.size() != WALK_ARGUMENTS)
                     throw new RendererException(
@@ -186,6 +186,8 @@ public final class ClipKit {
                 long millis = (long) (terms.get(0) * MILLIS_PER_TICK * terms.get(2));
                 yield new Drive(millis, Math.min(terms.get(1) * terms.get(3), 1f));
             }
+            case TICK, FIGURE, SCROLL -> throw new RendererException(
+                "entity clip: '%s' cannot be driven by '%s'", site.coordinate(), site.drive().token());
         };
     }
 

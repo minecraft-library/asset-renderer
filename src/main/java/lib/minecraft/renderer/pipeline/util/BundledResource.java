@@ -53,4 +53,22 @@ public final class BundledResource {
             throw new PipelineException(ex, "Failed to read classpath resource '%s'", name);
         }
     }
+
+    /**
+     * Reads and envelope-validates a bundled resource whose absence is tolerated, accepting any of
+     * the given {@code format} values - the variant for a table shipped under more than one grammar.
+     *
+     * @param name the resource file name (e.g. {@code entity_models.json})
+     * @param acceptedFormats the {@code format} values the caller reads
+     * @return the validated document, or {@link Optional#empty()} when the resource is absent
+     * @throws PipelineException if the resource is present but its stream cannot be read
+     */
+    public static @NotNull Optional<ResourceDocument> read(@NotNull String name, int @NotNull ... acceptedFormats) {
+        try (InputStream stream = BundledResource.class.getResourceAsStream(RESOURCE_DIR + name)) {
+            if (stream == null) return Optional.empty();
+            return Optional.of(ResourceDocument.open(stream.readAllBytes(), acceptedFormats));
+        } catch (IOException ex) {
+            throw new PipelineException(ex, "Failed to read classpath resource '%s'", name);
+        }
+    }
 }

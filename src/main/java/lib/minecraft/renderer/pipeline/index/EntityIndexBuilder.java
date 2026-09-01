@@ -23,9 +23,13 @@ import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.asset.pose.StyleDriver;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.parity.Parity;
@@ -116,7 +120,8 @@ public final class EntityIndexBuilder {
             .filter(entry -> entry.getValue() != null)
             .collect(Concurrent.toLinkedMap(
                 Map.Entry::getKey,
-                entry -> readDefinition(entry.getKey(), entry.getValue(), geometries, poses, renderTransforms)));
+                entry -> readDefinition(entry.getKey(), entry.getValue(), geometries, poses,
+                    renderTransforms, rawFile.periodTicks())));
     }
 
     // ------------------------------------------------------------------------------------
@@ -132,7 +137,8 @@ public final class EntityIndexBuilder {
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
-        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms
+        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms,
+        @Nullable Integer periodTicks
     ) {
         // The family baseline (primary geometry + adult texture) lives under the mandatory age axis'
         // options.adult, not at top level.
@@ -161,7 +167,7 @@ public final class EntityIndexBuilder {
         // Beside the baby MESH rather than derived from it: a baby is its own model class, and two of
         // the families that pose at all are posed through that class alone.
         Optional<EntityPose> babyPose = babyCoord == null ? Optional.empty()
-            : Optional.of(under(renderTransform, poseOf(poses, babyCoord)));
+            : Optional.of(under(renderTransform, poseOf(poses, poseKeyOf(babyPoseKeyOf(family), babyCoord))));
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
             : Optional.ofNullable(geometries.get(babyCoord));
         ConcurrentList<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
@@ -170,7 +176,8 @@ public final class EntityIndexBuilder {
         FamilyContext ctx = new FamilyContext(family, familyId, poseClass, geometries, poses,
             renderTransform, familyOverlays, baseTint, rendererScale,
             babyModel, babyPose, babyOverlays,
-            equipment, humanoidArmor, stateDefaultOf(family));
+            equipment, humanoidArmor, stateDefaultOf(family),
+            styleCatalogOf(family, familyId, periodTicks));
 
         RawAxis variant = variantAxis(family);
         // A family is one row and the coats are forms of it, so both arms below build ROWS and differ
@@ -230,9 +237,10 @@ public final class EntityIndexBuilder {
     private static @NotNull Entity buildRow(@NotNull RowForm form, @NotNull FamilyContext ctx) {
         EntityModelData model = resolveModel(ctx.geometries(), form.coordinate(), ctx.familyId());
         // A coat swaps the mesh and never the renderer, so the class the pose is read against is the
-        // family's whatever geometry the form names.
+        // family's whatever geometry the form names - unless the form states its pose key outright.
         EntityPose pose = under(ctx.renderTransform(),
-            poseOf(ctx.poses(), ctx.poseClass() == null ? form.coordinate() : ctx.poseClass()));
+            poseOf(ctx.poses(), poseKeyOf(form.pose(),
+                ctx.poseClass() == null ? form.coordinate() : ctx.poseClass())));
         // Ahead of the size derivation so a same-geometry pass is materialised on the mesh this row
         // actually draws, and travels with it into every form derived from the row.
         ConcurrentList<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
@@ -240,7 +248,7 @@ public final class EntityIndexBuilder {
 
         ConcurrentMap<String, String> states = weathered(form.stateTextures(), ctx.familyOverlays(), ctx.familyId());
 
-        Entity bare = Entity.builder()
+        Entity.Builder shaped = Entity.builder()
             .id(ResourceId.parse(ctx.familyId()))
             .model(model).overlays(overlays)
             .blockOverlays(form.blockOverlays())
@@ -250,8 +258,11 @@ public final class EntityIndexBuilder {
             .axes(new Entity.Axes(ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Entity.Axis.none(),
                 new Entity.Axis<>(states, declaredState(ctx.stateDefault(), states)),
                 Entity.Axis.none(), Entity.Axis.none()))
-            .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()))
-            .build();
+            .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()));
+        // Set only where the family ships one - the Entity compact constructor answers a never-set
+        // catalog with BIND_ONLY.
+        if (ctx.styles() != null) shaped.styles(ctx.styles());
+        Entity bare = shaped.build();
 
         // Built once WITHOUT the size or shape axes, because a form of either is a sub-definition
         // derived from this row - its own baked mesh over the same overlays, or this row at a
@@ -285,7 +296,7 @@ public final class EntityIndexBuilder {
                     .map(texture -> Map.entry("baby", texture))
                     .stream())
             .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue));
-        return new RowForm(adult.geometry(), stateTextures, blockOverlays);
+        return new RowForm(adult.geometry(), adult.pose(), stateTextures, blockOverlays);
     }
 
     /**
@@ -298,6 +309,7 @@ public final class EntityIndexBuilder {
 
         return new RowForm(
             option.geometry() == null ? baseCoord : option.geometry(),
+            option.pose(),
             variantStateTextures(option),
             coatBlockOverlays(blockOverlays, option.block()));
     }
@@ -338,6 +350,25 @@ public final class EntityIndexBuilder {
     private static @NotNull EntityPose poseOf(@NotNull Map<String, EntityPose> poses, @NotNull String coordinate) {
         int member = coordinate.indexOf('#');
         return poses.getOrDefault(member < 0 ? coordinate : coordinate.substring(0, member), EntityPose.NONE);
+    }
+
+    /**
+     * The key one form's pose is joined at - the explicit {@code pose} member where the form states
+     * one (a format 3 table states it on every form), else the derived fallback the format 2 read
+     * lands on.
+     *
+     * @param explicit the form's own {@code pose} member, or {@code null} where it states none
+     * @param fallback the key the existing derivation answers
+     * @return the key the pose table is joined at
+     */
+    private static @NotNull String poseKeyOf(@Nullable String explicit, @NotNull String fallback) {
+        return explicit == null ? fallback : explicit;
+    }
+
+    /** The explicit pose key of the family's {@code age.baby} option, or {@code null}. */
+    private static @Nullable String babyPoseKeyOf(@NotNull RawModel family) {
+        RawOption baby = ageBaby(family);
+        return baby == null ? null : baby.pose();
     }
 
     /**
@@ -393,17 +424,20 @@ public final class EntityIndexBuilder {
         @NotNull ConcurrentList<OverlayLayer> babyOverlays,
         @NotNull ConcurrentList<EquipmentOverlay> equipment,
         @NotNull Optional<Shell> humanoidArmor,
-        @NotNull Optional<String> stateDefault
+        @NotNull Optional<String> stateDefault,
+        @Nullable StyleCatalog styles
     ) {}
 
     /**
      * What one row of a family differs from its siblings in, and the whole of it.
      *
-     * <p>Three members: everything else a row carries is the family's and travels on
+     * <p>Four members: everything else a row carries is the family's and travels on
      * {@link FamilyContext}. A coat that names no mesh of its own draws the family's, which is why the
      * coordinate is resolved into the form rather than left for the build to decide.
      *
      * @param coordinate the mesh this row draws
+     * @param pose the pose key the form states outright, or {@code null} where the derivation off
+     *     the coordinate head (or the family {@code bones.pose}) answers
      * @param stateTextures the row's textures by behavioural state, its base one among them
      * @param blockOverlays the block-shaped overlays as this row draws them - a coat naming its own
      *     {@code block} redraws the family's fixed rows as that block, the mooshroom's brown mushrooms
@@ -411,6 +445,7 @@ public final class EntityIndexBuilder {
      */
     private record RowForm(
         @NotNull String coordinate,
+        @Nullable String pose,
         @NotNull ConcurrentMap<String, String> stateTextures,
         @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays
     ) {}
@@ -1008,7 +1043,8 @@ public final class EntityIndexBuilder {
         EntityModelData model = ctx.geometries().get(coord);
         if (model == null) return Entity.Axis.none();
         ConcurrentList<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), ctx.geometries(), ctx.poses(),
-            ctx.renderTransform(), under(ctx.renderTransform(), poseOf(ctx.poses(), coord)), coord, model,
+            ctx.renderTransform(),
+            under(ctx.renderTransform(), poseOf(ctx.poses(), poseKeyOf(large.pose(), coord))), coord, model,
             ctx.familyId());
         Entity largeForm = bare.mutate()
             .model(model)
@@ -1142,6 +1178,167 @@ public final class EntityIndexBuilder {
         RawAxes axes = family.axes();
         if (axes == null || axes.state() == null) return Optional.empty();
         return Optional.ofNullable(axes.state().defaultOption());
+    }
+
+    // ------------------------------------------------------------------------------------
+    // style catalog
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * The family's shipped style catalog, or {@code null} for a family naming no {@code styles}
+     * member - which the {@link Entity} compact constructor answers with
+     * {@link StyleCatalog#BIND_ONLY}.
+     *
+     * <p>Each row's drivers are composed FLAT against its {@code base} chain here, once, so the
+     * loaded row already holds the whole answer and nothing at render walks a chain.
+     *
+     * @param family the raw model
+     * @param familyId the entity being read, for refusals
+     * @param periodTicks the file header's {@code period_ticks}, or {@code null} where it names none
+     * @return the catalog in shipped row order, or {@code null} where the family ships no styles
+     * @throws PipelineException if a styles-carrying file names no {@code period_ticks}, a row names
+     *     no id, an unknown token is named, a base names no sibling row, or a base chain cycles
+     */
+    private static @Nullable StyleCatalog styleCatalogOf(
+        @NotNull RawModel family, @NotNull String familyId, @Nullable Integer periodTicks) {
+
+        List<RawStyleRow> rows = family.styles();
+        if (rows == null) return null;
+        if (periodTicks == null)
+            throw new PipelineException(
+                "Entity '%s' ships styles but the file header names no period_ticks", familyId);
+
+        Map<String, RawStyleRow> byId = new LinkedHashMap<>();
+        for (RawStyleRow row : rows) {
+            if (row.id() == null)
+                throw new PipelineException("Entity '%s' ships a style row naming no id", familyId);
+            byId.put(row.id(), row);
+        }
+
+        Map<String, ConcurrentMap<String, StyleDriver>> composed = new LinkedHashMap<>();
+        List<PoseStyle> styles = new ArrayList<>(rows.size());
+        for (RawStyleRow row : rows)
+            styles.add(new PoseStyle(row.id(),
+                styleSources(row, familyId),
+                composedDrivers(row.id(), byId, composed, familyId, new LinkedHashSet<>()),
+                row.toggles() == null
+                    ? Concurrent.newUnmodifiableList() : Concurrent.newUnmodifiableList(row.toggles()),
+                styleAge(row, familyId)));
+        return new StyleCatalog(periodTicks, Concurrent.newUnmodifiableList(styles));
+    }
+
+    /**
+     * One row's drivers composed flat against its {@code base} chain: the base's composed map is
+     * copied, then each own drive is put by its field - a drive naming a {@code group} first evicts
+     * any still-inherited driver carrying that group, and an own drive always wins its own field
+     * key. Memoized per row, so a base shared by several rows composes once.
+     *
+     * @param id the row being composed
+     * @param rows every row of the family, by id
+     * @param composed the rows already composed, by id
+     * @param familyId the entity being read, for refusals
+     * @param resolving the ids on the current chain, for the cycle refusal
+     * @return the row's whole driver map, keyed by field
+     * @throws PipelineException if the base names no sibling row, or the chain cycles
+     */
+    private static @NotNull ConcurrentMap<String, StyleDriver> composedDrivers(
+        @NotNull String id,
+        @NotNull Map<String, RawStyleRow> rows,
+        @NotNull Map<String, ConcurrentMap<String, StyleDriver>> composed,
+        @NotNull String familyId,
+        @NotNull Set<String> resolving) {
+
+        ConcurrentMap<String, StyleDriver> held = composed.get(id);
+        if (held != null) return held;
+        if (!resolving.add(id))
+            throw new PipelineException("Entity '%s' style '%s' composes over itself", familyId, id);
+
+        RawStyleRow row = rows.get(id);
+        Map<String, StyleDriver> inherited = Map.of();
+        if (row.base() != null) {
+            if (!rows.containsKey(row.base()))
+                throw new PipelineException("Entity '%s' style '%s' composes over '%s', which no row carries",
+                    familyId, id, row.base());
+            inherited = composedDrivers(row.base(), rows, composed, familyId, resolving);
+        }
+
+        LinkedHashMap<String, StyleDriver> out = new LinkedHashMap<>(inherited);
+        for (RawDrive raw : nullToEmpty(row.drives())) {
+            StyleDriver driver = styleDriver(raw, familyId, id);
+            Map<String, StyleDriver> base = inherited;
+            driver.group().ifPresent(group -> out.entrySet().removeIf(entry ->
+                entry.getValue() == base.get(entry.getKey())
+                    && entry.getValue().group().filter(group::equals).isPresent()));
+            out.put(driver.field(), driver);
+        }
+        ConcurrentMap<String, StyleDriver> built = Concurrent.adoptLinkedMap(out).toUnmodifiable();
+        composed.put(id, built);
+        return built;
+    }
+
+    /**
+     * One drive mapped onto its driver - {@code rest} defaults to {@code 0f} and {@code extent} to
+     * {@code 1f} where the row spells neither.
+     *
+     * @param raw the drive as the table spells it
+     * @param familyId the entity being read, for refusals
+     * @param styleId the row the drive belongs to, for refusals
+     * @return the driver
+     * @throws PipelineException if the drive names no field, or a token that is not a wave
+     */
+    private static @NotNull StyleDriver styleDriver(
+        @NotNull RawDrive raw, @NotNull String familyId, @NotNull String styleId) {
+
+        if (raw.field() == null)
+            throw new PipelineException("Entity '%s' style '%s' drives a field it does not name",
+                familyId, styleId);
+        StyleDriver.Wave wave = raw.wave() == null
+            ? null : enumOf(StyleDriver.Wave.class, raw.wave()).orElse(null);
+        if (wave == null)
+            throw new PipelineException("Entity '%s' style '%s' drives '%s' by '%s', which is not a wave",
+                familyId, styleId, raw.field(), raw.wave());
+        return new StyleDriver(raw.field(), wave,
+            raw.rest() == null ? 0f : raw.rest(),
+            raw.extent() == null ? 1f : raw.extent(),
+            Optional.ofNullable(raw.group()));
+    }
+
+    /**
+     * The row's mechanism inventory, each token resolved onto its {@link MotionSource} and its gate
+     * carried as spelled.
+     *
+     * @param row the raw style row
+     * @param familyId the entity being read, for refusals
+     * @return the inventory in declared order, empty for a row nothing moves
+     * @throws PipelineException if an entry names a token that is not a drive
+     */
+    private static @NotNull ConcurrentList<PoseStyle.StyleSource> styleSources(
+        @NotNull RawStyleRow row, @NotNull String familyId) {
+
+        return nullToEmpty(row.sources()).stream()
+            .map(source -> new PoseStyle.StyleSource(
+                MotionSource.findByToken(source.source())
+                    .orElseThrow(() -> new PipelineException(
+                        "Entity '%s' style '%s' moves by '%s', which is not a drive",
+                        familyId, row.id(), source.source())),
+                Optional.ofNullable(source.gate())))
+            .collect(Concurrent.toUnmodifiableList());
+    }
+
+    /**
+     * The age a row applies to, or empty where it names none and applies to both.
+     *
+     * @param row the raw style row
+     * @param familyId the entity being read, for refusals
+     * @return the age, or empty
+     * @throws PipelineException if the row names a token that is not an age
+     */
+    private static @NotNull Optional<Age> styleAge(@NotNull RawStyleRow row, @NotNull String familyId) {
+        if (row.age() == null) return Optional.empty();
+        return Optional.of(enumOf(Age.class, row.age())
+            .orElseThrow(() -> new PipelineException(
+                "Entity '%s' style '%s' applies to '%s', which is not an age",
+                familyId, row.id(), row.age())));
     }
 
     // ------------------------------------------------------------------------------------

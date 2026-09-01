@@ -14,7 +14,9 @@ import lib.minecraft.renderer.asset.appearance.Villager;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.pose.Drawn;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.option.AppearanceOptions;
@@ -71,6 +73,8 @@ import java.util.Set;
  * @param members the self-inclusive canvas-group membership - every entity id that shares this
  *     entity's group-union fit window ({@code EntityOptions.FitMode.GROUP_BOUNDS}), the SAME list on
  *     each member of the group; empty for a singleton entity with no group
+ * @param styles the entity's catalog of output styles - one row per uniquely identifiable output,
+ *     ordered as shipped; a definition that names none carries {@link StyleCatalog#BIND_ONLY}
  * @param pose what this entity's model does to its bones before it is drawn, joined from the model
  *     class the {@link #model} coordinate is headed with. A model that poses nothing and one whose
  *     pose could not be read are both {@link EntityPose#isReadable() distinguishable} here, because
@@ -87,6 +91,7 @@ public record Entity(
     @NotNull Axes axes,
     @NotNull Layers layers,
     @NotNull ConcurrentList<String> members,
+    @NotNull StyleCatalog styles,
     @NotNull EntityPose pose
 ) {
 
@@ -108,11 +113,13 @@ public record Entity(
     public static final @NotNull String SHAPE_LARGE = "large";
 
     /**
-     * Normalises a never-set {@link #members} to an empty (singleton) list and a never-set
-     * {@link #pose} to the pose of a model that poses nothing, so callers can omit either.
+     * Normalises a never-set {@link #members} to an empty (singleton) list, a never-set
+     * {@link #styles} to {@link StyleCatalog#BIND_ONLY}, and a never-set {@link #pose} to the pose
+     * of a model that poses nothing, so callers can omit any of the three.
      */
     public Entity {
         members = members == null ? Concurrent.newUnmodifiableList() : members;
+        styles = styles == null ? StyleCatalog.BIND_ONLY : styles;
         pose = pose == null ? EntityPose.NONE : pose;
     }
 
@@ -141,6 +148,26 @@ public record Entity(
      */
     public @NotNull Optional<Shell> humanoidArmor() {
         return this.layers.humanoidArmor();
+    }
+
+    /**
+     * Every mesh this subject draws through its pose tables, each paired with the pose belonging to
+     * it - the body first, then each overlay pass in declared order, a suppressed pass's no-hat
+     * alternate directly after the pass it stands in for, since the alternate is the same mesh with
+     * a subtree emptied and moves wherever that pass moves. The body and its overlay passes are the
+     * whole of it - what else a subject draws (block overlays, equipment, worn armor) is not paired
+     * here.
+     *
+     * @return each drawn mesh with its pose, in draw order
+     */
+    public @NotNull ConcurrentList<Drawn> drawn() {
+        List<Drawn> out = new ArrayList<>(1 + 2 * this.overlays.size());
+        out.add(new Drawn(this.pose, this.model));
+        for (OverlayLayer overlay : this.overlays) {
+            out.add(new Drawn(overlay.pose(), overlay.model()));
+            overlay.noHatModel().ifPresent(alternate -> out.add(new Drawn(overlay.pose(), alternate)));
+        }
+        return Concurrent.newUnmodifiableList(out);
     }
 
     /**

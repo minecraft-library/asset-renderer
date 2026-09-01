@@ -1333,7 +1333,7 @@ public final class PipelineParityDump {
         root.add("clips", CanonicalJson.ordered(pose.clips(), clip -> {
             JsonObject node = new JsonObject();
             node.addProperty("clip", clip.coordinate());
-            node.addProperty("gate", clip.gate().token());
+            node.addProperty("gate", clip.drive().token());
             node.add("args", CanonicalJson.ordered(clip.arguments(), PipelineParityDump::poseExpr));
             return node;
         }));

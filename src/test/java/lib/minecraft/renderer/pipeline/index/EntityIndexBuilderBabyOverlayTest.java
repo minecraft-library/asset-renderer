@@ -114,8 +114,8 @@ class EntityIndexBuilderBabyOverlayTest {
     /** The {@code age} axis both fixture families share - an adult baseline plus a distinct baby mesh. */
     private static RawAxes ageAxes(String texture, String babyTexture) {
         Map<String, RawOption> options = new LinkedHashMap<>();
-        options.put("adult", new RawOption(ADULT_COORD, texture, null, null, null, null, null));    // geometry, texture
-        options.put("baby", new RawOption(BABY_COORD, babyTexture, null, null, null, null, null));  // geometry, texture
+        options.put("adult", new RawOption(ADULT_COORD, texture, null, null, null, null, null, null));    // geometry, texture
+        options.put("baby", new RawOption(BABY_COORD, babyTexture, null, null, null, null, null, null));  // geometry, texture
         return new RawAxes(
             null,                     // variant
             new RawAxis(null, options),  // age
@@ -188,7 +188,8 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                  // bones
             "pig_saddle",                          // layer_type
             Map.of("saddle", "minecraft:saddle"),  // material_assets
-            "saddle");                             // default_material
+            "saddle",                              // default_material
+            null);                                 // pose
     }
 
     /** The block overlay a baby drops wholesale. */
@@ -217,7 +218,8 @@ class EntityIndexBuilderBabyOverlayTest {
             List.of(equipmentRow()),                   // equipment
             ageAxes("villager/villager",
                 "villager/villager_baby"),  // axes
-            null);                                     // members
+            null,                                      // members
+            null);                                     // styles
     }
 
     /** The control family: a baby mesh and an overlay, but no age delta on it. */
@@ -233,14 +235,15 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                 // equipment
             ageAxes("sheep/sheep",
                 "sheep/sheep_baby"),  // axes
-            null);                // members
+            null,                 // members
+            null);                // styles
     }
 
     private static ConcurrentMap<String, Entity> assemble() {
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, villagerFamily());
         models.put(CONTROL, controlFamily());
-        return EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), Map.of(), Map.of());
+        return EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models, null), Map.of(), Map.of());
     }
 
     @Test
@@ -313,8 +316,9 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                        // equipment
             ageAxes("llama/llama_creamy",
                 "llama/llama_creamy_baby"),  // axes
-            null));                                      // members
-        Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), Map.of(), Map.of()).get(ENTITY);
+            null,                                        // members
+            null));                                      // styles
+        Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models, null), Map.of(), Map.of()).get(ENTITY);
 
         assertThat("the adult decor draws the mesh its row names",
             firstCubeGrow(llama.overlays().getFirst().model()), is(0.5f));

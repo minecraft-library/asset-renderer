@@ -49,6 +49,13 @@ import static org.hamcrest.Matchers.sameInstance;
 class EntityModelLoaderTest {
 
     @Test
+    @DisplayName("load() memoizes - every caller shares one assembled index instance")
+    void loadMemoizesOneInstance() {
+        assertThat("two loads answer the same instance",
+            EntityModelLoader.load(), sameInstance(EntityModelLoader.load()));
+    }
+
+    @Test
     @DisplayName("every subject is in a state, and it is the one its texture ref reads")
     void everySubjectCarriesAStateAxis() {
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();

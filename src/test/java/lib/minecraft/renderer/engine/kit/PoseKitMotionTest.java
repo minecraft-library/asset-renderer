@@ -71,16 +71,16 @@ class PoseKitMotionTest {
         // and to a breeze, whose whirl is a clip that runs on every ticked subject.
         Entity charged = entities.get("minecraft:creeper");
         assertNotNull(charged, "minecraft:creeper is expected to load");
-        assertEquals(MotionSource.LIVE, motionOf("minecraft:squid"));
-        assertEquals(MotionSource.CLIP, motionOf("minecraft:bat"));
+        assertEquals(MotionSource.TICK, motionOf("minecraft:squid"));
+        assertEquals(MotionSource.SELECT, motionOf("minecraft:bat"));
         assertEquals(MotionSource.SCROLL, PoseKit.motionOf(charged, ANIMATION));
         assertEquals(MotionSource.STRIDE, motionOf("minecraft:creeper"));
-        assertEquals(MotionSource.INERT, motionOf("minecraft:armor_stand"));
+        assertEquals(MotionSource.NONE, motionOf("minecraft:armor_stand"));
 
         // A breeze is a clip subject rather than a scrolling one, and that is the whirl its own tick
         // starts unconditionally: `Breeze.tick` runs `idle.startIfStopped` before the pose switch and
         // regardless of it, so the mesh moves and a scroll is only asked about after the geometry.
-        assertEquals(MotionSource.CLIP, motionOf("minecraft:breeze"));
+        assertEquals(MotionSource.SELECT, motionOf("minecraft:breeze"));
     }
 
     @Test
@@ -111,12 +111,12 @@ class PoseKitMotionTest {
         }
         // A floor rather than a count, the roster following the entity registry. What the floor is
         // for is the direction of the answer: a subject that holds still at rest and moves on a
-        // stride is a large share of the corpus, so a derivation that quietly answered LIVE for
+        // stride is a large share of the corpus, so a derivation that quietly answered TICK for
         // everything - which is what comparing two instants wrongly would do - fails here rather
         // than in a render nobody looks at.
         assertTrue(tally.getOrDefault(MotionSource.STRIDE, 0) > 25,
             "a stride is expected to be what moves much of the corpus: " + tally);
-        assertTrue(tally.getOrDefault(MotionSource.LIVE, 0) > 25,
+        assertTrue(tally.getOrDefault(MotionSource.TICK, 0) > 25,
             "elapsed age is expected to move much of the corpus: " + tally);
         // Nothing is classified by exhausting the alternatives: every member the corpus reaches is
         // reached because something was measured varying, so an empty tally cell is a member no
@@ -173,13 +173,12 @@ class PoseKitMotionTest {
     }
 
     @Test
-    @DisplayName("a table reading a figure nothing answers is named rather than left quietly still")
-    void anUnansweredFigureIsNamed() {
-        // No shipped table reaches this today - every figure the corpus reads is one a render
-        // answers - so it is pinned on a pose written here. What it guards is the day a table starts
-        // reading a figure this side does not drive: the subject holds still either way, and the
-        // difference between a gap and a subject that stands still by nature is the whole of what a
-        // reader has to go on.
+    @DisplayName("a still subject answers the same member however it comes to be still")
+    void aStillSubjectAnswersNone() {
+        // Neither pose here moves anything: one reads a figure nothing answers, and one asks for
+        // nothing at all. Both answer the same member, because the classifier says which gait
+        // reaches a subject's movement and a subject with none has one honest answer - the pose's
+        // own refusal is the runtime's carrier for why a subject is still.
         EntityModelData mesh = new EntityModelData();
         mesh.getBones().put("body", cubed());
         EntityPose reads = new EntityPose(Concurrent.newUnmodifiableList(),
@@ -192,14 +191,12 @@ class PoseKitMotionTest {
             .pose(reads)
             .overlays(Concurrent.newUnmodifiableList())
             .build();
-        assertEquals(MotionSource.TICKED, PoseKit.motionOf(subject, ANIMATION));
-        // And a pose reading nothing is the other answer, so the two are told apart by what the table
-        // asked for rather than by both being still.
+        assertEquals(MotionSource.NONE, PoseKit.motionOf(subject, ANIMATION));
         EntityPose asksNothing = new EntityPose(Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(Map.of("body",
                 Map.of(PoseChannel.X_ROT, new PoseExpr.Const(0.5d, PoseOperator.Width.FLOAT)))),
             Concurrent.newUnmodifiableList(), Optional.empty());
-        assertEquals(MotionSource.INERT, PoseKit.motionOf(subject.mutate().pose(asksNothing).build(), ANIMATION));
+        assertEquals(MotionSource.NONE, PoseKit.motionOf(subject.mutate().pose(asksNothing).build(), ANIMATION));
     }
 
     // ------------------------------------------------------------------------------------

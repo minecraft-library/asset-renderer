@@ -127,14 +127,15 @@ class EntityTextureScrollJoinTest {
             null,                                   // armor
             null,                                   // equipment
             ageAxis(),                              // axes
-            null));                                 // members
+            null,                                   // members
+            null));                                 // styles
         return EntityIndexBuilder.assemble(
-            Map.of(COORD, mesh()), new RawEntityModelsFile(models), Map.of(), Map.of()).get(ENTITY);
+            Map.of(COORD, mesh()), new RawEntityModelsFile(models, null), Map.of(), Map.of()).get(ENTITY);
     }
 
     private static @NotNull RawAxes ageAxis() {
         Map<String, RawOption> options = new LinkedHashMap<>();
-        options.put("adult", new RawOption(COORD, "test", null, null, null, null, null));
+        options.put("adult", new RawOption(COORD, "test", null, null, null, null, null, null));
         return new RawAxes(null, new RawAxis(null, options), null, null, null);
     }
 

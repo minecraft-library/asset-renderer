@@ -1,10 +1,5 @@
 package lib.minecraft.renderer.asset.pose;
 
-import dev.simplified.annotations.EnumLookup;
-import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.KeyField;
-import dev.simplified.annotations.NamingStyle;
-import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -85,39 +80,19 @@ public record EntityPose(
      * selection needs no vocabulary of its own.
      *
      * @param coordinate the clip coordinate, keyed the way the table's own clip index is
-     * @param gate what drives the clip
-     * @param state the render-state field the gate reads, empty where the drive is not a state
+     * @param drive what drives the clip, which decides what its own time axis is read from
+     * @param field the render-state field a selection reads, present exactly where the drive is
+     *     {@link MotionSource#SELECT}
      * @param arguments what the model plays it at, in declaration order
      * @param clip the authored table this site plays
      */
     public record Clip(
         @NotNull String coordinate,
-        @NotNull Gate gate,
-        @NotNull String state,
+        @NotNull MotionSource drive,
+        @NotNull Optional<String> field,
         @NotNull ConcurrentList<PoseExpr> arguments,
         @NotNull PoseClip clip
     ) {}
-
-    /** What drives a clip, which decides what its own time axis is read from. */
-    @EnumLookup
-    @Getter(style = NamingStyle.FLUENT)
-    @RequiredArgsConstructor
-    public enum Gate {
-
-        /** Driven by the walk inputs, at the rate and amplitude the arguments carry. */
-        WALK("walk"),
-
-        /** Gated behind a named animation state, and carrying the tick it is played at. */
-        STATE("state"),
-
-        /** Held at its first frame, unconditionally. */
-        STATIC("static");
-
-        /** The lower-case token this drive is spelled with in the shipped table. */
-        @KeyField
-        private final @NotNull String token;
-
-    }
 
     /**
      * Whether this is a pose rather than a record of why there is not one.

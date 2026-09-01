@@ -1,14 +1,20 @@
 package lib.minecraft.renderer.pipeline.index;
 
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
 
@@ -26,8 +32,13 @@ import java.util.Map;
  * in {@link EntityIndexBuilder}, which reads these records.
  *
  * @param models the entity model catalog keyed by namespaced entity id, in file order
+ * @param periodTicks the file header's {@code period_ticks} - the ticks one whole excursion spans,
+ *     stated once for every family's style catalog - or {@code null} where the header names none
  */
-public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
+public record RawEntityModelsFile(
+    @NotNull Map<String, RawModel> models,
+    @SerializedName("period_ticks") @Nullable Integer periodTicks
+) {}
 
 /**
  * One raw entity model (a family), 1:1 with a {@code models} member. Every {@code source} /
@@ -48,6 +59,8 @@ public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
  * @param axes the mandatory option-axis block ({@code age} plus optional {@code variant} / {@code shape} / {@code size})
  * @param members the self-inclusive canvas-group membership, the same list on every member of the
  *     group (stray beside skeleton), resolved at generation - or {@code null} for a singleton
+ * @param styles the family's style catalog rows in shipped order, or {@code null} for a family
+ *     whose only output style is the synthesized bind row
  */
 record RawModel(
     @Nullable String renderer,
@@ -59,7 +72,8 @@ record RawModel(
     @Nullable RawArmor armor,
     @Nullable List<RawEquipmentRow> equipment,
     @NotNull RawAxes axes,
-    @Nullable List<String> members
+    @Nullable List<String> members,
+    @Nullable List<RawStyleRow> styles
 ) {}
 
 /**
@@ -84,6 +98,83 @@ record RawRender(
 record RawBones(
     @Nullable String pose
 ) {}
+
+/**
+ * One {@code styles} row - a uniquely identifiable output of the family, in the shape the loaded
+ * catalog row is assembled from.
+ *
+ * @param id the style id a caller selects this output by
+ * @param base the id of the sibling row this one composes over, or {@code null} for a root row
+ * @param sources the row's mechanism inventory, each entry a bare token or a gated object, or
+ *     {@code null} for a row nothing moves
+ * @param drives the drives behind the row's own driven fields, or {@code null} where it adds none
+ * @param toggles the appearance bone toggles the selection entails, or {@code null} where it
+ *     entails none
+ * @param age the age option this row applies to, or {@code null} to apply to both
+ */
+record RawStyleRow(
+    @Nullable String id,
+    @Nullable String base,
+    @Nullable List<RawStyleSource> sources,
+    @Nullable List<RawDrive> drives,
+    @Nullable List<String> toggles,
+    @Nullable String age
+) {}
+
+/**
+ * One {@code drives} entry - the wave one render-state field travels under a style.
+ *
+ * @param field the render-state field name the drive answers
+ * @param wave the wave token ({@code hold} / {@code ramp} / {@code sweep} / {@code cycle})
+ * @param rest what the field holds at tick zero, boxed so an absent member falls to {@code 0f}
+ * @param extent the far end of the travel, boxed so an absent member falls to {@code 1f}
+ * @param group the exclusion group under which a composing row's drive replaces its base's, or
+ *     {@code null} for an ungrouped field
+ */
+record RawDrive(
+    @Nullable String field,
+    @Nullable String wave,
+    @Nullable Float rest,
+    @Nullable Float extent,
+    @Nullable String group
+) {}
+
+/**
+ * One {@code sources} entry, in either of the two spellings the table fixes: a bare token
+ * ({@code "tick"}) is an unconditional entry, and the object form carries the overlay gate that
+ * admits it ({@code {"source": "scroll", "gate": "charged"}}).
+ *
+ * @param source the drive-kind token
+ * @param gate the token of the overlay gate admitting this entry, or {@code null} for an
+ *     unconditional one
+ */
+@JsonAdapter(RawStyleSource.Adapter.class)
+record RawStyleSource(
+    @NotNull String source,
+    @Nullable String gate
+) {
+
+    /** Reads a bare token as an unconditional entry, and the object form with its gate. */
+    static final class Adapter implements JsonDeserializer<RawStyleSource> {
+
+        @Override
+        public @NotNull RawStyleSource deserialize(
+            @NotNull JsonElement node, @NotNull Type type, @NotNull JsonDeserializationContext context) {
+
+            if (node.isJsonPrimitive()) return new RawStyleSource(node.getAsString(), null);
+            if (!node.isJsonObject())
+                throw new PipelineException("Entity style source is neither a token nor an object");
+            JsonObject held = node.getAsJsonObject();
+            JsonElement source = held.get("source");
+            if (source == null)
+                throw new PipelineException("Entity style source object names no 'source'");
+            JsonElement gate = held.get("gate");
+            return new RawStyleSource(source.getAsString(), gate == null ? null : gate.getAsString());
+        }
+
+    }
+
+}
 
 /**
  * The family {@code axes} block. The {@code state} axis carries only its option names and default - the
@@ -137,6 +228,9 @@ record RawAxis(
  * @param babyTexture a coat's baby texture sub-path, or {@code null} when the option has none
  * @param block the block a coat's fixed block overlays draw (the mooshroom's brown mushroom), or
  *     {@code null} when they draw the one the {@code block_overlays[]} rows already name
+ * @param pose the simple name of the model class whose pose says which way this form's bones
+ *     point, stated explicitly per form in a format 3 table, or {@code null} where the geometry
+ *     coordinate's own head (or the family {@code bones.pose}) still answers
  */
 record RawOption(
     @Nullable String geometry,
@@ -145,7 +239,8 @@ record RawOption(
     @Nullable List<RawOverlay> overlays,
     @Nullable Map<String, String> textures,
     @SerializedName("baby_texture") @Nullable String babyTexture,
-    @Nullable String block
+    @Nullable String block,
+    @Nullable String pose
 ) {}
 
 /**
@@ -323,6 +418,9 @@ record RawArmor(
  * @param layerType the equipment render layer's serialized id ({@code pig_saddle}), or {@code null}
  * @param materialAssets the equipment asset id per selectable material, or {@code null}
  * @param defaultMaterial the equipment default material, or {@code null}
+ * @param pose the simple name of the model class this row is posed through, stated explicitly in a
+ *     format 3 table, or {@code null} where the {@code bones} node (or the geometry coordinate)
+ *     still answers
  */
 record RawEquipmentRow(
     @Nullable String slot,
@@ -330,7 +428,8 @@ record RawEquipmentRow(
     @Nullable RawBones bones,
     @SerializedName("layer_type") @Nullable String layerType,
     @SerializedName("material_assets") @Nullable Map<String, String> materialAssets,
-    @SerializedName("default_material") @Nullable String defaultMaterial
+    @SerializedName("default_material") @Nullable String defaultMaterial,
+    @Nullable String pose
 ) {}
 
 /**

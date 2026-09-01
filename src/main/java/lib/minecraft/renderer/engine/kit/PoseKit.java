@@ -176,7 +176,7 @@ public final class PoseKit {
         // this arm is only taken by a caller who has one mesh and no subject to ask about - and a mesh
         // on its own cannot scroll, there being no pass to carry the rate.
         EntityOptions.PoseMode gait = mode == EntityOptions.PoseMode.ANIMATED
-            ? motionOf(List.of(new Drawn(pose, model)), false, animation).gait()
+            ? gaitOf(motionOf(List.of(new Drawn(pose, model)), false, animation))
             : mode;
         ToDoubleFunction<String> frame = frameAt(gait, tick, animation);
         PoseEvaluator.ChannelWrites writes = PoseEvaluator.evaluate(pose, model, frame);
@@ -251,7 +251,12 @@ public final class PoseKit {
         @NotNull AnimationOptions animation) {
 
         if (mode != EntityOptions.PoseMode.ANIMATED) return mode;
-        return motionOf(subject, animation).gait();
+        return gaitOf(motionOf(subject, animation));
+    }
+
+    /** The preset that reaches a motion's movement - the walk for a stride, the resting one for the rest. */
+    private static EntityOptions.@NotNull PoseMode gaitOf(@NotNull MotionSource motion) {
+        return motion == MotionSource.STRIDE ? EntityOptions.PoseMode.WALK : EntityOptions.PoseMode.IDLE;
     }
 
     /**
@@ -349,19 +354,24 @@ public final class PoseKit {
         @NotNull List<ClipKit.Displacement> clips
     ) {}
 
-    /** What moves a set of meshes, told apart by what varies across one excursion. */
+    /**
+     * What moves a set of meshes, told apart by what varies across one excursion.
+     *
+     * <p>A swept figure and elapsed age both vary the written channels across the resting strip, and
+     * this measurement cannot tell the two apart, so both answer {@link MotionSource#TICK}.
+     */
     private static @NotNull MotionSource motionOf(
         @NotNull List<Drawn> drawn, boolean scrolls, @NotNull AnimationOptions animation) {
 
         List<Instant> resting = strip(drawn, EntityOptions.PoseMode.IDLE, animation);
-        if (varies(resting, Instant::writes)) return MotionSource.LIVE;
-        if (varies(resting, Instant::clips)) return MotionSource.CLIP;
+        if (varies(resting, Instant::writes)) return MotionSource.TICK;
+        if (varies(resting, Instant::clips)) return MotionSource.SELECT;
         // Asked after the geometry rather than before it: a pass that scrolls decides the answer only
         // where nothing about the mesh moved, this being a question about which gait to ask for.
         if (scrolls) return MotionSource.SCROLL;
         List<Instant> walking = strip(drawn, EntityOptions.PoseMode.WALK, animation);
         if (varies(walking, Instant::writes) || varies(walking, Instant::clips)) return MotionSource.STRIDE;
-        return readsUndriven(drawn, animation) ? MotionSource.TICKED : MotionSource.INERT;
+        return MotionSource.NONE;
     }
 
     /** Every mesh the subject draws, each carrying the pose its own model class wrote. */

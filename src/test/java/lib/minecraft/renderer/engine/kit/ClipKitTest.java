@@ -1,14 +1,17 @@
 package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
+import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import org.jetbrains.annotations.NotNull;
@@ -23,6 +26,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -105,7 +109,7 @@ class ClipKitTest {
         // put that zero there, and that the same site displaces something once it answers one.
         Entity breeze = subject("minecraft:breeze");
         assertFalse(breeze.pose().clips().isEmpty(), "a breeze plays clips");
-        assertTrue(breeze.pose().clips().stream().allMatch(clip -> clip.gate() == EntityPose.Gate.STATE),
+        assertTrue(breeze.pose().clips().stream().allMatch(clip -> clip.drive() == MotionSource.SELECT),
             "and every one of them is state-driven");
 
         assertTrue(ClipKit.deltas(breeze.pose(), breeze.model(), field -> 0d).isEmpty(),
@@ -133,6 +137,41 @@ class ClipKitTest {
         assertNotEqualMeshes(still, later);
     }
 
+    @Test
+    @DisplayName("a site nothing drives holds its clip at the first instant")
+    void anUndrivenSiteHoldsAtItsFirstInstant() {
+        // Vanilla's own `apply(0L, 1.0f)`: the clip contributes its first keyframe whole, at full
+        // amplitude, and the frame is never consulted - there is no time axis to read from it.
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", new EntityModelData.Bone());
+
+        Map<PoseChannel, Float> written = ClipKit.deltas(
+            ramping(MotionSource.NONE, Concurrent.newUnmodifiableList()), mesh,
+            PoseEvaluator.AT_REST).bones().get("body");
+
+        assertNotNull(written, "an undriven site still displaces the bone it names");
+        assertEquals(RAMP_FROM, written.get(PoseChannel.X_ROT), 0f,
+            "and what it contributes is the first keyframe, whole");
+    }
+
+    @Test
+    @DisplayName("a drive that gives a clip no time axis is refused rather than held quietly still")
+    void aDriveWithoutATimeAxisIsRefused() {
+        // The three drives that move a subject without playing a clip: elapsed age and a swept
+        // figure drive written channels, and a scroll moves a texture over still geometry. A play
+        // site carrying one has nothing to read its clip's clock from, so it is a table this
+        // renderer refuses rather than a clip that never advances.
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", new EntityModelData.Bone());
+
+        for (MotionSource drive : new MotionSource[]{
+            MotionSource.TICK, MotionSource.FIGURE, MotionSource.SCROLL})
+            assertThrows(RendererException.class,
+                () -> ClipKit.deltas(ramping(drive, Concurrent.newUnmodifiableList()), mesh,
+                    PoseEvaluator.AT_REST),
+                drive + " gives a clip no time axis to read");
+    }
+
     // ------------------------------------------------------------------------------------
 
     /** The two ends of the mirrored ramp, chosen to disagree in the middle rather than at the ends. */
@@ -147,28 +186,31 @@ class ClipKitTest {
 
     /** What a two-keyframe linear clip displaces its bone by at one instant of its own span. */
     private static float displacement(float at) {
-        float from = RAMP_FROM;
-        float to = RAMP_TO;
         EntityModelData mesh = new EntityModelData();
         mesh.getBones().put("body", new EntityModelData.Bone());
 
-        PoseClip clip = new PoseClip(1f, false, Concurrent.newUnmodifiableList(new PoseClip.Channel("body",
-            PoseClip.Target.ROTATION, Concurrent.newUnmodifiableList(
-                new PoseClip.Keyframe(0f, from, from, from, PoseClip.Interpolation.LINEAR),
-                new PoseClip.Keyframe(1f, to, to, to, PoseClip.Interpolation.LINEAR)))));
-
-        // A static site holds the clip at nothing, so the instant is driven in as a walk position:
+        // An undriven site holds the clip at nothing, so the instant is driven in as a walk position:
         // millis is `position * 50 * rate`, and a rate of 20 turns a second of clip into a second.
-        EntityPose pose = new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
-            Concurrent.newUnmodifiableList(new EntityPose.Clip(
-                "test", EntityPose.Gate.WALK, "",
-                Concurrent.newUnmodifiableList(constant(at), constant(1f), constant(WALK_RATE), constant(1f)), clip)),
-            Optional.empty());
+        EntityPose pose = ramping(MotionSource.STRIDE,
+            Concurrent.newUnmodifiableList(constant(at), constant(1f), constant(WALK_RATE), constant(1f)));
 
         Map<PoseChannel, Float> written =
             ClipKit.deltas(pose, mesh, PoseEvaluator.AT_REST).bones().get("body");
         assertNotNull(written, "the clip displaces the bone it names");
         return written.get(PoseChannel.X_ROT);
+    }
+
+    /** A pose playing the two-keyframe ramp clip under one drive, at the given arguments. */
+    private static @NotNull EntityPose ramping(
+        @NotNull MotionSource drive, @NotNull ConcurrentList<PoseExpr> arguments) {
+
+        PoseClip clip = new PoseClip(1f, false, Concurrent.newUnmodifiableList(new PoseClip.Channel("body",
+            PoseClip.Target.ROTATION, Concurrent.newUnmodifiableList(
+                new PoseClip.Keyframe(0f, RAMP_FROM, RAMP_FROM, RAMP_FROM, PoseClip.Interpolation.LINEAR),
+                new PoseClip.Keyframe(1f, RAMP_TO, RAMP_TO, RAMP_TO, PoseClip.Interpolation.LINEAR)))));
+        return new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
+            Concurrent.newUnmodifiableList(new EntityPose.Clip("test", drive, Optional.empty(), arguments, clip)),
+            Optional.empty());
     }
 
     /** A pose playing one clip that scales a named bone on one axis. */
@@ -178,7 +220,7 @@ class ClipKitTest {
                 new PoseClip.Keyframe(0f, 0f, 0f, 0.5f, PoseClip.Interpolation.LINEAR)))));
         return new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
             Concurrent.newUnmodifiableList(new EntityPose.Clip(
-                "test", EntityPose.Gate.STATIC, "", Concurrent.newUnmodifiableList(), clip)),
+                "test", MotionSource.NONE, Optional.empty(), Concurrent.newUnmodifiableList(), clip)),
             Optional.empty());
     }
 

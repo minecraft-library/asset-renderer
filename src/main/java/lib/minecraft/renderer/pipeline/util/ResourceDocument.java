@@ -11,13 +11,18 @@ import dev.simplified.gson.exception.JsonException;
 import lib.minecraft.renderer.exception.PipelineException;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 /**
  * Envelope-aware reader for a bundled {@code *.json} asset resource.
  *
- * <p>{@link #open(byte[])} parses the payload and asserts the {@code format == 2} discriminator. The
- * envelope members are validated and not retained - a caller learns a bad {@code format} from the
- * throw. The parsed node is exposed through {@link #payload} for structural reads and
- * {@link #as(Class)} for whole-document deserialisation into a typed DTO.
+ * <p>{@link #open(byte[])} parses the payload and asserts the {@code format == 2} discriminator;
+ * {@link #open(byte[], int...)} accepts any of the formats a caller names, for the tables shipped
+ * under more than one grammar. The envelope members are validated - a caller learns a bad
+ * {@code format} from the throw - and the accepted value is retained on {@link #format}. The parsed
+ * node is exposed through {@link #payload} for structural reads and {@link #as(Class)} for
+ * whole-document deserialisation into a typed DTO.
  *
  * <p>Reading reuses the {@link JsonTree} read surface rather than a bespoke navigator.
  */
@@ -40,6 +45,10 @@ public final class ResourceDocument {
     @Getter(style = NamingStyle.FLUENT)
     private final @NotNull JsonTree payload;
 
+    /** The {@code format} the resource declares - one of the values the open accepted. */
+    @Getter(style = NamingStyle.FLUENT)
+    private final int format;
+
     /**
      * Parses and envelope-validates a resource's UTF-8 bytes.
      *
@@ -49,6 +58,19 @@ public final class ResourceDocument {
      *     than {@value #EXPECTED_FORMAT}
      */
     public static @NotNull ResourceDocument open(byte @NotNull [] utf8) {
+        return open(utf8, EXPECTED_FORMAT);
+    }
+
+    /**
+     * Parses and envelope-validates a resource's UTF-8 bytes, accepting any of the given formats.
+     *
+     * @param utf8 the raw resource bytes
+     * @param acceptedFormats the {@code format} values the caller reads
+     * @return the validated document
+     * @throws PipelineException if the bytes are not parseable JSON, or carry a {@code format} in
+     *     none of the accepted values
+     */
+    public static @NotNull ResourceDocument open(byte @NotNull [] utf8, int @NotNull ... acceptedFormats) {
         JsonTree payload;
         try {
             payload = JsonTree.parse(utf8);
@@ -57,15 +79,18 @@ public final class ResourceDocument {
         }
 
         int format = payload.getInt("format", NO_FORMAT);
-        if (format != EXPECTED_FORMAT)
-            throw new PipelineException("Resource declares format '%d', expected '%d'", format, EXPECTED_FORMAT);
+        if (IntStream.of(acceptedFormats).noneMatch(accepted -> accepted == format))
+            throw new PipelineException("Resource declares format '%d', expected '%s'", format,
+                IntStream.of(acceptedFormats)
+                    .mapToObj(Integer::toString)
+                    .collect(Collectors.joining(" or ")));
 
         // TODO: restore pipeline diagnostics
         // @Nullable String sourceVersion = payload.findString("source_version").orElse(null);
         // if (!EXPECTED_SOURCE_VERSION.equals(sourceVersion))
         //     diagnostics.warn("Resource source_version '%s' does not match expected '%s'", sourceVersion, EXPECTED_SOURCE_VERSION);
 
-        return new ResourceDocument(payload);
+        return new ResourceDocument(payload, format);
     }
 
     /**

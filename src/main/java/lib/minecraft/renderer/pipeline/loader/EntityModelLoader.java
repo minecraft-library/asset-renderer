@@ -12,7 +12,9 @@ import lib.minecraft.renderer.pipeline.index.RawEntityPosesFile;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.lang.ref.SoftReference;
 import java.util.Map;
 import java.util.Optional;
 
@@ -38,16 +40,42 @@ public final class EntityModelLoader {
     private static final @NotNull String POSES_RESOURCE = "entity_poses.json";
 
     /**
+     * The {@code format} values the models and poses tables are read under - the two entity tables
+     * ship under either grammar, where the geometry table keeps the strict single-format read.
+     */
+    private static final int @NotNull [] ACCEPTED_FORMATS = {2, 3};
+
+    /** Guards {@link #memo}, so concurrent first callers assemble the index once. */
+    private static final @NotNull Object MEMO_LOCK = new Object();
+
+    /** The memoized index, held softly so memory pressure can reclaim it between renders. */
+    private static @Nullable SoftReference<ConcurrentMap<String, Entity>> memo;
+
+    /**
      * Reads the entity model catalog natively from the bundled resources, then hands the three raw reads
      * to {@link EntityIndexBuilder} for the join, surgery, pivot, and grouping.
+     *
+     * <p>The assembled map is memoized behind a soft reference: every caller shares one instance,
+     * re-assembled only after memory pressure reclaims it.
      *
      * @return definitions keyed by namespaced entity id (empty when the geometry resource is absent)
      * @throws PipelineException if a resource is malformed, or an entity references a geometry
      *     coordinate absent from the geometry file
      */
     public static @NotNull ConcurrentMap<String, Entity> load() {
+        synchronized (MEMO_LOCK) {
+            ConcurrentMap<String, Entity> held = memo == null ? null : memo.get();
+            if (held != null) return held;
+            ConcurrentMap<String, Entity> built = assemble();
+            memo = new SoftReference<>(built);
+            return built;
+        }
+    }
+
+    /** One whole assembly of the index - the three raw reads and the {@link EntityIndexBuilder} join. */
+    private static @NotNull ConcurrentMap<String, Entity> assemble() {
         Optional<ResourceDocument> geometryDoc = BundledResource.read(GEOMETRY_RESOURCE);
-        Optional<ResourceDocument> modelsDoc = BundledResource.read(MODELS_RESOURCE);
+        Optional<ResourceDocument> modelsDoc = BundledResource.read(MODELS_RESOURCE, ACCEPTED_FORMATS);
         if (geometryDoc.isEmpty() || modelsDoc.isEmpty()) return Concurrent.newMap();
 
         Map<String, EntityModelData> geometries = parseGeometries(geometryDoc.get());
@@ -72,7 +100,7 @@ public final class EntityModelLoader {
      *     when the resource is absent
      */
     private static @NotNull RawEntityPosesFile parsePoses() {
-        return BundledResource.read(POSES_RESOURCE)
+        return BundledResource.read(POSES_RESOURCE, ACCEPTED_FORMATS)
             .map(document -> document.as(RawEntityPosesFile.class))
             .orElseGet(() -> new RawEntityPosesFile(Map.of(), Map.of()));
     }

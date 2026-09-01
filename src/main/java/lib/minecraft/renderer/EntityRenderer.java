@@ -172,11 +172,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         AnimationOptions animation = requested.getAnimation();
         MotionSource motion = PoseKit.motionOf(subject, animation);
-        AnimationOptions strip = motion.animates() && animation.getFrameCount() <= 1
+        boolean animates = motion != MotionSource.NONE;
+        AnimationOptions strip = animates && animation.getFrameCount() <= 1
             ? AnimationOptions.excursion(animation)
             : animation;
         return requested.mutate()
-            .poseMode(motion.gait())
+            .poseMode(motion == MotionSource.STRIDE ? EntityOptions.PoseMode.WALK : EntityOptions.PoseMode.IDLE)
             .animation(strip)
             .build();
     }

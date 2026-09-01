@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.IdleFigure;
 import lib.minecraft.renderer.asset.pose.IdleState;
+import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
@@ -257,7 +258,7 @@ class EntityPoseLoadTest {
         // is how fast and how far, which is why it is recorded beside the pose rather than left to
         // the clip: two models playing one clip at two rates are otherwise indistinguishable.
         List<EntityPose.Clip> walked = pose("minecraft:frog").clips().stream()
-            .filter(clip -> clip.gate() == EntityPose.Gate.WALK).toList();
+            .filter(clip -> clip.drive() == MotionSource.STRIDE).toList();
         assertFalse(walked.isEmpty(), "a frog drives clips off its walk");
         walked.forEach(clip -> assertEquals(4, clip.arguments().size(),
             clip.coordinate() + " is driven by four arguments"));
@@ -280,8 +281,8 @@ class EntityPoseLoadTest {
             EntityPose pose = subject.getValue().pose();
             if (!pose.isReadable()) continue;
             List<String> bare = pose.clips().stream()
-                .filter(clip -> clip.gate() == EntityPose.Gate.STATE)
-                .filter(clip -> clip.state().isEmpty())
+                .filter(clip -> clip.drive() == MotionSource.SELECT)
+                .filter(clip -> clip.field().isEmpty())
                 .map(EntityPose.Clip::coordinate)
                 .toList();
             if (!bare.isEmpty()) unnamed.put(subject.getKey(), bare);

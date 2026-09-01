@@ -5,11 +5,13 @@ import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.annotations.JsonAdapter;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
@@ -49,6 +51,14 @@ import java.util.Set;
  * {@code shared} interning, keyed by the renderer rather than by a model because one renderer
  * answers for every mesh a subject draws.
  *
+ * <p><b>Two grammars are read, told apart by the root's {@code format} value.</b> A format 3 table
+ * carries each pose row's container complete - one carrying a {@code renderers} member anyway is
+ * refused - keys its play sites {@code drive}/{@code field} with the drive spelled as a
+ * {@link MotionSource} token, and emits no flag channels, so an occurrence of {@code visible} or
+ * {@code skip_draw} refuses as an unknown channel. Any other format value reads under the format 2
+ * arms: the {@code renderers} table, {@code gate}/{@code state} play sites, and the flag-channel
+ * skip.
+ *
  * <p><b>A model's {@code shared} table is read as the graph it is, never expanded.</b> Every
  * {@code {"ref": n}} resolves to the SAME record instance rather than to a fresh copy, which is what
  * keeps a pose the size the file says it is: a humanoid's arms name nine hundred sub-expressions and
@@ -65,7 +75,11 @@ public record RawEntityPosesFile(
     @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms
 ) {
 
-    /** Reads the {@code poses} and {@code renderers} subtrees, ignoring what the file carries beside them. */
+    /**
+     * Reads the {@code poses}, {@code clips} and (format 2) {@code renderers} subtrees, ignoring
+     * what the file carries beside them - the root's {@code format} value selects which grammar the
+     * play sites and channels are read under.
+     */
     static final class Adapter implements JsonDeserializer<RawEntityPosesFile> {
 
         @Override
@@ -73,10 +87,15 @@ public record RawEntityPosesFile(
             @NotNull JsonElement root, @NotNull Type type, @NotNull JsonDeserializationContext context) {
 
             if (!root.isJsonObject()) throw new PipelineException("entity poses: the file is not an object");
-            ConcurrentMap<String, PoseClip> tables = clipTables(root.getAsJsonObject().get("clips"));
-            ConcurrentMap<String, List<Map<PoseChannel, PoseExpr>>> transforms =
-                renderTransforms(root.getAsJsonObject().get("renderers"));
-            JsonElement poses = root.getAsJsonObject().get("poses");
+            JsonObject held = root.getAsJsonObject();
+            boolean format3 = declaresFormatThree(held.get("format"));
+            ConcurrentMap<String, PoseClip> tables = clipTables(held.get("clips"));
+            JsonElement renderers = held.get("renderers");
+            if (format3 && renderers != null)
+                throw new PipelineException(
+                    "entity poses: a format 3 table carries 'renderers', which its containers already compose");
+            ConcurrentMap<String, List<Map<PoseChannel, PoseExpr>>> transforms = renderTransforms(renderers);
+            JsonElement poses = held.get("poses");
             if (poses == null) return new RawEntityPosesFile(Map.of(), transforms);
             if (!poses.isJsonObject()) throw new PipelineException("entity poses: 'poses' is not an object");
 
@@ -85,10 +104,15 @@ public record RawEntityPosesFile(
                 .stream()
                 .collect(Concurrent.toUnmodifiableLinkedMap(
                     Map.Entry::getKey,
-                    entry -> pose(entry.getKey(), object(entry.getValue(), entry.getKey()), tables)));
+                    entry -> pose(entry.getKey(), object(entry.getValue(), entry.getKey()), tables, format3)));
             return new RawEntityPosesFile(out, transforms);
         }
 
+    }
+
+    /** Whether the root declares {@code format: 3} - anything else reads under the format 2 arms. */
+    private static boolean declaresFormatThree(@Nullable JsonElement declared) {
+        return declared instanceof JsonPrimitive primitive && primitive.isNumber() && primitive.getAsInt() == 3;
     }
 
     /**
@@ -139,7 +163,7 @@ public record RawEntityPosesFile(
             : array(held, renderer)
                 .asList()
                 .stream()
-                .map(step -> channels(renderer, "container", object(step, renderer), shared))
+                .map(step -> channels(renderer, "container", object(step, renderer), shared, false))
                 .collect(Concurrent.toUnmodifiableList());
         shared.requireAllRead(renderer);
         return steps;
@@ -247,7 +271,8 @@ public record RawEntityPosesFile(
 
     /** One model's pose, or the record of why it has none. */
     private static @NotNull EntityPose pose(
-        @NotNull String model, @NotNull JsonObject node, @NotNull Map<String, PoseClip> tables) {
+        @NotNull String model, @NotNull JsonObject node, @NotNull Map<String, PoseClip> tables,
+        boolean format3) {
 
         JsonElement refused = node.get("refused");
         if (refused != null)
@@ -266,7 +291,7 @@ public record RawEntityPosesFile(
             : array(held, model)
                 .asList()
                 .stream()
-                .map(step -> channels(model, "container", object(step, model), shared))
+                .map(step -> channels(model, "container", object(step, model), shared, format3))
                 .collect(Concurrent.toUnmodifiableList());
 
         // Order-preserving rather than Map.copyOf, whose iteration order is salted per JVM launch.
@@ -280,7 +305,7 @@ public record RawEntityPosesFile(
                 .stream()
                 .collect(Concurrent.toUnmodifiableLinkedMap(
                     Map.Entry::getKey,
-                    bone -> channels(model, bone.getKey(), object(bone.getValue(), model), shared)));
+                    bone -> channels(model, bone.getKey(), object(bone.getValue(), model), shared, format3)));
 
         JsonElement played = node.get("clips");
         ConcurrentList<EntityPose.Clip> clips = played == null
@@ -288,7 +313,7 @@ public record RawEntityPosesFile(
             : array(played, model)
                 .asList()
                 .stream()
-                .map(site -> clip(model, object(site, model), shared, tables))
+                .map(site -> clip(model, object(site, model), shared, tables, format3))
                 .collect(Concurrent.toUnmodifiableList());
 
         shared.requireAllRead(model);
@@ -360,13 +385,16 @@ public record RawEntityPosesFile(
 
     /** One bone's channels, held in the vocabulary's own order however the file listed them. */
     private static @NotNull Map<PoseChannel, PoseExpr> channels(
-        @NotNull String model, @NotNull String bone, @NotNull JsonObject node, @NotNull Shared shared) {
+        @NotNull String model, @NotNull String bone, @NotNull JsonObject node, @NotNull Shared shared,
+        boolean format3) {
 
         Map<PoseChannel, PoseExpr> out = new EnumMap<>(PoseChannel.class);
         for (Map.Entry<String, JsonElement> entry : node.entrySet()) {
-            // The emitter still writes the two flag channels; which bones a subject rests without is
-            // resolved at generation into the model table's undrawn lists, so nothing here reads one.
-            if ("visible".equals(entry.getKey()) || "skip_draw".equals(entry.getKey())) continue;
+            // The format 2 emitter still writes the two flag channels; which bones a subject rests
+            // without is resolved at generation into the model table's undrawn lists, so nothing here
+            // reads one. A format 3 table emits neither, so one it carries anyway falls through to
+            // the unknown-channel refusal below.
+            if (!format3 && ("visible".equals(entry.getKey()) || "skip_draw".equals(entry.getKey()))) continue;
             PoseChannel channel = PoseChannel.ofToken(entry.getKey());
             if (channel == null)
                 throw new PipelineException("entity poses: %s.%s writes '%s', which is not a channel",
@@ -379,11 +407,11 @@ public record RawEntityPosesFile(
     /** One play site: which clip, under what drive, at what the model plays it. */
     private static @NotNull EntityPose.Clip clip(
         @NotNull String model, @NotNull JsonObject node, @NotNull Shared shared,
-        @NotNull Map<String, PoseClip> tables) {
+        @NotNull Map<String, PoseClip> tables, boolean format3) {
 
         JsonElement coordinate = node.get("clip");
-        JsonElement gate = node.get("gate");
-        if (coordinate == null || gate == null)
+        JsonElement driven = node.get(format3 ? "drive" : "gate");
+        if (coordinate == null || driven == null)
             throw new PipelineException("entity poses: %s plays a clip that names no coordinate or no drive", model);
 
         PoseClip table = tables.get(coordinate.getAsString());
@@ -391,15 +419,15 @@ public record RawEntityPosesFile(
             throw new PipelineException("entity poses: %s plays '%s', which this file declares no table for",
                 model, coordinate.getAsString());
 
-        EntityPose.Gate drive = EntityPose.Gate.findByToken(gate.getAsString())
-            .orElseThrow(() -> new PipelineException("entity poses: %s drives a clip by '%s', which is not a drive",
-                model, gate.getAsString()));
+        MotionSource drive = format3
+            ? driveOf(model, driven.getAsString())
+            : gateOf(model, driven.getAsString());
 
         // A state-driven site names the field its gate reads, and the other two drives write none.
         // Refused rather than defaulted: a site the emitter left unnamed would answer zero at render
         // and never play, which reads exactly like a subject nothing has ticked.
-        JsonElement state = node.get("state");
-        if (drive == EntityPose.Gate.STATE && state == null)
+        JsonElement field = node.get(format3 ? "field" : "state");
+        if (drive == MotionSource.SELECT && field == null)
             throw new PipelineException(
                 "entity poses: %s gates '%s' on an animation state it names nowhere", model,
                 coordinate.getAsString());
@@ -413,7 +441,35 @@ public record RawEntityPosesFile(
                 .map(argument -> expression(model, argument, shared))
                 .collect(Concurrent.toUnmodifiableList());
         return new EntityPose.Clip(coordinate.getAsString(), drive,
-            state == null ? "" : state.getAsString(), arguments, table);
+            drive == MotionSource.SELECT ? Optional.of(field.getAsString()) : Optional.empty(),
+            arguments, table);
+    }
+
+    /** The drive a format 2 play site's gate token maps onto. */
+    private static @NotNull MotionSource gateOf(@NotNull String model, @NotNull String token) {
+        return switch (token) {
+            case "static" -> MotionSource.NONE;
+            case "walk" -> MotionSource.STRIDE;
+            case "state" -> MotionSource.SELECT;
+            default -> throw new PipelineException("entity poses: %s drives a clip by '%s', which is not a drive",
+                model, token);
+        };
+    }
+
+    /**
+     * The drive a format 3 play site names outright - a {@link MotionSource} token, of which only
+     * the three site drives are admitted: a play site holds still, strides, or is selected, and any
+     * other drive kind on one is an emitter writing a row this reader has no arm for.
+     */
+    private static @NotNull MotionSource driveOf(@NotNull String model, @NotNull String token) {
+        MotionSource drive = MotionSource.findByToken(token)
+            .orElseThrow(() -> new PipelineException(
+                "entity poses: %s drives a clip by '%s', which is not a drive", model, token));
+        return switch (drive) {
+            case NONE, STRIDE, SELECT -> drive;
+            default -> throw new PipelineException(
+                "entity poses: %s drives a clip by '%s', which no play site takes", model, token);
+        };
     }
 
     /**
