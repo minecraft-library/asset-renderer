@@ -21,6 +21,18 @@ constancy, the time-axis rule, or the extraction of those clips) is wrong. Inves
 the client; if they should move, the fix is in the measurement or the keyframe walk, and the
 rows re-emit with real sources.
 
+## PlayerOptions has no style knob, and coining one needs a catalog source for the player
+
+The style axis is a string knob on `EntityOptions` resolved against the entity's shipped catalog.
+The player renders through its own pipeline, holds no row in `entity_models.json`, and its sweeps
+gauge look rather than bytes - so a style knob on `PlayerOptions` today would be a string with
+nothing to resolve against. Deferred deliberately by the owner (2026-09-01), with the axis kept
+collision-free: adding the knob later needs a player-side source of catalog rows, and the one
+coupling to the entity bag is `PoseStyle.appliesTo(EntityOptions)` - a player catalog either ships
+age-free rows, which never call it, or that member grows a shape the player bag can answer.
+Everything else on the axis - `resolve`, `frameAt`, the drivers, `PoseKit.frames` - is already
+bag-agnostic.
+
 ## Whether an adult axolotl can play dead decides the (id, age) pair mechanism
 
 The catalog allows two rows sharing one id with disjoint `age` members - coined solely for the
