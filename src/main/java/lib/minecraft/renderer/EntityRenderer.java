@@ -13,12 +13,13 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
-import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
@@ -45,6 +46,7 @@ import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Biome;
+import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.option.AnimationOptions;
 import lib.minecraft.renderer.option.AppearanceOptions;
@@ -61,9 +63,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.function.IntFunction;
 
 /**
@@ -136,9 +140,37 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Renders the entity and composites it over the caller's background. Returns an empty frame
-     * (composited over the background) when the entity id is absent, unknown, has no texture, or
-     * carries no bones.
+     * The definition one id resolves to, refusing an id the index does not hold - a render never
+     * invents an entity.
+     *
+     * @param entityId the namespaced entity id
+     * @return the indexed definition
+     * @throws RendererException if the index holds no such entity
+     */
+    private @NotNull Entity indexed(@NotNull String entityId) {
+        Entity definition = this.javaEntities.get(entityId);
+        if (definition == null)
+            throw new RendererException("Entity '%s' is not an entity the index resolves", entityId);
+        return definition;
+    }
+
+    /**
+     * The entity's shipped style catalog - the discovery half of which styles an entity supports.
+     * An entity the index holds whose definition names no styles answers the bind-only catalog; an
+     * unknown id throws the same refusal a render of it does.
+     *
+     * @param entityId the namespaced entity id
+     * @return the shipped catalog
+     * @throws RendererException if the index holds no such entity
+     */
+    public @NotNull StyleCatalog styles(@NotNull String entityId) {
+        return indexed(entityId).styles();
+    }
+
+    /**
+     * Renders the entity and composites it over the caller's background. An id the index does not
+     * hold, and a style the entity's catalog refuses, throw; an entity with no texture or no bones
+     * answers an empty frame composited over the background.
      */
     @Override
     public @NotNull ImageData render(@NotNull EntityOptions options) {
@@ -146,62 +178,46 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Resolves the entity definition, texture, and bounds; sizes the canvas; assembles the base body
-     * plus its overlay / block-overlay / armor {@link GeometryLayer geometry layers}; then rasterizes
-     * every layer in one shared depth pass through {@link ModelEngine}. Returns an empty frame at any
-     * step that cannot produce geometry (absent / unknown id, missing texture, no bones).
+     * The appearance with the style's entailed bone toggles unioned in - a selection that inflates
+     * a bone draws it without the caller naming the toggle beside the style.
+     *
+     * @param appearance the appearance the caller named
+     * @param toggles the style's entailed toggles
+     * @return the appearance carrying both toggle sets, or the appearance itself when the style
+     *     entails none
      */
-    /**
-     * What a request for movement resolves to - the gait that moves this subject, over the strip its
-     * movement plays across.
-     *
-     * <p><b>A moving subject asked for at one frame is being asked for as a still picture of something
-     * that moves</b>, so the strip is supplied where the caller named none. A caller who named their
-     * own frame count keeps it, having already said how they want it sampled.
-     *
-     * <p><b>A subject nothing moves keeps its single frame.</b> Eight copies of a standing armour
-     * stand is a worse answer than one, and an animated container around one repeated image claims a
-     * movement that is not there.
-     *
-     * @param requested what the caller asked for
-     * @param subject the resolved subject, which is what decides both halves
-     * @return the request with the gait and the strip settled
-     */
-    private static @NotNull EntityOptions animated(
-        @NotNull EntityOptions requested, @NotNull Entity subject) {
+    private static @NotNull AppearanceOptions styled(
+        @NotNull AppearanceOptions appearance, @NotNull ConcurrentList<String> toggles) {
 
-        AnimationOptions animation = requested.getAnimation();
-        MotionSource motion = PoseKit.motionOf(subject, animation);
-        boolean animates = motion != MotionSource.NONE;
-        AnimationOptions strip = animates && animation.getFrameCount() <= 1
-            ? AnimationOptions.excursion(animation)
-            : animation;
-        return requested.mutate()
-            .poseMode(motion == MotionSource.STRIDE ? EntityOptions.PoseMode.WALK : EntityOptions.PoseMode.IDLE)
-            .animation(strip)
-            .build();
+        if (toggles.isEmpty()) return appearance;
+        Set<String> union = new LinkedHashSet<>(appearance.getToggles());
+        union.addAll(toggles);
+        return appearance.mutate().toggles(union).build();
     }
 
-    private @NotNull ImageData renderEntity(@NotNull EntityOptions requested) {
-        if (requested.getEntityId().isEmpty())
-            return Timeline.empty();
-
-        Entity definition = this.javaEntities.get(requested.getEntityId().get());
-        if (definition == null)
-            return Timeline.empty();
-
+    /**
+     * Resolves the entity definition, style, texture, and bounds; sizes the canvas; assembles the
+     * base body plus its overlay / block-overlay / armor {@link GeometryLayer geometry layers}; then
+     * rasterizes every layer in one shared depth pass through {@link ModelEngine}. An id the index
+     * does not hold, and a style the entity's catalog refuses, throw; a missing texture and an
+     * empty bone tree return an empty frame.
+     */
+    private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
+        Entity definition = indexed(options.getEntityId());
+        // Resolved twice on purpose: the first answers against the shipped union, so a refusal lists
+        // every id the entity supports and the row's entailed toggles are in hand before the
+        // appearance resolves; the second reads the same id off the in-force view, so what moves is
+        // what the resolved subject moves.
+        PoseStyle requested = definition.styles().resolve(options.getStyle(), options);
         // Fold the age / carried policy into a single resolved definition up front, so every
         // downstream site (texture, ortho bounds, geometry contributors) reads it unconditionally
         // with no scattered !baby gates. The resolve is a no-op for a non-baby, non-carried appearance.
-        Entity resolved = definition.resolve(requested.getAppearance());
-        // Settle what movement means for this subject here, so every site below reads a named preset
-        // over a decided strip. Which gait moves a subject is a question about the subject rather than
-        // about the instant, and answering it costs a whole excursion's evaluation - asking per tick
-        // would pay that once per frame, and asking it separately on the bounds pass and the build
-        // pass could answer twice.
-        EntityOptions options = requested.getPoseMode() == EntityOptions.PoseMode.ANIMATED
-            ? animated(requested, resolved)
-            : requested;
+        Entity resolved = definition.resolve(styled(options.getAppearance(), requested.toggles()));
+        PoseStyle style = resolved.styles().resolve(options.getStyle(), options);
+        AnimationOptions anim = options.getAnimation().resolved(
+            style.moves() ? StyleCatalog.STRIP_FRAMES : 1,
+            resolved.styles().stripTicksPerFrame());
+        PoseKit.PosedFrames posed = PoseKit.frames(resolved, style, resolved.styles().periodTicks());
         EntityModelData model = resolved.model();
 
         // Resolve the base texture at the timeline's start tick: frame 0 of a sidecar-carrying
@@ -209,7 +225,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // sidecar-less texture (every vanilla entity, so byte-identical on the vanilla roster). This
         // start-tick texture drives the missing-texture early-out and canvas sizing; the per-frame
         // render re-resolves inside the rasterizer callback so an opted-in animated texture rebuilds.
-        AnimationOptions anim = options.getAnimation();
         Timeline.TickTimeline timeline = Timeline.schedule(anim);
         int startTick = timeline.tickAt(0);
         Optional<PixelBuffer> texture = resolveEntityTexture(resolved, options, startTick);
@@ -288,8 +303,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
             BoundsScope scope = boundsScopeFor(options.getFitMode());
             Matrix4f renderOrient = engine.orient(effective);
-            Box screenBounds = computeScreenBoundsAcrossFrames(scope, options.getEntityId().get(),
-                resolved, options, timeline, renderOrient, modelScale, texture.get());
+            Box screenBounds = computeScreenBoundsAcrossFrames(scope, options.getEntityId(),
+                resolved, options, posed, timeline, renderOrient, modelScale, texture.get());
             // Fold a selected equipment overlay's mesh into the pre-measured silhouette so an inflated /
             // protruding equipment mesh can't crop at the canvas edge under the NATIVE_SCALE fit (which
             // sizes from these bounds, not the rendered triangles). Measured through the overlay's own
@@ -317,7 +332,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 options.getArmor().equipped(), options.getArmor().getItems(),
                 renderOrient, modelScale, this.context));
             if (armorBounds.isPresent()) screenBounds = screenBounds.union(armorBounds.get());
-            RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
+            RendererDebug.fitBounds(options.getEntityId(), screenBounds);
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
             canvasW = fit.canvasW();
             canvasH = fit.canvasH();
@@ -378,13 +393,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         IntFunction<ConcurrentList<VisibleTriangle>> buildAtTick = tick -> {
             // The whole subject at this tick, body and every overlay pass, so a pass drawing geometry
             // of its own moves with the body rather than staying where it was authored.
-            Entity posed = PoseKit.posedSubject(options.getPoseMode(), resolved, tick, options.getAnimation());
+            Entity posedSubject = posed.at(tick);
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(texture.get());
-            ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(posed.model(), frameTexture,
+            ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(posedSubject.model(), frameTexture,
                 new EntityGeometryKit.EntityBuildParams(
                     kitFrame, PassDeclaration.DEFAULT, resolved.baseTintArgb())).triangles();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            FeatureContext featureCtx = new FeatureContext(posed, options, posed.model(), frameTexture,
+            FeatureContext featureCtx = new FeatureContext(posedSubject, options, posedSubject.model(), frameTexture,
                 kitFrame, this.context, tick);
             for (EntityFeature feature : EntityFeature.values())
                 feature.contribute(featureCtx, stack);
@@ -1043,7 +1058,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull BoundsScope scope,
         @NotNull String entityId,
         @NotNull Entity definition,
-        @NotNull EntityOptions options,
+        @NotNull PoseKit.PosedFrames posed,
         @NotNull Matrix4f transform,
         float modelScale,
         @NotNull PixelBuffer texture,
@@ -1053,33 +1068,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, modelScale, texture, tick,
                 boundsBlockOverlays(definition, this.javaEntities.get(entityId)));
             case GROUP_UNION ->
-                computeGroupUnionScreenBounds(entityId, definition, options, transform, modelScale, texture, tick);
+                computeGroupUnionScreenBounds(entityId, definition, posed, transform, modelScale, texture, tick);
         };
-    }
-
-    /**
-     * One further silhouette in the group union, posed the way the subject being measured is.
-     *
-     * <p><b>A canvas is a union, so every member of it has to be measured in the pose the render
-     * draws.</b> The subject arrives already posed; a member and a coat arrive off the index, which
-     * is where they rest. Measuring those unposed frames the whole family to a subject standing
-     * still, and the requested one is then fitted into a canvas too small for the pose it is
-     * actually drawn in - which reads as a silhouette shifted inside its frame rather than as a
-     * canvas that is wrong.
-     *
-     * <p>It was invisible until a gait existed. Every subject a group union spans is one whose
-     * elapsed-age animation is nothing, so at {@code BIND} and {@code IDLE} the posed member and the
-     * resting one are the same mesh and the two sides agreed on every canvas in the corpus.
-     *
-     * @param member the member or coat to measure
-     * @param options the render options supplying the pose mode and the excursions
-     * @param tick the schedule tick being measured
-     * @return the member as it stands at that tick, which is the member itself under {@code BIND}
-     */
-    private static @NotNull Entity posedMember(
-        @NotNull Entity member, @NotNull EntityOptions options, int tick) {
-
-        return PoseKit.posedSubject(options.getPoseMode(), member, tick, options.getAnimation());
     }
 
     /**
@@ -1098,7 +1088,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param scope whether a frame measures this entity alone or its whole canvas group
      * @param entityId the namespaced id the group scope resolves its members from
      * @param resolved the age / carried-resolved definition being measured
-     * @param options the render options supplying the pose mode and the texture precedence
+     * @param options the render options supplying the texture precedence
+     * @param posed the per-render memo every frame's subject - and every member and coat measured
+     *     beside it - is posed through
      * @param timeline the frame schedule whose sample ticks are measured
      * @param transform the exact render orientation the silhouette is measured through
      * @param modelScale the per-entity render scale the bounds are taken at
@@ -1110,21 +1102,20 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull String entityId,
         @NotNull Entity resolved,
         @NotNull EntityOptions options,
+        @NotNull PoseKit.PosedFrames posed,
         @NotNull Timeline.TickTimeline timeline,
         @NotNull Matrix4f transform,
         float modelScale,
         @NotNull PixelBuffer startTexture
     ) {
         int startTick = timeline.tickAt(0);
-        Box bounds = computeScreenBoundsFor(scope, entityId,
-            PoseKit.posedSubject(options.getPoseMode(), resolved, startTick, options.getAnimation()),
-            options, transform, modelScale, startTexture, startTick);
+        Box bounds = computeScreenBoundsFor(scope, entityId, posed.at(startTick),
+            posed, transform, modelScale, startTexture, startTick);
         for (int frame = 1; frame < timeline.frames(); frame++) {
             int tick = timeline.tickAt(frame);
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(startTexture);
-            bounds = bounds.union(computeScreenBoundsFor(scope, entityId,
-                PoseKit.posedSubject(options.getPoseMode(), resolved, tick, options.getAnimation()),
-                options, transform, modelScale, frameTexture, tick));
+            bounds = bounds.union(computeScreenBoundsFor(scope, entityId, posed.at(tick),
+                posed, transform, modelScale, frameTexture, tick));
         }
         return bounds;
     }
@@ -1302,7 +1293,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private @NotNull Box computeGroupUnionScreenBounds(
         @NotNull String entityId,
         @NotNull Entity definition,
-        @NotNull EntityOptions options,
+        @NotNull PoseKit.PosedFrames posed,
         @NotNull Matrix4f transform,
         float modelScale,
         @NotNull PixelBuffer texture,
@@ -1314,7 +1305,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Option-encoded variant coats live on the base definition's axes.variants rather than as
         // separate group-member rows, so union each coat's silhouette here. A no-op while variant is
         // id-encoded (each coat is a member row measured below) or the model has no variant axis.
-        bounds = unionVariantSilhouettes(bounds, base, options, transform, tick);
+        bounds = unionVariantSilhouettes(bounds, base, posed, transform, tick);
         ConcurrentList<String> members = definition.members();
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
@@ -1324,15 +1315,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Optional<PixelBuffer> memberTexture = resolveGroupMemberTexture(memberDef);
             if (memberTexture.isEmpty()) continue;
             float memberScale = memberDef.rendererScale();
-            // Posed at the tick being measured, like the coats above and for the same reason: a
-            // canvas is a union, so every silhouette in it is measured in the pose the render draws.
-            // What this waited on was not the principle but the SET - measuring a member posed is
-            // only right where the harness unions the same one, and it answers that from
-            // EntityRoster.FAMILY_OVERRIDES, which this list is now held to.
-            Box memberBounds = computeUnionScreenBounds(posedMember(memberDef, options, tick), transform,
+            // Posed through the shared memo at the tick being measured, like the coats above and for
+            // the same reason: a canvas is a union, so every silhouette in it is measured in the
+            // pose the render draws. Measuring a member posed is only right where the harness unions
+            // the same one, and it answers that from EntityRoster.FAMILY_OVERRIDES, which this list
+            // is held to.
+            Box memberBounds = computeUnionScreenBounds(posed.at(memberDef, tick), transform,
                 memberScale, memberTexture.get(), tick, memberDef.blockOverlays());
             bounds = bounds.union(memberBounds);
-            bounds = unionVariantSilhouettes(bounds, memberDef, options, transform, tick);
+            bounds = unionVariantSilhouettes(bounds, memberDef, posed, transform, tick);
         }
         return bounds;
     }
@@ -1348,7 +1339,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * keeps one canvas.
      */
     private @NotNull Box unionVariantSilhouettes(
-        @NotNull Box bounds, @Nullable Entity definition, @NotNull EntityOptions options,
+        @NotNull Box bounds, @Nullable Entity definition, @NotNull PoseKit.PosedFrames posed,
         @NotNull Matrix4f transform, int tick) {
 
         if (definition == null) return bounds;
@@ -1356,8 +1347,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             if (coat.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> coatTexture = resolveGroupMemberTexture(coat);
             if (coatTexture.isEmpty()) continue;
-            // Posed at the tick being measured, for the reason posedMember carries.
-            bounds = bounds.union(computeUnionScreenBounds(posedMember(coat, options, tick), transform,
+            // Posed through the shared memo at the tick being measured - a canvas is a union, so
+            // every silhouette in it is measured in the pose the render draws.
+            bounds = bounds.union(computeUnionScreenBounds(posed.at(coat, tick), transform,
                 coat.rendererScale(), coatTexture.get(), tick, boundsBlockOverlays(coat, definition)));
         }
         return bounds;

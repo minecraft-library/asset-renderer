@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.pose.IdleState;
 import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.AnimationOptions;
 import lib.minecraft.renderer.option.EntityOptions;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
@@ -35,7 +37,7 @@ import java.util.stream.Collectors;
  * The mesh a subject's own model leaves it holding at one instant - {@link PoseEvaluator}'s channel
  * values written back onto the bones they name.
  *
- * <p><b>Under {@link EntityOptions.PoseMode#BIND} this hands back the very instance it was given</b>,
+ * <p><b>Under the {@code bind} style row this hands back the very instance it was given</b>,
  * and that identity is the whole of what makes the authored pose cost nothing: no bone is copied, no
  * float is touched, and a render that asks for nothing draws exactly the bytes it drew before. The
  * same holds for a subject whose model poses nothing, one whose pose could not be read, and one that
@@ -279,6 +281,196 @@ public final class PoseKit {
         @NotNull Entity subject, @NotNull AnimationOptions animation) {
 
         return motionOf(drawnBy(subject), scrolls(subject), animation);
+    }
+
+    /**
+     * The per-render memo the bounds pass and the build pass share, posing this subject under the
+     * resolved row - and any group member or variant coat measured beside it under its own
+     * catalog's answer to the same style id - at one period.
+     *
+     * @param subject the resolved subject the render draws
+     * @param style the resolved catalog row the render selects
+     * @param periodTicks the ticks one whole excursion spans
+     * @return the memo answering the posed subject per tick
+     */
+    public static @NotNull PosedFrames frames(
+        @NotNull Entity subject, @NotNull PoseStyle style, int periodTicks) {
+
+        return new PosedFrames(subject, style, periodTicks);
+    }
+
+    /**
+     * The whole subject as its style's drivers leave it at one tick - its own mesh posed, every
+     * overlay pass's mesh posed by the model class that pass belongs to, and a suppressed pass's
+     * no-hat alternate posed with the pass it stands in for.
+     *
+     * <p>The {@code bind} row hands back the very instance it was given - identity, not a copy, so
+     * the authored path allocates nothing - and so does any style that moves none of the subject's
+     * meshes.
+     *
+     * @param subject the resolved subject
+     * @param style the resolved catalog row to pose with
+     * @param periodTicks the ticks one whole excursion spans
+     * @param tick the frame's sample tick
+     * @return the subject carrying the meshes it holds at that tick
+     */
+    public static @NotNull Entity posed(
+        @NotNull Entity subject, @NotNull PoseStyle style, int periodTicks, int tick) {
+
+        if (PoseStyle.BIND.equals(style.id())) return subject;
+        EntityModelData model = posed(subject.pose(), subject.model(), style, periodTicks, tick);
+        ConcurrentList<Entity.OverlayLayer> overlays = posedOverlays(subject, style, periodTicks, tick);
+        if (model == subject.model() && overlays == subject.overlays()) return subject;
+        return subject.mutate().model(model).overlays(overlays).build();
+    }
+
+    /**
+     * One mesh where the pose that belongs to it leaves it at one tick under a resolved style.
+     *
+     * <p>Held apart from the subject because a subject is more than one posed mesh: each overlay
+     * pass poses its own with its own model class, and a pose belongs to a mesh rather than to a
+     * subject. The style arrives resolved, so nothing about the subject's motion is derived here;
+     * the {@code bind} row and an unreadable pose both answer the given mesh itself.
+     *
+     * @param pose the pose belonging to this mesh
+     * @param mesh the mesh to pose
+     * @param style the resolved catalog row to pose with
+     * @param periodTicks the ticks one whole excursion spans
+     * @param tick the frame's sample tick
+     * @return the posed mesh, or the given mesh itself where nothing poses it
+     */
+    public static @NotNull EntityModelData posed(
+        @NotNull EntityPose pose, @NotNull EntityModelData mesh,
+        @NotNull PoseStyle style, int periodTicks, int tick) {
+
+        if (PoseStyle.BIND.equals(style.id())) return mesh;
+        if (!pose.isReadable()) return mesh;
+        ToDoubleFunction<String> frame = style.frameAt(tick, periodTicks);
+        PoseEvaluator.ChannelWrites writes = PoseEvaluator.evaluate(pose, mesh, frame);
+        // The clips a model plays are applied ON TOP of what its body assigned, because vanilla's
+        // three offset members all add to the value already there.
+        ClipKit.Displacement displaced = ClipKit.deltas(pose, mesh, frame);
+        if (writes.isEmpty() && displaced.isEmpty()) return mesh;
+        return rebuild(mesh, writes, displaced);
+    }
+
+    /** Each overlay pass where a style's drivers leave it, or the list itself when none of them moved. */
+    private static @NotNull ConcurrentList<Entity.OverlayLayer> posedOverlays(
+        @NotNull Entity subject, @NotNull PoseStyle style, int periodTicks, int tick) {
+
+        ConcurrentList<Entity.OverlayLayer> overlays = subject.overlays();
+        List<Entity.OverlayLayer> out = new ArrayList<>(overlays.size());
+        boolean moved = false;
+        for (Entity.OverlayLayer overlay : overlays) {
+            EntityModelData mesh = posed(overlay.pose(), overlay.model(), style, periodTicks, tick);
+            // The suppressed-pass alternate is the same mesh with a subtree emptied, so it takes the
+            // same pose - a villager under a full-hat profession still moves the head it draws none of.
+            Optional<EntityModelData> noHat = overlay.noHatModel()
+                .map(alternate -> posed(overlay.pose(), alternate, style, periodTicks, tick));
+            moved |= mesh != overlay.model()
+                || !noHat.equals(overlay.noHatModel());
+            out.add(new Entity.OverlayLayer(mesh, overlay.textureRef(), overlay.pass(),
+                overlay.tintArgb(), overlay.skipBounds(), overlay.tintBy(), overlay.textureBy(),
+                overlay.gate(), noHat, overlay.pose(), overlay.textureScroll()));
+        }
+        return moved ? Concurrent.newUnmodifiableList(out) : overlays;
+    }
+
+    /**
+     * Per-render memo: bounds pass and build pass ask the same ticks; each subject is posed ONCE.
+     *
+     * <p>Thread-safe, because timeline baking builds frames in parallel. When the style is the
+     * {@code bind} row both {@code at} forms answer the given instance without touching a map, so
+     * the authored path allocates nothing.
+     */
+    public static final class PosedFrames {
+
+        /** The resolved subject the per-tick memo poses. */
+        private final @NotNull Entity subject;
+
+        /** The resolved catalog row every subject here is posed with. */
+        private final @NotNull PoseStyle style;
+
+        /** The ticks one whole excursion spans. */
+        private final int periodTicks;
+
+        /** Whether the style is the {@code bind} row, whose answer is always the given instance. */
+        private final boolean bind;
+
+        /** The primary subject posed per tick. */
+        private final @NotNull ConcurrentHashMap<Integer, Entity> frames = new ConcurrentHashMap<>();
+
+        /** Each further subject posed per (instance, tick). */
+        private final @NotNull ConcurrentHashMap<SubjectTick, Entity> memberFrames = new ConcurrentHashMap<>();
+
+        private PosedFrames(@NotNull Entity subject, @NotNull PoseStyle style, int periodTicks) {
+            this.subject = subject;
+            this.style = style;
+            this.periodTicks = periodTicks;
+            this.bind = PoseStyle.BIND.equals(style.id());
+        }
+
+        /**
+         * The primary subject as it stands at one tick, posed once per tick.
+         *
+         * @param tick the frame's sample tick
+         * @return the posed subject
+         */
+        public @NotNull Entity at(int tick) {
+            if (this.bind) return this.subject;
+            return this.frames.computeIfAbsent(tick,
+                sampled -> posed(this.subject, this.style, this.periodTicks, sampled));
+        }
+
+        /**
+         * A group member or variant coat as it stands at one tick, posed under its own catalog's
+         * {@link StyleCatalog#memberRow answer to the same style id} at the primary's period, once
+         * per (member instance, tick).
+         *
+         * <p>Its own answer rather than the primary's resolved row, because a member is measured in
+         * the stance it draws: a baby request resolves the universal rows where its family's rows
+         * apply to the adult alone, and an adult coat measured under those would stand flat where
+         * its own idle row holds it hovering - a canvas the family's reference does not share.
+         *
+         * <p>Keyed by REFERENCE identity of the member rather than by id, as a constraint: variant
+         * coats share the family id, so an id-keyed memo would answer one coat's mesh for another -
+         * the contract is one posed mesh per subject INSTANCE per tick.
+         *
+         * @param member the member or coat to pose
+         * @param tick the frame's sample tick
+         * @return the posed member
+         */
+        public @NotNull Entity at(@NotNull Entity member, int tick) {
+            if (this.bind) return member;
+            return this.memberFrames.computeIfAbsent(new SubjectTick(member, tick),
+                key -> posed(key.subject(),
+                    key.subject().styles().memberRow(this.style.id(), this.style),
+                    this.periodTicks, key.tick()));
+        }
+
+        /**
+         * One memo key: a subject instance at a tick, equal by the subject's reference identity -
+         * two equal-but-distinct definitions are two subjects to pose.
+         *
+         * @param subject the subject instance being posed
+         * @param tick the tick it is posed at
+         */
+        private record SubjectTick(@NotNull Entity subject, int tick) {
+
+            @Override
+            public boolean equals(Object other) {
+                return other instanceof SubjectTick that
+                    && this.subject == that.subject
+                    && this.tick == that.tick;
+            }
+
+            @Override
+            public int hashCode() {
+                return 31 * System.identityHashCode(this.subject) + this.tick;
+            }
+
+        }
+
     }
 
     /** Each overlay pass where its own model leaves it, or the list itself when none of them moved. */

@@ -9,9 +9,11 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -90,6 +92,21 @@ public record StyleCatalog(
     }
 
     /**
+     * The shipped row of one id that applies to one request - among rows sharing one id the row
+     * that applies to the request answers, the axolotl shipping {@code play_dead} once per age.
+     *
+     * @param id the style id to look up
+     * @param options the render request the selection came with
+     * @return the applying shipped row, or empty
+     */
+    private @NotNull Optional<PoseStyle> byId(@NotNull String id, @NotNull EntityOptions options) {
+        return this.styles.stream()
+            .filter(style -> style.id().equals(id))
+            .filter(style -> style.appliesTo(options))
+            .findFirst();
+    }
+
+    /**
      * The row {@link PoseStyle#ANIMATED animated} resolves to - the first shipped row anything
      * moves, in shipped order, or {@link #bind()} where nothing does.
      *
@@ -109,7 +126,7 @@ public record StyleCatalog(
      * {@code idle} and {@code stride} to the shipped row of that id where one is carried and to the
      * universal row otherwise, {@code animated} to {@link #animated()}. Any other id resolves iff
      * the catalog carries it and the row {@link PoseStyle#appliesTo applies to} the request's
-     * appearance.
+     * appearance; rows sharing one id and split by age resolve to the one that applies.
      *
      * @param id the style id being selected
      * @param options the render request the selection came with
@@ -119,31 +136,62 @@ public record StyleCatalog(
     public @NotNull PoseStyle resolve(@NotNull String id, @NotNull EntityOptions options) {
         return switch (id) {
             case PoseStyle.BIND -> bind();
-            case PoseStyle.IDLE -> byId(id).orElse(UNIVERSAL_IDLE);
-            case PoseStyle.STRIDE -> byId(id).orElse(UNIVERSAL_STRIDE);
+            case PoseStyle.IDLE -> byId(id, options).orElse(UNIVERSAL_IDLE);
+            case PoseStyle.STRIDE -> byId(id, options).orElse(UNIVERSAL_STRIDE);
             case PoseStyle.ANIMATED -> animated();
-            default -> byId(id)
-                .filter(style -> style.appliesTo(options))
+            default -> byId(id, options)
                 .orElseThrow(() -> new RendererException(
                     "Entity '%s' has no style '%s' - it supports %s",
-                    options.getEntityId().orElse(""), id, ids()));
+                    options.getEntityId(), id, ids()));
         };
     }
 
     /**
-     * The ids naming a distinct output - {@code bind} first, then every shipped row with a
-     * non-empty source inventory, in shipped order. A shipped row nothing moves renders identically
-     * to {@code bind} and is not listed; {@link #resolve} accepts the universal ids whether they
-     * are listed or not.
+     * The row a canvas-union member is measured under for one style id.
+     *
+     * <p>A member or variant coat arrives off the index as its adult form, so the row that answers
+     * is this catalog's own for the id where one applies to that form - a baby-only row does not -
+     * and the universal rows answer the universal ids exactly as {@link #resolve} answers them. An
+     * id this catalog carries no applying row for is measured under the given row instead: the
+     * union is a measurement of the family's silhouettes rather than a selection, so a member that
+     * cannot answer the id is measured the way the requested subject is.
+     *
+     * @param id the style id the render selected
+     * @param requested the row the requested subject resolved, measured under where this catalog
+     *     cannot answer the id
+     * @return the row the member is measured under
+     */
+    public @NotNull PoseStyle memberRow(@NotNull String id, @NotNull PoseStyle requested) {
+        return switch (id) {
+            case PoseStyle.BIND -> bind();
+            case PoseStyle.IDLE -> adultRow(id).orElse(UNIVERSAL_IDLE);
+            case PoseStyle.STRIDE -> adultRow(id).orElse(UNIVERSAL_STRIDE);
+            default -> adultRow(id).orElse(requested);
+        };
+    }
+
+    /** The first row of one id applying to the adult form - an ageless row applies to both. */
+    private @NotNull Optional<PoseStyle> adultRow(@NotNull String id) {
+        return this.styles.stream()
+            .filter(style -> style.id().equals(id))
+            .filter(style -> style.age().map(age -> age == Age.ADULT).orElse(true))
+            .findFirst();
+    }
+
+    /**
+     * The ids naming a distinct output - {@code bind} first, then every shipped row's id in
+     * shipped order, an age-split pair listed once. A shipped row nothing moves is still a
+     * selectable output - a held stance renders a picture {@code bind} does not - and
+     * {@link #resolve} accepts the universal ids whether they are listed or not.
      *
      * @return the listed ids, {@code bind} first
      */
     public @NotNull ConcurrentList<String> ids() {
-        List<String> out = new ArrayList<>(1 + this.styles.size());
+        Set<String> out = new LinkedHashSet<>(1 + this.styles.size());
         out.add(PoseStyle.BIND);
         for (PoseStyle style : this.styles)
-            if (style.moves()) out.add(style.id());
-        return Concurrent.newUnmodifiableList(out);
+            out.add(style.id());
+        return Concurrent.newUnmodifiableList(new ArrayList<>(out));
     }
 
     /**

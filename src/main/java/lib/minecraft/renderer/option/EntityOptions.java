@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.option;
 
+import dev.simplified.annotations.BuildFlag;
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import dev.simplified.image.Background;
@@ -37,10 +38,11 @@ import java.util.function.UnaryOperator;
 public class EntityOptions implements RenderOptions {
 
     /**
-     * Namespaced entity id for lookup, e.g. {@code "minecraft:zombie"}. Empty (default) resolves
-     * to no entity.
+     * The required namespaced id of the entity to render, e.g. {@code "minecraft:zombie"},
+     * resolved through the active {@code RendererContext}.
      */
-    private final @NotNull Optional<String> entityId = Optional.empty();
+    @BuildFlag(nonNull = true, notEmpty = true)
+    private final @NotNull String entityId;
 
     /**
      * Optional texture id override, resolvable through the active pack stack. Empty (default)
@@ -128,6 +130,19 @@ public class EntityOptions implements RenderOptions {
     private final @NotNull AnimationOptions animation = AnimationOptions.defaults();
 
     /**
+     * The id of the output style this render selects on the entity's shipped style catalog - which
+     * mechanisms move the subject and which appearance bone toggles the selection entails. The
+     * four universal ids {@code "bind"}, {@code "idle"}, {@code "stride"} and {@code "animated"}
+     * resolve on every entity; any other id is the entity's own and is validated against the
+     * catalog at render, failing loud with the supported set. Defaults to {@code "bind"}, the
+     * authored still pose, so a caller that asks for nothing renders the still subject.
+     *
+     * <p>A free string deliberately - the id set is open per entity, so no enum can hold it, and
+     * the typed constants for the universal ids live on the catalog row type.
+     */
+    private final @NotNull String style = "bind";
+
+    /**
      * Whether the entity's bones stand where its mesh authors them or where its model puts them at
      * each frame's tick. Defaults to {@link PoseMode#BIND}, the authored pose, so a caller that asks
      * for nothing renders the still subject it always did.
@@ -159,12 +174,13 @@ public class EntityOptions implements RenderOptions {
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
 
     /**
-     * Builds an instance with every field at its default value.
+     * Builds options for one entity with every other knob at its default.
      *
-     * @return the default options
+     * @param entityId the namespaced id of the entity to render
+     * @return the options
      */
-    public static @NotNull EntityOptions defaults() {
-        return builder().build();
+    public static @NotNull EntityOptions of(@NotNull String entityId) {
+        return builder().entityId(entityId).build();
     }
 
     /**

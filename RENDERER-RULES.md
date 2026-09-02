@@ -453,27 +453,31 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
 
 ## Posing an entity at a tick
 
-`EntityOptions.PoseMode` chooses between the mesh as authored and the mesh its model puts it in, and
-`engine/kit/PoseKit.posed` is the one place that answers. It nests on `EntityOptions` beside
-`FitMode` because exactly one bag names it. How `entity_poses.json` is derived is
-[tooling/CLAUDE.md]'s; this is what the runtime does with it.
+`EntityOptions.style` names one row of the entity's shipped style catalog - which mechanisms move
+the subject and which appearance toggles the selection entails - and `engine/kit/PoseKit` is the one
+place a resolved row is written onto a mesh. The knob is a free string on the one bag that names it,
+the id set being open per entity, and the four universal ids are typed on `PoseStyle`. How
+`entity_poses.json` and the catalog are derived is [tooling/CLAUDE.md]'s; this is what the runtime
+does with them.
 
-**The roster is `BIND` / `IDLE` / `WALK`, and what separates the two moving presets is which figures
-stop answering their resting value.** A pose is a function of what the caller says about the subject,
-so naming a gait is naming the further figures that stop resting - it is not a second mechanism, and
-every preset goes through `PoseKit` the same way. `IDLE` stops resting elapsed time alone. `WALK`
-adds the two a stride is carried on, and they are one schedule rather than two inputs: vanilla
-accumulates the phase BY the amplitude once a tick rather than deriving it from the clock, so the
-phase is the tick times the amplitude and a caller setting one without the other has described no
-gait. The amplitude is the full one, vanilla clamping what it accumulates to one. The vocabulary is
-a caller's coinage rather than vanilla's - vanilla carries `walkAnimationPos` and
-`walkAnimationSpeed` and no `WALK` constant - so it stays in `option/` and moves no store reach.
+**Every catalog resolves `bind`, `idle`, `stride` and `animated`, and what separates two rows is the
+drivers in force.** A pose is a function of what the caller says about the subject, so naming a row
+is naming the figures that stop resting - it is not a second mechanism, and every row goes through
+`PoseKit` the same way. `idle` ramps elapsed age alone. `stride` adds the two a stride is carried
+on, and they are one schedule rather than two inputs: vanilla accumulates the phase BY the amplitude
+once a tick rather than deriving it from the clock, so the phase is the tick times the amplitude and
+a caller setting one without the other has described no gait. The amplitude is the full one, vanilla
+clamping what it accumulates to one. `animated` resolves to the first shipped row the subject's
+in-force inventory moves, so a caller asking for movement names no mechanism - and a subject nothing
+moves answers `bind` and stays a single frame. The universal ids are a coinage rather than
+vanilla's - vanilla carries `walkAnimationPos` and `walkAnimationSpeed` and no `stride` constant -
+and an entity's own ids ship in its catalog beside them.
 
-**`WALK` has a vanilla reference of its own, and it is `walk/`.** The harness drives the same two
+**`stride` has a vanilla reference of its own, and it is `walk/`.** The harness drives the same two
 figures at the same amplitude under `-Drefharness.walking=true`, which is the animated run with a
-stride rather than a run of its own - `AnimationClock.WALK_AMPLITUDE` and `PoseKit.WALK_AMPLITUDE`
-are held to one another by `IdleFigureMirrorTest`, because the amplitude is the phase as well as the
-speed and a value that moved on one side puts the two at different points of different strides.
+stride rather than a run of its own - `AnimationClock.WALK_AMPLITUDE` and the shipped stride extent
+are held to one another by `StyleCatalogMirrorTest`, because the amplitude is the phase as well as
+the speed and a value that moved on one side puts the two at different points of different strides.
 `entityWalkParityVanilla` is the sweep, and it is `entityAnimationParityVanilla`'s own driver at
 `asset.parity.gait=walk`: one implementation, so a divergence between the two reports cannot be a
 divergence in how they were measured.
@@ -510,7 +514,7 @@ divergence in how they were measured.
   very fields a body assigned. Passed over as an undeclared bone it is silently nothing, which is a
   camel that walks without leaning into its stride and a canvas measured around one.
 
-**`BIND` is the default and hands back the very instance it was given.** Identity, not equality: an
+**`bind` is the default and hands back the very instance it was given.** Identity, not equality: an
 equal copy is still a copy, and every float in it is one the authored path never computed. The same
 answer serves a subject whose model poses nothing, one whose pose could not be read, and one writing
 only channels a mesh does not carry - so the authored path allocates nothing and rounds nothing, and
@@ -632,9 +636,9 @@ bone and left its children pointing at it.
   while the two contents grew and shrank apart. Worth `82.3441` of walk delta against `0.01` with the
   channel landing.
 
-**A shipped pose names no figure the frame does not answer, and the frame answers a declared
-roster.** `PoseKit.frameAt` is the one place a figure is answered, and outside that roster everything
-rests: elapsed age is the tick, and a field nobody drives reads zero. Everything a subject standing
+**A shipped pose names no figure the frame does not answer, and the frame answers the resolved
+row's driver map.** `PoseStyle.frameAt` is the one place a figure is answered, and outside that map
+everything rests: elapsed age is the tick, and a field nobody drives reads zero. Everything a subject standing
 still says about itself is resolved where the table is written - which constant an enum member holds,
 what a question of a reference the state holds rests at, what a figure its own render state builds it
 at - so there is nothing a caller can leave out and be wrong about. That is what
@@ -651,7 +655,7 @@ they share is only that the frame resolves both by render-state field name.
 
 - **A figure's excursion runs from rest, so tick zero is free.** Frame 0 of a strip, every authored
   render and every frozen reference answer exactly what they answered before the figure was driven.
-  **A selection has no such property** and does not need one: `BIND` hands back the mesh it was given
+  **A selection has no such property** and does not need one: `bind` hands back the mesh it was given
   and every still sweep renders there, so the animated sweep is the only gate a selection reaches.
 - **A boolean render-state field is a figure of this kind, not a flag.** A flag is a bone's
   visibility, which folds to a literal at generation; a boolean the walk keeps symbolic arrives as a
@@ -728,7 +732,7 @@ four legs `true` - before any branch, leaving only `setSleepingPose` behind an `
 rests false.
 
 **The ground truth for a posed subject is `animation/`, and it is a second reference set rather than
-a replacement.** `entityAnimationParityVanilla` renders each subject at `ANIMATED` over the same
+a replacement.** `entityAnimationParityVanilla` renders each subject at the `idle` row over the same
 schedule the harness stepped - `EntityAnimationSweep`'s `START_TICK`, `FRAME_COUNT` and
 `TICKS_PER_FRAME` are pinned on both sides - and diffs frame by frame. It is the only gate that can
 see the pose table at all: everything else compares the mesh as authored, where both sides freeze and

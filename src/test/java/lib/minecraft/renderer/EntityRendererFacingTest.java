@@ -15,8 +15,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.util.Optional;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -62,7 +60,7 @@ class EntityRendererFacingTest {
 
     private static EntityOptions.Builder base() {
         return EntityOptions.builder()
-            .entityId(Optional.of(ENTITY))
+            .entityId(ENTITY)
             .output(baseRender())
             .padding(PADDING)
             .fitMode(EntityOptions.FitMode.OUTPUT_SIZE);
@@ -113,7 +111,7 @@ class EntityRendererFacingTest {
         for (Projection p : new Projection[]{Projection.CABINET, Projection.CAVALIER, Projection.MILITARY})
             for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED}) {
                 PixelBuffer buf = entityRenderer.render(EntityOptions.builder()
-                    .entityId(Optional.of("minecraft:cod"))
+                    .entityId("minecraft:cod")
                     .output(OutputOptions.builder()
                         .canvasSize(SIZE)
                         .supersample(1)
@@ -137,7 +135,7 @@ class EntityRendererFacingTest {
         // what keeps cod and its mirror uncropped.
         for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED}) {
             PixelBuffer buf = entityRenderer.render(EntityOptions.builder()
-                .entityId(Optional.of("minecraft:cod"))
+                .entityId("minecraft:cod")
                 .output(OutputOptions.builder()
                     .canvasSize(SIZE)
                     .supersample(1)

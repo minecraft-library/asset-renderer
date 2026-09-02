@@ -14,6 +14,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The subject-side halves of the style catalog's data model - the styles component's default, and
@@ -34,6 +35,26 @@ class EntityDrawnTest {
             .model(new EntityModelData())
             .build();
         assertSame(StyleCatalog.BIND_ONLY, entity.styles());
+    }
+
+    @Test
+    @DisplayName("a definition built from the id and mesh alone normalises everything else")
+    void builderFromTheMinimalSetNormalisesTheRest() {
+        // The id and the mesh are the two components the constructor cannot invent; the five it
+        // normalises arrive unset and the definition still draws.
+        EntityModelData body = new EntityModelData();
+        Entity entity = Entity.builder()
+            .id(ResourceId.parse("minecraft:test"))
+            .model(body)
+            .build();
+
+        ConcurrentList<Drawn> drawn = entity.drawn();
+        assertEquals(1, drawn.size(), "the body alone");
+        assertSame(body, drawn.getFirst().model());
+        assertSame(EntityPose.NONE, drawn.getFirst().pose(),
+            "an unset pose is the pose of a model that poses nothing");
+        assertTrue(entity.blockOverlays().isEmpty(), "no block overlays");
+        assertTrue(entity.members().isEmpty(), "and no canvas group");
     }
 
     @Test

@@ -205,7 +205,7 @@ public final class TestArmorParityVanilla {
                 ? ArmorPiece.dyedLeather(0xFF000000 | LEATHER_DYE_RGB)
                 : ArmorPiece.of(subject.material());
             EntityOptions options = EntityOptions.builder()
-                .entityId(Optional.of(subject.entityId()))
+                .entityId(subject.entityId())
                 .appearance(AppearanceOptions.builder()
                     .age(subject.baby() ? Age.BABY : Age.ADULT)
                     .build())

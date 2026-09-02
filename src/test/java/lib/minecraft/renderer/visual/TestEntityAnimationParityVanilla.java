@@ -13,6 +13,8 @@ import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
@@ -39,7 +41,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -75,26 +76,26 @@ public final class TestEntityAnimationParityVanilla {
      * Which gait this invocation measures, which is the whole of what separates the two sweeps.
      *
      * <p>The subjects, the schedule, the naming, the diff and every artifact written are the same on
-     * both, because none of them is a function of the gait: what differs is the preset the Java side
+     * both, because none of them is a function of the gait: what differs is the style the Java side
      * poses at and the harness sub-tree it is compared against, and the harness produces the two the
      * same way for the same reason. So this is one driver taking a parameter rather than two
      * drivers, and a divergence between the two reports cannot be a divergence in how they were
      * measured.
      *
-     * @param preset the pose preset the Java side renders at
+     * @param style the style id the Java side renders at
      * @param references the harness sub-tree holding the ground truth for it
      * @param output the directory this sweep's own artifacts are written under
      */
     private record Gait(
-        @NotNull EntityOptions.PoseMode preset, @NotNull String references, @NotNull String output) {
+        @NotNull String style, @NotNull String references, @NotNull String output) {
 
         /** A subject standing still, which is what the promoted animation gate measures. */
         private static final Gait IDLE =
-            new Gait(EntityOptions.PoseMode.IDLE, "animation", "entity-animation-parity-vanilla");
+            new Gait(PoseStyle.IDLE, "animation", "entity-animation-parity-vanilla");
 
         /** A subject walking as hard as vanilla ever clamps one to. */
         private static final Gait WALK =
-            new Gait(EntityOptions.PoseMode.WALK, "walk", "entity-walk-parity-vanilla");
+            new Gait(PoseStyle.STRIDE, "walk", "entity-walk-parity-vanilla");
 
         /**
          * The gait this invocation was launched for.
@@ -207,7 +208,7 @@ public final class TestEntityAnimationParityVanilla {
 
         System.out.printf("%s parity sweep (vs vanilla harness): %d subjects x %d frames, ticks %d..%d to %s "
                 + "(unresolved harness refs: %d)%n",
-            GAIT.preset(), subjects.size(), FRAME_COUNT, tickOf(0), tickOf(FRAME_COUNT - 1),
+            GAIT.style(), subjects.size(), FRAME_COUNT, tickOf(0), tickOf(FRAME_COUNT - 1),
             OUTPUT_DIR.toAbsolutePath(), unresolved.size());
 
         long t0 = System.nanoTime();
@@ -267,15 +268,17 @@ public final class TestEntityAnimationParityVanilla {
                 return Row.failed(stem);
             }
 
+            // ticksPerFrame is deliberately unnamed - the render fills it from the shipped period,
+            // while the named count forces a still subject to render eight identical frames, which
+            // is what keeps the sweep population's shape.
             EntityOptions.Builder options = EntityOptions.builder()
-                .entityId(Optional.of(subject.key().entityId()))
+                .entityId(subject.key().entityId())
                 .appearance(subject.key().appearance())
                 .fitMode(EntityOptions.FitMode.GROUP_BOUNDS)
-                .poseMode(GAIT.preset())
+                .style(GAIT.style())
                 .animation(AnimationOptions.builder()
                     .startTick(START_TICK)
-                    .frameCount(FRAME_COUNT)
-                    .ticksPerFrame(TICKS_PER_FRAME)
+                    .frameCount(StyleCatalog.STRIP_FRAMES)
                     .build());
             subject.key().armor().ifPresent(options::armor);
             ImageData rendered = javaRenderer.render(options.build());

@@ -9,6 +9,7 @@ import lib.minecraft.renderer.exception.RendererException;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The animation timing shared by the animated renderers (item, block, entity, fluid, portal): seed
@@ -33,14 +34,17 @@ public class AnimationOptions {
     private final int startTick = 0;
 
     /**
-     * Number of output frames; 1 = static, &gt;1 = animated.
+     * Number of output frames. Empty means the subject decides - one frame for a still subject,
+     * the shipped strip for a moving one; an explicit {@code 1} means one frame OF the animation,
+     * sampled at the start tick.
      */
-    private final int frameCount = 1;
+    private final @NotNull Optional<Integer> frameCount = Optional.empty();
 
     /**
-     * Vanilla ticks advanced between successive output frames.
+     * Vanilla ticks advanced between successive output frames. Empty means the subject decides -
+     * the subject's shipped cadence.
      */
-    private final int ticksPerFrame = 1;
+    private final @NotNull Optional<Integer> ticksPerFrame = Optional.empty();
 
     /**
      * How the baked frames play back, honoured by every subject that builds its schedule through
@@ -86,6 +90,62 @@ public class AnimationOptions {
      * every gait rather than only at rest.
      */
     private final @NotNull Map<IdleState.Group, IdleState> idleStates = Map.of();
+
+    /**
+     * The frame count, answering {@code 1} where none is named, so a renderer that treats
+     * {@code 1} as static reads what an unnamed count means to it.
+     *
+     * @return the named frame count, or {@code 1}
+     */
+    public int getFrameCount() {
+        return this.frameCount.orElse(1);
+    }
+
+    /**
+     * The tick step, answering {@code 1} where none is named, so a renderer stepping one tick a
+     * frame reads what an unnamed cadence means to it.
+     *
+     * @return the named tick step, or {@code 1}
+     */
+    public int getTicksPerFrame() {
+        return this.ticksPerFrame.orElse(1);
+    }
+
+    /**
+     * Whether the caller named a frame count, telling an explicit {@code 1} apart from an unnamed
+     * count the subject decides.
+     *
+     * @return whether a frame count is named
+     */
+    public boolean isFrameCountNamed() {
+        return this.frameCount.isPresent();
+    }
+
+    /**
+     * Whether the caller named a tick step, telling an explicit cadence apart from an unnamed one
+     * the subject decides.
+     *
+     * @return whether a tick step is named
+     */
+    public boolean isTicksPerFrameNamed() {
+        return this.ticksPerFrame.isPresent();
+    }
+
+    /**
+     * These options with every unnamed strip knob filled - the entity path's one defaulting site.
+     * A named knob always wins.
+     *
+     * @param fallbackFrames what fills an unnamed frame count
+     * @param fallbackTicks what fills an unnamed tick step
+     * @return these options with both strip knobs concrete
+     */
+    public @NotNull AnimationOptions resolved(int fallbackFrames, int fallbackTicks) {
+        if (isFrameCountNamed() && isTicksPerFrameNamed()) return this;
+        return mutate()
+            .frameCount(this.frameCount.orElse(fallbackFrames))
+            .ticksPerFrame(this.ticksPerFrame.orElse(fallbackTicks))
+            .build();
+    }
 
     /**
      * What one idle figure holds at a tick, this caller's override applied where there is one.

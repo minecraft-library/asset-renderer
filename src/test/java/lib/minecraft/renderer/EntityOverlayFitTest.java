@@ -18,7 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
@@ -150,7 +149,7 @@ class EntityOverlayFitTest {
 
     private static @NotNull PixelBuffer render(@NotNull String entityId, @NotNull AppearanceOptions appearance) {
         return entityRenderer.render(EntityOptions.builder()
-            .entityId(Optional.of(entityId))
+            .entityId(entityId)
             .appearance(appearance)
             .output(OutputOptions.builder().canvasSize(SIZE).supersample(1).antiAlias(false).build())
             .padding(PADDING)

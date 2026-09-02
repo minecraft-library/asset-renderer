@@ -31,7 +31,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 
 /**
  * Renders one entity under every {@link Projection} in the catalog (perspective / axonometric /
@@ -92,7 +91,7 @@ public final class EntityProjectionsDriver {
             BufferedImage img;
             try {
                 EntityOptions options = EntityOptions.builder()
-                    .entityId(Optional.of(entityId))
+                    .entityId(entityId)
                     .output(OutputOptions.builder()
                         .canvasSize(size)
                         .supersample(2)
@@ -127,7 +126,7 @@ public final class EntityProjectionsDriver {
                 BufferedImage img;
                 try {
                     EntityOptions options = EntityOptions.builder()
-                        .entityId(Optional.of(entityId))
+                        .entityId(entityId)
                         .output(OutputOptions.builder()
                             .canvasSize(size)
                             .supersample(2)

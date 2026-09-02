@@ -140,6 +140,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/EntityRendererStylesTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/EntityRendererVillagerHatTest": {
       "artifacts": [],
       "source": "derived"
@@ -2585,10 +2589,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/engine/kit/OracleEquivalenceTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/engine/kit/PlayerArmorKit": {
       "artifacts": [
         "manifest.player-raw",
@@ -2624,6 +2624,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/kit/PoseKitMotionTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/kit/PoseKitStyleTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -3197,6 +3201,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/option/AnimationOptionsResolvedTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/option/AppearanceOptions": {
       "artifacts": [
         "manifest.dump.packs",
@@ -3279,6 +3287,10 @@
         "sweep.entity",
         "sweep.entity-animation"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/option/EntityOptionsTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/option/FluidOptions": {

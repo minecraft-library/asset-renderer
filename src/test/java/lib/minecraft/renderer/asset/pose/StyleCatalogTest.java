@@ -5,6 +5,7 @@ import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.option.EntityOptions;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -50,7 +51,7 @@ class StyleCatalogTest {
     @Test
     @DisplayName("the four universal ids resolve on a catalog that ships nothing")
     void theUniversalIdsResolveEverywhere() {
-        EntityOptions options = EntityOptions.defaults();
+        EntityOptions options = EntityOptions.of("minecraft:test");
         assertEquals(PoseStyle.BIND,
             StyleCatalog.BIND_ONLY.resolve(PoseStyle.BIND, options).id());
         assertEquals(PoseStyle.IDLE,
@@ -65,7 +66,7 @@ class StyleCatalogTest {
     @Test
     @DisplayName("the synthesized idle ramps elapsed age and rests everything else")
     void theSynthesizedIdleRampsElapsedAge() {
-        PoseStyle idle = StyleCatalog.BIND_ONLY.resolve(PoseStyle.IDLE, EntityOptions.defaults());
+        PoseStyle idle = StyleCatalog.BIND_ONLY.resolve(PoseStyle.IDLE, EntityOptions.of("minecraft:test"));
         ToDoubleFunction<String> frame = idle.frameAt(7, StyleCatalog.BIND_ONLY.periodTicks());
         assertEquals(7d, frame.applyAsDouble("ageInTicks"), "elapsed age is the tick itself");
         assertEquals(0d, frame.applyAsDouble("walkAnimationSpeed"), "a standing subject walks at nothing");
@@ -76,7 +77,7 @@ class StyleCatalogTest {
     @Test
     @DisplayName("the synthesized stride adds the walk pair at amplitude one")
     void theSynthesizedStrideAddsTheWalkPair() {
-        PoseStyle stride = StyleCatalog.BIND_ONLY.resolve(PoseStyle.STRIDE, EntityOptions.defaults());
+        PoseStyle stride = StyleCatalog.BIND_ONLY.resolve(PoseStyle.STRIDE, EntityOptions.of("minecraft:test"));
         ToDoubleFunction<String> frame = stride.frameAt(7, StyleCatalog.BIND_ONLY.periodTicks());
         assertEquals(7d, frame.applyAsDouble("ageInTicks"), "elapsed age still climbs");
         assertEquals(1d, frame.applyAsDouble("walkAnimationSpeed"), "the amplitude is the full one");
@@ -87,7 +88,7 @@ class StyleCatalogTest {
     @DisplayName("an unknown id is refused listing the supported set")
     void anUnknownIdIsRefusedListingTheSupportedSet() {
         RendererException refused = assertThrows(RendererException.class,
-            () -> StyleCatalog.BIND_ONLY.resolve("croak", EntityOptions.defaults()));
+            () -> StyleCatalog.BIND_ONLY.resolve("croak", EntityOptions.of("minecraft:test")));
         assertTrue(refused.getMessage().contains("croak"),
             "the refusal names what was asked: " + refused.getMessage());
         assertTrue(refused.getMessage().contains(PoseStyle.BIND),
@@ -105,8 +106,9 @@ class StyleCatalogTest {
                     Optional.of("action")))),
             Concurrent.newUnmodifiableList(), Optional.of(Age.BABY));
         StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(rollUp));
-        EntityOptions adult = EntityOptions.defaults();
+        EntityOptions adult = EntityOptions.of("minecraft:test");
         EntityOptions baby = EntityOptions.builder()
+            .entityId("minecraft:test")
             .appearance(AppearanceOptions.builder().age(Age.BABY).build())
             .build();
 
@@ -158,6 +160,59 @@ class StyleCatalogTest {
             "the shipped union carries the charged movement");
         assertEquals(PoseStyle.BIND, catalog.inForce(false, gate -> false).animated().id(),
             "an appearance that dropped the pass falls through to bind");
+    }
+
+    @Test
+    @DisplayName("a held row is listed - a held stance renders a picture bind does not")
+    void aHeldRowIsListed() {
+        PoseStyle rest = new PoseStyle("rest",
+            Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("restAnimationState",
+                new StyleDriver("restAnimationState", StyleDriver.Wave.HOLD, 0f, 1f,
+                    Optional.of("action")))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
+        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(rest));
+
+        assertTrue(rest.sources().isEmpty(), "the row holds still");
+        assertEquals(List.of(PoseStyle.BIND, "rest"), List.copyOf(catalog.ids()),
+            "and is still a selectable output");
+    }
+
+    @Test
+    @DisplayName("an age-split pair is listed once, after bind")
+    void anAgeSplitPairIsListedOnce() {
+        StyleCatalog catalog = new StyleCatalog(24,
+            Concurrent.newUnmodifiableList(playDead(Age.ADULT), playDead(Age.BABY)));
+        assertEquals(List.of(PoseStyle.BIND, "play_dead"), List.copyOf(catalog.ids()),
+            "one id names both ages");
+    }
+
+    @Test
+    @DisplayName("resolve answers the row of a shared id that applies to the request")
+    void resolvePicksTheApplyingRowOfASharedId() {
+        StyleCatalog catalog = new StyleCatalog(24,
+            Concurrent.newUnmodifiableList(playDead(Age.ADULT), playDead(Age.BABY)));
+        EntityOptions adult = EntityOptions.of("minecraft:test");
+        EntityOptions baby = EntityOptions.builder()
+            .entityId("minecraft:test")
+            .appearance(AppearanceOptions.builder().age(Age.BABY).build())
+            .build();
+
+        assertEquals(Optional.of(Age.ADULT), catalog.resolve("play_dead", adult).age(),
+            "an adult request resolves the adult row");
+        assertEquals(Optional.of(Age.BABY), catalog.resolve("play_dead", baby).age(),
+            "and a baby request the baby one");
+    }
+
+    // ------------------------------------------------------------------------------------
+
+    /** One age's copy of a shared held row, so an age-split pair is two rows under one id. */
+    private static @NotNull PoseStyle playDead(@NotNull Age age) {
+        return new PoseStyle("play_dead", Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("playingDeadAnimationState",
+                new StyleDriver("playingDeadAnimationState", StyleDriver.Wave.HOLD, 0f, 1f,
+                    Optional.of("action")))),
+            Concurrent.newUnmodifiableList(), Optional.of(age));
     }
 
 }

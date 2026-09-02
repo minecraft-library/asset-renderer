@@ -277,7 +277,7 @@ public final class EntityRenderDriver {
                 .equipment(equipment)
                 .build();
             EntityOptions options = EntityOptions.builder()
-                .entityId(Optional.of(entityId))
+                .entityId(entityId)
                 .appearance(appearance)
                 .armor(armor)
                 .output(OutputOptions.builder()

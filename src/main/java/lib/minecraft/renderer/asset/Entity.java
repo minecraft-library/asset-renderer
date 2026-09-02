@@ -6,6 +6,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.Flag;
 import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.TintAxis;
@@ -113,11 +114,14 @@ public record Entity(
     public static final @NotNull String SHAPE_LARGE = "large";
 
     /**
-     * Normalises a never-set {@link #members} to an empty (singleton) list, a never-set
-     * {@link #styles} to {@link StyleCatalog#BIND_ONLY}, and a never-set {@link #pose} to the pose
-     * of a model that poses nothing, so callers can omit any of the three.
+     * Normalises a never-set {@link #overlays}, {@link #blockOverlays} or {@link #members} to an
+     * empty unmodifiable list, a never-set {@link #styles} to {@link StyleCatalog#BIND_ONLY}, and
+     * a never-set {@link #pose} to the pose of a model that poses nothing, so callers can omit any
+     * of the five.
      */
     public Entity {
+        overlays = overlays == null ? Concurrent.newUnmodifiableList() : overlays;
+        blockOverlays = blockOverlays == null ? Concurrent.newUnmodifiableList() : blockOverlays;
         members = members == null ? Concurrent.newUnmodifiableList() : members;
         styles = styles == null ? StyleCatalog.BIND_ONLY : styles;
         pose = pose == null ? EntityPose.NONE : pose;
@@ -194,6 +198,9 @@ public record Entity(
      * applied OUTSIDE the baby fork so it affects both. A non-baby, non-carried appearance returns an
      * equivalent definition unchanged.
      *
+     * <p>The style catalog narrows to the in-force view - a row whose age refuses the appearance
+     * drops, and a gated source entry survives iff the appearance admits its gate.
+     *
      * @param appearance the axis selections to resolve against
      * @return the age / carried / sheared / shape / size / tint-resolved definition
      */
@@ -206,6 +213,8 @@ public record Entity(
             .flatMap(coat -> this.axes().variant().select(coat))
             .orElse(this);
         Builder builder = definition.mutate();
+        builder.styles(definition.styles()
+            .inForce(appearance.isBaby(), token -> gateAdmitted(token, appearance)));
         // The worn shell resolves ahead of the age fork and outside it, because the axis that
         // selects a wearer's second shell is the wearer's own - six swap on age and the armor stand
         // on size - and vanilla picks the set off the flag alone rather than off the body mesh.
@@ -270,6 +279,21 @@ public record Entity(
         // (default) keeps the baked base_tint.
         appearance.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
         return builder.build();
+    }
+
+    /**
+     * Whether the appearance admits the pass a style gate token names - the token is the spelling
+     * the gated pass's {@code when} key uses, so the two filters read one vocabulary. An unknown
+     * token admits nothing.
+     *
+     * @param token the gate token a style source entry carries
+     * @param appearance the axis selections to test against
+     * @return whether the appearance keeps the gated pass
+     */
+    private static boolean gateAdmitted(@NotNull String token, @NotNull AppearanceOptions appearance) {
+        for (Flag flag : Flag.values())
+            if (flag.name().equalsIgnoreCase(token)) return flag.selectedIn(appearance);
+        return false;
     }
 
     /**
