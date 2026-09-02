@@ -13,18 +13,22 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
- * Node {@code group_of} - the cross-entity grouping post-pass (mooshroom to cow, stray to
- * skeleton). Runs AFTER the walk loop over the completed {@code models} tree.
+ * Node {@code members} - the cross-entity grouping post-pass (stray beside skeleton, zoglin beside
+ * hoglin). Runs AFTER the walk loop over the completed {@code models} tree and writes the resolved
+ * canvas-group membership onto every member, the same self-inclusive list on each, so the reader
+ * joins nothing.
  *
  * <p>Clustering key = shared primary {@code GeometryRequest} identity, taken from the model's
  * embedded manifest key rather than any derived-id string. The canonical root is the member
  * whose entity id matches the factory-class stem, matched against the REQUEST coordinate
  * rather than an emitted id string; a stemless cluster is a coincidence group (illager) and
  * links nothing. A data-variant-registry base (zombie_nautilus) heads its own variant family
- * and is barred from NON-root membership, while variant bases stay eligible as roots
- * (mooshroom to cow).
+ * and is barred from NON-root membership - and a variant FAMILY (mooshroom, trader_llama) joins
+ * no group at all, its canvas being measured by its own coats' union, so a group it would have
+ * joined is emitted without it and dissolves where it was the only other member.
  */
 @UtilityClass
 final class EntityGroupLinker {
@@ -36,7 +40,7 @@ final class EntityGroupLinker {
     private static final @NotNull String STEM_SUFFIX = "Model";
 
     /**
-     * Appends {@code group_of} to every linked non-root model (the put lands last in the
+     * Appends {@code members} to every model of every resolved group (the put lands last in the
      * member order).
      *
      * @param root the envelope root owning the completed {@code models} node
@@ -45,31 +49,44 @@ final class EntityGroupLinker {
      */
     static void link(@NotNull JsonTree root, @NotNull VariantIndex variants, @NotNull Diagnostics diagnostics) {
         JsonTree models = root.child("models");
-        Map<String, List<String>> clusters = new LinkedHashMap<>();
-        models.members().forEach((id, model) ->
-            primaryGeometry(model).ifPresent(geometry ->
-                clusters.computeIfAbsent(geometry, key -> new ArrayList<>()).add(id)));
+        Map<String, List<String>> clusters = models.members()
+            .flatMapToObj((id, model) -> primaryGeometry(model).stream().map(geometry -> Map.entry(geometry, id)))
+            .collect(Collectors.groupingBy(Map.Entry::getKey, LinkedHashMap::new,
+                Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
 
         for (Map.Entry<String, List<String>> cluster : clusters.entrySet()) {
-            List<String> members = cluster.getValue();
-            if (members.size() < 2) continue;
-            String rootId = pickCanonicalRoot(cluster.getKey(), members);
+            List<String> reached = cluster.getValue();
+            if (reached.size() < 2) continue;
+            String rootId = pickCanonicalRoot(cluster.getKey(), reached);
             if (rootId == null) {
                 diagnostics.info("coincidence cluster '%s' shared by %s - no member matches the factory stem, no links",
-                    cluster.getKey(), members);
+                    cluster.getKey(), reached);
                 continue;
             }
-            for (String member : members) {
-                if (member.equals(rootId)) continue;
-                if (variants.table(localId(member)) != null) {
+            List<String> group = new ArrayList<>();
+            for (String member : reached) {
+                if (variants.table(localId(member)) != null && !member.equals(rootId)) {
                     diagnostics.info("variant-registry base '%s' kept out of '%s' group (heads its own variant family)",
                         member, rootId);
                     continue;
                 }
-                models.child(member).put("group_of", rootId);
-                diagnostics.info("group link: %s -> %s (shared %s)", member, rootId, cluster.getKey());
+                if (isVariantFamily(models.child(member)) && !member.equals(rootId)) {
+                    diagnostics.info("variant family '%s' kept out of '%s' group (its coats measure their own union)",
+                        member, rootId);
+                    continue;
+                }
+                group.add(member);
             }
+            if (group.size() < 2) continue;
+            for (String member : group)
+                models.child(member).putStrings("members", group.toArray(String[]::new));
+            diagnostics.info("group: %s <- %s (shared %s)", rootId, group, cluster.getKey());
         }
+    }
+
+    /** Whether a model row carries a variant axis, which is what keeps it out of any group. */
+    private static boolean isVariantFamily(@NotNull JsonTree model) {
+        return model.findPath("axes", "variant").isPresent();
     }
 
     /**

@@ -10,7 +10,7 @@
     "block_geometry": {
       "form": "table-canonical",
       "regen": "blockModels",
-      "sha256": "0d3f86ed4abbd21378dd984c6139a05c52212ef7415a41baa13926aa474cae84"
+      "sha256": "96ab28b3406eea5dc44e70f09ddbc01ba13b69174a8eb9436b22df75582af446"
     },
     "block_items": {
       "form": "table-canonical",
@@ -35,12 +35,17 @@
     "entity_geometry": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "9a31e5ff9c3183f2d806eb521e13a4689e100f9028d1f30be9df5dae617d3fdf"
+      "sha256": "5ca9403af05c24ab28a349b94fd0a9fa88ab596e98a2c506b5b5fb82499fcc6d"
     },
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "3eb51f5cd139f1844ed36fee875cfd8cc5cfe476cbc6b820c05330e39cda9e2f"
+      "sha256": "4d332af39888159c4e2a401ef24b41f6b80925f7fcd05e3bcd0037217bb2448a"
+    },
+    "entity_poses": {
+      "form": "table-canonical",
+      "regen": "entityModels",
+      "sha256": "785afe31ec4e9bd6b84ca4b39e0c4aefad75b1868e27e858ab7bc3b3f73c5649"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -58,28 +63,29 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_dirty": false,
-    "asset_sha": "b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e",
+    "asset_content_digest": "56725a1be5a96943d90410412f5f46d69144f37a553f06b7d34d6d498128d38b",
+    "asset_dirty": true,
+    "asset_sha": "0c6485c13e76b443d94933424cf692d4c6f4e30b",
     "counts": {
-      "digests": 10
+      "digests": 11
     },
-    "determinism_runs": 2,
+    "determinism_runs": 1,
     "flags": {
       "gson": "2.13.2"
     },
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
+    "parity_class": "moving",
     "producer": "test",
-    "reason": "P11: the ten shipped-table digests and the three colormap LUT digests move out of ten one-line fixtures and three inline hex literals into the store, carried across verbatim - every value equals the blob committed at HEAD~2",
+    "reason": "The fold-consumed rest member comes off the written model table; twelve rows drop it and nothing else moves - geometry and poses byte-identical, diagnostics line-identical, every sweep, dump and pin held at zero",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 402,
+      "entities": 403,
       "glint": 330,
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-01T11:00:38Z",
+    "timestamp": "2026-09-02T01:36:56Z",
     "tool_version": "1.0.0"
   }
 }

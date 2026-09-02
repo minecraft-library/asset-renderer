@@ -22,9 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -145,7 +143,7 @@ class LegacyOverrideMapperTest {
     void fallbackIsTheDefaultBranch() {
         JsonTree overrides = overrides("{\"predicate\":{\"custom_model_data\":1},\"model\":\"item/cmd1\"}");
         // A stand-in native tree carrying a distinct model - the mapper must fall back to it, not to BASE_REF.
-        ItemModelNode nativeTree = new ItemModelNode.Model("minecraft:item/native_default", List.of());
+        ItemModelNode nativeTree = new ItemModelNode.Model("minecraft:item/native_default", Concurrent.newUnmodifiableList());
         ItemModelNode root = LegacyOverrideMapper.map(ITEM_ID, overrides, PACK, nativeTree).orElseThrow();
         assertThat("neutral context falls back to the native tree", resolveAt(root, null), is("minecraft:item/native_default"));
         assertThat("cmd=1 still selects the override frame", resolveAt(root, 1f), is("minecraft:item/cmd1"));
@@ -170,7 +168,7 @@ class LegacyOverrideMapperTest {
     }
 
     private static Optional<ItemModelNode> map(JsonTree overrides) {
-        return LegacyOverrideMapper.map(ITEM_ID, overrides, PACK, new ItemModelNode.Model(BASE_REF, List.of()));
+        return LegacyOverrideMapper.map(ITEM_ID, overrides, PACK, new ItemModelNode.Model(BASE_REF, Concurrent.newUnmodifiableList()));
     }
 
     private static String resolveAt(ItemModelNode root, Float customModelData) {
@@ -196,7 +194,8 @@ class LegacyOverrideMapperTest {
 
     private static ResourcePack packWithMeta(MCMeta meta) {
         return new ResourcePack(new PackId("legacypack"), new PackContainer.Directory(Path.of("nonexistent")), meta,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
     }
 
 }

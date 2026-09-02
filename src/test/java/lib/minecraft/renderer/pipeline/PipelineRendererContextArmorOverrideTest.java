@@ -27,7 +27,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.util.Properties;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,7 +107,8 @@ class PipelineRendererContextArmorOverrideTest {
 
     private @NotNull PipelineRendererContext contextWith(@NotNull CitRule... rules) {
         ResourcePack vanilla = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(tmp), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableTreeSet("minecraft"),
+            Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE));
         RuleSet base = RuleSet.empty(PackId.VANILLA);
         ConcurrentList<CitRule> citRules = Concurrent.newList(rules).toUnmodifiable();
         RuleSet ruleSet = new RuleSet(PackId.VANILLA, citRules, base.ctmRules(), base.colors(), base.useGlint());

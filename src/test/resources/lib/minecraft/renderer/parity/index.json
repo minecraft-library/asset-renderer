@@ -8,35 +8,39 @@
       "entries": 3,
       "file": "digests/colormap-lut.json",
       "kind": "digest-set",
+      "last_duration_ms": 22053,
       "promoted_at": "b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e",
       "sha256": "01bec04337418a4cbd2bce8acf68b36b5d23411d33cb950d41ebb8461f0d27b8"
     },
     "digest.shipped-tables": {
       "baselined": true,
       "determinism_floor": 1,
-      "entries": 10,
+      "entries": 11,
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
-      "promoted_at": "b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e",
-      "sha256": "c000b00ff4ed273c6d363ba953755ba8a5c66b956b0d228b78589feb6a96aba3"
+      "last_duration_ms": 9418,
+      "promoted_at": "0c6485c13e76b443d94933424cf692d4c6f4e30b",
+      "sha256": "57612ff0941ad9b067ad747081e92b08cd87b4e0a54c95589643e15216011f70"
     },
     "manifest.dump.packs": {
       "baselined": true,
-      "determinism_floor": 5,
+      "determinism_floor": 2,
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
-      "sha256": "7b934f7386bd438e72831e1f111c8ea0050334aaec60fe13ab9cd3b3cb998bc0"
+      "last_duration_ms": 28525,
+      "promoted_at": "5b82eb6d137caf1540b4cb3fefe6807330cec07a",
+      "sha256": "1ec67abc2e8c2a8b2cc8beacd2eedea03be7c31972b84424858a0fc729d37680"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
-      "determinism_floor": 5,
+      "determinism_floor": 2,
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
-      "sha256": "750d5a26dea696106e5aa33d8687769a7fea0d122999a83de85587ed04afa90d"
+      "last_duration_ms": 28525,
+      "promoted_at": "5b82eb6d137caf1540b4cb3fefe6807330cec07a",
+      "sha256": "3aa6c62efe2a81fc8618b24fbe206d97f9a17a5f72e02a7aeb548b727c369b9c"
     },
     "manifest.fluid": {
       "baselined": true,
@@ -44,8 +48,9 @@
       "entries": 12,
       "file": "manifests/fluid.json",
       "kind": "manifest",
-      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
-      "sha256": "a1a1fa683e06dc3f0540db23770c8197149bf6e564f6e3c1d988375108274994"
+      "last_duration_ms": 12081,
+      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+      "sha256": "a16442ee1d099d532809abb2a4e7f08244a696700ecbedea4328f7a79b06b5d4"
     },
     "manifest.player-raw": {
       "baselined": true,
@@ -53,8 +58,9 @@
       "entries": 18,
       "file": "manifests/player-raw.json",
       "kind": "manifest",
-      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
-      "sha256": "3e98ada0a106bce9f8eabfc8127c0d4a6981a8193aee0dae20c4b25428818c6e"
+      "last_duration_ms": 28454,
+      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+      "sha256": "98f05c184f55267459017365b2b95529fabb6468187d9ac4e1ce8de406fa8b8f"
     },
     "manifest.player-sheets": {
       "baselined": true,
@@ -62,9 +68,9 @@
       "entries": 104,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 17186,
-      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
-      "sha256": "145f7b81ebca1e1913ef0a1d35f92dd584764504bc5636e77ff5314ff220d3ac"
+      "last_duration_ms": 16789,
+      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+      "sha256": "78300e3a18290452481e66461dab475a5891cae46f44fd0bdce6e58c8ce36a6d"
     },
     "manifest.portal": {
       "baselined": true,
@@ -72,28 +78,29 @@
       "entries": 12,
       "file": "manifests/portal.json",
       "kind": "manifest",
+      "last_duration_ms": 138573,
       "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
       "sha256": "14920840b5c76ec7b3a8c19c22a4d6bc2faed60d1438800670c06569ca159c17"
     },
     "manifest.references": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 2322,
+      "entries": 4435,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 138071,
-      "promoted_at": "494a152fd3bf76bc2290aada4291024e0e49791e",
-      "sha256": "820fe12044c09d426d2b12a03612b283422d04383727c7d262838d73808ef3c9"
+      "last_duration_ms": 75898,
+      "promoted_at": "9c8be4be16a676b3a7a1cacb3a8a468fb6b1f04d",
+      "sha256": "84a9f66c4251d73eb85f7268eba7b14209ffe1bfe2ef7c7df41d45c27b22b40e"
     },
     "manifest.tooling-tables": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 10,
+      "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 2696,
-      "promoted_at": "0bcb42335c9f472169445099c348bceaf2b92e58",
-      "sha256": "8e93940c34d27516b5deaadc1b76e0c065542f0210485f6ee095e648557aadc9"
+      "last_duration_ms": 44126,
+      "promoted_at": "0c6485c13e76b443d94933424cf692d4c6f4e30b",
+      "sha256": "eb19454057a15018eef1b5abf148790649b3145b357952874a397b1f95fbd1c3"
     },
     "manifest.visual": {
       "baselined": true,
@@ -101,8 +108,9 @@
       "entries": 210,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "promoted_at": "77b9bda348563f75d55b0de82b9d76085af7b80c",
-      "sha256": "c54998294df4591f78b01db6f6d54c5a3b1b8c2e71f143a7fa78884274f24c1d"
+      "last_duration_ms": 114090,
+      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+      "sha256": "e7c2ab42ba59c79b54eb7abff4e403f08638defdb521c132d9a059f6b180d69d"
     },
     "pin.block-crc": {
       "baselined": true,
@@ -110,8 +118,9 @@
       "entries": 3,
       "file": "pins/block-crc.json",
       "kind": "pin-set",
-      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
-      "sha256": "0e20474a93858bc39f1202548e48263e48bf28753211a2237809922f95fcde67"
+      "last_duration_ms": 19235,
+      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+      "sha256": "09ca31c0306705f24324bd7e0efd3f1f42c312bb9b9b181ea7e9c9cc6c58ea02"
     },
     "pin.corpus-count": {
       "baselined": true,
@@ -129,6 +138,7 @@
       "entries": 13,
       "file": "pins/fluid-crc.json",
       "kind": "pin-set",
+      "last_duration_ms": 22053,
       "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
       "sha256": "f2d6408409a24ac139402ce174d1c1a6aa1f5d8b5cc22d46e1faafce975ba22c"
     },
@@ -138,6 +148,7 @@
       "entries": 1,
       "file": "pins/kit-corners.json",
       "kind": "pin-set",
+      "last_duration_ms": 9502,
       "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
       "sha256": "44cf7df5720bd1da3014103aabb3365c94e83c9ec5a9f12e0b8be1393ea98959"
     },
@@ -147,8 +158,9 @@
       "entries": 3,
       "file": "pins/player-crc.json",
       "kind": "pin-set",
-      "promoted_at": "23fdf579e8e9da8054f22dc3f4a5ac09d032da8c",
-      "sha256": "3b62eb0bf517429e18a4ee3d121f39d577ad5de3fd18da3118030dfaf4a7e282"
+      "last_duration_ms": 19235,
+      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+      "sha256": "d821898c5bffdf2d861bd09badbe3c8d8102eeed2ad386b91ce58d57a83dcf13"
     },
     "pin.portal-crc": {
       "baselined": true,
@@ -156,6 +168,7 @@
       "entries": 2,
       "file": "pins/portal-crc.json",
       "kind": "pin-set",
+      "last_duration_ms": 22053,
       "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
       "sha256": "61e8265b1178cae2848f2d1ef9b4994292ce34653a7170bf8297abe5cce2d4e8"
     },
@@ -165,6 +178,7 @@
       "entries": 1,
       "file": "pins/vanilla-iso-pose.json",
       "kind": "pin-set",
+      "last_duration_ms": 9502,
       "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
       "sha256": "7618413736607fc41bd45ad925f4c0fe3df305d385d22605a796a91aba72acdc"
     },
@@ -186,10 +200,10 @@
       "entries": 7,
       "file": "sweeps/armor.json",
       "kind": "sweep-table",
-      "last_duration_ms": 16490,
-      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
-      "sha256": "f0b5898e1646bcb168220beacd5ade875c14ce4f434ccc0c876d22ac4037bf6d",
-      "sum": "18.2471"
+      "last_duration_ms": 15169,
+      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+      "sha256": "925216560b6ab5cb991ed9b7ea9181edcc4fc9dfab7b157e90815ee100481c60",
+      "sum": "17.9822"
     },
     "sweep.block": {
       "baselined": true,
@@ -197,21 +211,43 @@
       "entries": 1055,
       "file": "sweeps/block.json",
       "kind": "sweep-table",
-      "last_duration_ms": 50027,
-      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
-      "sha256": "03b29294dfacd32f908fc717672da845782800afb540bd6f9ebc730f4d4299ab",
-      "sum": "131.5270"
+      "last_duration_ms": 46935,
+      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+      "sha256": "66267f9213cdb279252c6081f98aa0dfd5b32924fc4339b791ba4aa0106c8794",
+      "sum": "117.9441"
     },
     "sweep.entity": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 402,
+      "entries": 403,
       "file": "sweeps/entity.json",
       "kind": "sweep-table",
-      "last_duration_ms": 24670,
-      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
-      "sha256": "f6c5e09320b12ae16ea5ba585a33933b42eb610c6e86012a10437594f7ecc788",
-      "sum": "60.0047"
+      "last_duration_ms": 21606,
+      "promoted_at": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
+      "sha256": "bc89481107b2409ae20584bae27174ff4f5e81d74d48a6359fa49c73205203fc",
+      "sum": "17.7543"
+    },
+    "sweep.entity-animation": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 132,
+      "file": "sweeps/entity-animation.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 23158,
+      "promoted_at": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
+      "sha256": "222b795d43e7394eb07db4793ee9f8d2678f732cbd9f753345849edad04781ad",
+      "sum": "138.8948"
+    },
+    "sweep.entity-walk": {
+      "baselined": true,
+      "determinism_floor": 2,
+      "entries": 132,
+      "file": "sweeps/entity-walk.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 22773,
+      "promoted_at": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
+      "sha256": "cb2d02b9e865dc48492489df6128df4a9476f4a00791ec547ab3757177a7d90e",
+      "sum": "175.3489"
     },
     "sweep.glint": {
       "baselined": true,
@@ -219,10 +255,10 @@
       "entries": 11,
       "file": "sweeps/glint.json",
       "kind": "sweep-table",
-      "last_duration_ms": 31712,
-      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
-      "sha256": "6e47574cbbe96d0fc6dc4ea1e962f0e4f863e89bc49f21309a9e15226723d446",
-      "sum": "528.0484"
+      "last_duration_ms": 31409,
+      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+      "sha256": "a78862155c51749d79a574d01d5df7c144e7ed1aea9c1b3fbea8be94fe7d9334",
+      "sum": "528.0750"
     },
     "sweep.item": {
       "baselined": true,
@@ -230,10 +266,10 @@
       "entries": 479,
       "file": "sweeps/item.json",
       "kind": "sweep-table",
-      "last_duration_ms": 129288,
-      "promoted_at": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
-      "sha256": "c87bf90ba4d1576c149518279650710dd185e9ae217e116815e5927e09f68112",
-      "sum": "128.9575"
+      "last_duration_ms": 142689,
+      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+      "sha256": "9b5a9d98e8765c6fdecd5e4681a2cfa2c5e0d3136c200f889b9ac130cbb02beb",
+      "sum": "128.9549"
     },
     "sweep.menu": {
       "baselined": true,
@@ -241,7 +277,7 @@
       "entries": 10,
       "file": "sweeps/menu.json",
       "kind": "sweep-table",
-      "last_duration_ms": 13757,
+      "last_duration_ms": 13899,
       "promoted_at": "f7aa87338a8bc20907a03f0db6cba69c7a22cbdc",
       "sha256": "660d220aad82d0bf439267c9ef9f0a2681d8e52fb4acf774eb8cddf1568cac07",
       "sum": "0.0407"
@@ -252,10 +288,10 @@
       "entries": 2,
       "file": "sweeps/player.json",
       "kind": "sweep-table",
-      "last_duration_ms": 13402,
-      "promoted_at": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
-      "sha256": "56f1f177ae2c1053a5e89050c946920bdb77b757aa64b928b465e902fae60c96",
-      "sum": "8.4315"
+      "last_duration_ms": 13285,
+      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+      "sha256": "61db25532c9673656e695b9d6c76e98e3f9d1c5b88857e601936fb0edea1625c",
+      "sum": "8.3792"
     }
   },
   "external": {
@@ -378,7 +414,7 @@
         "LEATHER_ARMOR_ITEMS = List.of("
       ],
       "cross_repo": true,
-      "lines": "108-116, 126-131",
+      "lines": "110-118, 128-133",
       "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
       "test_class": "lib.minecraft.renderer.visual.TestGlintParityVanilla"
     },

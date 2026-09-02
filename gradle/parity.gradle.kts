@@ -339,6 +339,10 @@ val parityReferenceRoot: String =
 val parityProducerLogDir: String = layout.buildDirectory.dir("parity").get().asFile
     .relativeTo(layout.projectDirectory.asFile).invariantSeparatorsPath
 
+/** Where one producer's teed diagnostics land, named after the task so a flow's log is its own. */
+fun parityProducerLog(producer: String): File =
+    layout.buildDirectory.file("parity/producer-$producer.log").get().asFile
+
 // ---- the parity toolkit invocation --------------------------------------------------------------
 // The default is RESOLVED against PATH rather than left as the bare name, because a bare name is not
 // startable here. Windows puts a Microsoft Store app-execution alias at
@@ -459,6 +463,18 @@ val parityArtifacts = listOf(
     ParityArtifact("sweep.armor", listOf("armorParityVanilla"), "cache/visual/armor-parity-vanilla"),
     ParityArtifact("sweep.glint", listOf("glintParityVanilla"), "cache/visual/glint-parity-vanilla", listOf("itemId")),
     ParityArtifact("sweep.menu", listOf("menuParityVanilla"), "cache/visual/menu-parity-vanilla", listOf("menuId")),
+    // Measured against idle/ rather than entities/, which is the same reference tree and a
+    // different sub-tree of it - so the digest this row's provenance carries names the ground truth
+    // it was taken off, exactly as the seven above do.
+    ParityArtifact("sweep.entity-animation", listOf("entityAnimationParityVanilla"),
+        "cache/visual/entity-animation-parity-vanilla", listOf("entityId")),
+    // The same driver at a gait, measured against walk/ rather than idle/ - so the two rows are
+    // the same measurement over the two sub-trees, and each carries the digest of the ground truth it
+    // was taken off. It is a gate rather than a report because a subject that holds still under IDLE
+    // and moves under a stride is animated THROUGH this row and through no other: the animation sweep
+    // holds those subjects still on both sides, so nothing it compares can report them moving wrongly.
+    ParityArtifact("sweep.entity-walk", listOf("entityWalkParityVanilla"),
+        "cache/visual/entity-walk-parity-vanilla", listOf("entityId")),
     ParityArtifact("manifest.references", listOf("renderVanillaAllReferences"), parityReferenceRoot, listOf("refharnessTargets")),
     ParityArtifact("manifest.visual", listOf("visualSweepSet"), "cache/visual"),
     // Shares manifest.visual's parent and its member mechanism, and covers a disjoint file set: that
@@ -494,6 +510,21 @@ val parityArtifacts = listOf(
 
 /** Every task the artifact table names, so a producer's stdout is captured wherever it runs. */
 val parityProducerNames: Set<String> = parityArtifacts.flatMap { it.producers }.toSet()
+
+/**
+ * The producers whose OWN wall time is zero by construction, against the names to sum in its place.
+ *
+ * An aggregator does its work through `dependsOn`, so its own span opens only once every dependency
+ * has finished and rounds to zero. Declared rather than walked off the task graph, because which
+ * dependencies a row's budget should COUNT is a decision rather than a fact - `visualSweepClean` is a
+ * dependency of `visualSweepSet` and is not work the budget is about - and because a name typed here
+ * fails loudly at configuration where a graph walk would answer zero in silence, which is the failure
+ * this exists to end.
+ */
+val parityAggregatedProducers: Map<String, List<String>> = mapOf(
+    "visualSweepSet" to (extra["visualSweepProducerNames"] as List<*>).map { it.toString() },
+    "playerRawSweepSet" to listOf("playerParityVanilla", "armorParityVanilla")
+)
 
 /**
  * How long each producer that ran took, in milliseconds, filled as each one finishes.
@@ -599,10 +630,16 @@ fun resolveParityArtifacts(spec: String?): List<ParityArtifact> {
 
 // ---- the harness runs, and the capture steps ----------------------------------------------------
 /** Composable harness diagnostics: stdout only, so a run carrying one still produces the same bytes. */
-val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDump")
+val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDump", "refharnessRendersPerTick")
 
-/** Every sub-tree the reference tree holds, so a partial run can name what it did NOT refresh. */
-val referenceSubTrees = listOf("blocks", "items", "entities", "players", "glint", "armor", "menus")
+// Every sub-tree the reference tree holds, so a partial run can name what it did NOT refresh.
+//
+// `idle` and `walk` are written in the same boot as the seven above now - the freezes are armed
+// per sweep off PoseState rather than read once per JVM. They are in this list because they are in
+// the tree: the reference manifest walks the root for images at any depth, so a sub-tree left out of
+// the list is one every partial run stops naming while the manifest goes on hashing it.
+val referenceSubTrees =
+    listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "idle", "walk")
 
 /** The whole-suite producers, which order a capture step but are never finalized by one. */
 val paritySuiteProducers = setOf("test", "slowTest")
@@ -633,7 +670,9 @@ val parityHarnessModesRun: MutableSet<String> = sortedSetOf()
  *
  * @receiver the task container the run joins
  * @param name the task name
- * @param modeFlag the harness -P selecting the mode, or null for the harness's full mode
+ * @param modeFlag the harness -P selecting the mode, or null for the harness's full mode. A flag
+ *   carrying its own `=value` is passed through as written, which is how one run names several modes;
+ *   a bare flag is passed as `=true`.
  * @param mode the HarnessMode constant that flag resolves to, held against the harness's own
  *   declaration of it and stamped on this invocation's captures when the run refreshes something
  * @param forwardsTargets whether -PrefharnessTargets is honoured by the sweeps this mode runs
@@ -678,7 +717,7 @@ fun TaskContainer.registerHarnessRun(
     // -P propagates through the harness's build.gradle to its Loom run config, which sets the system
     // property the mod reads. -D would only reach the wrapper's JVM, never the forked client.
     argv += "-PrefharnessOutputDir=${outputDir.absolutePath}"
-    if (modeFlag != null) argv += "-P$modeFlag=true"
+    if (modeFlag != null) argv += if (modeFlag.contains('=')) "-P$modeFlag" else "-P$modeFlag=true"
     if (forwardsTargets && project.hasProperty("refharnessTargets"))
         argv += "-PrefharnessTargets=${project.property("refharnessTargets")}"
     harnessDiagnosticProperties.filter { project.hasProperty(it) }
@@ -750,6 +789,32 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     val step = register<Exec>(parityCaptureTaskName(spec.artifact)) {
         // No group: these are finalizers, not an entry point. The group = "parity" tasks are.
         description = "Captures ${spec.artifact} from ${spec.source} into the parity working root."
+        // Which of this row's producers FAILED, appended where the answer exists: an outcome is not
+        // known while the graph is being configured. A step is a finalizer, so it runs whether or not
+        // the producer it follows succeeded - and read off a failed producer's output it refuses on
+        // an absent file and says nothing about why, leaving the row simply missing from the root,
+        // which a compare drawn from what the root holds reports as no row at all rather than as the
+        // finding it is.
+        //
+        // It is told rather than pre-empted, and that is the load-bearing half: a self-capturing
+        // row's writer writes BEFORE it asserts, so a suite that went red over the very value being
+        // re-based has still produced a capturable file. Skipping the read on the task's outcome
+        // would discard it and re-circle the one run a capture exists for. So the toolkit reads
+        // first and falls back to recording the failure only where there was nothing to read.
+        //
+        // What is forwarded is what the build knows. `state.failure` is a Throwable rather than an
+        // exit value, and its message is the honest form of both: for a process it carries the exit
+        // value, for a suite the path to the report. Parsing either into a number would give the two
+        // one spelling and lose the half that is not one.
+        doFirst {
+            spec.producers.forEach { name ->
+                val failure = project.tasks.findByName(name)?.state?.failure ?: return@forEach
+                val message = (failure.message ?: failure.toString()).replace('\n', ' ').trim()
+                logger.lifecycle("parity: $name failed, so ${spec.artifact} is captured if its " +
+                    "producer wrote it and recorded UNPRODUCED if it did not.")
+                args("--failed", "$name=$message")
+            }
+        }
         parityToolkit(*buildList {
             add("capture-normalize")
             add("--artifact"); add(spec.artifact)
@@ -824,11 +889,6 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     // Their rows are still rows: parityCapture -Partifacts=pins runs the suite and then the step, and
     // the step still fails on an absent file, which is the backstop a --tests-filtered run needs.
     spec.producers.forEach { producer ->
-        // Hung on the erase from OUT here rather than from inside the producer's own configuration
-        // action: `named(String, Action)` mutates the task container, which Gradle refuses while it is
-        // executing another task's action, and the refusal lands as "Could not create task ':slowTest'"
-        // on the first invocation that resolves the graph.
-        if (producer in paritySuiteProducers) named(parityCaptureBeginTask) { finalizedBy(producer) }
         named(producer) {
             // Every producer is ordered after the erase, not merely every capture step. Rows whose
             // source IS the working root are written there by the test JVM, so an erase on the far
@@ -849,6 +909,11 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
             // after the suite is the other half and cannot be the whole of it - `mustRunAfter` never
             // schedules, so on its own it drops the suite out of the graph and the step then fails on
             // a file nothing wrote, which is the same measurement one task earlier.
+            // That edge is declared ON the erase, behind a Callable over the resolved set, rather than
+            // reached back to from here - see `parityCaptureBeginTask`. Attached from here it would be
+            // eager: this function runs for every row at configuration time, so it scheduled BOTH
+            // suites on every capture whatever -Partifacts named. Measured at 1325 fast tests and 85
+            // slow ones for a capture scoped to the two dump rows, whose producer is neither.
             // A self-capturing producer's real output is a file in the root the erase just emptied,
             // and Gradle cannot see that: on an unchanged tree `test` is UP-TO-DATE, does not run,
             // and the capture step then fails on a file the erase deleted and nothing rewrote. So a
@@ -918,6 +983,10 @@ tasks.withType<Test>().configureEach {
     // BlindnessMapTest reads them back: a heading renamed there turns a citation into a dead one
     // with nothing in this file having moved.
     inputs.file("CLAUDE.md").withPropertyName("parityClaudeMd")
+    // RENDERER-RULES.md for the same reason, that file holding the sections the renderer's own
+    // claims cite. It is the other half of one check, so leaving it undeclared would let a heading
+    // move there against an UP-TO-DATE suite while the orientation beside it is watched.
+    inputs.file("RENDERER-RULES.md").withPropertyName("parityRendererRules")
     // The task registry itself, as this build answers it. ParityReferencesTest holds the generated
     // artifact reference's "tasks that carry no artifact id" table to real task names, and two of
     // those rows are tasks a plugin registers and this file never spells - so a check parsing the
@@ -1006,9 +1075,30 @@ tasks {
         "Runs the harness in MENUS mode: references/menus/ only - the eight shipped container screens, " +
         "each drawn through the client's own GUI pipeline. Then run menuParityVanilla.")
 
-    registerHarnessRun("renderVanillaAllReferences", "refharnessEverySweep", "EVERY", true, referenceSubTrees,
-        "Runs every sweep in ONE client boot and writes the whole reference tree. ~152 s, which is 43 s " +
-        "cheaper than the three narrower tasks run separately. The only task that can leave no sub-tree stale.")
+    registerHarnessRun("renderVanillaAnimationReferences", "refharnessAnimated", "ANIMATION", true,
+        listOf("idle"),
+        "Runs the harness in ANIMATION mode: references/idle/ only - every entity posed at each tick " +
+        "of one schedule, with vanilla's own setupAnim running. The two freezes are off for the whole boot, " +
+        "which is why no other sweep shares it. Then run entityAnimationParityVanilla.")
+
+    registerHarnessRun("renderVanillaWalkReferences", "refharnessWalking", "WALK", true,
+        listOf("walk"),
+        "Runs the harness in WALK mode: references/walk/ only - the ANIMATION run's own subjects and " +
+        "schedule with a stride driven under them, so the two figures a gait is carried on hold the " +
+        "amplitude vanilla clamps them to rather than the zero a subject nothing has moved holds. " +
+        "Then run entityWalkParityVanilla.")
+
+    // ONE boot for the whole tree, posed sub-trees included. The freezes were never a property of the
+    // JVM - both of SkipSetupAnimMixin's redirects branch per render - so what made each posed pass a
+    // boot of its own was HarnessConfig.POSED being a static final read of a system property.
+    // PoseState holds the armed Gait instead and the runner arms it per sweep. HarnessMode.resolve
+    // orders them BIND before IDLE before WALK, which is a correctness requirement rather than
+    // tidiness: a freeze SKIPS setupAnim and does not undo it, so a posed sweep ahead of a frozen one
+    // would leave every bone it touched holding a posed value and the frozen sub-trees would record it.
+    registerHarnessRun("renderVanillaAllReferences", "refharnessModes=EVERY,ANIMATION,WALK",
+        "EVERY,ANIMATION,WALK", true, referenceSubTrees,
+        "Runs every sweep there is - frozen and both posed - in ONE client boot, and writes the whole " +
+        "reference tree. The only task that can leave no sub-tree stale.")
 
     registerHarnessRun("renderVanillaPitchRollProbe", "refharnessPitchRollSweep", "PITCH_ROLL", true, emptyList(),
         "Harness PITCH_ROLL probe: renders the first -PrefharnessTargets subject over a 24x24 pitch/roll " +
@@ -1086,7 +1176,24 @@ tasks {
     // this task as the gate instead. `harnessClasses` is the only task here that compiles the
     // harness at all, and off this edge it runs only when it is asked for by name, so a harness edit
     // that does not compile waits minutes for a client boot rather than the seconds this costs.
-    named("check") { dependsOn("paritySelfTest", "harnessClasses", "toolingTest") }
+    // A type whose derived reach differs from the committed graph fails here, at the cost of two
+    // compiles, rather than mis-scheduling a gate an hour later. Ungrouped and paired with a python
+    // regenerator rather than a second task, exactly as `triggers` is: the parity GROUP is the five
+    // entry points the skill's runbook names, and a maintenance command is not one of them.
+    //
+    // Regenerate with `python parity/scripts/parity reach build`, which refuses on an uncompiled
+    // tree rather than deriving from stale class files.
+    register<ParityToolkitTask>("parityReachCheck") {
+        description = "Fails when a Java type's derived parity reach differs from parity/reach.json."
+        dependsOn("compileJava", "compileTestJava")
+        pythonExe.set(parityPythonExe)
+        argv.set(listOf("reach", "check"))
+        outputs.upToDateWhen { false }
+    }
+
+    named("check") {
+        dependsOn("paritySelfTest", "harnessClasses", "toolingTest", "parityReachCheck")
+    }
 
     register<Exec>(parityCaptureBeginTask) {
         // No group: it is parityCapture's first act rather than an entry point. It exists as a task
@@ -1102,6 +1209,25 @@ tasks {
         // parityExpect` in one invocation schedules the registration last, and the sentence saying
         // the registration runs before the capture is false of the case a reader is likeliest to try.
         mustRunAfter("parityExpect")
+        // The two whole-suite producers are SCHEDULED from here, and only when the resolved set holds
+        // a row one of them writes. A finalizer rather than a dependency for the reason
+        // `registerParityCapture` gives: a self-captured row's writer asserts on the value it just
+        // wrote, so a red suite must still leave the capture closeable. Hung on the erase because the
+        // erase exists only inside a capture graph, so an ordinary `./gradlew test` neither schedules
+        // a capture step nor meets one.
+        //
+        // Behind a Callable for the reason parityCapture's own dependsOn is: Gradle resolves it while
+        // it builds the graph, so `resolveParityArtifacts`'s no-plan refusal stays on the invocations
+        // that will actually capture. Declared here rather than reached back to from
+        // `registerParityCapture`, which runs for every row at CONFIGURATION time and so attached both
+        // suites to every capture whatever -Partifacts named - 1325 fast tests and 85 slow ones for a
+        // capture scoped to the two dump rows, whose producer is neither. Of the 26 rows carrying a
+        // step, 9 want a suite and 17 want neither.
+        finalizedBy(Callable {
+            resolveParityArtifacts(parityProperty("artifacts"))
+                .flatMap { spec -> spec.producers.filter { it in paritySuiteProducers } }
+                .distinct()
+        })
         parityToolkit("capture-begin", "--root", parityWorkingRoot)
         outputs.upToDateWhen { false }
     }
@@ -1109,11 +1235,14 @@ tasks {
     register<Exec>("parityExpect") {
         description = "Registers the movers this change intends into the working root's expected-diff, which is what " +
             "makes the gate diff == expected rather than diff == empty. The manifest survives the capture wipe, so a " +
-            "previous change's registration stands until this clears it. -PexpectEmpty | -Partifact= -Pkey= -Pto= -Preason="
+            "previous change's registration stands until this clears it. -PexpectEmpty | -PfromVerdict -Preason= | " +
+            "-Partifact= -Pkey= -Pto= -Preason= | -Partifact= -Punproduced -Preason="
         group = "parity"
         dependsOn("paritySelfTest")
         requireParityRootUnderCache()
         val empty = parityFlag("expectEmpty")
+        val fromVerdict = parityFlag("fromVerdict")
+        val unproduced = parityFlag("unproduced")
         val artifact = parityProperty("artifact")
         val key = parityProperty("key")
         val to = parityProperty("to")
@@ -1121,31 +1250,67 @@ tasks {
         val members = listOf("artifact" to artifact, "key" to key, "to" to to, "reason" to reason)
         val given = members.filter { (_, value) -> value != null }.map { (name, _) -> name }
         val registers = given.size == members.size
-        // Two refusals, and the second is the one the task exists for. -Pto has no default: a
+        // A row whose producer failed is registered by artifact and reason alone. What is wrong with
+        // it is that it HAS no value, so there is no key to name and nothing for it to land on - and
+        // a registration given either would read as a mover's and cover nothing.
+        val registersUnproduced = artifact != null && reason != null
+        // Three refusals, and the second is the one the task exists for. -Pto has no default: a
         // registration that names no value licenses any value the row takes, which is the tolerance
         // this gate is built without. And a clear given alongside a registration is two orders in one
         // invocation - taking either silently discards the other, so neither is taken.
         //
         // Raised off the resolved graph, because configuration runs for `gradle tasks` too and the
         // typed tokens cannot say which of them named this task. The argv below carries whatever was
-        // given rather than falling back to a clear: the toolkit raises both of these refusals too,
+        // given rather than falling back to a clear: the toolkit raises all of these refusals too,
         // so an argv that reached it under-specified would be refused there rather than erasing the
         // registration a previous invocation left - which is what a fallback to --empty does.
         refuseWhenScheduled {
-            if (empty && given.isNotEmpty())
+            if (empty && (given.isNotEmpty() || unproduced || fromVerdict))
                 throw GradleException(
-                    "parityExpect was given -PexpectEmpty and ${given.joinToString { "-P$it" }} " +
-                        "together: a clear and a registration are two different orders, and one of " +
-                        "them would be silently dropped. Clear first, then register.")
-            if (!empty && !registers)
+                    "parityExpect was given -PexpectEmpty and " +
+                        "${(given + listOfNotNull("unproduced".takeIf { unproduced },
+                                                  "fromVerdict".takeIf { fromVerdict }))
+                            .joinToString { "-P$it" }} together: a clear and a registration are two " +
+                        "different orders, and one of them would be silently dropped. Clear first, " +
+                        "then register.")
+            // What -PfromVerdict registers is READ, so a row or a value typed beside it is refused
+            // rather than losing to the verdict in silence. -Partifact still narrows, and -Preason
+            // is owed for the same reason a hand-written registration owes one.
+            if (fromVerdict && (key != null || to != null || unproduced))
                 throw GradleException(
-                    "parityExpect needs -PexpectEmpty to clear the manifest, or all four of " +
+                    "parityExpect was given -PfromVerdict with " +
+                        "${listOfNotNull("key".takeIf { key != null }, "to".takeIf { to != null },
+                                         "unproduced".takeIf { unproduced })
+                            .joinToString { "-P$it" }}: what it registers is read out of the verdict, " +
+                        "so a row or a value given beside it would be dropped. Use -PfromVerdict " +
+                        "alone, or register the row by hand.")
+            if (fromVerdict && reason == null)
+                throw GradleException(
+                    "parityExpect -PfromVerdict needs -Preason=<why>: a mover nobody accounted for " +
+                        "is the finding rather than a state to wave through, and that holds however " +
+                        "the registration was written.")
+            if (unproduced && (key != null || to != null))
+                throw GradleException(
+                    "parityExpect was given -Punproduced with " +
+                        "${listOfNotNull("key".takeIf { key != null }, "to".takeIf { to != null })
+                            .joinToString { "-P$it" }}: an unproduced row carries no value, so there " +
+                        "is no key to name and nothing for it to land on. Register -Partifact and " +
+                        "-Preason, or drop -Punproduced and register the mover.")
+            if (unproduced && !registersUnproduced)
+                throw GradleException(
+                    "parityExpect -Punproduced needs -Partifact=<id> and -Preason=<why>")
+            if (!empty && !unproduced && !fromVerdict && !registers)
+                throw GradleException(
+                    "parityExpect needs -PexpectEmpty to clear the manifest, -PfromVerdict -Preason=<why> " +
+                        "to register what the last compare found, or all four of " +
                         "-Partifact=<id> -Pkey=<row key> -Pto=<the value it must land on> -Preason=<why>")
         }
         parityToolkit(*buildList {
             add("expect")
             add("--root"); add(parityWorkingRoot)
             if (empty) add("--empty")
+            if (fromVerdict) add("--from-verdict")
+            if (unproduced) add("--unproduced")
             artifact?.let { add("--artifact"); add(it) }
             key?.let { add("--key"); add(it) }
             to?.let { add("--to"); add(it) }
@@ -1222,7 +1387,8 @@ tasks {
 
     register<Exec>("parityCompare") {
         description = "Compares the parity working root against the production store (or -Pbase=<dir>) and fails " +
-            "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= -Pbootstrap"
+            "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= " +
+            "-Pbootstrap -Psummary -PphaseGate"
         group = "parity"
         dependsOn("paritySelfTest")
         // A compare reads what a capture wrote, so it never runs before one in the same invocation.
@@ -1247,6 +1413,12 @@ tasks {
         // one promotion that establishes it. Without this the toolkit's own refusal names a flag the
         // build never sends, so the first promotion of any artifact is unreachable through Gradle.
         val bootstrap = parityFlag("bootstrap")
+        val summary = parityFlag("summary")
+        // The operator's claim that this verdict speaks for the phase's CONTENT rather than for the
+        // one tree state it was taken at, so a phase gated once can land in as many commits as it
+        // has landable units. Opt-in: the strict default is what makes every commit after a gate
+        // ask again, and that is the hook working rather than a cost to remove.
+        val phaseGate = parityFlag("phaseGate")
         parityToolkit(*buildList {
             add("compare")
             add("--root"); add(parityWorkingRoot)
@@ -1254,6 +1426,8 @@ tasks {
             artifacts?.let { add("--artifacts"); add(it) }
             expected?.let { add("--expected"); add(it) }
             if (bootstrap) add("--bootstrap")
+            if (summary) add("--summary")
+            if (phaseGate) add("--phase-gate")
         }.toTypedArray())
         outputs.upToDateWhen { false }
     }
@@ -1304,14 +1478,19 @@ tasks {
     }
 
     register<Exec>("parityPlan") {
-        description = "Resolves which parity artifacts can SEE the working tree's change, prints SEES / BLIND / PLAN / " +
-            "BUDGET and writes _run/plan.json. Runs no producer and measures nothing. -Pchanged=<paths> -Pformat=json"
+        description = "Resolves which parity artifacts can SEE the change - what is uncommitted, or what the branch " +
+            "changed where nothing is - prints SEES / BLIND / PLAN / BUDGET and writes _run/plan.json. Runs no " +
+            "producer and measures nothing. -Pchanged=<paths> -Psince=<ref> -Pformat=json"
         group = "parity"
         // The only dependency, and deliberately not a producer of any kind: a plan a broken toolkit
         // produced is worse than no plan.
         dependsOn("paritySelfTest")
         requireParityRootUnderCache()
         val changed = parityProperty("changed")
+        // Which ref a CLEAN tree is measured from, the toolkit defaulting to the trunk merge-base.
+        // A phase that has already committed is the case: nothing is uncommitted, so the dirty set
+        // is empty and only the branch's own diff says what the phase did.
+        val since = parityProperty("since")
         val json = parityProperty("format") == "json"
         parityToolkit(*buildList {
             add("plan")
@@ -1320,6 +1499,7 @@ tasks {
             if (changed == null) add("--changed-from-git")
             else changed.split(",").map(String::trim).filter { it.isNotEmpty() }
                 .forEach { add("--changed"); add(it) }
+            since?.let { add("--since"); add(it) }
             if (json) { add("--format"); add("json") }
         }.toTypedArray())
         // A plan is a function of the working tree, which Gradle cannot see.
@@ -1343,12 +1523,30 @@ tasks {
         .forEach { producer -> named(producer) { mustRunAfter(harnessRunModes.keys) } }
 
     // A producer's stdout is the only source of its row counts and its wall time, and nothing
-    // redirected it: ten of the file-producing artifacts are JavaExec, whose stream Gradle discards.
-    // Driven off the artifact table so a new row needs no second edit. `test` and `slowTest` are Test
-    // rather than JavaExec and are deliberately not reached - their rows self-capture a value instead
+    // redirected it: Gradle discards the stream of a file-producing task either way. Driven off the
+    // artifact table so a new row needs no second edit. `test` and `slowTest` are Test rather than
+    // either shape below and are deliberately not reached - their rows self-capture a value instead
     // of printing a count to be parsed.
+    //
+    // BOTH exec shapes, because how a producer is STARTED says nothing about whether its output is
+    // worth keeping. The renderer's own producers are JavaExec; the eight generator flows are Exec
+    // into the tooling build's own wrapper, and reaching only the first froze all eight of their log
+    // digests at whatever they last printed while they were still JavaExec. A frozen digest is worse
+    // than a missing one: the row exists to notice a reworded diagnostic, and it read unchanged
+    // whatever the flow said.
+    //
+    // Teeing a sub-build's whole stdout is safe because the projection the digest is taken over
+    // keeps the diagnostics triples and drops every other line, so the wrapper's own chatter - a
+    // BUILD SUCCESSFUL carrying a wall time among it - never reaches the value.
     withType<JavaExec>().matching { it.name in parityProducerNames }.configureEach {
-        val log = layout.buildDirectory.file("parity/producer-$name.log").get().asFile
+        val log = parityProducerLog(name)
+        doFirst {
+            log.parentFile.mkdirs()
+            standardOutput = TeeStream(System.out, FileOutputStream(log))
+        }
+    }
+    withType<Exec>().matching { it.name in parityProducerNames }.configureEach {
+        val log = parityProducerLog(name)
         doFirst {
             log.parentFile.mkdirs()
             standardOutput = TeeStream(System.out, FileOutputStream(log))
@@ -1359,12 +1557,22 @@ tasks {
     // whatever its type: the two whole-suite rows are Test tasks and the reference render is an Exec,
     // and a budget missing those is a budget missing the expensive half. `doFirst` prepends, so the
     // start is taken before any action the task already carries.
-    parityProducerNames.forEach { producer ->
+    //
+    // An AGGREGATOR is the shape that reading its own span misses. A producer that does its work
+    // through `dependsOn` alone opens its own `doFirst` only once every dependency has finished, so
+    // the span rounds to zero, the sum below never exceeds it, and no `--wall-time` is passed at all -
+    // which is why the two of them carried no duration and the budget printed as a floor. Their
+    // dependencies are timed here too and summed instead, the aggregator's `doLast` running after
+    // every one of theirs. `maxOf` rather than the sum outright, so a producer that really does its
+    // own work still answers for it.
+    (parityProducerNames + parityAggregatedProducers.values.flatten()).forEach { producer ->
         named(producer) {
             val startedAt = AtomicLong()
             doFirst { startedAt.set(System.nanoTime()) }
             doLast {
-                parityProducerElapsedMs[name] = (System.nanoTime() - startedAt.get()) / 1_000_000L
+                val own = (System.nanoTime() - startedAt.get()) / 1_000_000L
+                val viaDeps = parityAggregatedProducers[name].orEmpty().sumOf { parityProducerElapsedMs[it] ?: 0L }
+                parityProducerElapsedMs[name] = maxOf(own, viaDeps)
             }
         }
     }}

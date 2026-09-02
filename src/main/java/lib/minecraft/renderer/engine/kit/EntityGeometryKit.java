@@ -181,6 +181,9 @@ public class EntityGeometryKit {
         for (Map.Entry<String, EntityModelData.Bone> boneEntry : model.getBones().entrySet()) {
             String boneName = boneEntry.getKey();
             EntityModelData.Bone bone = boneEntry.getValue();
+            // A bone the subject rests without emits nothing, and its subtree rests without it too -
+            // the mesh carries the whole subtree marked, so this needs no closure of its own.
+            if (!bone.isVisible()) continue;
             Matrix4f boneChain = chainTransforms.get(boneName);
 
             // Java's PartPose / ModelPart authoring stores cube origins LOCAL to the bone's
@@ -227,7 +230,7 @@ public class EntityGeometryKit {
                 boolean cubeIsTranslucent = !cubeCullBackFaces
                     && uvPartialAlphaPresent(cube, size, texture, texW, texH);
 
-                for (Face face : Face.CACHED_VALUES) {
+                Face.forEach(face -> {
                     Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
                     for (int i = 0; i < 4; i++)
                         corners[i] = corners[i].transform(perCubeChainFluent);
@@ -241,12 +244,12 @@ public class EntityGeometryKit {
                     Vector3f normal = face.normal().transformNormal(fullTransform).normalize();
 
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
-                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
+                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) return;
 
                     Vector2f[] effUv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
 
                     // Natural CCW emission - the shared {@code (0, 1, 2)} / {@code (0, 2, 3)} fan in
-                    // {@link BlockGeometryKit#addQuad}, so an entity cube's coplanar seams split on
+                    // {@link GeometryKit#addQuad}, so an entity cube's coplanar seams split on
                     // the same diagonal every other quad in the renderer does. The kit itself
                     // is det=+1 (emit-order cross AGREES with the stored normal); the chirality
                     // reflection re-enters downstream via the renderer's Placement Y-flip. Total
@@ -254,9 +257,9 @@ public class EntityGeometryKit {
                     // projection's -y (det -1) = det -1. Model CCW → screen CW → rasterizer's
                     // {@code signedArea < 0} check correctly classifies these as front-facing.
                     String debugTag = boneName + ":" + face.direction();
-                    BlockGeometryKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, Shading.UNLIT,
+                    GeometryKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, Shading.UNLIT,
                         new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass), debugTag);
-                }
+                });
             }
         }
 
@@ -285,7 +288,7 @@ public class EntityGeometryKit {
      */
     public static @NotNull Optional<Box> computeBoneBounds(@NotNull EntityModelData model, @NotNull String boneName) {
         EntityModelData.Bone bone = model.getBones().get(boneName);
-        if (bone == null || bone.getCubes().isEmpty()) return Optional.empty();
+        if (bone == null || !bone.isVisible() || bone.getCubes().isEmpty()) return Optional.empty();
         Matrix4f boneChain = BoneKit.buildChainTransform(model.getBones(), boneName);
         BoundsAccumulator acc = new BoundsAccumulator();
         float s = bone.getScale();
@@ -347,6 +350,7 @@ public class EntityGeometryKit {
 
         for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
+            if (!bone.isVisible()) continue;
             String boneName = entry.getKey();
             Matrix4f boneChain = chainTransforms.get(boneName);
             float s = bone.getScale();
@@ -370,7 +374,9 @@ public class EntityGeometryKit {
                 }
 
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
-                for (Face face : Face.CACHED_VALUES) {
+                // A loop rather than a forEach: the body reads the mutable {@code cubeIndex} the
+                // enclosing walk advances, which a lambda cannot capture.
+                for (Face face : Face.stream().toList()) {
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
                     Vector3f[] corners3d = CornerPhase.POLYGON.corners(face, cubeBounds);
                     // Must match the renderer's UV resolver. {@link BoneKit#resolveFaceUv} alone
@@ -761,6 +767,7 @@ public class EntityGeometryKit {
 
         for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
+            if (!bone.isVisible()) continue;
             Matrix4f boneChain = chainTransforms.get(entry.getKey());
             // Same pivot-translation + bone-scale as in {@link #buildTriangles}.
             float s = bone.getScale();
@@ -842,7 +849,7 @@ public class EntityGeometryKit {
         // outboard (WEST/SOUTH) faces, under the 20% threshold on the visible UP/NORTH/EAST, so
         // sampling only the visible triple would cull them and open two see-through holes where
         // vanilla's entityCutoutNoCull draws the opaque inner faces through the front cutout.
-        for (Face face : Face.CACHED_VALUES)
+        for (Face face : Face.stream().toList())
             if (uvNonOpaqueExceeds(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
                 return false;
         for (Face face : ISO_VISIBLE)
@@ -875,7 +882,7 @@ public class EntityGeometryKit {
         float texW,
         float texH
     ) {
-        for (Face face : Face.CACHED_VALUES) {
+        for (Face face : Face.stream().toList()) {
             if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
                 && BoneKit.isDegeneratePlaneFace(size, face)) continue;
             if (BoneKit.faceHasPartialAlpha(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))

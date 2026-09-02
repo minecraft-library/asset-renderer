@@ -34,6 +34,13 @@ val visualSweepProducers = mapOf(
     "projectionSmoke" to "projection-smoke"
 )
 
+// The names `parity.gradle.kts` sums for `visualSweepSet`'s own wall time. An aggregator does its
+// work through `dependsOn`, so the span between its own `doFirst` and `doLast` opens only once every
+// one of these has finished and rounds to zero - which is why `manifest.visual` carried no duration
+// and the budget printed as a floor rather than a cost. It crosses as a VALUE because an applied
+// script sees no declaration of a sibling's, and this one is applied first.
+extra["visualSweepProducerNames"] = visualSweepProducers.keys.toList()
+
 tasks {
 // Visual diagnostics - main() entry points in src/test/java/lib/minecraft/renderer/visual/.
 // Run with `./gradlew tasks --group visual` to list. Outputs land under cache/visual/.
@@ -165,6 +172,30 @@ register<JavaExec>("entityParityVanilla") {
     args = if (entityId != null) listOf(entityId) else listOf()
     // -Dasset.* sysprops (e.g. -Dasset.entity.pixel.dump, -Dasset.entity.bounds.dump, -Dasset.snap.grid)
     // auto-forward to this fork via the global JavaExec forwarder near the top of this file.
+}
+
+register<JavaExec>("entityAnimationParityVanilla") {
+    description = "Per-entity animated parity report comparing the Java pipeline posed at each tick of the shared schedule against the harness idle references at cache/.../references/idle/<entity>/frame_NNN.png. Writes per-frame vanilla/java/diff PNGs, a per-subject contact sheet and a TSV to cache/visual/entity-animation-parity-vanilla/. Run renderVanillaAnimationReferences first. -PentityId=minecraft:zombie"
+    group = "visual"
+    mainClass.set("lib.minecraft.renderer.visual.TestEntityAnimationParityVanilla")
+    classpath = sourceSets["test"].runtimeClasspath
+    val entityId = project.findProperty("entityId") as String?
+    args = if (entityId != null) listOf(entityId) else listOf()
+    // -Dasset.* sysprops auto-forward to this fork via the global JavaExec forwarder in the root
+    // script, the same way they reach the still sweep beside it.
+}
+
+register<JavaExec>("entityWalkParityVanilla") {
+    description = "Per-entity WALK parity report: the same driver as entityAnimationParityVanilla with the stride driven on both sides, comparing the Java pipeline at PoseMode.WALK against cache/.../references/walk/<entity>/frame_NNN.png. Writes to cache/visual/entity-walk-parity-vanilla/. Run renderVanillaWalkReferences first. -PentityId=minecraft:zombie"
+    group = "visual"
+    // ONE driver and a gait property, never a second class: the subjects, the schedule, the naming
+    // and every artifact written are the same, so two copies could only ever differ in how they
+    // measured rather than in what they measured.
+    mainClass.set("lib.minecraft.renderer.visual.TestEntityAnimationParityVanilla")
+    classpath = sourceSets["test"].runtimeClasspath
+    systemProperty("asset.parity.gait", "walk")
+    val entityId = project.findProperty("entityId") as String?
+    args = if (entityId != null) listOf(entityId) else listOf()
 }
 
 register<JavaExec>("blockParityVanilla") {

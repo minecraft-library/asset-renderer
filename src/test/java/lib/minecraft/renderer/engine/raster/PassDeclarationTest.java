@@ -121,6 +121,22 @@ class PassDeclarationTest {
         assertThat(derived.alpha(), equalTo(source.alpha()));
         assertThat(derived.writesDepth(), equalTo(source.writesDepth()));
         assertThat(derived.sorted(), equalTo(source.sorted()));
+        assertThat(derived.wrapsTexture(), equalTo(source.wrapsTexture()));
+    }
+
+    @Test
+    @DisplayName("a pass samples inside its own faces until a render type says otherwise")
+    void theTextureWrapIsOffUntilDeclared() {
+        // The guard the decorated pot is behind. A block's own geometry authors rectangles whose
+        // upper corner rounds a texel past the sheet, and the fetch has always held those at the
+        // last texel; wrapping them reads from the opposite edge and cost 0.7233 of block delta over
+        // that one subject. So the flag defaults off, and only a pass declaring a texture scroll is
+        // built carrying it.
+        assertThat(PassDeclaration.DEFAULT.wrapsTexture(), equalTo(false));
+        assertThat(new PassDeclaration(true, BlendMode.ADD, 0.25f, false, true).wrapsTexture(),
+            equalTo(false));
+        assertThat(new PassDeclaration(false, BlendMode.ADD, 0.25f, false, true, true).wrapsTexture(),
+            equalTo(true));
     }
 
 }

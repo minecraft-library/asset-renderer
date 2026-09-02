@@ -21,6 +21,8 @@ import org.objectweb.asm.tree.VarInsnNode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Resolves one committed {@code BlockColors.register(source, blocks)} into a tint target (or a
@@ -254,8 +256,9 @@ final class TintRegistrationResolver {
         ClassNode node = cache.require(owner, "int-expression callee");
         MethodNode method = ClassKit.findMethod(node, name, desc);
         if (method == null) throw new IllegalStateException("callee " + owner + "." + name + desc + " not found");
-        Map<Integer, Integer> locals = new HashMap<>();
-        for (int i = 0; i < args.length; i++) locals.put(i, args[i]);
+        Map<Integer, Integer> locals = IntStream.range(0, args.length)
+            .boxed()
+            .collect(Collectors.toMap(slot -> slot, slot -> args[slot]));
         return evalInt(cache, method.instructions.getFirst(), locals);
     }
 

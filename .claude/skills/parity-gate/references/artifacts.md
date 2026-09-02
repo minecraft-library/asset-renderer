@@ -34,32 +34,34 @@ because a floor that doubled as the record would let a declaration pass for evid
 
 | artifact | kind | home | producer | floor | runs | entries | cost | baselined |
 |---|---|---|---|---:|---:|---:|---:|---|
-| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 402 | 24670 ms | yes |
-| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1055 | 50027 ms | yes |
-| `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 129288 ms | yes |
-| `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 13402 ms | yes |
-| `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 16490 ms | yes |
-| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 31712 ms | yes |
-| `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 10 | 13757 ms | yes |
-| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 2322 | 138071 ms | yes |
-| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | - | yes |
-| `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | - | yes |
-| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 5 | 5 | 14 | - | yes |
-| `manifest.dump.packs` | manifest | STORE | `parityDump` | 5 | 5 | 14 | - | yes |
-| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 17186 ms | yes |
-| `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | - | yes |
-| `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | - | yes |
-| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 10 | 2696 ms | yes |
-| `digest.shipped-tables` | digest-set | STORE | `test` | 1 | 2 | 10 | - | yes |
-| `digest.colormap-lut` | digest-set | STORE | `slowTest` | 1 | 2 | 3 | - | yes |
+| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 403 | 21606 ms | yes |
+| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1055 | 46935 ms | yes |
+| `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 142689 ms | yes |
+| `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 13285 ms | yes |
+| `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 15169 ms | yes |
+| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 31409 ms | yes |
+| `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 10 | 13899 ms | yes |
+| `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 132 | 23158 ms | yes |
+| `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 132 | 22773 ms | yes |
+| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 4435 | 75898 ms | yes |
+| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | 114090 ms | yes |
+| `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | 28454 ms | yes |
+| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 28525 ms | yes |
+| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 28525 ms | yes |
+| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 16789 ms | yes |
+| `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 12081 ms | yes |
+| `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 138573 ms | yes |
+| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 44126 ms | yes |
+| `digest.shipped-tables` | digest-set | STORE | `test` | 1 | 1 | 11 | 9418 ms | yes |
+| `digest.colormap-lut` | digest-set | STORE | `slowTest` | 1 | 2 | 3 | 22053 ms | yes |
 | `digest.dump-sections` | - | EXTERNAL | - | - | - | - | - | - |
-| `pin.vanilla-iso-pose` | pin-set | STORE | `test` | 1 | 2 | 1 | - | yes |
-| `pin.kit-corners` | pin-set | STORE | `test` | 1 | 2 | 1 | - | yes |
+| `pin.vanilla-iso-pose` | pin-set | STORE | `test` | 1 | 2 | 1 | 9502 ms | yes |
+| `pin.kit-corners` | pin-set | STORE | `test` | 1 | 2 | 1 | 9502 ms | yes |
 | `pin.corpus-count` | pin-set | STORE | `test` | 1 | 1 | 4 | 6718 ms | yes |
-| `pin.player-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | - | yes |
-| `pin.block-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 3 | - | yes |
-| `pin.portal-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 2 | - | yes |
-| `pin.fluid-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 13 | - | yes |
+| `pin.player-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | 19235 ms | yes |
+| `pin.block-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | 19235 ms | yes |
+| `pin.portal-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 2 | 22053 ms | yes |
+| `pin.fluid-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 13 | 22053 ms | yes |
 | `pin.armor-span` | - | SOURCE | - | - | - | - | - | - |
 | `pin.tick-lattice` | - | EXTERNAL | - | - | - | - | - | - |
 | `roster.humanoid-armor` | - | SOURCE | - | - | - | - | - | - |

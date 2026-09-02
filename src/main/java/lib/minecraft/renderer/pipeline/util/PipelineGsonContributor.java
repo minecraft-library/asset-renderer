@@ -7,6 +7,8 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pipeline.pack.MultipartWhenDeserializer;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelNodeDeserializer;
 import lib.minecraft.renderer.pipeline.pack.item.LayerTintDeserializer;
@@ -24,7 +26,12 @@ import java.util.ServiceLoader;
  * Discovered through {@code META-INF/services/dev.simplified.gson.GsonContributor}; downstream
  * callers that build a {@link Gson} via {@code GsonSettings.defaults().create()} pick up these
  * adapters automatically.
+ *
+ * <p><b>Parity.</b> Registered by a service file naming an interface another module declares, so
+ * nothing in this tree references it and no constant pool can carry an edge to it. Its adapters
+ * decide how every value the pipeline parses is read, which is under every render there is.
  */
+@Parity(subject = Subject.ENGINE)
 public class PipelineGsonContributor implements GsonContributor {
 
     /**

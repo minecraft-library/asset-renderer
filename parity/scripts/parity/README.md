@@ -92,6 +92,7 @@ renamed or retired without the row moving with it.
 | `capture-index` | write _run/_capture.json then COMPLETE last |
 | `plan` | resolve which artifacts can SEE the working tree's change |
 | `triggers` | regenerate every rule's trigger_paths from the source tree; `--check` writes nothing |
+| `reach` | which artifacts a changed Java type can move, off the compiled constant pool |
 | `expect` | register the movers a phase intends |
 | `provenance` | gather a run-provenance record |
 | `promote-plan` | read-only: what promoting would change |
@@ -110,6 +111,12 @@ The build invokes `selftest`, `capture-begin`, `capture-normalize`, `capture-ind
 `expect`, `promote-apply` and `plan`; the pre-commit hook invokes `plan`. The rest are for a human
 at a terminal.
 
+A capture step is a finalizer, so it runs whether or not the producer it follows succeeded, and the
+build tells it which producers failed with `capture-normalize --failed`. It reads the producer's
+output first either way - a self-capturing row's writer writes before it asserts, so a red suite has
+still produced a capturable file - and records the row as **UNPRODUCED** only where there was nothing
+to read. `compare` reports one and fails unless `expect --unproduced` registered it.
+
 ## Layout
 
 Every module in the package. `lab/` has a README of its own naming its six.
@@ -123,6 +130,7 @@ Every module in the package. `lab/` has a README of its own naming its six.
 | `compare.py` | the key-joined A/B of two stored artifacts, and the five ordered classes |
 | `blindness.py` | reach resolution - which artifacts can SEE a change, and which are structurally blind |
 | `declarations.py` | the `@Parity` declarations, read out of source text: the lexer, every refusal, and the trigger paths a claim's carriers derive |
+| `reach.py` | class-level reach off the compiled constant pool - the pool reader, the reference graph, and the producer-rooted closure that says which artifacts one type can move. Bytecode rather than imports, because the javadoc convention makes an import of a `{@link}` target that is not a dependency, and a same-package reference needs no import at all; a class file carries neither error. The roots are producers rather than renderers, since no renderer references a loader |
 | `provenance.py` | the record that makes a baseline self-identifying: the commit, the tree state, the reference set |
 | `manifest.py` | tree digest manifests - build, verify, and the generated `sha256sum` view |
 | `sweep.py` | the sweep-table reader in both the producer's TSV form and the stored one, and the one implementation of the fleet sum and the buckets |

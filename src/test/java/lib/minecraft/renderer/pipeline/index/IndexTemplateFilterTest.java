@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.index;
 
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
@@ -28,7 +29,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -59,12 +59,13 @@ class IndexTemplateFilterTest {
     private static BlockModelLoader.LoadResult be;
 
     // The explicit block-index loader inputs (the same set of() computes over the stack).
+    private static PackStack stack;
     private static BlockTables blockTables;
     private static BlockStateLoader.BlockStates blockStates;
     private static ConcurrentMap<String, BlockTag> blockTags;
 
     // The explicit item-index loader inputs.
-    private static ConcurrentMap<String, List<LayerTint>> itemTints;
+    private static ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints;
     private static Set<String> glintItems;
     private static ConcurrentMap<String, ModelData> itemModels;
     private static ConcurrentMap<String, ItemModelTree> itemTrees;
@@ -72,7 +73,7 @@ class IndexTemplateFilterTest {
     /** Runs the real pipeline and computes every index-loader input once for both filter tests. */
     @BeforeAll
     static void setup() {
-        PackStack stack = PackAcquisition.acquire(ClientAssetsExtension.assets());
+        stack = PackAcquisition.acquire(ClientAssetsExtension.assets());
 
         ResolvedModels models = ResolvedModels.load(stack);
         blockStates = BlockStateLoader.load(stack);
@@ -98,8 +99,8 @@ class IndexTemplateFilterTest {
     @Test
     @DisplayName("block filter keeps renderable variants, drops only empty templates")
     void blockFilter() {
-        Set<String> built = new HashSet<>(BlockIndexBuilder.buildUnfiltered(blockTables, blockStates, blockTags).keySet());
-        Set<String> kept = new HashSet<>(BlockIndexBuilder.load(blockTables, blockStates, blockTags).keySet());
+        Set<String> built = new HashSet<>(BlockIndexBuilder.buildUnfiltered(blockTables, blockStates, blockTags, stack).keySet());
+        Set<String> kept = new HashSet<>(BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack).keySet());
 
         // Concrete variant renders - real geometry + resolvable texture - must survive.
         for (String id : new String[]{

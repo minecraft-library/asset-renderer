@@ -3,10 +3,12 @@ package lib.minecraft.renderer;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.asset.appearance.TextureAxis;
 import lib.minecraft.renderer.asset.appearance.Villager;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta.Villager.Hat;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.option.AppearanceOptions;
@@ -77,17 +79,17 @@ class EntityRendererVillagerHatTest {
         // drawn ref would silently yield NONE and stop desert / snow suppressing a baby's robe head.
         OverlayLayer babyPass = pass("type", "villager/baby/plains");
         AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(Villager.Type.DESERT).build();
-        Optional<String> drawn = EntityRenderer.resolveOverlayTextureRef(babyPass, baby, "villager");
+        Optional<String> drawn = TextureAxis.TYPE.resolve(baby, "villager", babyPass.textureRef());
         assertThat("the baby pass draws the baby directory", drawn, is(Optional.of("villager/baby/desert")));
         assertThat("its hat flag still comes from the adult type sidecar",
-            EntityRenderer.typeHatTextureRef(babyPass, baby, "villager", drawn), is(Optional.of("villager/type/desert")));
+            babyPass.typeHatRef(baby, "villager", drawn), is(Optional.of("villager/type/desert")));
 
         OverlayLayer adultPass = pass("type", "villager/type/plains");
         AppearanceOptions adult = AppearanceOptions.builder().villagerType(Villager.Type.DESERT).build();
-        Optional<String> adultDrawn = EntityRenderer.resolveOverlayTextureRef(adultPass, adult, "villager");
+        Optional<String> adultDrawn = TextureAxis.TYPE.resolve(adult, "villager", adultPass.textureRef());
         assertThat("the adult pass draws the type directory", adultDrawn, is(Optional.of("villager/type/desert")));
         assertThat("and its hat ref recomputes the very ref it drew",
-            EntityRenderer.typeHatTextureRef(adultPass, adult, "villager", adultDrawn), is(adultDrawn));
+            adultPass.typeHatRef(adult, "villager", adultDrawn), is(adultDrawn));
     }
 
     @Test
@@ -99,11 +101,11 @@ class EntityRendererVillagerHatTest {
         // adult cubes.
         AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(Villager.Type.SNOW).build();
         assertThat("an adult pass keeps the type directory for a baby appearance",
-            EntityRenderer.resolveOverlayTextureRef(pass("type", "villager/type/plains"), baby, "villager"),
+            TextureAxis.TYPE.resolve(baby, "villager", Optional.of("villager/type/plains")),
             is(Optional.of("villager/type/snow")));
         assertThat("a baby pass keeps the baby directory for an adult appearance",
-            EntityRenderer.resolveOverlayTextureRef(pass("type", "villager/baby/plains"),
-                AppearanceOptions.builder().villagerType(Villager.Type.SNOW).build(), "villager"),
+            TextureAxis.TYPE.resolve(AppearanceOptions.builder().villagerType(Villager.Type.SNOW).build(),
+                "villager", Optional.of("villager/baby/plains")),
             is(Optional.of("villager/baby/snow")));
     }
 
@@ -111,7 +113,7 @@ class EntityRendererVillagerHatTest {
     @DisplayName("a pass off the type axis reads its hat flag from its own resolved ref")
     void aNonTypePassKeepsItsOwnRef() {
         Optional<String> own = Optional.of("villager/profession/farmer");
-        assertThat(EntityRenderer.typeHatTextureRef(pass("profession", "villager/profession/none"),
+        assertThat(pass("profession", "villager/profession/none").typeHatRef(
             AppearanceOptions.builder().age(Age.BABY).build(), "villager", own), is(own));
     }
 
@@ -174,14 +176,14 @@ class EntityRendererVillagerHatTest {
      * A bare overlay carrying the {@code texture_by} axis the ref resolution keys off plus the baked
      * texture ref the robe directory is read from.
      *
-     * @param textureBy the pass' texture axis
+     * @param textureBy the pass' texture axis token
      * @param textureRef the pass' baked texture ref
      * @return the overlay the ref resolution reads
      */
     private static OverlayLayer pass(String textureBy, String textureRef) {
         return new OverlayLayer(new EntityModelData(), Optional.of(textureRef), PassDeclaration.DEFAULT,
-            0xFFFFFFFF, true, Optional.empty(), Optional.of(textureBy),
-            Optional.empty(), Optional.empty());
+            0xFFFFFFFF, true, Optional.empty(), TextureAxis.findByToken(textureBy),
+            Optional.empty(), Optional.empty(), EntityPose.NONE);
     }
 
 }

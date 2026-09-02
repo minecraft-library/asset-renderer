@@ -2,6 +2,7 @@ package lib.minecraft.refharness;
 
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.refharness.sweep.ArmorSweep;
+import lib.minecraft.refharness.sweep.EntityAnimationSweep;
 import lib.minecraft.refharness.sweep.GlintSweep;
 import lib.minecraft.refharness.sweep.MenuSweep;
 import lib.minecraft.refharness.sweep.PlayerSweep;
@@ -127,6 +128,68 @@ public final class HarnessConfig {
      * {@code -PrefharnessEverySweep=true} on {@code renderVanillaAllReferences}.
      */
     public static final boolean EVERY_SWEEP = Boolean.getBoolean("refharness.everySweep");
+
+    /**
+     * When {@code true}, the harness runs <em>only</em> the {@link EntityAnimationSweep} - each
+     * entity posed at every tick of one shared schedule, under {@code idle/}, at the gait a
+     * subject standing still is in.
+     *
+     * <p>What turns the freezes off is {@link #POSED} rather than this, because
+     * {@link #WALKING} needs them off too. Pair with {@code -PrefharnessAnimated=true} on
+     * {@code renderVanillaAnimationReferences}.
+     */
+    public static final boolean ANIMATED = Boolean.getBoolean("refharness.animated");
+
+    /**
+     * When {@code true}, the harness runs <em>only</em> the animated entity sweep with a stride
+     * under it, writing to {@code walk/} rather than to {@code idle/} - every subject posed at
+     * every tick of the same schedule, walking as hard as vanilla ever clamps a subject to walk.
+     *
+     * <p><b>It implies {@link #ANIMATED} and is not the same run.</b> A stride reaches a model only
+     * through {@code setupAnim}, so the freezes have to be off for this too; what it adds is that
+     * {@code FreezeAnimationStateMixin} answers the two figures a gait is carried on from the
+     * schedule instead of pinning them at zero. The two sets are two sub-trees because they are two
+     * poses of one subject at one tick - the asset-renderer renders {@code IDLE} against one and
+     * {@code WALK} against the other - so a run that drove the stride into {@code idle/} would
+     * move every row of a promoted gate rather than adding a second one.
+     *
+     * <p>Pair with {@code -PrefharnessWalking=true} on {@code renderVanillaWalkReferences}.
+     */
+    public static final boolean WALKING = Boolean.getBoolean("refharness.walking");
+
+    /**
+     * Comma-separated {@link HarnessMode} names this run performs, case-insensitively - the way to
+     * ask one boot for more than one sub-tree ({@code -Drefharness.modes=EVERY,ANIMATION,WALK}).
+     *
+     * <p>The single-mode booleans above each name one mode and compose with this, so a task that sets
+     * one resolves exactly what it always did. Empty and no boolean set is {@link HarnessMode#FULL}.
+     *
+     * <p><b>What a posed run needs is a {@link Gait}, and a gait is armed per sweep rather than per
+     * JVM.</b> {@code SkipSetupAnimMixin}'s redirects both decide per render, so the freezes never
+     * needed to be a property of the boot; {@link PoseState} holds the armed one and
+     * {@link HarnessMode#resolve} orders a run so no sweep is handed a mesh a later gait mutated.
+     */
+    public static final String MODES = System.getProperty("refharness.modes", "");
+
+    /**
+     * How many subjects one client tick renders. Defaults to {@code 8}; it was effectively {@code 1}
+     * for the harness's whole life, and that was the run's largest single cost.
+     *
+     * <p>A client ticks twenty times a second whatever the machine can draw, so one render per tick
+     * priced a 2310-reference run at nearly two minutes of waiting on the tick clock alone - the
+     * largest single cost in the run, ahead of the boot. What held it there was the read-back:
+     * {@code PipTarget} closed its colour texture on a canvas resize, and only the length of a tick
+     * kept a copy in flight from meeting a released one. The texture is retired rather than closed
+     * now, so this is a throughput knob rather than the correctness fence it used to be.
+     *
+     * <p>It is still a knob rather than a constant because the ceiling is the machine's: each render
+     * queues a copy the GPU has to execute, and asking for more per tick than it can retire just moves
+     * the wait. Measured on the whole tree, every one of them byte-identical: {@code 1} renders it in
+     * {@code 3m 28s}, {@code 4} in {@code 1m 13s}, {@code 16} in {@code 1m 7s} and {@code 32} in
+     * {@code 1m 8s}. Past the low tens the run is boot-bound rather than tick-bound, so the default
+     * sits where the curve flattens rather than at the fastest single reading.
+     */
+    public static final int RENDERS_PER_TICK = Math.max(1, Integer.getInteger("refharness.rendersPerTick", 8));
 
     /**
      * Diagnostic flag: when {@code true}, the entity sweeper renders the first filtered

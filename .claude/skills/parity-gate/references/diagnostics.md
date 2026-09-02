@@ -95,10 +95,40 @@ override to go looking for. The factor rides the geometry key, so a mesh that ca
 its own name. Two other renderers scale at render time instead (the wither at 2x, the zoglin at about
 half when it is a baby), and those are a different mechanism with a different name.
 
+## Reading a probe
+
+The entry runbook - the panel, the scoped re-run, the pixel dump, the `javap` lookup - is in
+`RENDERER-RULES.md`'s *Debugging a mismatch*. These are the traps in reading what those produce.
+
+- `RendererDebug.pixelWrite` logs a colour write and the **candidate** depth, never the stored one, so
+  a `WRITE` line says nothing about what the buffer held; add a temporary probe when that is the
+  question.
+- Check the canvas width a dumped `idx` implies before comparing two lines - one subject's appearances
+  have different canvases and therefore different depth arrays.
+- Armour triangles carry a `debugTag` only when `-Dasset.entity.pixel.dump` is armed. Without it they
+  log `tag=null` and `pixelTriangle` skips them entirely.
+- Read a suspected tint fault per channel, never through luma - a hue error cancels in mean signed
+  luma while mean absolute delta stays high.
+- `java-only = 0` with `vanilla-only > 0` is a strict-subset silhouette, and reads as dropped faces.
+- Two byte-identical references name one appearance, so an axis you added is not being selected.
+- A `[PX]` dump agreeing with the reference to `0.001` px rules geometry out and points at coverage or
+  the texel fetch.
+- **A transparent animated GIF needs `FrameDisposal.RESTORE_TO_BACKGROUND` per frame, and diagnose a
+  smeared strip there before believing it.** `ImageFrame.of(pixels, delayMs)` leaves the disposal at
+  `NONE`, which a decoder reads as "leave the previous frame standing" - right for an opaque strip and
+  wrong for every transparent one, because the subject is drawn on nothing and each frame shows
+  through to the one before. It accumulates: measured on the bee, the pixels a decoded frame covered
+  that its own PNG did not ran `0, 638, 2205, 4246, 6101, 7306, 7669, 7575` over eight frames. The
+  PNGs beside it are correct, so it survives a look at them and reads as the pose smearing. The
+  production path still carries the default - `FrameCompositor` and `Timeline` both build frames
+  through the two-argument form - so a caller writing an animated render as a transparent GIF gets
+  this, and the three GIFs the visual drivers produce and the store hashes come from there.
+
 ## Where the standing corpus lives
 
-`CLAUDE.md` in the repo root carries the durable findings: the depth contract, the armour shell, the
-face vocabulary, the iso pose. Which artifacts see a given change is not one of them - that answer
-is `blindness.json`, which `parityPlan` resolves and `references/blindness.md` renders, and where a
-rule's claim did come from a section of `CLAUDE.md` the rule cites it by name. This file holds the
-*method* - how those were arrived at - and does not restate them.
+`RENDERER-RULES.md` in the repo root carries the durable findings: the depth contract, the armour
+shell, the face vocabulary, the iso pose. Which artifacts see a given change is not one of them -
+that answer is `blindness.json`, which `parityPlan` resolves and `references/blindness.md` renders,
+and where a rule's claim did come from a section of `RENDERER-RULES.md` or of `CLAUDE.md` the rule
+cites it by name. This file holds the *method* - how those were arrived at - and does not restate
+them.

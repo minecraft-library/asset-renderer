@@ -1,13 +1,14 @@
 package lib.minecraft.renderer.asset.appearance;
 
 import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * A copper-golem weathering state - one of the four vanilla
@@ -17,6 +18,7 @@ import java.util.Locale;
  * {@code CopperGolemOxidationLevels.getOxidationLevel}'s per-state
  * {@code CopperGolemOxidationLevel(texture, eyeTexture)} pairs.
  */
+@EnumLookup
 @Getter(style = NamingStyle.FLUENT)
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum CopperWeathering {
@@ -33,17 +35,16 @@ public enum CopperWeathering {
     private final @NotNull String eyeTexture;
 
     /**
-     * Looks up a weathering state by name (case-insensitive), e.g. {@code "oxidized"}.
+     * The behavioural state whose base texture this weathering draws, as the entity state axis keys it.
      *
-     * @param name the state name
-     * @return the matching state, or {@code null} when the name is not a vanilla weathering state
+     * <p>Empty for {@link #UNAFFECTED}, whose texture is the subject's own base state rather than an
+     * alternate: freshly-placed copper is what a copper golem already is, so there is nothing for a
+     * selection to swap to and the axis carries no entry for it.
+     *
+     * @return the state key, or empty when this weathering is the subject's base state
      */
-    public static @Nullable CopperWeathering ofName(@Nullable String name) {
-        if (name == null) return null;
-        try {
-            return valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException notAWeathering) {
-            return null;
-        }
+    public @NotNull Optional<String> stateKey() {
+        return this == UNAFFECTED ? Optional.empty() : Optional.of(name().toLowerCase(Locale.ROOT));
     }
+
 }

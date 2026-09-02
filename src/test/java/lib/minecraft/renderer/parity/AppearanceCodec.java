@@ -174,7 +174,7 @@ public final class AppearanceCodec {
                     appearance.age(Age.BABY);
                 }
                 case STATE -> {
-                    if (model != null && !model.axes().stateTextures().containsKey(value))
+                    if (model != null && !model.axes().state().options().containsKey(value))
                         return malformed(fileName, "'" + head.entityId() + "' declares no state '" + value + "'");
                     appearance.state(Optional.of(value));
                 }
@@ -247,7 +247,7 @@ public final class AppearanceCodec {
                 case BASE_COLOR, PATTERN_COLOR, WOOL_COLOR, COLLAR_COLOR, EQUIPMENT_COLOR -> {
                     Optional<DyeColor> dye = dye(value);
                     if (dye.isEmpty()) return malformed(fileName, "unknown dye '" + value + "'");
-                    tints.put(TintAxis.ofToken(axisName).orElseThrow(), dye.get());
+                    tints.put(TintAxis.findByToken(axisName).orElseThrow(), dye.get());
                 }
                 case ARMOR -> {
                     Optional<ArmorMaterial> material = enumOf(ArmorMaterial.class, value);
@@ -294,11 +294,13 @@ public final class AppearanceCodec {
 
         if (appearance.isBaby()) tokens.add(token(AppearanceKey.Axis.AGE, BABY));
         appearance.getState()
-            .filter(state -> !declaredDefault(model, Entity.Axes::stateDefault).equals(Optional.of(state)))
+            .filter(state -> !declares(model, Entity.Axes::state, state))
             .ifPresent(state -> tokens.add(token(AppearanceKey.Axis.STATE, state)));
+        // Compared as the Size it is rather than as its lower-cased name: the axis is keyed by the
+        // enum, so the token spelling is only needed once the selection has earned a token at all.
         appearance.getSize()
+            .filter(size -> !declares(model, Entity.Axes::size, size))
             .map(size -> size.name().toLowerCase(Locale.ROOT))
-            .filter(size -> !declaredDefault(model, Entity.Axes::sizeDefault).equals(Optional.of(size)))
             .ifPresent(size -> tokens.add(token(AppearanceKey.Axis.SIZE, size)));
         appearance.getCarried().ifPresent(carried ->
             tokens.add(token(AppearanceKey.Axis.CARRIED, carried.replace(":", NAMESPACE_SEPARATOR))));
@@ -369,13 +371,13 @@ public final class AppearanceCodec {
 
         String direct = namespace + ":" + rest;
         Entity plain = this.entities.get(direct);
-        if (plain != null && plain.axes().variants().isEmpty())
+        if (plain != null && plain.axes().variant().options().isEmpty())
             return Optional.of(new Head(direct, Optional.empty()));
 
         String bestId = null;
         String bestOption = null;
         for (Map.Entry<String, Entity> entry : this.entities.entrySet()) {
-            Map<String, Entity> options = entry.getValue().axes().variants();
+            Map<String, Entity> options = entry.getValue().axes().variant().options();
             if (options.isEmpty()) continue;
             String localPath = entry.getKey().substring(entry.getKey().indexOf(':') + 1);
             String prefix = localPath + "_";
@@ -418,15 +420,20 @@ public final class AppearanceCodec {
     }
 
     /**
-     * Reads one axis default off a model, treating an unloaded model as declaring none.
+     * Whether one selection is the option a model already is, treating an unloaded model as declaring
+     * none - which writes the token, because a key that cannot be shown to be redundant is the one
+     * that has to be spelled.
      *
+     * @param <K> the axis's option key
+     * @param <V> what an option selects, which this does not read
      * @param model the model the head resolved to, or {@code null} when the index does not hold it
-     * @param axis which default to read
-     * @return the declared default, or empty when there is no model or it declares none
+     * @param axis which axis to ask
+     * @param option the selected option
+     * @return whether selecting it changes nothing about the model
      */
-    private static @NotNull Optional<String> declaredDefault(
-        Entity model, @NotNull Function<Entity.Axes, Optional<String>> axis) {
-        return model == null ? Optional.empty() : axis.apply(model.axes());
+    private static <K, V> boolean declares(
+        Entity model, @NotNull Function<Entity.Axes, Entity.Axis<K, V>> axis, @NotNull K option) {
+        return model != null && axis.apply(model.axes()).isDeclared(option);
     }
 
     /**

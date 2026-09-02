@@ -6,8 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.player",
-    "asset_dirty": false,
-    "asset_sha": "65a62ff78ae8e916c1fb25527df23a6c32288c02",
+    "asset_content_digest": "f4982a28324408e9bbf7b9588c8d60064c61736a0a8ec464a6f0cbb875370323",
+    "asset_dirty": true,
+    "asset_sha": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
     "counts": {
       "failed": 0,
       "rows": 2
@@ -17,7 +18,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "playerParityVanilla",
-    "reason": "The 3D player leaves the four-cardinal block bucket for vanilla's ENTITY_IN_UI Lambertian, the entry the client binds for a humanoid drawn in a GUI. Per-face shade on the skull goes 1.00000/0.59941/0.79873 to 1.00000/0.56864/0.44985, which is the harness reference's own measured triple; sweep.player 29.1376 to 8.4315 (skull 17.2847 to 4.1766, full 11.8529 to 4.2549) with the remainder silhouette and texel-boundary residual from this renderer's own body boxes - outside the edges the skull's mean absolute delta is 0.06 of 765. manifest.player-sheets moves its 76 THREE_D members and none of its 28 TWO_D ones; sweep.glint moves the four leather rows that are player renders. Block, item, entity and armour sweeps and the fluid, portal and visual manifests hold at zero movers.",
+    "reason": "Shading.apply quantizes at a tie point shifted -0.024 of a channel step, absorbing the sub-LSB gap between one multiply here and a fragment's chain on a GPU. Read off vanilla's own output bytes: over 2994216 (texel, output) constraints from a goat, a pillager and an evoker at five shade factors, a zero shift explains 98.47% and the plateau this sits in explains 99.62%. A shade factor cannot absorb it - the gap is constant in output space, so one factor over-brightens a dark texel and leaves a bright one right. Every sweep falls but one: block 129.8391 to 117.9441, entity 20.9361 to 17.7543, entity-animation 3.1497 to 2.2489, player 8.4556 to 8.3792, armor 17.9895 to 17.9822, item 128.9575 to 128.9549, menu unmoved; glint rises 0.0281 across four leather rows already between 84 and 120.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -26,24 +27,24 @@
       "items": 479,
       "players": 2
     },
-    "reference_manifest_digest": "d380e24f3d253cf6ccb5f9c3beb1ba1b9e12a827c438ec3898dc38acbf29d170",
-    "timestamp": "2026-08-13T06:21:09Z",
+    "reference_manifest_digest": "5712ea935c03943d942661a6e5df6cbba3df77b188b41d3117b68fe7e36d14e2",
+    "timestamp": "2026-08-30T20:31:38Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 13402
+    "wall_time_ms": 13285
   },
   "rows": [
     {
-      "differing_pixels": "16334",
+      "differing_pixels": "10760",
       "java_coverage": "0.2827",
-      "mean_argb_delta": "4.2549",
+      "mean_argb_delta": "4.2316",
       "status": "ok",
       "subject": "full",
       "vanilla_coverage": "0.2820"
     },
     {
-      "differing_pixels": "13977",
+      "differing_pixels": "6173",
       "java_coverage": "0.6145",
-      "mean_argb_delta": "4.1766",
+      "mean_argb_delta": "4.1476",
       "status": "ok",
       "subject": "skull",
       "vanilla_coverage": "0.6198"
@@ -60,6 +61,6 @@
     },
     "failed": 0,
     "rows": 2,
-    "sum": "8.4315"
+    "sum": "8.3792"
   }
 }

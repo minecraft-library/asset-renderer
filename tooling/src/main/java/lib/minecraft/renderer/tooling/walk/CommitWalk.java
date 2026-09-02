@@ -6,7 +6,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -152,13 +151,7 @@ public final class CommitWalk<C extends AbstractInsnNode, G> {
      * @return the collected map; empty, never {@code null}
      */
     public <K, V> @NotNull Map<K, V> toMap(@NotNull Function<? super C, @Nullable K> keyFn, @NotNull BiFunction<? super C, ? super List<G>, @Nullable V> valueFn) {
-        Map<K, V> out = new LinkedHashMap<>();
-        events().forEach(event -> {
-            K key = keyFn.apply(event.node());
-            V value = key == null ? null : valueFn.apply(event.node(), event.values());
-            if (key != null && value != null) out.put(key, value);
-        });
-        return out;
+        return events().toMap(event -> keyFn.apply(event.node()), event -> valueFn.apply(event.node(), event.values()));
     }
 
     /**

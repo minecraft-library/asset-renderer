@@ -6,6 +6,7 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -18,10 +19,13 @@ import java.util.Optional;
  * {@code AtlasResult} carrying the composed image data and the {@link AtlasSidecar} placing every
  * tile in it, and the caller (typically the {@code generateAtlas} Gradle task) decides where to
  * write them and in what form.
+ *
+ * <p><b>Parity.</b> Reaches the atlas alone, which this store holds no artifact for.
  */
 @Parity(as = AtlasRenderer.class, mode = Mode.SUPPRESS)
 @Getter
 @ClassBuilder
+@Parity(subject = Subject.ATLAS)
 public class AtlasOptions implements RenderOptions {
 
     /**

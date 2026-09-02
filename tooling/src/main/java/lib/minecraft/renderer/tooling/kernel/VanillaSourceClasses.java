@@ -61,6 +61,76 @@ public final class VanillaSourceClasses {
         /** {@code Mth} - vanilla's 65536-entry table trig. */
         public static final @NotNull String MTH = "net/minecraft/util/Mth";
 
+        /** {@code Ease} - the easing curves a pose reaches, distinct from anything on {@link #MTH}. */
+        public static final @NotNull String EASE = "net/minecraft/util/Ease";
+
+        /** {@code java.lang.Math} - the JDK's own arithmetic, which a pose reaches beside {@link #MTH}. */
+        public static final @NotNull String JAVA_MATH = "java/lang/Math";
+
+        /** {@code AnimationState} - the running-or-not a state-driven clip is gated on. */
+        public static final @NotNull String ANIMATION_STATE = MINECRAFT_ROOT + "world/entity/AnimationState";
+
+        /** {@code ItemStack} - what an entity is carrying, asked of but never evaluated offline. */
+        public static final @NotNull String ITEM_STACK = MINECRAFT_ROOT + "world/item/ItemStack";
+
+        /** {@code ItemStackRenderState} - the baked form of a carried stack a render state holds. */
+        public static final @NotNull String ITEM_STACK_RENDER_STATE = MINECRAFT_ROOT + "client/renderer/item/ItemStackRenderState";
+
+        /** {@code Rotations} - the three angles an armour stand's pose is authored as, a record. */
+        public static final @NotNull String ROTATIONS = MINECRAFT_ROOT + "core/Rotations";
+
+        /** {@code Vec3} - three doubles and the arithmetic over them, which a pose body allocates. */
+        public static final @NotNull String VEC3 = MINECRAFT_ROOT + "world/phys/Vec3";
+
+        /** {@code DataComponentType} - the key an item stack's components are read by. */
+        public static final @NotNull String DATA_COMPONENT_TYPE = MINECRAFT_ROOT + "core/component/DataComponentType";
+
+        /** {@code KineticWeapon} - the item component a spear's swing figures are derived from. */
+        public static final @NotNull String KINETIC_WEAPON = MINECRAFT_ROOT + "world/item/component/KineticWeapon";
+
+        /** {@code SpearAnimations} - the spear-arm pose two humanoid arm poses hand their arm to. */
+        public static final @NotNull String SPEAR_ANIMATIONS = CLIENT_MODEL_ROOT + "effects/SpearAnimations";
+
+        /** {@code SpearAnimations$UseParams} - the swing figures a kinetic weapon is used at. */
+        public static final @NotNull String SPEAR_USE_PARAMS = SPEAR_ANIMATIONS + "$UseParams";
+
+        /** {@code DragonFlightHistory$Sample} - one entry of the flight path a dragon is posed along. */
+        public static final @NotNull String FLIGHT_HISTORY_SAMPLE =
+            MINECRAFT_ROOT + "world/entity/boss/enderdragon/DragonFlightHistory$Sample";
+
+        /** {@code java.lang.Float} - the box a lambda taking a float is handed one through. */
+        public static final @NotNull String JAVA_FLOAT = "java/lang/Float";
+
+        /** The keyframe-animation package root - the clip tables and the machinery that plays them. */
+        public static final @NotNull String CLIENT_ANIMATION_ROOT = MINECRAFT_ROOT + "client/animation/";
+
+        /** The package holding one class of {@code AnimationDefinition} constants per animated subject. */
+        public static final @NotNull String ANIMATION_DEFINITIONS_ROOT = CLIENT_ANIMATION_ROOT + "definitions/";
+
+        /** {@code AnimationDefinition} - an authored clip, before it is bound to a bone tree. */
+        public static final @NotNull String ANIMATION_DEFINITION = CLIENT_ANIMATION_ROOT + "AnimationDefinition";
+
+        /** {@code AnimationDefinition$Builder} - the clip builder every definition table is written as. */
+        public static final @NotNull String ANIMATION_DEFINITION_BUILDER = ANIMATION_DEFINITION + "$Builder";
+
+        /** {@code KeyframeAnimation} - a clip bound to one model's bones, which is what a model holds. */
+        public static final @NotNull String KEYFRAME_ANIMATION = CLIENT_ANIMATION_ROOT + "KeyframeAnimation";
+
+        /** {@code AnimationChannel} - one bone's keyframes under one target. */
+        public static final @NotNull String ANIMATION_CHANNEL = CLIENT_ANIMATION_ROOT + "AnimationChannel";
+
+        /** {@code AnimationChannel$Targets} - the three accumulators a channel can write through. */
+        public static final @NotNull String ANIMATION_CHANNEL_TARGETS = ANIMATION_CHANNEL + "$Targets";
+
+        /** {@code AnimationChannel$Interpolations} - the two curves a keyframe can be reached by. */
+        public static final @NotNull String ANIMATION_CHANNEL_INTERPOLATIONS = ANIMATION_CHANNEL + "$Interpolations";
+
+        /** {@code Keyframe} - a time, a value and the curve reaching it. */
+        public static final @NotNull String KEYFRAME = CLIENT_ANIMATION_ROOT + "Keyframe";
+
+        /** {@code KeyframeAnimations} - the three vector factories a keyframe's value is authored through. */
+        public static final @NotNull String KEYFRAME_ANIMATIONS = CLIENT_ANIMATION_ROOT + "KeyframeAnimations";
+
         /** {@code RandomSource} - vanilla's seeded random factory. */
         public static final @NotNull String RANDOM_SOURCE = "net/minecraft/util/RandomSource";
 
@@ -78,6 +148,12 @@ public final class VanillaSourceClasses {
 
         /** {@code LivingEntity} - the mob-discovery {@code extendsClass} predicate target. */
         public static final @NotNull String LIVING_ENTITY = "net/minecraft/world/entity/LivingEntity";
+
+        /**
+         * The base every fish extends, and the one entity family a reference render puts in water.
+         */
+        public static final @NotNull String ABSTRACT_FISH =
+            "net/minecraft/world/entity/animal/fish/AbstractFish";
 
         /** {@code EntityRenderers} - the entity-renderer registry class. */
         public static final @NotNull String ENTITY_RENDERERS = "net/minecraft/client/renderer/entity/EntityRenderers";
@@ -137,8 +213,11 @@ public final class VanillaSourceClasses {
         /** {@code LivingEntityRenderer} - the base declarer of {@code setupRotations}, below every override. */
         public static final @NotNull String LIVING_ENTITY_RENDERER = "net/minecraft/client/renderer/entity/LivingEntityRenderer";
 
+        /** The entity-renderer package root - every renderer that fills a state, and their layers. */
+        public static final @NotNull String ENTITY_RENDERER_PACKAGE = "net/minecraft/client/renderer/entity/";
+
         /** The render-state package root - the per-subject state classes a layer's {@code submit} reads through. */
-        public static final @NotNull String ENTITY_RENDER_STATE_PACKAGE = "net/minecraft/client/renderer/entity/state/";
+        public static final @NotNull String ENTITY_RENDER_STATE_PACKAGE = ENTITY_RENDERER_PACKAGE + "state/";
 
         /** {@code LivingEntityRenderState} - the parameter type on renderer state methods. */
         public static final @NotNull String LIVING_ENTITY_RENDER_STATE = ENTITY_RENDER_STATE_PACKAGE + "LivingEntityRenderState";
@@ -340,7 +419,11 @@ public final class VanillaSourceClasses {
         /** {@code LayerDefinition.create(MeshDefinition, W, H)} - the mesh-wrapping factory. */
         public static final @NotNull String CREATE = "create";
 
-        /** {@code LayerDefinition.apply(MeshTransformer)} - the out-of-body scale chain. */
+        /**
+         * The method name {@code apply}, shared by two readers: {@code LayerDefinition.apply(MeshTransformer)},
+         * the out-of-body scale chain, and {@code KeyframeAnimation.apply(AnimationState, F)}, which plays a
+         * clip only while its state runs. Each site pairs it with the owner it means.
+         */
         public static final @NotNull String APPLY = "apply";
 
         /** {@code EntityRenderer.getTextureLocation} - the texture-binding override. */
@@ -397,6 +480,48 @@ public final class VanillaSourceClasses {
 
         /** {@code ModelPart.getChild("<bone>")} - the bone-field cache builder. */
         public static final @NotNull String GET_CHILD = "getChild";
+
+        /** {@code EntityModel.setupAnim(S)} - the per-frame pose hook every animated model overrides. */
+        public static final @NotNull String SETUP_ANIM = "setupAnim";
+
+        /** {@code AnimationDefinition$Builder.withLength(F)} - the static factory opening a clip table. */
+        public static final @NotNull String WITH_LENGTH = "withLength";
+
+        /** {@code AnimationDefinition$Builder.looping()} - the restart flag. */
+        public static final @NotNull String LOOPING = "looping";
+
+        /** {@code AnimationDefinition$Builder.addAnimation(String, AnimationChannel)} - one bone channel. */
+        public static final @NotNull String ADD_ANIMATION = "addAnimation";
+
+        /** {@code AnimationDefinition$Builder.build()} - the clip terminal. */
+        public static final @NotNull String BUILD = "build";
+
+        /** {@code AnimationDefinition.bake(ModelPart)} - binds an authored clip to one model's bones. */
+        public static final @NotNull String BAKE = "bake";
+
+        /** {@code KeyframeAnimation.applyWalk(F, F, F, F)} - plays a clip off the walk inputs. */
+        public static final @NotNull String APPLY_WALK = "applyWalk";
+
+        /** {@code KeyframeAnimation.applyStatic()} - holds a clip at its first frame, unconditionally. */
+        public static final @NotNull String APPLY_STATIC = "applyStatic";
+
+        /** {@code Enum.ordinal()} - a constant's declared position, which a switch dispatches on. */
+        public static final @NotNull String ORDINAL = "ordinal";
+
+        /** {@code AnimationState.isStarted()} - whether the animation a pose is gated on is running. */
+        public static final @NotNull String IS_STARTED = "isStarted";
+
+        /** {@code ItemStack.isEmpty()} - whether an entity is carrying anything, asked of two types. */
+        public static final @NotNull String IS_EMPTY = "isEmpty";
+
+        /** {@code KeyframeAnimations.degreeVec(F, F, F)} - a rotation keyframe, authored in degrees. */
+        public static final @NotNull String DEGREE_VEC = "degreeVec";
+
+        /** {@code KeyframeAnimations.posVec(F, F, F)} - a position keyframe, authored y-up. */
+        public static final @NotNull String POS_VEC = "posVec";
+
+        /** {@code KeyframeAnimations.scaleVec(D, D, D)} - a scale keyframe, authored as a multiplier. */
+        public static final @NotNull String SCALE_VEC = "scaleVec";
 
         /** {@code EntityRendererProvider$Context.bakeLayer(ModelLayerLocation)} - the mesh bake call. */
         public static final @NotNull String BAKE_LAYER = "bakeLayer";
@@ -575,6 +700,9 @@ public final class VanillaSourceClasses {
         /** The {@code ModelPart} field / return-type reference descriptor. */
         public static final @NotNull String MODEL_PART_REF = ref(Types.MODEL_PART);
 
+        /** The {@code ModelPart[]} field descriptor - the type a model caches a run of bones in. */
+        public static final @NotNull String MODEL_PART_ARRAY_REF = array(MODEL_PART_REF);
+
         /** The {@code ArmorModelSet} field reference descriptor - the type that names an armor mesh. */
         public static final @NotNull String ARMOR_MODEL_SET_REF = ref(Types.ARMOR_MODEL_SET);
 
@@ -651,6 +779,16 @@ public final class VanillaSourceClasses {
          */
         public static @NotNull String ref(@NotNull String internalName) {
             return "L" + internalName + ";";
+        }
+
+        /**
+         * Wraps a descriptor as the descriptor of an array of it ({@code [<element>}).
+         *
+         * @param element the element-type descriptor
+         * @return the array descriptor
+         */
+        public static @NotNull String array(@NotNull String element) {
+            return "[" + element;
         }
 
     }

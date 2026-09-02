@@ -81,11 +81,18 @@ tasks.withType<JavaExec>().configureEach {
         .forEach { (key, value) -> systemProperty(key, value.toString()) }
 }
 
+// Every path a test resolves is relative to the renderer root, the same as every flow's.
 tasks.withType<Test>().configureEach {
+    workingDir = rendererRoot
+}
+
+// Scoped to `test` alone. Applied to every Test task it also reached `slowTest`, which includes the
+// same tag, and JUnit resolves a tag that is both included and excluded as excluded - so the task
+// named for the slow tests selected none of them and reported success over an empty run.
+tasks.named<Test>("test") {
     useJUnitPlatform {
         excludeTags("slow")
     }
-    workingDir = rendererRoot
 }
 
 tasks.register<Test>("slowTest") {

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Single-pass discovery of every registered block-entity type joined with its renderer -
@@ -83,9 +84,10 @@ public final class BlockEntityRegistryDiscovery {
             pending.blockFields.addAll(type.blockFields());
         }
 
-        List<BlockEntitySubject> subjects = new ArrayList<>();
-        for (Pending pending : byRenderer.values())
-            subjects.add(new BlockEntitySubject(pending.id, pending.rendererClass, List.copyOf(pending.blockFields)));
+        List<BlockEntitySubject> subjects = byRenderer.values()
+            .stream()
+            .map(pending -> new BlockEntitySubject(pending.id, pending.rendererClass, List.copyOf(pending.blockFields)))
+            .collect(Collectors.toList());
 
         diagnostics.info("discovered %d block-entity types, %d subjects after shared-renderer dedupe",
             types.size(), subjects.size());

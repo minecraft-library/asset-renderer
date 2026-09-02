@@ -90,7 +90,9 @@ final class EntityAgeAxisResolver {
         JsonTree adult = JsonTree.object().putIf("geometry", baseGeometry);
         if (!variantFamily) adult.putIf("texture", adultTexture);
         if (setupYShift != null && setupYShift[0] != 0f) adult.put("y_shift", setupYShift[0]);
-        JsonTree node = JsonTree.object().put("default", "adult");
+        // No `default` member: an age axis names its adult option first and the reader takes it,
+        // where an axis whose default is a choice among several says so.
+        JsonTree node = JsonTree.object();
         JsonTree options = node.child("options");
         options.put("adult", adult);
         JsonTree baby = resolveBaby(baseGeometry, adultTexture, variantFamily);

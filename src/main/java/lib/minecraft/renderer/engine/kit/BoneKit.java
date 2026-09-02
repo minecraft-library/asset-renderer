@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -48,7 +50,7 @@ public class BoneKit {
      * @param bones the model's bones keyed by name
      * @return each bone's ancestor-anchor chain matrix keyed by bone name
      */
-    public static @NotNull Map<String, Matrix4f> buildChainTransforms(
+    public static @NotNull ConcurrentMap<String, Matrix4f> buildChainTransforms(
         @NotNull Map<String, EntityModelData.Bone> bones
     ) {
         return buildChainTransformsFrom(Matrix4f.IDENTITY, bones);
@@ -66,14 +68,16 @@ public class BoneKit {
      * @param bones the model's bones keyed by name
      * @return each bone's ancestor-anchor chain matrix keyed by bone name
      */
-    public static @NotNull Map<String, Matrix4f> buildChainTransformsFrom(
+    public static @NotNull ConcurrentMap<String, Matrix4f> buildChainTransformsFrom(
         @NotNull Matrix4f base,
         @NotNull Map<String, EntityModelData.Bone> bones
     ) {
-        Map<String, Matrix4f> cache = new HashMap<>();
+        // The recursion memoizes into the cache and reads it back, so the walk fills a plain map and
+        // the concurrent surface is adopted over it rather than collected into.
+        HashMap<String, Matrix4f> cache = new HashMap<>();
         for (String name : bones.keySet())
             resolveChainFrom(name, bones, cache, new LinkedHashSet<>(), base);
-        return cache;
+        return Concurrent.adoptMap(cache);
     }
 
     /**
@@ -121,7 +125,7 @@ public class BoneKit {
         if (cached != null) return cached;
         EntityModelData.Bone bone = bones.get(name);
         if (bone == null) return root;
-        if (visiting.contains(name)) return applyBoneRotation(root, bone.getPivot(), bone.getRotation());
+        if (visiting.contains(name)) return applyBonePose(root, bone);
         visiting.add(name);
 
         String parent = bone.getParent();
@@ -131,7 +135,7 @@ public class BoneKit {
         } else {
             base = resolveChainFrom(parent, bones, cache, visiting, root);
         }
-        Matrix4f composed = applyBoneRotation(base, bone.getPivot(), bone.getRotation());
+        Matrix4f composed = applyBonePose(base, bone);
 
         visiting.remove(name);
         cache.put(name, composed);
@@ -185,6 +189,30 @@ public class BoneKit {
      */
     private static boolean isZero(@NotNull EulerRotation r) {
         return r.pitch() == 0f && r.yaw() == 0f && r.roll() == 0f;
+    }
+    /**
+     * The bone's own step of the chain: its pivot, its rotation, then what a clip scales it by.
+     *
+     * <p>{@code T * R * S}, which is vanilla's order in {@code ModelPart.translateAndRotate} - the
+     * scale goes on the stack AFTER the rotation, so it reaches this bone's cubes and every
+     * descendant's alike. That propagation is the whole reason it belongs here rather than beside
+     * the uniform factor {@link #scaledCubeBounds} applies: that one the tooling already flattened
+     * onto every bone of its mesh, so putting it on the chain would apply it once per level.
+     *
+     * <p>Skipped whole when the bone stands at no displacement, which is every bone of every mesh
+     * that is not being posed - so a still render composes the matrix it always did.
+     *
+     * @param base the chain matrix to post-multiply onto
+     * @param bone the bone whose step this is
+     * @return the chain with this bone's step applied
+     */
+    private static @NotNull Matrix4f applyBonePose(
+        @NotNull Matrix4f base, @NotNull EntityModelData.Bone bone) {
+
+        Matrix4f chain = applyBoneRotation(base, bone.getPivot(), bone.getRotation());
+        if (!bone.isPoseScaled()) return chain;
+        Vector3f scale = bone.getPoseScale();
+        return chain.scale(scale.x(), scale.y(), scale.z());
     }
 
     /**

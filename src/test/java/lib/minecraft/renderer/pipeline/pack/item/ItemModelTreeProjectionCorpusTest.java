@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Item.LayerTint;
@@ -28,7 +29,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -72,16 +72,18 @@ class ItemModelTreeProjectionCorpusTest {
         Path itemsDir = VANILLA_ROOT.resolve("assets/minecraft/items");
         assumeTrue(Files.isDirectory(itemsDir), "extracted vanilla items tree required");
 
-        ConcurrentMap<String, List<LayerTint>> actual = ItemModelTreeLoader.deriveTints(ItemModelTreeLoader.load(vanillaStack()));
+        ConcurrentMap<String, ConcurrentList<LayerTint>> actual = ItemModelTreeLoader.deriveTints(ItemModelTreeLoader.load(vanillaStack()));
         Map<String, List<LayerTint>> expected = legacyTints(itemsDir);
 
-        assertThat("tint capture is byte-identical to the former loader", new HashMap<>(actual), is(expected));
+        assertThat("tint capture is byte-identical to the former loader",
+            new HashMap<String, List<LayerTint>>(actual), is(expected));
     }
 
     private static PackStack vanillaStack() {
         return PackStack.of(Concurrent.newList(new ResourcePack(
             PackId.VANILLA, new PackContainer.Directory(VANILLA_ROOT), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE))));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE))));
     }
 
     // --- frozen former-loader reference ---

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.Block;
@@ -12,11 +13,9 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.loader.BlockModelReader.BlockModelEntry;
 import lib.minecraft.renderer.pipeline.loader.BlockModelReader.BlockRef;
 import lib.minecraft.renderer.pipeline.loader.BlockModelReader.InventoryDto;
-import lib.minecraft.renderer.pipeline.loader.BlockModelReader.PartRef;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -75,18 +74,18 @@ public final class BlockEntityAssembler {
                     continue;
                 }
 
-                ArrayList<Block.Entity.Part> parts = buildParts(models, model, geometries, textureId);
+                ConcurrentList<Block.Entity.Part> parts = buildParts(models, model, geometries, textureId);
                 int tintArgb = block.tint() != null ? resolveTint(block.tint()) : ColorMath.WHITE;
-                result.put(blockId, new Block.Entity(boneModel, textureId, tintArgb, iconRotation, Concurrent.adoptList(parts), additive));
+                result.put(blockId, new Block.Entity(boneModel, textureId, tintArgb, iconRotation, parts, additive));
             }
         }
 
-        HashMap<String, ConcurrentMap<String, Block.Variant>> variants = new HashMap<>();
-        for (Map.Entry<String, HashMap<String, Block.Variant>> variant : variantModels.entrySet())
-            variants.put(variant.getKey(), Concurrent.adoptMap(variant.getValue()).toUnmodifiable());
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants = variantModels.entrySet()
+            .stream()
+            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey,
+                variant -> Concurrent.adoptMap(variant.getValue()).toUnmodifiable()));
 
-        return new BlockModelLoader.LoadResult(
-            Concurrent.adoptMap(result).toUnmodifiable(), Concurrent.adoptMap(variants).toUnmodifiable());
+        return new BlockModelLoader.LoadResult(Concurrent.adoptMap(result).toUnmodifiable(), variants);
     }
 
     /**
@@ -124,20 +123,17 @@ public final class BlockEntityAssembler {
      * catalog; its texture is the part's own full path (stripped) when present, else the parent block's
      * texture.
      */
-    private static @NotNull ArrayList<Block.Entity.Part> buildParts(@NotNull Map<String, BlockModelEntry> models, @NotNull BlockModelEntry model, @NotNull Map<String, EntityModelData> geometries, @NotNull String parentTextureId) {
-        ArrayList<Block.Entity.Part> parts = new ArrayList<>();
-        if (model.parts() == null) return parts;
+    private static @NotNull ConcurrentList<Block.Entity.Part> buildParts(@NotNull Map<String, BlockModelEntry> models, @NotNull BlockModelEntry model, @NotNull Map<String, EntityModelData> geometries, @NotNull String parentTextureId) {
+        if (model.parts() == null) return Concurrent.newList();
 
-        for (PartRef part : model.parts()) {
-            BlockModelEntry partModel = models.get(part.model());
-            if (partModel == null) continue;
-
-            Block.Entity.BoneModel partBone = buildBoneModel(part.model(), partModel, geometries);
-            String partTexture = part.texture() != null ? stripTexture(part.texture()) : parentTextureId;
-            float[] offset = part.offset() != null ? part.offset() : new float[]{0, 0, 0};
-            parts.add(new Block.Entity.Part(partBone, partTexture, offset));
-        }
-        return parts;
+        return model.parts()
+            .stream()
+            .filter(part -> models.get(part.model()) != null)
+            .map(part -> new Block.Entity.Part(
+                buildBoneModel(part.model(), models.get(part.model()), geometries),
+                part.texture() != null ? stripTexture(part.texture()) : parentTextureId,
+                part.offset() != null ? part.offset() : new float[]{0, 0, 0}))
+            .collect(Concurrent.toList());
     }
 
     /**

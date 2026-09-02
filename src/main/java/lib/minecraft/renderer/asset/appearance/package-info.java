@@ -7,7 +7,9 @@
  * typed {@link lib.minecraft.renderer.asset.appearance.Age Age} and
  * {@link lib.minecraft.renderer.asset.appearance.Size Size} meshes, the dye
  * {@link lib.minecraft.renderer.asset.appearance.TintAxis TintAxis} an overlay names its
- * {@code tint_by} target with, and the per-subject texture families
+ * {@code tint_by} target with, the sheet-selecting
+ * {@link lib.minecraft.renderer.asset.appearance.TextureAxis TextureAxis} it names its
+ * {@code texture_by} source with, and the per-subject texture families
  * ({@link lib.minecraft.renderer.asset.appearance.HorseMarking HorseMarking},
  * {@link lib.minecraft.renderer.asset.appearance.IronGolemCrackiness IronGolemCrackiness},
  * {@link lib.minecraft.renderer.asset.appearance.CopperWeathering CopperWeathering},
@@ -15,7 +17,10 @@
  * {@link lib.minecraft.renderer.asset.appearance.Villager Villager}).
  * {@link lib.minecraft.renderer.asset.appearance.AppearanceGate AppearanceGate} is the parsed
  * {@code when} object that tests a selection, so it sits with what it reads rather than with the
- * bag the caller fills.
+ * bag the caller fills; it names its option through
+ * {@link lib.minecraft.renderer.asset.appearance.Axis Axis}, the face the gateable enums
+ * ({@code Age}, {@code Size}, {@code Flag}) share, so the comparison lives on the option rather
+ * than on a per-axis arm.
  *
  * <p><b>Parity.</b> Each of these is named by an options bag and read by
  * {@link lib.minecraft.renderer.asset.Entity#resolve Entity.resolve}, so a value here reaches both

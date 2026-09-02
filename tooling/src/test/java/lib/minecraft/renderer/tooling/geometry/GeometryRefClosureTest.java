@@ -69,16 +69,18 @@ class GeometryRefClosureTest {
         assertEquals(Set.of(), orphans, "orphan geometry entries (registered but unreferenced)");
     }
 
+    /** The members that name a mesh, any of which is a reference the pair has to close over. */
+    private static final Set<String> GEOMETRY_MEMBERS = Set.of("geometry", "no_hat_geometry");
+
     /**
-     * Recursively collects every string-valued {@code geometry} / {@code baby_geometry}
-     * member under {@code element} ({@code baby_geometry} is the equipment rows' captured
-     * baby mesh).
+     * Recursively collects every string-valued mesh reference under {@code element}:
+     * {@code geometry} and the {@code no_hat_geometry} an overlay pass names its suppressed form
+     * with.
      */
     private static void collectGeometryRefs(@NotNull JsonElement element, @NotNull Set<String> out) {
         if (element instanceof JsonObject object) {
             for (Map.Entry<String, JsonElement> member : object.entrySet()) {
-                boolean geometryRef = "geometry".equals(member.getKey()) || "baby_geometry".equals(member.getKey());
-                if (geometryRef && member.getValue().isJsonPrimitive())
+                if (GEOMETRY_MEMBERS.contains(member.getKey()) && member.getValue().isJsonPrimitive())
                     out.add(member.getValue().getAsString());
                 else collectGeometryRefs(member.getValue(), out);
             }

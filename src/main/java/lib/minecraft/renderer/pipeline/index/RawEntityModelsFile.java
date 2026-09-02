@@ -1,89 +1,162 @@
 package lib.minecraft.renderer.pipeline.index;
 
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
 
 /**
  * The faithful raw form of {@code entity_models.json} - the top-level {@code models} object decoded 1:1
  * into a tree of plain records, one per JSON member the loader reads, with every leaf either a scalar,
- * a nested raw record, or a reused adapter ({@code grow} via {@link EntityModelData.Cube.GrowAdapter}).
+ * a nested raw record, or a reused adapter (the armor {@code grow} pair via
+ * {@link EntityModelData.Cube.GrowAdapter}).
  *
  * <p>Nothing here is post-processed by Gson: the {@code geometry} coordinates stay coordinate strings,
  * tints stay hex strings, {@code blend} stays a token, and absent members that must differ from a
  * primitive zero ({@code render.scale}, {@code pipeline.alpha}, a {@code size} option's {@code scale})
  * are boxed so {@link EntityIndexBuilder} can substitute their real defaults. The geometry join, the mesh
- * surgery, the axes pivot into {@link Entity.Axes}, the per-variant sub-{@link Entity} fold, and the
- * cross-entity grouping all live in {@link EntityIndexBuilder}, which reads these records.
+ * surgery, the axes pivot into {@link Entity.Axes} and the per-variant sub-{@link Entity} fold all live
+ * in {@link EntityIndexBuilder}, which reads these records.
  *
  * @param models the entity model catalog keyed by namespaced entity id, in file order
+ * @param periodTicks the file header's {@code period_ticks} - the ticks one whole excursion spans,
+ *     stated once for every family's style catalog - or {@code null} where the header names none
  */
-public record RawEntityModelsFile(@NotNull Map<String, RawModel> models) {}
+public record RawEntityModelsFile(
+    @NotNull Map<String, RawModel> models,
+    @SerializedName("period_ticks") @Nullable Integer periodTicks
+) {}
 
 /**
- * One raw entity model (a family), 1:1 with a {@code models} member. The {@code renderer} class name and
- * every {@code source} / {@code layer_index} authoring hint are simply not declared, so Gson ignores them.
+ * One raw entity model (a family), 1:1 with a {@code models} member. Every {@code source} /
+ * {@code layer_index} authoring hint is simply not declared, so Gson ignores it.
  *
- * @param render the family render tuning ({@code scale} / {@code yaw_addend} / {@code tint}), or {@code null}
- * @param bones the {@code hidden} strip and {@code toggles} specs, or {@code null} when the family has none
+ * @param renderer the vanilla renderer class's internal name - the one member here that names a
+ *     class rather than an asset, carried as the file's own statement of which renderer draws the
+ *     subject
+ * @param render the family render tuning ({@code scale} / {@code tint}), or {@code null}
  * @param overlays the body overlay layers in declared order, or {@code null} when absent
  * @param blockOverlays the vanilla-block-shaped overlays, or {@code null} when absent
- * @param layers the conditional decoration layers (collar / equipment / markings / armor), or {@code null}
+ * @param armor the worn-armor shell node, or {@code null} for a subject vanilla never armors
+ * @param equipment the equipment rows in roster order, or {@code null} when the subject wears none
  * @param axes the mandatory option-axis block ({@code age} plus optional {@code variant} / {@code shape} / {@code size})
- * @param groupOf the base entity this sub-species groups under (mooshroom -&gt; cow), or {@code null}
+ * @param members the self-inclusive canvas-group membership, the same list on every member of the
+ *     group (stray beside skeleton), resolved at generation - or {@code null} for a singleton
+ * @param styles the family's style catalog rows in shipped order, or {@code null} for a family
+ *     whose only output style is the synthesized bind row
  */
 record RawModel(
+    @Nullable String renderer,
     @Nullable RawRender render,
-    @Nullable RawBones bones,
     @Nullable List<RawOverlay> overlays,
     @SerializedName("block_overlays") @Nullable List<RawBlockOverlay> blockOverlays,
-    @Nullable List<RawLayer> layers,
+    @Nullable RawArmor armor,
+    @Nullable List<RawEquipmentRow> equipment,
     @NotNull RawAxes axes,
-    @SerializedName("group_of") @Nullable String groupOf
+    @Nullable List<String> members,
+    @Nullable List<RawStyleRow> styles
 ) {}
 
 /**
  * The family {@code render} tuning.
  *
  * @param scale the render-time scale, boxed so an absent member falls to {@code 1f} not {@code 0f}
- * @param yawAddend the {@code setupRotations} yaw addend in degrees, {@code 0f} when absent
  * @param tint the per-entity base tint as a hex string, or {@code null} for white
  */
 record RawRender(
     @Nullable Float scale,
-    @SerializedName("yaw_addend") float yawAddend,
     @Nullable String tint
 ) {}
 
 /**
- * The family {@code bones} block.
+ * One {@code styles} row - a uniquely identifiable output of the family, in the shape the loaded
+ * catalog row is assembled from.
  *
- * @param hidden the bone names stripped from the default mesh, or {@code null} when none
- * @param toggles the named visibility toggles keyed by toggle name, or {@code null} when none
+ * @param id the style id a caller selects this output by
+ * @param base the id of the sibling row this one composes over, or {@code null} for a root row
+ * @param sources the row's mechanism inventory, each entry a bare token or a gated object, or
+ *     {@code null} for a row nothing moves
+ * @param drives the drives behind the row's own driven fields, or {@code null} where it adds none
+ * @param toggles the appearance bone toggles the selection entails, or {@code null} where it
+ *     entails none
+ * @param age the age option this row applies to, or {@code null} to apply to both
  */
-record RawBones(
-    @Nullable List<String> hidden,
-    @Nullable Map<String, RawToggle> toggles
+record RawStyleRow(
+    @Nullable String id,
+    @Nullable String base,
+    @Nullable List<RawStyleSource> sources,
+    @Nullable List<RawDrive> drives,
+    @Nullable List<String> toggles,
+    @Nullable String age
 ) {}
 
 /**
- * One {@code bones.toggles} spec.
+ * One {@code drives} entry - the wave one render-state field travels under a style.
  *
- * @param bones the bone names this toggle flips
- * @param defaultVisible whether the bones render by default ({@code true} = toggle hides; {@code false} = reveals)
+ * @param field the render-state field name the drive answers
+ * @param wave the wave token ({@code hold} / {@code ramp} / {@code sweep} / {@code cycle})
+ * @param rest what the field holds at tick zero, boxed so an absent member falls to {@code 0f}
+ * @param extent the far end of the travel, boxed so an absent member falls to {@code 1f}
+ * @param group the exclusion group under which a composing row's drive replaces its base's, or
+ *     {@code null} for an ungrouped field
  */
-record RawToggle(
-    @Nullable List<String> bones,
-    @SerializedName("default") boolean defaultVisible
+record RawDrive(
+    @Nullable String field,
+    @Nullable String wave,
+    @Nullable Float rest,
+    @Nullable Float extent,
+    @Nullable String group
 ) {}
+
+/**
+ * One {@code sources} entry, in either of the two spellings the table fixes: a bare token
+ * ({@code "tick"}) is an unconditional entry, and the object form carries the overlay gate that
+ * admits it ({@code {"source": "scroll", "gate": "charged"}}).
+ *
+ * @param source the drive-kind token
+ * @param gate the token of the overlay gate admitting this entry, or {@code null} for an
+ *     unconditional one
+ */
+@JsonAdapter(RawStyleSource.Adapter.class)
+record RawStyleSource(
+    @NotNull String source,
+    @Nullable String gate
+) {
+
+    /** Reads a bare token as an unconditional entry, and the object form with its gate. */
+    static final class Adapter implements JsonDeserializer<RawStyleSource> {
+
+        @Override
+        public @NotNull RawStyleSource deserialize(
+            @NotNull JsonElement node, @NotNull Type type, @NotNull JsonDeserializationContext context) {
+
+            if (node.isJsonPrimitive()) return new RawStyleSource(node.getAsString(), null);
+            if (!node.isJsonObject())
+                throw new PipelineException("Entity style source is neither a token nor an object");
+            JsonObject held = node.getAsJsonObject();
+            JsonElement source = held.get("source");
+            if (source == null)
+                throw new PipelineException("Entity style source object names no 'source'");
+            JsonElement gate = held.get("gate");
+            return new RawStyleSource(source.getAsString(), gate == null ? null : gate.getAsString());
+        }
+
+    }
+
+}
 
 /**
  * The family {@code axes} block. The {@code state} axis carries only its option names and default - the
@@ -96,129 +169,80 @@ record RawToggle(
  * @param state the behavioural-state axis (wolf wild / tame / angry), or {@code null} when absent
  */
 record RawAxes(
-    @Nullable RawVariantAxis variant,
-    @NotNull RawAgeAxis age,
-    @Nullable RawShapeAxis shape,
-    @Nullable RawSizeAxis size,
-    @Nullable RawStateAxis state
+    @Nullable RawAxis variant,
+    @NotNull RawAxis age,
+    @Nullable RawAxis shape,
+    @Nullable RawAxis size,
+    @Nullable RawAxis state
 ) {}
 
 /**
- * The {@code axes.state} axis. Only the option names and the declared default are read - the textures a
- * state selects live on each variant option.
+ * One option axis - {@code default} naming the option the base row represents, and the options keyed
+ * by option name. All five axes ({@code variant} / {@code age} / {@code shape} / {@code size} /
+ * {@code state}) are this one shape; which of an option's members are populated is the axis's own
+ * fact, stated on {@link RawOption}.
  *
- * @param defaultOption the state the base textures represent
- * @param options the state options keyed by state name
+ * @param defaultOption the option the base row represents, or {@code null} where the axis declares
+ *     none (the age axis, whose baseline is always {@code adult})
+ * @param options the options keyed by option name
  */
-record RawStateAxis(
+record RawAxis(
     @SerializedName("default") @Nullable String defaultOption,
-    @NotNull Map<String, com.google.gson.JsonElement> options
+    @NotNull Map<String, RawOption> options
 ) {}
 
 /**
- * The {@code axes.variant} axis.
+ * One axis option - the superset of what any axis's option carries, every member optional because
+ * each axis populates its own subset: an {@code age} option carries {@code geometry} /
+ * {@code texture}, a {@code variant} coat {@code textures} /
+ * {@code baby_texture} / {@code geometry} / {@code block}, the {@code shape.large} option
+ * {@code geometry} / {@code texture} / {@code overlays}, a {@code size} option {@code geometry} /
+ * {@code scale}, and a {@code state} option nothing at all - its name is the datum.
  *
- * @param defaultOption the option name carrying the model baseline
- * @param options the coat options keyed by option name
- */
-record RawVariantAxis(
-    @SerializedName("default") @Nullable String defaultOption,
-    @NotNull Map<String, RawVariantOption> options
-) {}
-
-/**
- * One {@code variant} option (a coat).
- *
- * @param textures the per-state textures ({@code wild} / {@code tame} / {@code angry}), or {@code null}
- * @param babyTexture the option's baby texture path, or {@code null} when the option has none
- * @param geometry the option's own geometry coordinate overriding the family mesh, or {@code null}
- * @param block the block this coat's fixed block overlays draw (the mooshroom's brown mushroom), or
+ * @param geometry the option's mesh coordinate, or {@code null}
+ * @param texture the option's texture as the {@code textures/entity/} sub-path, settled at
+ *     generation, or {@code null} when the option has none
+ * @param scale a size option's render-scale factor, boxed so a mesh-only option leaves it absent
+ * @param overlays the {@code shape.large} pattern overlays materialised on the large geometry, or
+ *     {@code null}
+ * @param textures a coat's per-state textures ({@code wild} / {@code tame} / {@code angry}), or
+ *     {@code null}
+ * @param babyTexture a coat's baby texture sub-path, or {@code null} when the option has none
+ * @param block the block a coat's fixed block overlays draw (the mooshroom's brown mushroom), or
  *     {@code null} when they draw the one the {@code block_overlays[]} rows already name
+ * @param pose the simple name of the model class whose pose says which way this form's bones
+ *     point, stated explicitly per form, or {@code null} where the geometry coordinate's own head
+ *     answers - the scale-only size options, whose form is the base row's
  */
-record RawVariantOption(
+record RawOption(
+    @Nullable String geometry,
+    @Nullable String texture,
+    @Nullable Float scale,
+    @Nullable List<RawOverlay> overlays,
     @Nullable Map<String, String> textures,
     @SerializedName("baby_texture") @Nullable String babyTexture,
-    @Nullable String geometry,
-    @Nullable String block
+    @Nullable String block,
+    @Nullable String pose
 ) {}
-
-/**
- * The {@code axes.age} axis - the {@code adult} option carries the family baseline geometry / texture and
- * the optional {@code baby} option the dedicated baby mesh.
- *
- * @param options the age options keyed by option name ({@code adult} / {@code baby})
- */
-record RawAgeAxis(@NotNull Map<String, RawAgeOption> options) {}
-
-/**
- * One {@code age} option.
- *
- * @param geometry the option's geometry coordinate
- * @param texture the option's base texture path, or {@code null} when the option has none
- * @param yShift the blocks the renderer's {@code setupRotations} translates this age along Y before
- *     drawing it, {@code 0f} when absent. It sits on the option rather than on {@code render}
- *     because vanilla brackets its rotations with translates the age selects between - the squid
- *     lifts an adult by a different pair than a baby
- */
-record RawAgeOption(
-    @Nullable String geometry,
-    @Nullable String texture,
-    @SerializedName("y_shift") float yShift
-) {}
-
-/**
- * The {@code axes.shape} axis (tropical fish).
- *
- * @param options the shape options keyed by option name (only {@code large} is read)
- */
-record RawShapeAxis(@NotNull Map<String, RawShapeOption> options) {}
-
-/**
- * The {@code shape.large} option.
- *
- * @param geometry the large body geometry coordinate, or {@code null}
- * @param texture the large body base texture path, or {@code null}
- * @param overlays the pattern overlays materialised on the large geometry, or {@code null}
- */
-record RawShapeOption(
-    @Nullable String geometry,
-    @Nullable String texture,
-    @Nullable List<RawOverlay> overlays
-) {}
-
-/**
- * The {@code axes.size} axis (pufferfish meshes / salmon / slime scales).
- *
- * @param defaultOption the size the base mesh and unit scale represent
- * @param options the size options keyed by {@link Size} name (lower-case)
- */
-record RawSizeAxis(
-    @SerializedName("default") @Nullable String defaultOption,
-    @NotNull Map<String, RawSizeOption> options
-) {}
-
-/**
- * One {@code size} option - a mesh alternative carries {@code geometry}, a scale alternative carries
- * {@code scale}.
- *
- * @param geometry the size's distinct mesh coordinate, or {@code null} for a scale-only option
- * @param scale the size's render-scale factor, boxed so a mesh-only option leaves it absent
- */
-record RawSizeOption(@Nullable String geometry, @Nullable Float scale) {}
 
 /**
  * One body {@code overlays} entry.
  *
+ * <p>The mesh a pass draws is named rather than described: the subset it is restricted to, the
+ * deformation it surrounds the body with and the emptied subtree of its suppressed form are all
+ * baked, so a row names one mesh for each form it has and carries no instruction for building one.
+ *
  * @param geometry the overlay geometry coordinate, or {@code null} to reuse the base coordinate
- * @param texture the overlay texture path, or {@code null} to reuse the base texture
- * @param retainBones the vanilla {@code retainExactParts} subset restricting the mesh, or {@code null}
- * @param noHatRoot the bone whose subtree the suppressed pass clears (vanilla's
- *     {@code clearChild(name).clearRecursively()}), or {@code null} when the pass has no alternate mesh
+ * @param noHatGeometry the mesh the pass draws where it is suppressed, or {@code null} when the pass
+ *     has no suppressed form. Named BESIDE {@code geometry} rather than in place of it, a pass
+ *     drawing the body's own mesh being one the canvas union already measures through the body
+ * @param texture the overlay texture sub-path, or {@code null} to reuse the base texture
  * @param tint the overlay tint as a hex string, or {@code null} for white
  * @param tintBy the render-axis token overriding the tint at render, or {@code null}
  * @param textureBy the render-axis token overriding the texture at render, or {@code null}
- * @param grow the per-axis cube inflate (scalar broadcasts to all axes), or {@code null} when absent
  * @param pipeline the blend / alpha / emissive render pipeline, or {@code null}
+ * @param textureScroll the texels-per-tick the render type translates this pass's texture by, or
+ *     {@code null} when it translates none
  * @param skipBounds whether the overlay is excluded from the canvas-sizing bounds union
  * @param when the render condition, or {@code null} when unconditional
  * @param baby the age delta a baby render substitutes, or {@code null} when the overlay draws on an
@@ -226,44 +250,52 @@ record RawSizeOption(@Nullable String geometry, @Nullable Float scale) {}
  */
 record RawOverlay(
     @Nullable String geometry,
+    @SerializedName("no_hat_geometry") @Nullable String noHatGeometry,
     @Nullable String texture,
-    @SerializedName("retain_bones") @Nullable List<String> retainBones,
-    @SerializedName("no_hat_root") @Nullable String noHatRoot,
     @Nullable String tint,
     @SerializedName("tint_by") @Nullable String tintBy,
     @SerializedName("texture_by") @Nullable String textureBy,
-    @JsonAdapter(EntityModelData.Cube.GrowAdapter.class) @Nullable Vector3f grow,
     @Nullable RawPipeline pipeline,
+    @SerializedName("texture_scroll") @Nullable RawTextureScroll textureScroll,
     @SerializedName("skip_bounds") boolean skipBounds,
     @Nullable RawOverlayWhen when,
     @Nullable RawOverlayBaby baby
 ) {}
 
 /**
- * An overlay's {@code baby} age delta - the members a baby render substitutes, with everything else
- * ({@code texture_by}, tint, pipeline, bounds skip, gate) inherited from the overlay row. Most deltas
- * carry no {@code geometry} and materialise against the {@code age.baby} mesh, which
- * {@link EntityIndexBuilder} supplies as the base coordinate; one is carried where vanilla bakes the
- * baby pass its own {@code LayerDefinition} that no inflate of the baby body reaches (the drowned's
- * outer shell, whose factory hardcodes two head cubes' deformations rather than driving them off its
- * parameter). {@code grow} is carried because a baby decoration inflates its baby mesh by its own
- * {@code CubeDeformation} (the trader llama's baby caparison at {@code 0.2}, against the adult's
- * {@code 0.5}), not the adult row's.
+ * An overlay's {@code texture_scroll} - what its render type translates the texture by, per tick.
  *
- * @param geometry the baby mesh coordinate, or {@code null} to materialise against the
- *     {@code age.baby} mesh
- * @param texture the baby texture path, or {@code null} to inherit the row's texture
- * @param noHatRoot the bone whose subtree the baby suppressed pass clears, or {@code null} when the
- *     baby pass has no alternate mesh
- * @param grow the baby cube inflate (scalar broadcasts to all axes), or {@code null} to inherit the
- *     row's grow - and never inherited at all once {@code geometry} names a mesh of its own, whose
- *     deformation the tooling has already baked in
+ * <p>A rate rather than an expression, because the corpus's three sites are one shape: vanilla
+ * builds the render type with {@code (ageInTicks * k) % 1} on each axis, so the constant is the
+ * whole of what varies between them and the wrap is the type's own.
+ *
+ * @param u the fraction of the sheet's width the pass scrolls along u each tick
+ * @param v the fraction of its height the pass scrolls along v each tick
+ */
+record RawTextureScroll(float u, float v) {}
+
+/**
+ * An overlay's {@code baby} age delta - the members a baby render substitutes, with everything else
+ * ({@code texture_by}, tint, pipeline, bounds skip, gate) inherited from the overlay row. A delta
+ * carrying no {@code geometry} draws the {@code age.baby} mesh, which {@link EntityIndexBuilder}
+ * supplies as the base coordinate.
+ *
+ * <p>A baby form's mesh is its own rather than the adult's under a baby-sized deformation: a baby
+ * decoration is inflated by its own {@code CubeDeformation} (the trader llama's baby caparison
+ * against the adult's), and one is baked its own {@code LayerDefinition} that no inflate of the baby
+ * body reaches (the drowned's outer shell, whose factory hardcodes two head cubes' deformations
+ * rather than driving them off its parameter). Both are meshes the tooling has already derived, so
+ * the delta names one where it differs from the row's.
+ *
+ * @param geometry the baby mesh coordinate, or {@code null} to draw the {@code age.baby} mesh
+ * @param noHatGeometry the mesh the baby pass draws where it is suppressed, or {@code null} when it
+ *     has no suppressed form
+ * @param texture the baby texture sub-path, or {@code null} to inherit the row's texture
  */
 record RawOverlayBaby(
     @Nullable String geometry,
-    @Nullable String texture,
-    @SerializedName("no_hat_root") @Nullable String noHatRoot,
-    @JsonAdapter(EntityModelData.Cube.GrowAdapter.class) @Nullable Vector3f grow
+    @SerializedName("no_hat_geometry") @Nullable String noHatGeometry,
+    @Nullable String texture
 ) {}
 
 /**
@@ -307,47 +339,17 @@ record RawOverlayWhen(
  *
  * @param block the fixed block id to render, or {@code null} for a selectable held block
  * @param attachedBone the entity bone whose pose pre-multiplies the transforms, or {@code null}
- * @param transforms the ordered transform ops applied to the block model
+ * @param transforms the ordered transform ops applied to the block model, each a single-member
+ *     object whose name says what it does - {@code translate} / {@code scale} carry a three-float
+ *     array and {@code rotate_x} / {@code rotate_y} / {@code rotate_z} carry degrees - the same
+ *     shape a pose expression takes
  * @param selectable whether the block is supplied at render from the carried selection
  */
 record RawBlockOverlay(
     @Nullable String block,
     @SerializedName("attached_bone") @Nullable String attachedBone,
-    @Nullable List<RawTransform> transforms,
+    @Nullable List<Map<String, com.google.gson.JsonElement>> transforms,
     boolean selectable
-) {}
-
-/**
- * One {@code transforms} op - the tagged union the assembler pattern-matches on {@code op}. Unused
- * components stay at their {@code 0f} default for a given op kind.
- *
- * @param op the op discriminator ({@code translate} / {@code rotate_x} / {@code rotate_y} / {@code rotate_z} / {@code scale})
- * @param x the translate / scale X component
- * @param y the translate / scale Y component
- * @param z the translate / scale Z component
- * @param degrees the rotate angle in degrees
- */
-record RawTransform(
-    @Nullable String op,
-    float x,
-    float y,
-    float z,
-    float degrees
-) {}
-
-/**
- * One {@code layers} entry - a heterogeneous row the assembler routes by {@code id} (collar / markings /
- * armor) or {@code when.equipment} (equipment).
- *
- * @param id the layer id ({@code collar} / {@code markings} / {@code armor} / ...), or {@code null}
- * @param when the layer gate carrying the {@code equipment} slot, or {@code null}
- * @param overlay the layer's overlay body - every row's payload lives here, so the row itself stays
- *     the routing shell; {@code null} for a row that carries none
- */
-record RawLayer(
-    @Nullable String id,
-    @Nullable RawLayerWhen when,
-    @Nullable RawLayerOverlay overlay
 ) {}
 
 /**
@@ -363,40 +365,45 @@ record RawArmorGrow(
 ) {}
 
 /**
- * A {@code when} gate, on a {@code layers[]} row or on the armor row's second shell. The
- * {@code equipment} slot gates a row; the {@code age} and {@code size} options select an armor
- * row's alternate shell. {@code collar_color} and {@code markings} presence is derived from the
- * layer {@code id} instead.
+ * The {@code when} gate on the armor node's second shell - the {@code age} or {@code size} option
+ * that selects it.
  *
- * @param equipment the equipment slot this layer is gated on, or {@code null}
  * @param age the age option that selects this shell, or {@code null}
  * @param size the size option that selects this shell, or {@code null}
  */
-record RawLayerWhen(@Nullable String equipment, @Nullable String age, @Nullable String size) {}
+record RawLayerWhen(@Nullable String age, @Nullable String size) {}
 
 /**
- * A {@code layers[].overlay} body. Serves the collar layer (reads {@code texture}), the equipment layers
- * (read {@code geometry} / {@code layer_type} / {@code material_assets} / {@code default_material}) and
- * the armor row (reads {@code geometry} / {@code grow} / {@code scaled} / {@code alternate}); the
- * marking layer's {@code texture_by} / {@code textures_by_value} are not read.
+ * The worn-armor {@code armor} node - the shell the wearer is dressed in.
  *
- * @param texture the collar overlay texture path, or {@code null}
- * @param geometry the equipment or armor overlay geometry coordinate, or {@code null}
- * @param grow the armor row's two layer deformations, or {@code null} for every other row
+ * @param geometry the shell's geometry coordinate
+ * @param grow the armor set's two layer deformations
  * @param scaled the whole-mesh scale the armor set is registered through, or {@code null} at the
  *     identity - the eleven wearers vanilla registers unscaled
  * @param alternate the shell this wearer's other form is dressed in, or {@code null} when vanilla
  *     hands its armor layer one shell twice
+ */
+record RawArmor(
+    @Nullable String geometry,
+    @Nullable RawArmorGrow grow,
+    @Nullable Float scaled,
+    @Nullable RawArmorAlternate alternate
+) {}
+
+/**
+ * One {@code equipment} row - a saddle or body-armor layer, gated on its {@code slot}. An equipment
+ * mesh is drawn where its wearer's pose leaves the body, so the row names no poser of its own here;
+ * what the file states about one is the file's own fact and stays undeclared.
+ *
+ * @param slot the equipment slot this row is gated on
+ * @param geometry the row's mesh coordinate
  * @param layerType the equipment render layer's serialized id ({@code pig_saddle}), or {@code null}
  * @param materialAssets the equipment asset id per selectable material, or {@code null}
  * @param defaultMaterial the equipment default material, or {@code null}
  */
-record RawLayerOverlay(
-    @Nullable String texture,
+record RawEquipmentRow(
+    @Nullable String slot,
     @Nullable String geometry,
-    @Nullable RawArmorGrow grow,
-    @Nullable Float scaled,
-    @Nullable RawArmorAlternate alternate,
     @SerializedName("layer_type") @Nullable String layerType,
     @SerializedName("material_assets") @Nullable Map<String, String> materialAssets,
     @SerializedName("default_material") @Nullable String defaultMaterial

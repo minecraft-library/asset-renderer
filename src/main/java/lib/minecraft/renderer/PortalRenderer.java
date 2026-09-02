@@ -12,6 +12,7 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.RasterPass;
 import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.GeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.option.AnimationOptions;
@@ -412,7 +413,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     private static int bridgeFrameCount(@NotNull PortalOptions options) {
         int total = options.getAnimation().getFrameCount();
         if (total < 3) return 0;
-        float bridge = options.getAnimation().getLoopFadeBridgePct();
+        float bridge = options.getLoopFadeBridgePct();
         if (bridge <= 0f) return 0;
         return Math.clamp(Math.round(bridge * total), 0, total - 1);
     }
@@ -512,7 +513,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         int startTick = options.getAnimation().getStartTick();
         int ticksPerFrame = options.getAnimation().getTicksPerFrame();
         int outputCount = options.getAnimation().getFrameCount();
-        int subTickSteps = Math.max(1, options.getAnimation().getSubTickSteps());
+        int subTickSteps = Math.max(1, options.getSubTickSteps());
         if (outputCount <= 1)
             return Timeline.gameTime(startTick, outputCount, ticksPerFrame, subTickSteps)
                 .bake(RasterPass.of(size, size, ssaa, antiAlias, raster));
@@ -669,12 +670,12 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             @NotNull FaceTextures faces
         ) {
             if (portal == PortalOptions.Portal.END_GATEWAY)
-                return BlockGeometryKit.unitCube(faces, ColorMath.WHITE);
+                return GeometryKit.unitCube(faces, ColorMath.WHITE);
 
             // End portal slab: x and z span the full unit range, y clipped to vanilla's [BOTTOM, TOP].
             // Model space is [-0.5, +0.5] per axis (see GeometryKit.unitCube), so the slab's Y
             // offsets are measured from the cube's centre.
-            return BlockGeometryKit.buildBox(
+            return GeometryKit.buildBox(
                 new Box(-0.5f, END_PORTAL_SLAB_BOTTOM_Y - 0.5f, -0.5f, 0.5f, END_PORTAL_SLAB_TOP_Y - 0.5f, 0.5f),
                 faces,
                 ColorMath.WHITE

@@ -18,7 +18,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -69,8 +68,8 @@ class BlockTagLoaderTest {
     /** One directory-backed pack contributing the vanilla namespace at its base root. */
     private static ResourcePack pack(PackId id, Path root) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"),
-            Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
     }
 
     /** A {@code values} document holding the given entries verbatim. */

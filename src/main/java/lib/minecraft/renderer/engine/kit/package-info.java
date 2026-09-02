@@ -61,6 +61,16 @@
  *       to the buffer size automatically.</li>
  * </ul>
  *
+ * <p><b>Pose.</b> What a model does to its bones before it is drawn, read off the shipped table
+ * rather than run.
+ * <ul>
+ *   <li>{@link lib.minecraft.renderer.engine.kit.PoseEvaluator PoseEvaluator} - evaluates one
+ *       model's {@code setupAnim} arithmetic at one instant, given what a caller answers about the
+ *       subject. Pure, and memoized on node identity because a pose is a graph rather than a tree -
+ *       a humanoid's arms are nine hundred distinct nodes standing for twenty-two million
+ *       paths.</li>
+ * </ul>
+ *
  * <p><b>Text and composition kits.</b>
  * <ul>
  *   <li>{@link lib.minecraft.renderer.engine.kit.TextKit TextKit} - styled Minecraft text rendering: font

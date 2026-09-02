@@ -269,7 +269,7 @@ final class EntityBlockOverlayResolver {
                 float z = floats.takeLast();
                 float y = floats.takeLast();
                 float x = floats.takeLast();
-                ops.add(JsonTree.object().put("op", "translate").put("x", x).put("y", y).put("z", z));
+                ops.add(JsonTree.object().putFloats("translate", x, y, z));
             })
             .on(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE)
                 .and(call -> call.desc.startsWith("(FFF")), call -> {
@@ -277,7 +277,7 @@ final class EntityBlockOverlayResolver {
                 float z = floats.takeLast();
                 float y = floats.takeLast();
                 float x = floats.takeLast();
-                ops.add(JsonTree.object().put("op", "scale").put("x", x).put("y", y).put("z", z));
+                ops.add(JsonTree.object().putFloats("scale", x, y, z));
             })
             // Axis is an interface, so rotationDegrees dispatches INVOKEINTERFACE - match
             // by owner + name, opcode-agnostic.
@@ -300,7 +300,7 @@ final class EntityBlockOverlayResolver {
                     this.diagnostics.warn("unrecognised rotation axis field '%s' - op skipped", axis);
                     return;
                 }
-                ops.add(JsonTree.object().put("op", op).put("degrees", degrees));
+                ops.add(JsonTree.object().put(op, degrees));
             })
             .on(Insn.invokeVirtual(VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.TRANSLATE_AND_ROTATE), call -> {
                 if (!insideBlock.get()) return;

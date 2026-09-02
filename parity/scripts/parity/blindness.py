@@ -1,9 +1,24 @@
 """Reach resolution: which artifacts can SEE a change, and which are structurally blind to it.
 
-Reach is a pure function of ``(changed paths, blindness.json)``. Nothing here measures anything, and
-nothing here decides whether a reach is acceptable - a wide reach is a big plan, never an error. The
-one refusal is **UNKNOWN**: a changed path that no rule and no ``no_reach`` glob covers, which means
-the map has nothing to say and a bundle built from it could not be sufficient.
+Reach is a pure function of ``(changed paths, blindness.json)`` and, for a rule that declares one,
+the committed reference graph. Nothing here measures anything, and nothing here decides whether a
+reach is acceptable - a wide reach is a big plan, never an error. The one refusal is **UNKNOWN**: a
+changed path that no rule and no ``no_reach`` glob covers, which means the map has nothing to say and
+a bundle built from it could not be sufficient.
+
+A rule carrying ``derived`` authors no ``sees``. Its selection is the reference graph's answer for
+the path that fired it, so one glob over a package answers per CLASS rather than per directory: under
+``engine/**`` a pose kit reaches the entity sweeps where a model engine reaches every render, and the
+glob decides neither. The rule keeps
+everything else it has - its ``blind`` list, its ``reason``, its ``probe`` - because those state what
+an artifact OBSERVES, which is a different question from which code a change touches and one no
+reference graph can answer. That is why a ``demote`` rule can be derived on one half and authored on
+the other, and why the two dump manifests still fall off an engine change.
+
+The graph reaches this module as a callable rather than as a file, which is what keeps the resolution
+above independent of how a graph is stored. A path it cannot answer for is a **refusal**, never an
+empty selection: an unanswerable path is either a source file the committed graph predates or one
+carrying no Java at all, and both would otherwise read as a licensed narrowing.
 
 Reach is resolved **per changed path** and then unioned, and that order is load-bearing. Each file is
 reached by the rules that trigger on it, so adding a file to the set adds its answer and subtracts
@@ -42,7 +57,7 @@ answers both ways over one change set:
   to B37's list and the union carries it: ``sees`` holds all of it and each blind row reads
   ``selected_by=['B37']``.
 * A ``select`` rule's claim resolves by the same arithmetic from the other side. On
-  ``BlockGeometryKit.java``, B10 claims ``sweep.block`` blind while B19 selects it on that path, so it
+  ``GeometryKit.java``, B10 claims ``sweep.block`` blind while B19 selects it on that path, so it
   is in ``sees`` and its row reads ``selected_by=['B19']``; on ``PlayerRenderer.java``, B9 claims
   ``sweep.player`` and no fired rule selects it, so it is absent from ``sees`` and its row carries an
   empty ``selected_by``.
@@ -58,12 +73,16 @@ import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 from parity.norm import MissingInput, read_json
 
 #: Where the map lives inside a store root.
 BLINDNESS_FILE = "blindness.json"
+
+#: What a derived rule's selection is read from: one repo-relative path to the artifacts it reaches,
+#: or nothing when the graph cannot speak for that path at all.
+DerivedReach = Callable[[str], Sequence[str] | None]
 
 
 class UnknownReach(Exception):
@@ -125,6 +144,11 @@ class Rule:
     Java. It is generated: the sorted union of ``authored_paths``, the half no annotation can reach,
     with every path the declarations carrying this row's ``claim_key`` derive from the source tree.
     A rule with no ``claim_key`` derives nothing, so its two lists are one list.
+
+    ``derived`` says the reference graph answers this rule's selection, per path, and ``sees`` is
+    empty because there is nothing left for it to author. The two are exclusive rather than layered:
+    an authored list beside a derived one is two answers to one question, and whichever the resolver
+    picked the other would go on being read as a statement of what the rule reaches.
     """
 
     id: str
@@ -138,6 +162,7 @@ class Rule:
     source: str
     claim_key: str = ""
     authored_paths: tuple[str, ...] = ()
+    derived: bool = False
 
 
 @dataclass
@@ -184,8 +209,14 @@ def load(store_root: Path) -> tuple[list[Rule], tuple[str, ...]]:
                 f"{target} has a no_reach entry that is not an object: {entry!r}"
                 " - each one needs a glob, a reason and a probe")
         no_reach.append(entry["glob"])
-    rules = [
-        Rule(
+    rules: list[Rule] = []
+    for row in payload.get("rules", []):
+        if row.get("derived") and row.get("sees"):
+            raise MissingInput(
+                f"{target} rule '{row['id']}' is derived and also authors a sees list"
+                " - a derived rule's selection is the reference graph's answer, so an authored"
+                " one beside it is a second statement of what the rule reaches")
+        rules.append(Rule(
             id=row["id"],
             claim=row.get("claim", ""),
             trigger_paths=tuple(row.get("trigger_paths", ())),
@@ -197,23 +228,39 @@ def load(store_root: Path) -> tuple[list[Rule], tuple[str, ...]]:
             source=row.get("source", ""),
             claim_key=row.get("claim_key", ""),
             authored_paths=tuple(row.get("authored_paths", ())),
-        )
-        for row in payload.get("rules", [])
-    ]
+            derived=bool(row.get("derived", False)),
+        ))
     return rules, tuple(no_reach)
 
 
-def _resolve_path(hits: Sequence[Rule]) -> list[str]:
+def _selection(rule: Rule, derived: Sequence[str]) -> Sequence[str]:
+    """What one rule puts in the bundle on a path: the graph's answer, or its own authored list.
+
+    One function rather than the same conditional at each site, because the union and the record of
+    which rule selected what have to read the rule the same way. Reading the authored list in one of
+    them and the graph's answer in the other prints a contradiction against a rule that never made
+    the claim.
+
+    :param rule: the rule that fired
+    :param derived: the graph's answer for the path it fired on
+    """
+    return derived if rule.derived else rule.sees
+
+
+def _resolve_path(hits: Sequence[Rule], derived: Sequence[str] = ()) -> list[str]:
     """What one changed path resolves to, given the rules that fired on it.
 
     The union first, then the two post-union passes in order. A demotion removes what a different
     rule selected **for this same path**, so it cannot run until that path's union is complete; a
     suppression outranks both. Scoping it to the path is what keeps the answer monotone in the change
     set: a rule speaks about the files it triggers on and about no others.
+
+    :param hits: the rules whose triggers match the path
+    :param derived: the graph's answer for that path, which every derived rule among them selects
     """
     seen: list[str] = []
     for rule in hits:
-        for artifact in rule.sees:
+        for artifact in _selection(rule, derived):
             if artifact not in seen:
                 seen.append(artifact)
 
@@ -225,8 +272,35 @@ def _resolve_path(hits: Sequence[Rule]) -> list[str]:
     return [artifact for artifact in seen if artifact not in suppressed]
 
 
-def resolve(changed: Sequence[str], rules: Sequence[Rule],
-            no_reach: Sequence[str] = ()) -> Reach:
+def _derived_for(path: str, hits: Sequence[Rule], derived: DerivedReach | None) -> tuple[str, ...]:
+    """The graph's answer for one path, or a refusal naming what would produce one.
+
+    Refused rather than answered empty. A derived rule fires on a package, and a path under one the
+    graph cannot speak for is either a source file the committed graph predates or a file carrying no
+    Java at all - so an empty answer would be indistinguishable from a class that really reaches
+    nothing, and the whole change would plan narrower than the truth with nothing said about it.
+
+    :param path: the changed path
+    :param hits: the rules whose triggers match it
+    :param derived: what answers a derived rule's selection, absent when no caller supplied one
+    :throws MissingInput: if a derived rule fired and the graph cannot answer for the path
+    """
+    claiming = [rule.id for rule in hits if rule.derived]
+    if not claiming:
+        return ()
+    found = derived(path) if derived is not None else None
+    if found is None:
+        raise MissingInput(
+            f"'{path}' fires {', '.join(claiming)}, whose reach the reference graph answers, and no"
+            " graph answers for it. A Java file the committed graph predates needs"
+            " './gradlew compileJava compileTestJava' and then"
+            " 'python parity/scripts/parity reach build'; a path carrying no Java needs a rule that"
+            " authors its own sees")
+    return tuple(found)
+
+
+def resolve(changed: Sequence[str], rules: Sequence[Rule], no_reach: Sequence[str] = (),
+            derived: DerivedReach | None = None) -> Reach:
     """Resolve a changed set against the map.
 
     Every changed path must be covered by some rule or by ``no_reach``; the uncovered ones come back
@@ -234,11 +308,19 @@ def resolve(changed: Sequence[str], rules: Sequence[Rule],
     contributes nothing, which is a different statement from "I do not know".
 
     Each path is resolved on its own and the answers are unioned, so a demotion cannot reach out of
-    its own triggers and cancel what another file in the same commit genuinely moves.
+    its own triggers and cancel what another file in the same commit genuinely moves. The graph is
+    asked once per path for the same reason: every derived rule that fires on a path selects the same
+    answer, that answer being a property of the file rather than of which rule reached it.
+
+    :param changed: the changed paths, repo-relative and POSIX
+    :param rules: the map's rules
+    :param no_reach: the globs that cover a path without giving it reach
+    :param derived: what answers a derived rule's selection
+    :throws MissingInput: if a derived rule fired on a path no graph answers for
     """
     reach = Reach()
     fired: list[Rule] = []
-    per_path: list[tuple[str, list[Rule]]] = []
+    per_path: list[tuple[str, list[Rule], tuple[str, ...]]] = []
 
     for path in changed:
         hits = [rule for rule in rules if matches(path, rule.trigger_paths)]
@@ -246,7 +328,7 @@ def resolve(changed: Sequence[str], rules: Sequence[Rule],
             if rule not in fired:
                 fired.append(rule)
         if hits:
-            per_path.append((path, hits))
+            per_path.append((path, hits, _derived_for(path, hits, derived)))
         elif matches(path, no_reach):
             reach.no_reach.append(path)
         else:
@@ -257,12 +339,13 @@ def resolve(changed: Sequence[str], rules: Sequence[Rule],
     # name it: a rule whose selection its own path demoted away has not selected anything, and saying
     # it did would name the wrong rule in the contradiction the plan prints.
     selectors: dict[str, list[str]] = {}
-    for _, hits in per_path:
-        for artifact in _resolve_path(hits):
+    for _, hits, answer in per_path:
+        for artifact in _resolve_path(hits, answer):
             if artifact not in seen:
                 seen.append(artifact)
             for rule in hits:
-                if artifact in rule.sees and rule.id not in selectors.setdefault(artifact, []):
+                if (artifact in _selection(rule, answer)
+                        and rule.id not in selectors.setdefault(artifact, [])):
                     selectors[artifact].append(rule.id)
 
     blind: list[dict] = []

@@ -17,6 +17,7 @@ import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Resolves one entity in one pass - the {@link #resolve()} put-chain IS the on-disk key
@@ -34,6 +35,7 @@ final class EntityRendererResolver {
     private final @NotNull EntityGeometryRefResolver geometryRef;
     private final @NotNull EntityTextureResolver texture;
     private final @NotNull EntityRenderTraitsResolver renderTraits;
+    private final @NotNull EntityRestStateResolver restState;
     private final @NotNull EntityBoneResolver bones;
     private final @NotNull EntityAxesResolver axes;
     private final @NotNull EntityOverlayResolver overlays;
@@ -53,6 +55,7 @@ final class EntityRendererResolver {
         this.geometryRef = new EntityGeometryRefResolver(context.scope("geometry"));
         this.texture = new EntityTextureResolver(context.scope("texture"));
         this.renderTraits = new EntityRenderTraitsResolver(context.scope("render"));
+        this.restState = new EntityRestStateResolver(context.scope("rest"));
         this.bones = new EntityBoneResolver(context.scope("bones"), this.geometryRef);
         this.axes = new EntityAxesResolver(context.scope("axes"), this.geometryRef);
         this.overlays = new EntityOverlayResolver(context.scope("overlays"), this.layerRoster, this.geometryRef);
@@ -72,22 +75,28 @@ final class EntityRendererResolver {
         // top level: it moves the model baseline (base geometry + adult texture) into
         // the mandatory age axis' options.adult (EntityAgeAxisResolver).
         String baseGeometry = this.geometryRef.resolve();                               // -> manifest key
-        // Worn armor is not a top-level member: EntityLayersResolver emits it as a `layers`
-        // row derived off the same addLayer roster, carrying its own geometry reference.
+        // Worn armor is not a top-level member of its own resolution: EntityLayersResolver emits
+        // it as the `armor` node derived off the same addLayer roster, carrying its own geometry
+        // reference.
         JsonTree node = JsonTree.object()
             .put("renderer", this.subject.rendererClass());                             // provenance scalar (resolver-owned)
         String texturePath = this.axes.resolveVariant() == null ? this.texture.resolve() : null;
         JsonTree overlays = this.overlays.resolve();
-        return node
-            .putIf("render", this.renderTraits.resolve())                               // {scale?, yaw_addend?, tint?}
-            .putIf("bones", this.bones.resolve())                                       // {hidden?, toggles?}
+        node
+            .putIf("render", this.renderTraits.resolve())                               // {scale?, tint?}
+            .putIf("rest", this.restState.resolve())                                    // enum state field -> constant
+            .putIf("bones", this.bones.resolve())                                       // {undrawn?, toggles?}
             // The setupRotations Y shift is per-age, so it rides the age options rather than `render`.
             .put("axes", this.axes.resolve(baseGeometry, texturePath, overlays,
                 this.renderTraits.resolveSetupYShift()))                                // age mandatory -> always present
             .putIf("overlays", overlays)
-            .putIf("block_overlays", this.blockOverlays.resolve())
-            .putIf("layers", this.layers.resolve());
-    }   // group_of appended by the EntityGroupLinker post-pass
+            .putIf("block_overlays", this.blockOverlays.resolve());
+        // The two decoration members - armor and equipment - land side by side, each named for
+        // what it is.
+        JsonTree decorations = this.layers.resolve();
+        if (decorations != null) node.putAll(decorations);
+        return node;
+    }   // members appended by the EntityGroupLinker post-pass
 
     /**
      * One {@code addLayer(...)} call site in the renderer constructor chain.
@@ -117,21 +126,20 @@ final class EntityRendererResolver {
     private @NotNull List<LayerSite> scanLayerRoster(@NotNull ToolingSession session) {
         List<List<LayerSite>> perClass = new ArrayList<>();
         ClassKit.walkSuperChain(session.cache(), this.subject.rendererClass(), cn -> {
-            List<LayerSite> level = new ArrayList<>();
-            for (MethodNode ctor : cn.methods) {
-                if (!ClassKit.INIT.equals(ctor.name)) continue;
-                // Owner-agnostic addLayer match - the renderer's super may be any of
-                // several LivingEntityRenderer subclasses; gate on the canonical
-                // descriptor shape (single Layer arg, boolean return).
-                level.addAll(AsmWalker.over(ctor)
+            // Owner-agnostic addLayer match - the renderer's super may be any of
+            // several LivingEntityRenderer subclasses; gate on the canonical
+            // descriptor shape (single Layer arg, boolean return).
+            perClass.add(cn.methods.stream()
+                .filter(ctor -> ClassKit.INIT.equals(ctor.name))
+                .flatMap(ctor -> AsmWalker.over(ctor)
                     .ofType(MethodInsnNode.class)
                     .where(call -> call.getOpcode() == Opcodes.INVOKEVIRTUAL
                         && VanillaSourceClasses.Methods.ADD_LAYER.equals(call.name)
                         && call.desc.startsWith("(L") && call.desc.endsWith(";)Z"))
                     .mapNotNull(call -> resolveSite(ctor, call))
-                    .toList());
-            }
-            perClass.add(level);
+                    .toList()
+                    .stream())
+                .collect(Collectors.toList()));
         });
         List<LayerSite> out = new ArrayList<>();
         for (int levelIndex = perClass.size() - 1; levelIndex >= 0; levelIndex--)

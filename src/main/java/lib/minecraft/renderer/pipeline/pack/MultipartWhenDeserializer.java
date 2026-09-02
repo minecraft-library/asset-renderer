@@ -4,14 +4,14 @@ import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -26,8 +26,13 @@ import java.util.Map;
  * resolves it both from the multipart-part read and from the recursive {@code AND} / {@code OR} terms.
  * Deliberately carries no static state (no {@code Gson} field) so instantiating it during
  * {@code GsonSettings.defaults()} assembly never re-enters the builder.
+ *
+ * <p><b>Parity.</b> Registered by a service file and reached only through the contributor that
+ * names it, so no constant pool carries an edge to it. It parses the multipart condition every
+ * block variant is selected by.
  */
 @Parity(claim = "blockstate-multipart")
+@Parity(subject = {Subject.BLOCK, Subject.ENTITY, Subject.ITEM, Subject.MENU})
 public final class MultipartWhenDeserializer implements JsonDeserializer<Block.Multipart.When> {
 
     @Override
@@ -37,10 +42,11 @@ public final class MultipartWhenDeserializer implements JsonDeserializer<Block.M
         if (object.has("AND")) return new Block.Multipart.When.All(terms(object.get("AND"), context));
         if (object.has("OR")) return new Block.Multipart.When.Any(terms(object.get("OR"), context));
 
-        LinkedHashMap<String, List<String>> required = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : object.entrySet())
-            required.put(entry.getKey(), List.of(string(entry.getValue()).split("\\|")));
-        return new Block.Multipart.When.Match(required);
+        return new Block.Multipart.When.Match(object.entrySet()
+            .stream()
+            .collect(Concurrent.toUnmodifiableLinkedMap(
+                Map.Entry::getKey,
+                entry -> Concurrent.newUnmodifiableList(string(entry.getValue()).split("\\|")))));
     }
 
     /**
@@ -48,12 +54,14 @@ public final class MultipartWhenDeserializer implements JsonDeserializer<Block.M
      * of {@link Block.Multipart.When}, recursing through the context. Non-object elements are skipped;
      * a non-array term yields an empty list.
      */
-    private static @NotNull List<Block.Multipart.When> terms(@NotNull JsonElement terms, @NotNull JsonDeserializationContext context) {
-        ArrayList<Block.Multipart.When> parsed = new ArrayList<>();
-        if (terms.isJsonArray())
-            for (JsonElement term : terms.getAsJsonArray())
-                if (term.isJsonObject()) parsed.add(context.deserialize(term, Block.Multipart.When.class));
-        return parsed;
+    private static @NotNull ConcurrentList<Block.Multipart.When> terms(@NotNull JsonElement terms, @NotNull JsonDeserializationContext context) {
+        if (!terms.isJsonArray()) return Concurrent.newUnmodifiableList();
+        return terms.getAsJsonArray()
+            .asList()
+            .stream()
+            .filter(JsonElement::isJsonObject)
+            .map(term -> context.<Block.Multipart.When>deserialize(term, Block.Multipart.When.class))
+            .collect(Concurrent.toWideUnmodifiableList());
     }
 
     /**

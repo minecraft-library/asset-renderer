@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Sequence
 
-from parity import capture, compare, promote, store
+from parity import capture, compare, promote, provenance, store
 from parity.norm import MissingInput, Refused, read_json, read_text, write_json, write_text
 
 
@@ -344,6 +345,53 @@ class ADirtyTreeIsNotPromotable(Base):
     def test_allow_dirty_is_the_explicit_override(self):
         self._check(artifact(dirty=True), allow_dirty=True)
 
+    def test_a_dirty_capture_promotes_once_its_content_is_committed(self):
+        """Gate, then commit, then promote - and the capture is re-read rather than re-run.
+
+        What R4 needs is that a baseline be re-derivable from a commit, not that the capture ran
+        after one. `asset_dirty` names an ORDERING, so the only way to satisfy it was to capture a
+        second time from the committed tree, at the cost of the whole bundle. Content does not move
+        across a commit.
+        """
+        repo = self._git_repo()
+        payload = artifact(dirty=True)
+        payload["provenance"]["asset_content_digest"] = provenance.content_digest(repo)
+        self._check(payload, repo=repo)
+
+    def test_a_dirty_capture_of_other_content_is_still_refused(self):
+        """Committed is not enough: it has to be THIS content that got committed."""
+        repo = self._git_repo()
+        payload = artifact(dirty=True)
+        payload["provenance"]["asset_content_digest"] = "not the tree's digest"
+        with self.assertRaises(Refused):
+            self._check(payload, repo=repo)
+
+    def test_a_dirty_capture_is_refused_while_the_tree_is_still_dirty(self):
+        """Both halves are required - a matching digest over an uncommitted tree is not committed."""
+        repo = self._git_repo()
+        (repo / "seed.txt").write_text("edited after the commit\n", encoding="utf-8")
+        payload = artifact(dirty=True)
+        payload["provenance"]["asset_content_digest"] = provenance.content_digest(repo)
+        with self.assertRaises(Refused):
+            self._check(payload, repo=repo)
+
+    def test_a_capture_recording_no_content_digest_refuses_as_it_always_did(self):
+        repo = self._git_repo()
+        payload = artifact(dirty=True)
+        payload["provenance"].pop("asset_content_digest", None)
+        with self.assertRaises(Refused):
+            self._check(payload, repo=repo)
+
+    def _git_repo(self) -> Path:
+        """A committed repository, so `asset_state` reads it clean."""
+        repo = Path(tempfile.mkdtemp())
+        (repo / "seed.txt").write_text("seed\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                        "commit", "-qm", "seed"], cwd=repo, check=True)
+        return repo
+
     def test_the_override_is_recorded_in_the_promoted_provenance(self):
         """An override nothing writes down is indistinguishable from the refusal never firing."""
         self._capture(artifact(dirty=True))
@@ -380,6 +428,36 @@ class Apply(Base):
         self._capture(artifact())
         promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
         self.assertIs(self.store.index()["artifacts"]["sweep.entity"]["baselined"], True)
+
+    def test_a_moved_row_keeps_a_duration_its_own_run_did_not_measure(self):
+        """A wall time is a property of the RUN, and a producer reached as somebody else's
+        `dependsOn` stamps none. The `unchanged` arm keeps and refreshes what the row had, so a row
+        that MOVED losing it would make two arms of one promotion disagree - which took
+        `pin.block-crc` and `pin.player-crc` from 19235 ms to nothing.
+        """
+        self.store.write("report.oracle-index", registered(*REGISTERED, last_duration_ms=19235))
+        self.store.write("sweep.entity", artifact(delta="2.0000"))
+        self._capture(artifact())
+        entries = promote.plan(self.root, self.store)
+        self.assertEqual(entries[0].action, "replace")
+        promote.apply(self.root, self.store, entries, "r")
+        self.assertEqual(self.store.index()["artifacts"]["sweep.entity"]["last_duration_ms"], 19235)
+
+    def test_a_run_that_did_measure_one_replaces_the_value_it_kept(self):
+        """Kept until a run measures a new one, never instead of one."""
+        self.store.write("report.oracle-index", registered(*REGISTERED, last_duration_ms=19235))
+        self.store.write("sweep.entity", artifact(delta="2.0000"))
+        measured = artifact()
+        measured["provenance"]["wall_time_ms"] = 41
+        self._capture(measured)
+        promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
+        self.assertEqual(self.store.index()["artifacts"]["sweep.entity"]["last_duration_ms"], 41)
+
+    def test_a_row_that_never_carried_one_still_carries_none(self):
+        """Absence is an answer rather than a zero, or the budget would price an unmeasured row."""
+        self._capture(artifact())
+        promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
+        self.assertNotIn("last_duration_ms", self.store.index()["artifacts"]["sweep.entity"])
 
     def test_there_is_no_provenance_directory_on_either_side(self):
         self._capture(artifact())

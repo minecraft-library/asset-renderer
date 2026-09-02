@@ -4,7 +4,7 @@
   "files": [
     {
       "path": "block-entities.json",
-      "sha256": "02f52e9669ebb1d44f70b770ebff0ffb6b4ce86c4e99b5cab52a90c3ff1bfe0f"
+      "sha256": "d653b8de070648bba65978731d9baa439a1d1492c8552651821a339eb17f7c7f"
     },
     {
       "path": "block-models.json",
@@ -12,11 +12,11 @@
     },
     {
       "path": "blocks.json",
-      "sha256": "bcd692f72ec8ed5668918b24a09a00c23565b31f48884ab0515d278b46e13e62"
+      "sha256": "f2b70a61b290a7bd71d339d4dddf3619e99fdfccbbc632076773386ec70f20a8"
     },
     {
       "path": "entities.json",
-      "sha256": "bace1e41cda5df7858e3f61a0eefed30bb8481fbd411072677699a869616dafb"
+      "sha256": "328e2325ef3b53a14ba8c960cfbf43963af28f8545084ceb1b1fd3e9dfff40a8"
     },
     {
       "path": "item-models.json",
@@ -64,27 +64,29 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.packs",
+    "asset_content_digest": "6083bea5c715cc96082c88a6091e19590cf9b8e643dafdaebfe7b510e5537914",
     "asset_dirty": false,
-    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "asset_sha": "5b82eb6d137caf1540b4cb3fefe6807330cec07a",
     "counts": {
       "files": 14
     },
-    "determinism_runs": 5,
+    "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
+    "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 5/5, dump pair at FIVE runs: 14 of 14 sections stable across all five in both configs, all four compares against run 1 clean. The retained series-end dump tree reproduces the committed oracle digests exactly, so it is that oracle; six of its fourteen sections differ and it predates HEAD by 314 commits. Field-level, every one is accounted for: block-models.json and item-models.json differ ONLY by gui_light_3d being removed from every model, 2392 and 1284 removals with no other field touched, which is the registered delta; entities.json differs by named landed work - show_base_plate becoming base_plate plus arms, the small armour stand size_models SMALL, and equipment texture_template becoming layer_type, material_assets and default_material; and block-entities.json, blocks.json and items.json have an identical field set with values moved, so no schema change. run.json is byte-identical to the oracle.",
+    "reason": "The entity tables move to format 3 with the shipped style catalog: play sites state their drive as motion-source tokens, containers arrive composed with the ground frame, the defaults tables, flag channels and renderers table stop being emitted, and entity_models.json carries period_ticks plus 180 style rows over 86 entities. The dump manifests carry the same loaded data respelled - drive tokens none/stride/select under the dump's gate key, and the loaded catalog. Load equality proven bit-exact old-vs-new over all 90 entities; the emitted inventory agrees with the live classifier on 135 subjects.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 402,
+      "entities": 403,
       "glint": 330,
       "items": 479,
       "players": 2
     },
     "root": "cache/parity-dump/head/packs",
-    "timestamp": "2026-08-01T02:31:04Z",
-    "tool_version": "1.0.0"
+    "timestamp": "2026-09-01T21:14:27Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 28525
   }
 }

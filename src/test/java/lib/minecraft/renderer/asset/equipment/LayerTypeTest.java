@@ -15,10 +15,10 @@ import static org.hamcrest.Matchers.is;
 class LayerTypeTest {
 
     @Test
-    @DisplayName("fromId round-trips every constant's serialized id")
-    void fromIdRoundTrips() {
+    @DisplayName("findById round-trips every constant's serialized id")
+    void findByIdRoundTrips() {
         for (LayerType type : LayerType.values())
-            assertThat(LayerType.fromId(type.getId()), is(Optional.of(type)));
+            assertThat(LayerType.findById(type.getId()), is(Optional.of(type)));
     }
 
     @Test
@@ -30,16 +30,16 @@ class LayerTypeTest {
     @Test
     @DisplayName("known ids map to the right constant and back")
     void knownIds() {
-        assertThat(LayerType.fromId("humanoid"), is(Optional.of(LayerType.HUMANOID)));
-        assertThat(LayerType.fromId("humanoid_leggings"), is(Optional.of(LayerType.HUMANOID_LEGGINGS)));
-        assertThat(LayerType.fromId("wings"), is(Optional.of(LayerType.WINGS)));
+        assertThat(LayerType.findById("humanoid"), is(Optional.of(LayerType.HUMANOID)));
+        assertThat(LayerType.findById("humanoid_leggings"), is(Optional.of(LayerType.HUMANOID_LEGGINGS)));
+        assertThat(LayerType.findById("wings"), is(Optional.of(LayerType.WINGS)));
         assertThat(LayerType.WINGS.getId(), is("wings"));
     }
 
     @Test
     @DisplayName("an unknown id resolves to empty")
     void unknownEmpty() {
-        assertThat(LayerType.fromId("not_a_layer").isPresent(), is(false));
+        assertThat(LayerType.findById("not_a_layer").isPresent(), is(false));
     }
 
 }

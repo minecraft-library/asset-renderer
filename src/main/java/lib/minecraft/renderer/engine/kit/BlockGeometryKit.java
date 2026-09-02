@@ -4,7 +4,6 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
@@ -19,7 +18,6 @@ import lib.minecraft.renderer.face.CornerPhase;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.face.Unwrap;
-import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -33,29 +31,18 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Generates the canonical triangle lists needed by the engine layer for common 3D shapes.
+ * Walks a vanilla model into triangles: the flattened {@link ModelElement} list a block or item model
+ * ships, and the relative bone tree a block entity ships instead.
  * <p>
- * The primary use case is constructing the six-face cube used by every isometric block and head
- * renderer. Each cube face is built as a pair of triangles with the correct CCW winding, UV
- * orientation, and surface normal so that back-face culling and inventory lighting produce the
- * expected result without caller-side fixups. All direction-aware logic lives in the face package:
- * normals on {@link Face}, vertex winding on {@link CornerPhase}, default UV derivation on
- * {@link Unwrap}.
+ * Everything here reads shipped model data - the element's {@code from}/{@code to} grid, its per-face
+ * UV and rotation, {@code uvlock}, {@code shade} and {@code light_emission}. The box and the quad the
+ * walk emits into are {@link GeometryKit}'s, and so is the authoring grid the coordinates are
+ * normalised against; what is left here is the reading of the model itself. All direction-aware logic
+ * lives in the face package: normals on {@link Face}, vertex winding on {@link CornerPhase}, default
+ * UV derivation on {@link Unwrap}.
  */
-@Parity(claim = "box-builder")
 @UtilityClass
 public class BlockGeometryKit {
-
-    /**
-     * Edge length of a full block in vanilla model-authoring units. Every vanilla {@code block/}
-     * and {@code item/} model JSON authors coordinates against this grid - element
-     * {@code from} / {@code to} values of {@code [0, 0, 0]} and {@code [16, 16, 16]} describe a
-     * full unit cube, face UVs run from {@code 0} to {@code 16}, and {@code display.*.translation}
-     * values are in the same space. This kit and its consumers ({@link Unwrap.Element#rect},
-     * {@link BlockRenderer}, item renderer's display-transform path) divide by this constant to
-     * normalise into the engine's {@code [-0.5, +0.5]} unit-cube space before projection.
-     */
-    public static final float VANILLA_PIXEL_UNITS_PER_BLOCK = 16f;
 
     /**
      * Maximum {@code light_emission} level (vanilla's {@code 0-15} block-light scale). This level
@@ -65,99 +52,6 @@ public class BlockGeometryKit {
      * documented Held3D-only effect for intermediate emission.
      */
     private static final int FULL_LIGHT_EMISSION = 15;
-
-    /**
-     * The engine's normalized cube - the {@code [-0.5, +0.5]} span on every axis that every block
-     * element is converted into, and the box {@link #unitCube} builds.
-     */
-    private static final @NotNull Box UNIT_CUBE = new Box(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f);
-
-
-    /**
-     * Builds a list of 12 triangles (2 per face) describing a unit cube centered at the origin
-     * with the given per-face textures.
-     * <p>
-     * Every face uses the full {@code [0, 1]} UV rectangle.
-     *
-     * @param textures the texture each face paints
-     * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
-     * @return the 12-triangle list, ready for rasterization
-     */
-    public static @NotNull ConcurrentList<VisibleTriangle> unitCube(
-        @NotNull FaceTextures textures,
-        int tintArgb
-    ) {
-        return buildBox(UNIT_CUBE, textures, tintArgb);
-    }
-
-    /**
-     * Builds a list of 12 triangles describing an opaque, back-face-culled box, emitting untagged
-     * triangles.
-     *
-     * @param box the box in model space
-     * @param textures the texture each face paints
-     * @param tintArgb the ARGB tint applied to every face
-     * @return the 12-triangle list
-     */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildBox(
-        @NotNull Box box,
-        @NotNull FaceTextures textures,
-        int tintArgb
-    ) {
-        return buildBox(box, textures, tintArgb, SurfaceTraits.OPAQUE_BODY, null);
-    }
-
-    /**
-     * Builds a list of 12 triangles describing a box, carrying the surface character and the
-     * per-pixel-trace name the caller declares.
-     * <p>
-     * <b>One builder serves every box this renderer draws</b> - a block's unit cube, an item slab, the
-     * player's own body boxes, the cape, and a worn armour shell. Armour geometry does not differ from
-     * block geometry by a code path; it differs by the two bits between
-     * {@link SurfaceTraits#OPAQUE_BODY} and {@link SurfaceTraits#WORN_SHELL}, which is why those two
-     * constants are the whole of the distinction and why they carry their own reasons.
-     * <p>
-     * {@code debugPart} names the box for the per-pixel trace and each face's two triangles carry
-     * {@code part:face}. Without a tag an armour fragment logs {@code tag=null} and the trace skips it
-     * entirely, which has misread the armour seam twice - so a caller holding a name passes it whenever
-     * {@link RendererDebug#tracingPixels()} reports the dump armed. The name reaches the triangle as an
-     * argument rather than being recovered downstream from emission order.
-     *
-     * @param box the box in model space
-     * @param textures the texture each face paints
-     * @param tintArgb the ARGB tint applied to every face
-     * @param surface the surface character every triangle of the box carries
-     * @param debugPart the box's name for the per-pixel trace, or {@code null} to emit untagged
-     * @return the 12-triangle list
-     */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildBox(
-        @NotNull Box box,
-        @NotNull FaceTextures textures,
-        int tintArgb,
-        @NotNull SurfaceTraits surface,
-        @Nullable String debugPart
-    ) {
-        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        // The full [0, 1] rectangle - the UV every face of a box takes. One quartet serves all six
-        // faces because Vector2f is immutable, so the instances are shared rather than re-derived.
-        Vector2f[] uv = {
-            new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f)
-        };
-
-        for (Face face : Face.CACHED_VALUES) {
-            Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
-            Vector3f normal = face.normal();
-            addQuad(
-                triangles, corners, uv,
-                textures.byFace(face), tintArgb,
-                normal, Lighting.inventory(normal),
-                surface,
-                debugPart == null ? null : debugPart + ":" + face.direction()
-            );
-        }
-
-        return triangles;
-    }
 
     /**
      * Builds block-frame triangles directly from a <b>relative</b> bone/cube tree
@@ -171,7 +65,7 @@ public class BlockGeometryKit {
      * (via {@link BoneKit#resolvePolygonUv}), inflate, mirror, and per-cube / bind-pose
      * rotation (via {@link BoneKit#composeCubeTransform}) - then emitted in the block engine's
      * {@code [-0.5, +0.5]} frame by dividing the composed pixel-space position by
-     * {@link #VANILLA_PIXEL_UNITS_PER_BLOCK} and subtracting {@code 0.5}, matching
+     * {@link GeometryKit#VANILLA_PIXEL_UNITS_PER_BLOCK} and subtracting {@code 0.5}, matching
      * {@link #buildFromElements}'s normalization. Degenerate plane-cube faces are skipped; plane
      * cubes render two-sided; the inventory shade is baked via {@link Lighting#inventory}.
      * <p>
@@ -241,23 +135,24 @@ public class BlockGeometryKit {
                 Matrix4f cubeTransform = presentation.multiply(BoneKit.composeCubeTransform(cube, bone, boneChain));
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
 
-                for (Face face : Face.CACHED_VALUES) {
-                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
-                    Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
-                    for (int i = 0; i < corners.length; i++) {
-                        Vector3f t = corners[i].transform(cubeTransform);
-                        corners[i] = new Vector3f(
-                            t.x() / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
-                            t.y() / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
-                            t.z() / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f);
-                    }
-                    Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
-                    Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
-                    boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
-                    addQuad(triangles, corners, uv,
-                        texture, tintArgb, normal, Lighting.inventory(normal),
-                        new SurfaceTraits(!isPlaneCube, translucent, false, true, PassDeclaration.DEFAULT), null);
-                }
+                Face.stream()
+                    .filter(face -> !(isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)))
+                    .forEach(face -> {
+                        Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
+                        for (int i = 0; i < corners.length; i++) {
+                            Vector3f t = corners[i].transform(cubeTransform);
+                            corners[i] = new Vector3f(
+                                t.x() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
+                                t.y() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
+                                t.z() / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f);
+                        }
+                        Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
+                        Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
+                        boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
+                        GeometryKit.addQuad(triangles, corners, uv,
+                            texture, tintArgb, normal, Lighting.inventory(normal),
+                            new SurfaceTraits(!isPlaneCube, translucent, false, true, PassDeclaration.DEFAULT), null);
+                    });
             }
         }
 
@@ -322,7 +217,7 @@ public class BlockGeometryKit {
      * <p>
      * Each element's {@code from}/{@code to} bounds are converted from vanilla's 0-16 space to
      * the engine's normalized {@code [-0.5, +0.5]} cube space, matching the convention used by
-     * {@link #unitCube}. Faces missing from an element's {@code faces} map - or carrying an
+     * {@link GeometryKit#unitCube}. Faces missing from an element's {@code faces} map - or carrying an
      * unrecognized direction name - are skipped. Face UV rectangles are converted from 0-16 to
      * {@code [0, 1]} space when present, otherwise derived via {@link Unwrap.Element#rect}. Face
      * {@code rotation} ({@code 0}/{@code 90}/{@code 180}/{@code 270} degrees) rotates the UV
@@ -422,12 +317,12 @@ public class BlockGeometryKit {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
         for (ModelElement element : elements) {
-            float x0 = element.getFrom()[0] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float y0 = element.getFrom()[1] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float z0 = element.getFrom()[2] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float x1 = element.getTo()[0] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float y1 = element.getTo()[1] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float z1 = element.getTo()[2] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float x0 = element.getFrom()[0] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float y0 = element.getFrom()[1] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float z0 = element.getFrom()[2] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float x1 = element.getTo()[0] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float y1 = element.getTo()[1] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float z1 = element.getTo()[2] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
 
             // Build element rotation transform if present. The rotation is applied around
             // an arbitrary origin on a single axis. When rescale is set, the two axes
@@ -439,9 +334,9 @@ public class BlockGeometryKit {
                 ModelElement.ElementRotation rot = element.getRotation().get();
                 if (rot.angle() != 0f) {
                     float[] rawOrigin = rot.origin();
-                    float ox = rawOrigin[0] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-                    float oy = rawOrigin[1] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-                    float oz = rawOrigin[2] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+                    float ox = rawOrigin[0] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+                    float oy = rawOrigin[1] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+                    float oz = rawOrigin[2] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
 
                     Vector3f axisVec = switch (rot.axis()) {
                         case "x" -> new Vector3f(1, 0, 0);
@@ -510,7 +405,7 @@ public class BlockGeometryKit {
                 // additive for pack content only.
                 boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture)
                     || forceTranslucentRefs.contains(face.getTexture());
-                addQuad(
+                GeometryKit.addQuad(
                     triangles, corners, uv,
                     texture, faceTint,
                     faceNormal,
@@ -549,8 +444,8 @@ public class BlockGeometryKit {
         Vector4f rect = face.getUv()
             .orElseGet(() -> new Unwrap.Element(Box.of(element.getFrom(), element.getTo())).rect(blockFace));
         Vector2f[] corners = rect.toUvCorners(
-            VANILLA_PIXEL_UNITS_PER_BLOCK,
-            VANILLA_PIXEL_UNITS_PER_BLOCK,
+            GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+            GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
             face.getRotation(),
             false
         );
@@ -684,55 +579,6 @@ public class BlockGeometryKit {
             return Math.max(Lighting.inventory(normal), emissionFloor);
         }
         return Lighting.inventory(normal);
-    }
-
-    /**
-     * The renderer's one quad emitter: splits a planar quad into its two triangles and appends them to
-     * {@code out}.
-     * <p>
-     * <b>The fan diagonal is chosen here, and every planar quad the renderer draws is split by this
-     * one line.</b> The triangles are {@code (0, 1, 2)} and {@code (0, 2, 3)}, so they meet along the
-     * corner-0 / corner-2 pair - the diagonal {@link CornerPhase} pins. That is not a matter of taste:
-     * two coplanar quads split on opposite diagonals fight along the seam they share, an equal depth
-     * passes ({@code GL_LEQUAL}, last-drawn-wins), and the winner is then decided by emission order. A
-     * block element, a bone cube, a fluid side and the shield used to spell this split independently
-     * and agreed by luck.
-     * <p>
-     * Both triangles carry one {@code normal}, one {@code shading} and one {@code traits} instance -
-     * that sharing is what makes them one quad rather than two triangles. A caller whose halves need
-     * different values has no shared per-quad value to hand in and emits its own pair; the renderer's
-     * only such site is a fluid's sloped top, whose four corners are not coplanar.
-     * <p>
-     * The shade is the caller's: {@link Lighting#inventory} for a box, a bone cube, a fluid face or the
-     * shield, {@link #elementShade} where a block element declares {@code shade} or
-     * {@code light_emission}, and {@code Shading.UNLIT} for an entity cube, whose shade a later pass
-     * over the folded stack resolves. Baking it here instead would make the emitter answer a lighting
-     * question only some of its callers ask.
-     *
-     * @param out the list both triangles are appended to
-     * @param corners the quad's four vertices, in the order the caller's {@link CornerPhase} walks them
-     * @param uv the four UVs, {@code uv[i]} pairing with {@code corners[i]}
-     * @param texture the texture both triangles sample
-     * @param tintArgb the ARGB tint applied to each sampled pixel, or {@code 0xFFFFFFFF} for no tint
-     * @param normal the surface normal both triangles carry
-     * @param shading the shade scalar both triangles carry
-     * @param traits the surface character both triangles carry, declared by the caller
-     * @param debugTag the {@code part:face} label for the per-pixel trace, or {@code null} when the
-     *     dump is not armed
-     */
-    static void addQuad(
-        @NotNull ConcurrentList<VisibleTriangle> out,
-        @NotNull Vector3f @NotNull [] corners,
-        @NotNull Vector2f @NotNull [] uv,
-        @NotNull PixelBuffer texture,
-        int tintArgb,
-        @NotNull Vector3f normal,
-        float shading,
-        @NotNull SurfaceTraits traits,
-        @Nullable String debugTag
-    ) {
-        out.add(new VisibleTriangle(corners[0], corners[1], corners[2], uv[0], uv[1], uv[2], texture, tintArgb, normal, shading, traits, debugTag));
-        out.add(new VisibleTriangle(corners[0], corners[2], corners[3], uv[0], uv[2], uv[3], texture, tintArgb, normal, shading, traits, debugTag));
     }
 
 }

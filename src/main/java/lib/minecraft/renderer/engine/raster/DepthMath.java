@@ -8,9 +8,8 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Static helpers for the depth half of the rasterization math - the window-depth grid vanilla
- * resolves a fragment against, the depth test taken over it, and the unsnapped-plane re-read that
- * keeps the coverage snap from moving depth. (The 2D coverage math these pair with lives on
- * {@link RasterMath}.)
+ * resolves a fragment against, the depth test taken over it, and the {@link Plane} a triangle's
+ * fragment depths are read off. (The 2D coverage math these pair with lives on {@link RasterMath}.)
  */
 @Parity(claim = "depth-immunity-limit")
 @Parity(claim = "depth-immunity")
@@ -97,76 +96,74 @@ public class DepthMath {
     }
 
     /**
-     * Re-reads each vertex's depth off the triangle's <b>unsnapped</b> plane at its <b>snapped</b>
-     * screen position, so the coverage snap moves coverage without moving depth.
+     * The plane a triangle's fragment depths are read off - the one its three <b>unsnapped</b> screen
+     * positions and camera-space depths define, anchored at the first of them.
      *
-     * <p>The rasterizer interpolates depth as {@code bary . z} with the barycentric weights taken from
-     * the snapped vertices ({@link ModelEngine#snapToCoverageGrid}) while the {@code z} values belong to
-     * the unsnapped ones. Depth is affine in screen space here (there is no perspective-correct depth
-     * path - see the rasterizer's {@code depthVal}), so that pairing tilts every triangle's depth plane
-     * by an amount computed from its own vertices. Two <em>genuinely coplanar</em> triangles therefore
-     * stop agreeing: the worn-armour chestplate's torso box and its arm box overlap by two model units
-     * at identical {@code z}, and the tilt put the arm a consistent 60 ULP in front, so it won a
-     * contest vanilla resolves the other way - not as a tie the draw order breaks, but outright,
-     * whichever order they were drawn in.
+     * <p>Depth is affine in screen space under every lens (there is no perspective-correct depth
+     * path - see the rasterizer's {@code depthVal}), so three vertices fix it exactly, and reading it
+     * off the unsnapped positions is what keeps the {@code 1/400} coverage snap
+     * ({@link ModelEngine#snapToCoverageGrid}) from moving depth. A plane solved from the snapped
+     * vertices instead is tilted by how far each of them moved, which is a different tilt per
+     * triangle: two <em>genuinely coplanar</em> triangles - the worn-armour chestplate's torso box
+     * and its arm box overlap by two model units at identical {@code z} - stop agreeing, and one
+     * wins a contest outright that vanilla leaves to draw order.
      *
-     * <p>Substituting the plane's own value at the snapped vertex restores it: barycentric
-     * interpolation of an affine function over the snapped triangle reproduces that function exactly,
-     * so the depth sampled anywhere inside is the unsnapped plane's depth there, and coplanar
-     * triangles agree again to within float rounding. The solve runs in {@code double} because its
-     * whole purpose is to leave no systematic residue between two triangles of one plane. A triangle
-     * with no unsnapped screen area has no plane to read, and keeps its vertex depths unchanged.
+     * <p>Solved and carried in {@code double} for the same reason, and read straight at the sample
+     * point. Two triangles of one plane agree only as closely as the arithmetic between the solve
+     * and the depth test leaves them, and the window grid
+     * ({@link DepthMath#onVanillaDepthGrid}) resolves finer than a {@code float} chain of that
+     * length: rounding the solve into three vertex depths, re-solving those into gradients and
+     * evaluating from a vertex anchor is five roundings the two triangles take differently, and it
+     * separates by one to two quanta a pair the grid would otherwise tie. The vertices themselves
+     * are {@code float}, so what is left is the model's own rounding rather than the raster's.
      *
-     * @param r0 the first vertex's unsnapped screen position
-     * @param r1 the second vertex's unsnapped screen position
-     * @param r2 the third vertex's unsnapped screen position
-     * @param s0 the first vertex's snapped screen position
-     * @param s1 the second vertex's snapped screen position
-     * @param s2 the third vertex's snapped screen position
-     * @param z0 the first vertex's camera-space depth
-     * @param z1 the second vertex's camera-space depth
-     * @param z2 the third vertex's camera-space depth
-     * @return the three raster depths, in vertex order
-     */
-    public static float @NotNull [] depthOnUnsnappedPlane(
-        @NotNull Vector2f r0, @NotNull Vector2f r1, @NotNull Vector2f r2,
-        @NotNull Vector2f s0, @NotNull Vector2f s1, @NotNull Vector2f s2,
-        float z0, float z1, float z2
-    ) {
-        double dx1 = (double) r1.x() - r0.x();
-        double dy1 = (double) r1.y() - r0.y();
-        double dx2 = (double) r2.x() - r0.x();
-        double dy2 = (double) r2.y() - r0.y();
-        double denominator = dx1 * dy2 - dx2 * dy1;
-        if (denominator == 0d) return new float[]{ z0, z1, z2 };
-
-        double dz1 = (double) z1 - z0;
-        double dz2 = (double) z2 - z0;
-        double slopeX = (dz1 * dy2 - dz2 * dy1) / denominator;
-        double slopeY = (dx1 * dz2 - dx2 * dz1) / denominator;
-        return new float[]{
-            planeDepth(z0, slopeX, slopeY, r0, s0),
-            planeDepth(z0, slopeX, slopeY, r0, s1),
-            planeDepth(z0, slopeX, slopeY, r0, s2)
-        };
-    }
-
-    /**
-     * Evaluates a depth plane, anchored at {@code origin} with the given screen-space slopes, at one
-     * snapped screen position.
-     *
-     * @param anchorDepth the depth at {@code origin}
+     * @param anchorX the first vertex's unsnapped screen X
+     * @param anchorY the first vertex's unsnapped screen Y
+     * @param anchorDepth the camera-space depth at the anchor
      * @param slopeX the plane's depth gradient along screen X
      * @param slopeY the plane's depth gradient along screen Y
-     * @param origin the unsnapped screen position the plane is anchored at
-     * @param at the snapped screen position to read the plane at
-     * @return the plane's depth at {@code at}
      */
-    private static float planeDepth(
-        float anchorDepth, double slopeX, double slopeY, @NotNull Vector2f origin, @NotNull Vector2f at) {
-        return (float) (anchorDepth
-            + slopeX * ((double) at.x() - origin.x())
-            + slopeY * ((double) at.y() - origin.y()));
+    public record Plane(double anchorX, double anchorY, double anchorDepth, double slopeX, double slopeY) {
+
+        /**
+         * Solves the plane through three unsnapped screen positions and their camera-space depths.
+         *
+         * @param r0 the first vertex's unsnapped screen position
+         * @param r1 the second vertex's unsnapped screen position
+         * @param r2 the third vertex's unsnapped screen position
+         * @param z0 the first vertex's camera-space depth
+         * @param z1 the second vertex's camera-space depth
+         * @param z2 the third vertex's camera-space depth
+         * @return the plane, flat at the first vertex's depth when the triangle has no unsnapped screen
+         *     area to tilt one over
+         */
+        public static @NotNull Plane of(
+            @NotNull Vector2f r0, @NotNull Vector2f r1, @NotNull Vector2f r2, float z0, float z1, float z2) {
+            double dx1 = (double) r1.x() - r0.x();
+            double dy1 = (double) r1.y() - r0.y();
+            double dx2 = (double) r2.x() - r0.x();
+            double dy2 = (double) r2.y() - r0.y();
+            double denominator = dx1 * dy2 - dx2 * dy1;
+            if (denominator == 0d) return new Plane(r0.x(), r0.y(), z0, 0d, 0d);
+
+            double dz1 = (double) z1 - z0;
+            double dz2 = (double) z2 - z0;
+            return new Plane(r0.x(), r0.y(), z0,
+                (dz1 * dy2 - dz2 * dy1) / denominator,
+                (dx1 * dz2 - dx2 * dz1) / denominator);
+        }
+
+        /**
+         * Reads the plane's depth at one screen position.
+         *
+         * @param x the screen X to read at
+         * @param y the screen Y to read at
+         * @return the camera-space depth there
+         */
+        public float depthAt(float x, float y) {
+            return (float) (this.anchorDepth + this.slopeX * (x - this.anchorX) + this.slopeY * (y - this.anchorY));
+        }
+
     }
 
 }

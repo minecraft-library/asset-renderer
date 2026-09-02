@@ -18,9 +18,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import java.io.InputStreamReader;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -42,16 +45,34 @@ class GeometryParserTest {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
+    /** The shipped table, relative to the renderer root every Test task runs at. */
+    private static final @NotNull Path SHIPPED_GEOMETRY =
+        Path.of("src/main/resources/lib/minecraft/renderer/entity_geometry.json");
+
     private static ClassNodeCache cache;
     private static JsonObject referenceGeometries;
+
+    /**
+     * Reads a UTF-8 file, failing loudly when it is not where the renderer root says it is.
+     *
+     * @param path the file, relative to the renderer root
+     * @return the file's reader
+     */
+    private static @NotNull Reader read(@NotNull Path path) {
+        try {
+            return Files.newBufferedReader(path, StandardCharsets.UTF_8);
+        } catch (IOException error) {
+            throw new UncheckedIOException("no shipped table at " + path.toAbsolutePath(), error);
+        }
+    }
 
     @BeforeAll
     static void open() {
         cache = ClassNodeCache.open(ClientAcquisition.downloadJarToCache(ClientOptions.defaults()));
-        referenceGeometries = GSON.fromJson(new InputStreamReader(
-                Objects.requireNonNull(GeometryParserTest.class.getResourceAsStream(
-                    "/lib/minecraft/renderer/entity_geometry.json")), StandardCharsets.UTF_8),
-                JsonElement.class)
+        // Read off disk rather than off the classpath: this build ships no resources and never
+        // processes the renderer's, so the classpath lookup answers null here. Every Test task
+        // runs at the renderer root, which is the same anchor the flows resolve their paths from.
+        referenceGeometries = GSON.fromJson(read(SHIPPED_GEOMETRY), JsonElement.class)
             .getAsJsonObject().getAsJsonObject("geometries");
     }
 
@@ -105,12 +126,12 @@ class GeometryParserTest {
         for (String bone : referenceBones.keySet()) {
             JsonObject expected = referenceBones.getAsJsonObject(bone);
             JsonObject actual = parsedBones.getAsJsonObject(bone);
-            assertExactFloats(expected.getAsJsonArray("pivot"), actual.getAsJsonArray("pivot"), bone + ".pivot");
-            assertExactFloats(expected.getAsJsonArray("rotation"), actual.getAsJsonArray("rotation"), bone + ".rotation");
+            assertExactFloats(optTriple(expected, "pivot"), optTriple(actual, "pivot"), bone + ".pivot");
+            assertExactFloats(optTriple(expected, "rotation"), optTriple(actual, "rotation"), bone + ".rotation");
             assertEquals(optFloat(expected, "scale", 1f), optFloat(actual, "scale", 1f), bone + ".scale");
             assertEquals(optString(expected, "parent"), optString(actual, "parent"), bone + ".parent");
-            JsonArray expectedCubes = expected.getAsJsonArray("cubes");
-            JsonArray actualCubes = actual.getAsJsonArray("cubes");
+            JsonArray expectedCubes = optArray(expected, "cubes");
+            JsonArray actualCubes = optArray(actual, "cubes");
             assertEquals(expectedCubes.size(), actualCubes.size(), bone + ".cubes count");
             for (int i = 0; i < expectedCubes.size(); i++) {
                 JsonObject expectedCube = expectedCubes.get(i).getAsJsonObject();
@@ -148,6 +169,22 @@ class GeometryParserTest {
 
     private static float optFloat(@NotNull JsonObject node, @NotNull String key, float dflt) {
         return node.has(key) ? node.get(key).getAsFloat() : dflt;
+    }
+
+    /**
+     * A bone triple, or the origin where the member is absent - the same value the reading field
+     * holds either way, which is why the emitter omits it there.
+     */
+    private static @NotNull JsonArray optTriple(@NotNull JsonObject node, @NotNull String key) {
+        if (node.has(key)) return node.getAsJsonArray(key);
+        JsonArray origin = new JsonArray();
+        for (int component = 0; component < 3; component++) origin.add(0f);
+        return origin;
+    }
+
+    /** A cube list, or an empty one where the member is absent, on the same terms. */
+    private static @NotNull JsonArray optArray(@NotNull JsonObject node, @NotNull String key) {
+        return node.has(key) ? node.getAsJsonArray(key) : new JsonArray();
     }
 
     private static @Nullable String optString(@NotNull JsonObject node, @NotNull String key) {

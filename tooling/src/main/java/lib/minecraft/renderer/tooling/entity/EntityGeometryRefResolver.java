@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Node {@code geometry} - resolves THE primary body mesh, registers its
@@ -291,12 +293,13 @@ final class EntityGeometryRefResolver {
         ClassNode modelLayers = this.cache.load(VanillaSourceClasses.Types.MODEL_LAYERS);
         if (modelLayers == null) return this.subject.lambdaLayerFields();
         String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
-        List<String> out = new ArrayList<>();
-        for (String field : this.subject.lambdaLayerFields()) {
-            var node = ClassKit.findField(modelLayers, field);
-            if (node != null && mllRef.equals(node.desc)) out.add(field);
-        }
-        return out;
+        return this.subject.lambdaLayerFields()
+            .stream()
+            .filter(field -> {
+                var node = ClassKit.findField(modelLayers, field);
+                return node != null && mllRef.equals(node.desc);
+            })
+            .collect(Collectors.toList());
     }
 
     /** The positive package gate: a model class, never a geometry primitive. */
@@ -394,17 +397,18 @@ final class EntityGeometryRefResolver {
      * equipment layer directly.
      */
     private @NotNull List<String> typeAugmentedLayerFields() {
-        List<String> out = new ArrayList<>();
-        LinkedHashSet<String> owners = new LinkedHashSet<>();
-        for (EntitySubject.TypeFieldRef ref : this.subject.lambdaTypeArgs()) owners.add(ref.owner());
-        for (String owner : owners) {
-            Map<String, String> byConstant = typeConstantModelLayerMap(owner);
-            for (EntitySubject.TypeFieldRef ref : this.subject.lambdaTypeArgs()) {
-                String field = byConstant.get(ref.name());
-                if (field != null) out.add(field);
-            }
-        }
-        return out;
+        return this.subject.lambdaTypeArgs()
+            .stream()
+            .map(EntitySubject.TypeFieldRef::owner)
+            .distinct()
+            .flatMap(owner -> {
+                Map<String, String> byConstant = typeConstantModelLayerMap(owner);
+                return this.subject.lambdaTypeArgs()
+                    .stream()
+                    .map(ref -> byConstant.get(ref.name()))
+                    .filter(Objects::nonNull);
+            })
+            .collect(Collectors.toList());
     }
 
     /**

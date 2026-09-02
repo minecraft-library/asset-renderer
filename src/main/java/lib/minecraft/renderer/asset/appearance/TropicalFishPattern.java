@@ -1,13 +1,11 @@
 package lib.minecraft.renderer.asset.appearance;
 
 import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import java.util.Locale;
 
 /**
  * A tropical-fish pattern - one of the twelve vanilla {@code TropicalFish.Pattern} values, each
@@ -17,6 +15,7 @@ import java.util.Locale;
  * Names and shape/index mappings mirror {@code TropicalFishPatternLayer}'s per-pattern texture
  * constants.
  */
+@EnumLookup
 @Getter(style = NamingStyle.FLUENT)
 public enum TropicalFishPattern {
 
@@ -46,21 +45,6 @@ public enum TropicalFishPattern {
         this.shape = shape;
         this.index = index;
         this.overlayTexture = "fish/tropical_%s_pattern_%d".formatted(shape.letter(), index);
-    }
-
-    /**
-     * Looks up a pattern by name (case-insensitive), e.g. {@code "kob"}.
-     *
-     * @param name the pattern name
-     * @return the matching pattern, or {@code null} when the name is not a vanilla pattern
-     */
-    public static @Nullable TropicalFishPattern ofName(@Nullable String name) {
-        if (name == null) return null;
-        try {
-            return valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException notAPattern) {
-            return null;
-        }
     }
 
     /**

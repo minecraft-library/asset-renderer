@@ -4,6 +4,11 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.CopperWeathering;
+import lib.minecraft.renderer.asset.appearance.Flag;
+import lib.minecraft.renderer.asset.appearance.TextureAxis;
+import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -13,15 +18,19 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -40,15 +49,98 @@ import static org.hamcrest.Matchers.sameInstance;
 class EntityModelLoaderTest {
 
     @Test
+    @DisplayName("load() memoizes - every caller shares one assembled index instance")
+    void loadMemoizesOneInstance() {
+        assertThat("two loads answer the same instance",
+            EntityModelLoader.load(), sameInstance(EntityModelLoader.load()));
+    }
+
+    @Test
+    @DisplayName("every subject is in a state, and it is the one its texture ref reads")
+    void everySubjectCarriesAStateAxis() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
+        assertThat("the corpus loaded", defs.size(), greaterThan(0));
+        for (Entity definition : defs.values()) {
+            String where = definition.id().id();
+            Entity.Axis<String, String> state = definition.axes().state();
+            assertThat(where + " names the state it is in", state.declared().isPresent(), is(true));
+            // The axis' own invariant, asserted on the corpus rather than trusted: a declared option
+            // the options do not carry would make textureRef() answer empty for a subject that has
+            // a texture, which renders as a subject with no skin rather than as an error.
+            assertThat(where + " declares one of its own options",
+                state.options().keySet(), hasItem(state.declared().get()));
+            assertThat(where + " reads its texture ref out of the state it is in",
+                definition.textureRef(), is(state.select(state.declared().get())));
+            assertThat(where + " names a base texture", definition.textureRef().isPresent(), is(true));
+        }
+    }
+
+    @Test
+    @DisplayName("the tropical fish carries both its bodies as forms of one axis")
+    void shapeFormsAreWholeDefinitions() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
+        Entity fish = defs.get("minecraft:tropical_fish");
+        Entity.Axis<String, Entity> shape = fish.axes().shape();
+        assertThat("the fish names the shape it is", shape.declared(), is(Optional.of("small")));
+        assertThat("the declared shape is one of its own", shape.options().keySet(),
+            hasItems("small", Entity.SHAPE_LARGE));
+        // The declared form is the row AS A LEAF - same mesh and texture, its own shape axis empty -
+        // rather than the row itself, on the same terms the variant axis already holds its default.
+        Entity small = shape.select("small").orElseThrow();
+        assertThat("the declared form draws the row's mesh", small.model(), sameInstance(fish.model()));
+        assertThat("the declared form draws the row's texture", small.textureRef(), is(fish.textureRef()));
+        assertThat("the declared form is a leaf", small.axes().shape().options(), is(anEmptyMap()));
+
+        Entity large = shape.select(Entity.SHAPE_LARGE).orElseThrow();
+        assertThat("the large body is its own mesh", large.model(), not(sameInstance(fish.model())));
+        assertThat("the large body draws its own base texture",
+            large.textureRef(), is(Optional.of("fish/tropical_b")));
+        assertThat("the large body carries the passes cloned onto it", large.overlays(), not(empty()));
+        // A form is a leaf: carrying a shape axis of its own would let a resolve re-fold forever, and
+        // would make "which shape am I" answerable two ways.
+        assertThat("a shape form carries no shape axis", large.axes().shape().options(), is(anEmptyMap()));
+
+        // Every other subject has no shape axis at all, so nothing else can be swapped by a pattern.
+        for (Entity definition : defs.values())
+            if (!definition.id().id().equals("minecraft:tropical_fish"))
+                assertThat(definition.id() + " has no shape axis",
+                    definition.axes().shape().options(), is(anEmptyMap()));
+    }
+
+    @Test
+    @DisplayName("the copper golem oxidises through its state axis, and only it does")
+    void weatheringIsAState() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
+        Entity golem = defs.get("minecraft:copper_golem");
+        for (CopperWeathering weathering : CopperWeathering.values())
+            assertThat("the " + weathering + " body is the state that selects it",
+                weathering.stateKey().flatMap(golem.axes().state()::select)
+                    .orElseGet(() -> golem.textureRef().orElseThrow()),
+                is(weathering.baseTexture()));
+        // The unaffected body is the state the subject is already in rather than a fourth entry, so
+        // asking for it by key answers nothing - which is what makes the default render fall through
+        // to the base state instead of selecting an alternate equal to it.
+        assertThat("unaffected names no alternate", CopperWeathering.UNAFFECTED.stateKey(), is(Optional.empty()));
+        // A subject that does not weather carries no oxidation state, so a weathering selection lands
+        // on nothing rather than repainting a cow in copper.
+        for (Entity definition : defs.values()) {
+            if (definition.id().id().equals("minecraft:copper_golem")) continue;
+            assertThat(definition.id() + " carries no oxidation state",
+                definition.axes().state().options().keySet(),
+                not(hasItem(CopperWeathering.OXIDIZED.stateKey().orElseThrow())));
+        }
+    }
+
+    @Test
     @DisplayName("wolf base texture ref equals the default variant option's wild texture")
     void wolfWildEqualsTextureRef() {
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity pale = coat(defs, "minecraft:wolf", "pale");
-        assertThat(pale.axes().stateTextures().get("wild"), is("wolf/wolf"));
+        assertThat(pale.axes().state().options().get("wild"), is("wolf/wolf"));
         assertThat("wild state equals the default texture_ref",
-            Optional.of(pale.axes().stateTextures().get("wild")), equalTo(pale.textureRef()));
-        assertThat(pale.axes().stateTextures().keySet(), hasItems("wild", "tame", "angry"));
-        assertThat(coat(defs, "minecraft:wolf", "ashen").axes().stateTextures().get("tame"), is("wolf/wolf_ashen_tame"));
+            Optional.of(pale.axes().state().options().get("wild")), equalTo(pale.textureRef()));
+        assertThat(pale.axes().state().options().keySet(), hasItems("wild", "tame", "angry"));
+        assertThat(coat(defs, "minecraft:wolf", "ashen").axes().state().options().get("tame"), is("wolf/wolf_ashen_tame"));
     }
 
     @Test
@@ -56,28 +148,43 @@ class EntityModelLoaderTest {
     void babyThreeSourceChain() {
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         // 1) variant-table per-option baby_texture (per coat sub-definition)
-        assertThat(coat(defs, "minecraft:cow", "temperate").axes().stateTextures().get("baby"), is("cow/cow_temperate_baby"));
-        assertThat(coat(defs, "minecraft:cow", "warm").axes().stateTextures().get("baby"), is("cow/cow_warm_baby"));
+        assertThat(coat(defs, "minecraft:cow", "temperate").axes().state().options().get("baby"), is("cow/cow_temperate_baby"));
+        assertThat(coat(defs, "minecraft:cow", "warm").axes().state().options().get("baby"), is("cow/cow_warm_baby"));
         assertThat("cow carries a distinct baby mesh", coat(defs, "minecraft:cow", "temperate").axes().babyModel().isPresent(), is(true));
         // 2) non-variant entity sources its baby texture from the age.baby.texture (isBaby) binding
-        assertThat(defs.get("minecraft:sheep").axes().stateTextures().get("baby"), is("sheep/sheep_baby"));
+        assertThat(defs.get("minecraft:sheep").axes().state().options().get("baby"), is("sheep/sheep_baby"));
         // 3) enum-variant fallback to the <adult>_baby naming convention; the base row is the default coat
-        assertThat(defs.get("minecraft:axolotl").axes().stateTextures().get("baby"), is("axolotl/axolotl_lucy_baby"));
+        assertThat(defs.get("minecraft:axolotl").axes().state().options().get("baby"), is("axolotl/axolotl_lucy_baby"));
     }
 
     @Test
-    @DisplayName("dyed-collar texture is carried for wolf + cat, absent elsewhere")
+    @DisplayName("the dyed-collar overlay row is carried for wolf + cat, absent elsewhere")
     void collarPresence() {
-        // The collar renders only when a collar colour is supplied (the truthful collar_color gate); the
-        // load contract pins the collar texture presence that gate resolves against. A bare wolf / cat
-        // with no collar colour therefore renders no collar band.
+        // The collar renders only while a collar colour resolves - the row's collared gate - and the
+        // load contract pins the row that gate rides: the wearer's own mesh under the collar texture,
+        // tinted from collar_color. A bare wolf / cat resolves no collar tint, so the gate drops the
+        // row at resolve and no collar band draws.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
-        assertThat(coat(defs, "minecraft:wolf", "pale").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
-        assertThat("every wolf variant shares the family collar",
-            coat(defs, "minecraft:wolf", "ashen").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
-        assertThat(coat(defs, "minecraft:cat", "black").layers().collar(), equalTo(Optional.of("cat/cat_collar")));
+        OverlayLayer wolf = collarRow(coat(defs, "minecraft:wolf", "pale"));
+        assertThat(wolf.textureRef(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat("the band tints from the collar axis", wolf.tintBy(), equalTo(Optional.of(TintAxis.COLLAR)));
+        assertThat("every wolf variant shares the family collar row",
+            collarRow(coat(defs, "minecraft:wolf", "ashen")).textureRef(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat(collarRow(coat(defs, "minecraft:cat", "black")).textureRef(), equalTo(Optional.of("cat/cat_collar")));
         assertThat("a non-collar entity has none",
-            defs.get("minecraft:cow").layers().collar().isPresent(), is(false));
+            defs.get("minecraft:cow").overlays().stream().anyMatch(EntityModelLoaderTest::isCollarRow), is(false));
+    }
+
+    /** The overlay pass gated on {@link Flag#COLLARED} - the dyed-collar row. */
+    private static OverlayLayer collarRow(Entity entity) {
+        return entity.overlays().stream().filter(EntityModelLoaderTest::isCollarRow).findFirst()
+            .orElseThrow(() -> new AssertionError("entity '" + entity.id() + "' has no collar row"));
+    }
+
+    /** Whether an overlay pass is the dyed-collar row. */
+    private static boolean isCollarRow(OverlayLayer overlay) {
+        return overlay.gate().filter(gate -> gate instanceof AppearanceGate.Selected selected
+            && selected.option() == Flag.COLLARED).isPresent();
     }
 
     @Test
@@ -86,15 +193,15 @@ class EntityModelLoaderTest {
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity cow = defs.get("minecraft:cow");
         assertThat("one base row, no coat pseudo-ids", cow != null && defs.get("minecraft:cow_cold") == null, is(true));
-        assertThat("the coat map carries every option", cow.axes().variants().keySet(), hasItems("cold", "temperate", "warm"));
+        assertThat("the coat map carries every option", cow.axes().variant().options().keySet(), hasItems("cold", "temperate", "warm"));
 
         // The base IS the default (temperate) coat; the resolver fold swaps it to the selected coat.
         // cow_cold uses the horned coldcow mesh + cold texture, so selecting it changes both.
-        assertThat("the base row is the default coat", cow.textureRef(), is(cow.axes().variants().get("temperate").textureRef()));
+        assertThat("the base row is the default coat", cow.textureRef(), is(cow.axes().variant().options().get("temperate").textureRef()));
         Entity resolvedCold = cow.resolve(AppearanceOptions.builder().variant(Optional.of("cold")).build());
-        assertThat("selecting cold swaps to the cold coat texture", resolvedCold.textureRef(), is(cow.axes().variants().get("cold").textureRef()));
+        assertThat("selecting cold swaps to the cold coat texture", resolvedCold.textureRef(), is(cow.axes().variant().options().get("cold").textureRef()));
         assertThat("the cold coat differs from the default", resolvedCold.textureRef(), not(cow.textureRef()));
-        assertThat("selecting cold swaps to the cold coat mesh", resolvedCold.model(), sameInstance(cow.axes().variants().get("cold").model()));
+        assertThat("selecting cold swaps to the cold coat mesh", resolvedCold.model(), sameInstance(cow.axes().variant().options().get("cold").model()));
 
         // Canvas-group membership is baked onto Entity.members: an option-encoded variant model with no
         // cross-entity group is a singleton (empty members); a genuine group_of group carries the
@@ -186,7 +293,7 @@ class EntityModelLoaderTest {
         assertThat("the baby wool binds the baby wool texture",
             sheep.axes().babyOverlays().getFirst().textureRef(), is(Optional.of("sheep/sheep_wool_baby")));
         assertThat("the baby wool keeps the row's dye axis",
-            sheep.axes().babyOverlays().getFirst().tintBy(), is(Optional.of("wool_color")));
+            sheep.axes().babyOverlays().getFirst().tintBy(), is(Optional.of(TintAxis.WOOL)));
 
         assertThat("a family with no baby mesh at all carries no baby list",
             defs.get("minecraft:wandering_trader").axes().babyOverlays(), is(empty()));
@@ -271,7 +378,7 @@ class EntityModelLoaderTest {
         List<OverlayLayer> babyPasses = entity.axes().babyOverlays();
         assertThat(entityId + " ships exactly one baby overlay pass", babyPasses.size(), is(1));
         assertThat(entityId + " the baby pass is the type pass",
-            babyPasses.stream().map(OverlayLayer::textureBy).toList(), contains(Optional.of("type")));
+            babyPasses.stream().map(OverlayLayer::textureBy).toList(), contains(Optional.of(TextureAxis.TYPE)));
 
         OverlayLayer robe = babyPasses.getFirst();
         assertThat(entityId + " the baby pass binds the baby robe texture",
@@ -385,8 +492,8 @@ class EntityModelLoaderTest {
         // table is exactly the silent-drop failure this table exists to prevent.
         for (Entity definition : defs.values())
             for (Entity.EquipmentOverlay equipment : definition.layers().equipment())
-                assertThat("equipment layer '" + equipment.layerType().getId() + "' resolves its default material '"
-                        + equipment.defaultMaterial() + "'",
+                assertThat(definition.id() + " equipment layer '" + equipment.layerType().getId()
+                        + "' resolves the material a caller names none for",
                     equipment.assetFor("").isPresent(), is(true));
     }
 
@@ -418,10 +525,54 @@ class EntityModelLoaderTest {
             is(not(equalTo(equipmentLayer(defs, "minecraft:mule", "saddle").model().getBones().get("body").getPivot()))));
 
         // ... and one shared mesh where vanilla registers the same one: both undead horses bake the
-        // unscaled EquineSaddleModel, so they must join on a single geometry entry rather than duplicate it.
+        // unscaled EquineSaddleModel, so they must join on a single geometry entry rather than duplicate
+        // it. Read at a bone rather than at the mesh: each layer's resting strip copies the bone map, so
+        // the two hold different maps over the same bones.
         assertThat("skeleton and zombie horse saddles share one baked mesh",
-            equipmentLayer(defs, "minecraft:skeleton_horse", "saddle").model(),
-            sameInstance(equipmentLayer(defs, "minecraft:zombie_horse", "saddle").model()));
+            equipmentLayer(defs, "minecraft:skeleton_horse", "saddle").model().getBones().get("body"),
+            sameInstance(equipmentLayer(defs, "minecraft:zombie_horse", "saddle").model().getBones().get("body")));
+    }
+
+    /** The bones each saddle draws only while something is riding, by the entity wearing it. */
+    private static final Map<String, List<String>> RIDDEN_BONES = Map.of(
+        "minecraft:camel", List.of("reins"),
+        "minecraft:camel_husk", List.of("reins"),
+        "minecraft:donkey", List.of("left_saddle_line", "right_saddle_line"),
+        "minecraft:mule", List.of("left_saddle_line", "right_saddle_line"),
+        "minecraft:horse", List.of("left_saddle_line", "right_saddle_line"),
+        "minecraft:skeleton_horse", List.of("left_saddle_line", "right_saddle_line"),
+        "minecraft:zombie_horse", List.of("left_saddle_line", "right_saddle_line"));
+
+    @Test
+    @DisplayName("a saddle rests without the reins it draws only while ridden, and the toggle puts them back")
+    void saddleReinsRestUndrawn() {
+        // A layer is posed by a model class of its own, which is not always the one that baked its
+        // mesh: every equine saddle is posed by EquineSaddleModel while a donkey's is baked by
+        // DonkeyModel. That class writes its reins' visibility from isRidden, which a render state is
+        // built holding false, so a resting saddle carries the mesh's other bones and not those, and
+        // only a selection puts them back. Reading the baking class instead answers the wearer's chest
+        // gate for a mesh with reins.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
+        for (Map.Entry<String, List<String>> wearer : RIDDEN_BONES.entrySet()) {
+            String entityId = wearer.getKey();
+            Entity.EquipmentOverlay saddle = equipmentLayer(defs, entityId, "saddle");
+            assertThat(entityId + " saddle rests with its own strap",
+                saddle.model().getBones().get("saddle").isVisible(), is(true));
+            // Carried and not drawn rather than absent: a selection can ask for them, so the mesh
+            // keeps them standing at rest visibility rather than dropping them.
+            for (String bone : wearer.getValue())
+                assertThat(entityId + " saddle rests without '" + bone + "'",
+                    saddle.model().getBones().get(bone).isVisible(), is(false));
+
+            Entity ridden = defs.get(entityId).resolve(AppearanceOptions.builder()
+                .equipment(Map.of("saddle", "saddle")).toggles(Set.of("ridden")).build());
+            EntityModelData riddenSaddle = ridden.layers().equipment().stream()
+                .filter(overlay -> overlay.slot().equals("saddle"))
+                .findFirst().orElseThrow().model();
+            for (String bone : wearer.getValue())
+                assertThat(entityId + " draws '" + bone + "' while ridden",
+                    riddenSaddle.getBones().get(bone).isVisible(), is(true));
+        }
     }
 
     /**
@@ -465,9 +616,13 @@ class EntityModelLoaderTest {
         String material
     ) {
         Entity.EquipmentOverlay equipment = equipmentLayer(defs, entityId, slot);
-        assertThat(entityId + " '" + slot + "' default material", equipment.defaultMaterial(), is(material));
+        // The default is carried as its ASSET under the unselected key rather than as the name of
+        // another key, so what is assertable is that naming nothing and naming the material land on
+        // the same asset - which is the whole of what the name was ever read for.
         assertThat(entityId + " '" + slot + "' resolves the same asset blank as by name",
             equipment.assetFor(""), is(equipment.assetFor(material)));
+        assertThat(entityId + " '" + slot + "' names " + material + " as a material of its own",
+            equipment.assetFor(material).isPresent(), is(true));
     }
 
     /** The equipment layer of an entity gated on {@code slot}. */
@@ -482,18 +637,18 @@ class EntityModelLoaderTest {
             .orElseThrow(() -> new AssertionError("entity '" + entityId + "' has no '" + slot + "' equipment layer"));
     }
 
-    /** The overlay pass of an entity whose texture axis is {@code textureBy}. */
+    /** The overlay pass of an entity whose texture axis token is {@code textureBy}. */
     private static OverlayLayer categoryPass(ConcurrentMap<String, Entity> defs, String entityId, String textureBy) {
         return defs.get(entityId)
             .overlays()
             .stream()
-            .filter(overlay -> overlay.textureBy().filter(textureBy::equals).isPresent())
+            .filter(overlay -> overlay.textureBy().map(TextureAxis::token).filter(textureBy::equals).isPresent())
             .findFirst()
             .orElseThrow(() -> new AssertionError("entity '" + entityId + "' has no '" + textureBy + "' category pass"));
     }
 
     /** The option-encoded coat sub-definition for a variant family's option. */
     private static Entity coat(ConcurrentMap<String, Entity> defs, String familyId, String option) {
-        return defs.get(familyId).axes().variants().get(option);
+        return defs.get(familyId).axes().variant().options().get(option);
     }
 }

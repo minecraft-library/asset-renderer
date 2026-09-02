@@ -12,6 +12,8 @@ import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.LayoutSlot;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.Supplier;
@@ -25,10 +27,14 @@ import java.util.function.UnaryOperator;
  * each child is captured as a {@link Supplier} of {@link ImageData} whose render is deferred until
  * the layout renderer walks the tree.
  *
+ *
+ * <p><b>Parity.</b> Reaches the layout alone, which this store holds no artifact for.
+ *
  * @see lib.minecraft.renderer.LayoutRenderer
  */
 @Getter
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@Parity(subject = Subject.LAYOUT)
 public class LayoutOptions implements RenderOptions {
 
     /**

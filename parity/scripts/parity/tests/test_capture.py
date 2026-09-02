@@ -35,11 +35,26 @@ class Wipe(unittest.TestCase):
 
     def test_the_expected_diff_manifest_survives(self):
         """The gate order is expect -> capture -> compare, so it is written BEFORE the capture."""
-        write_json(self.root / store.RUN_DIR / capture.EXEMPT, {"movers": [{"key": "x"}]})
+        write_json(self.root / store.RUN_DIR / "expected-diff.json", {"movers": [{"key": "x"}]})
         capture.wipe(self.root)
-        survivor = self.root / store.RUN_DIR / capture.EXEMPT
+        survivor = self.root / store.RUN_DIR / "expected-diff.json"
         self.assertTrue(survivor.is_file())
         self.assertEqual(len(read_json(survivor)["movers"]), 1)
+
+    def test_the_plan_survives(self):
+        """A plan is a statement about a tree, so it outlives the invocation that failed.
+
+        Consumed by the wipe, a capture that lost a producer left nothing for the retry to resolve
+        and a bare re-run refused for want of a plan it had already read.
+        """
+        write_json(self.root / store.RUN_DIR / "plan.json", {"plan": ["sweep.entity"]})
+        capture.wipe(self.root)
+        survivor = self.root / store.RUN_DIR / "plan.json"
+        self.assertTrue(survivor.is_file())
+        self.assertEqual(read_json(survivor)["plan"], ["sweep.entity"])
+
+    def test_both_exemptions_are_named_and_no_others(self):
+        self.assertEqual(capture.EXEMPT, ("expected-diff.json", "plan.json"))
 
     def test_nothing_else_under_run_survives(self):
         capture.wipe(self.root)
@@ -111,11 +126,18 @@ class OncePerInvocation(unittest.TestCase):
         self.assertTrue((self.root / store.RUN_DIR / capture.COMPLETE).is_file())
 
     def test_the_expected_diff_manifest_survives_begin(self):
-        write_json(self.root / store.RUN_DIR / capture.EXEMPT, {"movers": [{"key": "x"}]})
+        write_json(self.root / store.RUN_DIR / "expected-diff.json", {"movers": [{"key": "x"}]})
         capture.begin(self.root)
-        survivor = self.root / store.RUN_DIR / capture.EXEMPT
+        survivor = self.root / store.RUN_DIR / "expected-diff.json"
         self.assertTrue(survivor.is_file())
         self.assertEqual(len(read_json(survivor)["movers"]), 1)
+
+    def test_the_plan_survives_begin(self):
+        write_json(self.root / store.RUN_DIR / "plan.json", {"plan": ["sweep.entity"]})
+        capture.begin(self.root)
+        survivor = self.root / store.RUN_DIR / "plan.json"
+        self.assertTrue(survivor.is_file())
+        self.assertEqual(read_json(survivor)["plan"], ["sweep.entity"])
 
     def test_the_open_marker_is_not_indexed_as_an_artifact(self):
         capture.begin(self.root)
@@ -123,6 +145,46 @@ class OncePerInvocation(unittest.TestCase):
         capture.index(self.root)
         recorded = read_json(self.root / store.RUN_DIR / "_capture.json")
         self.assertEqual([entry["path"] for entry in recorded["files"]], ["manifests/fluid.json"])
+
+
+class Unproduced(unittest.TestCase):
+    """What a capture step records when the producer it finalizes failed."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp()) / "run"
+        capture.begin(self.root)
+
+    def test_a_failed_producer_is_recorded_with_what_it_said(self):
+        capture.unproduced(self.root, "sweep.entity",
+                           [(":entityParityVanilla", "finished with non-zero exit value 1")])
+        rows = capture.unproduced_rows(self.root)
+        self.assertEqual([row["artifact"] for row in rows], ["sweep.entity"])
+        self.assertEqual(rows[0]["producers"],
+                         [{"failure": "finished with non-zero exit value 1",
+                           "task": ":entityParityVanilla"}])
+
+    def test_a_row_lands_outside_the_capture_the_index_walks(self):
+        """Under `_run/`, so it is a fact ABOUT the capture rather than a row inside it."""
+        capture.unproduced(self.root, "sweep.entity", [(":t", "boom")])
+        capture.index(self.root)
+        recorded = read_json(self.root / store.RUN_DIR / "_capture.json")
+        self.assertEqual(recorded["files"], [])
+
+    def test_each_row_is_its_own_file(self):
+        """A capture step is one process per row, so an append is two processes racing."""
+        capture.unproduced(self.root, "sweep.entity", [(":a", "boom")])
+        capture.unproduced(self.root, "sweep.block", [(":b", "boom")])
+        self.assertEqual([row["artifact"] for row in capture.unproduced_rows(self.root)],
+                         ["sweep.block", "sweep.entity"])
+
+    def test_a_root_that_recorded_none_answers_an_empty_list(self):
+        self.assertEqual(capture.unproduced_rows(self.root), [])
+
+    def test_the_next_invocation_erases_what_this_one_recorded(self):
+        """A failure is a fact about one capture; carried over it would be reported against the next."""
+        capture.unproduced(self.root, "sweep.entity", [(":a", "boom")])
+        capture.begin(self.root)
+        self.assertEqual(capture.unproduced_rows(self.root), [])
 
 
 class Normalize(unittest.TestCase):

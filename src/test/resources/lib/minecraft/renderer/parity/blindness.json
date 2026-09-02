@@ -57,7 +57,7 @@
         "digest.shipped-tables",
         "manifest.dump.packs"
       ],
-      "source": "measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; CLAUDE.md 'The pack filter'",
+      "source": "measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; RENDERER-RULES.md 'The pack filter'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/pack/rule/**",
         "src/main/java/lib/minecraft/renderer/pipeline/pack/rule/CitParser.java",
@@ -120,7 +120,9 @@
         "sweep.block",
         "sweep.item",
         "sweep.entity",
-        "pin.corpus-count"
+        "pin.corpus-count",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by perturbing BlockDefaultsLoader.java: 3 of 6 declared sees moved",
       "trigger_paths": [
@@ -142,7 +144,9 @@
         "sweep.item",
         "sweep.entity",
         "manifest.dump.vanilla",
-        "manifest.dump.packs"
+        "manifest.dump.packs",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by perturbing ItemIndexBuilder.java: 3 of 5 declared sees moved",
       "trigger_paths": [
@@ -233,11 +237,13 @@
         "pin.player-crc",
         "manifest.player-sheets",
         "manifest.portal",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by perturbing BlockGeometryKit.java: 4 of 6 declared sees moved, and 2 declared blind held; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java"
+        "src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java"
       ]
     },
     {
@@ -273,7 +279,9 @@
         "pin.player-crc",
         "pin.block-crc",
         "pin.portal-crc",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "Every test and sweep in the repo is structurally blind to a tooling/ change",
       "claim_key": "tooling-blindness",
@@ -399,27 +407,13 @@
       ],
       "claim": "parityDump is blind to everything downstream of the load, so an engine or renderer change is demoted regardless of the dump verdict",
       "claim_key": "engine-renders",
+      "derived": true,
       "id": "B19",
       "mode": "demote",
       "probe": "PipelineParityDump serialises loaded data and never calls BlockRenderer.resolveVariant; grep the dump for any renderer entry point",
-      "reason": "An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders. Everything this glob reaches is a render, which is why the three render CRC pins are on the list beside the manifests they were taken over, and why the glint sweep and manifest.visual are too: the glint is an engine-composited overlay, and manifest.visual hashes what the visual mains draw.",
-      "sees": [
-        "sweep.entity",
-        "sweep.block",
-        "sweep.item",
-        "sweep.armor",
-        "sweep.glint",
-        "pin.player-crc",
-        "pin.block-crc",
-        "pin.fluid-crc",
-        "pin.portal-crc",
-        "manifest.fluid",
-        "manifest.portal",
-        "manifest.player-sheets",
-        "manifest.player-raw",
-        "manifest.visual"
-      ],
-      "source": "measured by perturbing ModelEngine.java: 12 of 14 declared sees moved, and 2 declared blind held",
+      "reason": "An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders, so it is demoted for everything this glob reaches - that is the claim, and it is a statement about the artifact rather than about any file here. What each file reaches is the other half and is answered per file: everything under this glob is a render, and a pose kit is an entity render where a model engine is every render. The glob answering for whichever file in it reaches furthest is what made a pose change cost a fluid manifest.",
+      "sees": [],
+      "source": "measured by perturbing ModelEngine.java: 12 of its declared sees moved and both declared blind held. One file is what a perturbation reaches, so that is evidence for the demotion and the graph answers the selection.",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/*",
         "src/main/java/lib/minecraft/renderer/engine/**"
@@ -456,7 +450,9 @@
       "reason": "ItemIndexBuilder.load takes its beEntries from BlockModelLoader directly, a sibling of the block index rather than its output, so no product of BlockIndexBuilder is an input. And ItemRenderer's only findBlock sits inside its GuiIcon sub-renderer, which the item sweep does not render.",
       "sees": [
         "sweep.block",
-        "sweep.entity"
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by perturbing BlockIndexBuilder.java: 2 of 2 declared sees moved, and 1 declared blind held",
       "trigger_paths": [
@@ -477,7 +473,9 @@
       "reason": "blocks.json carries every block row's id, digest, textures, variants, tags, tint and source and no modelIcon, so a change flipping it on hundreds of blocks leaves all 30 dump files identical and its only gate is the block sum. noPosition's only reader is EntityRenderer's carried-block path, so its only gate is enderman~carried=grass_block in the entity sweep.",
       "sees": [
         "sweep.block",
-        "sweep.entity"
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by perturbing BlockIndexBuilder.java: 1 of 2 declared sees moved, and 2 declared blind held; the dump carrying no key for either field is stated here and nowhere else",
       "trigger_paths": [
@@ -493,7 +491,9 @@
         "sweep.player",
         "sweep.armor",
         "sweep.glint",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "No parity sweep reaches the paletted trim permutation",
       "claim_key": "trim-palette",
@@ -518,27 +518,13 @@
       ],
       "claim": "The option surface reaches every renderer that takes options, and nothing else",
       "claim_key": "option-surface",
+      "derived": true,
       "id": "B24",
       "mode": "select",
       "probe": "change a default on an option record and confirm the five sweeps move while all 30 dump files are byte-identical",
-      "reason": "Every renderer entry point takes a RenderOptions, so a default or a resolution rule here reaches whatever that renderer draws. That is the same population B19 reaches and the list is the same: the three render CRC pins beside their manifests, the glint sweep, and the cache/visual producers. The dump is blind to all of it for B19's reason: it serialises loaded pipeline data and never constructs an options record.",
-      "sees": [
-        "sweep.entity",
-        "sweep.block",
-        "sweep.item",
-        "sweep.armor",
-        "sweep.glint",
-        "pin.player-crc",
-        "pin.block-crc",
-        "pin.fluid-crc",
-        "pin.portal-crc",
-        "manifest.player-sheets",
-        "manifest.fluid",
-        "manifest.portal",
-        "manifest.player-raw",
-        "manifest.visual"
-      ],
-      "source": "measured by perturbing OutputOptions.java: 11 of 14 declared sees moved, and 2 declared blind held",
+      "reason": "Every renderer entry point takes a RenderOptions, so a default or a resolution rule here reaches whatever that renderer draws - and WHICH renderer takes a given bag is what the bag itself says. An entity bag reaches the entity sweeps and no fluid; an output bag reaches every renderer that writes a file. So the selection is the reference graph's answer for the changed bag rather than one list over the whole surface. The dump stays a claim rather than a subtraction, and deliberately: it is blind to an options bag, which is what the claim was measured on, and it is not blind to the vanilla vocabulary those bags name - that lives under asset, the dump serialises it, and the sibling claim there selects it on the same paths.",
+      "sees": [],
+      "source": "measured by perturbing OutputOptions.java: 11 of its declared sees moved and both declared blind held. An output bag is under every renderer that writes a file, which is the widest any of them is; the graph answers each bag for itself.",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/BannerLayer.java",
         "src/main/java/lib/minecraft/renderer/asset/DyeColor.java",
@@ -557,23 +543,13 @@
       "blind": [],
       "claim": "The asset DTO layer is what every renderer reads and what the dump serialises, so it reaches both",
       "claim_key": "asset-layer",
+      "derived": true,
       "id": "B25",
       "mode": "select",
       "probe": "add a field to a dumped record and confirm both the dump and a sweep move",
-      "reason": "asset.** holds the records the pipeline builds and the renderers consume, and the dump's 14 sections are a projection of exactly those records. A change here is visible on both sides, which is why it is the one package family with no blindness to claim. ColorMap is one of those records and its pixel buffer is the exact form the colormap digests are taken over, so they move with it.",
-      "sees": [
-        "sweep.entity",
-        "sweep.block",
-        "sweep.item",
-        "sweep.armor",
-        "sweep.glint",
-        "digest.colormap-lut",
-        "manifest.dump.vanilla",
-        "manifest.dump.packs",
-        "manifest.player-raw",
-        "manifest.visual"
-      ],
-      "source": "measured by perturbing ModelElement.java: 4 of 10 declared sees moved",
+      "reason": "asset.** holds the records the pipeline builds and the renderers consume, and the dump's 14 sections are a projection of exactly those records. A change here is visible on both sides, which is why it is the one package family with no blindness to claim. What it is visible to is a property of the RECORD and not of the family: a colormap's pixel buffer is the exact form the colormap digests are taken over and moves them, an entity record reaches no colormap at all, and a block record is under the fluid renderer and both of its CRC pins. So the selection is the reference graph's answer for the changed file, so what one record reaches decides its own gate rather than the family's.",
+      "sees": [],
+      "source": "measured by perturbing ModelElement.java: 4 of its declared sees moved. A model element is one record of the family, and which renderers read a given record is what the graph answers.",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/**"
       ]
@@ -586,28 +562,13 @@
       ],
       "claim": "The tensor math is under every projected vertex, so it reaches every render and is pinned by two golden float vectors",
       "claim_key": "tensor-math",
+      "derived": true,
       "id": "B26",
-      "mode": "select",
+      "mode": "demote",
       "probe": "perturb a Matrix4f multiply and confirm pin.vanilla-iso-pose fails while the dump is byte-identical",
-      "reason": "Matrix4f and Vector3f are on the path of every vertex the engine projects, and the two golden pins hold 16 and 24 exact floats through that math - so an arithmetic change fails them before any sum moves. Being under every projected vertex is what puts the other three render CRC pins, the glint sweep and the cache/visual producers on the list as well. The dump never projects a vertex.",
-      "sees": [
-        "sweep.entity",
-        "sweep.block",
-        "sweep.item",
-        "sweep.armor",
-        "sweep.glint",
-        "pin.player-crc",
-        "pin.vanilla-iso-pose",
-        "pin.kit-corners",
-        "pin.block-crc",
-        "pin.fluid-crc",
-        "pin.portal-crc",
-        "manifest.fluid",
-        "manifest.portal",
-        "manifest.player-raw",
-        "manifest.visual"
-      ],
-      "source": "measured by perturbing Matrix4f.java: 10 of 15 declared sees moved, and 2 declared blind held",
+      "reason": "Matrix4f and Vector3f are on the path of every vertex the engine projects, and the two golden pins hold exact floats through that math - so an arithmetic change fails them before any sum moves. Being under every projected vertex is what makes this the one region where the graph's answer is genuinely engine-wide, and nothing here tries to talk that down. What the graph cannot answer is the dump: it holds serialised vectors, so a reference to one exists and composes, while the dump never projects a vertex and a perturbation of that math leaves every one of its files byte-identical. That is a statement about what the artifact observes, so it subtracts here rather than being left to a claim nothing enforces.",
+      "sees": [],
+      "source": "measured by perturbing Matrix4f.java: 10 of its declared sees moved and both declared blind held. The dump holds serialised vectors, so the graph reaches it from here and the perturbation says it does not move, which is what the demotion carries.",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/tensor/**"
       ]
@@ -620,27 +581,13 @@
       ],
       "claim": "The face vocabulary decides winding, UV pairing and per-face shade, so it reaches every 3D render",
       "claim_key": "face-vocabulary",
+      "derived": true,
       "id": "B27",
-      "mode": "select",
+      "mode": "demote",
       "probe": "flip one CornerPhase index array and confirm CornerPhaseTest fails while all 30 dump files are byte-identical",
-      "reason": "CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. Every 3D render goes through them, which is why the three render CRC pins, the glint sweep and the cache/visual producers are on the list beside the sums. CornerPhaseTest and HumanoidPartCropTest pin the tables themselves.",
-      "sees": [
-        "sweep.entity",
-        "sweep.block",
-        "sweep.item",
-        "sweep.armor",
-        "sweep.glint",
-        "pin.player-crc",
-        "pin.block-crc",
-        "pin.fluid-crc",
-        "pin.portal-crc",
-        "manifest.player-sheets",
-        "manifest.fluid",
-        "manifest.portal",
-        "manifest.player-raw",
-        "manifest.visual"
-      ],
-      "source": "measured by perturbing CornerPhase.java: 11 of 14 declared sees moved, and 2 declared blind held",
+      "reason": "CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. Every 3D render goes through them, which is what the graph answers for the vocabulary itself; what it answers for the rest of the package is narrower, and what it answers for the rest of the package is narrower - the corner phase is under the fluid and the portal, the unwrap is not. The dump is the one artifact the graph gets wrong here - a face is named in serialised model data, so a reference exists and composes, while flipping the table leaves every dump file byte-identical. That is a statement about what the artifact observes, so it subtracts here rather than being left to a claim nothing enforces.",
+      "sees": [],
+      "source": "measured by perturbing CornerPhase.java: 11 of its declared sees moved and both declared blind held. A face is named in serialised model data, so the graph reaches a dump from here and flipping the table leaves every dump file byte-identical, which is what the demotion carries.",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/face/**"
       ]
@@ -654,7 +601,9 @@
         "sweep.player",
         "sweep.armor",
         "sweep.glint",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "The exception types carry no behaviour a parity artifact can observe",
       "claim_key": "exception-types",
@@ -686,7 +635,7 @@
       "id": "B29",
       "mode": "select",
       "probe": "re-render with the change stashed: a reference that moves was stale, and one that does not was not reached",
-      "reason": "The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix. The triggers are the harness's SOURCE and the wiring that boots it, never one glob over the tree: the claim is about a render, and a markdown file under harness/ cannot move a reference byte while a rule matching it costs a whole-client re-render. The Java half is derived from the root package's own declaration and the rest is enumerated here - the two resource files that decide which mixins apply and which entrypoints run, and the build wiring, which no annotation can reach. The root build compiles none of those sources itself - the harness is its own Gradle build with its own wrapper - so ./gradlew test passes over a harness that does not compile and the next thing to notice is a client boot. harnessClasses shells to that wrapper and costs seconds, and ./gradlew check depends on it.",
+      "reason": "The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix. The triggers are the harness's SOURCE and the wiring that boots it, never one glob over the tree: the claim is about a render, and a markdown file under harness/ cannot move a reference byte while a rule matching it costs a whole-client re-render. The Java half is derived from the root package's own declaration and the rest is enumerated here - the two resource files that decide which mixins apply and which entrypoints run, and the build wiring, which no annotation can reach. The root build compiles none of those sources itself - the harness is its own Gradle build with its own wrapper - so ./gradlew test passes over a harness that does not compile and the next thing to notice is a client boot. harnessClasses shells to that wrapper and costs seconds, and ./gradlew check depends on it. The animated sub-tree is reached the same way and by a second boot of the client: both setupAnim freezes are read once per JVM, so renderVanillaAllReferences runs the harness twice and a change here moves what both runs write.",
       "sees": [
         "sweep.entity",
         "sweep.block",
@@ -696,7 +645,9 @@
         "sweep.armor",
         "sweep.glint",
         "manifest.references",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'",
       "trigger_paths": [
@@ -714,6 +665,7 @@
     },
     {
       "authored_paths": [
+        "parity/reach.json",
         "parity/scripts/parity/**"
       ],
       "blind": [],
@@ -725,6 +677,7 @@
       "sees": [],
       "source": "declares no store artifact, so its reason names the gate that answers instead; the toolkit is the one producer of every stored byte",
       "trigger_paths": [
+        "parity/reach.json",
         "parity/scripts/parity/**"
       ]
     },
@@ -786,7 +739,9 @@
         "manifest.player-sheets",
         "manifest.fluid",
         "manifest.portal",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by perturbing ParityMetrics.java: 6 of 11 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
@@ -839,11 +794,11 @@
         "src/main/resources/lib/minecraft/renderer/*.json"
       ],
       "blind": [],
-      "claim": "The ten shipped tables are pipeline INPUT, so a change to one reaches every render that loads it",
+      "claim": "The shipped tables are pipeline INPUT, so a change to one reaches every render that loads it",
       "id": "B35",
       "mode": "select",
       "probe": "edit one value in block_tints.json and re-run the block sweep and parityDump; both move, and manifest.tooling-tables moves whether or not a generator ran",
-      "reason": "src/main/resources/lib/minecraft/renderer/ holds exactly the ten ASM-derived tables the tooling flows emit and the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files and digest.shipped-tables digests the same ten, so both see any edit directly; the sweeps and the dumps see it through the index the loaders build. Two of the ten are counted as well as read - block_defaults.json and glint_items.json - and pin.corpus-count holds exactly those two sizes, so adding or dropping a row moves it directly rather than through an index. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything.",
+      "reason": "src/main/resources/lib/minecraft/renderer/ holds exactly the eleven ASM-derived tables the tooling flows emit, every one of which the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files and digest.shipped-tables digests the same eleven, so both see any edit directly; the sweeps and the dumps see it through the index the loaders build. Two of them are counted as well as read - block_defaults.json and glint_items.json - and pin.corpus-count holds exactly those two sizes, so adding or dropping a row moves it directly rather than through an index. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything.",
       "sees": [
         "manifest.tooling-tables",
         "digest.shipped-tables",
@@ -855,7 +810,9 @@
         "pin.corpus-count",
         "manifest.player-raw",
         "manifest.dump.vanilla",
-        "manifest.dump.packs"
+        "manifest.dump.packs",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by perturbing block_tints.json: 3 of 11 declared sees moved; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over",
       "trigger_paths": [
@@ -881,7 +838,9 @@
         "sweep.glint",
         "manifest.player-raw",
         "manifest.dump.vanilla",
-        "manifest.dump.packs"
+        "manifest.dump.packs",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by perturbing dev.simplified.gson.GsonContributor: 0 of 9 declared sees moved, 2 not measurable in that run; the second uncovered path under src/main/resources/",
       "trigger_paths": [
@@ -1039,7 +998,7 @@
       "id": "B42",
       "mode": "select",
       "probe": "run ./gradlew toolingTest, then capture any artifact and confirm it is byte-identical",
-      "reason": "Every test here drives hand-built ASM nodes, a ZipOutputStream jar under @TempDir, or reflection over the tooling classes themselves. None runs a flow, so none writes a shipped table or a flow log, and no stored artifact can see one change. The gate is the suite, which `check` schedules by shelling into the tooling wrapper, because a separate build is one this one compiles nothing of. This is the tooling half of what B33 says for src/test/java.",
+      "reason": "Every test here either drives hand-built ASM nodes, a ZipOutputStream jar under @TempDir and reflection over the tooling classes, or READS a shipped table off disk to assert over it - PosePartIndexTest, PoseWalkTest, GeometryParserTest, GeometryRefClosureTest and ShippedTableCapacityTest do the second, so this suite's verdict is a function of the renderer's committed tables. Neither shape WRITES: none runs a flow, so none emits a shipped table or a flow log, and no stored artifact can see a change to these files. The gate is the suite, which `check` schedules by shelling into the tooling wrapper, because a separate build is one this one compiles nothing of. This is the tooling half of what B33 says for src/test/java.",
       "sees": [],
       "source": "declares no store artifact, so its reason names the gate that answers instead",
       "trigger_paths": [
@@ -1138,7 +1097,7 @@
       "probe": "-Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved",
       "reason": "Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.",
       "sees": [],
-      "source": "measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; CLAUDE.md 'Depth: the contract'",
+      "source": "measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; RENDERER-RULES.md 'Depth: the contract'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
         "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
@@ -1159,9 +1118,11 @@
         "sweep.item",
         "sweep.armor",
         "pin.player-crc",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
-      "source": "measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; CLAUDE.md 'Depth: the contract'; audit 09/G7",
+      "source": "measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
         "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
@@ -1201,7 +1162,9 @@
         "sweep.entity",
         "sweep.glint",
         "sweep.item",
-        "sweep.player"
+        "sweep.player",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by bumping the minecraft-library:text pin from 117775e to 172ed90: 13 of 199 manifest.visual rows moved, every one of them a render that draws text, and the other thirteen artifacts captured beside it held",
       "trigger_paths": [
@@ -1227,7 +1190,9 @@
         "sweep.entity",
         "sweep.glint",
         "sweep.item",
-        "sweep.player"
+        "sweep.player",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "A menu reaches the visual manifest and nothing else this store holds",
       "claim_key": "menu-closure",
@@ -1296,7 +1261,9 @@
         "sweep.glint",
         "sweep.item",
         "sweep.player",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "The menu sweep and its frame renderer reach the menu references and no other sub-tree",
       "claim_key": "harness-menu-sweep",
@@ -1323,7 +1290,9 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "The block sweep and the four types only it reaches write blocks/ and nothing else",
       "claim_key": "harness-block-sweep",
@@ -1354,7 +1323,9 @@
         "sweep.glint",
         "sweep.menu",
         "sweep.player",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "The item sweep enumerates the non-block items and writes items/ alone",
       "claim_key": "harness-item-sweep",
@@ -1379,7 +1350,9 @@
         "sweep.entity",
         "sweep.menu",
         "sweep.player",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "The GUI item frame renderer draws for the item sweep and for the foil half of the glint one",
       "claim_key": "harness-gui-item-frame",
@@ -1413,10 +1386,12 @@
       "id": "B55",
       "mode": "demote",
       "probe": "add a variant to the enumeration and re-render: entities/ gains a file and armor/ keeps its seven, because ArmorSweep names its subjects itself",
-      "reason": "EntitySweep is the enumeration and the family-fit pre-pass for entities/; the frame renderer it drives is shared with the armour and glint sweeps and carries its own wider claim. Nothing else constructs EntitySweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The armour sweep names its own fixed roster of armoured mobs rather than reading this one.",
+      "reason": "EntitySweep is the enumeration and the family-fit pre-pass for entities/; the frame renderer it drives is shared with the armour and glint sweeps and carries its own wider claim. Nothing else constructs EntitySweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The armour sweep names its own fixed roster of armoured mobs rather than reading this one. The animated sweep draws its roster, its subject names and its canvas arithmetic from this class, so a change to any of the three moves idle/ as well - the closure widened by one sub-tree rather than broken, this file still reaching none a sweep that does not read it writes.",
       "sees": [
         "sweep.entity",
-        "manifest.references"
+        "manifest.references",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file",
       "trigger_paths": [
@@ -1436,13 +1411,15 @@
       "id": "B56",
       "mode": "demote",
       "probe": "perturb the bounds walk and re-render: entities/, armor/ and glint/ move together and blocks/, items/, menus/ and players/ hash identically",
-      "reason": "EntityFrameRenderer is constructed by EntitySweep, ArmorSweep, GlintSweep and the pitch-roll probe, and EntityBoundsWalker is reached from it. So it writes entities/, armor/ and the worn half of glint/, and manifest.player-raw rides armor/ because one of that artifact's two members is the armour sweep's own parity output. It reaches blocks/, items/, menus/ and players/ through nothing: the player has a frame renderer of its own. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
+      "reason": "EntityFrameRenderer is constructed by EntitySweep, ArmorSweep, GlintSweep and the pitch-roll probe, and EntityBoundsWalker is reached from it. So it writes entities/, armor/ and the worn half of glint/, and manifest.player-raw rides armor/ because one of that artifact's two members is the armour sweep's own parity output. It reaches blocks/, items/, menus/ and players/ through nothing: the player has a frame renderer of its own. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. AnimatedEntityFrameRenderer delegates its draw here whole rather than repeating it, so idle/ comes off this renderer too.",
       "sees": [
         "sweep.entity",
         "sweep.armor",
         "sweep.glint",
         "manifest.player-raw",
-        "manifest.references"
+        "manifest.references",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "source": "measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file",
       "trigger_paths": [
@@ -1458,7 +1435,9 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "The armour sweep names its own subjects and writes armor/ alone",
       "claim_key": "harness-armor-sweep",
@@ -1485,7 +1464,9 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "The glint sweep steps its own clock and writes glint/ alone",
       "claim_key": "harness-glint-sweep",
@@ -1510,7 +1491,9 @@
         "sweep.entity",
         "sweep.glint",
         "sweep.item",
-        "sweep.menu"
+        "sweep.menu",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "The player sweep and its frame renderer write players/ and no other sub-tree",
       "claim_key": "harness-player-sweep",
@@ -1540,7 +1523,9 @@
         "sweep.menu",
         "sweep.player",
         "manifest.player-raw",
-        "manifest.references"
+        "manifest.references",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
       ],
       "claim": "A probe writes outside the reference tree, so nothing this store holds can see one",
       "claim_key": "harness-probe-sweep",
@@ -1554,6 +1539,35 @@
         "harness/src/client/java/lib/minecraft/refharness/frame/DepthQuantumFrameRenderer.java",
         "harness/src/client/java/lib/minecraft/refharness/sweep/DepthQuantumSweep.java",
         "harness/src/client/java/lib/minecraft/refharness/sweep/PitchRollSweep.java"
+      ]
+    },
+    {
+      "authored_paths": [],
+      "blind": [
+        "manifest.player-raw",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "claim": "The animated sweep poses every subject and writes idle/ alone",
+      "claim_key": "harness-animation-sweep",
+      "id": "B61",
+      "mode": "demote",
+      "probe": "change the frame count and re-render the whole tree: idle/ changes population and the seven frozen sub-trees hash identically, because what writes them is a different boot of the client",
+      "reason": "EntityAnimationSweep enumerates one subject per entity and renders each at every tick of its schedule; AnimatedEntityFrameRenderer arms that tick and unions the bounds across the schedule, delegating the draw itself to the shared entity frame renderer, which carries its own wider claim. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory. Here it is tighter still: HarnessMode puts this sweep alone in its run, because the seven frozen sub-trees are ground truth for the two setupAnim freezes this mode turns off, so the boot that writes them never loads this class at all.",
+      "sees": [
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "manifest.references"
+      ],
+      "source": "declared from the mode and from the write site: HarnessMode.resolve answers ANIMATION for this sweep and no other, and SweepRunner resolves every path as outputRoot / sweep.outputDir(), so a sub-tree written under the opposite mixin configuration is unreachable from here by construction rather than by measurement",
+      "trigger_paths": [
+        "harness/src/client/java/lib/minecraft/refharness/frame/AnimatedEntityFrameRenderer.java",
+        "harness/src/client/java/lib/minecraft/refharness/sweep/EntityAnimationSweep.java"
       ]
     }
   ]

@@ -7,8 +7,10 @@ import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
@@ -21,14 +23,10 @@ import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 /**
  * The ordered resource-pack stack: vanilla at priority 0, then user packs in ascending priority,
@@ -49,13 +47,13 @@ public final class PackStack {
     @Getter(style = NamingStyle.FLUENT)
     private final @NotNull ConcurrentList<ResourcePack> ascending;
 
-    private final @NotNull Map<PackId, ResourcePack> byId;
+    private final @NotNull ConcurrentMap<PackId, ResourcePack> byId;
 
     /**
-     * The union of every pack's namespaces.
+     * The union of every pack's namespaces, in the order the ascending stack first supplies each.
      */
     @Getter(style = NamingStyle.FLUENT)
-    private final @NotNull Set<String> namespaces;
+    private final @NotNull ConcurrentSet<String> namespaces;
 
     /**
      * The scanned texture index, keyed by resolved namespaced id.
@@ -82,6 +80,14 @@ public final class PackStack {
     private final @NotNull ConcurrentMap<PixelKey, PixelBuffer> pixelCache = Concurrent.newMap();
 
     /**
+     * Per-stack memoisation cache of resolved {@link Flipbook}s on the same
+     * {@code (PackId, ResourceId)} key the decoded pixels take, populated lazily on the first
+     * {@link #flipbook(ResourceId)} of each texture. A texture with no sidecar caches its own absence,
+     * so a static id costs one map hit per lookup rather than a repeated miss.
+     */
+    private final @NotNull ConcurrentMap<PixelKey, Optional<Flipbook>> flipbookCache = Concurrent.newMap();
+
+    /**
      * Builds a stack from packs in ascending-priority order; the first must be the vanilla pack. The
      * texture index starts empty - {@link #withTextureIndex} attaches it once the pipeline has scanned
      * the stack.
@@ -96,13 +102,12 @@ public final class PackStack {
         if (!ascending.getFirst().id().equals(PackId.VANILLA))
             throw new PipelineException("Pack stack must lead with the vanilla pack, got '%s'", ascending.getFirst().id());
 
-        LinkedHashMap<PackId, ResourcePack> byId = new LinkedHashMap<>();
-        LinkedHashSet<String> namespaces = new LinkedHashSet<>();
-        for (ResourcePack pack : ascending) {
-            byId.put(pack.id(), pack);
-            namespaces.addAll(pack.namespaces());
-        }
-        return new PackStack(ascending, Map.copyOf(byId), Set.copyOf(namespaces), Concurrent.newMap(), RuleSet.empty(PackId.VANILLA));
+        ConcurrentMap<PackId, ResourcePack> byId = ascending.stream()
+            .collect(Concurrent.toUnmodifiableLinkedMap(ResourcePack::id, pack -> pack, (a, b) -> b));
+        ConcurrentSet<String> namespaces = ascending.stream()
+            .flatMap(pack -> pack.namespaces().stream())
+            .collect(Concurrent.toUnmodifiableLinkedSet());
+        return new PackStack(ascending, byId, namespaces, Concurrent.newMap(), RuleSet.empty(PackId.VANILLA));
     }
 
     /**
@@ -230,6 +235,32 @@ public final class PackStack {
         return decode(resolve(id));
     }
 
+    /**
+     * Resolves a texture id to the {@link Flipbook} its {@code .mcmeta} sidecar plays over its decoded
+     * strip, memoising on the same {@code (PackId, ResourceId)} key the pixels take.
+     * <p>
+     * Gated on the index row rather than on the dispatch, the way the sidecar lookup is: a prefix that
+     * names a pack rather than a namespace answers no sidecar, so it plays no animation either.
+     *
+     * @param id the namespaced texture id
+     * @return the resolved playback table, or empty when the texture ships no animation sidecar,
+     *     does not resolve, or holds no whole frame
+     */
+    public @NotNull Optional<Flipbook> flipbook(@NotNull ResourceId id) {
+        Optional<ResolvedTexture> indexed = indexed(id);
+        if (indexed.isEmpty()) return Optional.empty();
+
+        PixelKey key = new PixelKey(indexed.get().pack(), id);
+        Optional<Flipbook> cached = this.flipbookCache.get(key);
+        if (cached != null) return cached;
+
+        Optional<Flipbook> resolved = indexed.get().meta()
+            .flatMap(MCMeta::animation)
+            .flatMap(animation -> pixels(id).flatMap(strip -> Flipbook.of(strip, animation)));
+        this.flipbookCache.put(key, resolved);
+        return resolved;
+    }
+
     /** Decodes a resolved texture, memoising on the resolved {@code (PackId, ResourceId)} key. */
     private @NotNull Optional<PixelBuffer> decode(@NotNull Optional<ResolvedTexture> resolved) {
         return resolved.map(texture -> {
@@ -289,12 +320,12 @@ public final class PackStack {
     }
 
     /** The within-pack namespace search order: primary namespace, then {@code minecraft}, then the rest sorted. */
-    private static @NotNull List<String> searchOrder(@NotNull ResourcePack pack) {
-        LinkedHashSet<String> order = new LinkedHashSet<>();
-        pack.primaryNamespace().ifPresent(order::add);
-        order.add("minecraft");
-        pack.namespaces().stream().sorted().forEach(order::add);
-        return new ArrayList<>(order);
+    private static @NotNull ConcurrentList<String> searchOrder(@NotNull ResourcePack pack) {
+        return Stream.of(pack.primaryNamespace().stream(), Stream.of("minecraft"),
+                pack.namespaces().stream().sorted())
+            .flatMap(source -> source)
+            .distinct()
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     private boolean isLoadedPackId(@NotNull String prefix) {

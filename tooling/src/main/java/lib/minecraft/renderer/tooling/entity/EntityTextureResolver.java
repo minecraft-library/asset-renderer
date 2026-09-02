@@ -1,8 +1,10 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -27,10 +29,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * Node {@code texture} - the family's primary texture as a FULL namespaced vanilla asset
- * path ({@code minecraft:textures/entity/wolf/wolf.png} - what the bytecode LDCs say).
+ * Node {@code texture} - the family's primary texture, resolved as the FULL namespaced vanilla
+ * asset path the bytecode LDCs say ({@code minecraft:textures/entity/wolf/wolf.png}) and reduced
+ * to the {@code textures/entity/} sub-path by {@link #stripTexturePaths} before the table is
+ * written, the prefix and suffix every row repeats being settled here rather than re-stripped at
+ * every load.
  *
  * <p>The resolution cascade covers: data-driven-variant detection (hands off to the variant
  * axis, node returns {@code null}), entityId-basename match for shared renderers (piglin /
@@ -668,9 +674,10 @@ final class EntityTextureResolver {
             }
         }
 
-        Set<String> candidateStems = new HashSet<>();
-        for (String path : candidates)
-            candidateStems.add(path.substring(VanillaSourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length()));
+        Set<String> candidateStems = candidates
+            .stream()
+            .map(path -> path.substring(VanillaSourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length()))
+            .collect(Collectors.toSet());
 
         for (String path : candidates) {
             String stem = path.substring(VanillaSourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length());
@@ -786,9 +793,10 @@ final class EntityTextureResolver {
      */
     static @NotNull Set<String> deriveNonBaseSuffixes(@NotNull ToolingSession session) {
         String prefix = VanillaSourceClasses.Paths.ASSETS_ROOT + VanillaSourceClasses.Paths.TEXTURES_ENTITY;
-        Set<String> stems = new LinkedHashSet<>();
-        for (String entryPath : session.cache().list(prefix, ".png"))
-            stems.add(entryPath.substring(prefix.length(), entryPath.length() - ".png".length()));
+        Set<String> stems = session.cache().list(prefix, ".png")
+            .stream()
+            .map(entryPath -> entryPath.substring(prefix.length(), entryPath.length() - ".png".length()))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
 
         Map<String, Integer> suffixCount = new HashMap<>();
         for (String stem : stems) {
@@ -803,11 +811,72 @@ final class EntityTextureResolver {
                 underscore = local.indexOf('_', underscore + 1);
             }
         }
-        Set<String> out = new LinkedHashSet<>();
-        for (Map.Entry<String, Integer> entry : suffixCount.entrySet())
-            if (entry.getValue() >= SUFFIX_MIN_RECURRENCE) out.add(entry.getKey());
+        Set<String> out = suffixCount.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue() >= SUFFIX_MIN_RECURRENCE)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
         session.diagnostics().child("textures").info("derived %d non-base texture suffixes: %s", out.size(), out);
         return out;
+    }
+
+    // ------------------------------------------------------------------------------------
+    // texture-path settlement
+    // ------------------------------------------------------------------------------------
+
+    /** What every entity texture path in the finished tree starts with, refused where one does not. */
+    private static final @NotNull String TEXTURE_ROOT =
+        VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + VanillaSourceClasses.Paths.TEXTURES_ENTITY;
+
+    /** What every entity texture path ends with. */
+    private static final @NotNull String TEXTURE_EXTENSION = ".png";
+
+    /**
+     * Reduces every texture member in the finished models tree to the {@code textures/entity/}
+     * sub-path the reader resolves - {@code zombie/zombie} for
+     * {@code minecraft:textures/entity/zombie/zombie.png} - covering {@code texture},
+     * {@code baby_texture}, and the values of a {@code textures} or {@code textures_by_value} map.
+     *
+     * <p>A path outside that shape refuses the flow: every entity texture vanilla ships lives under
+     * one root, so a row that does not is a walk defect, and this is where it fails loudly rather
+     * than at the first load of the shipped table.
+     *
+     * @param models the model table, rewritten in place ahead of being written
+     * @throws ToolingException if a texture path is not {@code minecraft:textures/entity/*.png}
+     */
+    static void stripTexturePaths(@NotNull JsonTree models) {
+        models.members().forEach(EntityTextureResolver::stripBelow);
+    }
+
+    /** One node's texture members reduced, everything below it walked. */
+    private static void stripBelow(@NotNull String entity, @NotNull JsonTree node) {
+        if (node.isArray()) {
+            node.elements().toList().forEach(entry -> stripBelow(entity, entry));
+            return;
+        }
+        if (!node.isObject()) return;
+        for (String member : node.keys().toList()) {
+            JsonTree held = node.find(member).orElseThrow();
+            switch (member) {
+                case "texture", "baby_texture" ->
+                    held.asString().ifPresent(path -> node.put(member, stripped(entity, path)));
+                case "textures", "textures_by_value" -> {
+                    for (String key : held.keys().toList()) {
+                        String path = held.findString(key).orElse(null);
+                        if (path != null) held.put(key, stripped(entity, path));
+                    }
+                }
+                default -> stripBelow(entity, held);
+            }
+        }
+    }
+
+    /** One path's sub-path under the entity texture root, or a refusal. */
+    private static @NotNull String stripped(@NotNull String entity, @NotNull String path) {
+        if (!path.startsWith(TEXTURE_ROOT) || !path.endsWith(TEXTURE_EXTENSION))
+            throw new ToolingException("'%s' names texture '%s', which is not under '%s*%s'",
+                entity, path, TEXTURE_ROOT, TEXTURE_EXTENSION);
+        return path.substring(TEXTURE_ROOT.length(), path.length() - TEXTURE_EXTENSION.length());
     }
 
 }

@@ -3,12 +3,14 @@ package lib.minecraft.renderer.asset;
 import dev.simplified.annotations.EqualsAndHashCode;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
@@ -17,7 +19,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.Color;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -73,6 +74,13 @@ import java.util.Optional;
  *     identity model state, so it carries neither a blockstate variant's rotation nor a multipart
  *     assembly; a false here means vanilla's icon is a sprite (doors, wall torches, comparators) or a
  *     block-entity renderer's mesh, and the 3D render is this pipeline's own stand-in
+ * @param flipbooks the distinct {@link Flipbook playback tables} of every animated face texture this
+ *     block can draw - its block-entity mesh texture, its own model, and every blockstate-variant and
+ *     multipart-apply model. Over-inclusive across variants by design (a per-variant animated face
+ *     counts even where that variant is not the effective one), which only ever lengthens a derived
+ *     loop; empty for a fully static block. It is the cadence a caller asking for a derived timeline
+ *     gets a schedule from, resolved once at index build because the sidecars and the strips it reads
+ *     are pack state a render cannot narrow
  */
 public record Block(
     @NotNull ResourceId id,
@@ -87,7 +95,8 @@ public record Block(
     @NotNull ConcurrentMap<String, String> defaultState,
     @NotNull ResourceId itemBlockId,
     @NotNull Optional<ModelTransform> iconGui,
-    boolean modelIcon
+    boolean modelIcon,
+    @NotNull ConcurrentList<Flipbook> flipbooks
 ) {
 
     /**
@@ -158,6 +167,8 @@ public record Block(
      * carries no biome channel at all, which is what separates {@link #NONE} and {@link #CONSTANT}
      * from the four that resolve against a biome.
      */
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     public enum TintTarget {
 
         /**
@@ -200,41 +211,25 @@ public record Block(
          * under ({@code grass.}, {@code water.}), empty for a target with no biome channel. Note
          * {@code dryfoliage.} carries no separator inside the word where the colormap name does.
          */
-        @Getter(style = NamingStyle.FLUENT)
         private final @NotNull Optional<String> packKeyPrefix;
 
         /**
          * The colormap this target samples, named as it appears under
          * {@code textures/colormap/<name>.png}, empty for a target that samples none.
          */
-        @Getter(style = NamingStyle.FLUENT)
         private final @NotNull Optional<String> colorMapName;
 
         /**
          * The ARGB this target resolves to when neither a pack nor the biome answered and no
          * colormap is registered.
          */
-        @Getter(style = NamingStyle.FLUENT)
         private final int defaultArgb;
 
         /**
          * Whether the biome's {@code GrassColorModifier} post-processes this target's colour.
          * Vanilla runs it on the grass tint alone.
          */
-        @Getter(style = NamingStyle.FLUENT)
         private final boolean grassModified;
-
-        TintTarget(
-            @NotNull Optional<String> packKeyPrefix,
-            @NotNull Optional<String> colorMapName,
-            int defaultArgb,
-            boolean grassModified
-        ) {
-            this.packKeyPrefix = packKeyPrefix;
-            this.colorMapName = colorMapName;
-            this.defaultArgb = defaultArgb;
-            this.grassModified = grassModified;
-        }
 
     }
 
@@ -365,7 +360,7 @@ public record Block(
              *
              * @param terms the conjoined sub-conditions, in author order
              */
-            record All(@NotNull List<When> terms) implements When {
+            record All(@NotNull ConcurrentList<When> terms) implements When {
 
                 @Override
                 public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
@@ -380,7 +375,7 @@ public record Block(
              *
              * @param terms the alternative sub-conditions, in author order
              */
-            record Any(@NotNull List<When> terms) implements When {
+            record Any(@NotNull ConcurrentList<When> terms) implements When {
 
                 @Override
                 public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
@@ -397,11 +392,11 @@ public record Block(
              *
              * @param required each property name to its allowed values
              */
-            record Match(@NotNull Map<String, List<String>> required) implements When {
+            record Match(@NotNull ConcurrentMap<String, ConcurrentList<String>> required) implements When {
 
                 @Override
                 public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
-                    for (Map.Entry<String, List<String>> entry : this.required.entrySet())
+                    for (Map.Entry<String, ConcurrentList<String>> entry : this.required.entrySet())
                         if (!entry.getValue().contains(properties.getOrDefault(entry.getKey(), ""))) return false;
                     return true;
                 }
@@ -470,9 +465,8 @@ public record Block(
          *     Y-down (entity space, needing the presentation's {@code cy = -cy} to reach block space)
          * @param inventoryYRotation the GUI-facing yaw in degrees applied about block centre
          *     {@code (8, 8, 8)} to face the model at the standard {@code [30, 225, 0]} iso pose
-         *     (the chest's {@code +180}); the block presentation-yaw home, distinct from the entity
-         *     camera-yaw {@link EntityModelData#getInventoryYRotation()} (same name, two renderers,
-         *     two frames - block render reads only this one)
+         *     (the chest's {@code +180}) - the only home an inventory yaw has, read by the block
+         *     presentation and by nothing on the entity path
          * @param entityFlip whether the entity-render {@code scale(-1, -1, 1)} X negation applies on
          *     the no-inventory-transform path
          * @param inventoryTransform the decomposed {@code [tx, ty, tz, pitch, yaw, roll, scale?]}

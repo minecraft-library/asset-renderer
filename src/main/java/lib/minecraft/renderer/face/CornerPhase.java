@@ -100,12 +100,6 @@ public enum CornerPhase {
         }
     );
 
-    /**
-     * Cached snapshot of {@link #values()} reused by iteration to avoid the per-call defensive array
-     * clone the JLS mandates.
-     */
-    public static final CornerPhase @NotNull [] CACHED_VALUES = values();
-
     private final int @NotNull [] @NotNull [] vertexIndices;
     private final int @NotNull [] @NotNull [] uvSlots;
 

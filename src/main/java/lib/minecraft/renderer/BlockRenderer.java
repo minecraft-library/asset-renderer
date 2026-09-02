@@ -8,12 +8,9 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.asset.model.ModelElement;
-import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -27,6 +24,7 @@ import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.GeometryKit;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
@@ -44,8 +42,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.Color;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -212,13 +208,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // Build the schedule UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick(), so a caller-supplied non-zero startTick is honored
             // (staticFrame would hardcode tick 0). Default (startTick=0, frameCount=1) is byte-identical.
-            // AUTO opt-in: deriveTickStrip probes the block's animated face textures once and derives
-            // the timeline directly, so a caller need not know the flipbook cadence.
+            // AUTO opt-in: deriveTickStrip folds the block's own flipbooks - resolved once at index
+            // build - into a timeline, so a caller need not know the cadence.
             AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
             int ssaa = options.getOutput().getSupersample();
             Timeline.TickTimeline timeline = anim.isDeriveTimeline()
-                ? Timeline.deriveTickStrip(collectAnimatedSources(block), anim.getStartTick())
+                ? Timeline.deriveTickStrip(block.flipbooks(), anim.getStartTick())
                 : Timeline.schedule(anim);
             return timeline.bake(
                 RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) ->
@@ -256,58 +252,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (gui == null)
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
             return new View(Camera.fromDisplayGui(gui), LightingFrame.tracking(gui.getRotation()));
-        }
-
-        /**
-         * Collects every distinct animated face texture the block can render into
-         * {@link Timeline.Source}s: the block-entity mesh texture, the primary element model,
-         * and every blockstate-variant / multipart-apply element model. Over-inclusive across variants
-         * (a per-variant animated face is folded even when that variant is not the effective one), which
-         * only ever lengthens the derived loop - correct for a timeline union and cheap. Sidecar-less
-         * textures are skipped, so a fully-static block yields no sources.
-         */
-        private @NotNull List<Timeline.Source> collectAnimatedSources(@NotNull Block block) {
-            ConcurrentMap<String, Boolean> seen = Concurrent.newMap();
-            List<Timeline.Source> sources = new ArrayList<>();
-            block.entity().ifPresent(be -> addAnimatedSource(be.textureId(), seen, sources));
-            collectAnimatedFromModel(block.model(), seen, sources);
-            for (Block.Variant variant : block.variants().values())
-                if (variant.geometry() instanceof Block.ElementGeometry(ModelData model))
-                    collectAnimatedFromModel(model, seen, sources);
-            block.multipart().ifPresent(multipart -> {
-                for (Block.Multipart.Part part : multipart.parts())
-                    if (part.apply().geometry() instanceof Block.ElementGeometry(ModelData model))
-                        collectAnimatedFromModel(model, seen, sources);
-            });
-            return sources;
-        }
-
-        /**
-         * Adds every distinct concrete animated face-texture id of a model to {@code sources}.
-         */
-        private void collectAnimatedFromModel(@NotNull ModelData model, @NotNull ConcurrentMap<String, Boolean> seen, @NotNull List<Timeline.Source> sources) {
-            for (ModelElement element : model.getElements())
-                for (ModelFace face : element.getFaces().values()) {
-                    String ref = face.getTexture();
-                    if (ref.isBlank()) continue;
-                    String id = model.resolveTextureReference(ref);
-                    if (id.startsWith("#")) continue;
-                    addAnimatedSource(id, seen, sources);
-                }
-        }
-
-        /**
-         * Resolves one texture id and, when it carries an {@code .mcmeta} animation sidecar not yet
-         * seen, adds a {@link Timeline.Source} carrying the strip's implicit frame count (strip
-         * height / frame height) and the parsed animation. A sidecar-less or unresolvable id is skipped.
-         */
-        private void addAnimatedSource(@NotNull String id, @NotNull ConcurrentMap<String, Boolean> seen, @NotNull List<Timeline.Source> sources) {
-            if (seen.putIfAbsent(id, Boolean.TRUE) != null) return;
-            Optional<AnimationData> animation = this.context.findAnimation(id);
-            if (animation.isEmpty()) return;
-            Optional<PixelBuffer> strip = this.context.resolveTexture(id);
-            if (strip.isEmpty()) return;
-            sources.add(Timeline.Source.of(strip.get(), animation.get()));
         }
 
         /**
@@ -501,10 +445,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * the relight to leave a {@code "shade": false} face full-bright.
          */
         private static @NotNull ConcurrentList<VisibleTriangle> applyRotation(@NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull Matrix4f rotation) {
-            ConcurrentList<VisibleTriangle> rotated = Concurrent.newList();
-
-            for (VisibleTriangle tri : triangles) {
-                rotated.add(new VisibleTriangle(
+            return triangles.stream()
+                .map(tri -> new VisibleTriangle(
                     tri.position0().transform(rotation),
                     tri.position1().transform(rotation),
                     tri.position2().transform(rotation),
@@ -514,10 +456,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     tri.shading(), new SurfaceTraits(tri.traits().cullBackFaces(), false, false,
                         tri.traits().directionalLight(),
                         PassDeclaration.DEFAULT.withEmissive(tri.traits().pass().emissive()))
-                ));
-            }
-
-            return rotated;
+                ))
+                .collect(Concurrent.toWideList());
         }
 
 
@@ -622,13 +562,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // Apply the part's offset to every vertex. Offset is in model units (0..16);
                 // triangle vertex positions are in block units (0..1) post-GeometryKit, so
                 // divide by 16.
-                float dx = part.offset()[0] / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
-                float dy = part.offset()[1] / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
-                float dz = part.offset()[2] / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dx = part.offset()[0] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dy = part.offset()[1] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dz = part.offset()[2] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
                 if (dx != 0f || dy != 0f || dz != 0f) {
-                    ConcurrentList<VisibleTriangle> shifted = Concurrent.newList();
-                    for (VisibleTriangle t : partTriangles) {
-                        shifted.add(new VisibleTriangle(
+                    partTriangles = partTriangles.stream()
+                        .map(t -> new VisibleTriangle(
                             new Vector3f(t.position0().x() + dx, t.position0().y() + dy, t.position0().z() + dz),
                             new Vector3f(t.position1().x() + dx, t.position1().y() + dy, t.position1().z() + dz),
                             new Vector3f(t.position2().x() + dx, t.position2().y() + dy, t.position2().z() + dz),
@@ -636,9 +575,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                             t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
                                 t.traits().directionalLight(),
                                 PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
-                        ));
-                    }
-                    partTriangles = shifted;
+                        ))
+                        .collect(Concurrent.toWideList());
                 }
 
                 combined.addAll(partTriangles);
@@ -797,19 +735,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             float cx = (minX + maxX) * 0.5f, cy = (minY + maxY) * 0.5f, cz = (minZ + maxZ) * 0.5f;
             float scale = 1.4f / extent;
 
-            ConcurrentList<VisibleTriangle> result = Concurrent.newList();
-            for (VisibleTriangle t : triangles) {
-                result.add(new VisibleTriangle(
+            return triangles.stream()
+                .map(t -> new VisibleTriangle(
                     new Vector3f((t.position0().x() - cx) * scale, (t.position0().y() - cy) * scale, (t.position0().z() - cz) * scale),
                     new Vector3f((t.position1().x() - cx) * scale, (t.position1().y() - cy) * scale, (t.position1().z() - cz) * scale),
                     new Vector3f((t.position2().x() - cx) * scale, (t.position2().y() - cy) * scale, (t.position2().z() - cz) * scale),
                     t.uv0(), t.uv1(), t.uv2(),
                     t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
-                                t.traits().directionalLight(),
-                                PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
-                ));
-            }
-            return result;
+                        t.traits().directionalLight(),
+                        PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
+                ))
+                .collect(Concurrent.toWideList());
         }
 
     }

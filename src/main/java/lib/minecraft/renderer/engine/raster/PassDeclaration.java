@@ -45,9 +45,30 @@ import org.jetbrains.annotations.NotNull;
  *     render type's {@code sortOnUpload}. Only meaningful alongside {@link #writesDepth}: it is the
  *     order that decides which of two overlapping fragments writes first, and vanilla's own order is
  *     a per-quad approximation, so a quad drawn later can still lose the test over part of its area
+ * @param wrapsTexture whether a fetch past the sheet's edge wraps back in rather than holding at the
+ *     last texel - {@code true} exactly when the pass declares a {@code texture_scroll}, decided at
+ *     index build. <b>The flag is what tells a scrolled face from one that merely reaches past the
+ *     sheet</b>: a block's own geometry does that (the decorated pot's sherds and one water flow
+ *     frame author a UV rectangle whose upper corner rounds a texel beyond), and wrapping those
+ *     reads from the opposite edge - measured at {@code 0.7233} of block delta over the pot alone
  */
 public record PassDeclaration(boolean emissive, @NotNull BlendMode blend, float alpha,
-                              boolean writesDepth, boolean sorted) {
+                              boolean writesDepth, boolean sorted, boolean wrapsTexture) {
+
+    /**
+     * A pass whose texture is sampled where its own faces say, which is every pass but a scrolled
+     * one.
+     *
+     * @param emissive whether the pass is drawn full-bright
+     * @param blend how its fragments compose onto what is already there
+     * @param alpha the opacity multiplier applied to every fragment
+     * @param writesDepth whether a winning fragment writes the depth buffer
+     * @param sorted whether its quads are drawn back to front
+     */
+    public PassDeclaration(boolean emissive, @NotNull BlendMode blend, float alpha,
+                           boolean writesDepth, boolean sorted) {
+        this(emissive, blend, alpha, writesDepth, sorted, false);
+    }
 
     /**
      * The pass every body, block, item and texture-alpha overlay draws through - shaded, compositing
@@ -68,7 +89,7 @@ public record PassDeclaration(boolean emissive, @NotNull BlendMode blend, float 
     public @NotNull PassDeclaration withEmissive(boolean value) {
         return value == this.emissive
             ? this
-            : new PassDeclaration(value, this.blend, this.alpha, this.writesDepth, this.sorted);
+            : new PassDeclaration(value, this.blend, this.alpha, this.writesDepth, this.sorted, this.wrapsTexture);
     }
 
 }

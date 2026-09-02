@@ -1,10 +1,9 @@
 package lib.minecraft.renderer.asset;
 
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.model.ModelData;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.List;
 
 /**
  * A fully-parsed item definition backed by its vanilla model JSON.
@@ -33,7 +32,7 @@ public record Item(
     @NotNull ModelData model,
     @NotNull ConcurrentMap<String, String> textures,
     int maxDurability,
-    @NotNull List<LayerTint> tints,
+    @NotNull ConcurrentList<LayerTint> tints,
     boolean alwaysGlinted
 ) {
 

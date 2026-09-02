@@ -6,7 +6,6 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.BlockRenderer;
-import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
@@ -17,6 +16,7 @@ import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
@@ -28,6 +28,7 @@ import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.engine.texture.RedstoneTint;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -54,6 +55,7 @@ import java.util.Optional;
  * {@link #knownItemIds}, etc.) and provide empty defaults so individual stubs only need to override
  * what they care about.
  */
+@Parity(ignored = true)
 public interface RendererContext {
 
     /**
@@ -65,8 +67,28 @@ public interface RendererContext {
      * @param textureId the namespaced texture identifier
      * @return the animation metadata, or empty when the texture has no sidecar
      */
-    default @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
+    default @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
         return Optional.empty();
+    }
+
+    /**
+     * Resolves a texture's animation sidecar against the strip it plays over - the
+     * {@link Flipbook playback table} {@link #resolveTextureAtTick} samples, and the cadence a
+     * schedule is derived from. Empty when the texture ships no sidecar, does not resolve, or holds
+     * no whole frame.
+     * <p>
+     * The default resolves the table on every call; an implementation holding a texture index
+     * overrides it to answer the one it resolved when the sidecar was parsed, which is what keeps a
+     * flipbook's entry sequence off the per-fetch path. It asks for the sidecar before the strip, so a
+     * texture that ships no animation - which is nearly all of them, and every one a context pinning
+     * {@link #findAnimation} empty serves - decodes nothing.
+     *
+     * @param textureId the namespaced texture identifier
+     * @return the resolved playback table, or empty when the texture plays back no animation
+     */
+    default @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+        return findAnimation(textureId).flatMap(animation ->
+            resolveTexture(textureId).flatMap(strip -> Flipbook.of(strip, animation)));
     }
 
     /**
@@ -378,8 +400,8 @@ public interface RendererContext {
      * Resolves a texture id to the frame that should be displayed at the given tick. A texture with
      * no {@code .mcmeta} sidecar answers its source buffer unchanged, so tick {@code 0} is
      * byte-identical to {@link #resolveTexture}; an animated one has {@link AnimationKit#sampleFrame}
-     * extract the strip frame for {@code tick}, blending adjacent frames when
-     * {@link AnimationData#interpolate()} is set.
+     * extract the strip frame for {@code tick} out of its {@link #findFlipbook playback table},
+     * blending adjacent frames when {@link Flipbook#interpolate()} is set.
      *
      * @param textureId the namespaced texture identifier
      * @param tick the current animation tick (free-running, signed)
@@ -388,8 +410,8 @@ public interface RendererContext {
     default @NotNull Optional<PixelBuffer> resolveTextureAtTick(@NotNull String textureId, int tick) {
         Optional<PixelBuffer> strip = resolveTexture(textureId);
         if (strip.isEmpty()) return strip;
-        return findAnimation(textureId)
-            .map(animation -> AnimationKit.sampleFrame(strip.get(), animation, tick))
+        return findFlipbook(textureId)
+            .map(flipbook -> AnimationKit.sampleFrame(strip.get(), flipbook, tick))
             .or(() -> strip);
     }
 
@@ -436,7 +458,10 @@ public interface RendererContext {
      * <p>{@link #sampleBiomeTint} and {@link #sampleRedstoneTint} are deliberately absent: they resolve
      * against {@link #findColorMap} and {@link #findColorOverride}, which this mixin already forwards,
      * so forwarding them too would put a second copy of the resolution behind a wrapper that could
-     * drift from the port's.
+     * drift from the port's. {@link #findFlipbook} is absent for the same reason and one more: it
+     * resolves against {@link #resolveTexture} as well as {@link #findAnimation}, and a wrapper that
+     * overrides either - flattening a strip to one frame, or pinning the sidecar away - is answered by
+     * the default, where a forward would pair the delegate's frame rectangle with the wrapper's pixels.
      */
     interface Forwarding extends RendererContext {
 
@@ -448,7 +473,7 @@ public interface RendererContext {
         @NotNull RendererContext delegate();
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
+        @Override default @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
             return delegate().findAnimation(textureId);
         }
 

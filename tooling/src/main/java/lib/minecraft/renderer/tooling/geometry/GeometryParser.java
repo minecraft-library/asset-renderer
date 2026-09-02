@@ -12,6 +12,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
+import lib.minecraft.renderer.tooling.kernel.VanillaMth;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Exit;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Shared ASM bytecode walker for vanilla {@code LayerDefinition.create / CubeListBuilder /
@@ -84,6 +86,22 @@ public final class GeometryParser {
      * static {@code MeshTransformer} fields and {@code scaling} factory return types.
      */
     private static final @NotNull String MESH_TRANSFORMER_DESC = VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF;
+
+    /**
+     * The entity feet anchor a whole-mesh scale is taken about, in model units - vanilla's
+     * {@code MeshTransformer.scaling} expands to
+     * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, and {@code 24.016} is {@code 1.501}
+     * blocks at 16 units a block, the living-entity render chain's own {@code translate(0, -1.501, 0)}.
+     *
+     * <p>The renderer names the same number {@code Shell.FEET_ANCHOR} and expands it the same way, so
+     * that a shell seated on a scaled wearer lands where this pass put the wearer's own bone pivots.
+     * The two are one contract written in two builds and nothing compares them across the boundary,
+     * so each side pins its own value and an edit to either moves a test rather than a render. This
+     * side is pinned by {@code GeometryParserTest}'s ghast, whose in-factory scale of 4.5 reaches
+     * this expansion and is value-matched against the shipped entry with floats exact; the renderer's
+     * side is pinned by {@code ArmorKitTest.shellSeatsAtTheFeetAnchor}.
+     */
+    private static final float FEET_ANCHOR = 24.016f;
 
 
     /**
@@ -205,6 +223,10 @@ public final class GeometryParser {
         applyClearedBonesFilter(state);
         applyMeshTransformerScaling(state);
         applyBabyMeshTransform(state);
+        // Last, because the two passes above rewrite a pivot through the member itself: a bone at
+        // the origin is one the feet anchor and the baby offset both move, and dropping its pivot
+        // any earlier leaves them nothing to read and the bone standing where it was authored.
+        omitDefaultedBoneMembers(state);
 
         if (state.bones.isEmpty()) return null;
 
@@ -327,8 +349,7 @@ public final class GeometryParser {
      * {@code MeshTransformer.scaling(F)} call(s) on the {@code LayerDefinition}) into every
      * emitted bone. Vanilla's expansion is, per {@code PartPose},
      * {@code pose.scaled(F).translated(0, 24.016*(1-F), 0)} - scales bone pivots uniformly
-     * around the entity's feet anchor at {@code y=24.016 pixels} (= {@code 1.501 blocks * 16
-     * px/block}, the LER chain's {@code translate(0, -1.501, 0)}) and multiplies the bone's
+     * around {@link #FEET_ANCHOR}, which carries the derivation, and multiplies the bone's
      * {@code PartPose.scale} field by F. Both halves land here together; the kit's
      * {@code EntityGeometryKit#buildTriangles} consumes the
      * {@code scale} field to multiply local cube vertices by F at the pivot translate, which
@@ -348,10 +369,48 @@ public final class GeometryParser {
      *
      * @param state the parse state whose emitted bones are re-walked and scaled in place
      */
+    /**
+     * Drops every bone member that holds what the reading field already holds - a {@code pivot} at
+     * the origin, an unturned {@code rotation} and an empty {@code cubes} list.
+     *
+     * <p>An absent member and one written at the field's own initial value decode to the same
+     * object, which is the rule {@code scale}, {@code parent}, {@code grow} and {@code mirror} are
+     * already written under. It reaches the three members carrying most of the file's bytes because
+     * a mesh is mostly bones that hang somewhere without turning and joints that draw nothing.
+     *
+     * <p>Runs after every pass that rewrites a bone in place, and that ordering is the whole of what
+     * makes it safe: a pass reading the member back finds nothing where a default was dropped, and
+     * a pivot at the origin is exactly the one the feet anchor and the baby offset move.
+     *
+     * @param state the parse state whose emitted bones are re-walked and thinned in place
+     */
+    private static void omitDefaultedBoneMembers(@NotNull WalkState state) {
+        for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
+            JsonObject bone = entry.getValue().getAsJsonObject();
+            if (isOrigin(bone.getAsJsonArray("pivot"))) bone.remove("pivot");
+            if (isOrigin(bone.getAsJsonArray("rotation"))) bone.remove("rotation");
+            JsonArray cubes = bone.getAsJsonArray("cubes");
+            if (cubes != null && cubes.isEmpty()) bone.remove("cubes");
+        }
+    }
+
+    /**
+     * Whether a bone triple is three zeroes.
+     *
+     * @param triple the {@code pivot} or {@code rotation} array, or {@code null} where absent
+     * @return whether every component is zero, and {@code false} for an absent or malformed triple
+     */
+    private static boolean isOrigin(@Nullable JsonArray triple) {
+        if (triple == null || triple.size() != 3) return false;
+        for (JsonElement component : triple)
+            if (component.getAsFloat() != 0f) return false;
+        return true;
+    }
+
     private static void applyMeshTransformerScaling(@NotNull WalkState state) {
         float f = state.meshTransformerScale;
         if (f == 1f) return;
-        float dy = 24.016f * (1f - f);
+        float dy = FEET_ANCHOR * (1f - f);
         for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
             JsonObject bone = entry.getValue().getAsJsonObject();
             // Only top-level bones (no parent) get the feet-anchor +dy translate; descendants
@@ -464,11 +523,11 @@ public final class GeometryParser {
     private static void applyRetainedNamesFilter(@NotNull WalkState state) {
         Set<String> retained = state.retainedNames;
         if (retained == null) return;
-        List<String> toRemove = new java.util.ArrayList<>();
-        for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
-            if (!hasRetainedAncestor(entry.getKey(), retained, state.boneParents))
-                toRemove.add(entry.getKey());
-        }
+        List<String> toRemove = state.bones.entrySet()
+            .stream()
+            .map(Map.Entry::getKey)
+            .filter(name -> !hasRetainedAncestor(name, retained, state.boneParents))
+            .collect(Collectors.toList());
         for (String name : toRemove) state.bones.remove(name);
     }
 
@@ -1457,7 +1516,7 @@ public final class GeometryParser {
         // {@code LayerDefinition.create(...).apply(MeshTransformer.scaling(N))} chain
         // (PolarBearModel = 1.2, GhastModel = 4.5, HappyGhastModel = 4.0, etc). Vanilla
         // expands this per {@code PartPose} as {@code pose.scaled(F).translated(0,
-        // 24.016*(1-F), 0)} - scales pivots around the entity's feet anchor (y=24.016) AND
+        // FEET_ANCHOR*(1-F), 0)} - scales pivots around the feet anchor AND
         // multiplies the bone's {@code PartPose.scale} field by F, which the kit consumes
         // via {@link Bone#getScale()}
         // when emitting the bone's cubes. We capture F here, then re-walk the emitted bone
@@ -1492,7 +1551,7 @@ public final class GeometryParser {
         // Mth.cos(D)F / Mth.sin(D)F: vanilla model factories occasionally precompute bind-pose
         // offsets via inline trig - e.g. WitherBossModel.createBodyLayer's tail pivot
         // (6.9 + Mth.cos(0.20420352F) * 10 for Y, -0.5 + Mth.sin(0.20420352F) * 10 for Z).
-        // Pop the top double from numStack, compute the result via the FastTrig table lookup,
+        // Pop the top double from numStack, compute the result via the sampled table lookup,
         // push the float so the surrounding FMUL / FADD chain folds correctly. Gated on
         // {@code EVALUATING} so legacy literal-stack walkers keep their byte-stable
         // parse - none observed call Mth.cos / sin during their layer build.
@@ -1502,7 +1561,7 @@ public final class GeometryParser {
         // granularity 2*PI/65536). Substituting Math.cos here would compute the right
         // rotation but a slightly different float result, enough to flip the wither tail
         // pivot Y across a canvas-pixel rounding boundary (Math: 16.6922283, Mth: 16.6924076).
-        // FastTrig.cos / sin reproduce vanilla's bytecode bit-for-bit.
+        // VanillaMth.mthCos / mthSin reproduce vanilla's bytecode bit-for-bit.
         if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKESTATIC
             && methodInsn.owner.equals(VanillaSourceClasses.Types.MTH)
@@ -1511,8 +1570,8 @@ public final class GeometryParser {
             && !state.numStack.isEmpty()) {
             double arg = state.numStack.popTyped(Number.class).doubleValue();
             float result = methodInsn.name.equals("cos")
-                ? FastTrig.cos(arg)
-                : FastTrig.sin(arg);
+                ? VanillaMth.mthCos(arg)
+                : VanillaMth.mthSin(arg);
             state.numStack.push(result);
             return;
         }
@@ -1778,7 +1837,6 @@ public final class GeometryParser {
         // Varargs Set.of([Ljava/lang/Object;) collapses to a single '[' arg - skip it for now.
         for (char t : argTypes) if (t != 'L') return null;
         int expectedCount = argTypes.length;
-        Set<String> names = new LinkedHashSet<>();
         java.util.Deque<String> collected = new java.util.ArrayDeque<>();
         AbstractInsnNode prev = methodInsn.getPrevious();
         while (prev != null && collected.size() < expectedCount) {
@@ -1792,8 +1850,7 @@ public final class GeometryParser {
             prev = prev.getPrevious();
         }
         if (collected.size() != expectedCount) return null;
-        names.addAll(collected);
-        return names;
+        return collected.stream().collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     /**
@@ -2698,6 +2755,10 @@ public final class GeometryParser {
      * {@code parent} are omitted. The bone schema is otherwise unchanged (parent-local pivot,
      * degrees, cumulative scale).
      * <p>
+     * {@code pivot}, {@code rotation} and {@code cubes} are written whatever they hold, because two
+     * later passes rewrite a pivot in place and read the member to do it. What they hold at their
+     * defaults is dropped by {@link #omitDefaultedBoneMembers}, once every pass has run.
+     * <p>
      * {@code pivot} / {@code rotation} are parent-local and {@code parent} names the owning bone
      * (or {@code null} for a root bone); the kit composes the ancestor chain at render.
      *
@@ -3323,84 +3384,4 @@ public final class GeometryParser {
         });
         return ok ? out : null;
     }
-
-    /**
-     * Bit-identical port of vanilla Minecraft's {@code net.minecraft.util.Mth.sin / Mth.cos} table
-     * lookup. Used only by the {@code Mth.cos/sin} arm of the method-call handler above, when
-     * unrolling a vanilla bytecode {@code INVOKESTATIC Mth.sin (D)F} / {@code Mth.cos (D)F} call so
-     * the pre-baked float lands at the same bit pattern vanilla's runtime would produce.
-     * Package-private (not shared) - it is a parse-time implementation detail of this walker, kept
-     * out of the general util surface; its bit-parity is pinned by {@code GeometryParserTrigTest}.
-     *
-     * <p>Vanilla's implementation:
-     * <pre>{@code
-     *   private static final float[] SIN = new float[65536];
-     *   static {
-     *       for (int i = 0; i < 65536; i++)
-     *           SIN[i] = (float) Math.sin((double) i / 10430.378350470453);  // i / (65536 / 2pi)
-     *   }
-     *   public static float sin(double d) {
-     *       return SIN[(int) (long) (d * 10430.378350470453) & 65535];
-     *   }
-     *   public static float cos(double d) {
-     *       return SIN[(int) (long) (d * 10430.378350470453 + 16384.0) & 65535];
-     *   }
-     * }</pre>
-     * Every operation matches the bytecode: index math in {@code double}, conversion to
-     * {@code long} via Java's narrowing convention, mask with {@code 0xFFFF} (65535), narrow to
-     * {@code int}, array load. The {@code cos} offset {@code 16384.0} is a quarter rotation
-     * ({@code 65536 / 4}), the table's phase shift from sine to cosine.
-     *
-     * <p>Why this matters: {@code Math.cos / Math.sin} are libm calls accurate to roughly machine
-     * epsilon. The 65536-entry table samples sin at multiples of {@code 2pi/65536 ~= 9.587e-5 rad}
-     * and rounds intermediate values to single-precision float when populating the array. The
-     * table-vs-libm gap is up to ~1.8e-5 in absolute value - tiny, but multiplied by the
-     * {@code * 10.0F} in WitherBossModel's tail-pivot computation it surfaces as a 0.0002-unit
-     * float drift on the tail pivot Y, which is enough to shift the entity's projected screen
-     * bounds across the canvas-pixel rounding boundary.
-     */
-    static final class FastTrig {
-
-        /**
-         * Vanilla's {@code 65536 / (2 * PI)} constant - the index-per-radian scale factor. Held as
-         * the exact {@code double} literal vanilla hardcodes (not recomputed) so the multiply that
-         * feeds the table index is bit-identical.
-         */
-        private static final double MTH_PI_RATIO = 10430.378350470453;
-
-        /**
-         * The 65536-entry sin lookup table. Element {@code i} holds
-         * {@code (float) Math.sin(i / 10430.378350470453)}. Initialised eagerly so the first
-         * call site does not pay table-population cost.
-         */
-        private static final float[] SIN = new float[65536];
-
-        static {
-            for (int i = 0; i < 65536; i++)
-                SIN[i] = (float) Math.sin((double) i / MTH_PI_RATIO);
-        }
-
-        private FastTrig() {}
-
-        /**
-         * Bit-identical reproduction of vanilla {@code Mth.sin(double)}.
-         *
-         * @param d the angle in radians
-         * @return {@code sin(d)} sampled from the 65536-entry table
-         */
-        static float sin(double d) {
-            return SIN[(int) (long) (d * MTH_PI_RATIO) & 65535];
-        }
-
-        /**
-         * Bit-identical reproduction of vanilla {@code Mth.cos(double)}.
-         *
-         * @param d the angle in radians
-         * @return {@code cos(d)} sampled from the 65536-entry table (offset by a quarter rotation)
-         */
-        static float cos(double d) {
-            return SIN[(int) (long) (d * MTH_PI_RATIO + 16384.0) & 65535];
-        }
-    }
-
 }

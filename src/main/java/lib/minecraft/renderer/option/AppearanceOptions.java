@@ -109,9 +109,10 @@ public class AppearanceOptions {
 
     /**
      * Horse-marking selector - the white socks / blaze / patches drawn over the coat colour. When set
-     * to a non-{@link HorseMarking#NONE} value and the resolved entity supports markings (the horse),
-     * a same-geometry translucent overlay draws that marking's texture over the coat;
-     * {@link HorseMarking#NONE} (default) draws no marking. Ignored by entities without a marking layer.
+     * to a non-{@link HorseMarking#NONE} value and the resolved entity carries a
+     * {@code texture_by: markings} overlay (the horse), that overlay draws the marking's texture over
+     * the coat; {@link HorseMarking#NONE} (default) draws no marking. Ignored by entities without a
+     * marking overlay.
      */
     private final @NotNull HorseMarking markings = HorseMarking.NONE;
 

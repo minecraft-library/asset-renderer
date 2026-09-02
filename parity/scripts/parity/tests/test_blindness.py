@@ -9,9 +9,10 @@ from parity import blindness
 from parity.norm import MissingInput, write_json
 
 
-def rule(rid, triggers, sees=(), blind=(), mode="select"):
+def rule(rid, triggers, sees=(), blind=(), mode="select", derived=False):
     return blindness.Rule(id=rid, claim="c", trigger_paths=tuple(triggers), sees=tuple(sees),
-                          blind=tuple(blind), reason="r", mode=mode, probe="p", source="s")
+                          blind=tuple(blind), reason="r", mode=mode, probe="p", source="s",
+                          derived=derived)
 
 
 class GlobGrammar(unittest.TestCase):
@@ -211,6 +212,95 @@ class PostUnionPasses(unittest.TestCase):
         self.assertEqual([(e["rule"], e["selected_by"]) for e in reach.blind], [("DEM", ["KEPT"])])
 
 
+class DerivedSelection(unittest.TestCase):
+    """A rule whose selection the reference graph answers, per path rather than per glob."""
+
+    #: What a graph answers for two files under one glob, which is the whole point of deriving: the
+    #: directory they share stops being what decides either answer.
+    GRAPH = {"a/wide.java": ["sweep.block", "sweep.item"], "a/narrow.java": ["sweep.item"]}
+
+    def answer(self, path):
+        return self.GRAPH.get(path)
+
+    def test_a_derived_rule_selects_what_the_graph_answers(self):
+        reach = blindness.resolve(["a/wide.java"], [rule("A", ["a/**"], derived=True)],
+                                  derived=self.answer)
+        self.assertEqual(reach.sees, ["sweep.block", "sweep.item"])
+
+    def test_two_files_under_one_glob_answer_separately(self):
+        """The mechanism, stated as a difference: an authored `sees` cannot tell these two apart."""
+        rules = [rule("A", ["a/**"], derived=True)]
+        self.assertEqual(blindness.resolve(["a/narrow.java"], rules, derived=self.answer).sees,
+                         ["sweep.item"])
+        self.assertEqual(blindness.resolve(["a/wide.java", "a/narrow.java"], rules,
+                                           derived=self.answer).sees,
+                         ["sweep.block", "sweep.item"])
+
+    def test_a_derived_rule_keeps_demoting_its_own_blind_list(self):
+        """The half no graph can answer: what an artifact OBSERVES, rather than what code moved.
+
+        The shipped case is the dump pair falling off an engine change - a byte-identical dump proves
+        the render inputs are identical and says nothing about a render, which is a claim about the
+        artifact and not about the reference graph.
+        """
+        reach = blindness.resolve(["a/wide.java"], [
+            rule("A", ["a/**"], blind=["sweep.block"], mode="demote", derived=True),
+        ], derived=self.answer)
+        self.assertEqual(reach.sees, ["sweep.item"])
+        self.assertEqual([entry["artifact"] for entry in reach.blind], ["sweep.block"])
+
+    def test_the_selector_named_is_the_derived_rule_that_answered(self):
+        """A contradiction has to name the rule that really put the artifact in the bundle.
+
+        Read the authored list to decide who selected what and a derived rule never appears, so the
+        plan prints "claimed blind, selected by" nothing at all over a bundle that carries it.
+        """
+        reach = blindness.resolve(["a/wide.java"], [
+            rule("A", ["a/**"], derived=True),
+            rule("B", ["a/**"], blind=["sweep.block"]),
+        ], derived=self.answer)
+        self.assertEqual([(e["rule"], e["selected_by"]) for e in reach.blind],
+                         [("B", ["A"])])
+
+    def test_a_path_the_graph_cannot_answer_is_refused(self):
+        """Never an empty selection: it is indistinguishable from a class that reaches nothing."""
+        with self.assertRaises(MissingInput):
+            blindness.resolve(["a/unknown.java"], [rule("A", ["a/**"], derived=True)],
+                              derived=self.answer)
+
+    def test_a_derived_rule_with_no_graph_at_all_is_refused(self):
+        """A caller that forgot the graph would otherwise plan every derived rule as empty."""
+        with self.assertRaises(MissingInput):
+            blindness.resolve(["a/wide.java"], [rule("A", ["a/**"], derived=True)])
+
+    def test_an_authored_rule_needs_no_graph(self):
+        """The map is resolvable without one until some rule asks, which is what keeps it optional."""
+        reach = blindness.resolve(["a/wide.java"], [rule("A", ["a/**"], sees=["sweep.block"])])
+        self.assertEqual(reach.sees, ["sweep.block"])
+
+
+class DerivedShape(unittest.TestCase):
+    """The two spellings of a selection are exclusive, and the loader is where that is held."""
+
+    def _load(self, row):
+        root = Path(tempfile.mkdtemp())
+        write_json(root / blindness.BLINDNESS_FILE, {"rules": [row], "no_reach": []})
+        return blindness.load(root)
+
+    def test_a_derived_rule_authoring_a_sees_is_refused(self):
+        with self.assertRaises(MissingInput):
+            self._load({"id": "A", "trigger_paths": ["a/**"], "sees": ["sweep.block"],
+                        "derived": True})
+
+    def test_a_derived_rule_carries_an_empty_sees(self):
+        rules, _ = self._load({"id": "A", "trigger_paths": ["a/**"], "sees": [], "derived": True})
+        self.assertEqual((rules[0].derived, rules[0].sees), (True, ()))
+
+    def test_a_rule_declaring_nothing_is_not_derived(self):
+        rules, _ = self._load({"id": "A", "trigger_paths": ["a/**"], "sees": ["sweep.block"]})
+        self.assertFalse(rules[0].derived)
+
+
 class Coverage(unittest.TestCase):
 
     def test_an_uncovered_path_is_unknown(self):
@@ -254,8 +344,16 @@ class TheShippedMap(unittest.TestCase):
     """Against the real map, so the resolver and the file are checked together."""
 
     def setUp(self):
-        from parity import store
-        self.rules, self.no_reach = blindness.load(store.repo_root() / store.PRODUCTION)
+        import json
+        from parity import reach, store
+        root = store.repo_root()
+        self.rules, self.no_reach = blindness.load(root / store.PRODUCTION)
+        graph = json.loads((root / "parity" / reach.STORED).read_text(encoding="utf-8"))
+        self.derived = lambda path: reach.answered_by(graph, path)
+
+    def _reach(self, changed):
+        """The shipped map and the committed graph, which is the pair the planner resolves through."""
+        return blindness.resolve(changed, self.rules, self.no_reach, self.derived)
 
     def test_every_mode_is_known(self):
         self.assertEqual({r.mode for r in self.rules} - {"select", "demote", "suppress"}, set())
@@ -269,23 +367,18 @@ class TheShippedMap(unittest.TestCase):
         self.assertEqual(named, {"B15": ()})
 
     def test_the_box_builder_selects_the_armour_and_player_gates(self):
-        reach = blindness.resolve(
-            ["src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java"],
-            self.rules, self.no_reach)
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java"])
         for artifact in ("sweep.entity", "sweep.armor", "pin.player-crc", "manifest.player-sheets"):
             self.assertIn(artifact, reach.sees)
 
     def test_a_tooling_change_empties_every_sweep(self):
-        reach = blindness.resolve(
-            ["tooling/src/main/java/lib/minecraft/renderer/tooling/entity/EntityBoneResolver.java"],
-            self.rules, self.no_reach)
+        reach = self._reach(
+            ["tooling/src/main/java/lib/minecraft/renderer/tooling/entity/EntityBoneResolver.java"])
         self.assertEqual([a for a in reach.sees if a.startswith("sweep.")], [])
         self.assertIn("manifest.tooling-tables", reach.sees)
 
     def test_an_engine_change_demotes_both_dump_manifests(self):
-        reach = blindness.resolve(
-            ["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"],
-            self.rules, self.no_reach)
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"])
         self.assertEqual([a for a in reach.sees if a.startswith("manifest.dump.")], [])
 
     def test_an_engine_change_reaches_the_renders_only_the_engine_produces(self):
@@ -294,31 +387,28 @@ class TheShippedMap(unittest.TestCase):
         Both were unreachable from every rule governing render code, so an engine edit answered that
         nothing rendered saw it.
         """
-        reach = blindness.resolve(
-            ["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"],
-            self.rules, self.no_reach)
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"])
         for artifact in ("sweep.glint", "manifest.visual", "pin.block-crc", "pin.fluid-crc",
                          "pin.portal-crc"):
             self.assertIn(artifact, reach.sees)
 
     def test_a_markdown_file_under_the_harness_reaches_nothing(self):
         """B29 costs a whole-client re-render, and prose cannot move a reference byte."""
-        reach = blindness.resolve(["harness/CLAUDE.md"], self.rules, self.no_reach)
+        reach = self._reach(["harness/CLAUDE.md"])
         self.assertEqual(reach.sees, [])
         self.assertEqual(reach.no_reach, ["harness/CLAUDE.md"])
 
     def test_a_harness_renderer_still_reaches_the_reference_tree(self):
         """A path that EXISTS, because the trigger it has to match is derived from the tree."""
-        reach = blindness.resolve(
-            ["harness/src/client/java/lib/minecraft/refharness/frame/EntityFrameRenderer.java"],
-            self.rules, self.no_reach)
+        reach = self._reach(
+            ["harness/src/client/java/lib/minecraft/refharness/frame/EntityFrameRenderer.java"])
         self.assertIn("manifest.references", reach.sees)
 
     def test_the_self_capture_writers_are_not_resolved_as_emitting_nothing(self):
         """B33's claim - the test tree asserts rather than emits - is false for these two."""
         for path in ("src/test/java/lib/minecraft/renderer/parity/SelfCapture.java",
                      "src/test/java/lib/minecraft/renderer/pipeline/dump/PipelineParityDump.java"):
-            reach = blindness.resolve([path], self.rules, self.no_reach)
+            reach = self._reach([path])
             self.assertIn("manifest.dump.vanilla", reach.sees, path)
             self.assertIn("digest.shipped-tables", reach.sees, path)
 
@@ -330,7 +420,7 @@ class TheShippedMap(unittest.TestCase):
         """
         for path in ("src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java",
                      "src/test/java/lib/minecraft/renderer/parity/ParityViews.java"):
-            self.assertEqual(blindness.resolve([path], self.rules, self.no_reach).sees, [], path)
+            self.assertEqual(self._reach([path]).sees, [], path)
 
     def test_a_reader_committed_beside_a_writer_does_not_cancel_the_writer(self):
         """The shape a single-path case cannot see, and the shape this effort's own phases commit in.
@@ -341,10 +431,10 @@ class TheShippedMap(unittest.TestCase):
         """
         writer = "src/test/java/lib/minecraft/renderer/parity/PinSet.java"
         reader = "src/test/java/lib/minecraft/renderer/parity/ParityReferences.java"
-        alone = blindness.resolve([writer], self.rules, self.no_reach).sees
+        alone = self._reach([writer]).sees
         self.assertIn("pin.player-crc", alone)
-        self.assertEqual(blindness.resolve([reader], self.rules, self.no_reach).sees, [])
-        together = blindness.resolve([writer, reader], self.rules, self.no_reach)
+        self.assertEqual(self._reach([reader]).sees, [])
+        together = self._reach([writer, reader])
         self.assertEqual(together.sees, alone)
         self.assertEqual([e["selected_by"] for e in together.blind if e["artifact"] == "pin.player-crc"],
                          [["B37"]])
@@ -361,7 +451,7 @@ class TheShippedMap(unittest.TestCase):
         # and the store's own self-captured rows are the list it has to have found.
         self.assertEqual({artifact for _, artifact in declarations}, self._self_captured_rows())
         for path, artifact in sorted(declarations):
-            reach = blindness.resolve([path], self.rules, self.no_reach)
+            reach = self._reach([path])
             self.assertIn(artifact, reach.sees, path)
 
     @staticmethod

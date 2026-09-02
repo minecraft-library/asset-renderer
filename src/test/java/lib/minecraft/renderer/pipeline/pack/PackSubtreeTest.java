@@ -18,7 +18,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeSet;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -166,7 +165,7 @@ class PackSubtreeTest {
 
         ResourcePack overlaid = new ResourcePack(new PackId("overlaid"), new PackContainer.Directory(root),
             MCMeta.EMPTY, Concurrent.newList(PackRoot.BASE, PackRoot.overlay("overlay_1")).toUnmodifiable(),
-            Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newUnmodifiableSet("minecraft"), Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
 
         List<PackSubtree.Entry> entries = PackSubtree.walk(overlaid, BLOCKSTATES, ITEMS);
 
@@ -222,7 +221,8 @@ class PackSubtreeTest {
     /** Builds a base-root directory pack. */
     private static ResourcePack pack(PackId id, Path root, MCMeta meta, Set<String> namespaces) {
         return new ResourcePack(id, new PackContainer.Directory(root), meta,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), namespaces, Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableSet(namespaces),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
     }
 
     /** Parses a {@code pack.mcmeta} whose {@code filter.block} array holds the given entry objects. */

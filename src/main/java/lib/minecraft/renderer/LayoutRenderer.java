@@ -10,6 +10,8 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.option.LayoutOptions;
 import lib.minecraft.renderer.option.slot.LayoutSlot;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 
@@ -32,10 +34,16 @@ import java.util.function.Supplier;
  *       animated, it picks a merged loop period and samples each child per output frame.</li>
  * </ol>
  *
+ *
+ * <p><b>Parity.</b> This store holds no artifact for the layout, and no type in this tree
+ * references it at all. It composes the grid, so a change to any renderer below moves what is
+ * arranged rather than the arranging.
+ *
  * @see LayoutOptions
  * @see LayoutOptions.Layout
  * @see FrameCompositor
  */
+@Parity(subject = Subject.LAYOUT)
 public final class LayoutRenderer implements Renderer<LayoutOptions> {
 
     /** {@inheritDoc} */
@@ -65,10 +73,9 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
      * composite steps then re-use.
      */
     private static @NotNull ConcurrentList<ImageData> resolveChildren(@NotNull ConcurrentList<Supplier<ImageData>> children) {
-        ConcurrentList<ImageData> resolved = Concurrent.newList();
-        for (Supplier<ImageData> supplier : children)
-            resolved.add(supplier.get());
-        return resolved;
+        return children.stream()
+            .map(Supplier::get)
+            .collect(Concurrent.toWideUnmodifiableList());
     }
 
     /**

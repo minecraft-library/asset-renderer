@@ -16,7 +16,8 @@ from parity import ids as ids_mod
 from parity.norm import MissingInput, fixed, fsum, read_json, read_lines
 
 #: Spine 4.3. These and only these.
-SWEEPS = ("entity", "block", "item", "player", "armor", "glint", "menu")
+SWEEPS = ("entity", "entity-animation", "entity-walk", "block", "item", "player", "armor", "glint",
+          "menu")
 
 DELTA = "mean_argb_delta"
 

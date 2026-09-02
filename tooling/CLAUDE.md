@@ -42,6 +42,139 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   `renderer/block_defaults.json`, the only way a pack reaches an ASM-derived default state.
 - `EntityIndexes` is session-lifetime and `EntityContext` per-subject; do not merge them. There is no
   writer class, and the only post-pass is `EntityGroupLinker.link`.
+- **A pose in `entity_poses.json` is a GRAPH, and the `shared` table is what says so.** A
+  `setupAnim` walk follows both arms of everything it cannot decide, so one sub-expression is reached
+  down enormously many paths - a humanoid's arms are nine hundred distinct nodes standing for
+  twenty-two million, and spelling that out per path could not be written at all. So a node reached
+  more than once is written once under `shared` and used as `{"ref": n}`, entries ordered so
+  everything a node names is declared above it. Leaves stay inline however often they are reached: a
+  reference to a literal costs what the literal costs and reads worse. Both sides depend on this
+  being a graph rather than a shorthand for a tree - `PoseJson` interns bottom-up against the numbers
+  it has already given a node's children, because asking a map about a node would hash it by walking
+  the very tree this exists to avoid; and `RawEntityPosesFile` resolves every reference to ONE record
+  instance, a reader that rebuilt one per reference being a reader that puts the twenty-two million
+  back.
+- **A pose is folded against the frame its subjects rest in, and a frame is what the ROW can tell
+  apart.** `PoseFold` takes every branch an offline subject already decides, so what ships is the
+  residual the tick can still move rather than a program over the whole render state. One row folds
+  against ONE frame, which is what keeps the result a graph - a node reached down six paths has one
+  binding and there is nothing to specialise it to - so a class reached at two frames is emitted
+  unfolded and named in the log rather than folded against one of them, which would draw a subject
+  vanilla never draws. What makes a frame is the two questions a fold asks a resting state, which
+  constant a member holds and what number it reads as, asked only of the members that row NAMES:
+  comparing the raw resting maps instead refuses three of the corpus's crowded classes over members
+  their poses never look at. Any of the raw maps behind one frame folds to one residual, measured by
+  regenerating the whole table against the first of them and against the last.
+- **A class reached at two frames is SPLIT where every site reaching it is a body, and the body names
+  the key it takes.** A body - the adult age option, and each coat of a family with them - is the one
+  site `EntityIndexBuilder` resolves through the subject's own `bones.pose`, so a class an overlay,
+  a size mesh or an equipment layer also reaches has nowhere to carry a second key and stays
+  unfolded. The suffix names the members the frames DISAGREE on and nothing else, and a frame
+  answering none of them keeps the bare class name. This is why the model table is written AFTER the
+  pose flow rather than before it: the pose flow owns the keyspace that table joins on, and a
+  `bones.pose` naming a row nothing wrote is silent at render, so the flow refuses one instead.
+- **A body key is the poser a subject names, never that key BESIDE the coordinate's own head.**
+  Reading both credits a class the subject does not pose through - a zombified piglin stood for
+  `AdultPiglinModel` while its body poses as `AdultZombifiedPiglinModel` - and one phantom is enough
+  to make a class look reached at two frames and refuse a fold that had nothing to choose between.
+- **A pose the walk restores has to be copied, not handed over.** `PoseWalk.replace` takes a fresh
+  channel map per bone; sharing the snapshot's own map means the next write lands in the snapshot,
+  and then a fork's second arm - or an enum split's third - starts from what the one before it wrote.
+  That is silent: the arms come out EQUAL, so the merge collapses them and drops the guard that told
+  them apart. It shipped a parrot flapping its wings while sitting, and a party parrot's head pose
+  standing in for a shoulder parrot's.
+- **Everything a fork restores rides on one `Held`.** The machine, the pose, what the body has
+  assigned and the clips played are restored together at four points, and the split beside it folds
+  the same record n-ways. A part left out of that record does not fail - both arms end up holding
+  whatever the last of them wrote, so they agree, the merge collapses them, and the fork reports one
+  arm's answer under both arms' name. Add the next one to `Held`, never beside it.
+- **The root every model inherits is two different things and the field's own name says which
+  neither time.** A constructor either hands its root parameter up the chain unchanged, leaving
+  `Model.root` standing for the baked mesh root - a container the mesh flattens and names nowhere -
+  or narrows it with one `getChild` first, leaving it standing for that named bone like any other.
+  Only the argument to `super` tells them apart, so `PosePartIndex` reads it there. Reading the class
+  named on the instruction answers nothing either way: javac writes the LEAF as the owner of an
+  inherited field's reference, so it names the class that used the field rather than the one that
+  declares it. `PoseWalk.isModelRoot` resolves instead, the way `isReset` does.
+- **Every `<init>` feeds the field-to-bone map, not the first**, because a model offering both a
+  `(root)` and a `(root, Function)` form builds its parts in the wider one. A miss falls back to
+  `StringUtil.toSnakeCase`; a raw Java field name is never a bone name.
+- **The class that bakes a mesh is not the class that poses it, and `bones.pose` is the only place
+  that is said.** A geometry coordinate is headed with the baking class, and a model reusing its
+  parent's layer bakes nothing of its own - so the coordinate names `HumanoidModel` for a zombie the
+  renderer hands a `ZombieModel`, and reading it there loses the arms-out stance. `EntityPoseClass`
+  answers it as the first `EntityModel` a renderer's constructor chain allocates: a body's model is
+  built into the `super` call's arguments, evaluated before any `addLayer`, and a renderer allocating
+  none delegates to the one it extends. `EntityBoneResolver` emits the member wherever that class and
+  the mesh's factory disagree - **including when the class declares no undrawn bone and no toggle**,
+  which is what the early return used to swallow, and which is why three equine body-armour rows had
+  been posing off their mesh. A posing class bakes no mesh, so `PoseFlow` would never have walked it:
+  its roster takes the posing classes beside the manifest's and reads each one's top-level bones off
+  its nearest baking ancestor, that ancestor being the very class it reuses the layer of.
+- **A texture scroll is read as the RATE it is written as, never fitted from an evaluation.**
+  `EntityTextureScrollResolver` carries the age as a value of its own and only a multiply of that age
+  by a literal becomes a rate, so an offset that merely happens to be a number at every tick is
+  refused. The wither's armour is exactly that - `Mth.cos(age * 0.02) * 3` - and a reader that
+  evaluated at one tick would emit a rate for a pass that swings and animate it wrongly at every tick
+  but the first. The wrap the factory is handed carries a rate through unchanged, because it is the
+  same wrap the renderer applies at the offset rather than a second operation.
+- **A renderer's `setupRotations` is a self-refusing walk of its own, not an extension of
+  `PoseWalk`.** It reads ten statements against a closed grammar and refuses the whole body on
+  anything outside it, where the pose walk follows both arms of everything it cannot decide - so the
+  fork machinery and the one-`Held` rule are not involved and would not help. The one branch shape is
+  a forward jump over a contiguous block, which is structural rather than a fork: the block runs
+  unconditionally and each value it produces becomes a select, a step's channels against that
+  channel's identity and a local against what it held before the jump. It drives the same `Interp`
+  chassis every other walk here does, with the render state and the pose stack bound as the only two
+  references a member may be read of, so a read of the body rotation or the render scale arrives
+  unmodelled and refuses where it is used rather than resolving to a confident zero. The grammar is
+  the render state's own float and boolean fields, float and double arithmetic, `Mth.sin` and
+  `Mth.cos`, a translate, a `mulPose` of one of the three positive axes turned by degrees, the
+  delegation carrying at most a literal addend folded into its body rotation, and a `rotateAround`
+  about the direction the subjects rest attached at - an enum member the walk settles at generation,
+  because what it decides is which steps exist rather than what a channel holds, and the identity
+  rotation folds the whole call away. **Eight of the fourteen renderers that override refuse today
+  and each refusal is a row**, because a transform read in half places a subject somewhere vanilla
+  never puts it and renders as though it were deliberate. Reading a local off the block's own arm
+  rather than reconciling it at the block's end gives every salmon its out-of-water amplitude.
+- **A write to a flattened container is carried as the pose's own container, never pushed down onto
+  the bones it held.** It is a parent transform above every bone the mesh names at top level, and
+  `EntityPose.container` is where it lives on both sides. Only a translation could be pushed down at
+  all - that composes by addition, so every child taking the same amount lands where the container
+  would have put it - and a rotation cannot: it turns each child's POSITION about the container's
+  pivot as well as composing with the child's own rotation, and the three Euler angles a bone carries
+  are applied in one fixed order, so the two together are not a triple. Two models pose one and they
+  are why both halves are needed: `AdultTurtleModel` moves it, `EnderDragonModel` places it twice and
+  turns it once.
+- **A flattened container starts at REST, where a bone starts at its authored pose.** The geometry
+  flow dissolves the root's pose into the bones below it - the plain root vanilla builds at
+  `PartPose.ZERO`, and equally the transformed root a whole-mesh scale or an aged-down proportion
+  rewrites, which `applyMeshTransformerScaling` pushes onto the top-level bones as a translate and
+  onto every bone as a factor. So every bone a mesh names at top level already carries whatever the
+  container was holding, and a read of a container channel nothing has written is a NUMBER rather than
+  a name. `PoseWalk.unwritten` is the one place that is decided, for the channel read and for the arm
+  a fork did not write alike, which is what keeps the internal sentinel out of the shipped bytes.
+  Which bones the container held is a fact only the mesh has, so `GeometryFlow.emit` answers it and
+  `PoseFlow` takes it; a class whose derivations disagree gets no answer rather than one of them.
+- **A figure the model carries between poses is named, and only when it is stepped along.** A field a
+  body accumulates - `FoxModel.legMotionPos += 0.67` - is not a function of the render state, so it
+  is named rather than derived, on the ground that binding it to nothing reproduces a real vanilla
+  frame: the first one after the model was built. The only write allowed is a step ADDED to what the
+  field already held, checked at the write and again over the emitted pose, because a field assigned
+  outright has no starting point a caller could be handed and one never stepped along is a number a
+  constructor settled. It gets its own shipped arm rather than riding `input`: a caller answers the
+  two in different places, and a render-state field of the same name would otherwise become the same
+  input in silence.
+- **`Vec3` is the one value type a pose body allocates**, carried as its three components. Vanilla's
+  shape for building one leaves two references and the constructor consumes one, so the finished
+  value has to reach every place the unbuilt one did - found by what they hold, since nothing on the
+  stack says where those places are. Two arms answering two vectors choose component by component.
+  Everything else allocated while posing is still refused.
+- **A static table of numbers is read off the initialiser that fills it**, the way the switch tables
+  are: a Java array has no declared contents. What an entry belongs to is unknown until the store
+  that closes the fill names a field, so entries are gathered against whichever field closes them,
+  and every position the allocation declares has to have been filled - a table short by one is a
+  spike at an angle nothing authored, which reads as zero and renders.
 - `ToolingSession.envelope` builds both header segments from one `flow` local, so renaming a flow
   rewrites every table's header.
 - **Every instruction walk here is an `AsmWalker` chain** - the one hand-written instruction loop
@@ -59,6 +192,100 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   One-hop neighbour reads (`AsmWalker.nextReal`/`previousReal`) are expressions, not walks, and stay
   statics. `EntityGeometryRefResolverTest` reaches the declined member by reflection under its own
   name, so renaming it compiles clean and fails at runtime.
+
+## What a resting subject answers
+
+Three resolutions of what a figure rests at are made here - `rest_defaults`, `input_defaults` and
+`question_defaults`, by the flow's own names - and the fold consumes all three whole; **none is
+emitted and none is read at render**. Every claim below is about generation rather than about a
+shipped byte.
+
+**A figure a pose names rests at what its own render state builds it at, and an enum member is the
+same question with no zero to fall back on.** Answering false to every constant is a state no enum is
+in, so a switch lands on whichever arm it ends at rather than the arm the subject stands in - a wrong
+pose rather than a wrong number. `rest_defaults` carries the constant each member rests holding and
+`input_defaults` the numeric half, both read off the render state's own constructor; a per-subject
+`rest` still overrides, which is what keeps an evoker's arms crossed while a pillager's hang.
+**`rest_defaults` is keyed per MODEL, because a bare field name does not span one type** - an armour
+stand's `rightArmPose` is a `Rotations` beside a humanoid's `ArmPose`, and a parrot's `pose` is not
+the `Pose` every other subject carries. The model's own `setupAnim` names the state its members are
+read off, which is the only thing that tells those apart; a flat table reads all four as conflicts
+and drops them. What makes a push a constant OF a member is that its owner is the field's declared
+type, true of an enum constant and of `ItemStack.EMPTY` and false of a static the state merely holds.
+A member named through a call is answered by the fields it forwards to, and refuses where two
+branches disagree.
+
+**`rest` is the subject's own fact and not its model's**, because one `IllagerModel` serves every
+illager and only the pillager hangs its arms. `EntityRestStateResolver` reads the accessor
+`extractRenderState` fills the field from and takes its last unguarded return, resolved against the
+**subject's** entity class - a renderer shared by several calls the accessor on the type they have in
+common, so reading the owner off the instruction gives every illager `AbstractIllager`'s
+unconditional `CROSSED`. Answering no constant at all drew three illagers with the wrong pair of arms.
+
+**A question asked of a reference the render state holds rests at what that reference was built
+with, and `question_defaults` carries it**, keyed per MODEL for the reason `rest_defaults` is and
+then by `receiver.question`. Where a figure the state builds at zero and one nobody models are the
+same number, a reference is a whole value and every component of it is an answer a subject stands at
+- an armour stand's legs splay a degree each way before anything happens to it, and answering zero
+stands it with its legs together.
+
+- Answerable because the shape is closed: the state's constructor assigns the field a static of the
+  field's own declared type, that type is a record of floats, and the static's own initialiser builds
+  it from literals. So the question names a record component, the component names a constructor
+  argument BY POSITION, and the argument is a number. Losing the position splays both legs the same
+  way, which costs more than answering nothing - measured at 7.68 against the 4.56 of a stand with
+  its legs together, and 0.05 with the positions right.
+- Anything outside that shape answers nothing rather than a guess, and a zero row is omitted on the
+  same terms `input_defaults` omits one. That cannot shadow `isEmpty`, which rests at ONE: an
+  emptiness is asked of a stack rather than read off a record of floats, so no row can ever name it.
+
+**Every flag folds to a literal here, which is why nothing at render reads a flag channel.** Which
+bones a subject rests without is written by `EntityMeshMarking` onto the mesh it rests in - a bone
+nothing can draw is dropped, a bone a selection can draw rests `visible: false` naming what flips it
+- and nothing strips a mesh at load. A flag the fold cannot settle to a literal - one reading a clock
+- and a resting `skip_draw` both refuse the flow, which is the coverage the per-frame flag path used
+to hold, moved to where a version bump surfaces it loudly.
+
+**A mesh is derived at generation and named, never described for the reader to build.** The three
+overlay surgeries - the `retainExactParts` subset, the `CubeDeformation` inflate and the
+`clearChild().clearRecursively()` a suppressed pass draws - are `EntityMeshOverlays`, which mints
+`@retain=` / `@inflate=` / `@cleared=` through `GeometryIds`. An inflate is NOT the request's
+`@grow=`: that pre-seeds the factory's default deformation, which a cube deformed inline overrides,
+where an inflate adds to whatever a cube ended up carrying. The equine's `body` is deformed inline at
+0.05 and the request's `@grow=0.1` leaves it there, where an inflate of the same amount would have
+taken it to 0.15; the baby zombie's `head` is built with an explicit zero and stays absent under
+`@grow=0.25` while its `body` takes the seed. So the two never share a spelling. The drowned is not a
+witness either way - its `hat` reaches `HumanoidModel.createMesh` through `param.extend(0.5f)`, a
+relative extension that composes additively, so its pass's 0.25 taking it to 0.75 is what an inflate
+would have done too.
+
+**A mesh every site derives the same way is derived where it stands; one the body also draws mints a
+key.** Deriving a shared mesh in place would deform the body along with the pass, and minting for a
+mesh nothing else draws would leave an orphan `GeometryRefClosureTest` refuses. The same rule decides
+both the marking's splits and the overlays'.
+
+**A geometry key is not a complete identity, and `GeometryManifest` is what makes that safe.** Two
+request members the emitted mesh IS a function of are spelled in no key: the texture-size override,
+which `GeometryFlow.parse` stamps `texture_size` from; and the float-parameter table, whose mere
+presence selects the parser's `EVALUATING` walk where `@fparam=` encodes only a non-zero slot 0 -
+so a bound all-zero table and an absent one mint one key and walk differently. `@iparam=` faced the
+same choice and took the other one, encoding `0:0` for a bound-but-all-zero table.
+
+Rather than widen the grammar for a distinction no shipped key needs, `register` refuses: a key
+already held by a request differing in ANY member the mesh is a function of raises, naming the
+member. So the gap cannot become a wrong mesh - it becomes a stopped generation. Two things that
+guard depends on:
+
+- **The comparison is by VALUE and by exclusion.** Three components are arrays and `PoseParam` holds
+  a fourth, which a record compares by reference - a generated `equals` would call every legitimate
+  re-registration a difference and refuse the corpus, so `PoseParam` declares its own and the walk
+  uses `Objects.deepEquals`. And the members that do NOT count are named (`subjectId` is provenance,
+  `yAxis` reaches neither the parse nor the entry), so a component added to `GeometryRequest` is
+  compared by default rather than falling outside the guard in silence.
+- **It is quiet on the corpus today**, over all eight flows with every table byte-identical, so
+  nothing is currently relying on the gap. If a version bump makes it fire, the answer is to encode
+  the named member in the key - `@tex=<w>x<h>`, or `@fparam=` widened to `@iparam=`'s bound-table
+  rule - which moves keys and owes a promote.
 
 ## The policy SPI
 
@@ -102,9 +329,11 @@ cannot read being a contradiction in the roster rather than a jar that drifted.
 ## Decisions that stay closed
 
 A refusal whose stated mechanism is not in the code is void - check it against source before honouring
-one. Both below are the arm's own ceiling: a fact needing a step the closed vocabulary does not declare
-is not a candidate for the arm, and growing the vocabulary to fit one caller is what the ceiling exists
-to prevent.
+one. The renderer keeps its own list in [asset-renderer/RENDERER-RULES.md].
+
+The two policy refusals are the arm's own ceiling: a fact needing a step the closed vocabulary does not
+declare is not a candidate for the arm, and growing the vocabulary to fit one caller is what the ceiling
+exists to prevent.
 
 - Do not move `BANNER_DYE_TARGET` onto a trace - recovering the dye-taking mesh needs a recursive
   search of a submit's callees under a visiting set, and the answer is the declared type of a parameter
@@ -114,13 +343,32 @@ to prevent.
   string operators the vocabulary does not have (strip a prefix, append a suffix, prepend a namespace),
   and the ids they would build are our own output convention rather than anything vanilla spells.
 
+The pose walk keeps what the fold reads:
+
+- Do not delete the pose walk's fork machinery or `EnumConstantTable` - they are the frame fold's
+  input, not its residue. The fold projects a frame from what a walked program names, and tells a
+  two-frame class apart over ONE frame-free walk, so a walk that resolved its environment inline
+  would re-earn both from scratch as read-set tracking and per-rest-map walks; a resolved constant
+  still needs the ordinal and `$SwitchMap` decode to pick a switch arm, so the table survives the
+  rewrite it was priced with; the unfolded-row arm - a two-frame class no split key can carry,
+  shipped as the frame-free program - would become a refusal; and the `shared` numbering follows
+  walk order, so both pose tables' bytes move at identical arithmetic. What it buys is tooling
+  lines alone, and renders nothing.
+
 ## Gates
 
 `./gradlew test` is this build's suite - hand-built ASM nodes, a `ZipOutputStream` jar under
 `@TempDir`, and reflection over the tooling classes. It reaches neither the network nor `cache/`.
-`./gradlew slowTest` is the two that do. The renderer's `check` schedules the fast one through the
-wrapper, because a separate build is one it compiles nothing of and a mistake here would otherwise
-wait for a version bump.
+`./gradlew slowTest` is the five that do - `EnumConstantTableTest`, `KeyframeDefinitionParserTest`,
+`PosePartIndexTest`, `PoseWalkTest` and `GeometryParserTest`. The renderer's `check` schedules the
+fast one through the wrapper, because a separate build is one it compiles nothing of and a mistake
+here would otherwise wait for a version bump.
+
+**Three of the five are the only value-level and population pins on the geometry table**, so a
+geometry change that leaves the fast suite green has not been tested by anything until this task has
+run. `GeometryParserTest` value-matches shipped entries with floats exact, and `PosePartIndexTest` and
+`PoseWalkTest` hold class rosters the table's coordinates feed. `slowTest` is not scheduled by
+`check`, by the renderer's `check`, or by any gate skill, so it is asked for by name or not at all.
 
 Every parity gate in the renderer reads the **shipped** JSON, which a refactor here does not
 regenerate, so a green gate is no evidence about a change in this build. Re-run the flow and compare
@@ -128,5 +376,20 @@ emitted bytes against a capture from the clean tree taken before the first edit 
 what makes that non-destructive. Diff the diagnostics log too: a byte-identical table is not an
 unchanged run.
 
+**Diff the emitted bytes MEMBER BY MEMBER, not just for equality**, and do it before the commit
+rather than after the suite. A pass here edits a shared tree in place, so its blast radius is every
+member of every node it walks and both suites stay green over the parts it should not have touched.
+Two shapes this has already caught, neither of which any test would have:
+
+- **A strip that runs where it was not wanted.** A pass taking members off the node it derived from
+  took the same members off every node it merely VISITED, and an armour row's `grow` - the two layer
+  deformations, nothing to do with a pass's inflate - went with them on fourteen subjects. A
+  surgery's own members are what it may remove, and only on a node it is actually deriving.
+- **Identity that is not identity.** `JsonTree` wraps a fresh object per access, so tracking nodes in
+  an `IdentityHashMap` or a `Collections.newSetFromMap` silently never matches and every membership
+  test answers false. Discriminate on what a node CARRIES, never on which object came back.
+
 `PolicyPurityTest` and `GeometryRefClosureTest` hold filesystem paths relative to the renderer root.
 A directory move breaks them at runtime rather than at compile time.
+
+[asset-renderer/RENDERER-RULES.md]: ../RENDERER-RULES.md

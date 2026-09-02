@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
+import lib.minecraft.refharness.AnimationClock;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
@@ -29,7 +30,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *   <li>{@link LivingEntityRenderState#walkAnimationPos walkAnimationPos} /
  *       {@link LivingEntityRenderState#walkAnimationSpeed walkAnimationSpeed} - leg/wing
  *       walk cycle. Multiplied into rotation in most {@code EntityModel.setupAnim} bodies;
- *       leaving non-zero produces mid-stride leg poses.</li>
+ *       leaving whatever a fresh entity's interpolation landed on produces mid-stride leg poses.
+ *       <b>The pair a walking run answers differently</b>, and {@link AnimationClock} decides which:
+ *       zero on every other run, which is the speed a subject nothing has moved walks at, and the
+ *       full clamped amplitude with the tick's own phase under it on a walking one. They move
+ *       together because vanilla accumulates the phase BY the amplitude once a tick, so one without
+ *       the other is no gait at all.</li>
  *   <li>{@link LivingEntityRenderState#deathTime deathTime} - death-fall rotation lerp
  *       on {@link LivingEntityRenderer#setupRotations setupRotations}.</li>
  *   <li>{@link LivingEntityRenderState#ticksSinceKineticHitFeedback ticksSinceKineticHitFeedback}
@@ -38,7 +44,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *       offset for entities wearing helmets / pumpkins / mob heads.</li>
  *   <li>{@link EntityRenderState#ageInTicks ageInTicks}
  *       (inherited) - drives idle animations on most models (allay arm bob, ghast tentacle
- *       drift, fish swim wiggle, hoglin tail flick, ...).</li>
+ *       drift, fish swim wiggle, hoglin tail flick, ...). <b>The one field an animated run answers
+ *       differently</b>, and it is {@link AnimationClock#ageInTicks} that decides which - the
+ *       frame's own tick there, zero here. Every other field above stays pinned on every run but the
+ *       walking one, because an offline subject stands still whatever the tick: it has died no ticks
+ *       ago and, unless a gait says otherwise, walks at no speed.</li>
  * </ul>
  *
  * <p>Does <b>not</b> touch dimension fields ({@link LivingEntityRenderState#scale scale},
@@ -66,9 +76,9 @@ public abstract class FreezeAnimationStateMixin {
         at = @At("RETURN"))
     private void refharness$freezeAnimationState(LivingEntity entity, LivingEntityRenderState state, float partialTick, CallbackInfo ci) {
         if (!Boolean.getBoolean("refharness.headless")) return;
-        state.ageInTicks = 0f;
-        state.walkAnimationPos = 0f;
-        state.walkAnimationSpeed = 0f;
+        state.ageInTicks = AnimationClock.ageInTicks();
+        state.walkAnimationPos = AnimationClock.walkAnimationPos();
+        state.walkAnimationSpeed = AnimationClock.walkAnimationSpeed();
         state.deathTime = 0f;
         state.ticksSinceKineticHitFeedback = 0f;
         state.wornHeadAnimationPos = 0f;

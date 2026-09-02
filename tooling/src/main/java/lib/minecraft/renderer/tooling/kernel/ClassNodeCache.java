@@ -13,10 +13,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -131,15 +131,11 @@ public final class ClassNodeCache implements AutoCloseable {
      * @return the matching entry paths in zip directory order
      */
     public @NotNull List<String> list(@NotNull String prefix, @NotNull String suffix) {
-        List<String> out = new ArrayList<>();
-        Enumeration<? extends ZipEntry> entries = this.zip.entries();
-        while (entries.hasMoreElements()) {
-            ZipEntry entry = entries.nextElement();
-            if (entry.isDirectory()) continue;
-            String name = entry.getName();
-            if (name.startsWith(prefix) && name.endsWith(suffix)) out.add(name);
-        }
-        return out;
+        return this.zip.stream()
+            .filter(entry -> !entry.isDirectory())
+            .map(ZipEntry::getName)
+            .filter(name -> name.startsWith(prefix) && name.endsWith(suffix))
+            .collect(Collectors.toCollection(ArrayList::new));
     }
 
     /**

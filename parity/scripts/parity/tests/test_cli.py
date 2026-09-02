@@ -800,6 +800,76 @@ class CompareRefusesAMixedVintageRoot(unittest.TestCase):
         self.assertNotEqual(self._report()["capture_digest"], first)
 
 
+class AnUnproducedRowIsReportedAndNeverPasses(unittest.TestCase):
+    """A row whose producer failed, which is a third outcome beside moved and unchanged.
+
+    The capture step is a finalizer, so it ran; it read nothing, so the row is not in the root; and a
+    compare drawing its artifact list from what the root holds never mentioned it. A bundle missing
+    its most interesting member then read as a clean pass.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        self.store = self.repo / "store"
+        register(self.store, "sweep.entity", "manifest.fluid", floor=2)
+        capture.begin(self.root)
+        payload = {"artifact": "sweep.entity", "format": 1, "key": "subject", "kind": "sweep-table",
+                   "provenance": {"asset_dirty": False, "counts": {"failed": 0, "rows": 1},
+                                  "determinism_runs": 2},
+                   "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "1.0000"}]}
+        write_json(self.store / "sweeps" / "entity.json", payload)
+        write_json(self.root / "sweeps" / "entity.json", payload)
+        capture.unproduced(self.root, "manifest.fluid",
+                           [(":fluidRenderer", "finished with non-zero exit value 1")])
+        capture.index(self.root)
+
+    def _run(self, *argv: str) -> tuple[int, str]:
+        code, out, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                              "--store", str(self.store), *argv])
+        return code, out + err
+
+    def _report(self) -> dict:
+        return json.loads((self.root / store.RUN_DIR / "compare.json").read_text(encoding="utf-8"))
+
+    def test_an_unregistered_failure_fails_the_compare(self):
+        code, text = self._run("compare")
+        self.assertEqual(code, cli.DIFFERENCES)
+        self.assertIn("UNPRODUCED for manifest.fluid", text)
+
+    def test_the_row_that_did_produce_is_still_joined(self):
+        """The rest of the bundle is measured and reported; what fails is the verdict over it."""
+        self._run("compare")
+        self.assertEqual([row["artifact"] for row in self._report()["artifacts"]], ["sweep.entity"])
+
+    def test_the_report_carries_the_task_and_what_it_said(self):
+        self._run("compare")
+        row = self._report()["unproduced"][0]
+        self.assertEqual(row["artifact"], "manifest.fluid")
+        self.assertEqual(row["producers"],
+                         [{"failure": "finished with non-zero exit value 1", "task": ":fluidRenderer"}])
+        self.assertFalse(row["expected"])
+
+    def test_a_registered_failure_passes_and_carries_its_reason(self):
+        """Which is what un-circles re-baselining a pin whose own producer is licensed red."""
+        write_json(self.root / store.RUN_DIR / "expected-diff.json",
+                   {"movers": [], "unproduced": [{"artifact": "manifest.fluid",
+                                                  "reason": "its writer asserts on the new value"}]})
+        code, text = self._run("compare")
+        self.assertEqual(code, cli.OK, text)
+        self.assertTrue(self._report()["unproduced"][0]["expected"])
+        self.assertIn("its writer asserts on the new value", text)
+
+    def test_bootstrap_does_not_excuse_one(self):
+        """A first capture of a row is still a row somebody has to produce."""
+        self.assertEqual(self._run("compare", "--bootstrap")[0], cli.DIFFERENCES)
+
+    def test_a_registration_naming_no_reason_is_refused(self):
+        write_json(self.root / store.RUN_DIR / "expected-diff.json",
+                   {"movers": [], "unproduced": [{"artifact": "manifest.fluid"}]})
+        self.assertEqual(self._run("compare")[0], cli.REFUSED)
+
+
 class AFirstPromotionReadsTheRefusalThatFits(unittest.TestCase):
     """The compare-coverage refusal must not shadow the one that names `--bootstrap`.
 
@@ -1752,6 +1822,38 @@ class ExpectRegistration(unittest.TestCase):
         self._expect("--empty")
         self.assertEqual(read_json(self.manifest)["movers"], [])
 
+    def test_an_unproduced_registration_names_the_row_and_the_reason(self):
+        """A producer expected to fail, which is a second thing a phase can intend."""
+        self.assertEqual(self._expect("--artifact", "sweep.entity", "--unproduced",
+                                      "--reason", "its writer asserts on the value being re-based"),
+                         cli.OK)
+        self.assertEqual(read_json(self.manifest)["unproduced"],
+                         [{"artifact": "sweep.entity",
+                           "reason": "its writer asserts on the value being re-based"}])
+
+    def test_an_unproduced_registration_given_a_value_is_refused(self):
+        """An unproduced row HAS no value, so a key or a `to` would cover a mover and not it."""
+        for member, value in (("--key", "minecraft__cow"), ("--to", "0.2")):
+            with self.subTest(member=member):
+                self.assertEqual(
+                    self._expect("--artifact", "sweep.entity", "--unproduced", "--reason", "r",
+                                 member, value), cli.REFUSED)
+
+    def test_an_unproduced_registration_naming_no_reason_is_refused(self):
+        self.assertEqual(self._expect("--artifact", "sweep.entity", "--unproduced"), cli.REFUSED)
+
+    def test_a_clear_and_an_unproduced_registration_together_are_refused(self):
+        self.assertEqual(self._expect("--empty", "--artifact", "sweep.entity", "--unproduced",
+                                      "--reason", "r"), cli.REFUSED)
+
+    def test_the_two_registrations_land_in_their_own_lists(self):
+        """One manifest, two kinds of intent, and neither reads as the other."""
+        self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1", "--reason", "r")
+        self._expect("--artifact", "sweep.block", "--unproduced", "--reason", "r")
+        payload = read_json(self.manifest)
+        self.assertEqual([row["artifact"] for row in payload["movers"]], ["sweep.entity"])
+        self.assertEqual([row["artifact"] for row in payload["unproduced"]], ["sweep.block"])
+
     def test_a_command_naming_nothing_at_all_is_refused_rather_than_read_as_a_clear(self):
         """The backstop under `parityExpect`, which forwards what it was given and nothing else.
 
@@ -1861,6 +1963,43 @@ class GateExit(unittest.TestCase):
         write_json(target, payload)
         if at_ns is not None:
             os.utime(target, ns=(at_ns, at_ns))
+
+    def _plain_plan(self, *changed: str, root: str = "cache/parity/current") -> tuple[int, str]:
+        """A plan with no --gate-exit, which is what a person and the Gradle task both run."""
+        argv = ["--repo-root", str(self.repo), "--root", root,
+                "--store", str(self.store), "--quiet", "plan"]
+        for path in changed:
+            argv += ["--changed", path]
+        code, out, _err = run(argv)
+        return code, out
+
+    def test_a_plain_plan_says_so_when_a_verdict_already_covers_the_tree(self):
+        """The line that stops the re-run.
+
+        A capture was cheaper to re-run than to reason about whether the last one still stood, so it
+        got re-run. Whoever reads a plan is about to spend the budget it prints.
+        """
+        self._record_verdict(["sweep.entity"])
+        code, out = self._plain_plan("src/Main.java")
+        self.assertEqual(code, cli.OK)
+        self.assertIn("VERDICT already gated", out)
+
+    def test_a_plain_plan_stays_silent_when_nothing_has_gated_the_tree(self):
+        code, out = self._plain_plan("src/Main.java")
+        self.assertEqual(code, cli.OK)
+        self.assertNotIn("VERDICT", out)
+
+    def test_a_plain_plan_never_fails_the_build_over_a_verdict(self):
+        """`parityPlan` is a Gradle Exec, so a non-zero exit fails it. Reporting is the whole point."""
+        self._record_verdict(["sweep.entity"])
+        self.assertEqual(self._plain_plan("src/Main.java")[0], cli.OK)
+        self.assertEqual(self._plain_plan("docs/readme.md")[0], cli.OK)
+
+    def test_the_reported_state_is_the_hooks_own_predicate(self):
+        """One predicate, two readers - a verdict that failed is not a gating for either."""
+        self._record_verdict(["sweep.entity"], unexpected=2)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+        self.assertNotIn("VERDICT already gated", self._plain_plan("src/Main.java")[1])
 
     def test_0_when_nothing_sees_the_change(self):
         self.assertEqual(self._plan("docs/readme.md"), cli.OK)
@@ -2050,6 +2189,283 @@ class GateExit(unittest.TestCase):
                           "--store", str(self.store), "--quiet", "plan",
                           "--changed", "src/Main.java"])
         self.assertEqual(code, cli.OK)
+
+
+def _git(repo: Path, *argv: str) -> None:
+    """One git command in a fixture repo, failing the fixture rather than the assertion."""
+    result = subprocess.run(["git", *argv], cwd=repo, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise AssertionError(f"git {' '.join(argv)} failed: {result.stderr.strip()}")
+
+
+class ACleanTreeIsPlannedFromTheBranch(unittest.TestCase):
+    """A phase that already committed, which the dirty set alone reports as a change of nothing.
+
+    One commit per landable unit leaves nothing uncommitted, so a plan drawn from the dirty tree
+    resolves an empty reach - and an empty reach reads as "no artifact can see this" where what is
+    true is "all of it is already in". The branch's own diff is the answer, and having to hand it in
+    is how the wrong ref gets typed.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        _git(self.repo, "init", "-q", "-b", "master")
+        _git(self.repo, "config", "user.email", "t@t")
+        _git(self.repo, "config", "user.name", "t")
+        write_text(self.repo / "base.txt", "base\n")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-qm", "base")
+        _git(self.repo, "checkout", "-q", "-b", "work")
+
+    def test_a_dirty_tree_answers_with_what_is_uncommitted(self):
+        write_text(self.repo / "dirty.txt", "x\n")
+        self.assertEqual(cli._changed_from_git(self.repo), ["dirty.txt"])
+
+    def test_a_clean_tree_answers_with_the_branch_diff(self):
+        write_text(self.repo / "landed.txt", "x\n")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "landed")
+        self.assertEqual(cli._changed_from_git(self.repo), ["landed.txt"])
+
+    def test_every_commit_of_a_phase_is_in_it_rather_than_the_last(self):
+        for name in ("one.txt", "two.txt", "three.txt"):
+            write_text(self.repo / name, "x\n")
+            _git(self.repo, "add", "-A")
+            _git(self.repo, "commit", "-qm", name)
+        self.assertEqual(cli._changed_from_git(self.repo), ["one.txt", "three.txt", "two.txt"])
+
+    def test_since_names_the_ref_where_the_default_is_not_wanted(self):
+        write_text(self.repo / "first.txt", "x\n")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-qm", "first")
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.repo,
+                              capture_output=True, text=True, check=False).stdout.strip()
+        write_text(self.repo / "second.txt", "x\n")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-qm", "second")
+        self.assertEqual(cli._changed_from_git(self.repo, since=head), ["second.txt"])
+
+    def test_a_trunk_checkout_with_nothing_uncommitted_plans_nothing(self):
+        """HEAD IS the trunk, so the merge-base is HEAD and the branch changed nothing."""
+        _git(self.repo, "checkout", "-q", "master")
+        self.assertEqual(cli._changed_from_git(self.repo), [])
+
+    def test_a_path_the_branch_deleted_is_left_out(self):
+        """The graph is derived from the compiled tree, so a deleted .java has no entry and the
+        refusal that names `reach build` cannot be acted on - it would put back nothing."""
+        write_text(self.repo / "kept.txt", "x\n")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-qm", "add")
+        _git(self.repo, "rm", "-q", "base.txt")
+        _git(self.repo, "commit", "-qm", "delete")
+        self.assertEqual(cli._changed_from_git(self.repo), ["kept.txt"])
+
+    def test_a_deletion_still_in_the_worktree_is_kept(self):
+        """The dirty set is NOT filtered: at the moment a deletion is gated the graph still answers
+        for it, and that is the reading that has to include it."""
+        _git(self.repo, "rm", "-q", "base.txt")
+        self.assertEqual(cli._changed_from_git(self.repo), ["base.txt"])
+
+
+class RegisteringWhatTheVerdictFound(unittest.TestCase):
+    """The movers read out of the compare rather than typed back in from it.
+
+    A registration names a row AND the value it must land on, and the value is a digest often
+    enough that typing it is the failure mode: the toolkit writes a near-miss key without
+    complaint, counts it, and leaves the row it meant RED.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        self.store = self.repo / "store"
+        register(self.store, "sweep.entity")
+        write_json(self.store / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table", "provenance": {"determinism_runs": 1},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "1.0000"}]})
+        write_json(self.root / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table", "provenance": {"determinism_runs": 1},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "2.0000"}]})
+        capture.index(self.root)
+
+    def _run(self, *argv: str) -> tuple[int, str, str]:
+        return run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                    "--store", str(self.store), "--quiet", *argv])
+
+    def _expected(self) -> dict:
+        return read_json(self.root / store.RUN_DIR / "expected-diff.json")
+
+    def test_it_registers_the_row_and_the_value_the_compare_found(self):
+        self._run("compare")
+        self.assertEqual(self._run("expect", "--from-verdict", "--reason", "why")[0], cli.OK)
+        self.assertEqual(self._expected()["movers"],
+                         [{"artifact": "sweep.entity", "key": "minecraft__cow",
+                           "reason": "why", "to": "2.0000"}])
+
+    def test_the_registration_it_writes_turns_the_compare_green(self):
+        self.assertEqual(self._run("compare")[0], cli.DIFFERENCES)
+        self._run("expect", "--from-verdict", "--reason", "why")
+        self.assertEqual(self._run("compare")[0], cli.OK)
+
+    def test_a_reason_is_owed_however_the_registration_was_written(self):
+        self._run("compare")
+        code, _, err = self._run("expect", "--from-verdict")
+        self.assertEqual(code, cli.REFUSED)
+        self.assertIn("needs --reason", err)
+
+    def test_a_row_or_a_value_beside_it_is_refused_rather_than_dropped(self):
+        self._run("compare")
+        for extra in (["--key", "minecraft__cow"], ["--to", "2.0000"], ["--unproduced"]):
+            code, _, err = self._run("expect", "--from-verdict", "--reason", "why", *extra)
+            self.assertEqual(code, cli.REFUSED)
+            self.assertIn("read out of the verdict", err)
+
+    def test_a_verdict_about_another_capture_is_refused(self):
+        """Registering one capture's movers against another marks rows nothing measured."""
+        self._run("compare")
+        write_json(self.root / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table", "provenance": {"determinism_runs": 1},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "3.0000"}]})
+        # The digest is over the capture INDEX rather than over the files, so re-indexing is what
+        # makes this a second capture rather than an edit nothing recorded.
+        capture.index(self.root)
+        code, _, err = self._run("expect", "--from-verdict", "--reason", "why")
+        self.assertEqual(code, cli.REFUSED)
+        self.assertIn("two captures", err)
+
+    def test_with_no_compare_at_all_it_says_to_run_one(self):
+        code, _, err = self._run("expect", "--from-verdict", "--reason", "why")
+        self.assertEqual(code, cli.MISSING_INPUT)
+        self.assertIn("run parityCompare first", err)
+
+
+class APhaseGateSpeaksForContent(unittest.TestCase):
+    """Opt-in, because the strict default is the prompting the hook exists to do.
+
+    A verdict names a tree as a commit plus an edit on top of it, so committing that edit moves both
+    halves and re-arms the gate on every commit after the first. A phase gate is the operator saying
+    what was gated is what lands: the CONTENT is what is matched, and it does not move across a
+    commit. An edit on top still moves it, and a red verdict still asks either way.
+    """
+
+    RULE = {"artifact": "roster.blindness-rules", "format": 1, "key": "id",
+            "kind": "blindness-roster", "no_reach": [],
+            "rules": [{"id": "T1", "claim": "c", "mode": "select", "probe": "p", "reason": "r",
+                       "source": "s", "sees": ["sweep.entity"], "blind": [],
+                       "trigger_paths": ["src/**"]}]}
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        self.store = self.repo / "store"
+        write_json(self.store / "blindness.json", self.RULE)
+        register(self.store, "sweep.entity")
+        rows = {"artifact": "sweep.entity", "format": 1, "key": "subject", "kind": "sweep-table",
+                "provenance": {"determinism_runs": 1},
+                "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "1.0000"}]}
+        write_json(self.store / "sweeps" / "entity.json", rows)
+        write_json(self.root / "sweeps" / "entity.json", rows)
+        capture.index(self.root)
+        _git(self.repo, "init", "-q")
+        # cache/ and store/ ignored exactly as in the real repo, and load-bearing rather than tidy:
+        # the content digest is over TRACKED files, so a verdict written under cache/ must not be one
+        # of them or writing it would move the digest it records.
+        write_text(self.repo / ".gitignore", "cache/\nstore/\n")
+        write_text(self.repo / "src" / "Main.java", "one\n")
+        write_text(self.repo / "src" / "Second.java", "one\n")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base")
+        write_text(self.repo / "src" / "Main.java", "two\n")
+
+    def _compare(self, *argv: str) -> int:
+        return run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                    "--store", str(self.store), "--quiet", "compare", *argv])[0]
+
+    def _gate(self) -> int:
+        return run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                    "--store", str(self.store), "--quiet", "plan",
+                    "--changed", "src/Main.java", "--gate-exit"])[0]
+
+    def test_a_plain_gate_re_arms_once_the_edit_is_committed(self):
+        self._compare()
+        self.assertEqual(self._gate(), cli.GATE_ALREADY_GATED)
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "landed")
+        self.assertEqual(self._gate(), cli.GATE_SEES_UNGATED)
+
+    def test_a_phase_gate_covers_the_commit_that_lands_what_it_measured(self):
+        self._compare("--phase-gate")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "landed")
+        self.assertEqual(self._gate(), cli.GATE_ALREADY_GATED)
+
+    def test_a_phase_gate_covers_the_same_content_split_across_commits(self):
+        """One gate, then a commit per landable unit - which is what a phase actually does."""
+        write_text(self.repo / "src" / "Second.java", "two\n")
+        self._compare("--phase-gate")
+        _git(self.repo, "add", "src/Main.java")
+        _git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "first half")
+        self.assertEqual(self._gate(), cli.GATE_ALREADY_GATED)
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "second half")
+        self.assertEqual(self._gate(), cli.GATE_ALREADY_GATED)
+
+    def test_a_file_git_does_not_track_yet_re_arms_when_it_lands(self):
+        """The stated edge of the content digest, which is over the TRACKED set.
+
+        A file nothing tracks is in no reading of the content, so a gate taken while it is untracked
+        did not measure it and the commit that adds it moves the digest. That asks where a phase adds
+        a file, which is the conservative direction: the gate over-asks rather than going quiet about
+        content it never saw.
+        """
+        write_text(self.repo / "src" / "Added.java", "new\n")
+        self._compare("--phase-gate")
+        self.assertEqual(self._gate(), cli.GATE_ALREADY_GATED)
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "added")
+        self.assertEqual(self._gate(), cli.GATE_SEES_UNGATED)
+
+    def test_an_edit_on_top_of_a_phase_gate_re_arms_it(self):
+        """A phase gate speaks for the content it measured, and nothing beyond it."""
+        self._compare("--phase-gate")
+        write_text(self.repo / "src" / "Main.java", "three\n")
+        self.assertEqual(self._gate(), cli.GATE_SEES_UNGATED)
+
+    def test_a_red_phase_gate_still_asks(self):
+        write_json(self.root / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table", "provenance": {"determinism_runs": 1},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "9.0000"}]})
+        capture.index(self.root)
+        self.assertEqual(self._compare("--phase-gate"), cli.DIFFERENCES)
+        self.assertEqual(self._gate(), cli.GATE_SEES_UNGATED)
+
+
+class TheSummaryIsWhatMoved(unittest.TestCase):
+    """The full view is every artifact whether it moved or not, so a bundle is read in slices."""
+
+    def test_it_prints_the_movers_and_collapses_the_rest(self):
+        payload = {"artifacts": [
+            {"artifact": "sweep.entity", "added": [], "dropped": [], "movers": [
+                {"key": "minecraft__cow", "expected": False,
+                 "fields": {"mean_argb_delta": ["1.0000", "2.0000"]}}],
+             "totals": {"expected": 0, "unexpected": 1}},
+            {"artifact": "sweep.block", "added": [], "dropped": [], "movers": [],
+             "totals": {"expected": 0, "unexpected": 0}}],
+            "totals": {"artifacts": 2, "unexpected": 1}}
+        text = cli._render_summary(payload)
+        self.assertIn("minecraft__cow · mean_argb_delta: 1.0000 -> 2.0000  [UNEXPECTED]", text)
+        self.assertNotIn("sweep.block", text)
+        self.assertIn("1 artifact(s) held", text)
+
+    def test_a_bundle_that_held_says_so_rather_than_printing_nothing(self):
+        payload = {"artifacts": [{"artifact": "sweep.entity", "added": [], "dropped": [],
+                                  "movers": [], "totals": {"expected": 0, "unexpected": 0}}],
+                   "totals": {"artifacts": 1, "unexpected": 0}}
+        self.assertIn("no artifact moved", cli._render_summary(payload))
 
 
 if __name__ == "__main__":

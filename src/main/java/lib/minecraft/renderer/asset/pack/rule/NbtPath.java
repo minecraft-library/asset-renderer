@@ -53,14 +53,14 @@ public record NbtPath(@NotNull ConcurrentList<Step> steps) {
      * @return the parsed path
      */
     public static @NotNull NbtPath parse(@NotNull String raw) {
-        List<Step> steps = new ArrayList<>();
-        for (String token : splitEscaped(raw)) {
-            if (token.equals("*")) steps.add(new Wildcard());
-            else if (token.equals("count")) steps.add(new Count());
-            else if (isIndex(token)) steps.add(new Index(Integer.parseInt(token)));
-            else steps.add(new Key(token));
-        }
-        return new NbtPath(Concurrent.adoptList(steps).toUnmodifiable());
+        return new NbtPath(splitEscaped(raw)
+            .stream()
+            .<Step>map(token -> switch (token) {
+                case "*" -> new Wildcard();
+                case "count" -> new Count();
+                default -> isIndex(token) ? new Index(Integer.parseInt(token)) : new Key(token);
+            })
+            .collect(Concurrent.toUnmodifiableList()));
     }
 
     /**

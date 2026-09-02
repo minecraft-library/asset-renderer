@@ -7,6 +7,8 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.codec.gif.GifImageWriter;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import dev.simplified.image.data.AnimatedImageData;
+import dev.simplified.image.data.FrameBlend;
+import dev.simplified.image.data.FrameDisposal;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.DiffType;
@@ -419,14 +421,24 @@ public final class TestGlintParityVanilla {
         return String.format("frame_%03d.png", n);
     }
 
-    /** Builds an animated GIF (infinite loop, transparent background) from the frame list. */
+    /**
+     * Builds an animated GIF (infinite loop, transparent background) from the frame list.
+     *
+     * <p><b>Each frame clears the canvas behind it rather than painting over what was there.</b> A
+     * GIF frame carries its own disposal and the default is to leave the previous one standing,
+     * which is right for an opaque strip and wrong for every transparent one: the subject is drawn
+     * on nothing, so the pixels it does not cover are transparent, and a viewer showing the frame
+     * before through them accumulates every pose the subject has held. It reads as smearing rather
+     * than as a missing clear, which is why it survives a look at the PNGs.
+     */
     private static void writeGif(@NotNull Path out, @NotNull List<BufferedImage> frames) throws IOException {
         AnimatedImageData.Builder builder = AnimatedImageData.builder()
             .withWidth(frames.getFirst().getWidth())
             .withHeight(frames.getFirst().getHeight())
             .withLoopCount(0);
         for (BufferedImage frame : frames)
-            builder.withFrame(ImageFrame.of(PixelBuffer.wrap(frame), GIF_FRAME_DELAY_MS));
+            builder.withFrame(ImageFrame.of(PixelBuffer.wrap(frame), GIF_FRAME_DELAY_MS, 0, 0,
+                FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));
 
         GifWriteOptions options = GifWriteOptions.builder()
             .withLoopCount(0)

@@ -62,8 +62,9 @@ import java.util.stream.Collectors;
  * They are spelled into the output filename too, so two appearances of one entity never overwrite
  * each other:
  * <ul>
- *   <li><b>{@code .state}</b> a blockstate-style state string, and <b>{@code .carried}</b> a block id
- *       the subject holds.</li>
+ *   <li><b>{@code .state}</b> a blockstate-style state string, <b>{@code .variant}</b> an option of
+ *       the subject's coat axis (a horse coat, a cow temperature, a wolf coat, a cat breed), and
+ *       <b>{@code .carried}</b> a block id the subject holds.</li>
  *   <li><b>{@code .collar}</b>, <b>{@code .wool}</b>, <b>{@code .base_color}</b>,
  *       <b>{@code .pattern_color}</b>, <b>{@code .equipment_color}</b> each name a vanilla dye and
  *       populate one {@link TintAxis} slot; an absent one leaves that target's baked default.</li>
@@ -140,6 +141,9 @@ public final class EntityRenderDriver {
         long t0 = System.nanoTime();
 
         Optional<String> state = Optional.ofNullable(System.getProperty("asset.entity.state")).filter(s -> !s.isBlank());
+        // -Dasset.entity.variant=black names an option of the subject's coat axis (horse coats, cow
+        // temperatures, wolf coats, cat breeds); absent leaves the axis at its own default option.
+        Optional<String> variant = Optional.ofNullable(System.getProperty("asset.entity.variant")).filter(s -> !s.isBlank());
         Optional<String> carried = Optional.ofNullable(System.getProperty("asset.entity.carried")).filter(s -> !s.isBlank());
         // Dye tint axes (-Dasset.entity.collar / .wool / .base_color / .pattern_color / .equipment_color
         // name a vanilla dye); each populates its TintAxis slot, empty = the target's baked default.
@@ -227,6 +231,7 @@ public final class EntityRenderDriver {
         for (String entityId : entityIds) {
             String safeName = entityId.replace(':', '_')
                 + state.map(s -> "_" + s).orElse("")
+                + variant.map(v -> "_variant-" + v).orElse("")
                 + carried.map(c -> "_carried-" + c.replace(':', '_')).orElse("")
                 + collarName.map(c -> "_collar-" + c).orElse("")
                 + woolName.map(c -> "_wool-" + c).orElse("")
@@ -254,6 +259,7 @@ public final class EntityRenderDriver {
             AppearanceOptions appearance = AppearanceOptions.builder()
                 .age(age.map(a -> a.equalsIgnoreCase("baby") ? Age.BABY : Age.ADULT).orElse(Age.ADULT))
                 .state(state)
+                .variant(variant)
                 .carried(carried)
                 .tints(tints)
                 .pattern(pattern)
@@ -271,7 +277,7 @@ public final class EntityRenderDriver {
                 .equipment(equipment)
                 .build();
             EntityOptions options = EntityOptions.builder()
-                .entityId(Optional.of(entityId))
+                .entityId(entityId)
                 .appearance(appearance)
                 .armor(armor)
                 .output(OutputOptions.builder()

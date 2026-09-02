@@ -6,6 +6,7 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.PackStack;
@@ -29,12 +30,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * Turns the vanilla pack root plus the user-supplied pack sources into a resolved {@link PackStack}:
@@ -73,22 +74,20 @@ public final class PackAcquisition {
         ResourcePack vanilla = vanillaPack(vanillaRoot, minecraftVersion);
         FormatVersion target = rendererTarget(vanilla);
 
-        List<Path> userSources = options.getTexturePacks().stream().map(File::toPath).toList();
-        List<PackContainer> containers = new ArrayList<>();
-        List<PackIdDeriver.Naming> naming = new ArrayList<>();
-        for (Path source : userSources) {
-            PackContainer container = PackContainer.detect(source);
-            containers.add(container);
-            naming.add(new PackIdDeriver.Naming(source, container));
-        }
+        ConcurrentList<PackIdDeriver.Naming> naming = options.getTexturePacks()
+            .stream()
+            .map(File::toPath)
+            .map(source -> new PackIdDeriver.Naming(source, PackContainer.detect(source)))
+            .collect(Concurrent.toWideUnmodifiableList());
         ConcurrentList<PackId> ids = PackIdDeriver.assign(naming);
 
-        List<ResourcePack> packs = new ArrayList<>();
-        packs.add(vanilla);
-        for (int i = 0; i < userSources.size(); i++)
-            packs.add(userPack(containers.get(i), ids.get(i), target, minecraftVersion));
+        ConcurrentList<ResourcePack> packs = Stream.concat(
+                Stream.of(vanilla),
+                IntStream.range(0, naming.size())
+                    .mapToObj(i -> userPack(naming.get(i).container(), ids.get(i), target, minecraftVersion)))
+            .collect(Concurrent.toWideUnmodifiableList());
 
-        PackStack base = PackStack.of(Concurrent.adoptList(packs).toUnmodifiable());
+        PackStack base = PackStack.of(packs);
         PackStack indexed = base.withTextureIndex(TextureIndexer.index(base));
         return indexed.withRules(RuleScanner.mergeAll(indexed));
     }
@@ -99,7 +98,7 @@ public final class PackAcquisition {
             throw new PipelineException("Vanilla pack root '%s' does not exist or is not a directory", vanillaPackRoot);
         PackContainer container = new PackContainer.Directory(vanillaPackRoot);
         MCMeta meta = readMeta(container, PackId.VANILLA);
-        Set<PackCapability> capabilities = detectCapabilities(container, meta);
+        ConcurrentSet<PackCapability> capabilities = detectCapabilities(container, meta);
         ConcurrentList<PackRoot> roots = resolveRoots(container, meta, rendererTargetFrom(meta), minecraftVersion, capabilities);
         return new ResourcePack(PackId.VANILLA, container, meta, roots, namespaces(container, roots), capabilities);
     }
@@ -111,7 +110,7 @@ public final class PackAcquisition {
     private static @NotNull ResourcePack userPack(@NotNull PackContainer container, @NotNull PackId id,
                                                   @NotNull FormatVersion target, @NotNull String minecraftVersion) {
         MCMeta meta = readMeta(container, id);
-        Set<PackCapability> capabilities = detectCapabilities(container, meta);
+        ConcurrentSet<PackCapability> capabilities = detectCapabilities(container, meta);
         ConcurrentList<PackRoot> roots = resolveRoots(container, meta, target, minecraftVersion, capabilities);
         return new ResourcePack(id, container, meta, roots, namespaces(container, roots), capabilities);
     }
@@ -200,17 +199,15 @@ public final class PackAcquisition {
      * keys, {@link ResourcePack#primaryNamespace()}'s {@code findFirst} - pick a different winner per
      * JVM run.
      */
-    private static @NotNull Set<String> namespaces(@NotNull PackContainer container, @NotNull ConcurrentList<PackRoot> roots) {
-        TreeSet<String> namespaces = new TreeSet<>();
-        for (PackRoot root : roots) {
-            String assetsPrefix = root.prefix() + "assets";
-            container.entries(assetsPrefix).forEach(entry -> {
-                String rest = entry.substring(assetsPrefix.length() + 1);
-                int slash = rest.indexOf('/');
-                if (slash > 0) namespaces.add(rest.substring(0, slash));
-            });
-        }
-        return Collections.unmodifiableSortedSet(namespaces);
+    private static @NotNull ConcurrentSet<String> namespaces(@NotNull PackContainer container, @NotNull ConcurrentList<PackRoot> roots) {
+        return roots.stream()
+            .flatMap(root -> {
+                String assetsPrefix = root.prefix() + "assets";
+                return container.entries(assetsPrefix).map(entry -> entry.substring(assetsPrefix.length() + 1));
+            })
+            .map(rest -> rest.substring(0, Math.max(rest.indexOf('/'), 0)))
+            .filter(namespace -> !namespace.isEmpty())
+            .collect(Concurrent.toWideUnmodifiableTreeSet());
     }
 
     /**
@@ -221,7 +218,7 @@ public final class PackAcquisition {
      * condition). MCMeta's typed parse does not retain the Catharsis / Fabric sections, so the mcmeta
      * signals are read from the raw JSON (degrade-safe - a malformed mcmeta simply contributes no signal).
      */
-    private static @NotNull Set<PackCapability> detectCapabilities(@NotNull PackContainer container, @NotNull MCMeta meta) {
+    private static @NotNull ConcurrentSet<PackCapability> detectCapabilities(@NotNull PackContainer container, @NotNull MCMeta meta) {
         LinkedHashSet<PackCapability> capabilities = new LinkedHashSet<>();
         if (container.entries("").anyMatch(p -> p.startsWith("assets/") || p.contains("/assets/")))
             capabilities.add(PackCapability.VANILLA_CORE);
@@ -230,7 +227,7 @@ public final class PackAcquisition {
         if (container.entries("").anyMatch(PackAcquisition::isCatharsisPathSignal)
             || readJsonObject(container, "pack.mcmeta").filter(PackAcquisition::hasCatharsisMcmetaSignal).isPresent())
             capabilities.add(PackCapability.CATHARSIS_CONVENTIONS);
-        return Set.copyOf(capabilities);
+        return Concurrent.adoptSet(capabilities).toUnmodifiable();
     }
 
     private static boolean isCatharsisPathSignal(@NotNull String path) {

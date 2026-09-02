@@ -5,15 +5,17 @@ import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
 import lib.minecraft.renderer.asset.pack.item.SpecialTransform;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -26,7 +28,12 @@ import java.util.Map;
  * .class)} read and every recursive {@code context.deserialize} child resolve through this one adapter.
  * The tree depth is bounded by the loader's own JSON parse (which rejects pathologically nested files
  * before this runs), so no explicit depth cap is carried here.
+ *
+ * <p><b>Parity.</b> Registered by a service file and reached only through the contributor that
+ * names it, so no constant pool carries an edge to it. It parses the item model tree, which a block
+ * icon is baked from as much as an item is drawn from.
  */
+@Parity(subject = {Subject.BLOCK, Subject.ENTITY, Subject.ITEM, Subject.MENU})
 public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemModelNode> {
 
     @Override
@@ -57,12 +64,12 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         JsonElement innerElement = node.get("model");
         JsonObject inner = innerElement != null && innerElement.isJsonObject() ? innerElement.getAsJsonObject() : new JsonObject();
         String kind = string(inner, "type");
-        Map<String, String> fields = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : inner.entrySet()) {
-            if (entry.getKey().equals("type")) continue;
-            if (entry.getValue().isJsonPrimitive()) fields.put(entry.getKey(), entry.getValue().getAsString());
-        }
-        return new ItemModelNode.Special(kind, string(node, "base"), Map.copyOf(fields), transform(node));
+        ConcurrentMap<String, String> fields = inner.entrySet()
+            .stream()
+            .filter(entry -> !entry.getKey().equals("type"))
+            .filter(entry -> entry.getValue().isJsonPrimitive())
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, entry -> entry.getValue().getAsString()));
+        return new ItemModelNode.Special(kind, string(node, "base"), fields, transform(node));
     }
 
     /** Deserialises a node's {@code transformation}, or {@link SpecialTransform#IDENTITY} when absent / not an object. */
@@ -78,49 +85,53 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
     }
 
     /** Deserialises the {@code cases[]} array of a {@code select} node, skipping non-object entries. */
-    private static @NotNull List<ItemModelNode.Select.Case> cases(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
-        List<ItemModelNode.Select.Case> cases = new ArrayList<>();
-        for (JsonElement element : array(node, "cases"))
-            if (element.isJsonObject())
-                cases.add(new ItemModelNode.Select.Case(when(element.getAsJsonObject().get("when")), child(element.getAsJsonObject(), "model", context)));
-        return List.copyOf(cases);
+    private static @NotNull ConcurrentList<ItemModelNode.Select.Case> cases(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
+        return array(node, "cases").asList()
+            .stream()
+            .filter(JsonElement::isJsonObject)
+            .map(JsonElement::getAsJsonObject)
+            .map(element -> new ItemModelNode.Select.Case(when(element.get("when")), child(element, "model", context)))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /** Deserialises the {@code entries[]} array of a {@code range_dispatch} node, skipping non-object entries. */
-    private static @NotNull List<ItemModelNode.RangeDispatch.Entry> entries(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
-        List<ItemModelNode.RangeDispatch.Entry> entries = new ArrayList<>();
-        for (JsonElement element : array(node, "entries"))
-            if (element.isJsonObject())
-                entries.add(new ItemModelNode.RangeDispatch.Entry(floatValue(element.getAsJsonObject(), "threshold", 0f), child(element.getAsJsonObject(), "model", context)));
-        return List.copyOf(entries);
+    private static @NotNull ConcurrentList<ItemModelNode.RangeDispatch.Entry> entries(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
+        return array(node, "entries").asList()
+            .stream()
+            .filter(JsonElement::isJsonObject)
+            .map(JsonElement::getAsJsonObject)
+            .map(element -> new ItemModelNode.RangeDispatch.Entry(floatValue(element, "threshold", 0f), child(element, "model", context)))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /** Deserialises the {@code models[]} array of a {@code composite} node, skipping non-object children. */
-    private static @NotNull List<ItemModelNode> models(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
-        List<ItemModelNode> models = new ArrayList<>();
-        for (JsonElement element : array(node, "models"))
-            if (element.isJsonObject()) models.add(context.deserialize(element, ItemModelNode.class));
-        return List.copyOf(models);
+    private static @NotNull ConcurrentList<ItemModelNode> models(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
+        return array(node, "models").asList()
+            .stream()
+            .filter(JsonElement::isJsonObject)
+            .map(element -> context.<ItemModelNode>deserialize(element, ItemModelNode.class))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /** Reads a {@code when} value: a single string, or an array of strings; non-primitive entries drop. */
-    private static @NotNull List<String> when(JsonElement when) {
-        if (when == null) return List.of();
-        if (when.isJsonArray()) {
-            List<String> keys = new ArrayList<>();
-            for (JsonElement element : when.getAsJsonArray())
-                if (element.isJsonPrimitive()) keys.add(element.getAsString());
-            return List.copyOf(keys);
-        }
-        return when.isJsonPrimitive() ? List.of(when.getAsString()) : List.of();
+    private static @NotNull ConcurrentList<String> when(JsonElement when) {
+        if (when == null) return Concurrent.newUnmodifiableList();
+        if (when.isJsonArray())
+            return when.getAsJsonArray().asList()
+                .stream()
+                .filter(JsonElement::isJsonPrimitive)
+                .map(JsonElement::getAsString)
+                .collect(Concurrent.toUnmodifiableList());
+        return when.isJsonPrimitive() ? Concurrent.newUnmodifiableList(when.getAsString()) : Concurrent.newUnmodifiableList();
     }
 
     /** Deserialises the {@code tints[]} array of a {@code model} node into ordered per-layer tint rules. */
-    private static @NotNull List<LayerTint> tints(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
-        List<LayerTint> tints = new ArrayList<>();
-        for (JsonElement element : array(node, "tints"))
-            if (element.isJsonObject()) tints.add(context.deserialize(element, LayerTint.class));
-        return List.copyOf(tints);
+    private static @NotNull ConcurrentList<LayerTint> tints(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
+        return array(node, "tints").asList()
+            .stream()
+            .filter(JsonElement::isJsonObject)
+            .map(element -> context.<LayerTint>deserialize(element, LayerTint.class))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /** Reads {@code node[key]} as a child node, or {@link ItemModelNode.Empty#INSTANCE} when absent / not an object. */

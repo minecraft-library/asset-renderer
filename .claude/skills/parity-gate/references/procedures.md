@@ -182,10 +182,14 @@ time.
 ./gradlew test --tests "*ParityReferencesTest" -Dasset.parity.regenerateViews=true --rerun
 ```
 
-- **Clean tree, or the baseline is not re-derivable from any commit.** A capture that gets promoted
-  must run committed code; a promoting phase is therefore two commits, migration then promotion.
-  `parityPromote` refuses a capture whose provenance does not record a clean tree, and
-  `-PallowDirty=true` is the only way past it - it writes the exception into the promoted value.
+- **The capture's content is what landed, which is not the same as the capture running after the
+  commit.** A promoted baseline has to be re-derivable from a commit, and what makes it so is that
+  the content the producers read is the content now in the tree - so a capture taken before the
+  commit and one taken after it are equally re-derivable, and one taken over content that was then
+  edited is neither. `parityCapture` records a digest over what a producer could read and
+  `parityPromote` compares it against the clean tree, refusing on inequality rather than on ordering;
+  `-PallowDirty=true` is the only way past it and writes the exception into the promoted value. So
+  gate the dirty tree, commit, then promote - one commit, not two.
 - **`-Partifacts` is not optional in practice.** A capture root usually holds more than the artifact
   you meant, because a producer finalizes its own capture step wherever it runs. Here it carries a
   second job: `-Pbootstrap=true` is what exempts a promotion from needing a compare of the capture

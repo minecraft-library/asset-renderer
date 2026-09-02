@@ -9,8 +9,13 @@ import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * The shared geometry pipeline: consumes the manifest a models walk populated in the same
@@ -18,7 +23,7 @@ import java.util.Map;
  * discovery, so a manifest key and its geometry entry can never desync across tasks.
  *
  * <p>Per deduped request: parse, stamp the {@code source} twin + {@code texture_size} +
- * {@code y_axis} + {@code cull}, append under the minted factory-coordinate key. Emits an
+ * {@code cull}, append under the minted factory-coordinate key. Emits an
  * empty-but-valid envelope while the manifest is empty (the flow shell precedes the first
  * registering resolver). A failed parse is a Diagnostics ERROR and a skipped entry - never
  * a fallback literal; {@code GeometryRefClosureTest} then fails on the dangling reference,
@@ -54,17 +59,25 @@ public final class GeometryFlow {
     }
 
     /**
-     * Parses every manifest entry and writes the geometry file.
+     * Parses every manifest entry into the entry each minted key is written as, WITHOUT writing the
+     * file.
+     *
+     * <p>Held apart from {@link #write} because a flow can have something to say about a mesh that
+     * is not known until after the geometry has been parsed: which bones a subject rests without is
+     * settled by the pose flow, and the pose flow reads the root bones this answers. So the entries
+     * are parsed, taken through that, and written once - rather than written twice, which would
+     * leave a table on disk that the second pass then contradicts. A flow with nothing to say
+     * between the two hands one straight to the other.
      *
      * @param session the live session
      * @param manifest the registry the models walk populated
-     * @param out the output path ({@code entity_geometry.json} / {@code block_geometry.json})
+     * @return the entry per minted key, in registration order
      */
-    public static void emit(@NotNull ToolingSession session, @NotNull GeometryManifest manifest, @NotNull Path out) {
+    public static @NotNull Map<String, JsonTree> parse(
+        @NotNull ToolingSession session, @NotNull GeometryManifest manifest) {
+
         Diagnostics diagnostics = session.diagnostics().child("geometry");
-        JsonTree root = session.envelope(
-            "GeometryManifest registration order (walk order; append-last as a data-structure property)");
-        JsonTree geometries = root.child("geometries");
+        Map<String, JsonTree> entries = new LinkedHashMap<>();
         for (Map.Entry<String, GeometryRequest> entry : manifest.entries().entrySet()) {
             String key = entry.getKey();
             GeometryRequest request = entry.getValue();
@@ -79,14 +92,75 @@ public final class GeometryFlow {
             int texHeight = request.texHeightOverride() != null
                 ? request.texHeightOverride() : parsed.getInt("textureHeight", 64);
             node.putInts("texture_size", texWidth, texHeight);
-            node.put("y_axis", request.yAxis().name());
             if (GeometryCullResolver.usesCullRenderType(session.cache(), request.factoryClass()))
                 node.put("cull", true);
             node.putIf("bones", parsed.find("bones"));
-            geometries.put(key, node);
+            entries.put(key, node);
         }
+        return entries;
+    }
+
+    /**
+     * The bones each factory class's mesh names at top level, by class.
+     *
+     * @param manifest the registry the entries were parsed from
+     * @param entries the parsed entries
+     * @return the top-level bone set per factory class, omitting a class whose meshes disagree
+     */
+    public static @NotNull Map<String, Set<String>> rootBones(
+        @NotNull GeometryManifest manifest, @NotNull Map<String, JsonTree> entries) {
+
+        Map<String, Set<String>> rootBones = new LinkedHashMap<>();
+        Set<String> disagreed = new LinkedHashSet<>();
+        entries.forEach((key, node) ->
+            recordRootBones(rootBones, disagreed, manifest.entries().get(key).factoryClass(), node));
+        disagreed.forEach(rootBones::remove);
+        return Collections.unmodifiableMap(rootBones);
+    }
+
+    /**
+     * Writes the parsed entries as the geometry file.
+     *
+     * @param session the live session
+     * @param entries the entry per minted key, in registration order
+     * @param out the output path ({@code entity_geometry.json} / {@code block_geometry.json})
+     */
+    public static void write(
+        @NotNull ToolingSession session, @NotNull Map<String, JsonTree> entries, @NotNull Path out) {
+
+        JsonTree root = session.envelope(
+            "GeometryManifest registration order (walk order; append-last as a data-structure property)");
+        JsonTree geometries = root.child("geometries");
+        entries.forEach(geometries::put);
         root.write(out);
-        diagnostics.info("wrote %s", out.toAbsolutePath());
+        session.diagnostics().child("geometry").info("wrote %s", out.toAbsolutePath());
+    }
+
+    /**
+     * Notes the bones one mesh names at top level, against the class that built it.
+     *
+     * <p>A bone with no parent is one the mesh root holds directly, which is what a caller asking
+     * this wants: the set a transform on that container reaches, the container itself being flattened
+     * away by the time a mesh is written.
+     *
+     * <p>A class appears once per mesh derivation and its derivations have to AGREE, because what
+     * this answers is a fact about the model rather than about one of its meshes. One whose baby and
+     * adult meshes name different sets has no single answer, so it gets none rather than one of them.
+     */
+    private static void recordRootBones(
+        @NotNull Map<String, Set<String>> rootBones, @NotNull Set<String> disagreed,
+        @NotNull String factoryClass, @NotNull JsonTree parsed) {
+
+        JsonTree bones = parsed.find("bones").orElse(null);
+        if (bones == null) return;
+
+        Set<String> named = bones.members()
+            .filter((name, bone) -> bone.findString("parent").isEmpty())
+            .keys()
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        Set<String> held = rootBones.putIfAbsent(factoryClass, Collections.unmodifiableSet(named));
+        if (held != null && !held.equals(named)) disagreed.add(factoryClass);
     }
 
     /**

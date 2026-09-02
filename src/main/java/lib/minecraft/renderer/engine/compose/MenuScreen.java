@@ -8,8 +8,8 @@ import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Where a container screen puts its cells, in Minecraft pixels.
@@ -329,8 +329,9 @@ public record MenuScreen(
      *
      * @return the measured screens
      */
-    public static @NotNull List<MenuScreen> measured() {
-        return List.of(chest(6), shulkerBox(), hopper(), dispenser(), craftingTable(), anvil());
+    public static @NotNull ConcurrentList<MenuScreen> measured() {
+        return Stream.of(chest(6), shulkerBox(), hopper(), dispenser(), craftingTable(), anvil())
+            .collect(Concurrent.toUnmodifiableList());
     }
 
 }

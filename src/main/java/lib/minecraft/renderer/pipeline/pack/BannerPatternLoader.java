@@ -13,7 +13,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * A loader that reads vanilla banner pattern JSON files from
@@ -57,30 +58,30 @@ public class BannerPatternLoader {
      * @return a map of pattern id to pattern descriptor
      */
     public static @NotNull ConcurrentMap<String, BannerPattern> load(@NotNull PackStack stack) {
-        HashMap<String, BannerPattern> merged = new HashMap<>();
-        for (PackSubtree.Entry entry : PackSubtree.walk(stack, BANNER_PATTERNS))
-            parsePattern(entry, merged);
-        return Concurrent.adoptMap(merged).toUnmodifiable();
+        return PackSubtree.walk(stack, BANNER_PATTERNS)
+            .stream()
+            .map(BannerPatternLoader::parsePattern)
+            .flatMap(Optional::stream)
+            .collect(Concurrent.toUnmodifiableMap(BannerPattern::id, Function.identity(), (lower, higher) -> higher));
     }
 
     /**
-     * Parses a single pattern file and stores the resulting {@link BannerPattern} under its
-     * derived registry id. The id is the entry's namespace prefix joined to its stem, so the
-     * {@code .json} suffix is dropped and the namespace prepended. Files with no
-     * {@code asset_id} field are skipped silently; a missing {@code translation_key} yields the empty
-     * string.
+     * Parses a single pattern file into a {@link BannerPattern} carrying its derived registry id. The
+     * id is the entry's namespace prefix joined to its stem, so the {@code .json} suffix is dropped
+     * and the namespace prepended. A file with no {@code asset_id} field yields nothing; a missing
+     * {@code translation_key} yields the empty string.
      *
      * @param entry the pattern JSON entry to parse
-     * @param result the running map that receives the parsed entry
+     * @return the parsed pattern, or empty when the file carries no {@code asset_id}
      * @throws RuntimeException if the file cannot be read
      */
-    private static void parsePattern(@NotNull PackSubtree.Entry entry, @NotNull HashMap<String, BannerPattern> result) {
+    private static @NotNull Optional<BannerPattern> parsePattern(@NotNull PackSubtree.Entry entry) {
         String patternId = VanillaSourcePaths.namespacePrefix(entry.namespace()) + entry.stem();
         PatternDoc doc = GSON.fromJson(new String(entry.container().bytes(entry.entryPath()).orElseThrow(), StandardCharsets.UTF_8), PatternDoc.class);
-        if (doc == null || doc.assetId() == null) return;
+        if (doc == null || doc.assetId() == null) return Optional.empty();
 
         String translationKey = doc.translationKey() == null ? "" : doc.translationKey();
-        result.put(patternId, new BannerPattern(patternId, doc.assetId(), translationKey));
+        return Optional.of(new BannerPattern(patternId, doc.assetId(), translationKey));
     }
 
     /**

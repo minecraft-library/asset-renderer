@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
+import lib.minecraft.refharness.PoseState;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.monster.dragon.EnderDragonModel;
 import net.minecraft.client.renderer.entity.state.EnderDragonRenderState;
@@ -33,12 +34,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * rest pose - flat wings, level body, neck/tail straight back from the body.
  *
  * <h2>When to remove this mixin</h2>
- * <b>If asset-renderer ever gains animation support, delete this mixin so the harness
- * goes back to producing the actual flight-cycle pose vanilla shows in-game.</b>
- * Asset-renderer would then need to reproduce {@code setupAnim}'s formulas (and
- * {@code DragonFlightHistory} for neck/tail bone positions) to match. Until then,
- * keeping the harness on the rest pose means the byte-stable PNG can be reproduced by
- * static-mesh rendering on the asset-renderer side.
+ * <b>Never, while {@code entities/} is ground truth for the mesh as authored.</b> This is the
+ * dragon's half of {@link SkipSetupAnimMixin}'s freeze and is load-bearing rather than redundant:
+ * {@code EnderDragonRenderer} extends {@code EntityRenderer} directly, so the redirect on
+ * {@code LivingEntityRenderer.submit} never fires for it. An animated run wants the flight-cycle
+ * pose and turns both off together, which is what
+ * {@link lib.minecraft.refharness.PoseState#posed() the armed gait} selects.
  *
  * <p>Same {@code refharness.headless} gate as the other harness mixins so non-harness
  * consumers of this jar (if any ever exist) keep vanilla animation behaviour.
@@ -50,7 +51,7 @@ public abstract class EnderDragonModelMixin {
         at = @At("HEAD"),
         cancellable = true)
     private void refharness$skipAnimation(EnderDragonRenderState state, CallbackInfo ci) {
-        if (!Boolean.getBoolean("refharness.headless")) return;
+        if (!Boolean.getBoolean("refharness.headless") || PoseState.posed()) return;
         ci.cancel();
     }
 }

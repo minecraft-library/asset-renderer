@@ -12,6 +12,8 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.option.GridOptions;
 import lib.minecraft.renderer.option.slot.GridSlot;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -32,9 +34,14 @@ import org.jetbrains.annotations.NotNull;
  * <p>Mixing PNG and WebP tile sources requires no caller-side coordination - the renderer
  * detects the mix and routes through the animated path automatically.
  *
+ *
+ * <p><b>Parity.</b> This store holds no artifact for the grid. Nothing roots at it, and what it
+ * arranges is measured where that content is produced rather than in the sheet it is arranged into.
+ *
  * @see GridOptions
  * @see FrameCompositor
  */
+@Parity(subject = Subject.GRID)
 public final class GridRenderer implements Renderer<GridOptions> {
 
     /** {@inheritDoc} */

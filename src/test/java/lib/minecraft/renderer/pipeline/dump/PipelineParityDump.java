@@ -6,14 +6,18 @@ import com.google.gson.JsonPrimitive;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.Flag;
+import lib.minecraft.renderer.asset.appearance.Size;
+import lib.minecraft.renderer.asset.appearance.TextureAxis;
+import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
@@ -43,6 +47,10 @@ import lib.minecraft.renderer.asset.pack.rule.NbtPredicate;
 import lib.minecraft.renderer.asset.pack.rule.NbtRule;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.asset.pack.rule.TileRef;
+import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PoseChannel;
+import lib.minecraft.renderer.asset.pose.PoseExpr;
+import lib.minecraft.renderer.asset.pose.PosePredicate;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
@@ -65,6 +73,7 @@ import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
@@ -79,8 +88,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
@@ -711,7 +722,7 @@ public final class PipelineParityDump {
      * @param animation the animation to emit
      * @return the animation object
      */
-    private static @NotNull JsonObject animation(@NotNull AnimationData animation) {
+    private static @NotNull JsonObject animation(@NotNull MCMeta.Animation animation) {
         JsonObject root = new JsonObject();
         root.addProperty("frametime", animation.frametime());
         root.addProperty("interpolate", animation.interpolate());
@@ -1286,18 +1297,136 @@ public final class PipelineParityDump {
         root.addProperty("id", entity.id().id());
         root.add("model", entityModel(entity.model()));
         root.add("base_tint", CanonicalJson.argb(entity.baseTintArgb()));
-        root.add("setup_yaw_addend", CanonicalJson.number(entity.setupYawAddend()));
         root.add("renderer_scale", CanonicalJson.number(entity.rendererScale()));
         root.add("overlays", CanonicalJson.ordered(entity.overlays(), PipelineParityDump::overlay));
         root.add("block_overlays", CanonicalJson.ordered(entity.blockOverlays(), PipelineParityDump::blockOverlay));
         root.add("layers", layers(entity.layers()));
         root.add("axes", axes(entity.axes()));
-        root.add("bone_toggles", CanonicalJson.map(entity.boneToggles(), PipelineParityDump::boneToggle));
         CanonicalJson.put(root, "texture_ref", entity.textureRef(), JsonPrimitive::new);
         // Canvas-group membership: emitted only for genuine groups (size > 1) so singleton entities
         // stay byte-identical; the members set has no meaningful order, so sort for a canonical array.
         if (!entity.members().isEmpty()) root.add("members", CanonicalJson.strings(entity.members()));
+        // The pose as a digest rather than in full: it is the largest thing an entity carries by a
+        // wide margin, and what this section needs of it is whether it moved. Emitted only where
+        // there is one, on the same terms as members, so the entities that pose nothing stay
+        // byte-identical - which is most of the roster and all of the block-shaped subjects.
+        if (!entity.pose().container().isEmpty() || !entity.pose().bones().isEmpty()
+            || !entity.pose().clips().isEmpty() || entity.pose().refusal().isPresent())
+            root.addProperty("pose", CanonicalJson.digest(pose(entity.pose())));
         return root;
+    }
+
+    /**
+     * Returns one entity's pose. A refusal is emitted as the reason rather than as an absence, so a
+     * model whose pose could not be read is not indistinguishable from one that poses nothing.
+     *
+     * @param pose the pose to emit
+     * @return the pose object
+     */
+    private static @NotNull JsonObject pose(@NotNull EntityPose pose) {
+        JsonObject root = new JsonObject();
+        CanonicalJson.put(root, "refusal", pose.refusal(), JsonPrimitive::new);
+        root.add("container", CanonicalJson.ordered(pose.container(),
+            step -> CanonicalJson.map(step, PoseChannel::token, PipelineParityDump::poseExpr)));
+        root.add("bones", CanonicalJson.map(pose.bones(),
+            channels -> CanonicalJson.map(channels, PoseChannel::token, PipelineParityDump::poseExpr)));
+        root.add("clips", CanonicalJson.ordered(pose.clips(), clip -> {
+            JsonObject node = new JsonObject();
+            node.addProperty("clip", clip.coordinate());
+            node.addProperty("gate", clip.drive().token());
+            node.add("args", CanonicalJson.ordered(clip.arguments(), PipelineParityDump::poseExpr));
+            return node;
+        }));
+        return root;
+    }
+
+    /**
+     * Returns one pose expression, as the text of its own GRAPH.
+     *
+     * <p>Written as text rather than as structure because this section only ever digests it: what a
+     * reader of the dump wants to know is whether the arithmetic moved, and the shipped table is
+     * where the arithmetic itself is legible.
+     *
+     * <p><b>A graph and not a tree, which is the difference between a line of text and no line at
+     * all.</b> The table names a sub-expression once and uses it from everywhere that reaches it, and
+     * the loader answers every one of those with the same record - so a writer that followed each
+     * reference would put back the tree the table exists not to spell out, and a humanoid's arm comes
+     * to twenty-two million nodes. A node already written is written as {@code #n} instead, numbered
+     * in the order they were reached, which is a function of the expression rather than of the walk
+     * that found it.
+     *
+     * @param expr the expression to emit
+     * @return the expression as a string
+     */
+    private static @NotNull JsonPrimitive poseExpr(@NotNull PoseExpr expr) {
+        StringBuilder text = new StringBuilder();
+        poseNode(expr, new IdentityHashMap<>(), text);
+        return new JsonPrimitive(text.toString());
+    }
+
+    /** One expression node, or a back reference to it when the graph has reached it before. */
+    private static void poseNode(
+        @NotNull PoseExpr expr, @NotNull Map<Object, Integer> written, @NotNull StringBuilder text) {
+
+        if (alreadyWritten(expr, written, text)) return;
+        switch (expr) {
+            case PoseExpr.Const literal -> text.append(switch (literal.width()) {
+                case FLOAT -> "const(" + (float) literal.value();
+                case DOUBLE -> "dconst(" + literal.value();
+                case INT -> "iconst(" + (int) literal.value();
+            }).append(')');
+            case PoseExpr.Input input -> text.append("input(").append(input.field()).append(')');
+            case PoseExpr.BoneRead read -> text.append("bone(")
+                .append(read.bone()).append(',').append(read.channel().token()).append(')');
+            case PoseExpr.Op operation -> {
+                text.append(operation.operator().token()).append('(');
+                for (int index = 0; index < operation.operands().size(); index++) {
+                    if (index > 0) text.append(',');
+                    poseNode(operation.operands().get(index), written, text);
+                }
+                text.append(')');
+            }
+            case PoseExpr.Select select -> {
+                text.append("select(");
+                poseNode(select.condition(), written, text);
+                text.append(',');
+                poseNode(select.whenTrue(), written, text);
+                text.append(',');
+                poseNode(select.whenFalse(), written, text);
+                text.append(')');
+            }
+        }
+    }
+
+    /** One condition node, written the same way an expression node is. */
+    private static void poseNode(
+        @NotNull PosePredicate predicate, @NotNull Map<Object, Integer> written, @NotNull StringBuilder text) {
+
+        if (alreadyWritten(predicate, written, text)) return;
+        text.append(predicate.comparison().token()).append('(');
+        poseNode(predicate.left(), written, text);
+        text.append(',');
+        poseNode(predicate.right(), written, text);
+        text.append(')');
+    }
+
+    /**
+     * Whether this node has been written already, writing the back reference to it when it has.
+     *
+     * <p>Asked by IDENTITY, which is what the loader answers a reference with and is also the only
+     * question that can be asked cheaply: these are records, so asking a map about one by value
+     * hashes it by walking everything below it - the very tree neither side is willing to build.
+     */
+    private static boolean alreadyWritten(
+        @NotNull Object node, @NotNull Map<Object, Integer> written, @NotNull StringBuilder text) {
+
+        Integer at = written.get(node);
+        if (at != null) {
+            text.append('#').append(at);
+            return true;
+        }
+        written.put(node, written.size());
+        return false;
     }
 
     /**
@@ -1313,18 +1442,21 @@ public final class PipelineParityDump {
      */
     private static @NotNull JsonObject axes(@NotNull Entity.Axes axes) {
         JsonObject root = new JsonObject();
-        root.add("state_textures", CanonicalJson.map(axes.stateTextures(), JsonPrimitive::new));
-        root.add("size_models", CanonicalJson.map(axes.sizeModels(), Enum::name, PipelineParityDump::entityModel));
-        root.add("size_scales", CanonicalJson.map(axes.sizeScales(), Enum::name, scale -> CanonicalJson.number(scale)));
-        root.add("variants", CanonicalJson.map(axes.variants(), PipelineParityDump::entity));
+        root.add("state_textures", CanonicalJson.map(axes.state().options(), JsonPrimitive::new));
+        CanonicalJson.put(root, "state_default", axes.state().declared(), JsonPrimitive::new);
+        // One map where there were two, because a size form carries whichever of the two vanilla
+        // mechanisms its subject uses - its own mesh, or the base at a multiplied scale - and the
+        // sub-definition already holds both members. The declared size is a form like any other.
+        root.add("sizes", CanonicalJson.map(axes.size().options(), Enum::name, PipelineParityDump::entity));
+        CanonicalJson.put(root, "size_default", axes.size().declared(), size -> new JsonPrimitive(size.name()));
+        root.add("variants", CanonicalJson.map(axes.variant().options(), PipelineParityDump::entity));
+        CanonicalJson.put(root, "variant_default", axes.variant().declared(), JsonPrimitive::new);
         CanonicalJson.put(root, "baby_model", axes.babyModel(), PipelineParityDump::entityModel);
-        CanonicalJson.put(root, "large_shape", axes.largeShape(), shape -> {
-            JsonObject entry = new JsonObject();
-            entry.add("model", entityModel(shape.model()));
-            entry.add("overlays", CanonicalJson.ordered(shape.overlays(), PipelineParityDump::overlay));
-            CanonicalJson.put(entry, "texture_ref", shape.textureRef(), JsonPrimitive::new);
-            return entry;
-        });
+        // One map where there was a bespoke record, on the same terms as the sizes above: a shape form
+        // is a whole sub-definition, so it is emitted as one rather than as the three members the
+        // render used to lift off it.
+        root.add("shapes", CanonicalJson.map(axes.shape().options(), PipelineParityDump::entity));
+        CanonicalJson.put(root, "shape_default", axes.shape().declared(), JsonPrimitive::new);
         return root;
     }
 
@@ -1336,19 +1468,16 @@ public final class PipelineParityDump {
      */
     private static @NotNull JsonObject layers(@NotNull Entity.Layers layers) {
         JsonObject root = new JsonObject();
-        root.addProperty("markings", layers.markings());
         root.addProperty("humanoid_armor", layers.humanoidArmor().isPresent());
         root.add("equipment", CanonicalJson.ordered(layers.equipment(), equipment -> {
             JsonObject entry = new JsonObject();
             entry.addProperty("slot", equipment.slot());
             entry.add("model", entityModel(equipment.model()));
             entry.addProperty("layer_type", equipment.layerType().getId());
-            entry.addProperty("default_material", equipment.defaultMaterial());
             entry.add("material_assets", CanonicalJson.map(equipment.materialAssets(),
                 assetId -> new JsonPrimitive(assetId.id())));
             return entry;
         }));
-        CanonicalJson.put(root, "collar", layers.collar(), JsonPrimitive::new);
         return root;
     }
 
@@ -1367,8 +1496,8 @@ public final class PipelineParityDump {
         root.addProperty("blend", overlay.pass().blend().name());
         root.add("alpha", CanonicalJson.number(overlay.pass().alpha()));
         CanonicalJson.put(root, "texture_ref", overlay.textureRef(), JsonPrimitive::new);
-        CanonicalJson.put(root, "tint_by", overlay.tintBy(), JsonPrimitive::new);
-        CanonicalJson.put(root, "texture_by", overlay.textureBy(), JsonPrimitive::new);
+        CanonicalJson.put(root, "tint_by", overlay.tintBy().map(TintAxis::token), JsonPrimitive::new);
+        CanonicalJson.put(root, "texture_by", overlay.textureBy().map(TextureAxis::token), JsonPrimitive::new);
         CanonicalJson.put(root, "gate", overlay.gate(), PipelineParityDump::gate);
         return root;
     }
@@ -1384,57 +1513,40 @@ public final class PipelineParityDump {
         JsonObject root = new JsonObject();
         root.addProperty("block_id", overlay.blockId());
         root.addProperty("selectable", overlay.selectable());
-        root.add("transforms", CanonicalJson.ordered(overlay.transforms(), PipelineParityDump::transformOp));
+        root.add("transform", matrix(overlay.transform()));
         if (overlay.attachedBone() != null) root.addProperty("attached_bone", overlay.attachedBone());
         return root;
     }
 
     /**
-     * Returns one transform op as a tagged record.
-     * <p>
-     * The ops are emitted rather than folded into the matrix they compose. A matrix probe would bake the
-     * degrees-to-radians rounding into the gate, let two different chains alias onto one result, and hide
-     * WHICH op moved when one did. Every op is a record with public components, so there is nothing
-     * behavioural to lose by emitting them directly.
+     * Returns a matrix as its four columns, in the storage order the type documents.
      *
-     * @param op the op to emit
-     * @return the op object
+     * <p>What this section can see of a block overlay's placement is its product, because the product is
+     * what the row carries and the ops that composed it are a fact of the shipped table rather than of
+     * the built index. That splits the two questions cleanly rather than blurring them: an op that moves
+     * in the table moves {@code digest.shipped-tables} and is named there in its own vocabulary, and what
+     * is left for this section to answer is whether the SAME ops still compose to the same bits - which
+     * is the one thing folding at index build put at risk and the one thing a list of ops could not show.
+     *
+     * <p>Two different chains can alias onto one matrix here. They also render identically, so the
+     * aliasing costs this section nothing it was measuring.
+     *
+     * @param matrix the matrix to emit
+     * @return the four columns, in column-major order
      */
-    private static @NotNull JsonObject transformOp(@NotNull Entity.TransformOp op) {
-        JsonObject root = new JsonObject();
-        switch (op) {
-            case Entity.TransformOp.Translate translate -> {
-                root.addProperty("op", "translate");
-                root.add("x", CanonicalJson.number(translate.x()));
-                root.add("y", CanonicalJson.number(translate.y()));
-                root.add("z", CanonicalJson.number(translate.z()));
-            }
-            case Entity.TransformOp.Scale scale -> {
-                root.addProperty("op", "scale");
-                root.add("x", CanonicalJson.number(scale.x()));
-                root.add("y", CanonicalJson.number(scale.y()));
-                root.add("z", CanonicalJson.number(scale.z()));
-            }
-            case Entity.TransformOp.RotateX rotate -> {
-                root.addProperty("op", "rotate_x");
-                root.add("degrees", CanonicalJson.number(rotate.degrees()));
-            }
-            case Entity.TransformOp.RotateY rotate -> {
-                root.addProperty("op", "rotate_y");
-                root.add("degrees", CanonicalJson.number(rotate.degrees()));
-            }
-            case Entity.TransformOp.RotateZ rotate -> {
-                root.addProperty("op", "rotate_z");
-                root.add("degrees", CanonicalJson.number(rotate.degrees()));
-            }
-        }
+    private static @NotNull JsonArray matrix(@NotNull Matrix4f matrix) {
+        JsonArray root = new JsonArray();
+        for (int col = 1; col <= 4; col++) root.add(floats(matrix.column(col)));
         return root;
     }
 
     /**
-     * Returns an appearance gate as a tagged record. All nine cases are handled although the entity
-     * reader can only produce five - the switch is exhaustive over the sealed interface, so a new case
-     * is a compile error here rather than a silent hole in the dump.
+     * Returns an appearance gate as a tagged record. Both switches are exhaustive over a sealed
+     * interface, so a new gate arm or a new gateable axis is a compile error here rather than a
+     * silent hole in the dump. A {@link AppearanceGate.Selected} is projected back into the table's
+     * own {@code when} spelling per axis kind - {@code charged} for the creeper's flag row,
+     * {@code flag} with the token and polarity for any other, {@code age} / {@code size} for the
+     * shell alternates - so the stored bytes hold across the gate roster.
      *
      * @param gate the gate to emit
      * @return the gate object
@@ -1442,56 +1554,35 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject gate(@NotNull AppearanceGate gate) {
         JsonObject root = new JsonObject();
         switch (gate) {
-            case AppearanceGate.StateGate state -> {
-                root.addProperty("gate", "state");
-                root.addProperty("value", state.value());
+            case AppearanceGate.Selected selected -> {
+                switch (selected.option()) {
+                    case Age age -> {
+                        root.addProperty("gate", "age");
+                        root.addProperty("value", age.name());
+                    }
+                    case Size size -> {
+                        root.addProperty("gate", "size");
+                        root.addProperty("value", size.name());
+                    }
+                    case Flag flag -> {
+                        if (flag == Flag.CHARGED && selected.expected())
+                            root.addProperty("gate", "charged");
+                        else {
+                            root.addProperty("gate", "flag");
+                            root.addProperty("flag", flag.name().toLowerCase(Locale.ROOT));
+                            root.addProperty("value", selected.expected());
+                        }
+                    }
+                }
             }
-            case AppearanceGate.FlagGate flag -> {
-                root.addProperty("gate", "flag");
-                root.addProperty("flag", flag.flag());
-                root.addProperty("value", flag.value());
-            }
-            case AppearanceGate.ChargedGate ignored -> root.addProperty("gate", "charged");
             case AppearanceGate.TintedGate tinted -> {
                 root.addProperty("gate", "tinted");
-                root.addProperty("tint_by", tinted.tintBy());
-            }
-            case AppearanceGate.EquipmentGate equipment -> {
-                root.addProperty("gate", "equipment");
-                root.addProperty("slot", equipment.slot());
-            }
-            case AppearanceGate.MarkingsGate ignored -> root.addProperty("gate", "markings");
-            case AppearanceGate.CollarColorGate ignored -> root.addProperty("gate", "collar_color");
-            case AppearanceGate.AgeGate age -> {
-                root.addProperty("gate", "age");
-                root.addProperty("value", age.value().name());
-            }
-            case AppearanceGate.SizeGate size -> {
-                root.addProperty("gate", "size");
-                root.addProperty("value", size.value().name());
+                tinted.axis().ifPresent(axis -> root.addProperty("tint_by", axis.token()));
             }
         }
         return root;
     }
 
-    /**
-     * Returns one bone toggle.
-     * <p>
-     * Its {@code bones} map is emitted as an ARRAY because its order is semantic, which is not obvious:
-     * the map is only ever read by key on the HIDE path, but the REVEAL path appends it wholesale into
-     * the mesh's own bone map, and that map's sequence is the coplanar depth tie-break. Sorting here
-     * would let a tooling change that reordered the source array pass the gate while changing which face
-     * wins at tied depth in production.
-     *
-     * @param toggle the toggle to emit
-     * @return the toggle object
-     */
-    private static @NotNull JsonObject boneToggle(@NotNull Entity.BoneToggle toggle) {
-        JsonObject root = new JsonObject();
-        root.addProperty("default_visible", toggle.defaultVisible());
-        root.add("bones", CanonicalJson.orderedMap(toggle.bones(), "name", PipelineParityDump::bone));
-        return root;
-    }
 
     /**
      * Returns the block-entity section: the loaded models plus their state-conditional variants.
@@ -1534,8 +1625,8 @@ public final class PipelineParityDump {
     /**
      * Returns a block-entity bone model. {@code inventory_transform} is a {@code @Nullable} array of
      * VARIABLE length (the trailing scale slot is optional), not an {@code Optional} - it is omitted
-     * when null. Its sibling {@code inventoryYRotation} here is the LIVE block-path field, distinct
-     * from the identically-named one on the entity mesh.
+     * when null. {@code inventory_y_rotation} is emitted here and nowhere else, this being the only
+     * bone model an inventory yaw reaches.
      * <p>
      * {@code presentation()} is deliberately absent: it is computed from the fields above, so dumping it
      * would double-count them and could mask a diff behind its own arithmetic.
@@ -1572,7 +1663,6 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject entityModel(@NotNull EntityModelData model) {
         JsonObject root = new JsonObject();
         root.add("texture_size", size(model.getTextureWidth(), model.getTextureHeight()));
-        root.add("inventory_y_rotation", CanonicalJson.number(model.getInventoryYRotation()));
         root.addProperty("cull", model.isCull());
         root.add("bones", CanonicalJson.orderedMap(model.getBones(), "name", PipelineParityDump::bone));
         return root;
@@ -1593,6 +1683,11 @@ public final class PipelineParityDump {
         root.add("scale", CanonicalJson.number(bone.getScale()));
         root.add("cubes", CanonicalJson.ordered(bone.getCubes(), PipelineParityDump::cube));
         if (bone.getParent() != null) root.addProperty("parent", bone.getParent());
+        // Emitted only where they stand away from their default, on the same terms as `parent`: what
+        // a subject rests without is carried by the few bones a selection moves, and every other bone
+        // draws and is moved by nothing.
+        if (!bone.isVisible()) root.addProperty("visible", false);
+        if (bone.getToggle() != null) root.addProperty("toggle", bone.getToggle());
         return root;
     }
 

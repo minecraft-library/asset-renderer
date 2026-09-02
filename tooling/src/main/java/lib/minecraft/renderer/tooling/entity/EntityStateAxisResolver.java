@@ -7,6 +7,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Node {@code axes.state} - the option-encoded state axis (wolf wild / tame / angry,
@@ -41,10 +42,10 @@ final class EntityStateAxisResolver {
         List<VariantIndex.Variant> table = this.variants.table(this.subject.localId());
         if (table == null) return null;
 
-        LinkedHashSet<String> stateKeys = new LinkedHashSet<>();
-        for (VariantIndex.Variant variant : table)
-            for (String state : variant.textures().keySet())
-                if (!"primary".equals(state)) stateKeys.add(state);
+        LinkedHashSet<String> stateKeys = table.stream()
+            .flatMap(variant -> variant.textures().keySet().stream())
+            .filter(state -> !"primary".equals(state))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
         boolean hasNonDefaultState = stateKeys.stream()
             .anyMatch(state -> !EntityAxisPolicies.STATE_PRECEDENCE.strings().contains(state));
         if (!hasNonDefaultState) return null;

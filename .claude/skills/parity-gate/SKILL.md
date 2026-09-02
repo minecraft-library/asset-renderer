@@ -93,6 +93,20 @@ A registration is per-row and additive; `-PexpectEmpty` is what starts a fresh o
 cannot be given in one invocation - a clear and a registration are two orders and one would be
 dropped. A registration with no `-Pto` is refused rather than accepted as "this row may move".
 
+**A row whose producer is expected to FAIL is registered the other way**, by artifact and reason and
+with no key or value:
+
+```bash
+./gradlew parityExpect -Partifact=digest.shipped-tables -Punproduced \
+    -Preason="its writer asserts on the value being re-based"
+```
+
+A capture step is a finalizer, so it runs after a producer that failed; where one did, it records
+that instead of reading output nothing wrote, and the compare reports the row as **UNPRODUCED** and
+fails unless it was registered. `-Punproduced` cannot be given `-Pkey` or `-Pto` - what is wrong with
+such a row is that it has no value - and it needs `-Preason`, because a producer nobody expected to
+fail is the finding rather than a state to wave through.
+
 **`-Pkey` is the row's key exactly as the stored artifact spells it**, and nothing checks that it is
 one. A registration whose key matches no moved row is written, counted in the `N mover(s)
 registered` line and then never consulted, so a near miss reads as success and the row it meant
@@ -109,11 +123,43 @@ that widens its canvas and moves its metric is two registrations on the same `-P
 only the canvas leaves the metric move RED, which is the point. A registered row landing anywhere its
 registrations do not name is RED like any unregistered mover.
 
-Then, only on an announced, priced re-baseline:
+**A re-baseline registers what the compare FOUND, and ends GREEN.** The movers of a table change are
+digests, so they cannot be registered before the capture - nothing knows the values yet. Read the
+verdict, judge it, then register it and compare again; the loop ends green and only then is there
+something to promote:
 
 ```bash
-./gradlew parityPromote -Preason="buildBox operand order, +0.0004 over 8 rows"
+./gradlew parityCompare -Psummary                  # RED, listing what moved
+                                                   # READ IT. Judge every row before the next line.
+./gradlew parityExpect -PfromVerdict -Preason="<what moved and what proves it>"
+./gradlew parityCompare -Psummary                  # GREEN: diff == expected
+./gradlew parityPromote -Partifacts=<scoped> -Pclass=<class> -Preason="<same>"
 ```
+
+**Then regenerate both view sets - part of every promotion, not just a first one.** A promotion
+rewrites `index.json`, and two tracked markdown files render from it: `ParityViewsTest` and
+`ParityReferencesTest`, each run with `-Dasset.parity.regenerateViews=true` and `--rerun`, the rerun
+being required or the task reports success and writes nothing. The two commands are in
+`references/procedures.md` under the promotion shape - they are `test` invocations rather than parity
+tasks, which is why they are named here and spelled there. Skipping them leaves two tracked files
+stale against the store, and nothing else catches it.
+
+**Promoting through a RED compare leaves the verdict RED.** `plan --gate-exit` reads
+`unexpected` out of `last-verdict.json`, so a promotion that never re-compared leaves every later
+commit asking - correctly, since the last thing measured was a failure. The register-and-re-compare
+step is what clears it, and it is not optional bookkeeping.
+
+`-Pclass` says what the promoted value IS, and defaults to `moving`:
+
+| class | means |
+|---|---|
+| `neutral` | the value is unchanged; this promotion re-stamps provenance and nothing else |
+| `shaped` | the artifact's shape moved - a row added, dropped or re-keyed - rather than a measurement |
+| `moving` | a measured value moved. The default, because forgetting it cannot then understate a change |
+
+A table-shape change whose sweeps all held is still `moving`: the digests are measured values and
+they moved. Precedent is in the store - read a promoted `provenance.parity_class` beside its reason
+before choosing.
 
 Never prefix a task with `:asset-renderer:` - this repo is its own Gradle root and the prefix
 cannot resolve (34 recorded failures).
@@ -121,7 +167,9 @@ cannot resolve (34 recorded failures).
 If the plan's budget exceeds **110s**, run `parityCapture` in the background; the default shell
 budget is 120s and a full bundle exceeds it. The budget is the sum of what each planned artifact's
 producers took the last time that artifact was **promoted**, so a row promoted before the build
-started measuring wall time contributes nothing.
+started measuring wall time contributes nothing. It is a scheduling fact and not a question to put to
+the operator: the plan is the cheapest sufficient bundle by construction, so the answer to a large
+budget is a narrower CHANGE, never a narrower gate.
 
 **Read the parenthetical before the number.** The line says which of three states the bundle is in,
 and only one of them is a cost. `BUDGET 0 ms  (no artifact in this plan has a recorded duration)`
@@ -158,11 +206,31 @@ whole cost. In the first two states, read the producer list instead.
   same shape either way; this only says which file holds them.
 - `-Pchanged=<paths>` on `parityPlan` - a comma list of repo-relative paths to resolve reach for,
   instead of the paths git reports changed. It plans a change that is not in the tree; it does not
-  narrow one that is. It is also how an ALREADY-COMMITTED change is planned: a phase landed as one
-  commit per mover leaves a clean tree, so git reports nothing changed and a bare `parityPlan`
-  resolves an empty change set. Hand it the branch's own diff -
-  `-Pchanged="$(git diff --name-only master..HEAD | paste -sd, -)"` - and gate once at the end of the
-  phase. A clean tree is what a promotion needs anyway (R4), so this ordering costs nothing.
+  narrow one that is.
+- **An already-committed phase needs no flag.** A clean tree resolves to the branch's own diff
+  against its trunk merge-base, so `parityPlan` on a phase that has already landed plans that phase.
+  Do NOT hand-roll `-Pchanged="$(git diff --name-only master..HEAD | ...)"` - it is the same answer
+  with the ref typed from memory rather than resolved. `-Psince=<ref>` overrides the trunk where the
+  default is not the ref wanted. A dirty tree still plans what is uncommitted, so nothing about
+  gating a change in progress moves.
+- `-Psummary` on `parityCompare` - print only what moved, plus a tally of what held. `compare.md` is
+  written in full either way and stays the authority; this is so a two-dozen-artifact verdict is one
+  read rather than three.
+- `-PfromVerdict -Preason=<why>` on `parityExpect` - register every unexpected mover the last compare
+  of this capture found, one registration per moved field. It reads the values rather than having
+  them typed back in, which is what a registration of a digest otherwise means: the toolkit writes a
+  near-miss key without complaint, counts it, and leaves the row it meant RED. It refuses `-Pkey` /
+  `-Pto` / `-Punproduced` beside it, refuses a verdict about a different capture, and still owes
+  `-Preason`. `-Partifact` narrows it. **Read the verdict before running it** - it registers what was
+  found, and what was found is only expected once somebody has judged it.
+- `-PphaseGate` on `parityCompare` - **opt-in**, and the default is deliberately the other way. A
+  verdict names a tree as a commit plus an edit on top of it, so committing that edit moves both
+  halves and every commit after a gate re-arms the hook. `-PphaseGate` records that this verdict
+  speaks for the CONTENT it measured instead, which does not move across a commit - so one gate
+  covers a phase landing in as many commits as it has landable units. An edit on top still re-arms
+  it, a red verdict still asks, and a file git does not track yet is in no reading of the content, so
+  the commit that adds one re-arms too. Reach for it when a phase is gated once at the end; leave it
+  off when each commit should be asked about.
 - `-Pformat=json` on `parityPlan` - print the plan as JSON rather than as the SEES / BLIND / PLAN /
   BUDGET block. `_run/plan.json` is written either way, so this is for reading, not for producing.
 - `-Pruns=N` on `parityCapture` - **recorded, never measured.** It stamps how many runs the operator
@@ -194,6 +262,8 @@ whole cost. In the first two states, read the producer list instead.
   resource tree, so a redirected run would leave the shipped bytes unregenerated and the gate green
   over nothing.
 - `-Preason=<text>` - mandatory on `parityPromote`, and on a `parityExpect` that registers a row.
+- `-Punproduced` on `parityExpect` - registers a row whose producer is expected to fail, rather than
+  a mover. Takes `-Partifact` and `-Preason` and refuses `-Pkey` or `-Pto`.
 - `-PpythonExe=<path>` - which interpreter runs the toolkit, when the one this build resolves off
   `PATH` is the wrong one. `PARITY_PYTHON` in the environment does the same. Not a gate knob: it is
   the escape for a machine where the toolkit will not start at all.
@@ -209,6 +279,7 @@ owns `--dry-run` for itself.
 | Movers == the registered expected-diff, every moved column of every row on a value registered for that row | GREEN. Commit; promote in the same commit. |
 | A registered row moved in a column no registration of its names | RED. A `-Pto` is what one column must land on, never a licence for the row. Register the second value too, or fix the second move. |
 | Movers != expected-diff | RED. Report per-row before/after. Do not re-baseline to make it pass. |
+| A planned row is UNPRODUCED and no registration names it | RED. The producer failed, so the row has no value and the rest of the bundle is a verdict about a narrower set than was planned. Fix the producer, or register it with `-Punproduced`. |
 | A mover on an artifact a rule called BLIND | RED, escalated separately. The map is wrong or the change is wider than its paths. Fix the rule; never register it as expected. **Unless the plan printed that line as `claimed blind, selected by <rule>`** - reach resolves one changed path at a time, so a `blind` list subtracts only on the paths its own rule triggers on and a `select` rule's subtracts on none at all. The named rule's `sees` put the artifact in the bundle regardless, whether it fired on the same path or on another in the change set, and the claiming rule's `mode` does not change that. The mover is ordinary; judge it by the rows above. |
 | Sum unchanged but `moved > 0` | RED. A sum can hold while rows cancel. |
 | COVERED non-empty | Nothing owed. The capture that writes each container writes that value with it, and the compare joins that node, so a move in it is already a mover on the container. |
@@ -225,14 +296,24 @@ owns `--dry-run` for itself.
 | Promote what this capture's compare did not cover | Refuse (R8). `parityPromote` requires `_run/compare.json` stamped with this capture's digest and naming every artifact it would write, so run `parityCompare` between the capture and the promotion and widen its `-Partifacts` to match. `-Pbootstrap=true` is the one exemption - a first baseline has nothing to be diffed against - and it exempts the whole invocation, so narrow that promotion with `-Partifacts`. |
 | Promote a capture holding a different number of rows than its baseline | Refuse (R9). A population that moved is a different covered set, and the tree hashes cleanly either way, so nothing else catches it. Say the new set is intended with `-Ppopulation=changed`, which records the exception; a row with no baseline has nothing to have moved from and is passed over. |
 
-**A phase that promotes is two commits, not one.** The migration lands first, because a capture that
-gets promoted must run committed code or its provenance records `asset_dirty: true` and the baseline
-is not re-derivable from any commit - which `parityPromote` refuses rather than leaves to procedure.
-A phase that promotes nothing is one commit.
+**Gate the dirty tree, then commit, then promote.** A promoted capture must be re-derivable from a
+commit, and what makes it so is that the CONTENT it ran over is the content that landed - not that
+the capture happened after the commit. `parityCapture` records a digest over what a producer could
+read, and `parityPromote` compares that against the clean tree it is promoting into: equal is the
+whole requirement, so a capture taken before the commit and a capture taken after it satisfy it
+alike, and one taken over content that was then edited satisfies neither. So a phase that promotes is
+one commit, and the gate runs where it belongs - before it, on the tree being judged.
 
 **Scope a promotion with `-Partifacts`.** A capture root often holds more than the artifact a phase
 declared, because a producer finalizes its own capture step wherever it runs; a bare `parityPromote`
 would re-stamp artifacts the phase never measured.
+
+**Do not pre-check what the tasks already refuse.** Every precondition in the table above is enforced
+by the task that owns it - `parityPromote` refuses a dirty tree (R4), a promotion the compare did not
+cover (R8), a determinism count below the floor (R5) and a moved population (R9); `parityCompare`
+refuses a mixed-vintage root and an unproduced row. Reading `git status`, counting UNPRODUCED rows or
+checking coverage by hand before running them measures nothing the refusal would not, and each is a
+call spent to learn what the next line was about to say. Run the task and read its refusal.
 
 ## Failure reporting
 

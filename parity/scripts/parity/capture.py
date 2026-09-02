@@ -33,8 +33,10 @@ inside the test JVM lands *in the working root itself*, so an erase on the far s
 destroys the very file it was about to stamp. The erase is a task ordered before every producer, not
 merely before every capture step, which is what puts it on the other side of them.
 
-The exemption is ``_run/expected-diff.json``, because the gate order is ``expect`` ->
-``parityCapture`` -> ``parityCompare``: the manifest is written *before* the capture it gates.
+Two files are exempt, both written into ``_run/`` before the capture and both read after it:
+``expected-diff.json``, because the gate order is ``expect`` -> ``parityCapture`` -> ``parityCompare``
+and the manifest is written *before* the capture it gates; and ``plan.json``, because a plan is a
+statement about a tree rather than about an invocation and has to outlive one that failed.
 
 ``_run/COMPLETE`` is written **last**, after ``_run/_capture.json``. That is what makes a
 half-written root detectable, and it is what makes the recorded ``&& diff`` trap - a failed producer
@@ -66,8 +68,16 @@ from parity import store as store_mod
 from parity import sweep as sweep_mod
 from parity.norm import MissingInput, Refused, read_json, sha256_file, write_json, write_text
 
-#: Survives the wipe. One name, stated at the wipe rather than kept as a list that goes stale.
-EXEMPT = "expected-diff.json"
+#: Survive the wipe, both written into ``_run/`` before the capture they gate and both read after it.
+#:
+#: ``expected-diff.json`` because the gate order is ``expect`` -> ``parityCapture`` -> ``parityCompare``.
+#: ``plan.json`` because the wipe used to consume it: ``resolveParityArtifacts`` reads it while Gradle
+#: BUILDS the graph, so a run that reached its producers had already read it and never noticed, and a
+#: run that then failed left nothing for the retry to resolve - a bare ``parityCapture`` refused with
+#: "-Partifacts is required when no plan has been written" and a re-plan was forced before the same
+#: bundle could be attempted again. A plan is a statement about a tree rather than about an
+#: invocation, so it outlives the one that failed.
+EXEMPT = ("expected-diff.json", "plan.json")
 
 COMPLETE = "COMPLETE"
 
@@ -77,21 +87,31 @@ OPEN = "OPEN"
 
 CAPTURE_INDEX = "_capture.json"
 
+#: Where a row whose producer failed is recorded, inside ``_run/`` and therefore outside the capture.
+#:
+#: One file per artifact rather than one list every step appends to, because a capture step is one
+#: process per row: an append is two processes racing for a file neither locks, and the loser's row is
+#: the one nobody ever finds out about. The directory is what ``compare`` enumerates.
+UNPRODUCED_DIR = "unproduced"
+
 
 def wipe(root: Path) -> None:
-    """Erase everything under the root except the one exempt file."""
+    """Erase everything under the root except the exempt files."""
     if not root.exists():
         root.mkdir(parents=True, exist_ok=True)
         return
-    keep = root / store_mod.RUN_DIR / EXEMPT
-    kept = keep.read_bytes() if keep.is_file() else None
+    kept: list[tuple[Path, bytes]] = []
+    for name in EXEMPT:
+        keep = root / store_mod.RUN_DIR / name
+        if keep.is_file():
+            kept.append((keep, keep.read_bytes()))
     for child in sorted(root.iterdir()):
         if child.is_dir():
             shutil.rmtree(child)
         else:
             child.unlink()
-    if kept is not None:
-        write_text(keep, kept.decode("utf-8"))
+    for keep, data in kept:
+        write_text(keep, data.decode("utf-8"))
 
 
 def begin(root: Path) -> Path:
@@ -254,6 +274,45 @@ def _self_captured(artifact: str, source: Path, root: Path, target: Path) -> dic
     if isinstance(entries, (dict, list)):
         payload["_counts"] = {member: len(entries)}
     return payload
+
+
+def unproduced(root: Path, artifact: str, failures: Sequence[tuple[str, str]]) -> Path:
+    """Record that this row's producers failed, so the capture carries the fact rather than a gap.
+
+    A capture step is a FINALIZER, so it runs whether or not the producer it follows succeeded. Read
+    off the producer's own output it would fail on an absent file and say nothing about why - which
+    left the row simply missing from the root, and a compare drawn from what the root holds reported
+    the rows that succeeded and never mentioned the one that did not.
+
+    What is recorded is what the build actually knows: which task failed and what it said. That
+    message carries the exit value for a process and the report path for a suite, which is why it is
+    kept verbatim rather than parsed into a number the two would spell differently.
+
+    :param root: the working root
+    :param artifact: the row whose producers failed
+    :param failures: the failing tasks, each with the message it failed with
+    :return: the file written
+    """
+    target = root / store_mod.RUN_DIR / UNPRODUCED_DIR / f"{artifact}.json"
+    write_json(target, {
+        "//": f"parity.unproduced.{artifact} · written by the capture step of a failed producer",
+        "artifact": artifact,
+        "format": 1,
+        "kind": "producer-failed",
+        "producers": [{"failure": message, "task": task} for task, message in failures],
+    })
+    return target
+
+
+def unproduced_rows(root: Path) -> list[dict]:
+    """Every row this capture recorded as unproduced, in artifact order.
+
+    :param root: the working root
+    """
+    home = root / store_mod.RUN_DIR / UNPRODUCED_DIR
+    if not home.is_dir():
+        return []
+    return [read_json(path) for path in sorted(home.glob("*.json"))]
 
 
 def index(root: Path) -> Path:

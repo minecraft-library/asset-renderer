@@ -5,6 +5,7 @@ import com.google.gson.JsonSyntaxException;
 import com.google.gson.annotations.SerializedName;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.PackStack;
@@ -12,18 +13,17 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.TreeMap;
 
 /**
  * Parses each pack's {@code assets/<ns>/equipment/*.json} into an asset-id-keyed index for the
@@ -33,15 +33,19 @@ import java.util.TreeMap;
  *
  * <p>Not a direct {@link EquipmentModel} deserialize: Gson keys an enum map by constant name, while the
  * json keys the layer map by the serialized id, so the file is read into a String-keyed
- * {@link RawEquipmentFile} and assembled through {@link LayerType#fromId} - the same raw-then-assemble
+ * {@link RawEquipmentFile} and assembled through {@link LayerType#findById} - the same raw-then-assemble
  * split the entity model loader uses. A vanilla-only stack yields the 45 vanilla equipment assets.
  *
  * <p><b>The index reports what it parsed and applies no default.</b> An id the stack ships no file for
  * is simply absent; turning that absence into {@link EquipmentModel#MISSING} is
  * {@code RendererContext.resolveEquipmentLayers}' job, at the one seam that serves the index. So the
  * map is ordered for determinism rather than for lookup, and iteration order never reaches a render.
+ *
+ * <p><b>Parity.</b> Reached only across the pipeline context, which is wiring, so no producer root
+ * reaches it. It loads the worn-equipment models, which only a wearer draws.
  */
 @UtilityClass
+@Parity(subject = {Subject.ENTITY, Subject.PLAYER})
 public class EquipmentModelLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
@@ -49,6 +53,9 @@ public class EquipmentModelLoader {
     /** The equipment-asset subtree every pack in the stack contributes. */
     private static final @NotNull PackSubtree.Subtree EQUIPMENT =
         PackSubtree.Subtree.of(VanillaSourcePaths.EQUIPMENT_SUBDIR, ".json");
+
+    /** The asset-id ordering the index is keyed under, so a stack iterates its ids sorted. */
+    private static final @NotNull Comparator<ResourceId> BY_ASSET_ID = Comparator.comparing(ResourceId::id);
 
     /**
      * Loads the equipment-asset index across the whole pack stack, ascending (later packs replace
@@ -58,21 +65,23 @@ public class EquipmentModelLoader {
      * @return the equipment-asset index, deterministically ordered by asset id
      */
     public static @NotNull ConcurrentMap<ResourceId, EquipmentModel> load(@NotNull PackStack stack) {
-        TreeMap<ResourceId, EquipmentModel> models = new TreeMap<>(Comparator.comparing(ResourceId::id));
-        for (PackSubtree.Entry entry : PackSubtree.walk(stack, EQUIPMENT))
-            parseFile(entry, models);
-        return Concurrent.adoptTreeMap(models).toUnmodifiable();
+        return PackSubtree.walk(stack, EQUIPMENT)
+            .stream()
+            .map(EquipmentModelLoader::parseFile)
+            .flatMap(Optional::stream)
+            .collect(Concurrent.toTreeMap(BY_ASSET_ID, Map.Entry::getKey, Map.Entry::getValue, (lower, higher) -> higher))
+            .toUnmodifiable();
     }
 
-    /** Parses one equipment file, storing (replacing) its model under {@code <namespace>:<stem>}. */
-    private static void parseFile(@NotNull PackSubtree.Entry entry, @NotNull Map<ResourceId, EquipmentModel> out) {
+    /** Parses one equipment file into its model, keyed {@code <namespace>:<stem>}. */
+    private static @NotNull Optional<Map.Entry<ResourceId, EquipmentModel>> parseFile(@NotNull PackSubtree.Entry entry) {
         String namespace = entry.namespace();
         String file = entry.entryPath();
         Optional<byte[]> bytes = entry.container().bytes(file);
-        if (bytes.isEmpty()) return;
+        if (bytes.isEmpty()) return Optional.empty();
         String stem = file.substring(file.lastIndexOf('/') + 1, file.length() - ".json".length());
-        parse(new String(bytes.get(), StandardCharsets.UTF_8))
-            .ifPresent(model -> out.put(new ResourceId(namespace, stem), model));
+        return parse(new String(bytes.get(), StandardCharsets.UTF_8))
+            .map(model -> Map.entry(new ResourceId(namespace, stem), model));
     }
 
     /**
@@ -96,20 +105,23 @@ public class EquipmentModelLoader {
 
     /** Assembles the String-keyed raw file into the enum-keyed model, dropping unknown layer types. */
     private static @NotNull EquipmentModel assemble(@NotNull RawEquipmentFile raw) {
-        Map<LayerType, List<EquipmentModel.Layer>> layers = new EnumMap<>(LayerType.class);
+        Map<LayerType, ConcurrentList<EquipmentModel.Layer>> layers = new EnumMap<>(LayerType.class);
         raw.layers().forEach((key, rawLayers) -> {
             if (rawLayers == null) return;
-            Optional<LayerType> type = LayerType.fromId(key);
+            Optional<LayerType> type = LayerType.findById(key);
             if (type.isEmpty()) {
                 System.err.printf("Skipping unknown equipment layer type '%s'%n", key);
                 return;
             }
-            List<EquipmentModel.Layer> built = new ArrayList<>(rawLayers.size());
-            for (RawLayer rawLayer : rawLayers)
-                if (rawLayer != null && rawLayer.texture() != null) built.add(toLayer(rawLayer));
-            if (!built.isEmpty()) layers.put(type.get(), List.copyOf(built));
+            ConcurrentList<EquipmentModel.Layer> built = rawLayers.stream()
+                .filter(rawLayer -> rawLayer != null && rawLayer.texture() != null)
+                .map(EquipmentModelLoader::toLayer)
+                .collect(Concurrent.toUnmodifiableList());
+            if (!built.isEmpty()) layers.put(type.get(), built);
         });
-        return new EquipmentModel(Collections.unmodifiableMap(layers));
+        // Linked rather than hashed so the model iterates its layer types in the order the EnumMap
+        // hands them over in, which is the enum's own.
+        return new EquipmentModel(Concurrent.newUnmodifiableLinkedMap(layers));
     }
 
     /** Builds one runtime {@link EquipmentModel.Layer} from its raw json shape. */

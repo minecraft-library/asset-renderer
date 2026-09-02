@@ -14,6 +14,7 @@ import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
 import lib.minecraft.renderer.tooling.walk.Insn;
 import lib.minecraft.renderer.tooling.walk.Interp;
+import lib.minecraft.renderer.tooling.walk.Match;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -36,14 +37,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Node {@code overlays[]} - the generic overlay engine. The per-entity handling dissolves
- * into structural arms: the enum-map detector (crackiness), the composite gate's superclass
- * walk plus ADDITIVE probe (creeper, wither), the emissive-provider arm with retain-subset
- * detection (warden, creaking, copper golem), the villager multi-pass arm, the
- * parameterized binding (stray, bogged), and the bespoke-equipment default-decor arm
- * (trader llama, via constant-boolean predicate evaluation on the subject's entity class).
+ * into structural arms: the collar arm (wolf, cat), the enum-map detector (crackiness), the
+ * composite gate's superclass walk plus ADDITIVE probe (creeper, wither), the
+ * emissive-provider arm with retain-subset detection (warden, creaking, copper golem), the
+ * villager multi-pass arm, the parameterized binding (stray, bogged), and the
+ * bespoke-equipment default-decor arm (trader llama, via constant-boolean predicate
+ * evaluation on the subject's entity class).
  * Eyes classify by the clinit texture-to-{@code RenderTypes}-factory shape, the factory vanilla
  * names an eye overlay for, and the pipeline traits it declares - never by a layer class name.
  *
@@ -55,8 +58,8 @@ import java.util.Set;
  * <p>Geometry: a row whose mesh entry shares the FAMILY's factory coordinate emits the
  * family key plus a row-level {@code grow} (the real CubeDeformation - creeper 2.0, fish
  * pattern 0.008, llama decor 0.5; the 0.001 depth clearance is never data); a distinct
- * factory registers its own {@link GeometryRequest} with the grow baked. Collar / markings /
- * equipment / block-decoration sites are handled elsewhere and are skipped here.
+ * factory registers its own {@link GeometryRequest} with the grow baked. Equipment and
+ * block-decoration sites are handled elsewhere and are skipped here.
  */
 final class EntityOverlayResolver {
 
@@ -122,9 +125,8 @@ final class EntityOverlayResolver {
         for (EntityRendererResolver.LayerSite site : this.roster) {
             ClassNode cn = this.cache.load(site.layerClass());
             if (cn == null) continue;
-            // Collar, markings-token enum maps, equipment (call-site LayerType consumers),
-            // and block-decoration layers are handled by other resolvers and never emit here.
-            if (isCollarShaped(cn)) continue;
+            // Equipment (call-site LayerType consumers) and block-decoration layers are
+            // handled by other resolvers and never emit here.
             if (readsBlockModelRenderState(cn)) continue;
             if (EntityLayersResolver.consumesEquipmentLayerType(site)) continue;
             if (referencesEquipmentLayerType(cn)) {
@@ -135,10 +137,13 @@ final class EntityOverlayResolver {
                 continue;
             }
             EnumMapOverlay enumMap = findEnumMapOverlay(this.cache, cn);
-            if (enumMap != null && EntityLayersResolver.isLayersRowToken(enumMap.token())) continue;
-
             List<JsonTree> emitted = resolveSite(site, cn, enumMap);
+            // What this layer's render type translates its texture by, which every pass the site
+            // emits carries: the offset is built into the pipeline the layer submits through, so it
+            // belongs to the layer rather than to any one mesh it draws.
+            JsonTree scroll = new EntityTextureScrollResolver(this.cache).resolve(site.layerClass());
             for (JsonTree row : emitted) {
+                if (scroll != null) row.put("texture_scroll", scroll);
                 rows.add(row);
                 JsonTree pipeline = row.find("pipeline").orElse(null);
                 if (pipeline != null && pipeline.getBoolean("emissive", false)
@@ -161,6 +166,13 @@ final class EntityOverlayResolver {
         @NotNull ClassNode cn,
         @Nullable EnumMapOverlay enumMap
     ) {
+        // The collar claims first: its layer bakes a ModelLayers field and cutout-submits, so
+        // the composite arm would otherwise claim the site and paint a coloured collar at the
+        // zero state vanilla draws none for.
+        if (isCollarShaped(cn)) {
+            JsonTree collar = resolveCollarRow(site, cn);
+            return collar == null ? List.of() : List.of(collar);
+        }
         List<JsonTree> emissive = resolveEmissiveProviderSite(site, cn);
         if (emissive != null) return emissive;
         JsonTree eyes = resolveEyesBinding(site.layerClass(), site.layerIndex(), cn);
@@ -245,13 +257,31 @@ final class EntityOverlayResolver {
      *
      * @param token the state field name (the {@code texture_by} axis token)
      * @param textures enum-constant name to raw texture path, in declaration order
+     * @param babyTextures the same keys' aged-down paths where the map's value is a pair, empty
+     *     where each value is a single texture
      */
-    record EnumMapOverlay(@NotNull String token, @NotNull Map<String, String> textures) {}
+    record EnumMapOverlay(
+        @NotNull String token,
+        @NotNull Map<String, String> textures,
+        @NotNull Map<String, String> babyTextures
+    ) {}
+
+    /**
+     * The two textures one enum key binds, as vanilla declares them: a value carrying a single
+     * texture leaves {@link #baby} null, and one carrying an aged-down pair fills it.
+     */
+    private record TexturePair(@NotNull String adult, @Nullable String baby) {}
+
+    /**
+     * An enum-constant read - a {@code GETSTATIC} whose field descriptor is its own owner, which is
+     * how {@link AsmWalker#readStaticEnumMap} recognises the key that opens each entry.
+     */
+    private static final @NotNull Match<FieldInsnNode> ENUM_CONSTANT_READ = Insn.of(FieldInsnNode.class,
+        field -> field.getOpcode() == Opcodes.GETSTATIC && field.desc.equals("L" + field.owner + ";"));
 
     /**
      * Detects the enum-map shape on a layer class and reads its constant-to-texture map, or
-     * {@code null} when the shape is absent (also covers markings-shaped layers - the
-     * caller routes those to the markings resolver).
+     * {@code null} when the shape is absent.
      */
     static @Nullable EnumMapOverlay findEnumMapOverlay(@NotNull ClassNodeCache cache, @NotNull ClassNode cn) {
         MethodNode submit = typedSubmit(cn);
@@ -266,10 +296,40 @@ final class EntityOverlayResolver {
                 back.getOpcode() == Opcodes.GETSTATIC && back instanceof FieldInsnNode map
                     && cn.name.equals(map.owner) && MAP_DESC.equals(map.desc) ? map.name : null);
             if (stateField == null || mapField == null) return null;
-            Map<String, String> textures = AsmWalker.readStaticEnumMap(cache, cn.name, mapField,
-                EntityOverlayResolver::readEntityTextureLiteral);
-            return textures.isEmpty() ? null : new EnumMapOverlay(stateField, textures);
+            Map<String, TexturePair> pairs = AsmWalker.readStaticEnumMap(cache, cn.name, mapField,
+                EntityOverlayResolver::readEntityTexturePair);
+            if (pairs.isEmpty()) return null;
+            Map<String, String> textures = pairs.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().adult(),
+                    (first, second) -> second, LinkedHashMap::new));
+            Map<String, String> babyTextures = pairs.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue().baby() != null)
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().baby(),
+                    (first, second) -> second, LinkedHashMap::new));
+            return new EnumMapOverlay(stateField, textures, babyTextures);
         });
+    }
+
+    /**
+     * The textures one entry of an enum-keyed map binds, read off the first texture literal the
+     * entry pushes.
+     *
+     * <p>A value carrying an aged-down sibling declares the two side by side - vanilla's horse
+     * markings are a record of an adult {@code Identifier} and a baby one - so the second literal
+     * inside the same entry is that sibling. The entry is bounded by what closes it: the next enum
+     * key, or the store of the finished map, so a map whose values are single textures never reads
+     * the next key's texture as this key's baby.
+     */
+    private static @Nullable TexturePair readEntityTexturePair(@NotNull AbstractInsnNode in) {
+        String adult = readEntityTextureLiteral(in);
+        if (adult == null) return null;
+        String baby = AsmWalker.after(in)
+            .until(Insn.of(AbstractInsnNode.class, node ->
+                ENUM_CONSTANT_READ.matches(node) || node.getOpcode() == Opcodes.PUTSTATIC))
+            .firstNotNull(EntityOverlayResolver::readEntityTextureLiteral);
+        return new TexturePair(adult, baby);
     }
 
     // ------------------------------------------------------------------------------------
@@ -402,6 +462,31 @@ final class EntityOverlayResolver {
     }
 
     // ------------------------------------------------------------------------------------
+    // collar arm
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * The collar row (wolf, cat): the wearer's own mesh under the layer's clinit texture, tinted
+     * at render from {@code collar_color}. The {@code when} is the transcription of the null-gated
+     * {@code DyeColor} state read {@link #isCollarShaped} detects - vanilla draws no collar at a
+     * null collar colour, so the row renders only while a collar is worn.
+     */
+    private @Nullable JsonTree resolveCollarRow(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
+        String texture = findFirstNonBabyTextureLiteral(cn);
+        if (texture == null) {
+            this.diagnostics.warn("collar layer '%s' has no clinit texture - row dropped",
+                simpleName(site.layerClass()));
+            return null;
+        }
+        this.diagnostics.info("collar row via null-gated DyeColor read");
+        return row(site.layerClass(), site.layerIndex())
+            .put("when", JsonTree.object().put("flag", "collared").put("value", true))
+            .putIf("geometry", this.geometryRef.primaryKey())
+            .put("texture", namespaced(texture))
+            .put("tint_by", "collar_color");
+    }
+
+    // ------------------------------------------------------------------------------------
     // eyes-binding arm
     // ------------------------------------------------------------------------------------
 
@@ -480,9 +565,14 @@ final class EntityOverlayResolver {
     // ------------------------------------------------------------------------------------
 
     /**
-     * The enum-map row (crackiness): no baked texture - the zero-state enum value is absent
-     * from the map, so the default draws nothing - with the full value-to-path map and a
-     * bounds skip (a zero-state-none overlay never contributes silhouette).
+     * The enum-map row (crackiness, the horse marking): no baked texture - the zero-state enum
+     * value is absent from the map, so the default draws nothing - with the full value-to-path map
+     * and a bounds skip (a zero-state-none overlay never contributes silhouette).
+     *
+     * <p>A map whose values carry an aged-down sibling gets a {@code baby} node holding that half,
+     * which is what makes the pass reach a baby at all - an overlay with no {@code baby} node is
+     * absent from the baby list by design. It inherits the row's axis and materialises against the
+     * {@code age.baby} mesh, so it names neither.
      */
     private @NotNull JsonTree resolveEnumMapRow(
         @NotNull EntityRendererResolver.LayerSite site,
@@ -490,14 +580,22 @@ final class EntityOverlayResolver {
     ) {
         JsonTree node = row(site.layerClass(), site.layerIndex())
             .putIf("geometry", this.geometryRef.primaryKey())
-            .put("texture_by", axisToken(enumMap.token()));
-        JsonTree byValue = JsonTree.object();
-        for (Map.Entry<String, String> entry : enumMap.textures().entrySet())
-            byValue.put(entry.getKey().toLowerCase(Locale.ROOT), namespaced(entry.getValue()));
-        node.put("textures_by_value", byValue);
-        node.put("skip_bounds", true);
-        this.diagnostics.info("enum-map overlay: texture_by '%s', %d values",
-            enumMap.token(), enumMap.textures().size());
+            .put("texture_by", axisToken(enumMap.token()))
+            .put("textures_by_value", byValue(enumMap.textures()))
+            .put("skip_bounds", true);
+        if (!enumMap.babyTextures().isEmpty())
+            node.put("baby", JsonTree.object().put("textures_by_value", byValue(enumMap.babyTextures())));
+        this.diagnostics.info("enum-map overlay: texture_by '%s', %d values%s",
+            enumMap.token(), enumMap.textures().size(),
+            enumMap.babyTextures().isEmpty() ? "" : " (+%d baby)".formatted(enumMap.babyTextures().size()));
+        return node;
+    }
+
+    /** One value-to-path map, keys lowercased and paths namespaced. */
+    private static @NotNull JsonTree byValue(@NotNull Map<String, String> textures) {
+        JsonTree node = JsonTree.object();
+        for (Map.Entry<String, String> entry : textures.entrySet())
+            node.put(entry.getKey().toLowerCase(Locale.ROOT), namespaced(entry.getValue()));
         return node;
     }
 
@@ -1615,8 +1713,11 @@ final class EntityOverlayResolver {
                 substituted.set(elseArm);
             })
             .run();
-        return new CategoryTokens(new ArrayList<>(new LinkedHashSet<>(categories.values())),
-            babyCategory.get(), substituted.get());
+        List<String> roster = categories.values()
+            .stream()
+            .distinct()
+            .collect(Collectors.toList());
+        return new CategoryTokens(roster, babyCategory.get(), substituted.get());
     }
 
     /**

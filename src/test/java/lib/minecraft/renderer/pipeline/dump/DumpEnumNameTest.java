@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.dump;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.asset.appearance.Flag;
 import lib.minecraft.renderer.asset.appearance.Size;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
@@ -101,10 +102,15 @@ final class DumpEnumNameTest {
             List.of("DOWN", "UP", "NORTH", "SOUTH", "WEST", "EAST")),
         new ValueSite("root.addProperty(\"blend\", overlay.pass().blend().name());", BlendMode.class,
             List.of("NORMAL", "REPLACE", "ADD", "MULTIPLY", "OVERLAY", "QUADRATIC_ADD")),
-        new ValueSite("root.addProperty(\"value\", age.value().name());", Age.class,
+        new ValueSite("root.addProperty(\"value\", age.name());", Age.class,
             List.of("ADULT", "BABY")),
-        new ValueSite("root.addProperty(\"value\", size.value().name());", Size.class,
-            List.of("SMALL", "MEDIUM", "LARGE")));
+        new ValueSite("root.addProperty(\"value\", size.name());", Size.class,
+            List.of("SMALL", "MEDIUM", "LARGE")),
+        new ValueSite("CanonicalJson.put(root, \"size_default\", axes.size().declared(), "
+            + "size -> new JsonPrimitive(size.name()));", Size.class,
+            List.of("SMALL", "MEDIUM", "LARGE")),
+        new ValueSite("root.addProperty(\"flag\", flag.name().toLowerCase(Locale.ROOT));", Flag.class,
+            List.of("SHEARED", "CHARGED", "COLLARED")));
 
     /** The dump writer, which is the file every site below is counted in. */
     private static final Path DUMP =
@@ -127,8 +133,7 @@ final class DumpEnumNameTest {
      * fails before anything is hashed.
      */
     private static final List<String> KEY_SITES = List.of(
-        "root.add(\"size_models\", CanonicalJson.map(axes.sizeModels(), Enum::name, PipelineParityDump::entityModel));",
-        "root.add(\"size_scales\", CanonicalJson.map(axes.sizeScales(), Enum::name, scale -> CanonicalJson.number(scale)));");
+        "root.add(\"sizes\", CanonicalJson.map(axes.size().options(), Enum::name, PipelineParityDump::entity));");
 
     /** The lines that match the scan and are not enums at all - a path segment and an NBT key. */
     private static final List<String> PLAIN_SITES = List.of(

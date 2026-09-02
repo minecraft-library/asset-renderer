@@ -50,14 +50,35 @@ public class PortalOptions implements RenderOptions {
 
     /**
      * The default animation timing for a portal render - seed tick 0, 1 frame, 8 ticks per frame
-     * (the game-time step the parallax shader advances per output frame), with the 0.2 loop-crossfade
-     * fraction.
+     * (the game-time step the parallax shader advances per output frame).
      */
     public static final @NotNull AnimationOptions DEFAULT_ANIMATION =
             AnimationOptions.builder().ticksPerFrame(8).build();
 
-    /** The animation timing (seed tick, frame count, ticks per frame, loop crossfade). */
+    /** The animation timing (seed tick, frame count, ticks per frame). */
     private final @NotNull AnimationOptions animation = DEFAULT_ANIMATION;
+
+    /**
+     * Frames sampled per whole-tick step of the parallax bake, whose appearance is a continuous
+     * function of time. One frame per tick caps output at 20 frames a second, which is visibly
+     * coarse on continuous motion; a higher value samples between ticks, covering the same span of
+     * game time at the same speed but more finely. Defaults to {@code 1} - whole ticks, the only
+     * instants an offline bake sampled before. A portal knob rather than a shared one: a texture
+     * flipbook has no state between its frames, so subdividing its ticks would bake duplicates.
+     * <p>
+     * Carried faithfully only by a container that stores delays in milliseconds. GIF stores
+     * centiseconds, and the smallest delay players honour is two of them, so a 50 ms tick has room
+     * for at most two sub-steps there and none at all at three - a GIF written from a subdivided
+     * schedule declares a longer tick than intended. Write WebP for these, or drop back to
+     * {@code 1} for a strip that has to be a GIF.
+     */
+    private final int subTickSteps = 1;
+
+    /**
+     * Fraction of the frame count used as a shifted-continuation crossfade for a seamless loop of
+     * the parallax bake.
+     */
+    private final float loopFadeBridgePct = 0.2f;
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).

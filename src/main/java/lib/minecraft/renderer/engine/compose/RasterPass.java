@@ -82,7 +82,8 @@ public record RasterPass(
         /**
          * Transforms the baked strip.
          *
-         * @param frames the baked frame buffers, in frame order; each carries its own coverage mask
+         * @param frames the baked frame buffers, in frame order, writable so that a finish stamping
+         *        every frame can replace them in place; each carries its own coverage mask
          * @param timeline the schedule that baked the frames
          * @return the frames to wrap and the schedule whose delays wrap them
          */
@@ -146,18 +147,6 @@ public record RasterPass(
      */
     public @NotNull RasterPass finishing(@NotNull Finish finish) {
         return new RasterPass(width, height, ssaa, antiAlias, recordMask, raster, finish);
-    }
-
-    /**
-     * Rasters one frame at the given tick through the supersample / FXAA / downscale tail. When
-     * {@code ssaa > 1} the frame is drawn into a pooled hi-res buffer, FXAA'd there, blit-scaled
-     * down, and any mask downsampled; otherwise it is drawn straight into the output buffer.
-     *
-     * @param tick the absolute animation tick to sample
-     * @return the finished frame, carrying its downsampled coverage mask when the pass records one
-     */
-    public @NotNull PixelBuffer renderFrame(int tick) {
-        return renderFrame(tick, tick);
     }
 
     /**

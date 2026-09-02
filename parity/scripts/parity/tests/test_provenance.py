@@ -346,10 +346,24 @@ class ReferenceCounts(unittest.TestCase):
     @unittest.skipUnless(REFERENCE_TREE is not None, "reference tree absent")
     def test_the_live_tree_counts_per_subtree(self):
         counts = provenance.reference_counts(REPO)
-        self.assertEqual(counts.get("entities"), 402)
+        # 403 since the frog gained a `croak` toggle: its model draws the sac only while the croak
+        # state runs, which the generator now reads as a gate rather than folding to "never drawn".
+        self.assertEqual(counts.get("entities"), 403)
         self.assertEqual(counts.get("armor"), 7)
         self.assertEqual(counts.get("players"), 2)
-        self.assertEqual(sum(counts.values()), 2311)
+        # The three the sum alone would not speak for: a key each, so a sub-tree dropping back out
+        # of the roster fails as itself rather than as a total nobody can read a cause out of.
+        self.assertEqual(counts.get("menus"), 10)
+        self.assertEqual(counts.get("idle"), 1056)
+        self.assertEqual(counts.get("walk"), 1056)
+        self.assertEqual(sum(counts.values()), 4434)
+
+    @unittest.skipUnless(REFERENCE_TREE is not None, "reference tree absent")
+    def test_the_counts_name_every_sub_tree_the_reference_root_holds(self):
+        """An absent key and an absent sub-tree read the same, so the roster is what says the record
+        covers the whole tree; a sub-tree on disk that no key names is evidence nothing collects."""
+        on_disk = {path.name for path in provenance.reference_root(REPO).iterdir() if path.is_dir()}
+        self.assertEqual(on_disk - set(provenance.REFERENCE_SUBTREES), set())
 
 
 if __name__ == "__main__":

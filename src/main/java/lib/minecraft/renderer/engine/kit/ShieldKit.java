@@ -98,23 +98,23 @@ public class ShieldKit {
         @NotNull LightingFrame lighting
     ) {
         Matrix4f normalTransform = Shading.guiNormalTransform(lighting);
-        ConcurrentList<VisibleTriangle> out = Concurrent.newList();
-        for (VisibleTriangle t : triangles) {
-            Vector3f rendered = t.normal().transformNormal(normalTransform).normalize();
-            // Vanilla's signed-byte SNORM normal round-trip, which the shield needs and the block-icon
-            // relight needs identically - the shield's plate and handle are axis-aligned, but the pose
-            // rotation tilts every normal off its cardinal before this runs.
-            Vector3f packed = Shading.packAsSnormByte(rendered);
-            float shading = Lighting.itemsFlat(packed);
-            out.add(new VisibleTriangle(
-                t.position0(), t.position1(), t.position2(),
-                t.uv0(), t.uv1(), t.uv2(),
-                t.texture(), t.tintArgb(), t.normal(), shading,
-                new SurfaceTraits(t.traits().cullBackFaces(), false, false, t.traits().directionalLight(),
-                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
-            ));
-        }
-        return out;
+        return triangles.stream()
+            .map(t -> {
+                Vector3f rendered = t.normal().transformNormal(normalTransform).normalize();
+                // Vanilla's signed-byte SNORM normal round-trip, which the shield needs and the
+                // block-icon relight needs identically - the shield's plate and handle are
+                // axis-aligned, but the pose rotation tilts every normal off its cardinal first.
+                Vector3f packed = Shading.packAsSnormByte(rendered);
+                float shading = Lighting.itemsFlat(packed);
+                return new VisibleTriangle(
+                    t.position0(), t.position1(), t.position2(),
+                    t.uv0(), t.uv1(), t.uv2(),
+                    t.texture(), t.tintArgb(), t.normal(), shading,
+                    new SurfaceTraits(t.traits().cullBackFaces(), false, false, t.traits().directionalLight(),
+                        PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
+                );
+            })
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**
@@ -142,7 +142,7 @@ public class ShieldKit {
         float sx, float sy, float sz,
         float texU, float texV
     ) {
-        float units = BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+        float units = GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
         // scale(1, -1, -1) negates Y and Z (flipping the min/max on those axes), then /16 lands the
         // bounds in the block-model frame. X passes through unchanged.
         float x0 = mx / units;
@@ -158,7 +158,7 @@ public class ShieldKit {
 
         Unwrap.Atlas unwrap = new Unwrap.Atlas(texOffs, size, false);
 
-        for (Face face : Face.CACHED_VALUES) {
+        Face.forEach(face -> {
             Vector4f rect = unwrap.rect(Turn.HALF_X.apply(face));
             Vector2f[] uv = CornerPhase.BAKERY.permuteUv(
                 face, rect.toUvCorners(SHIELD_TEXTURE_SIZE, SHIELD_TEXTURE_SIZE, 0, false));
@@ -167,9 +167,9 @@ public class ShieldKit {
             // Baked here for the rasterizer's contract; relightForItems3d recomputes it from the
             // ITEMS_3D lights, so the value only needs to be a valid placeholder.
             float shading = Lighting.inventory(normal);
-            BlockGeometryKit.addQuad(out, corners, uv,
+            GeometryKit.addQuad(out, corners, uv,
                 texture, ColorMath.WHITE, normal, shading, SurfaceTraits.OPAQUE_BODY, null);
-        }
+        });
     }
 
 }

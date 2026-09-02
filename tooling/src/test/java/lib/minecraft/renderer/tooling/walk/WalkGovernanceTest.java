@@ -56,7 +56,7 @@ class WalkGovernanceTest {
         Insn.class, Match.class,
         Cells.class, Cells.Cell.class, Cells.Window.class, Cells.ListCell.class,
         Cells.Latch.class, Cells.Flag.class, Cells.Slots.class,
-        Interp.class, Interp.Domain.class, Interp.OnUnknown.class, Interp.Width.class,
+        Interp.class, Interp.Domain.class, Interp.OnUnknown.class, Interp.Snapshot.class, Interp.Width.class,
         Exit.class, Missing.class, Tracer.class);
 
     private static final List<String> FROZEN_ROSTER = List.of(
@@ -103,6 +103,9 @@ class WalkGovernanceTest {
         "Interp.Domain.binary(3)", "Interp.Domain.decode(1)", "Interp.Domain.unary(2)",
         "Interp.Domain.underflow(0)", "Interp.Domain.unknown(0)",
         "Interp.OnUnknown.valueOf(1)", "Interp.OnUnknown.values(0)",
+        "Interp.Snapshot.equals(1)", "Interp.Snapshot.frames(0)", "Interp.Snapshot.hashCode(0)",
+        "Interp.Snapshot.poisoned(0)", "Interp.Snapshot.slots(0)", "Interp.Snapshot.stack(0)",
+        "Interp.Snapshot.toString(0)",
         "Interp.Width.valueOf(1)", "Interp.Width.values(0)",
         "Interp.capacity(1)", "Interp.child(1)", "Interp.closeSlotFrame(0)", "Interp.depth(0)",
         "Interp.evaluateIntComparison(3)", "Interp.isEmpty(0)",
@@ -110,8 +113,8 @@ class WalkGovernanceTest {
         "Interp.peek(0)", "Interp.poison(0)",
         "Interp.poisoned(0)", "Interp.pop(0)", "Interp.popArguments(1)", "Interp.popFloatOrZero(3)",
         "Interp.popIntOrZero(0)", "Interp.popIntOrZero(3)", "Interp.popLiteral(0)", "Interp.popTyped(1)",
-        "Interp.push(1)", "Interp.removeSlot(1)", "Interp.size(0)", "Interp.slot(1)", "Interp.step(1)",
-        "Interp.store(2)", "Interp.width(0)", "Interp.willOverflow(0)",
+        "Interp.push(1)", "Interp.removeSlot(1)", "Interp.restore(1)", "Interp.size(0)", "Interp.slot(1)",
+        "Interp.snapshot(0)", "Interp.step(1)", "Interp.store(2)", "Interp.width(0)", "Interp.willOverflow(0)",
         "LatchWalk.commitAt(1)", "LatchWalk.commitAt(2)", "LatchWalk.commitOn(1)", "LatchWalk.firstWins(0)",
         "LatchWalk.resetAt(1)", "LatchWalk.retain(0)", "LatchWalk.strict(0)", "LatchWalk.takeAt(1)",
         "Match.and(1)", "Match.matches(1)", "Match.test(1)", "Match.type(0)",

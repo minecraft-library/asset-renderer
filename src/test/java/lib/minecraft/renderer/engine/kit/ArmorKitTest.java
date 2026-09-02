@@ -91,7 +91,7 @@ class ArmorKitTest {
     void singleFlatLayerFastReturn() {
         StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
-        ArmorKit.buildHumanoidArmor3D(headBounds(),
+        PlayerArmorKit.buildHumanoidArmor3D(headBounds(),
             Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), ctx);
 
         assertThat(ctx.getResolved(), equalTo(List.of("minecraft:entity/equipment/humanoid/iron")));
@@ -136,7 +136,7 @@ class ArmorKitTest {
     void babyArmorReadsBabySheet() {
         StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
-        ArmorKit.buildEntityArmor3D(babyShell(), RenderFrame.IDENTITY,
+        EntityArmorKit.buildEntityArmor3D(babyShell(), RenderFrame.IDENTITY,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), ctx);
 
         assertThat(ctx.getResolved(), equalTo(List.of("minecraft:entity/equipment/humanoid_baby/iron")));
@@ -147,10 +147,27 @@ class ArmorKitTest {
     void adultArmorReadsTrimAtlas() {
         StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
-        ArmorKit.buildEntityArmor3D(genericShell(), RenderFrame.IDENTITY,
+        EntityArmorKit.buildEntityArmor3D(genericShell(), RenderFrame.IDENTITY,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), ctx);
 
         assertThat(ctx.getResolved().contains("minecraft:trims/entity/humanoid/coast"), equalTo(true));
+    }
+
+    @Test
+    @DisplayName("a scaled wearer's shell seats at the feet anchor")
+    void shellSeatsAtTheFeetAnchor() {
+        // The generator bakes a scaled wearer's own bone pivots about the same anchor, under its own
+        // name, in the other Gradle build - so the two agreeing is what puts a shell on a body rather
+        // than beside it, and nothing compares them. The tooling's half is pinned by its exact-float
+        // parse of the ghast; this is the renderer's half, written as a literal so an edit to the
+        // constant moves a test rather than a render.
+        Shell giant = EntityModelLoader.load()
+            .get("minecraft:giant").humanoidArmor().orElseThrow();
+
+        assertThat(giant.meshScale(), equalTo(6f));
+        assertThat(giant.meshOffset().y(), equalTo(-120.08f));
+        // The identity scale seats at the origin, which is why the term is invisible on most wearers.
+        assertThat(genericShell().meshOffset().y(), equalTo(0f));
     }
 
     @Test
@@ -226,7 +243,7 @@ class ArmorKitTest {
     private static float[] helmetYSpan(@NotNull Shell shell, float modelScale) {
         StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
 
-        ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(shell,
+        ConcurrentList<VisibleTriangle> armor = EntityArmorKit.buildEntityArmor3D(shell,
             new RenderFrame(Vector3f.ZERO, 1f, modelScale),
             Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), ctx);
 
@@ -242,7 +259,7 @@ class ArmorKitTest {
     }
 
     private static void buildHelmet(@NotNull StubRendererContext ctx, @NotNull Map<ArmorSlot, ItemContext> items) {
-        ArmorKit.buildHumanoidArmor3D(headBounds(),
+        PlayerArmorKit.buildHumanoidArmor3D(headBounds(),
             Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.LEATHER)), items, ctx);
     }
 

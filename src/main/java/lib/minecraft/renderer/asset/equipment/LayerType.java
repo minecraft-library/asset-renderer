@@ -1,15 +1,11 @@
 package lib.minecraft.renderer.asset.equipment;
 
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.asset.pack.rule.CitType;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * The vanilla equipment layer slots that key a {@link EquipmentModel}'s layer map - the render slot
@@ -22,6 +18,7 @@ import java.util.stream.Collectors;
  * mob equipment. A single shared enum gives every consumer - the humanoid armor path, the mob-equipment
  * tooling, and the elytra kit - one validatable slot vocabulary.
  */
+@EnumLookup
 @Getter
 @RequiredArgsConstructor
 public enum LayerType {
@@ -65,24 +62,12 @@ public enum LayerType {
     /** Nautilus body armor. */
     NAUTILUS_BODY("nautilus_body");
 
-    private static final @NotNull Map<String, LayerType> BY_ID =
-        Arrays.stream(values()).collect(Collectors.toUnmodifiableMap(LayerType::getId, Function.identity()));
-
     /**
      * The serialized json map key, doubling as the {@code textures/entity/equipment/<id>/} subdir
      * segment.
      */
+    @KeyField
     private final @NotNull String id;
-
-    /**
-     * Resolves the layer type for a serialized id, empty when the id names no known layer.
-     *
-     * @param id the serialized layer-type id (e.g. {@code humanoid_leggings})
-     * @return the matching layer type, or empty for an unknown id
-     */
-    public static @NotNull Optional<LayerType> fromId(@NotNull String id) {
-        return Optional.ofNullable(BY_ID.get(id));
-    }
 
     /**
      * The CIT retexture subject a resource pack addresses this layer through - {@code type=elytra} for

@@ -27,7 +27,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Node {@code axes.variant} - the option-encoded variant axis: each coat is a render-time
@@ -38,8 +41,9 @@ import java.util.TreeSet;
  * <ul>
  *   <li><b>Data-driven tables</b> - the {@code data/minecraft/<stem>_variant/} JSONs already
  *       held by {@link VariantIndex} (cow / pig / chicken / frog / wolf / cat /
- *       zombie_nautilus). Per-option {@code spawn_conditions} are carried verbatim;
- *       {@code model}-discriminator options register their own {@code GeometryRequest} via
+ *       zombie_nautilus). Each option's spawn conditions decide the axis default and are read
+ *       from the retained table rather than emitted, nothing downstream selecting a coat by where
+ *       it spawns; {@code model}-discriminator options register their own {@code GeometryRequest} via
  *       the {@code ModelType}-to-{@code ModelLayers} bytecode pairing that beats naming
  *       (zombie_nautilus {@code WARM} resolves to {@code ZOMBIE_NAUTILUS_CORAL}).</li>
  *   <li><b>Enum-map {@code <clinit>} coats</b> - any renderer holding a static {@code Map}
@@ -115,8 +119,7 @@ final class EntityVariantAxisResolver {
             JsonTree option = JsonTree.object()
                 .put("textures", texturesNode(variant.textures()))
                 .putIf("baby_texture", fullPath(pickByStatePrecedence(variant.babyTextures())))
-                .putIf("geometry", resolveModelDiscriminator(variant, modelTypeLayers))
-                .putIf("spawn_conditions", variant.spawnConditions());
+                .putIf("geometry", resolveModelDiscriminator(variant, modelTypeLayers));
             options.put(variant.variantId(), option);
         }
         this.diagnostics.info("variant axis (data-driven): %d options, default '%s'", table.size(), dflt);
@@ -132,9 +135,10 @@ final class EntityVariantAxisResolver {
      * retained table - no jar re-scan.
      */
     private static @Nullable String alphaFirstUnconditional(@NotNull List<VariantIndex.Variant> table) {
-        TreeSet<String> unconditional = new TreeSet<>();
-        for (VariantIndex.Variant variant : table)
-            if (isUnconditional(variant.spawnConditions())) unconditional.add(variant.variantId());
+        TreeSet<String> unconditional = table.stream()
+            .filter(variant -> isUnconditional(variant.spawnConditions()))
+            .map(VariantIndex.Variant::variantId)
+            .collect(Collectors.toCollection(TreeSet::new));
         return unconditional.isEmpty() ? null : unconditional.first();
     }
 
@@ -297,15 +301,17 @@ final class EntityVariantAxisResolver {
      */
     private @NotNull LinkedHashSet<String> enumKeyedMapFieldEnums(@NotNull ClassNode cn) {
         String mapDesc = "Ljava/util/Map;";
-        LinkedHashSet<String> out = new LinkedHashSet<>();
-        for (FieldNode field : cn.fields) {
-            if ((field.access & Opcodes.ACC_STATIC) == 0 || !mapDesc.equals(field.desc) || field.signature == null) continue;
-            String keyInternal = firstTypeArgument(field.signature);
-            if (keyInternal == null) continue;
-            ClassNode keyNode = this.cache.load(keyInternal);
-            if (keyNode != null && (keyNode.access & Opcodes.ACC_ENUM) != 0) out.add(keyInternal);
-        }
-        return out;
+        return cn.fields.stream()
+            .filter(field -> (field.access & Opcodes.ACC_STATIC) != 0
+                && mapDesc.equals(field.desc)
+                && field.signature != null)
+            .map(field -> firstTypeArgument(field.signature))
+            .filter(Objects::nonNull)
+            .filter(keyInternal -> {
+                ClassNode keyNode = this.cache.load(keyInternal);
+                return keyNode != null && (keyNode.access & Opcodes.ACC_ENUM) != 0;
+            })
+            .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     /** The first generic type argument's internal name from a field signature, or {@code null}. */
@@ -326,11 +332,10 @@ final class EntityVariantAxisResolver {
     private @Nullable CoatTable walkCoatTable(@NotNull ClassNode cn, @NotNull String enumInternal) {
         Map<String, List<String>> byConstant = new LinkedHashMap<>();
         List<String> templates = new ArrayList<>();
-        List<MethodNode> bodies = new ArrayList<>();
-        MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
-        if (clinit != null) bodies.add(clinit);
-        for (MethodNode method : cn.methods)
-            if (method.name.startsWith(AsmWalker.LAMBDA_STATIC_PREFIX)) bodies.add(method);
+        List<MethodNode> bodies = Stream.concat(
+                Stream.ofNullable(ClassKit.findMethod(cn, ClassKit.CLINIT)),
+                cn.methods.stream().filter(method -> method.name.startsWith(AsmWalker.LAMBDA_STATIC_PREFIX)))
+            .collect(Collectors.toList());
 
         for (MethodNode body : bodies) {
             Cells.Latch<String> pendingConstant = Cells.latch();

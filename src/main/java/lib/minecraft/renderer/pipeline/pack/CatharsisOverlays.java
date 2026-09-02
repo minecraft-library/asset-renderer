@@ -1,13 +1,13 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -39,23 +39,23 @@ public class CatharsisOverlays {
      * @param target the renderer's version / pack-format target
      * @return the active overlay directory names, in entry order
      */
-    public static @NotNull List<String> activeOverlayDirectories(
+    public static @NotNull ConcurrentList<String> activeOverlayDirectories(
         @NotNull JsonTree mcmetaRoot, @NotNull CatharsisConfig config, @NotNull CatharsisTarget target
     ) {
         Optional<JsonTree> overlays = mcmetaRoot.findObject(FABRIC_OVERLAYS);
-        if (overlays.isEmpty()) return List.of();
+        if (overlays.isEmpty()) return Concurrent.newUnmodifiableList();
         Optional<JsonTree> entries = overlays.get().findArray("entries");
-        if (entries.isEmpty()) return List.of();
+        if (entries.isEmpty()) return Concurrent.newUnmodifiableList();
 
-        List<String> active = new ArrayList<>();
-        for (JsonTree entry : entries.get().elements().toList()) {
-            if (!entry.isObject()) continue;
-            Optional<JsonTree> condition = entry.findObject("condition");
-            if (!isString(entry.find("directory").orElse(null)) || condition.isEmpty()) continue;
-            if (CatharsisCondition.parse(condition.get()).holds(config, target))
-                active.add(entry.findString("directory").orElse(null));
-        }
-        return active;
+        return entries.get()
+            .elements()
+            .filter(JsonTree::isObject)
+            .filter(entry -> isString(entry.find("directory").orElse(null)))
+            .filter(entry -> entry.findObject("condition")
+                .filter(condition -> CatharsisCondition.parse(condition).holds(config, target))
+                .isPresent())
+            .map(entry -> entry.findString("directory").orElse(null))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**

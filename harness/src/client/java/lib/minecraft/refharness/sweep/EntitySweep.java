@@ -9,6 +9,9 @@ import lib.minecraft.refharness.api.RefKey;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
 import lib.minecraft.refharness.frame.EntityFrameRenderer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -33,9 +36,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.parity.Subject;
 
 /**
  * Entity sweep. Each subject is a transient entity, allocated without being added to any level, so
@@ -83,7 +83,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
      * @param family the family root the canvas is shared across
      * @param cohort the group within that family whose silhouettes are comparable
      */
-    private record CanvasKey(EntityType<?> family, Appearance.Cohort cohort) {}
+    record CanvasKey(EntityType<?> family, Appearance.Cohort cohort) {}
 
     /**
      * One rendered entity - a type, optionally reconstructed from a variant payload.
@@ -111,7 +111,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         }
 
         /** The canvas group this subject is sized within. */
-        private CanvasKey canvasKey() {
+        CanvasKey canvasKey() {
             return new CanvasKey(EntityRoster.familyRoot(type), appearance.cohort());
         }
     }
@@ -131,7 +131,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
      * type's baby is, or a baby is enumerated for rendering against a canvas that was never measured -
      * which is a silently skipped reference rather than a loud failure.
      */
-    private static Optional<Subject> babyOf(SweepContext ctx, EntityType<?> type) {
+    static Optional<Subject> babyOf(SweepContext ctx, EntityType<?> type) {
         Subject baby = new Subject(type, defaultOf(type).appearance().asBaby(), defaultOf(type).qualifier());
         Entity probe = AppearanceApplier.build(ctx, type, Appearance.DEFAULT);
         if (probe == null || !AppearanceApplier.supportsBaby(probe)) return Optional.empty();
@@ -145,8 +145,11 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
      * mesh, so a second coat shows a reader nothing about the selected axis that the first did not.
      * The subject is named for its default coat because a variant family always names its coat, and
      * it carries no coat payload because plain construction already yields that coat.
+     *
+     * <p>{@link EntityAnimationSweep} names its own subjects through this, so the animated strip of
+     * a type and the still of it are the same appearance under the same name.
      */
-    private static Subject defaultOf(EntityType<?> type) {
+    static Subject defaultOf(EntityType<?> type) {
         return new Subject(type, Appearance.DEFAULT, Optional.ofNullable(EntityRoster.DEFAULT_COAT.get(type)));
     }
 
@@ -221,8 +224,11 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
      * <p>Canvas sizing unions every member of a family, so selecting one member alone would size
      * that family from a strict subset of its geometry and write a reference narrower than the full
      * sweep's. Selecting any member therefore pulls in every member sharing its family root.
+     *
+     * <p>{@link EntityAnimationSweep} draws its roster from here as well, so the two sweeps answer
+     * for the same entities and a type that gains a reference gains an animated one.
      */
-    private static List<EntityType<?>> selectTypes(SweepContext ctx) {
+    static List<EntityType<?>> selectTypes(SweepContext ctx) {
         List<EntityType<?>> renderable = new ArrayList<>();
         int total = 0;
         for (Holder.Reference<EntityType<?>> holder : BuiltInRegistries.ENTITY_TYPE.listElements().toList()) {
@@ -267,17 +273,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         long t0 = System.nanoTime();
         int measured = 0;
         for (EntityType<?> type : selectTypes(ctx)) {
-            ResourceKey<? extends Registry<?>> variantRegistry = EntityRoster.VARIANT_REGISTRIES.get(type);
-            List<Subject> measuredSubjects = new ArrayList<>();
-            if (variantRegistry != null) {
-                Registry<?> registry = ctx.level().registryAccess().lookupOrThrow(variantRegistry);
-                for (Identifier variantId : registry.keySet())
-                    measuredSubjects.add(Subject.coated(type,
-                        Appearance.Coat.ofString("variant", variantId.toString(), variantId.getPath())));
-            } else {
-                measuredSubjects.add(Subject.plain(type));
-            }
-            for (Subject subject : measuredSubjects) {
+            for (Subject subject : canvasMembers(ctx, type)) {
                 Bounds bounds = measure(ctx, subject);
                 if (bounds == null) continue;
                 familyBounds.merge(subject.canvasKey(), bounds, Bounds::union);
@@ -326,39 +322,8 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         }
 
         Map<CanvasKey, Canvas> fits = new HashMap<>();
-        for (Map.Entry<CanvasKey, Bounds> entry : familyBounds.entrySet()) {
-            Bounds b = entry.getValue();
-            int canvasW = Math.max(1, (int) Math.ceil(b.width() * HarnessConfig.PIXELS_PER_BLOCK));
-            int canvasH = Math.max(1, (int) Math.ceil(b.height() * HarnessConfig.PIXELS_PER_BLOCK));
-            float scale = HarnessConfig.PIXELS_PER_BLOCK;
-            // Cap oversized canvases (ender_dragon, full-scale wither, giant) by shrinking canvas and
-            // scale together so the longer side meets the cap. The anchor is in entity-local screen
-            // coords and is unaffected; only the canvas-pixel mapping changes. Within-family parity
-            // still holds - every member uses the same scale - while cross-family parity above the
-            // cap does not, which was already only approximate.
-            int longest = Math.max(canvasW, canvasH);
-            if (longest > HarnessConfig.MAX_CANVAS_SIZE) {
-                float shrink = (float) HarnessConfig.MAX_CANVAS_SIZE / longest;
-                canvasW = Math.max(1, (int) Math.ceil(canvasW * shrink));
-                canvasH = Math.max(1, (int) Math.ceil(canvasH * shrink));
-                scale *= shrink;
-            }
-            // Round the width up to even, so the anchor lands on a pixel boundary rather than on a
-            // pixel centre. A left-right symmetric subject's front vertical corner IS the anchor
-            // this canvas centres, so it projects to exactly width / 2 whatever its extent - the
-            // content width cancels out. At an odd width that is a half-integer, exactly a pixel
-            // centre and so exactly a sample point, and the screen edge where the corner's two
-            // faces meet passes through it; which face owns the sample is then settled by the
-            // rasterizer's fill rule instead of by coverage, and the column carries a
-            // disproportionate share of any difference between two renderers. At an even width it
-            // is an integer, a pixel boundary no sample can land on. Only the width has such an
-            // axis - a subject is symmetric left to right, not top to bottom - so the height is
-            // left alone. The asset-renderer rounds its own canvas width the same way in
-            // EntityRenderer#evenWidth; the two have to agree or the comparison measures framing.
-            canvasW += canvasW & 1;
-            fits.put(entry.getKey(),
-                Canvas.of(canvasW, canvasH, new Canvas.Fit(scale, b.centerX(), b.centerY())));
-        }
+        for (Map.Entry<CanvasKey, Bounds> entry : familyBounds.entrySet())
+            fits.put(entry.getKey(), canvasFitting(entry.getValue()));
         familyFits = Map.copyOf(fits);
         LOG.info("EntitySweep: canvas pre-pass measured {} subjects in {} cohorts ({} ms)",
             measured, fits.size(), (System.nanoTime() - t0) / 1_000_000L);
@@ -374,6 +339,76 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                 fit.getValue().fit().orElseThrow().anchorY()))
             .sorted()
             .forEach(LOG::info);
+    }
+
+    /**
+     * Returns the adult subjects one type's canvas is measured across.
+     *
+     * <p>The registry coats of a variant-bearing family, or the plain type for everything else - the
+     * asset-renderer unions a subject's canvas over every adult coat of its own model, so a harness
+     * that measured one of them would frame the render differently and the comparison would report
+     * framing. Shared with {@link EntityAnimationSweep} for exactly that reason: a canvas measured
+     * over a different set on the animated side is the same defect read at a different tick.
+     *
+     * <p>Deliberately not the coats the render pass enumerates - see the class doc for why the horse
+     * and mooshroom expansions are measured at their default and rendered at every coat.
+     *
+     * @param ctx the sweep context, for the variant registry
+     * @param type the entity type
+     * @return the subjects to measure, never empty
+     */
+    static List<Subject> canvasMembers(SweepContext ctx, EntityType<?> type) {
+        ResourceKey<? extends Registry<?>> variantRegistry = EntityRoster.VARIANT_REGISTRIES.get(type);
+        if (variantRegistry == null) return List.of(Subject.plain(type));
+        List<Subject> members = new ArrayList<>();
+        Registry<?> registry = ctx.level().registryAccess().lookupOrThrow(variantRegistry);
+        for (Identifier variantId : registry.keySet())
+            members.add(Subject.coated(type,
+                Appearance.Coat.ofString("variant", variantId.toString(), variantId.getPath())));
+        return members;
+    }
+
+    /**
+     * Returns the canvas one measured bounds is rendered onto.
+     *
+     * <p>Shared with {@link EntityAnimationSweep} rather than restated there, because the two
+     * canvases have to be sized by one rule: the asset-renderer applies its own copy of this
+     * arithmetic to whichever bounds it measured, so a second spelling here would put the still and
+     * the animated frame of one subject in frames that differ for a reason neither render explains.
+     *
+     * @param bounds the union this canvas is sized to hold
+     * @return the canvas, carrying the scale and anchor every member of the union renders at
+     */
+    static Canvas canvasFitting(Bounds bounds) {
+        int canvasW = Math.max(1, (int) Math.ceil(bounds.width() * HarnessConfig.PIXELS_PER_BLOCK));
+        int canvasH = Math.max(1, (int) Math.ceil(bounds.height() * HarnessConfig.PIXELS_PER_BLOCK));
+        float scale = HarnessConfig.PIXELS_PER_BLOCK;
+        // Cap oversized canvases (ender_dragon, full-scale wither, giant) by shrinking canvas and
+        // scale together so the longer side meets the cap. The anchor is in entity-local screen
+        // coords and is unaffected; only the canvas-pixel mapping changes. Within-family parity
+        // still holds - every member uses the same scale - while cross-family parity above the
+        // cap does not, which was already only approximate.
+        int longest = Math.max(canvasW, canvasH);
+        if (longest > HarnessConfig.MAX_CANVAS_SIZE) {
+            float shrink = (float) HarnessConfig.MAX_CANVAS_SIZE / longest;
+            canvasW = Math.max(1, (int) Math.ceil(canvasW * shrink));
+            canvasH = Math.max(1, (int) Math.ceil(canvasH * shrink));
+            scale *= shrink;
+        }
+        // Round the width up to even, so the anchor lands on a pixel boundary rather than on a
+        // pixel centre. A left-right symmetric subject's front vertical corner IS the anchor
+        // this canvas centres, so it projects to exactly width / 2 whatever its extent - the
+        // content width cancels out. At an odd width that is a half-integer, exactly a pixel
+        // centre and so exactly a sample point, and the screen edge where the corner's two
+        // faces meet passes through it; which face owns the sample is then settled by the
+        // rasterizer's fill rule instead of by coverage, and the column carries a
+        // disproportionate share of any difference between two renderers. At an even width it
+        // is an integer, a pixel boundary no sample can land on. Only the width has such an
+        // axis - a subject is symmetric left to right, not top to bottom - so the height is
+        // left alone. The asset-renderer rounds its own canvas width the same way in
+        // EntityRenderer#evenWidth; the two have to agree or the comparison measures framing.
+        canvasW += canvasW & 1;
+        return Canvas.of(canvasW, canvasH, new Canvas.Fit(scale, bounds.centerX(), bounds.centerY()));
     }
 
     private Bounds measure(SweepContext ctx, Subject subject) {
@@ -408,6 +443,21 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
 
     @Override
     public RefKey key(Subject subject) {
+        return nameOf(subject);
+    }
+
+    /**
+     * Returns the name one subject's reference is written under.
+     *
+     * <p>Static because {@link EntityAnimationSweep} names its per-subject directory with it: the
+     * animated strip of a subject and the still of it are one appearance, so they are owed one
+     * spelling, and a second copy of this would drift into two names for it the first time an axis
+     * is added.
+     *
+     * @param subject the subject descriptor
+     * @return its reference key
+     */
+    static RefKey nameOf(Subject subject) {
         RefKey key = RefKey.of(BuiltInRegistries.ENTITY_TYPE.getKey(subject.type()));
         key = subject.qualifier().map(key::with).orElse(key);
         if (subject.appearance().baby()) key = key.token("age", "baby");

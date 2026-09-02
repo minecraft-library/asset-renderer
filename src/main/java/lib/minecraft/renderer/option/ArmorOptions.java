@@ -81,8 +81,7 @@ public class ArmorOptions {
      */
     public @NotNull Map<ArmorSlot, ArmorPiece> equipped() {
         Map<ArmorSlot, ArmorPiece> pieces = new EnumMap<>(ArmorSlot.class);
-        for (ArmorSlot slot : ArmorSlot.CACHED_VALUES)
-            piece(slot).ifPresent(worn -> pieces.put(slot, worn));
+        ArmorSlot.forEach(slot -> piece(slot).ifPresent(worn -> pieces.put(slot, worn)));
         return pieces;
     }
 

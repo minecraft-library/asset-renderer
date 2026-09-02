@@ -96,7 +96,7 @@ public class FluidGeometryKit {
         addNonPlanarTop(triangles, pNWt, pSWt, pSEt, pNEt, still, argbTint);
 
         Vector3f down = Face.DOWN.normal();
-        BlockGeometryKit.addQuad(triangles,
+        GeometryKit.addQuad(triangles,
             new Vector3f[] {pSWb, pNWb, pNEb, pSEb},
             new Vector2f[] {new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f)},
             still, argbTint, down, Lighting.inventory(down), SurfaceTraits.OPAQUE_BODY, null);
@@ -171,7 +171,7 @@ public class FluidGeometryKit {
                 uv[i] = rotateUvAround(uv[i], UV_CENTRE, UV_CENTRE, angle);
         }
 
-        BlockGeometryKit.addQuad(out, new Vector3f[] {pTL, pBL, pBR, pTR}, uv,
+        GeometryKit.addQuad(out, new Vector3f[] {pTL, pBL, pBR, pTR}, uv,
             texture, argbTint, normal, Lighting.inventory(normal), SurfaceTraits.OPAQUE_BODY, null);
     }
 

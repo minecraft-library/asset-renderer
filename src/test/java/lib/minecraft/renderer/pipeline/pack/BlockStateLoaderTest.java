@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
@@ -19,7 +20,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -97,8 +97,8 @@ class BlockStateLoaderTest {
         write(user.resolve("assets/testns/blockstates/gadget.json"), "{\"variants\":{\"\":{\"model\":\"testns:block/gadget\"}}}");
 
         PackStack stack = PackStack.of(Concurrent.newList(
-            pack(PackId.VANILLA, van, Set.of("minecraft")),
-            pack(new PackId("userpack"), user, Set.of("testns"))));
+            pack(PackId.VANILLA, van, Concurrent.newUnmodifiableSet("minecraft")),
+            pack(new PackId("userpack"), user, Concurrent.newUnmodifiableSet("testns"))));
 
         BlockStateLoader.BlockStates result = BlockStateLoader.load(stack);
         assertThat(result.variants().containsKey("minecraft:stone"), is(true));
@@ -116,8 +116,8 @@ class BlockStateLoaderTest {
             "{\"multipart\":[{\"apply\":{\"model\":\"minecraft:block/new\"}}]}");
 
         PackStack stack = PackStack.of(Concurrent.newList(
-            pack(PackId.VANILLA, van, Set.of("minecraft")),
-            pack(new PackId("userpack"), user, Set.of("minecraft"))));
+            pack(PackId.VANILLA, van, Concurrent.newUnmodifiableSet("minecraft")),
+            pack(new PackId("userpack"), user, Concurrent.newUnmodifiableSet("minecraft"))));
 
         BlockStateLoader.BlockStates result = BlockStateLoader.load(stack);
         assertThat("variant form dropped", result.variants().containsKey("minecraft:flip"), is(false));
@@ -134,8 +134,8 @@ class BlockStateLoaderTest {
         write(user.resolve("assets/minecraft/blockstates/foo.json"), "{\"comment\":\"disabled\"}"); // valid JSON, no variants/multipart
 
         PackStack stack = PackStack.of(Concurrent.newList(
-            pack(PackId.VANILLA, van, Set.of("minecraft")),
-            pack(new PackId("userpack"), user, Set.of("minecraft"))));
+            pack(PackId.VANILLA, van, Concurrent.newUnmodifiableSet("minecraft")),
+            pack(new PackId("userpack"), user, Concurrent.newUnmodifiableSet("minecraft"))));
 
         BlockStateLoader.BlockStates result = BlockStateLoader.load(stack);
         assertThat("higher empty file shadows the lower variant", result.variants().containsKey("minecraft:foo"), is(false));
@@ -152,20 +152,21 @@ class BlockStateLoaderTest {
         write(user.resolve("assets/minecraft/blockstates/bar.json"), "{ this is not valid json"); // malformed
 
         PackStack stack = PackStack.of(Concurrent.newList(
-            pack(PackId.VANILLA, van, Set.of("minecraft")),
-            pack(new PackId("userpack"), user, Set.of("minecraft"))));
+            pack(PackId.VANILLA, van, Concurrent.newUnmodifiableSet("minecraft")),
+            pack(new PackId("userpack"), user, Concurrent.newUnmodifiableSet("minecraft"))));
 
         BlockStateLoader.BlockStates result = BlockStateLoader.load(stack);
         assertThat("malformed higher file falls back to lower", result.variants().get("minecraft:bar").get("").model(), is("minecraft:block/bar"));
     }
 
     private static BlockStateLoader.BlockStates load(Path vanillaRoot) {
-        return BlockStateLoader.load(PackStack.of(Concurrent.newList(pack(PackId.VANILLA, vanillaRoot, Set.of("minecraft")))));
+        return BlockStateLoader.load(PackStack.of(Concurrent.newList(pack(PackId.VANILLA, vanillaRoot, Concurrent.newUnmodifiableSet("minecraft")))));
     }
 
-    private static ResourcePack pack(PackId id, Path root, Set<String> namespaces) {
+    private static ResourcePack pack(PackId id, Path root, ConcurrentSet<String> namespaces) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), namespaces, Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), namespaces,
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
     }
 
     private static void write(Path path, String content) throws IOException {

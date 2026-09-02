@@ -31,6 +31,7 @@ from typing import Sequence
 
 from parity import capture as capture_mod
 from parity import compare as compare_mod
+from parity import provenance as provenance_mod
 from parity import store as store_mod
 from parity.norm import MissingInput, Refused, read_json, sha256_text, canonical_json, write_json
 
@@ -66,6 +67,20 @@ def floor_for(artifact: str, index: dict) -> int:
             "it reproducible is unanswerable. Coining an artifact is an edit to ParityArtifacts and "
             "to the store's index, and ParityIndexTest relates the two")
     return int(declared)
+
+
+def duration_for(artifact: str, index: dict) -> int | None:
+    """The wall time this artifact's row already carries, or ``None`` where it carries none.
+
+    Absence is an answer here rather than a refusal, which is the whole difference from
+    :func:`floor_for`: a floor is a registration every artifact owes before it can be judged, and a
+    duration is a measurement a row acquires the first time a run times its producer.
+
+    :param artifact: the artifact id
+    :param index: the production store's index envelope
+    :return: the last recorded duration in milliseconds, or ``None``
+    """
+    return ((index.get("artifacts") or {}).get(artifact) or {}).get("last_duration_ms")
 
 
 @dataclass
@@ -134,7 +149,7 @@ def to_report(entries: Sequence[Entry]) -> dict:
 
 def check(root: Path, entries: Sequence[Entry], reason: str, index: dict,
           allow_partial: bool = False, bootstrap: bool = False, allow_dirty: bool = False,
-          population_changed: bool = False) -> None:
+          population_changed: bool = False, repo: Path | None = None) -> None:
     """Every refusal, in one place, before a single production byte is written.
 
     :param root: the working root
@@ -146,6 +161,8 @@ def check(root: Path, entries: Sequence[Entry], reason: str, index: dict,
     :param bootstrap: whether this invocation establishes first baselines
     :param allow_dirty: whether a capture taken from an uncommitted tree may be promoted
     :param population_changed: whether an entry count moving from the baseline's is intended
+    :param repo: the repository root, for reading whether a dirty capture's content is now committed;
+        absent, that reading is unavailable and a dirty capture refuses as it always did
     :raises Refused: on any of the refusals above
     """
     if not reason.strip():
@@ -185,12 +202,39 @@ def check(root: Path, entries: Sequence[Entry], reason: str, index: dict,
                 f"{entry.artifact} has no baseline to replace; the first promotion of an artifact "
                 "is --bootstrap, and it is refused for anything below its determinism floor")
         dirty = record.get("asset_dirty")
-        if dirty is not False and not allow_dirty:
+        if dirty is not False and not allow_dirty and not _content_is_now_committed(record, repo):
             raise Refused(
-                f"{entry.artifact} records asset_dirty={dirty}: a baseline whose capture cannot be "
-                "shown to have run on a committed tree is not re-derivable from any commit, and no "
-                "later reading recovers that. Commit the change, re-capture, and promote from the "
-                "committed tree. Pass --allow-dirty to record the exception in provenance")
+                f"{entry.artifact} records asset_dirty={dirty} and the content it measured is not "
+                "the content of the current tree, so this baseline is not re-derivable from any "
+                "commit and no later reading recovers that. Gate, then commit WITHOUT further "
+                "edits, then promote - the capture is re-read rather than re-run. Pass "
+                "--allow-dirty to record the exception in provenance")
+
+
+def _content_is_now_committed(record: dict, repo: Path | None) -> bool:
+    """Whether the content a dirty capture measured is the content of the tree as it stands, clean.
+
+    What R4 needs is that a baseline be re-derivable from a commit - not that the capture ran after
+    one. Those came apart because ``asset_dirty`` names an *ordering*, so the only way to satisfy it
+    was to commit and capture a second time, at the cost of the whole bundle. A capture now records
+    the content it read, and committing that content changes none of it.
+
+    Both halves are required. The tree must be clean, or "committed" is not yet true of it; and the
+    digests must match, or this is some other content that merely happens to be committed.
+
+    :param record: the capture's provenance
+    :param repo: the repository root, or nothing when it cannot be read
+    :return: whether the dirty-tree refusal is satisfied by content instead of by ordering
+    """
+    if repo is None:
+        return False
+    captured = record.get("asset_content_digest")
+    if not captured:
+        return False
+    state = provenance_mod.asset_state(repo)
+    if state.get("asset_dirty") is not False:
+        return False
+    return captured == provenance_mod.content_digest(repo)
 
 
 def _require_population(entry: Entry, payload: dict, counts: dict, index: dict,
@@ -285,17 +329,25 @@ def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry],
     straight into the store, and its one byte form - LF, UTF-8 without a BOM, one trailing newline -
     would hold only by luck.
 
-    An ``unchanged`` entry is skipped before its file is even read: no artifact byte is written for
-    it and ``index["artifacts"]`` is only assigned inside the same loop, so the row it already had -
-    ``promoted_at`` included - is carried through from the store as it stood. Widening a promotion
-    past the rows that moved therefore rewrites nothing extra. ``plan`` classifies on a
+    An ``unchanged`` entry writes no artifact byte and keeps the row it already had - ``promoted_at``
+    included - so widening a promotion past the rows that moved rewrites nothing extra. Its capture is
+    still read for one field: ``wall_time_ms`` is a property of the RUN rather than of the value, so a
+    row whose value never moves would otherwise never carry a duration at all, which is what put
+    twelve of them outside the budget and left it printing as a floor. ``plan`` classifies on a
     provenance-stripped digest, so a re-capture of an artifact whose value did not move is
-    ``unchanged`` even though its provenance records a different run.
+    ``unchanged`` even though its provenance records a different run - which is precisely the run
+    worth timing.
     """
     index = target.index()
     written = []
+    refreshed = []
     for entry in entries:
         if entry.action == "unchanged":
+            row = index["artifacts"].get(entry.artifact)
+            wall = read_json(root / entry.path).get("provenance", {}).get("wall_time_ms")
+            if row is not None and wall is not None and row.get("last_duration_ms") != wall:
+                row["last_duration_ms"] = wall
+                refreshed.append(entry.artifact)
             continue
         payload = read_json(root / entry.path)
         record = payload.setdefault("provenance", {})
@@ -309,7 +361,8 @@ def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry],
             record["population_changed"] = True
         target.write(entry.artifact, payload)
         index["artifacts"][entry.artifact] = _index_row(entry, payload,
-                                                        floor_for(entry.artifact, index))
+                                                        floor_for(entry.artifact, index),
+                                                        duration_for(entry.artifact, index))
         written.append(entry.artifact)
 
     index.setdefault("//", "parity.report.oracle-index · regen: ./gradlew parityPromote")
@@ -318,10 +371,11 @@ def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry],
     index.setdefault("key", "artifact")
     index.setdefault("kind", "index")
     write_json(target.path("report.oracle-index"), index)
-    return {"promoted": written, "reason": reason, "parity_class": parity_class}
+    return {"promoted": written, "refreshed": refreshed, "reason": reason,
+            "parity_class": parity_class}
 
 
-def _index_row(entry: Entry, payload: dict, floor: int) -> dict:
+def _index_row(entry: Entry, payload: dict, floor: int, previous_duration: int | None = None) -> dict:
     """Rebuild one artifact's index row from the payload being promoted.
 
     The row is built field by field rather than merged over the one it replaces, so anything a row
@@ -329,9 +383,18 @@ def _index_row(entry: Entry, payload: dict, floor: int) -> dict:
     it is a registration rather than a measurement, so it is read off the row this one replaces and
     written back, which is what keeps the value in one place while the row is rebuilt.
 
+    ``previous_duration`` arrives the same way and for a sharper reason. A wall time is a property of
+    the RUN rather than of the value, and a producer only stamps one when it is invoked directly -
+    run as somebody else's ``dependsOn`` it stamps nothing. So a row that MOVED would lose the
+    duration it already carried whenever the capture that moved it reached its producer indirectly,
+    while the ``unchanged`` arm above keeps and refreshes one. Two arms of one promotion disagreeing
+    about whether a duration survives is what took `pin.block-crc` and `pin.player-crc` from 19235 ms
+    to nothing. The last measured duration is kept until a run measures a new one.
+
     :param entry: the plan entry
     :param payload: the captured artifact being written
     :param floor: the artifact's declared determinism floor
+    :param previous_duration: the duration the row being replaced carried, or ``None``
     :return: the row
     """
     record = payload.get("provenance", {})
@@ -358,6 +421,8 @@ def _index_row(entry: Entry, payload: dict, floor: int) -> dict:
     if entries_count is not None:
         row[ENTRIES_FIELD] = entries_count
     wall = record.get("wall_time_ms")
+    if wall is None:
+        wall = previous_duration
     if wall is not None:
         row["last_duration_ms"] = wall
     # The headline a reader wants first, lifted out of the payload's own derived summary rather than

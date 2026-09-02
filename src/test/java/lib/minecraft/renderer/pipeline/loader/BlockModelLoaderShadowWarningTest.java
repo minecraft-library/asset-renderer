@@ -103,7 +103,8 @@ class BlockModelLoaderShadowWarningTest {
 
     private static ResourcePack pack(PackId id, Path root) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
     }
 
     private static void write(Path path, String content) throws IOException {

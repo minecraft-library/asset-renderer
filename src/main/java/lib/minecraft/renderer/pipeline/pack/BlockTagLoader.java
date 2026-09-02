@@ -14,10 +14,13 @@ import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A loader that reads vanilla block tag JSON files from {@code data/minecraft/tags/block/} and
@@ -54,39 +57,51 @@ public class BlockTagLoader {
      * @return a map of tag id to resolved tag entity
      */
     public static @NotNull ConcurrentMap<String, BlockTag> load(@NotNull PackStack stack) {
-        HashMap<String, List<String>> merged = new HashMap<>();
-        for (PackSubtree.Entry entry : PackSubtree.walk(stack, BLOCK_TAGS))
-            parseRawTag(entry, merged);
+        Map<String, List<String>> merged = PackSubtree.walk(stack, BLOCK_TAGS)
+            .stream()
+            .map(BlockTagLoader::parseRawTag)
+            .flatMap(Optional::stream)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (lower, higher) -> higher));
 
-        HashMap<String, BlockTag> result = new HashMap<>(merged.size());
-        for (String tagId : merged.keySet()) {
-            ArrayList<String> resolved = new ArrayList<>();
-            resolve(tagId, merged, resolved, new HashSet<>());
-            result.put(tagId, new BlockTag(ResourceId.parse(tagId), Concurrent.adoptList(resolved).toUnmodifiable()));
-        }
-        return Concurrent.adoptMap(result).toUnmodifiable();
+        return merged.keySet()
+            .stream()
+            .collect(Concurrent.toUnmodifiableMap(Function.identity(), tagId -> resolveTag(tagId, merged)));
     }
 
     /**
-     * Parses one tag file's raw (unresolved) {@code "values"} list into {@code raw}, keyed by
-     * namespaced tag id - the file's stem under its owning namespace, so a nested tag folder keeps
-     * its path segments. A file missing a {@code "values"} array, and a malformed one, are skipped
-     * silently. Writes into a plain {@code HashMap} / {@code ArrayList} to skip per-element
-     * write-locks; the caller wraps with {@link Concurrent#adoptMap} at the end.
+     * Parses one tag file's raw (unresolved) {@code "values"} list, keyed by namespaced tag id - the
+     * file's stem under its owning namespace, so a nested tag folder keeps its path segments. A file
+     * missing a {@code "values"} array, and a malformed one, yield nothing.
      *
      * @param entry the tag file the subtree walk resolved
-     * @param raw the running raw map, mutated in place
+     * @return the tag id paired with its raw value list, or empty when the file carries no usable values
      */
-    private static void parseRawTag(@NotNull PackSubtree.Entry entry, @NotNull HashMap<String, List<String>> raw) {
+    private static @NotNull Optional<Map.Entry<String, List<String>>> parseRawTag(@NotNull PackSubtree.Entry entry) {
         String tagId = VanillaSourcePaths.namespacePrefix(entry.namespace()) + entry.stem();
 
         try {
             TagDoc doc = GSON.fromJson(new String(entry.container().bytes(entry.entryPath()).orElseThrow(), StandardCharsets.UTF_8), TagDoc.class);
-            if (doc == null || doc.values() == null) return;
-            raw.put(tagId, new ArrayList<>(doc.values()));
+            if (doc == null || doc.values() == null) return Optional.empty();
+            return Optional.of(Map.entry(tagId, new ArrayList<>(doc.values())));
         } catch (JsonSyntaxException ex) {
             // Skip malformed tag files
+            return Optional.empty();
         }
+    }
+
+    /**
+     * Flattens one tag id into the {@link BlockTag} entity holding only concrete block ids, each
+     * resolution starting from an empty visited set so a tag referenced by two others still flattens
+     * fully under both.
+     *
+     * @param tagId the namespaced tag id to flatten
+     * @param raw the full raw tag map from {@link #parseRawTag}, keyed by tag id
+     * @return the resolved tag entity
+     */
+    private static @NotNull BlockTag resolveTag(@NotNull String tagId, @NotNull Map<String, List<String>> raw) {
+        ArrayList<String> resolved = new ArrayList<>();
+        resolve(tagId, raw, resolved, new HashSet<>());
+        return new BlockTag(ResourceId.parse(tagId), Concurrent.adoptList(resolved).toUnmodifiable());
     }
 
     /**
@@ -104,7 +119,7 @@ public class BlockTagLoader {
      */
     private static void resolve(
         @NotNull String tagId,
-        @NotNull HashMap<String, List<String>> raw,
+        @NotNull Map<String, List<String>> raw,
         @NotNull ArrayList<String> out,
         @NotNull Set<String> visited
     ) {

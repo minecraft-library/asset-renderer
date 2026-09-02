@@ -2,37 +2,45 @@ package lib.minecraft.renderer.pipeline.index;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.gson.adapter.ColorTypeAdapter;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
-import lib.minecraft.renderer.asset.Entity.BoneToggle;
 import lib.minecraft.renderer.asset.Entity.EquipmentOverlay;
-import lib.minecraft.renderer.asset.Entity.LargeShape;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
-import lib.minecraft.renderer.asset.Entity.TransformOp.RotateX;
-import lib.minecraft.renderer.asset.Entity.TransformOp.RotateY;
-import lib.minecraft.renderer.asset.Entity.TransformOp.RotateZ;
-import lib.minecraft.renderer.asset.Entity.TransformOp.Scale;
-import lib.minecraft.renderer.asset.Entity.TransformOp.Translate;
-import lib.minecraft.renderer.asset.Entity.TransformOp;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.appearance.CopperWeathering;
+import lib.minecraft.renderer.asset.appearance.Flag;
 import lib.minecraft.renderer.asset.appearance.Size;
+import lib.minecraft.renderer.asset.appearance.TextureAxis;
+import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.MotionSource;
+import lib.minecraft.renderer.asset.pose.PoseOperator;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.asset.pose.StyleDriver;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.pipeline.util.ArgbHex;
+import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -40,14 +48,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Assembles the runtime entity index from the two pure reads: joins each {@link RawModel}'s geometry
- * coordinate against the geometry table, runs the mesh surgery (hidden-bone strip, {@code retainExactParts}
- * subset, {@code grow} inflate plus the auto-emitted depth-clearance bump), pivots the option axes into
- * {@link Entity.Axes}, folds each variant option into a sub-{@link Entity}, and stamps cross-entity
- * canvas-group membership. The leaf decodes (hex tint, {@code blend} token, texture strip, transform ops)
- * happen here too - the raw records carry them verbatim.
+ * coordinate against the geometry table, pivots the option axes into {@link Entity.Axes}, folds each
+ * variant option into a sub-{@link Entity}, and stamps cross-entity canvas-group membership. The leaf
+ * decodes (hex tint, {@code blend} token, texture strip, transform ops) happen here too - the raw
+ * records carry them verbatim.
+ *
+ * <p>Every mesh a subject draws is JOINED rather than built. What a subject rests without, the subset
+ * a pass is restricted to, the deformation it surrounds the body with and the emptied subtree of its
+ * suppressed form are all baked into meshes of their own, so a row names one mesh per form it has and
+ * nothing here reshapes one. A mesh that arrives is the mesh that draws.
  *
  * <p>Every family folds to one base row: option-encoded coats live on {@code axes.variants} and are
  * measured by the group canvas union rather than expanded into member rows of their own. That is a
@@ -63,12 +76,6 @@ import java.util.Set;
 @UtilityClass
 public final class EntityIndexBuilder {
 
-    private static final @NotNull String TEXTURE_PREFIX = "minecraft:textures/entity/";
-    private static final @NotNull String TEXTURE_SUFFIX = ".png";
-
-    /** Model units per block - the scale a vanilla {@code PoseStack} translate is expressed against. */
-    private static final float MODEL_UNITS_PER_BLOCK = 16f;
-
     private static final int WHITE = 0xFFFFFFFF;
 
     /**
@@ -76,81 +83,29 @@ public final class EntityIndexBuilder {
      *
      * @param geometries the geometry coordinate to bone tree table
      * @param rawFile the raw model catalog
+     * @param poses the pose of each model class, by the simple name a coordinate is headed with
      * @return definitions keyed by namespaced entity id, in file order
-     * @throws PipelineException if an entity references a geometry coordinate absent from the geometry file
+     * @throws PipelineException if an entity references a geometry coordinate absent from the
+     *     geometry file, or plays a selection-driven clip on a field another family's style rows
+     *     drive while its own do not
      */
     public static @NotNull ConcurrentMap<String, Entity> assemble(
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull RawEntityModelsFile rawFile
+        @NotNull RawEntityModelsFile rawFile,
+        @NotNull Map<String, EntityPose> poses
     ) {
         Map<String, RawModel> models = rawFile.models();
         if (models == null) return Concurrent.newMap();
-        LinkedHashMap<String, Entity> definitions = new LinkedHashMap<>();
-        for (Map.Entry<String, RawModel> entry : models.entrySet()) {
-            if (entry.getValue() == null) continue;
-            readDefinition(entry.getKey(), entry.getValue(), geometries, definitions);
-        }
-        attachGroupMembers(models, definitions);
-        return Concurrent.adoptMap(definitions);
-    }
-
-    /**
-     * Stamps each grouped entity's canvas-group membership onto its {@link Entity#members()} - the
-     * self-inclusive member list the group-union fit bound iterates. Groups of size one (singletons)
-     * carry no members (the empty default); only genuine groups (size &gt; 1) are rewritten.
-     *
-     * @param models the raw model catalog
-     * @param definitions the built definitions, mutated in place for grouped entities
-     */
-    private static void attachGroupMembers(@NotNull Map<String, RawModel> models, @NotNull Map<String, Entity> definitions) {
-        for (Map.Entry<String, List<String>> group : groupMembership(models).entrySet()) {
-            if (group.getValue().size() <= 1) continue;
-            Entity entity = definitions.get(group.getKey());
-            if (entity == null) continue;
-            definitions.put(group.getKey(), entity.mutate().members(group.getValue()).build());
-        }
-    }
-
-    /**
-     * Returns {@code entityId -> groupMembers} keyed by every native entity id, derived from
-     * {@code variant_of} (variant siblings roll up to their base row) plus the cross-entity
-     * {@code group_of} groupings (mooshroom -&gt; cow). Singletons return a single-element list of
-     * themselves so the fold is uniform; {@link #attachGroupMembers} keeps only the genuine groups.
-     *
-     * @param models the raw model catalog
-     * @return group membership keyed by entity id
-     */
-    private static @NotNull Map<String, List<String>> groupMembership(@NotNull Map<String, RawModel> models) {
-        Map<String, String> variantOf = new LinkedHashMap<>();
-        Map<String, String> crossGroups = new LinkedHashMap<>();
-        for (Map.Entry<String, RawModel> entry : models.entrySet()) {
-            if (entry.getValue() == null) continue;
-            String familyId = entry.getKey();
-            RawModel family = entry.getValue();
-            RawVariantAxis variant = variantAxis(family);
-            // One base row per model, variant or not. Option-encoded coats live on the base
-            // definition's axes.variants and are measured by the group canvas union.
-            variantOf.put(familyId, null);
-            // group_of groups a non-variant sub-species under its base (camel_husk -> camel). A variant
-            // model's group_of (mooshroom -> cow) is inert at runtime, so it is guarded to non-variant
-            // models to keep that inertness once option-encoding makes the base row a plain id.
-            if (variant == null && family.groupOf() != null) crossGroups.put(familyId, family.groupOf());
-        }
-
-        Map<String, String> entityToFamily = new LinkedHashMap<>();
-        for (Map.Entry<String, String> row : variantOf.entrySet()) {
-            String family = crossGroups.get(row.getKey());
-            if (family == null) family = row.getValue();
-            if (family == null) family = row.getKey();
-            entityToFamily.put(row.getKey(), family);
-        }
-        Map<String, List<String>> familyToMembers = new LinkedHashMap<>();
-        for (Map.Entry<String, String> e : entityToFamily.entrySet())
-            familyToMembers.computeIfAbsent(e.getValue(), k -> new ArrayList<>()).add(e.getKey());
-        Map<String, List<String>> result = new LinkedHashMap<>();
-        for (Map.Entry<String, String> e : entityToFamily.entrySet())
-            result.put(e.getKey(), List.copyOf(familyToMembers.get(e.getValue())));
-        return result;
+        Set<String> corpusDriven = drivenFields(models);
+        ConcurrentMap<String, Entity> built = models.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue() != null)
+            .collect(Concurrent.toLinkedMap(
+                Map.Entry::getKey,
+                entry -> readDefinition(entry.getKey(), entry.getValue(), geometries, poses,
+                    rawFile.periodTicks())));
+        built.forEach((id, definition) -> validateSelectJoins(id, definition, corpusDriven));
+        return built;
     }
 
     // ------------------------------------------------------------------------------------
@@ -158,153 +113,317 @@ public final class EntityIndexBuilder {
     // ------------------------------------------------------------------------------------
 
     /**
-     * Reads one model into its single {@link Entity} row and adds it to {@code definitions}. A variant
-     * model's coats are built into the row's option map rather than into rows of their own.
+     * Reads one model into its single {@link Entity} row. A variant model's coats are built into the
+     * row's option map rather than into rows of their own.
      */
-    private static void readDefinition(
+    private static @NotNull Entity readDefinition(
         @NotNull String familyId,
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull Map<String, Entity> definitions
+        @NotNull Map<String, EntityPose> poses,
+        @Nullable Integer periodTicks
     ) {
         // The family baseline (primary geometry + adult texture) lives under the mandatory age axis'
         // options.adult, not at top level.
-        RawAgeOption adult = adultOption(family);
+        RawOption adult = adultOption(family);
         String baseCoord = adult.geometry();
 
         RawRender render = family.render();
         float rendererScale = render == null || render.scale() == null ? 1f : render.scale();
-        float setupYawAddend = render == null ? 0f : render.yawAddend();
-        // The setupRotations translate is per-age, so it rides the age options rather than `render`,
-        // and it is applied to the mesh here with the rest of the surgery rather than carried to render
-        // time: the renderer and the bounds walk both read the mesh, so moving it is what keeps the two
-        // from disagreeing about where the subject is.
-        RawAgeOption babyAge = ageBaby(family);
-        float babyYShift = babyAge == null ? 0f : babyAge.yShift();
-        int baseTint = render == null || render.tint() == null ? WHITE : ArgbHex.parse(render.tint());
-
-        RawBones bones = family.bones();
-        List<String> hiddenBones = bones == null ? null : bones.hidden();
-        Map<String, RawToggle> boneToggleSpecs = bones == null ? null : bones.toggles();
+        int baseTint = render == null || render.tint() == null ? WHITE : ColorTypeAdapter.parse(render.tint()).getRGB();
 
         List<RawOverlay> familyOverlays = nullToEmpty(family.overlays());
-        List<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null ? List.of() : loadBlockOverlays(family.blockOverlays());
+        ConcurrentList<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null
+            ? Concurrent.newUnmodifiableList() : loadBlockOverlays(family.blockOverlays());
 
-        Optional<String> collarTexture = collarTextureOf(family);
-        List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId);
-        boolean markings = markingsOf(family);
+        ConcurrentList<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId);
         Optional<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId);
         String babyCoord = babyGeometryOf(family);
+        // Beside the baby MESH rather than derived from it: a baby is its own model class, and two of
+        // the families that pose at all are posed through that class alone.
+        Optional<EntityPose> babyPose = babyCoord == null ? Optional.empty()
+            : Optional.of(poseOf(poses, poseKeyOf(babyPoseKeyOf(family), babyCoord)));
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
-            : Optional.ofNullable(geometries.get(babyCoord)).map(baby -> shiftModel(baby, babyYShift));
-        List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, babyCoord, babyModel, familyId);
+            : Optional.ofNullable(geometries.get(babyCoord));
+        ConcurrentList<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
+            babyPose.orElse(EntityPose.NONE), babyCoord, babyModel, familyId);
 
-        RawVariantAxis variant = variantAxis(family);
-        if (variant != null) {
-            String defaultOption = variant.defaultOption();
-            Map<String, RawVariantOption> options = variant.options();
-            VariantContext ctx = new VariantContext(baseCoord, geometries, hiddenBones, boneToggleSpecs, familyOverlays,
-                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyOverlays, collarTexture, equipment, markings, humanoidArmor,
-                stateDefaultOf(family));
-            // one base row minecraft:<id>, the coat resolved at render. Every option
-            // is built into a sub-definition; the base row IS the default coat carrying the full option map.
-            LinkedHashMap<String, Entity> coats = new LinkedHashMap<>();
-            for (Map.Entry<String, RawVariantOption> option : options.entrySet())
-                coats.put(option.getKey(), buildVariantRow(familyId, option.getValue(), ctx));
-            Entity base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
-            Entity.Axes baseAxes = base.axes();
-            definitions.put(familyId, base.mutate()
-                .axes(new Entity.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.babyOverlays(),
-                    baseAxes.largeShape(), baseAxes.sizeModels(), baseAxes.sizeScales(), Map.copyOf(coats),
-                    Optional.ofNullable(defaultOption), stateDefaultOf(family), sizeDefaultOf(family)))
-                .build());
-            return;
-        }
+        FamilyContext ctx = new FamilyContext(family, familyId, geometries, poses,
+            familyOverlays, baseTint, rendererScale,
+            babyModel, babyPose, babyOverlays,
+            equipment, humanoidArmor, stateDefaultOf(family),
+            styleCatalogOf(family, familyId, periodTicks));
 
-        // Plain family: one row. The size / shape axes attach only to plain families, so they resolve here.
-        EntityModelData model = resolveModel(geometries, baseCoord, familyId);
-        Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, familyId);
-        model = applyHiddenBones(model, hiddenBones, familyId);
-        // Ahead of the overlay load so a same-geometry pass is materialised on the shifted mesh and
-        // travels with it; a pass on a mesh of its OWN would not, which the shift warns about.
-        model = shiftModel(model, adult.yShift());
-        List<OverlayLayer> overlays = loadOverlays(familyOverlays, geometries, baseCoord, model, familyId);
-        Optional<String> textureRef = adult.texture() == null ? Optional.empty() : Optional.of(stripEntity(adult.texture()));
-
-        Map<String, String> stateTextures = new LinkedHashMap<>();
-        // Plain families carry their single baby texture on age.baby.texture; expose it under the "baby"
-        // state key so the renderer binds it the same way as variant families' per-option baby_texture.
-        String babyTexture = babyTextureOf(family);
-        if (babyTexture != null) stateTextures.put("baby", babyTexture);
-
-        definitions.put(familyId, Entity.builder()
-            .id(ResourceId.parse(familyId))
-            .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
-            .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
-            .boneToggles(toggles)
-            .axes(new Entity.Axes(stateTextures, babyModel, babyOverlays,
-                buildLargeShape(family, geometries, familyId),
-                buildSizeModels(family, geometries, hiddenBones, familyId),
-                buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
-            .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
-            .build());
+        RawAxis variant = variantAxis(family);
+        // A family is one row and the coats are forms of it, so both arms below build ROWS and differ
+        // only in which forms there are and which of them the bare family already is.
+        Entity row = variant == null
+            ? buildRow(plainForm(family, adult, blockOverlays), ctx)
+            : variantRow(variant, baseCoord, blockOverlays, ctx);
+        return row.mutate().members(membersOf(family)).build();
     }
 
     /**
-     * The family-level render context shared by every variant option's build, so one coat build fills
-     * the whole option map without restating what the coats have in common.
+     * The family row of a family whose coats are option-encoded: every coat built as a row of its own,
+     * and the one the family declares carrying the whole option map.
+     *
+     * <p>One base row {@code minecraft:<id>}, the coat resolved at render - never a row per coat. The
+     * reason is in this class's own javadoc and is a collision-safety rule rather than a convenience.
      */
-    private record VariantContext(
+    private static @NotNull Entity variantRow(
+        @NotNull RawAxis variant,
         @NotNull String baseCoord,
+        @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays,
+        @NotNull FamilyContext ctx
+    ) {
+        ConcurrentMap<String, Entity> coats = variant.options()
+            .entrySet()
+            .stream()
+            .collect(Concurrent.toUnmodifiableLinkedMap(
+                Map.Entry::getKey,
+                option -> buildRow(coatForm(option.getValue(), baseCoord, blockOverlays), ctx)));
+        Entity base = coats.getOrDefault(variant.defaultOption(), coats.values().iterator().next());
+        Entity.Axes axes = base.axes();
+        return base.mutate()
+            .axes(new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(),
+                axes.shape(), axes.state(), axes.size(),
+                new Entity.Axis<>(coats, Optional.ofNullable(variant.defaultOption()))))
+            .build();
+    }
+
+    /**
+     * Builds one row of a family - the family's own, or one of its coats - from the mesh it draws and
+     * everything the family shares.
+     *
+     * <p>Both arms of {@link #readDefinition} come through here, because a coat and the family row it
+     * is a coat of are the same construction over a different {@link RowForm}: they resolve the same
+     * pose against the same class, materialise the same overlay rows, and carry the same baby mesh,
+     * equipment and armour. What differs is the four members a form names.
+     *
+     * <p>The size axis is derived from the row rather than beside it, so it can only ever hold forms
+     * of THIS row. That is also what gives a coat its own size axis: a family that gained both would
+     * otherwise resolve a coat to a leaf carrying no sizes, and the sizes it does carry would be the
+     * family's rather than the coat's.
+     *
+     * @param form what this row differs from its siblings in
+     * @param ctx what the whole family shares
+     * @return the row, without the variant axis a family row is given afterwards
+     */
+    private static @NotNull Entity buildRow(@NotNull RowForm form, @NotNull FamilyContext ctx) {
+        EntityModelData model = resolveModel(ctx.geometries(), form.coordinate(), ctx.familyId());
+        // The form states the class its body is posed through outright - the emitter writes the key
+        // it already knows - so the join is a lookup, and a form stating none answers off its own
+        // coordinate's head, the honest fallback for a mesh the pose table never looked at.
+        EntityPose pose = poseOf(ctx.poses(), poseKeyOf(form.pose(), form.coordinate()));
+        // Ahead of the size derivation so a same-geometry pass is materialised on the mesh this row
+        // actually draws, and travels with it into every form derived from the row.
+        ConcurrentList<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
+            pose, form.coordinate(), model, ctx.familyId());
+
+        ConcurrentMap<String, String> states = weathered(form.stateTextures(), ctx.familyOverlays(), ctx.familyId());
+
+        Entity.Builder shaped = Entity.builder()
+            .id(ResourceId.parse(ctx.familyId()))
+            .model(model).overlays(overlays)
+            .blockOverlays(form.blockOverlays())
+            .baseTintArgb(ctx.baseTint())
+            .rendererScale(ctx.rendererScale())
+            .pose(pose)
+            .axes(new Entity.Axes(ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Entity.Axis.none(),
+                new Entity.Axis<>(states, declaredState(ctx.stateDefault(), states)),
+                Entity.Axis.none(), Entity.Axis.none()))
+            .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()));
+        // Set only where the family ships one - the Entity compact constructor answers a never-set
+        // catalog with BIND_ONLY.
+        if (ctx.styles() != null) shaped.styles(ctx.styles());
+        Entity bare = shaped.build();
+
+        // Built once WITHOUT the size or shape axes, because a form of either is a sub-definition
+        // derived from this row - its own baked mesh over the same overlays, or this row at a
+        // multiplied scale - so the row it derives from has to exist first. A form carries neither
+        // axis of its own: it is a leaf.
+        Entity.Axes axes = bare.axes();
+        return bare.mutate()
+            .axes(new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(),
+                buildShapeAxis(ctx, bare), axes.state(),
+                buildSizeAxis(ctx.family(), ctx.geometries(), bare), axes.variant()))
+            .build();
+    }
+
+    /**
+     * The family's own row: the adult mesh and texture, and its block overlays as the rows declare
+     * them.
+     *
+     * <p>A family carries its single baby texture on {@code age.baby.texture}; it is exposed under the
+     * {@code "baby"} state key so the renderer binds it the same way as a coat's own
+     * {@code baby_texture}.
+     */
+    private static @NotNull RowForm plainForm(
+        @NotNull RawModel family, @NotNull RawOption adult,
+        @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays) {
+
+        ConcurrentMap<String, String> stateTextures = Stream.concat(
+                Optional.ofNullable(adult.texture())
+                    .map(texture -> Map.entry(Entity.BASE_STATE, texture))
+                    .stream(),
+                Optional.ofNullable(babyTextureOf(family))
+                    .map(texture -> Map.entry("baby", texture))
+                    .stream())
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue));
+        return new RowForm(adult.geometry(), adult.pose(), stateTextures, blockOverlays);
+    }
+
+    /**
+     * One coat's row: its own mesh where it names one, its {@code wild} texture and per-state
+     * textures, and the family's fixed block overlays redrawn as the block it names.
+     */
+    private static @NotNull RowForm coatForm(
+        @NotNull RawOption option, @NotNull String baseCoord,
+        @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays) {
+
+        return new RowForm(
+            option.geometry() == null ? baseCoord : option.geometry(),
+            option.pose(),
+            variantStateTextures(option),
+            coatBlockOverlays(blockOverlays, option.block()));
+    }
+
+    /**
+     * The pose of whatever model a geometry coordinate names.
+     *
+     * <p>The join is the coordinate's own head: a coordinate is {@code Class#member} and a pose is
+     * keyed by that class, so nothing had to be threaded through the model table to say which pose
+     * a mesh takes. A coordinate whose class the pose table does not name poses nothing, which is
+     * the honest answer for every mesh the walk never looked at - a worn shell, a saddle, a mesh
+     * derived under a suffix.
+     *
+     * @param poses the pose of each model class, by simple name
+     * @param coordinate the geometry coordinate to resolve
+     * @return the pose that model takes, or the pose of a model that poses nothing
+     */
+    private static @NotNull EntityPose poseOf(@NotNull Map<String, EntityPose> poses, @NotNull String coordinate) {
+        int member = coordinate.indexOf('#');
+        return poses.getOrDefault(member < 0 ? coordinate : coordinate.substring(0, member), EntityPose.NONE);
+    }
+
+    /**
+     * The key one form's pose is joined at - the explicit {@code pose} member where the form states
+     * one, else the form's own geometry coordinate, whose head {@link #poseOf} splits.
+     *
+     * @param explicit the form's own {@code pose} member, or {@code null} where it states none
+     * @param fallback the coordinate whose head answers where no key is stated
+     * @return the key the pose table is joined at
+     */
+    private static @NotNull String poseKeyOf(@Nullable String explicit, @NotNull String fallback) {
+        return explicit == null ? fallback : explicit;
+    }
+
+    /** The explicit pose key of the family's {@code age.baby} option, or {@code null}. */
+    private static @Nullable String babyPoseKeyOf(@NotNull RawModel family) {
+        RawOption baby = ageBaby(family);
+        return baby == null ? null : baby.pose();
+    }
+
+    /**
+     * What the whole family shares, so one row build restates none of it.
+     *
+     * <p>Held once per family and handed to every row of it, the family's own and each of its coats
+     * alike - which is what lets the two arms of {@link #readDefinition} be one construction over
+     * different {@link RowForm}s rather than two that drifted.
+     */
+    private record FamilyContext(
+        @NotNull RawModel family,
+        @NotNull String familyId,
         @NotNull Map<String, EntityModelData> geometries,
-        @Nullable List<String> hiddenBones,
-        @Nullable Map<String, RawToggle> boneToggleSpecs,
+        @NotNull Map<String, EntityPose> poses,
         @NotNull List<RawOverlay> familyOverlays,
-        @NotNull List<BlockOverlayLayer> blockOverlays,
         int baseTint,
-        float setupYawAddend,
         float rendererScale,
         @NotNull Optional<EntityModelData> babyModel,
-        @NotNull List<OverlayLayer> babyOverlays,
-        @NotNull Optional<String> collarTexture,
-        @NotNull List<EquipmentOverlay> equipment,
-        boolean markings,
+        @NotNull Optional<EntityPose> babyPose,
+        @NotNull ConcurrentList<OverlayLayer> babyOverlays,
+        @NotNull ConcurrentList<EquipmentOverlay> equipment,
         @NotNull Optional<Shell> humanoidArmor,
-        @NotNull Optional<String> stateDefault
+        @NotNull Optional<String> stateDefault,
+        @Nullable StyleCatalog styles
     ) {}
 
     /**
-     * Builds one variant option's {@link Entity}: the option's geometry (its own coordinate when it
-     * overrides the family mesh, else the base coordinate) with the family's bone toggles, hidden-bone
-     * strip, and overlays materialised on it, plus the option's {@code wild} coat texture and per-state
-     * textures. The built definition carries an empty {@code axes.variants} - it is a leaf coat.
+     * What one row of a family differs from its siblings in, and the whole of it.
      *
-     * <p>A coat naming its own {@code block} redraws the family's fixed block overlays as that block -
-     * the mooshroom's brown mushrooms against the red ones its rows carry. Only the fixed rows move:
-     * a selectable row's block is the caller's held one, supplied at render.
+     * <p>Four members: everything else a row carries is the family's and travels on
+     * {@link FamilyContext}. A coat that names no mesh of its own draws the family's, which is why the
+     * coordinate is resolved into the form rather than left for the build to decide.
+     *
+     * @param coordinate the mesh this row draws
+     * @param pose the pose key the form states outright, or {@code null} where the derivation off
+     *     the coordinate head (or the family {@code bones.pose}) answers
+     * @param stateTextures the row's textures by behavioural state, its base one among them
+     * @param blockOverlays the block-shaped overlays as this row draws them - a coat naming its own
+     *     {@code block} redraws the family's fixed rows as that block, the mooshroom's brown mushrooms
+     *     against the red ones its rows carry, and a selectable row is left to the caller's selection
      */
-    private static @NotNull Entity buildVariantRow(
-        @NotNull String rowId,
-        @NotNull RawVariantOption optionObj,
-        @NotNull VariantContext ctx
-    ) {
-        String rowCoord = optionObj.geometry() == null ? ctx.baseCoord() : optionObj.geometry();
-        EntityModelData model = resolveModel(ctx.geometries(), rowCoord, rowId);
-        Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, rowId);
-        model = applyHiddenBones(model, ctx.hiddenBones(), rowId);
-        List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), rowCoord, model, rowId);
-        Map<String, String> stateTextures = variantStateTextures(optionObj);
-        Optional<String> textureRef = variantWildTexture(optionObj);
-        return Entity.builder()
-            .id(ResourceId.parse(rowId))
-            .model(model).textureRef(textureRef).overlays(overlays)
-            .blockOverlays(coatBlockOverlays(ctx.blockOverlays(), optionObj.block()))
-            .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
-            .boneToggles(toggles)
-            .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyOverlays(), Optional.empty(),
-                Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))
-            .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor()))
-            .build();
+    private record RowForm(
+        @NotNull String coordinate,
+        @Nullable String pose,
+        @NotNull ConcurrentMap<String, String> stateTextures,
+        @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays
+    ) {}
+
+    /**
+     * The row's states with the copper golem's oxidation among them, for a subject that weathers.
+     *
+     * <p>A subject weathers when it carries a pass whose texture the weathering axis answers, which is
+     * a fact of the definition rather than of the render - so it is settled once here instead of
+     * restreamed per frame, and a subject that does not weather simply has no such state for a
+     * selection to land on.
+     *
+     * <p>{@link CopperWeathering#UNAFFECTED} contributes no entry: it is the state the subject is
+     * already in. That it really is the same texture is checked rather than assumed, because a
+     * disagreement would silently redraw the default render as one of the oxidised forms.
+     *
+     * @param states the row's own state textures
+     * @param overlays the family's raw overlay rows
+     * @param familyId the subject being read, for the refusal
+     * @return the states, with an entry per oxidation level for a subject that weathers
+     * @throws PipelineException if the subject's base texture is not the unaffected weathering texture
+     */
+    private static @NotNull ConcurrentMap<String, String> weathered(
+        @NotNull ConcurrentMap<String, String> states, @NotNull List<RawOverlay> overlays, @NotNull String familyId) {
+
+        boolean weathers = overlays.stream()
+            .anyMatch(row -> TextureAxis.findByToken(row.textureBy()).filter(TextureAxis.WEATHERING::equals).isPresent());
+        if (!weathers) return states;
+        String base = states.get(Entity.BASE_STATE);
+        if (base != null && !CopperWeathering.UNAFFECTED.baseTexture().equals(base))
+            throw new PipelineException(
+                "Entity '%s' weathers but rests at '%s' rather than the unaffected '%s'",
+                familyId, base, CopperWeathering.UNAFFECTED.baseTexture());
+        return Stream.concat(
+                states.entrySet().stream(),
+                Stream.of(CopperWeathering.values())
+                    .flatMap(weathering -> weathering.stateKey()
+                        .map(key -> Map.entry(key, weathering.baseTexture()))
+                        .stream()))
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
+    }
+
+    /**
+     * Which state a row is already in: the one the shipped table declares where it declares one, else
+     * the base state every row carrying a base texture is in.
+     *
+     * <p>Answers absent only for a row naming no base texture at all, which keeps the axis honest
+     * rather than declaring an option it does not carry.
+     *
+     * @param shipped the {@code state.default} the table names, or empty
+     * @param states the row's own state textures
+     * @return the state the row is in, or empty when it names no base texture
+     */
+    private static @NotNull Optional<String> declaredState(
+        @NotNull Optional<String> shipped, @NotNull Map<String, String> states) {
+
+        if (shipped.isPresent()) return shipped;
+        return states.containsKey(Entity.BASE_STATE) ? Optional.of(Entity.BASE_STATE) : Optional.empty();
     }
 
     /**
@@ -313,13 +432,12 @@ public final class EntityIndexBuilder {
      * block id is a placeholder the caller's carried selection replaces at render, so rewriting it
      * here would be overwritten anyway and would read as though the coat had chosen it.
      */
-    private static @NotNull List<BlockOverlayLayer> coatBlockOverlays(
-        @NotNull List<BlockOverlayLayer> blockOverlays, @Nullable String coatBlock) {
+    private static @NotNull ConcurrentList<BlockOverlayLayer> coatBlockOverlays(
+        @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays, @Nullable String coatBlock) {
         if (coatBlock == null || blockOverlays.isEmpty()) return blockOverlays;
-        List<BlockOverlayLayer> out = new ArrayList<>(blockOverlays.size());
-        for (BlockOverlayLayer overlay : blockOverlays)
-            out.add(overlay.selectable() ? overlay : overlay.withBlockId(coatBlock));
-        return List.copyOf(out);
+        return blockOverlays.stream()
+            .map(overlay -> overlay.selectable() ? overlay : overlay.withBlockId(coatBlock))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     // ------------------------------------------------------------------------------------
@@ -328,14 +446,16 @@ public final class EntityIndexBuilder {
 
     /**
      * Resolves an {@code overlays} list into {@link OverlayLayer}s. An overlay without a {@code geometry}
-     * member (or one naming the base coordinate) inherits the post-hidden-strip base mesh so its cubes
-     * co-register with the base; a distinct coordinate resolves fresh from the geometry table (a missing
-     * coordinate warns and drops). {@code retain_bones} restricts the mesh to a vanilla
-     * {@code retainExactParts} subset before inflate; {@code grow} inflates every cube.
+     * member (or one naming the base coordinate) draws the base mesh itself so its cubes co-register
+     * with the base; a distinct coordinate resolves fresh from the geometry table (a missing coordinate
+     * warns and drops). A pass vanilla restricts to a subset or deforms names the mesh that is, so the
+     * distinct coordinate is what says the two differ.
      */
-    private static @NotNull List<OverlayLayer> loadOverlays(
+    private static @NotNull ConcurrentList<OverlayLayer> loadOverlays(
         @NotNull List<RawOverlay> overlays,
         @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Map<String, EntityPose> poses,
+        @NotNull EntityPose bodyPose,
         @NotNull String baseCoord,
         @NotNull EntityModelData baseModel,
         @NotNull String entityId
@@ -350,36 +470,32 @@ public final class EntityIndexBuilder {
             } else {
                 overlayModel = geometries.get(coord);
                 if (overlayModel == null) {
-                    // TODO: restore pipeline diagnostics
-                    // diagnostics.warn("entity '%s' overlay references geometry '%s' absent from entity_geometry", entityId, coord);
+                    System.err.printf(
+                        "entity '%s' overlay references geometry '%s' absent from entity_geometry; pass dropped%n",
+                        entityId, coord);
                     continue;
                 }
             }
-            Optional<String> overlayTexture = entry.texture() == null ? Optional.empty() : Optional.of(stripEntity(entry.texture()));
-            // retain_bones (warden pulsating spots) restricts the overlay to a vanilla retainExactParts
-            // subset of the shared mesh, so the glow texture draws only where vanilla's subset
-            // LayerDefinition does. Applied before inflate so surviving cubes inflate together.
-            EntityModelData retained = entry.retainBones() == null ? overlayModel : retainExactParts(overlayModel, entry.retainBones());
+            // A pass poses its mesh with its own model class, so it reads the pose its own coordinate
+            // names - and a pass drawing the body's mesh takes the BODY's pose, which is the one the
+            // form's own key was resolved against rather than whatever the coordinate says. Either
+            // way the container arrives composed, the emitter having seated the renderer's steps.
+            EntityPose overlayPose = sameGeometry ? bodyPose : poseOf(poses, coord);
+            Optional<String> overlayTexture = Optional.ofNullable(entry.texture());
             boolean hasTint = entry.tint() != null;
-            // inflate: an explicit grow is a real vanilla CubeDeformation (tropical_fish 0.008, llama
-            // carpet 0.5); every other overlay carries none. A same-mesh grow-less overlay re-submits the
-            // base geometry coincident with it, exactly as vanilla submits the identical ModelPart through
-            // a second render type, and the depth test resolves the tie in the overlay's favour because it
-            // draws second.
-            float inflate = entry.grow() != null ? growScalar(entry.grow()) : 0f;
-            EntityModelData materialised = inflate != 0f ? inflateModel(retained, inflate) : retained;
             RawPipeline pipeline = entry.pipeline();
             boolean emissive = pipeline != null && pipeline.emissive();
-            int overlayTint = hasTint ? ArgbHex.parse(entry.tint()) : WHITE;
-            // A same-geometry overlay with no deformation of its own is excluded from the canvas-sizing
-            // bounds: it renders the IDENTICAL cube tree as the base, so the base already contributes its
-            // full silhouette extent. An explicit grow is a real vanilla CubeDeformation that vanilla's own
+            int overlayTint = hasTint ? ColorTypeAdapter.parse(entry.tint()).getRGB() : WHITE;
+            // An overlay drawing the base mesh itself is excluded from the canvas-sizing bounds: it
+            // renders the IDENTICAL cube tree as the base, so the base already contributes its full
+            // silhouette extent. A pass vanilla deforms draws a mesh of its OWN, which vanilla's own
             // bounds walk includes, so it keeps contributing. An explicit skip_bounds (llama carpet,
             // NO_RENDER_LAYER_SUFFIXES) always wins.
-            boolean coincidentWithBase = sameGeometry && inflate == 0f;
-            boolean skipBounds = entry.skipBounds() || coincidentWithBase;
-            Optional<String> tintBy = Optional.ofNullable(entry.tintBy());
-            Optional<String> textureBy = Optional.ofNullable(entry.textureBy());
+            boolean skipBounds = entry.skipBounds() || sameGeometry;
+            // Resolved here rather than re-parsed per frame: the token is the table's spelling and
+            // the axis is what every reader asks.
+            Optional<TintAxis> tintBy = TintAxis.findByToken(entry.tintBy());
+            Optional<TextureAxis> textureBy = TextureAxis.findByToken(entry.textureBy());
             // The overlay's render condition, parsed straight from its `when` object into the typed
             // AppearanceGate (flag/charged/tinted). Absent -> unconditional.
             Optional<AppearanceGate> gate = parseOverlayGate(entry.when(), tintBy, overlayTint);
@@ -392,32 +508,58 @@ public final class EntityIndexBuilder {
             // (what DepthStencilState.DEFAULT declares) and draws in emission order.
             boolean writesDepth = pipeline == null || pipeline.depthWrite() == null || pipeline.depthWrite();
             boolean sorted = pipeline != null && pipeline.sorted();
-            // The suppressed-pass mesh: vanilla's clearChild(root).clearRecursively() over the SAME
-            // materialised mesh, so the alternate differs from the primary in nothing but the emptied
-            // subtree. Derived here rather than from a second geometry coordinate precisely so
-            // sameGeometry, the depth-clearance inflate and the derived skipBounds above all stand.
-            Optional<EntityModelData> noHatModel = entry.noHatRoot() == null ? Optional.empty()
-                : clearSubtreeCubes(materialised, entry.noHatRoot(), entityId);
-            PassDeclaration pass = new PassDeclaration(emissive, blend, alpha, writesDepth, sorted);
-            out.add(new OverlayLayer(materialised, overlayTexture, pass, overlayTint, skipBounds, tintBy,
-                textureBy, gate, noHatModel));
+            // The suppressed-pass mesh, named by a member of its OWN rather than by the coordinate this
+            // pass draws: it differs from the primary in nothing but the emptied subtree, and naming it
+            // as the pass's geometry would flip sameGeometry and take the bounds skip above with it.
+            Optional<EntityModelData> noHatModel = entry.noHatGeometry() == null ? Optional.empty()
+                : Optional.ofNullable(geometries.get(entry.noHatGeometry()));
+            Optional<Vector2f> scroll = textureScroll(entry, entityId);
+            // The wrap is the pass's own fact, decided here rather than inferred at render: vanilla
+            // builds the offset into the render type's texture matrix, so a scrolled pass samples
+            // past the sheet and wraps, and every other pass holds at the last texel.
+            PassDeclaration pass =
+                new PassDeclaration(emissive, blend, alpha, writesDepth, sorted, scroll.isPresent());
+            out.add(new OverlayLayer(overlayModel, overlayTexture, pass, overlayTint, skipBounds, tintBy,
+                textureBy, gate, noHatModel, overlayPose, scroll));
         }
-        return out;
+        return Concurrent.adoptList(out).toUnmodifiable();
+    }
+
+    /**
+     * The fraction of the sheet an overlay's render type translates its texture by each tick.
+     *
+     * <p>Refused when either axis is negative. The scroll is added to a UV before the fetch takes a
+     * texel index, and a negative offset would carry the sample point below the sheet - where the
+     * truncation the index is taken by rounds toward zero rather than down, so it would sample the
+     * wrong texel rather than wrap. No shipped row is negative, vanilla accumulating age forward.
+     *
+     * @throws PipelineException if a row declares a scroll along either axis in the negative
+     */
+    private static @NotNull Optional<Vector2f> textureScroll(
+        @NotNull RawOverlay entry, @NotNull String entityId) {
+
+        RawTextureScroll declared = entry.textureScroll();
+        if (declared == null) return Optional.empty();
+        if (declared.u() < 0f || declared.v() < 0f)
+            throw new PipelineException(
+                "entity index: '%s' scrolls a pass by (%s, %s), and a scroll runs forward",
+                entityId, declared.u(), declared.v());
+        return Optional.of(new Vector2f(declared.u(), declared.v()));
     }
 
     /**
      * Resolves the baby forms of an {@code overlays} list into the parallel {@link OverlayLayer} list a
      * baby render draws in place of the adult one. Each row carrying a {@code baby} delta is rewritten
-     * into an overlay whose texture and cleared-bone root come from the delta and whose every other
-     * member ({@code texture_by}, tint, {@code retain_bones}, {@code grow}, pipeline, bounds skip, gate)
-     * is inherited from the row, then handed to {@link #loadOverlays} against the {@code age.baby} mesh.
-     * A row with no delta is absent from the result, so a pass vanilla itself gates off a baby (the
-     * villager profession and profession-level passes) drops out structurally.
+     * into an overlay whose meshes and texture come from the delta and whose every other member
+     * ({@code texture_by}, tint, pipeline, bounds skip, gate) is inherited from the row, then handed to
+     * {@link #loadOverlays} against the {@code age.baby} mesh. A row with no delta is absent from the
+     * result, so a pass vanilla itself gates off a baby (the villager profession and profession-level
+     * passes) drops out structurally.
      *
-     * <p>The derived row's geometry is deliberately {@code null} rather than the row's own coordinate: the
-     * row names the ADULT mesh, so carrying it would flip {@link #loadOverlays}'s {@code sameGeometry}
-     * false, losing the derived bounds skip - the pass would re-enter the canvas union and move the baby
-     * canvas. Left null it defaults to {@code babyCoord}, which is the same mesh instance
+     * <p>A delta naming no geometry is left naming none rather than given the row's coordinate: the row
+     * names the ADULT mesh, so carrying it would flip {@link #loadOverlays}'s {@code sameGeometry} false
+     * and lose the derived bounds skip - the pass would re-enter the canvas union and move the baby
+     * canvas. Left absent it defaults to {@code babyCoord}, which is the same mesh instance
      * {@link Entity.Axes#babyModel()} holds.
      *
      * @param overlays the family's raw overlay rows
@@ -427,93 +569,85 @@ public final class EntityIndexBuilder {
      * @param entityId the entity the rows belong to, for diagnostics
      * @return the baby overlay passes, or an empty list when no row declares a baby form
      */
-    private static @NotNull List<OverlayLayer> loadBabyOverlays(
+    private static @NotNull ConcurrentList<OverlayLayer> loadBabyOverlays(
         @NotNull List<RawOverlay> overlays,
         @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Map<String, EntityPose> poses,
+        @NotNull EntityPose babyPose,
         @Nullable String babyCoord,
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull String entityId
     ) {
-        if (babyCoord == null) return List.of();
-        List<RawOverlay> forms = new ArrayList<>();
-        for (RawOverlay entry : overlays) {
-            RawOverlayBaby baby = entry.baby();
-            if (baby == null) continue;
-            // A delta naming its own mesh takes that mesh's deformation as the tooling baked it, so the
-            // row's grow is NOT inherited onto it - the adult inflate would land a second time on top
-            // of the baby factory's own. A delta reusing the age.baby mesh still inherits it.
-            Vector3f babyGrow = baby.grow() != null ? baby.grow()
-                : baby.geometry() != null ? null
-                : entry.grow();
-            forms.add(new RawOverlay(
-                baby.geometry(),
-                baby.texture() == null ? entry.texture() : baby.texture(),
-                entry.retainBones(), baby.noHatRoot(), entry.tint(), entry.tintBy(), entry.textureBy(),
-                babyGrow, entry.pipeline(), entry.skipBounds(), entry.when(), null));
-        }
-        if (forms.isEmpty()) return List.of();
+        if (babyCoord == null) return Concurrent.newUnmodifiableList();
+        ConcurrentList<RawOverlay> forms = overlays.stream()
+            .filter(entry -> entry.baby() != null)
+            .map(entry -> new RawOverlay(
+                entry.baby().geometry(), entry.baby().noHatGeometry(),
+                entry.baby().texture() == null ? entry.texture() : entry.baby().texture(),
+                entry.tint(), entry.tintBy(), entry.textureBy(),
+                entry.pipeline(), entry.textureScroll(), entry.skipBounds(), entry.when(), null))
+            .collect(Concurrent.toUnmodifiableList());
+        if (forms.isEmpty()) return Concurrent.newUnmodifiableList();
         // Rows declared a baby form but the mesh they would materialise against is missing - the same
         // drop loadOverlays warns about for an adult pass, warned about here rather than silently
         // returning an empty list that reads as "no row declares a baby form".
         if (babyModel.isEmpty()) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' baby overlay references geometry '%s' absent from entity_geometry", entityId, babyCoord);
-            return List.of();
+            System.err.printf(
+                "entity '%s' baby overlay references geometry '%s' absent from entity_geometry; every baby form dropped%n",
+                entityId, babyCoord);
+            return Concurrent.newUnmodifiableList();
         }
-        return loadOverlays(forms, geometries, babyCoord, babyModel.get(), entityId);
+        return loadOverlays(forms, geometries, poses, babyPose, babyCoord, babyModel.get(), entityId);
     }
 
     /**
-     * Parses an overlay's {@code when} object into a typed {@link AppearanceGate}: {@code flag} maps to
-     * {@link AppearanceGate.FlagGate}, {@code charged} to {@link AppearanceGate.ChargedGate}, and
-     * {@code tinted} to {@link AppearanceGate.TintedGate} (carrying the overlay's tint axis token and
-     * its baked tint, so the gate is self-contained). Absent or unrecognised yields empty
-     * (unconditional).
+     * Parses an overlay's {@code when} object into a typed {@link AppearanceGate}: {@code flag} maps
+     * to a {@link AppearanceGate.Selected} on the named {@link Flag} carrying the row's own polarity,
+     * {@code charged} to one on {@link Flag#CHARGED}, and {@code tinted} to
+     * {@link AppearanceGate.TintedGate} (carrying the overlay's tint axis token and its baked tint,
+     * so the gate is self-contained). Absent or unrecognised - a shape no arm reads, or a flag token
+     * no {@link Flag} constant owns - yields empty (unconditional).
      *
      * @param when the overlay's {@code when} object, or {@code null} when absent
-     * @param tintBy the overlay's tint axis token, used to seed a {@link AppearanceGate.TintedGate}
+     * @param tintBy the overlay's tint axis, used to seed a {@link AppearanceGate.TintedGate}
      * @param tintArgb the overlay's baked tint - the colour a {@link AppearanceGate.TintedGate}
      *     selection has to differ from, being what the dye vanilla's own comparison names resolves to
      * @return the parsed gate, or empty when unconditional
      */
     private static @NotNull Optional<AppearanceGate> parseOverlayGate(
         @Nullable RawOverlayWhen when,
-        @NotNull Optional<String> tintBy,
+        @NotNull Optional<TintAxis> tintBy,
         int tintArgb
     ) {
         if (when == null) return Optional.empty();
         if (when.flag() != null)
-            return Optional.of(new AppearanceGate.FlagGate(when.flag(), when.value()));
+            return enumOf(Flag.class, when.flag()).map(flag -> new AppearanceGate.Selected(flag, when.value()));
         if (when.charged())
-            return Optional.of(new AppearanceGate.ChargedGate());
+            return Optional.of(new AppearanceGate.Selected(Flag.CHARGED, true));
         if (when.tinted())
-            return Optional.of(new AppearanceGate.TintedGate(tintBy.orElse(""), tintArgb));
+            return Optional.of(new AppearanceGate.TintedGate(tintBy, tintArgb));
         return Optional.empty();
     }
 
     /**
      * Parses an overlay's optional {@code blend} token into a {@link BlendMode}. {@code "additive"} maps
      * to {@link BlendMode#ADD} and {@code "cutout"} to {@link BlendMode#REPLACE};
-     * {@code "translucent"}, {@code "normal"} and an absent token all map to {@link BlendMode#NORMAL}
-     * source-over. An unrecognised value warns and falls back to {@link BlendMode#NORMAL}.
-     *
-     * <p>{@code translucent} and {@code normal} share a mapping because source-over is right for both -
-     * a translucent pass carries its translucency in the texture's alpha. {@code cutout} is the token
+     * {@code "translucent"} and an absent token both map to {@link BlendMode#NORMAL} source-over, a
+     * translucent pass carrying its translucency in the texture's alpha. {@code cutout} is the token
      * that does not: vanilla draws such a pass through a pipeline declaring no blend function at all,
      * so every fragment surviving the alpha threshold is written over the destination rather than into
-     * it, alpha included.
+     * it, alpha included. The tooling emits exactly these three, so anything else is a defect worth
+     * failing over rather than a spelling to tolerate.
+     *
+     * @throws PipelineException if the token is not one the tooling emits
      */
     private static @NotNull BlendMode parseBlend(@Nullable String blend) {
         if (blend == null) return BlendMode.NORMAL;
-        return switch (blend.toLowerCase(Locale.ROOT)) {
+        return switch (blend) {
             case "additive" -> BlendMode.ADD;
             case "cutout" -> BlendMode.REPLACE;
-            case "translucent", "normal" -> BlendMode.NORMAL;
-            default -> {
-                // TODO: restore pipeline diagnostics
-                // diagnostics.warn("unknown overlay blend '%s' (expected normal/additive/translucent/cutout); using normal", blend);
-                yield BlendMode.NORMAL;
-            }
+            case "translucent" -> BlendMode.NORMAL;
+            default -> throw new PipelineException("Unknown overlay blend '%s'", blend);
         };
     }
 
@@ -524,30 +658,52 @@ public final class EntityIndexBuilder {
     /**
      * Resolves a {@code block_overlays} list into {@link BlockOverlayLayer} rows. A fixed row names its
      * {@code block}; a {@code selectable} row's block is supplied at render from the carried selection, so
-     * its {@code block} may be omitted entirely (the enderman carried block). The {@code transforms} entries
-     * are the tagged op objects the renderer pattern-matches.
+     * its {@code block} may be omitted entirely (the enderman carried block). A {@code transforms} entry
+     * is a single-member object dispatched on the member's own name, the shape a pose expression takes.
+     *
+     * @throws PipelineException if a transform entry names an op the tooling does not emit
      */
-    private static @NotNull List<BlockOverlayLayer> loadBlockOverlays(@NotNull List<RawBlockOverlay> array) {
-        List<BlockOverlayLayer> out = new ArrayList<>();
-        for (RawBlockOverlay row : array) {
-            boolean selectable = row.selectable();
-            if (row.block() == null && !selectable) continue;
-            String blockId = row.block() == null ? "" : row.block();
-            String attachedBone = row.attachedBone();
-            List<TransformOp> ops = new ArrayList<>();
-            for (RawTransform opObj : nullToEmpty(row.transforms())) {
-                switch (opObj.op() == null ? "" : opObj.op()) {
-                    case "translate" -> ops.add(new Translate(opObj.x(), opObj.y(), opObj.z()));
-                    case "rotate_y" -> ops.add(new RotateY(opObj.degrees()));
-                    case "rotate_x" -> ops.add(new RotateX(opObj.degrees()));
-                    case "rotate_z" -> ops.add(new RotateZ(opObj.degrees()));
-                    case "scale" -> ops.add(new Scale(opObj.x(), opObj.y(), opObj.z()));
-                    default -> { }
+    private static @NotNull ConcurrentList<BlockOverlayLayer> loadBlockOverlays(@NotNull List<RawBlockOverlay> array) {
+        return array.stream()
+            .filter(row -> row.block() != null || row.selectable())
+            .map(row -> new BlockOverlayLayer(row.block() == null ? "" : row.block(),
+                row.attachedBone(), composedTransform(row), row.selectable()))
+            .collect(Concurrent.toUnmodifiableList());
+    }
+
+    /**
+     * The product of one row's {@code transforms} ops, in declared order.
+     *
+     * <p>The ops compose here rather than at render: every operand is a shipped constant, so their
+     * product is one too, and the row carries the product. Each arm applies the op the fluent way -
+     * {@code Math.toRadians} on the degrees, post-multiply onto the accumulated chain - because that is
+     * the arithmetic the render frame is entitled to, and the fluent path differs from the
+     * {@code multiply} path in the last few bits.
+     *
+     * @param row the block-overlay row
+     * @return the composed transform, the identity for a row declaring no op
+     * @throws PipelineException if a transform entry names an op the tooling does not emit
+     */
+    private static @NotNull Matrix4f composedTransform(@NotNull RawBlockOverlay row) {
+        Matrix4f transform = Matrix4f.IDENTITY;
+        for (Map<String, com.google.gson.JsonElement> opObj : nullToEmpty(row.transforms())) {
+            Map.Entry<String, com.google.gson.JsonElement> only = opObj.entrySet().iterator().next();
+            transform = switch (only.getKey()) {
+                case "translate" -> {
+                    com.google.gson.JsonArray by = only.getValue().getAsJsonArray();
+                    yield transform.translate(by.get(0).getAsFloat(), by.get(1).getAsFloat(), by.get(2).getAsFloat());
                 }
-            }
-            out.add(new BlockOverlayLayer(blockId, attachedBone, List.copyOf(ops), selectable));
+                case "scale" -> {
+                    com.google.gson.JsonArray by = only.getValue().getAsJsonArray();
+                    yield transform.scale(by.get(0).getAsFloat(), by.get(1).getAsFloat(), by.get(2).getAsFloat());
+                }
+                case "rotate_x" -> transform.rotateX((float) Math.toRadians(only.getValue().getAsFloat()));
+                case "rotate_y" -> transform.rotateY((float) Math.toRadians(only.getValue().getAsFloat()));
+                case "rotate_z" -> transform.rotateZ((float) Math.toRadians(only.getValue().getAsFloat()));
+                default -> throw new PipelineException("Unknown block-overlay transform '%s'", only.getKey());
+            };
         }
-        return List.copyOf(out);
+        return transform;
     }
 
     // ------------------------------------------------------------------------------------
@@ -560,40 +716,33 @@ public final class EntityIndexBuilder {
      * multi-state family (wolf) or an ageable variant (cow). A single-texture option leaves the map empty;
      * the base {@code texture_ref} is the {@code wild} entry either way.
      */
-    private static @NotNull Map<String, String> variantStateTextures(@NotNull RawVariantOption optionObj) {
-        Map<String, String> states = new LinkedHashMap<>();
-        if (optionObj.textures() != null)
-            for (Map.Entry<String, String> texture : optionObj.textures().entrySet())
-                states.put(texture.getKey(), stripEntity(texture.getValue()));
-        if (optionObj.babyTexture() != null) states.put("baby", stripEntity(optionObj.babyTexture()));
-        return states.size() > 1 ? states : Map.of();
-    }
-
-    /**
-     * Returns a variant option's {@code textures.wild} as the base texture ref, or empty when absent.
-     */
-    private static @NotNull Optional<String> variantWildTexture(@NotNull RawVariantOption optionObj) {
-        if (optionObj.textures() == null) return Optional.empty();
-        String wild = optionObj.textures().get("wild");
-        return wild == null ? Optional.empty() : Optional.of(stripEntity(wild));
+    private static @NotNull ConcurrentMap<String, String> variantStateTextures(@NotNull RawOption optionObj) {
+        return Stream.concat(
+                optionObj.textures() == null
+                    ? Stream.<Map.Entry<String, String>>empty()
+                    : optionObj.textures().entrySet().stream(),
+                Optional.ofNullable(optionObj.babyTexture())
+                    .map(texture -> Map.entry("baby", texture))
+                    .stream())
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
     }
 
     /**
      * Returns the mandatory age axis' {@code options.adult} body - the family baseline (primary
      * {@code geometry}, and for non-variant families the adult {@code texture}).
      */
-    private static @NotNull RawAgeOption adultOption(@NotNull RawModel family) {
+    private static @NotNull RawOption adultOption(@NotNull RawModel family) {
         return family.axes().age().options().get("adult");
     }
 
     /** Returns the {@code axes.variant} object when the family carries a variant axis. */
-    private static @Nullable RawVariantAxis variantAxis(@NotNull RawModel family) {
+    private static @Nullable RawAxis variantAxis(@NotNull RawModel family) {
         RawAxes axes = family.axes();
         return axes == null ? null : axes.variant();
     }
 
     /** Returns the {@code age.baby} option object, or {@code null} when the family has no age axis. */
-    private static @Nullable RawAgeOption ageBaby(@NotNull RawModel family) {
+    private static @Nullable RawOption ageBaby(@NotNull RawModel family) {
         RawAxes axes = family.axes();
         if (axes == null || axes.age() == null) return null;
         return axes.age().options().get("baby");
@@ -601,31 +750,14 @@ public final class EntityIndexBuilder {
 
     /** Returns the family's baby geometry coordinate from its {@code age} axis, or {@code null}. */
     private static @Nullable String babyGeometryOf(@NotNull RawModel family) {
-        RawAgeOption baby = ageBaby(family);
+        RawOption baby = ageBaby(family);
         return baby == null ? null : baby.geometry();
     }
 
-    /** Returns the family's single stripped baby texture from {@code age.baby.texture}, or {@code null}. */
+    /** Returns the family's single baby texture ref from {@code age.baby.texture}, or {@code null}. */
     private static @Nullable String babyTextureOf(@NotNull RawModel family) {
-        RawAgeOption baby = ageBaby(family);
-        return baby == null || baby.texture() == null ? null : stripEntity(baby.texture());
-    }
-
-    /** Returns the dyed-collar layer's stripped texture, or empty when the family has no collar layer. */
-    private static @NotNull Optional<String> collarTextureOf(@NotNull RawModel family) {
-        for (RawLayer layer : nullToEmpty(family.layers())) {
-            if (!"collar".equals(layer.id())) continue;
-            if (layer.overlay() != null && layer.overlay().texture() != null)
-                return Optional.of(stripEntity(layer.overlay().texture()));
-        }
-        return Optional.empty();
-    }
-
-    /** Returns whether the family carries a {@code markings} layer (the horse marking overlay). */
-    private static boolean markingsOf(@NotNull RawModel family) {
-        for (RawLayer layer : nullToEmpty(family.layers()))
-            if ("markings".equals(layer.id())) return true;
-        return false;
+        RawOption baby = ageBaby(family);
+        return baby == null ? null : baby.texture();
     }
 
     /**
@@ -636,8 +768,9 @@ public final class EntityIndexBuilder {
      * wearer rather than dressing it in a guess. An absent {@code scaled} is the identity, which is what
      * the eleven wearers vanilla registers unscaled omit.
      *
-     * <p>The mesh arrives RAW - none of the entity mesh surgery (the hidden-bone strip, the
-     * {@code retainExactParts} subset, the auto-emitted depth-clearance bump) touches it. Worn armor is
+     * <p>The mesh arrives as the shell's own - what a wearer rests without, the subset a pass of its is
+     * restricted to and the deformation one surrounds it with are derived onto meshes the wearer names,
+     * and this row names none of them. Worn armor is
      * a shared set vanilla hands the wearer, not a derivative of the wearer's own mesh, so anything done
      * to the body must not follow it onto the shell.
      *
@@ -650,24 +783,16 @@ public final class EntityIndexBuilder {
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String entityId
     ) {
-        for (RawLayer layer : nullToEmpty(family.layers())) {
-            if (!"armor".equals(layer.id())) continue;
-            RawLayerOverlay overlay = layer.overlay();
-            if (overlay == null) {
-                // TODO: restore pipeline diagnostics
-                // diagnostics.warn("entity '%s' armor layer carries no mesh reference or deformations - wearer dropped", entityId);
-                return Optional.empty();
-            }
-            RawArmorAlternate raw = overlay.alternate();
-            Optional<Shell.Alternate> alternate = Optional.empty();
-            if (raw != null) {
-                alternate = alternateShellOf(raw, geometries, entityId);
-                if (alternate.isEmpty()) return Optional.empty();
-            }
-            return shellOf(overlay.geometry(), overlay.grow(), overlay.scaled(), ArmorForm.ADULT, alternate,
-                geometries, entityId);
+        RawArmor armor = family.armor();
+        if (armor == null) return Optional.empty();
+        RawArmorAlternate raw = armor.alternate();
+        Optional<Shell.Alternate> alternate = Optional.empty();
+        if (raw != null) {
+            alternate = alternateShellOf(raw, geometries, entityId);
+            if (alternate.isEmpty()) return Optional.empty();
         }
-        return Optional.empty();
+        return shellOf(armor.geometry(), armor.grow(), armor.scaled(), ArmorForm.ADULT, alternate,
+            geometries, entityId);
     }
 
     /**
@@ -687,17 +812,17 @@ public final class EntityIndexBuilder {
     ) {
         Optional<AppearanceGate> when = parseAlternateGate(raw.when());
         if (when.isEmpty()) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' alternate armor shell names no appearance selection - wearer dropped", entityId);
+            System.err.printf(
+                "entity '%s' alternate armor shell names no appearance selection; wearer dropped%n", entityId);
             return Optional.empty();
         }
         Optional<ArmorForm> form = raw.form() == null
             ? Optional.of(ArmorForm.ADULT)
             : enumOf(ArmorForm.class, raw.form());
         if (form.isEmpty()) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' alternate armor shell names unknown form '%s' - wearer dropped",
-            // entityId, raw.form());
+            System.err.printf(
+                "entity '%s' alternate armor shell names unknown form '%s'; wearer dropped%n",
+                entityId, raw.form());
             return Optional.empty();
         }
         return shellOf(raw.geometry(), raw.grow(), raw.scaled(), form.get(), Optional.empty(),
@@ -707,16 +832,16 @@ public final class EntityIndexBuilder {
 
     /**
      * Parses an alternate shell's {@code when} object into the typed selection that swaps to it -
-     * {@code age} to an {@link AppearanceGate.AgeGate} and {@code size} to an
-     * {@link AppearanceGate.SizeGate}. Empty for an absent or unreadable option, which is a shell
-     * nothing could ever select rather than one that always applies.
+     * {@code age} and {@code size} each to a {@link AppearanceGate.Selected} on the named option.
+     * Empty for an absent or unreadable option, which is a shell nothing could ever select rather
+     * than one that always applies.
      */
     private static @NotNull Optional<AppearanceGate> parseAlternateGate(@Nullable RawLayerWhen when) {
         if (when == null) return Optional.empty();
         if (when.age() != null)
-            return enumOf(Age.class, when.age()).map(AppearanceGate.AgeGate::new);
+            return enumOf(Age.class, when.age()).map(age -> new AppearanceGate.Selected(age, true));
         if (when.size() != null)
-            return enumOf(Size.class, when.size()).map(AppearanceGate.SizeGate::new);
+            return enumOf(Size.class, when.size()).map(size -> new AppearanceGate.Selected(size, true));
         return Optional.empty();
     }
 
@@ -743,16 +868,16 @@ public final class EntityIndexBuilder {
         @NotNull String entityId
     ) {
         if (geometry == null || grow == null || grow.inner() == null || grow.outer() == null) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' %s armor shell carries no mesh reference or deformations - wearer dropped",
-            // entityId, form.name().toLowerCase(Locale.ROOT));
+            System.err.printf(
+                "entity '%s' %s armor shell carries no mesh reference or deformations; wearer dropped%n",
+                entityId, form.name().toLowerCase(Locale.ROOT));
             return Optional.empty();
         }
         EntityModelData mesh = geometries.get(geometry);
         if (mesh == null) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' %s armor shell references geometry '%s' absent from entity_geometry",
-            // entityId, form.name().toLowerCase(Locale.ROOT), geometry);
+            System.err.printf(
+                "entity '%s' %s armor shell references geometry '%s' absent from entity_geometry; wearer dropped%n",
+                entityId, form.name().toLowerCase(Locale.ROOT), geometry);
             return Optional.empty();
         }
         return Optional.of(new Shell(mesh, grow.inner(), grow.outer(),
@@ -760,115 +885,185 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * Resolves the family's {@code when.equipment}-gated layers into {@link EquipmentOverlay}s, binding
-     * each overlay's {@code geometry} coordinate to its baked mesh and decoding its render layer and
-     * {@code material -> asset id} table. A layer naming an unknown geometry or an unknown layer type
+     * Resolves the family's {@code equipment} rows into {@link EquipmentOverlay}s, binding each row's
+     * {@code geometry} coordinate to its baked mesh and decoding its render layer and
+     * {@code material -> asset id} table. A row naming an unknown geometry or an unknown layer type
      * warns and drops.
+     *
+     * <p>A row takes the same bone surgery the body does, off its own bones node: an equine saddle's
+     * reins are drawn while something is riding and a donkey's saddle carries no chest until the
+     * donkey does, and the mesh a row draws holds those bones either way. Its {@code undrawn} list is
+     * resolved at generation against its OWN model class's pose, so a row posed by a class the walk
+     * never looked at carries none and rests as it is baked.
      */
-    private static @NotNull List<EquipmentOverlay> loadEquipment(
+    private static @NotNull ConcurrentList<EquipmentOverlay> loadEquipment(
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String entityId
     ) {
         List<EquipmentOverlay> out = new ArrayList<>();
-        for (RawLayer layer : nullToEmpty(family.layers())) {
-            if (layer.when() == null || layer.overlay() == null) continue;
-            if (layer.when().equipment() == null) continue;
-            RawLayerOverlay overlay = layer.overlay();
-            if (overlay.geometry() == null || overlay.layerType() == null || overlay.defaultMaterial() == null) continue;
-            if (overlay.materialAssets() == null || overlay.materialAssets().isEmpty()) continue;
-            String coord = overlay.geometry();
+        for (RawEquipmentRow row : nullToEmpty(family.equipment())) {
+            if (row.slot() == null) continue;
+            if (row.geometry() == null || row.layerType() == null || row.defaultMaterial() == null) continue;
+            if (row.materialAssets() == null || row.materialAssets().isEmpty()) continue;
+            String coord = row.geometry();
             EntityModelData model = geometries.get(coord);
             if (model == null) {
-                // TODO: restore pipeline diagnostics
-                // diagnostics.warn("entity '%s' equipment layer references geometry '%s' absent from entity_geometry", entityId, coord);
+                System.err.printf(
+                    "entity '%s' equipment row references geometry '%s' absent from entity_geometry; row dropped%n",
+                    entityId, coord);
                 continue;
             }
-            Optional<LayerType> layerType = LayerType.fromId(overlay.layerType());
+            Optional<LayerType> layerType = LayerType.findById(row.layerType());
             if (layerType.isEmpty()) {
-                // TODO: restore pipeline diagnostics
-                // diagnostics.warn("entity '%s' equipment layer names unknown layer type '%s'", entityId, overlay.layerType());
+                System.err.printf(
+                    "entity '%s' equipment row names unknown layer type '%s'; row dropped%n",
+                    entityId, row.layerType());
                 continue;
             }
-            Map<String, ResourceId> materialAssets = new LinkedHashMap<>();
-            overlay.materialAssets().forEach((material, assetId) -> materialAssets.put(material, ResourceId.parse(assetId)));
-            out.add(new EquipmentOverlay(layer.when().equipment(), model, layerType.get(),
-                Map.copyOf(materialAssets), overlay.defaultMaterial()));
+            LinkedHashMap<String, ResourceId> materialAssets = new LinkedHashMap<>();
+            row.materialAssets().forEach((material, assetId) -> materialAssets.put(material, ResourceId.parse(assetId)));
+            // The row's default is one of its own materials, so what a caller naming none gets is an
+            // entry under the unselected key rather than a second member saying which key to read.
+            ResourceId unselected = materialAssets.get(row.defaultMaterial());
+            if (unselected != null) materialAssets.put(EquipmentOverlay.UNSELECTED, unselected);
+            out.add(new EquipmentOverlay(row.slot(), model, layerType.get(),
+                Concurrent.adoptLinkedMap(materialAssets).toUnmodifiable()));
         }
-        return List.copyOf(out);
+        return Concurrent.adoptList(out).toUnmodifiable();
     }
 
     /**
-     * Resolves the family's {@code shape.large} option (tropical fish) into a {@link LargeShape}: the large
-     * body mesh, its stripped base texture, and the pattern overlays materialised on the large geometry.
-     * Empty when the family has no shape axis or its large geometry is missing.
-     */
-    private static @NotNull Optional<LargeShape> buildLargeShape(
-        @NotNull RawModel family,
-        @NotNull Map<String, EntityModelData> geometries,
-        @NotNull String entityId
-    ) {
-        RawAxes axes = family.axes();
-        if (axes == null || axes.shape() == null) return Optional.empty();
-        RawShapeOption large = axes.shape().options().get("large");
-        if (large == null || large.geometry() == null) return Optional.empty();
-        String coord = large.geometry();
-        EntityModelData model = geometries.get(coord);
-        if (model == null) return Optional.empty();
-        List<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), geometries, coord, model, entityId);
-        Optional<String> textureRef = large.texture() != null ? Optional.of(stripEntity(large.texture())) : Optional.of("");
-        return Optional.of(new LargeShape(model, textureRef, overlays));
-    }
-
-    /**
-     * Resolves the family's {@code size} axis geometry alternatives (pufferfish small / medium, the
-     * small armor stand) into {@code Size -> mesh}. Options carrying a {@code scale} (not a
-     * {@code geometry}) are skipped; the default size is the base mesh and never appears here.
+     * Resolves the family's {@code shape} axis (tropical fish) into a form per option, each a
+     * sub-definition of the row it is a shape of. Empty for a family with no shape axis, or one whose
+     * large geometry is missing.
      *
-     * <p>A size mesh is the same subject's body at another size, so it takes the same surgery the
-     * base body does - the hidden-bone strip and the age's Y shift. Reaching for the raw mesh instead
-     * drew the armor stand's arms on its small form and not on its full one, off one mesh the strip
-     * had run over and one it had not. The two fish carry an empty hidden list and no shift, so both
-     * passes are the identity on every subject that had a size axis before.
+     * <p>Both options are rows so the render swaps one form rather than lifting a mesh, a texture and
+     * an overlay list onto the row it is replacing. The declared option IS the row this derives from,
+     * carried under its own key so the axis can say which shape it is looking at.
+     *
+     * <p><b>The pose stays the row's own.</b> A shape option names its own geometry and the large
+     * coordinate heads its own model class, but nothing has ever read a pose there - the form is posed
+     * as its family is - so reading one here would articulate a subject vanilla does not.
+     *
+     * @param ctx what the whole family shares
+     * @param bare the row these are shapes of
+     * @return the shape axis, or an empty one for a family that has no shapes
      */
-    private static @NotNull Map<Size, EntityModelData> buildSizeModels(
-        @NotNull RawModel family,
-        @NotNull Map<String, EntityModelData> geometries,
-        @Nullable List<String> hiddenBones,
-        @NotNull String entityId
-    ) {
-        Map<String, RawSizeOption> options = sizeOptions(family);
-        if (options == null) return Map.of();
-        float yShift = adultOption(family).yShift();
-        Map<Size, EntityModelData> out = new LinkedHashMap<>();
-        for (Map.Entry<String, RawSizeOption> option : options.entrySet()) {
-            RawSizeOption body = option.getValue();
-            if (body.geometry() == null) continue;
-            EntityModelData mesh = geometries.get(body.geometry());
-            if (mesh == null) continue;
-            mesh = shiftModel(applyHiddenBones(mesh, hiddenBones, entityId), yShift);
-            out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
-        }
-        return out;
+    private static @NotNull Entity.Axis<String, Entity> buildShapeAxis(
+        @NotNull FamilyContext ctx, @NotNull Entity bare) {
+
+        RawAxes axes = ctx.family().axes();
+        if (axes == null || axes.shape() == null) return Entity.Axis.none();
+        RawOption large = axes.shape().options().get(Entity.SHAPE_LARGE);
+        if (large == null || large.geometry() == null) return Entity.Axis.none();
+        String coord = large.geometry();
+        EntityModelData model = ctx.geometries().get(coord);
+        if (model == null) return Entity.Axis.none();
+        ConcurrentList<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), ctx.geometries(), ctx.poses(),
+            poseOf(ctx.poses(), poseKeyOf(large.pose(), coord)), coord, model,
+            ctx.familyId());
+        Entity largeForm = bare.mutate()
+            .model(model)
+            .overlays(overlays)
+            .axes(drawnAs(bare.axes(), large.texture() == null ? "" : large.texture()))
+            .build();
+        return new Entity.Axis<>(
+            Concurrent.newUnmodifiableLinkedMap(
+                Map.entry(axes.shape().defaultOption(), bare),
+                Map.entry(Entity.SHAPE_LARGE, largeForm)),
+            Optional.of(axes.shape().defaultOption()));
     }
 
     /**
-     * Resolves the family's {@code size} axis scale alternatives (salmon / slime / magma_cube) into
-     * {@code Size -> factor}. The default size is scale {@code 1.0} and never appears here.
+     * The same axes drawing a different base texture, for a form that swaps the body texture with the
+     * mesh: the state axis with its declared option remapped.
+     *
+     * @param axes the axes to redraw
+     * @param ref the texture the declared state should select
+     * @return the axes selecting {@code ref} for the declared state
      */
-    private static @NotNull Map<Size, Float> buildSizeScales(@NotNull RawModel family) {
-        Map<String, RawSizeOption> options = sizeOptions(family);
-        if (options == null) return Map.of();
-        Map<Size, Float> out = new LinkedHashMap<>();
-        for (Map.Entry<String, RawSizeOption> option : options.entrySet()) {
-            RawSizeOption body = option.getValue();
-            if (body.scale() != null) out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), body.scale());
-        }
-        return out;
+    private static @NotNull Entity.Axes drawnAs(@NotNull Entity.Axes axes, @NotNull String ref) {
+        Entity.Axis<String, String> state = axes.state();
+        String key = state.declared().orElse(Entity.BASE_STATE);
+        ConcurrentMap<String, String> options = Stream.concat(
+                state.options().entrySet().stream(),
+                Stream.of(Map.entry(key, ref)))
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
+        return new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(), axes.shape(),
+            new Entity.Axis<>(options, Optional.of(key)), axes.size(), axes.variant());
+    }
+
+    /**
+     * Resolves the family's {@code size} axis into a form per size, each a sub-definition of the row
+     * it is a size of.
+     *
+     * <p><b>Vanilla sizes a subject two ways and they are not interchangeable</b>, so a form carries
+     * whichever its own subject uses. An option naming a {@code geometry} takes that baked mesh - the
+     * small armor stand, the two pufferfish bodies, the salmon's own {@code @scaled=} meshes, which
+     * vanilla registers through a {@code MeshTransformer} and which therefore carry the feet anchor.
+     * An option naming a {@code scale} instead takes the base mesh at a multiplied render scale -
+     * slime and magma_cube, which vanilla scales at the render, about the origin and with no anchor.
+     * Folding either into the other moves the subject.
+     *
+     * <p><b>The declared size is a form like any other.</b> The shipped table lists only the other
+     * sizes, because the declared one is what the bare row already is - but the axis carries it
+     * anyway, mapped to that row, so a reader can ask which size it is holding rather than inferring
+     * it from an absence. Selecting it resolves to a form equal to the base and changes nothing.
+     *
+     * <p>Order is preserved rather than left to an immutable map's own, which is salted per JVM: the
+     * pipeline dump serialises this axis and a re-ordered map would flap its bytes between runs.
+     *
+     * @param family the raw model
+     * @param geometries the geometry coordinate to bone tree table
+     * @param bare the row these are sizes of, built without a size axis of its own
+     * @return the form per size, empty for a family with no size axis
+     */
+    private static @NotNull Entity.Axis<Size, Entity> buildSizeAxis(
+        @NotNull RawModel family,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Entity bare
+    ) {
+        Map<String, RawOption> options = sizeOptions(family);
+        if (options == null) return Entity.Axis.none();
+        Optional<Size> declared = sizeDefaultOf(family).flatMap(name -> enumOf(Size.class, name));
+        ConcurrentMap<Size, Entity> forms = Stream.concat(
+                declared.map(size -> Map.entry(size, bare)).stream(),
+                options.entrySet()
+                    .stream()
+                    .flatMap(option -> enumOf(Size.class, option.getKey())
+                        .flatMap(size -> sizeForm(option.getValue(), geometries, bare)
+                            .map(form -> Map.entry(size, form)))
+                        .stream()))
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
+        return new Entity.Axis<>(forms, declared);
+    }
+
+    /**
+     * One size option's form of a row - the option's own baked mesh where it names a
+     * {@code geometry}, else the row at the {@code scale} it multiplies the render by. Empty for an
+     * option naming neither, and for one whose mesh the geometry table does not carry.
+     *
+     * @param body the size option
+     * @param geometries the geometry coordinate to bone tree table
+     * @param bare the row this is a size of
+     * @return the form, or empty when the option resolves to none
+     */
+    private static @NotNull Optional<Entity> sizeForm(
+        @NotNull RawOption body,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Entity bare
+    ) {
+        if (body.geometry() != null)
+            return Optional.ofNullable(geometries.get(body.geometry()))
+                .map(mesh -> bare.mutate().model(mesh).build());
+        if (body.scale() != null)
+            return Optional.of(bare.mutate().rendererScale(bare.rendererScale() * body.scale()).build());
+        return Optional.empty();
     }
 
     /** Returns the family's {@code axes.size.options} object, or {@code null} when it has no size axis. */
-    private static @Nullable Map<String, RawSizeOption> sizeOptions(@NotNull RawModel family) {
+    private static @Nullable Map<String, RawOption> sizeOptions(@NotNull RawModel family) {
         RawAxes axes = family.axes();
         if (axes == null || axes.size() == null) return null;
         return axes.size().options();
@@ -903,6 +1098,266 @@ public final class EntityIndexBuilder {
     }
 
     // ------------------------------------------------------------------------------------
+    // style catalog
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * The family's shipped style catalog, or {@code null} for a family naming no {@code styles}
+     * member - which the {@link Entity} compact constructor answers with
+     * {@link StyleCatalog#BIND_ONLY}.
+     *
+     * <p>Each row's drivers are composed FLAT against its {@code base} chain here, once, so the
+     * loaded row already holds the whole answer and nothing at render walks a chain.
+     *
+     * <p>Two rows may share one id where their {@code age} members split them - the axolotl ships
+     * {@code play_dead} as a baby clip row beside an adult factor row. Each composes its own
+     * drives, and a {@code base} naming a shared id resolves to its first row, the row
+     * {@link StyleCatalog#byId} answers.
+     *
+     * @param family the raw model
+     * @param familyId the entity being read, for refusals
+     * @param periodTicks the file header's {@code period_ticks}, or {@code null} where it names none
+     * @return the catalog in shipped row order, or {@code null} where the family ships no styles
+     * @throws PipelineException if a styles-carrying file names no {@code period_ticks}, a row names
+     *     no id, an unknown token is named, a base names no sibling row, or a base chain cycles
+     */
+    private static @Nullable StyleCatalog styleCatalogOf(
+        @NotNull RawModel family, @NotNull String familyId, @Nullable Integer periodTicks) {
+
+        List<RawStyleRow> rows = family.styles();
+        if (rows == null) return null;
+        if (periodTicks == null)
+            throw new PipelineException(
+                "Entity '%s' ships styles but the file header names no period_ticks", familyId);
+
+        Map<String, RawStyleRow> byId = new LinkedHashMap<>();
+        for (RawStyleRow row : rows) {
+            if (row.id() == null)
+                throw new PipelineException("Entity '%s' ships a style row naming no id", familyId);
+            byId.putIfAbsent(row.id(), row);
+        }
+
+        Map<String, ConcurrentMap<String, StyleDriver>> composed = new LinkedHashMap<>();
+        List<PoseStyle> styles = new ArrayList<>(rows.size());
+        for (RawStyleRow row : rows)
+            styles.add(new PoseStyle(row.id(),
+                styleSources(row, familyId),
+                composedDrivers(row, byId, composed, familyId, new LinkedHashSet<>()),
+                row.toggles() == null
+                    ? Concurrent.newUnmodifiableList() : Concurrent.newUnmodifiableList(row.toggles()),
+                styleAge(row, familyId)));
+        return new StyleCatalog(periodTicks, Concurrent.newUnmodifiableList(styles));
+    }
+
+    /**
+     * One row's drivers composed flat against its {@code base} chain: the base's composed map is
+     * copied, then each own drive is put by its field - a drive naming a {@code group} first evicts
+     * any still-inherited driver carrying that group, and an own drive always wins its own field
+     * key. Composed per row, so the rows of an age-split pair each keep their own drives; memoized
+     * by id for an id's first row, which is the row a {@code base} resolves through.
+     *
+     * @param row the row being composed
+     * @param rows the first row of each id, which is what a base names
+     * @param composed the rows already composed, by id
+     * @param familyId the entity being read, for refusals
+     * @param resolving the ids on the current chain, for the cycle refusal
+     * @return the row's whole driver map, keyed by field
+     * @throws PipelineException if the base names no sibling row, or the chain cycles
+     */
+    private static @NotNull ConcurrentMap<String, StyleDriver> composedDrivers(
+        @NotNull RawStyleRow row,
+        @NotNull Map<String, RawStyleRow> rows,
+        @NotNull Map<String, ConcurrentMap<String, StyleDriver>> composed,
+        @NotNull String familyId,
+        @NotNull Set<String> resolving) {
+
+        String id = row.id();
+        boolean first = rows.get(id) == row;
+        if (first) {
+            ConcurrentMap<String, StyleDriver> held = composed.get(id);
+            if (held != null) return held;
+        }
+        if (!resolving.add(id))
+            throw new PipelineException("Entity '%s' style '%s' composes over itself", familyId, id);
+
+        Map<String, StyleDriver> inherited = Map.of();
+        if (row.base() != null) {
+            RawStyleRow over = rows.get(row.base());
+            if (over == null)
+                throw new PipelineException("Entity '%s' style '%s' composes over '%s', which no row carries",
+                    familyId, id, row.base());
+            inherited = composedDrivers(over, rows, composed, familyId, resolving);
+        }
+
+        LinkedHashMap<String, StyleDriver> out = new LinkedHashMap<>(inherited);
+        for (RawDrive raw : nullToEmpty(row.drives())) {
+            StyleDriver driver = styleDriver(raw, familyId, id);
+            Map<String, StyleDriver> base = inherited;
+            driver.group().ifPresent(group -> out.entrySet().removeIf(entry ->
+                entry.getValue() == base.get(entry.getKey())
+                    && entry.getValue().group().filter(group::equals).isPresent()));
+            out.put(driver.field(), driver);
+        }
+        ConcurrentMap<String, StyleDriver> built = Concurrent.adoptLinkedMap(out).toUnmodifiable();
+        if (first) composed.put(id, built);
+        return built;
+    }
+
+    /**
+     * One drive mapped onto its driver - {@code rest} defaults to {@code 0f} and {@code extent} to
+     * {@code 1f} where the row spells neither.
+     *
+     * @param raw the drive as the table spells it
+     * @param familyId the entity being read, for refusals
+     * @param styleId the row the drive belongs to, for refusals
+     * @return the driver
+     * @throws PipelineException if the drive names no field, or a token that is not a wave
+     */
+    private static @NotNull StyleDriver styleDriver(
+        @NotNull RawDrive raw, @NotNull String familyId, @NotNull String styleId) {
+
+        if (raw.field() == null)
+            throw new PipelineException("Entity '%s' style '%s' drives a field it does not name",
+                familyId, styleId);
+        StyleDriver.Wave wave = raw.wave() == null
+            ? null : enumOf(StyleDriver.Wave.class, raw.wave()).orElse(null);
+        if (wave == null)
+            throw new PipelineException("Entity '%s' style '%s' drives '%s' by '%s', which is not a wave",
+                familyId, styleId, raw.field(), raw.wave());
+        return new StyleDriver(raw.field(), wave,
+            raw.rest() == null ? 0f : raw.rest(),
+            raw.extent() == null ? 1f : raw.extent(),
+            Optional.ofNullable(raw.group()));
+    }
+
+    /**
+     * The row's mechanism inventory, each token resolved onto its {@link MotionSource} and its gate
+     * carried as spelled.
+     *
+     * @param row the raw style row
+     * @param familyId the entity being read, for refusals
+     * @return the inventory in declared order, empty for a row nothing moves
+     * @throws PipelineException if an entry names a token that is not a drive
+     */
+    private static @NotNull ConcurrentList<PoseStyle.StyleSource> styleSources(
+        @NotNull RawStyleRow row, @NotNull String familyId) {
+
+        return nullToEmpty(row.sources()).stream()
+            .map(source -> new PoseStyle.StyleSource(
+                MotionSource.findByToken(source.source())
+                    .orElseThrow(() -> new PipelineException(
+                        "Entity '%s' style '%s' moves by '%s', which is not a drive",
+                        familyId, row.id(), source.source())),
+                Optional.ofNullable(source.gate())))
+            .collect(Concurrent.toUnmodifiableList());
+    }
+
+    /**
+     * The age a row applies to, or empty where it names none and applies to both.
+     *
+     * @param row the raw style row
+     * @param familyId the entity being read, for refusals
+     * @return the age, or empty
+     * @throws PipelineException if the row names a token that is not an age
+     */
+    private static @NotNull Optional<Age> styleAge(@NotNull RawStyleRow row, @NotNull String familyId) {
+        if (row.age() == null) return Optional.empty();
+        return Optional.of(enumOf(Age.class, row.age())
+            .orElseThrow(() -> new PipelineException(
+                "Entity '%s' style '%s' applies to '%s', which is not an age",
+                familyId, row.id(), row.age())));
+    }
+
+    // ------------------------------------------------------------------------------------
+    // select-join validation
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Every render-state field any family's style rows drive - the corpus-wide answered set the
+     * select-join validation reads.
+     *
+     * @param models the raw model catalog
+     * @return the union of every {@code drives} entry's field across every family's rows
+     */
+    private static @NotNull Set<String> drivenFields(@NotNull Map<String, RawModel> models) {
+        Set<String> out = new HashSet<>();
+        for (RawModel family : models.values()) {
+            if (family == null) continue;
+            for (RawStyleRow row : nullToEmpty(family.styles()))
+                for (RawDrive drive : nullToEmpty(row.drives()))
+                    if (drive.field() != null) out.add(drive.field());
+        }
+        return out;
+    }
+
+    /**
+     * Validates every selection-driven play site of the meshes one entity draws against the styles
+     * joined to it: a {@code select} site's field is either driven by one of the entity's own style
+     * rows, or driven by no family's rows at all.
+     *
+     * <p>The two arms are one rule about who answers the field. A field the entity's own rows drive
+     * has a style a caller selects to play the clip through. A field NO family's rows drive is a
+     * state vanilla never selects a distinct output for - the baby axolotl's locomotion clip sits
+     * behind {@code walkAnimationState}, which nothing drives, so the site rests and resting is the
+     * shipped answer. What is refused is the field in between: one some other family's rows drive
+     * while this entity's do not, which is a site wired to a selection its own catalog cannot reach
+     * - caught here, where the table is read, rather than surfacing as a clip that silently never
+     * plays.
+     *
+     * @param entityId the entity being validated, for the refusal
+     * @param definition the assembled row, every form of it walked
+     * @param corpusDriven every field any family's style rows drive
+     * @throws PipelineException if a select site names a field another family's style rows drive
+     *     and this entity's do not
+     */
+    private static void validateSelectJoins(
+        @NotNull String entityId, @NotNull Entity definition, @NotNull Set<String> corpusDriven) {
+
+        Set<String> own = new HashSet<>();
+        for (PoseStyle style : definition.styles().styles()) own.addAll(style.drivers().keySet());
+        validateForms(entityId, definition, own, corpusDriven,
+            Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    /**
+     * One form and every form derived from it - the coats, shapes and sizes an axis holds - each
+     * drawn mesh's pose validated once.
+     */
+    private static void validateForms(
+        @NotNull String entityId, @NotNull Entity form, @NotNull Set<String> own,
+        @NotNull Set<String> corpusDriven, @NotNull Set<Entity> walked) {
+
+        if (!walked.add(form)) return;
+        validateSites(entityId, form.pose(), own, corpusDriven);
+        for (OverlayLayer overlay : form.overlays())
+            validateSites(entityId, overlay.pose(), own, corpusDriven);
+        form.axes().babyPose().ifPresent(pose -> validateSites(entityId, pose, own, corpusDriven));
+        for (OverlayLayer overlay : form.axes().babyOverlays())
+            validateSites(entityId, overlay.pose(), own, corpusDriven);
+        for (Entity shape : form.axes().shape().options().values())
+            validateForms(entityId, shape, own, corpusDriven, walked);
+        for (Entity size : form.axes().size().options().values())
+            validateForms(entityId, size, own, corpusDriven, walked);
+        for (Entity coat : form.axes().variant().options().values())
+            validateForms(entityId, coat, own, corpusDriven, walked);
+    }
+
+    /** The select sites of one pose, each field checked against the two answering sets. */
+    private static void validateSites(
+        @NotNull String entityId, @NotNull EntityPose pose, @NotNull Set<String> own,
+        @NotNull Set<String> corpusDriven) {
+
+        for (EntityPose.Clip site : pose.clips()) {
+            if (site.drive() != MotionSource.SELECT) continue;
+            String field = site.field().orElse(null);
+            if (field == null || own.contains(field) || !corpusDriven.contains(field)) continue;
+            throw new PipelineException(
+                "Entity '%s' plays a clip selected on '%s', which no style row of it drives while another family's does",
+                entityId, field);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------
     // bones + geometry surgery
     // ------------------------------------------------------------------------------------
 
@@ -917,230 +1372,18 @@ public final class EntityIndexBuilder {
         return model;
     }
 
-    /**
-     * Resolves a {@code bones.toggles} object into {@code toggle -> }{@link BoneToggle}, pulling each named
-     * bone's {@link EntityModelData.Bone} from the FULL geometry BEFORE the {@code hidden} strip - so a
-     * default-hidden toggle's bones are still present for the resolver to re-add (donkey / mule / llama
-     * chest). A named bone absent from the geometry warns and drops; a toggle left with no resolvable bones
-     * is omitted.
-     */
-    private static @NotNull Map<String, BoneToggle> loadBoneToggles(
-        @Nullable Map<String, RawToggle> toggles,
-        @NotNull EntityModelData fullModel,
-        @NotNull String entityId
-    ) {
-        if (toggles == null) return Map.of();
-        Map<String, BoneToggle> out = new LinkedHashMap<>();
-        for (Map.Entry<String, RawToggle> entry : toggles.entrySet()) {
-            RawToggle spec = entry.getValue();
-            if (spec.bones() == null) continue;
-            boolean defaultVisible = spec.defaultVisible();
-            LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
-            for (String boneName : spec.bones()) {
-                if (boneName == null) continue;
-                EntityModelData.Bone bone = fullModel.getBones().get(boneName);
-                if (bone == null) {
-                    // TODO: restore pipeline diagnostics
-                    // diagnostics.warn("entity '%s' bone_toggles '%s' names bone '%s' which is not on the geometry", entityId, entry.getKey(), boneName);
-                    continue;
-                }
-                bones.put(boneName, bone);
-            }
-            if (!bones.isEmpty()) out.put(entry.getKey(), new BoneToggle(bones, defaultVisible));
-        }
-        return out;
-    }
-
-    /**
-     * Returns a copy of {@code model} with the {@code hidden} bones stripped, or {@code model} verbatim when
-     * there are none. The Java geometries pack every optional render target into one tree and gate them by
-     * entity state at render; the static renderer hides the unwanted ones through this list. A named bone
-     * absent from the geometry warns.
-     */
-    private static @NotNull EntityModelData applyHiddenBones(
-        @NotNull EntityModelData model,
-        @Nullable List<String> hiddenBones,
-        @NotNull String entityId
-    ) {
-        if (hiddenBones == null) return model;
-        LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(model.getBones());
-        for (String name : hiddenBones) {
-            if (name == null) continue;
-            // TODO: restore pipeline diagnostics
-            // if (bones.remove(name) == null)
-            //     diagnostics.warn("entity '%s' hidden_bones names bone '%s' which is not on the geometry", entityId, name);
-            bones.remove(name);
-        }
-        return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(), Concurrent.adoptLinkedMap(bones), model.isCull());
-    }
-
-    /**
-     * Restricts an overlay model to the vanilla {@code retainExactParts} subset named by {@code retainBones}:
-     * a bone keeps its cubes iff it is named AND no ancestor is (vanilla's {@code clearRecursively} empties a
-     * retained part's descendant subtree). Every other bone is kept as a pose-only node so the transform
-     * hierarchy stays intact.
-     */
-    private static @NotNull EntityModelData retainExactParts(@NotNull EntityModelData source, @NotNull List<String> retainBones) {
-        Set<String> retain = new LinkedHashSet<>();
-        for (String el : retainBones)
-            if (el != null) retain.add(el);
-        Map<String, EntityModelData.Bone> bones = source.getBones();
-        LinkedHashMap<String, EntityModelData.Bone> out = new LinkedHashMap<>();
-        for (Map.Entry<String, EntityModelData.Bone> e : bones.entrySet()) {
-            EntityModelData.Bone bone = e.getValue();
-            boolean keepCubes = retain.contains(e.getKey()) && !hasAncestorInSet(bones, bone, retain);
-            if (keepCubes || bone.getCubes().isEmpty()) {
-                out.put(e.getKey(), bone);
-            } else {
-                out.put(e.getKey(), new EntityModelData.Bone(
-                    bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
-                    bone.getScale(), Concurrent.adoptList(new ArrayList<>()), bone.getParent()));
-            }
-        }
-        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(out), source.isCull());
-    }
-
-    /**
-     * Returns a copy of {@code source} with the cube list of {@code rootBone} and of every descendant
-     * emptied - vanilla's {@code clearChild(name).clearRecursively()}. Every bone keeps its pivot,
-     * rotation, bind-pose rotation, scale and parent so the transform hierarchy is untouched and a
-     * cube-less bone simply emits nothing; every bone outside the subtree passes through by reference.
-     * A {@code rootBone} absent from the mesh warns and yields empty. Package-private so the subtree
-     * clear can be pinned on a fixture mesh directly.
-     *
-     * @param source the mesh to derive from
-     * @param rootBone the subtree root whose cubes (and its descendants') are emptied
-     * @param entityId the entity the overlay belongs to, for the diagnostic
-     * @return the cleared mesh, or empty when {@code rootBone} is not on the geometry
-     */
-    static @NotNull Optional<EntityModelData> clearSubtreeCubes(
-        @NotNull EntityModelData source,
-        @NotNull String rootBone,
-        @NotNull String entityId
-    ) {
-        Map<String, EntityModelData.Bone> bones = source.getBones();
-        if (!bones.containsKey(rootBone)) {
-            // TODO: restore pipeline diagnostics
-            // diagnostics.warn("entity '%s' overlay no_hat_root names bone '%s' which is not on the geometry", entityId, rootBone);
-            return Optional.empty();
-        }
-        Set<String> root = Set.of(rootBone);
-        LinkedHashMap<String, EntityModelData.Bone> out = new LinkedHashMap<>();
-        for (Map.Entry<String, EntityModelData.Bone> e : bones.entrySet()) {
-            EntityModelData.Bone bone = e.getValue();
-            boolean cleared = rootBone.equals(e.getKey()) || hasAncestorInSet(bones, bone, root);
-            if (!cleared || bone.getCubes().isEmpty()) {
-                out.put(e.getKey(), bone);
-            } else {
-                out.put(e.getKey(), new EntityModelData.Bone(
-                    bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
-                    bone.getScale(), Concurrent.adoptList(new ArrayList<>()), bone.getParent()));
-            }
-        }
-        return Optional.of(new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(),
-            Concurrent.adoptLinkedMap(out), source.isCull()));
-    }
-
-    /** Reports whether any proper ancestor of {@code bone} is named in {@code retain}. */
-    private static boolean hasAncestorInSet(@NotNull Map<String, EntityModelData.Bone> bones, @NotNull EntityModelData.Bone bone, @NotNull Set<String> retain) {
-        for (String parent = bone.getParent(); parent != null; ) {
-            if (retain.contains(parent)) return true;
-            EntityModelData.Bone p = bones.get(parent);
-            if (p == null) return false;
-            parent = p.getParent();
-        }
-        return false;
-    }
-
-    /**
-     * Reduces an overlay {@code grow} vector to a single inflate delta - the largest component, so a scalar
-     * (broadcast to all axes by {@link EntityModelData.Cube.GrowAdapter}) returns itself and an asymmetric
-     * array returns its dominant axis. The delta is applied per-axis by {@link #inflateModel}.
-     */
-    private static float growScalar(@NotNull Vector3f grow) {
-        return Math.max(grow.x(), Math.max(grow.y(), grow.z()));
-    }
-
-    /**
-     * Returns a deep-cloned copy of {@code model} with every cube's grow bumped by {@code delta} on every
-     * axis - surrounding the base mesh with the inflated overlay instead of z-fighting it. Bones, pivots,
-     * rotations, UVs, and parent links are preserved verbatim.
-     */
-    /**
-     * Translates a whole mesh along Y by a vanilla {@code PoseStack} distance in blocks - the
-     * {@code setupRotations} shift, applied as mesh surgery.
-     *
-     * <p>It lands on the mesh rather than on a render parameter because the renderer and the
-     * canvas-sizing bounds walk both read the mesh: moving it is what keeps a subject and the frame
-     * measured around it from disagreeing. That also makes the shift invisible for a subject measured
-     * against its OWN silhouette, which is correct - the fit centres what it measured, so subject and
-     * frame move together - and leaves it visible exactly where vanilla makes it visible, inside a
-     * canvas unioned across group members whose shifts differ.
-     *
-     * <p>Vanilla translates in world space where {@code +Y} is up, and the mesh is authored Y-down, so
-     * the sign flips on the way in. Only root bones move: a child's pivot is relative to its parent, so
-     * the whole tree follows them.
-     *
-     * @param source the mesh to translate
-     * @param blocks the vanilla translation in blocks, {@code 0f} to return the source untouched
-     * @return the translated mesh, or {@code source} when there is nothing to apply
-     */
-    private static @NotNull EntityModelData shiftModel(@NotNull EntityModelData source, float blocks) {
-        if (blocks == 0f) return source;
-        float delta = -blocks * MODEL_UNITS_PER_BLOCK;
-        LinkedHashMap<String, EntityModelData.Bone> shifted = new LinkedHashMap<>();
-        for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {
-            EntityModelData.Bone bone = e.getValue();
-            if (bone.getParent() != null) {
-                shifted.put(e.getKey(), bone);
-                continue;
-            }
-            Vector3f pivot = bone.getPivot();
-            shifted.put(e.getKey(), new EntityModelData.Bone(
-                new Vector3f(pivot.x(), pivot.y() + delta, pivot.z()),
-                bone.getRotation(), bone.getBindPoseRotation(),
-                bone.getScale(), bone.getCubes(), bone.getParent()));
-        }
-        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(),
-            Concurrent.adoptLinkedMap(shifted), source.isCull());
-    }
-
-    private static @NotNull EntityModelData inflateModel(@NotNull EntityModelData source, float delta) {
-        LinkedHashMap<String, EntityModelData.Bone> inflated = new LinkedHashMap<>();
-        for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {
-            EntityModelData.Bone bone = e.getValue();
-            ArrayList<EntityModelData.Cube> cubes = new ArrayList<>(bone.getCubes().size());
-            for (EntityModelData.Cube cube : bone.getCubes()) {
-                Vector3f grow = cube.getGrow();
-                cubes.add(new EntityModelData.Cube(
-                    cube.getOrigin(), cube.getSize(), cube.getUv(),
-                    new Vector3f(grow.x() + delta, grow.y() + delta, grow.z() + delta), cube.isMirror(),
-                    cube.getPivot(), cube.getRotation(), cube.getFaceUv()));
-            }
-            inflated.put(e.getKey(), new EntityModelData.Bone(
-                bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
-                bone.getScale(), Concurrent.adoptList(cubes), bone.getParent()));
-        }
-        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(inflated), source.isCull());
-    }
-
     // ------------------------------------------------------------------------------------
     // resource + text helpers
     // ------------------------------------------------------------------------------------
 
-    /**
-     * Reduces a full entity texture path to the {@code textures/entity/}-relative sub-path the texture
-     * resolver re-qualifies as {@code minecraft:entity/<ref>} - dropping the {@code minecraft:textures/entity/}
-     * prefix and the {@code .png} suffix.
-     */
-    private static @NotNull String stripEntity(@NotNull String path) {
-        if (!path.startsWith(TEXTURE_PREFIX) || !path.endsWith(TEXTURE_SUFFIX))
-            throw new PipelineException("Unexpected entity texture path '%s' (expected '%s<sub>%s')", path, TEXTURE_PREFIX, TEXTURE_SUFFIX);
-        return path.substring(TEXTURE_PREFIX.length(), path.length() - TEXTURE_SUFFIX.length());
-    }
-
     /** Returns {@code list} unchanged, or an empty list when it is {@code null} (an absent JSON array). */
     private static <T> @NotNull List<T> nullToEmpty(@Nullable List<T> list) {
         return list == null ? List.of() : list;
+    }
+
+    /** The family's resolved canvas-group membership, verbatim from the table, empty for a singleton. */
+    private static @NotNull ConcurrentList<String> membersOf(@NotNull RawModel family) {
+        return family.members() == null
+            ? Concurrent.newUnmodifiableList() : Concurrent.newUnmodifiableList(family.members());
     }
 }

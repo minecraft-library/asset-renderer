@@ -1,7 +1,11 @@
 package lib.minecraft.renderer.face;
 
+import dev.simplified.annotations.EnumLookup;
+import dev.simplified.annotations.KeyField;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Objects;
 
 /**
  * An axis-preserving turn of the cube - one of the eight ways to negate a subset of the three axes.
@@ -22,6 +26,7 @@ import org.jetbrains.annotations.NotNull;
  * negates the other two and so is the half turn about X. {@link #NONE} and the three {@code HALF_}
  * members are the proper rotations; the other four {@link #reflects reflect}.
  */
+@EnumLookup
 public enum Turn {
 
     /** The identity - every face and every point unmoved. */
@@ -41,27 +46,16 @@ public enum Turn {
     /** The point inversion, negating all three. */
     INVERT(true, true, true);
 
-    /**
-     * Cached snapshot of {@link #values()} reused by iteration to avoid the per-call defensive array
-     * clone the JLS mandates.
-     */
-    public static final Turn @NotNull [] CACHED_VALUES = values();
-
-    /** The eight members indexed by their own {@link #mask}, so composition is one array read. */
-    private static final Turn @NotNull [] BY_MASK = new Turn[CACHED_VALUES.length];
-
-    static {
-        for (Turn turn : CACHED_VALUES) BY_MASK[turn.mask] = turn;
-    }
-
     private final boolean negatesX;
     private final boolean negatesY;
     private final boolean negatesZ;
 
     /**
      * Which axes this turn negates, as one bit each. Composition is the exclusive or of two masks,
-     * since negating an axis twice restores it.
+     * since negating an axis twice restores it, and the eight members take the eight mask values
+     * between them - so every mask an exclusive or can produce names a member.
      */
+    @KeyField
     private final int mask;
 
     Turn(boolean negatesX, boolean negatesY, boolean negatesZ) {
@@ -102,7 +96,8 @@ public enum Turn {
      * @return the single member of the group with the same effect
      */
     public @NotNull Turn then(@NotNull Turn next) {
-        return BY_MASK[this.mask ^ next.mask];
+        return Objects.requireNonNull(ofMask(this.mask ^ next.mask),
+            "The group is closed, so a composed mask names a member");
     }
 
     /**

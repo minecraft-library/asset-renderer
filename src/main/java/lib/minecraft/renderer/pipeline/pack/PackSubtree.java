@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -9,10 +11,12 @@ import lib.minecraft.renderer.client.VanillaSourcePaths;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * The one {@code (pack x root x namespace)} walk of a pack subtree, under either the {@code assets}
@@ -189,16 +193,15 @@ public class PackSubtree {
      * @param subtrees the subtrees to walk, listed per pack in this order
      * @return the surviving files, in resolution order
      */
-    public static @NotNull List<Entry> walk(@NotNull PackStack stack, @NotNull Subtree @NotNull ... subtrees) {
+    public static @NotNull ConcurrentList<Entry> walk(@NotNull PackStack stack, @NotNull Subtree @NotNull ... subtrees) {
         List<Entry> surviving = new ArrayList<>();
 
         for (ResourcePack pack : stack.ascending()) {
-            pack.meta().pack().ifPresent(section ->
-                surviving.removeIf(entry -> section.hidesFile(entry.namespace(), entry.resourcePath())));
+            pack.meta().pack().ifPresent(section -> surviving.removeIf(entry -> section.hidesFile(entry.namespace(), entry.resourcePath())));
             surviving.addAll(walk(pack, subtrees));
         }
 
-        return surviving;
+        return Concurrent.adoptList(surviving).toUnmodifiable();
     }
 
     /**
@@ -214,44 +217,36 @@ public class PackSubtree {
      * @param subtrees the subtrees to walk, listed in this order
      * @return that pack's files, in resolution order
      */
-    public static @NotNull List<Entry> walk(@NotNull ResourcePack pack, @NotNull Subtree @NotNull ... subtrees) {
-        List<Entry> found = new ArrayList<>();
-
-        for (Subtree subtree : subtrees) {
-            if (!subtree.appliesTo().test(pack)) continue;
-            Collection<String> namespaces = subtree.namespace()
-                .<Collection<String>>map(List::of)
-                .orElseGet(pack::namespaces);
-
-            for (PackRoot root : pack.roots())
-                for (String namespace : namespaces)
-                    list(pack, subtree, root, namespace, found);
-        }
-
-        return found;
+    public static @NotNull ConcurrentList<Entry> walk(@NotNull ResourcePack pack, @NotNull Subtree @NotNull ... subtrees) {
+        return Arrays.stream(subtrees)
+            .filter(subtree -> subtree.appliesTo().test(pack))
+            .flatMap(subtree -> pack.roots()
+                .stream()
+                .flatMap(root -> subtree.namespace()
+                    .<Collection<String>>map(List::of)
+                    .orElseGet(pack::namespaces)
+                    .stream()
+                    .flatMap(namespace -> list(pack, subtree, root, namespace))))
+            .collect(Concurrent.toWideUnmodifiableList());
     }
 
     /**
-     * Lists one {@code (root x namespace)} subtree onto the running list. Sorted, so a container
-     * that enumerates in filesystem order still resolves deterministically.
+     * The files one {@code (root x namespace)} subtree contributes. Sorted, so a container that
+     * enumerates in filesystem order still resolves deterministically.
      */
-    private static void list(
+    private static @NotNull Stream<Entry> list(
         @NotNull ResourcePack pack,
         @NotNull Subtree subtree,
         @NotNull PackRoot root,
-        @NotNull String namespace,
-        @NotNull List<Entry> out
+        @NotNull String namespace
     ) {
         String namespaceRoot = root.prefix() + VanillaSourcePaths.subtreeDir(subtree.root(), namespace, "");
         String prefix = root.prefix() + VanillaSourcePaths.subtreeDir(subtree.root(), namespace, subtree.subdir());
 
-        List<String> files = pack.container().entries(prefix)
+        return pack.container().entries(prefix)
             .filter(path -> path.endsWith(subtree.extension()))
             .sorted()
-            .toList();
-
-        for (String file : files)
-            out.add(new Entry(pack, subtree, namespace, file, file.substring(namespaceRoot.length())));
+            .map(file -> new Entry(pack, subtree, namespace, file, file.substring(namespaceRoot.length())));
     }
 
 }

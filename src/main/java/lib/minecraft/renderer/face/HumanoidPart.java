@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.face;
 
 import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -45,6 +46,7 @@ import java.util.EnumMap;
  * </pre>
  */
 @Parity(as = PlayerRenderer.class)
+@EnumLookup
 @Getter(style = NamingStyle.FLUENT)
 public enum HumanoidPart {
 
@@ -55,12 +57,6 @@ public enum HumanoidPart {
     LEFT_ARM ("left_arm",    4,  -4, -2,     8,  8,  2,    32, 48,    48, 48),
     RIGHT_LEG("right_leg",  -4, -16, -2,     0, -4,  2,     0, 16,     0, 32),
     LEFT_LEG ("left_leg",    0, -16, -2,     4, -4,  2,    16, 48,     0, 48);
-
-    /**
-     * Cached snapshot of {@link #values()} reused by lookups and iteration to avoid the per-call
-     * defensive array clone the JLS mandates.
-     */
-    public static final HumanoidPart @NotNull [] CACHED_VALUES = values();
 
     /**
      * The armor-mesh bone this part is the player's counterpart of. The shell vanilla dresses a
@@ -252,11 +248,11 @@ public enum HumanoidPart {
         EnumMap<Face, Rectangle> rects = new EnumMap<>(Face.class);
         Unwrap.Atlas cube = new Unwrap.Atlas(origin, size, false);
 
-        for (Face face : Face.CACHED_VALUES) {
+        Face.forEach(face -> {
             Vector4f strip = cube.rect(Turn.HALF_X.apply(face));
             rects.put(face, new Rectangle((int) strip.x(), (int) strip.y(),
                 (int) (strip.z() - strip.x()), (int) (strip.w() - strip.y())));
-        }
+        });
 
         return rects;
     }

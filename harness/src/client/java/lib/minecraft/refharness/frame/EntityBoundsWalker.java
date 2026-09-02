@@ -5,6 +5,8 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.AllArgsConstructor;
+import lib.minecraft.refharness.HarnessConfig;
+import lib.minecraft.refharness.PoseState;
 import lib.minecraft.refharness.api.AppearanceRequest;
 import lib.minecraft.refharness.api.Bounds;
 import lib.minecraft.refharness.pip.PipScope;
@@ -121,6 +123,19 @@ final class EntityBoundsWalker implements AutoCloseable {
     private final Map<Identifier, NativeImage> textureCache = new HashMap<>();
 
     /**
+     * Whether the walk poses each model it measures before measuring it.
+     *
+     * <p>The measurement has to agree with the render or the canvas is fitted to a pose vanilla
+     * then does not draw, so this is the render path's own question asked from here: the freeze
+     * suppresses {@code setupAnim} on the submit side, and a run that does not freeze - a live
+     * client, or the animated reference run - lets it through. Both sites read it, because a body
+     * and its layers are posed by one decision.
+     */
+    private static boolean posesBeforeWalking() {
+        return !Boolean.getBoolean("refharness.headless") || PoseState.posed();
+    }
+
+    /**
      * Walks the entity's model parts through the same transform chain we'll use for
      * rendering and collects the min/max screen-space coordinates of every visible
      * polygon vertex. Used to derive an exact-fit scale + centering offset.
@@ -140,7 +155,7 @@ final class EntityBoundsWalker implements AutoCloseable {
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         Model rawModel = model;
-        if (!Boolean.getBoolean("refharness.headless")) {
+        if (posesBeforeWalking()) {
             try {
                 rawModel.setupAnim(state);
             } catch (RuntimeException ignored) {
@@ -148,7 +163,7 @@ final class EntityBoundsWalker implements AutoCloseable {
                 // bounds will still be measured from the model's rest pose.
             }
         }
-        // In headless mode {@link SkipSetupAnimMixin} suppresses {@code setupAnim} on the
+        // Under the freeze {@link SkipSetupAnimMixin} suppresses {@code setupAnim} on the
         // submit-side render path so the primary body renders at its authored bind pose.
         // The bounds walker must agree with the render path or the canvas-fit math anchors
         // off a pose vanilla then doesn't draw. Worse, {@code setupAnim} MUTATES the model's
@@ -162,6 +177,11 @@ final class EntityBoundsWalker implements AutoCloseable {
         // resulting silhouette ran ~38% wider than asset-renderer's bind-pose render and the
         // family-fit canvas absorbed the asymmetric extra extent. Skipping {@code setupAnim}
         // here too keeps both bounds AND render aligned to the bind pose.
+        //
+        // An animated run is that same rule read the other way: the render path poses the model, so
+        // the walk has to pose it too, and it is one call on one model rather than two poses that
+        // could differ - the mutation the paragraph above warns about is what the render then
+        // reads. The tick both of them pose at is the one the clock holds.
 
         PoseStack ps = new PoseStack();
         ps.scale(1.0f, 1.0f, -1.0f);  // chirality compensation - matches renderAndWrite
@@ -249,7 +269,7 @@ final class EntityBoundsWalker implements AutoCloseable {
         NativeImage texture,
         Consumer<? super org.joml.Vector3fc> expand
     ) {
-        boolean headless = Boolean.getBoolean("refharness.headless");
+        boolean poses = posesBeforeWalking();
         List<? extends RenderLayer<?, ?>> layers = layersOf(renderer);
         for (RenderLayer<?, ?> layer : layers) {
             if (!isLayerActiveForState(layer, state)) continue;
@@ -275,14 +295,15 @@ final class EntityBoundsWalker implements AutoCloseable {
                 @SuppressWarnings({"unchecked", "rawtypes"})
                 Model raw = layerModel;
                 // Same reasoning as the primary-model {@code setupAnim} skip in
-                // {@link #computeScreenBounds}: in headless mode the render-side
+                // {@link #computeScreenBounds}: under the freeze the render-side
                 // {@code setupAnim} call is no-op'd, and calling it here would mutate the
                 // layer model into a pose vanilla then doesn't draw. Plus most layer
                 // {@code setupAnim} reads from {@code state.rightArmPose} /
                 // {@code state.leftArmPose} / {@code state.isAggressive}, all of which are
                 // either equipment-driven (zero at headless) or already frozen by
-                // {@link FreezeAnimationStateMixin}.
-                if (!headless) {
+                // {@link FreezeAnimationStateMixin}. An animated run poses a layer for the same
+                // reason it poses the body: the render is about to.
+                if (poses) {
                     try {
                         raw.setupAnim(state);
                     } catch (RuntimeException ignored) {
@@ -319,10 +340,57 @@ final class EntityBoundsWalker implements AutoCloseable {
     ) {
         net.fabricmc.fabric.api.client.renderer.v1.sprite.SpriteFinder finder = blockAtlasSpriteFinder();
         if (finder == null) return;
-        for (RenderLayer<?, ?> layer : layersOf(renderer)) {
-            if (!isLayerActiveForState(layer, state)) continue;
-            if (!findLayerModels(layer, state).isEmpty()) continue; // EntityModel layer - handled by walkLayerExtents
-            captureBlockSubmits(layer, state, ps, finder, expand);
+        // The layer reads its bones off the renderer's own mutable model field rather than off
+        // anything handed in, so the walk has to pin that field the way tryGetModel already pins what
+        // it measures directly - see pinSelectedModel.
+        Model<?> selected = tryGetModel(renderer, state);
+        Model<?> previous = pinSelectedModel(renderer, selected);
+        try {
+            for (RenderLayer<?, ?> layer : layersOf(renderer)) {
+                if (!isLayerActiveForState(layer, state)) continue;
+                if (!findLayerModels(layer, state).isEmpty()) continue; // EntityModel layer - handled by walkLayerExtents
+                captureBlockSubmits(layer, state, ps, finder, expand);
+            }
+        } finally {
+            if (previous != null) pinSelectedModel(renderer, previous);
+        }
+    }
+
+    /**
+     * Points {@code LivingEntityRenderer.model} at the model this subject selects for the duration of
+     * a block-overlay walk, and answers the one it replaced so the caller can put it back.
+     *
+     * <p><b>{@link #tryGetModel} makes what the walk measures directly independent of render order;
+     * this is the same fix for what a LAYER measures.</b> A block-model layer is invoked through its
+     * own {@code submit}, and it reaches its anchor bone through {@code getParentModel()} - the
+     * renderer's mutable field - rather than through anything the walk passes in. So the two paths
+     * disagreed whenever that field held another subject's model, which {@code AgeableMobRenderer}
+     * leaves it holding: its {@code submit} assigns {@code isBaby ? babyModel : adultModel} and never
+     * puts it back.
+     *
+     * <p>Measured on the mooshroom, the only subject in the corpus whose model composes block
+     * geometry. Its layer places three mushrooms - two at constants, and one through
+     * {@code ModelPart.translateAndRotate} on a bone it reads off that field. Measuring an adult
+     * after a baby had rendered moved that third mushroom by {@code 0.1252} of a block and took the
+     * canvas from {@code 388x564} to {@code 386x564}; the other two never moved, and neither did any
+     * cube the walk measures itself. It cost nothing while each posed sweep booted its own client,
+     * because the sweep that renders a baby mooshroom was in a different JVM.
+     *
+     * @param renderer the renderer whose field to pin
+     * @param selected the model this subject selects, or {@code null} to leave the field alone
+     * @return the model the field held, or {@code null} if it was not pinned
+     */
+    private static Model<?> pinSelectedModel(EntityRenderer<?, ?> renderer, Model<?> selected) {
+        if (selected == null || !(renderer instanceof LivingEntityRenderer<?, ?, ?> living)) return null;
+        try {
+            Field field = LivingEntityRenderer.class.getDeclaredField("model");
+            field.setAccessible(true);
+            Object held = field.get(living);
+            if (held == selected) return null;
+            field.set(living, selected);
+            return held instanceof Model<?> model ? model : null;
+        } catch (NoSuchFieldException | IllegalAccessException | RuntimeException ignored) {
+            return null;
         }
     }
 

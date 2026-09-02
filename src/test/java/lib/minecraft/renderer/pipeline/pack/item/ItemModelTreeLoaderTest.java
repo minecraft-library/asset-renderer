@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.PackStack;
@@ -19,8 +20,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -121,7 +120,8 @@ class ItemModelTreeLoaderTest {
                 + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/leather_boots\","
                 + "\"tints\":[{\"type\":\"minecraft:dye\",\"default\":-6265536}]}}}");
 
-        Map<String, List<LayerTint>> tints = ItemModelTreeLoader.deriveTints(ItemModelTreeLoader.load(stack(van, Set.of("minecraft"))));
+        ConcurrentMap<String, ConcurrentList<LayerTint>> tints =
+            ItemModelTreeLoader.deriveTints(ItemModelTreeLoader.load(stack(van, Set.of("minecraft"))));
         assertThat(tints.get("minecraft:leather_boots"), contains(instanceOf(LayerTint.Dye.class)));
     }
 
@@ -131,7 +131,8 @@ class ItemModelTreeLoaderTest {
 
     private static ResourcePack pack(PackId id, Path root, Set<String> namespaces) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), namespaces, Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableSet(namespaces),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
     }
 
     private static void write(Path path, String content) throws IOException {

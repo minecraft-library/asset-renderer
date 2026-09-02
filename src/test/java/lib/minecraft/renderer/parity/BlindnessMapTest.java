@@ -3,6 +3,7 @@ package lib.minecraft.renderer.parity;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import lib.minecraft.renderer.support.BuildScripts;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -114,15 +115,23 @@ final class BlindnessMapTest {
      * <p>B24 is the one that reads the other way round: it is the wide claim and the exception is a
      * subset of its own triggers. The dump really is blind to an options bag, which is what the claim
      * was measured on; it is not blind to the vanilla vocabulary those bags name, because that lives
-     * under {@code asset} and the dump serialises it. Narrowing B24 off those paths would drop the
-     * four CRC pins and three manifests only it reaches, so the claim stays wide and the pair is
-     * recorded.
+     * under {@code asset} and the dump serialises it. Both claims over those paths are derived, so
+     * both select whatever the graph answers for the file and the claim is overruled on exactly the
+     * vocabulary types that reach a dump - which is the pair being recorded rather than a reason to
+     * make the claim subtract.
      *
      * <p>Four pairs left this set by being <b>measured false</b> rather than by being reclassified.
      * Perturbing a file each claimant triggers on moved the artifact it called blind, so the claim was
      * not a statement about a narrower region at all - it was wrong, and the artifact is now in that
      * rule's {@code sees}. Being overruled by a sibling rule is what kept the bundle honest while the
      * declaration was false, which is why the plan prints such a pair instead of trusting it.
+     *
+     * <p>B23's two moved together and for one reason. The trim kit is reached by the player sweep -
+     * {@code TestPlayerParityVanilla -> PlayerRenderer -> PlayerArmorKit -> ArmorKit -> TrimKit} -
+     * and by no block sweep at all, where the rule that used to speak for its whole subtree selected
+     * both. The claim is right either way: the throw-probe that measured it says the player sweep
+     * reaches the kit and never permutes a palette in it, which is a declared reach rather than an
+     * exercised one and exactly what a printed pair is for.
      *
      * <p>Every claimant here is a {@code select} rule by construction rather than by choice: the
      * resolution below applies the demote pass, so a rule whose {@code blind} list subtracts on its
@@ -142,8 +151,9 @@ final class BlindnessMapTest {
         "B2 -> manifest.dump.vanilla",
         "B21 -> sweep.item",
         "B22 -> manifest.dump.packs", "B22 -> manifest.dump.vanilla",
-        "B23 -> manifest.player-raw", "B23 -> sweep.armor", "B23 -> sweep.block",
-        "B23 -> sweep.entity", "B23 -> sweep.glint", "B23 -> sweep.item",
+        "B23 -> manifest.player-raw", "B23 -> sweep.armor", "B23 -> sweep.entity",
+        "B23 -> sweep.entity-animation", "B23 -> sweep.glint", "B23 -> sweep.item",
+        "B23 -> sweep.player",
         "B24 -> manifest.dump.packs", "B24 -> manifest.dump.vanilla");
 
     /**
@@ -211,7 +221,8 @@ final class BlindnessMapTest {
         "parityTestSources", "\"src/test/java\"",
         "parityMainSources", "\"src/main/java\"",
         "parityGitIndex", "\".git/index\"",
-        "parityClaudeMd", "\"CLAUDE.md\"");
+        "parityClaudeMd", "\"CLAUDE.md\"",
+        "parityRendererRules", "\"RENDERER-RULES.md\"");
 
     /**
      * The files the Gradle task registry is a function of.
@@ -280,6 +291,18 @@ final class BlindnessMapTest {
     /** The suffix a renderer's file name ends in, which is what the roster is walked by. */
     private static final String RENDERER_SUFFIX = "Renderer.java";
 
+    /**
+     * The subjects that name no renderer, and are read out before the roster is compared.
+     *
+     * <p>One today. {@code ENGINE} is what a type says when it is under every render and the
+     * reference graph cannot see the edge, and there is no {@code EngineRenderer} for the walk below
+     * to find - so leaving it in would fail the comparison for a constant that is correct.
+     *
+     * <p>In enum order, and written down rather than derived from the enum, because deriving it
+     * would make the comparison agree with whatever the enum says. A second one is a decision.
+     */
+    private static final List<String> NOT_A_RENDERER = List.of("ENGINE");
+
     /** The annotation token a derived trigger path stands for, as it is written in source. */
     private static final String DECLARATION = "@Parity";
 
@@ -310,7 +333,7 @@ final class BlindnessMapTest {
     private static final Pattern SUBJECT_CONSTANT = Pattern.compile("Subject\\.(\\w+)");
 
     /**
-     * The stored artifact whose name identifies each renderer that has one.
+     * The stored artifacts whose names identify each renderer that has one.
      *
      * <p>Seven of the eleven. The atlas renderer's output is registered as no artifact by decision -
      * it does not reproduce, so a digest over it would be a gate failing for its own reasons - and
@@ -321,27 +344,66 @@ final class BlindnessMapTest {
      * <p>Written down rather than derived from the id grammar, because {@code sweep.armor} and
      * {@code sweep.glint} are named for what is drawn rather than for who draws it, and a rule that
      * split ids on a dot would hand each of them a renderer that does not exist.
+     *
+     * <p><b>A renderer can have more than one picture and the entity renderer has two</b>, one per
+     * pose the same subjects are drawn in. So the clauses below quantify over a list: reaching any
+     * of a renderer's own artifacts is naming that renderer, and reaching any of another's is the
+     * contradiction - which is what lets a claim over the animated sweep alone belong to the entity
+     * renderer without also having to move the still one.
      */
-    private static final Map<String, String> IDENTIFYING_ARTIFACT = Map.of(
-        "BLOCK", "sweep.block",
-        "ENTITY", "sweep.entity",
-        "FLUID", "manifest.fluid",
-        "ITEM", "sweep.item",
-        "MENU", "sweep.menu",
-        "PLAYER", "sweep.player",
-        "PORTAL", "manifest.portal");
+    private static final Map<String, List<String>> IDENTIFYING_ARTIFACTS = Map.of(
+        "BLOCK", List.of("sweep.block"),
+        "ENTITY", List.of("sweep.entity", "sweep.entity-animation"),
+        "FLUID", List.of("manifest.fluid"),
+        "ITEM", List.of("sweep.item"),
+        "MENU", List.of("sweep.menu"),
+        "PLAYER", List.of("sweep.player"),
+        "PORTAL", List.of("manifest.portal"));
 
     /** The skill body, whose frontmatter is what decides when the gate is offered at all. */
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
 
-    /** The repository's own rules, whose headings the map's {@code source} column cites by name. */
+    /** The repository's orientation, whose headings the map's {@code source} column cites by name. */
     private static final Path CLAUDE_MD = Path.of("CLAUDE.md");
+
+    /** The renderer's own rules, the other file those citations name. */
+    private static final Path RENDERER_RULES = Path.of("RENDERER-RULES.md");
+
+    /**
+     * Every file a citation can name, keyed by the spelling the {@code source} column cites it under.
+     *
+     * <p>Two rather than one because the rules a claim came from sit beside the code they bind while
+     * the orientation stays small enough to load unread: a citation says which of the two holds the
+     * heading, and resolving one against the other file would report a live heading as dead.
+     */
+    private static final Map<String, Path> CITED_FILES =
+        Map.of("CLAUDE.md", CLAUDE_MD, "RENDERER-RULES.md", RENDERER_RULES);
+
+    /**
+     * The committed reference graph, which is what a rule declaring {@code derived} selects through.
+     *
+     * <p>Read here for the same reason the map itself is: the mirror below has to resolve what the
+     * planner resolves, and a derived rule's selection is a property of the changed FILE rather than
+     * of the glob that caught it. Resolving one against its own empty {@code sees} would answer that
+     * every path under {@code engine/**} reaches nothing, which is the opposite of the narrowing the
+     * mechanism performs and would take every check reading this resolver with it.
+     *
+     * <p>The committed file and never a fresh walk of {@code build/classes}: what those class files
+     * hold is whatever was last compiled, and the whole value of the graph being an artifact is that
+     * a stale one is a loud difference rather than a quiet mis-schedule. {@code parityReachCheck} is
+     * where that difference is reported.
+     */
+    private static final Path REACH_GRAPH = Path.of("parity/reach.json");
+
+    /** The source roots the graph derives a type from, which is where it can answer a path at all. */
+    private static final List<String> GRAPH_SOURCE_ROOTS = List.of("src/main/java", "src/test/java");
 
     /** One heading of a markdown file, at any level. */
     private static final Pattern MARKDOWN_HEADING = Pattern.compile("(?m)^#{1,6} (.+)$");
 
-    /** A citation naming a section of the repository's rules, as the {@code source} column spells one. */
-    private static final Pattern CLAUDE_MD_CITATION = Pattern.compile("CLAUDE\\.md '([^']*)'");
+    /** A citation naming a rules file and one of its sections, as the {@code source} column spells one. */
+    private static final Pattern SECTION_CITATION =
+        Pattern.compile("((?:RENDERER-RULES|CLAUDE)\\.md) '([^']*)'");
 
     /** What a rule's {@code source} says instead of a citation when this map is where a fact lives. */
     private static final String HOME_CLAIM = "moved out of CLAUDE.md and this map is its home";
@@ -366,13 +428,13 @@ final class BlindnessMapTest {
      * than lines, because these files wrap their prose and a rewrap is not a different statement.
      */
     private static final List<String> CLAUDE_MD_CUSTODY = List.of(
-        ".claude/skills/parity-gate/references/diagnostics.md: `CLAUDE.md` in the repo root carries "
-            + "the durable findings: the depth contract, the armour shell, the face vocabulary, the "
-            + "iso pose. Which artifacts see a given change is not one of them - that answer is "
-            + "`blindness.json`, which `parityPlan` resolves and `references/blindness.md` renders, "
-            + "and where a rule's claim did come from a section of `CLAUDE.md` the rule cites it by "
-            + "name. This file holds the *method* - how those were arrived at - and does not "
-            + "restate them.");
+        ".claude/skills/parity-gate/references/diagnostics.md: `RENDERER-RULES.md` in the repo root "
+            + "carries the durable findings: the depth contract, the armour shell, the face "
+            + "vocabulary, the iso pose. Which artifacts see a given change is not one of them - "
+            + "that answer is `blindness.json`, which `parityPlan` resolves and "
+            + "`references/blindness.md` renders, and where a rule's claim did come from a section "
+            + "of `RENDERER-RULES.md` or of `CLAUDE.md` the rule cites it by name. This file holds "
+            + "the *method* - how those were arrived at - and does not restate them.");
 
     /** One inline code span, which is how the skill body spells each trigger path. */
     private static final Pattern BACKTICKED = Pattern.compile("`([^`]+)`");
@@ -474,25 +536,33 @@ final class BlindnessMapTest {
     @Test
     @DisplayName("every CLAUDE.md section a rule cites is a heading CLAUDE.md still carries")
     void everyClaudeMdCitationNamesALiveHeading() {
-        Set<String> headings = new TreeSet<>();
-        Matcher heading = MARKDOWN_HEADING.matcher(text(CLAUDE_MD));
-        while (heading.find()) headings.add(heading.group(1).trim());
+        Map<String, Set<String>> headings = new TreeMap<>();
+        CITED_FILES.forEach((name, path) -> {
+            Set<String> own = new TreeSet<>();
+            Matcher heading = MARKDOWN_HEADING.matcher(text(path));
+            while (heading.find()) own.add(heading.group(1).trim());
+            headings.put(name, own);
+        });
 
         List<String> cited = new ArrayList<>();
         List<String> dead = new ArrayList<>();
         for (JsonObject rule : rules()) {
-            Matcher citation = CLAUDE_MD_CITATION.matcher(rule.get("source").getAsString());
+            Matcher citation = SECTION_CITATION.matcher(rule.get("source").getAsString());
             while (citation.find()) {
-                cited.add(rule.get("id").getAsString() + " -> " + citation.group(1));
-                if (!headings.contains(citation.group(1))) dead.add(cited.getLast());
+                cited.add(rule.get("id").getAsString() + " -> " + citation.group(1) + " '"
+                    + citation.group(2) + "'");
+                if (!headings.get(citation.group(1)).contains(citation.group(2)))
+                    dead.add(cited.getLast());
             }
         }
 
-        assertThat("CLAUDE.md carries no heading at all, so every citation below would read as dead "
-            + "and the failure would be in this walk rather than in the map", headings, is(not(empty())));
-        assertThat("no rule cites a CLAUDE.md section, so this case has no operand; it needs a "
-            + "different shape rather than deleting", cited, is(not(empty())));
-        assertThat("rules citing a CLAUDE.md section that file no longer has a heading for. A "
+        assertThat("a cited file carrying no heading at all, so every citation into it would read "
+            + "as dead and the failure would be in this walk rather than in the map",
+            headings.entrySet().stream().filter(file -> file.getValue().isEmpty()).map(Map.Entry::getKey)
+                .toList(), is(empty()));
+        assertThat("no rule cites a section of either rules file, so this case has no operand; it "
+            + "needs a different shape rather than deleting", cited, is(not(empty())));
+        assertThat("rules citing a section the file they name no longer has a heading for. A "
             + "`source` is where the claim came from, and a reader following one to a heading that "
             + "was deleted or renamed cannot tell a moved rule from an abandoned one - eleven of "
             + "these went dead in a single rebuild with nothing mechanical able to notice, because "
@@ -515,7 +585,7 @@ final class BlindnessMapTest {
                 .filter(paragraph -> CUSTODY.matcher(paragraph).find())
                 .map(paragraph -> path + ": " + paragraph))
             .toList();
-        String rulebook = text(CLAUDE_MD);
+        String rulebook = text(CLAUDE_MD) + "\n" + text(RENDERER_RULES);
         List<String> named = ParityArtifacts.ALL.stream()
             .map(ParityArtifacts.Registration::id)
             .filter(rulebook::contains)
@@ -534,12 +604,12 @@ final class BlindnessMapTest {
             + "with - a claim naming no section and an answer that is not a citation, so the check "
             + "above sees neither. A new statement of custody is a decision: make it agree with the "
             + "map, or record it here", custody, equalTo(CLAUDE_MD_CUSTODY));
-        assertThat("artifact ids CLAUDE.md names. A statement of what a gate sees has to name the "
-            + "gate, and a gate is an artifact of this store - so an id in that file is the answer "
-            + "those rows say moved out of it, growing a second home back where it was. The map is "
-            + "where the statement goes; citing a CLAUDE.md section as where a rule's claim came "
-            + "from is the other case, and the check above is what holds that citation live",
-            named, is(empty()));
+        assertThat("artifact ids the two rules files name. A statement of what a gate sees has to "
+            + "name the gate, and a gate is an artifact of this store - so an id in either file is "
+            + "the answer those rows say moved out of it, growing a second home back where it was. "
+            + "The map is where the statement goes; citing a section of one of them as where a "
+            + "rule's claim came from is the other case, and the check above is what holds that "
+            + "citation live", named, is(empty()));
     }
 
     /**
@@ -884,6 +954,36 @@ final class BlindnessMapTest {
 
         assertThat("artifact ids no roster registers; a typo or a retired artifact leaves a rule "
             + "pointing at nothing", unknown, is(empty()));
+    }
+
+    @Test
+    @DisplayName("a derived rule authors no sees, and every path it fires on the graph answers")
+    void aDerivedRuleAuthorsNothingItCanBeAskedFor() {
+        List<JsonObject> rules = rules();
+        List<String> authoring = rules.stream()
+            .filter(rule -> rule.has("derived") && rule.get("derived").getAsBoolean())
+            .filter(rule -> !rule.getAsJsonArray("sees").isEmpty())
+            .map(rule -> rule.get("id").getAsString())
+            .toList();
+        List<String> derived = rules.stream()
+            .filter(rule -> rule.has("derived") && rule.get("derived").getAsBoolean())
+            .map(rule -> rule.get("id").getAsString())
+            .toList();
+        // Resolving every tracked file the derived rules trigger on, which is what would throw if the
+        // graph could not answer one. The count is what says the loop had something to answer for.
+        List<String> answered = derived.isEmpty() ? List.of() : trackedFiles().stream()
+            .filter(path -> firedOn(path, rules).stream()
+                .anyMatch(rule -> rule.has("derived") && rule.get("derived").getAsBoolean()))
+            .peek(BlindnessMapTest::seesFor)
+            .toList();
+
+        assertThat("derived rules that also author a sees. The graph answers a derived rule's "
+            + "selection, so an authored list beside it is a second statement of what the rule "
+            + "reaches - and whichever one the resolver takes, the other goes on being read as the "
+            + "map's answer. The toolkit refuses the same shape when it loads the file",
+            authoring, is(empty()));
+        System.out.printf("%d derived rule(s) answer for %d tracked file(s)%n",
+            derived.size(), answered.size());
     }
 
     @Test
@@ -1268,12 +1368,15 @@ final class BlindnessMapTest {
     @Test
     @DisplayName("the worked example resolves the way the corpus records it")
     void theBoxBuilderExampleResolves() {
-        // B10's own gates, which is what the map has to keep answering for that path.
-        assertThat(seesFor("src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java")
+        // B10's own gates, which is what the map has to keep answering for the path it claims. The
+        // box builder is where the declaration is, and the declaration moved when the box and the
+        // quad were lifted out of the block kit - so the example is the file carrying the claim
+        // rather than the file it used to sit in.
+        assertThat(seesFor("src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java")
                 .containsAll(List.of("sweep.entity", "sweep.armor", "pin.player-crc", "manifest.player-sheets")),
             is(true));
         // And the dump is demoted for it, because B19 fires on engine/** and the dump never renders.
-        assertThat(seesFor("src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java")
+        assertThat(seesFor("src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java")
                 .stream().noneMatch(id -> id.startsWith("manifest.dump.")),
             is(true));
     }
@@ -1371,12 +1474,13 @@ final class BlindnessMapTest {
             String subject = named.iterator().next();
             Set<String> sees = strings(rule.getAsJsonArray("sees"));
             checked.add(key + " -> " + subject);
-            IDENTIFYING_ARTIFACT.forEach((renderer, artifact) -> {
+            IDENTIFYING_ARTIFACTS.forEach((renderer, artifacts) -> {
                 if (renderer.equals(subject)) {
-                    if (!sees.contains(artifact)) absent.add(key + " names " + subject
-                        + " and does not reach " + artifact);
-                } else if (sees.contains(artifact)) {
-                    contradicted.add(key + " names " + subject + " and reaches " + artifact);
+                    if (artifacts.stream().noneMatch(sees::contains)) absent.add(key + " names "
+                        + subject + " and reaches none of " + artifacts);
+                } else {
+                    artifacts.stream().filter(sees::contains).forEach(artifact ->
+                        contradicted.add(key + " names " + subject + " and reaches " + artifact));
                 }
             });
         }
@@ -1410,8 +1514,17 @@ final class BlindnessMapTest {
             .map(stem -> stem.toUpperCase(Locale.ROOT))
             .sorted()
             .toList();
-        List<String> subjects = Stream.of(Subject.values()).map(Enum::name).sorted().toList();
+        List<String> subjects = Stream.of(Subject.values()).map(Enum::name)
+            .filter(name -> !NOT_A_RENDERER.contains(name))
+            .sorted()
+            .toList();
 
+        assertThat("the constants that are not a renderer, against the roster they are read out of. "
+            + "Derived from nothing: each is a decision to add a constant no file under the library "
+            + "root can ever be named for, so a third arriving is a decision somebody makes here "
+            + "rather than a name quietly excused from the comparison below",
+            Stream.of(Subject.values()).map(Enum::name).filter(NOT_A_RENDERER::contains).toList(),
+            equalTo(List.copyOf(NOT_A_RENDERER)));
         assertThat("renderers directly under the library root, which is the walk the roster is "
             + "defined from. An empty list is a walk that has stopped finding anything - a moved "
             + "source root, or a suffix nothing ends in any more - and the comparison below would "
@@ -1549,26 +1662,92 @@ final class BlindnessMapTest {
      * @return the artifacts that can see it
      */
     private static Set<String> seesFor(String path, List<JsonObject> rules) {
-        List<JsonObject> fired = rules.stream()
-            .filter(rule -> {
-                for (JsonElement glob : rule.getAsJsonArray("trigger_paths"))
-                    if (compileGlob(glob.getAsString()).matcher(path).matches()) return true;
-                return false;
-            })
-            .toList();
+        List<JsonObject> fired = firedOn(path, rules);
 
         Set<String> sees = new LinkedHashSet<>();
-        fired.forEach(rule -> sees.addAll(strings(rule.getAsJsonArray("sees"))));
+        fired.forEach(rule -> sees.addAll(selectionOf(rule, path)));
         // The two post-union passes, in the toolkit's order: a demotion removes what a different rule
         // selected, and a suppression outranks both by removing its own sees as well.
         fired.stream().filter(rule -> rule.get("mode").getAsString().equals("demote"))
             .forEach(rule -> sees.removeAll(strings(rule.getAsJsonArray("blind"))));
         fired.stream().filter(rule -> rule.get("mode").getAsString().equals("suppress"))
             .forEach(rule -> {
-                sees.removeAll(strings(rule.getAsJsonArray("sees")));
+                sees.removeAll(selectionOf(rule, path));
                 sees.removeAll(strings(rule.getAsJsonArray("blind")));
             });
         return sees;
+    }
+
+    /**
+     * What one rule puts in the bundle on one path.
+     *
+     * <p>A rule declaring {@code derived} authors no {@code sees}: the reference graph answers it,
+     * per file, which is what makes one glob over a package say something different about each class
+     * under it. Every other rule answers with the list it wrote down.
+     *
+     * @param rule the rule that fired
+     * @param path the path it fired on
+     * @return the artifacts it selects there
+     */
+    private static Set<String> selectionOf(JsonObject rule, String path) {
+        if (!rule.has("derived") || !rule.get("derived").getAsBoolean())
+            return strings(rule.getAsJsonArray("sees"));
+        Set<String> answered = reachOf(path);
+        // Never an empty selection where the graph declines to answer. A path it cannot speak for is
+        // either a source file the committed graph predates or one carrying no Java at all, and both
+        // read exactly like a class that really reaches nothing - which is a narrowing nobody wrote
+        // down. The toolkit refuses the same case, and this side is where the map is held to it.
+        if (answered == null)
+            throw new AssertionError(rule.get("id").getAsString() + " is derived and fires on '"
+                + path + "', which " + REACH_GRAPH + " does not answer for. Regenerate it with "
+                + "'python parity/scripts/parity reach build' over a compiled tree, or give the rule "
+                + "an authored sees if the path carries no Java");
+        return answered;
+    }
+
+    /**
+     * What the committed reference graph says one path reaches, or nothing when it cannot answer.
+     *
+     * <p>Two shapes under a source root answer an empty set rather than nothing, each because no
+     * class file anywhere can reference it. A {@code package-info.java} declares no type, and what it
+     * does carry - a package's own {@code @Parity} declaration - moves this map's trigger paths
+     * rather than any render. A {@code doc-files} directory is javadoc's own reserved name, passed
+     * over by javac and copied verbatim by the doclet, so what sits there is illustration.
+     *
+     * @param path the repo-relative path
+     * @return the artifacts, or {@code null} when the graph has no entry for the path
+     */
+    private static Set<String> reachOf(String path) {
+        boolean scanned = GRAPH_SOURCE_ROOTS.stream().anyMatch(root -> path.startsWith(root + "/"));
+        if (!scanned) return null;
+        if (path.endsWith("/" + PACKAGE_DECLARATION) || path.contains("/doc-files/")) return Set.of();
+        if (!path.endsWith(".java")) return null;
+        String root = GRAPH_SOURCE_ROOTS.stream().filter(each -> path.startsWith(each + "/"))
+            .findFirst().orElseThrow();
+        String binary = path.substring(root.length() + 1, path.length() - ".java".length());
+        return DERIVED_REACH.get(binary);
+    }
+
+    /**
+     * Each type's derived reach, by binary name, read once.
+     *
+     * <p>Held rather than re-parsed, because the resolver above runs per rule per tracked file and
+     * the graph is one entry for every type in two source trees.
+     */
+    private static final Map<String, Set<String>> DERIVED_REACH = derivedReach();
+
+    /**
+     * Reads the committed reference graph.
+     *
+     * @return each type's artifacts, by binary name
+     */
+    private static Map<String, Set<String>> derivedReach() {
+        Map<String, Set<String>> out = new LinkedHashMap<>();
+        JsonObject types = JsonParser.parseString(text(REACH_GRAPH)).getAsJsonObject()
+            .getAsJsonObject("types");
+        for (String name : types.keySet())
+            out.put(name, strings(types.getAsJsonObject(name).getAsJsonArray("artifacts")));
+        return out;
     }
 
     /**
@@ -1589,13 +1768,27 @@ final class BlindnessMapTest {
     }
 
     /**
-     * Every artifact id some rule's {@code sees} names, which is the universe a plan is drawn from.
+     * Every artifact id some rule can select, which is the universe a plan is drawn from.
+     *
+     * <p>A derived rule names none of its own, so its contribution is what the graph answers for the
+     * tracked files it triggers on. Reading the authored lists alone would shrink this universe by
+     * exactly the rows a derived rule is the only selector of, and the two checks over it would then
+     * vouch for a capture table that has no row for them.
      *
      * @return the ids, in the order the rules name them
      */
     private static Set<String> reach() {
         Set<String> out = new LinkedHashSet<>();
-        for (JsonObject rule : rules()) out.addAll(strings(rule.getAsJsonArray("sees")));
+        List<String> tracked = null;
+        for (JsonObject rule : rules()) {
+            if (!rule.has("derived") || !rule.get("derived").getAsBoolean()) {
+                out.addAll(strings(rule.getAsJsonArray("sees")));
+                continue;
+            }
+            if (tracked == null) tracked = trackedFiles();
+            tracked.stream().filter(path -> !firedOn(path, List.of(rule)).isEmpty())
+                .forEach(path -> out.addAll(selectionOf(rule, path)));
+        }
         return out;
     }
 

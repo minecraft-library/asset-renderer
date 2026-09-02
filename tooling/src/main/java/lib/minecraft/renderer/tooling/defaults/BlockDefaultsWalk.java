@@ -9,6 +9,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Walks every registered block and decodes its default state, the only stage that touches the
@@ -37,8 +38,11 @@ public final class BlockDefaultsWalk {
         BlockDefaultStateResolver decoder = new BlockDefaultStateResolver(session.cache(), properties);
 
         // Sort by id (the declared ordering); dedupe by id, last-writer-wins.
-        Map<String, BlockRegistryIndex.Entry> byId = new TreeMap<>();
-        for (BlockRegistryIndex.Entry entry : index.entries().values()) byId.put(entry.id(), entry);
+        Map<String, BlockRegistryIndex.Entry> byId = index.entries()
+            .values()
+            .stream()
+            .collect(Collectors.toMap(
+                BlockRegistryIndex.Entry::id, entry -> entry, (held, later) -> later, TreeMap::new));
 
         for (BlockRegistryIndex.Entry entry : byId.values()) {
             Diagnostics scope = session.diagnostics().child(entry.id());

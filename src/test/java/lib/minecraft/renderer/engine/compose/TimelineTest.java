@@ -7,7 +7,8 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.AnimationOptions;
 import org.jetbrains.annotations.NotNull;
@@ -26,8 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * The frame-generation contract of every {@link Timeline} permit: the per-frame
  * {@code (tick, millis, delay, playbackMs)} tuples, the tick/millisecond identities, the
- * {@code FpsLoop} double-op sample instant pinned against its literal formula, the {@code ChangePoints}
- * validation and value pins, the {@code deriveTickStrip} fixtures over the real vanilla 26.1
+ * {@code FpsLoop} double-op sample instant pinned against its literal formula, the
+ * {@code deriveTickStrip} fixtures over the real vanilla 26.1
  * {@code .mcmeta} shapes, and the {@code bake} / {@code wrap} terminals including the trimming and
  * playback-swapping {@code Finish} seams.
  */
@@ -132,11 +133,7 @@ class TimelineTest {
         List<Timeline.TickTimeline> permits = List.of(
             new Timeline.Static(7),
             new Timeline.TickLoop(3, 6, 2, 100),
-            new Timeline.TickLoop(0, 64, 375, Timeline.MILLIS_PER_TICK),
-            new Timeline.ChangePoints(List.of(
-                new Timeline.ChangePoints.Keyframe(0, 50),
-                new Timeline.ChangePoints.Keyframe(5, 50),
-                new Timeline.ChangePoints.Keyframe(23_999, 50))));
+            new Timeline.TickLoop(0, 64, 375, Timeline.MILLIS_PER_TICK));
 
         for (Timeline.TickTimeline timeline : permits)
             for (int f = 0; f < timeline.frames(); f++)
@@ -261,70 +258,6 @@ class TimelineTest {
         }
     }
 
-    // ---- ChangePoints --------------------------------------------------------------------------
-
-    @Test
-    @DisplayName("ChangePoints fire schedule: 32 change points 0..31, each held 50 ms")
-    void changePointsFireSchedule() {
-        List<Timeline.ChangePoints.Keyframe> keyframes = new ArrayList<>();
-        for (int f = 0; f < 32; f++) keyframes.add(new Timeline.ChangePoints.Keyframe(f, 50));
-        Timeline.ChangePoints timeline = new Timeline.ChangePoints(keyframes);
-
-        assertThat(timeline.frames(), is(32));
-        for (int f = 0; f < 32; f++) {
-            assertThat(timeline.tickAt(f), is(f));
-            assertThat(timeline.delayMs(f), is(50));
-            assertThat(timeline.millisAt(f), is(f * 50.0));
-            assertThat(timeline.playbackMsAt(f), is((long) f * 50));
-        }
-    }
-
-    @Test
-    @DisplayName("ChangePoints water schedule: change points every 2 ticks, each held 100 ms")
-    void changePointsWaterSchedule() {
-        List<Timeline.ChangePoints.Keyframe> keyframes = new ArrayList<>();
-        for (int f = 0; f < 32; f++) keyframes.add(new Timeline.ChangePoints.Keyframe(2 * f, 100));
-        Timeline.ChangePoints timeline = new Timeline.ChangePoints(keyframes);
-
-        assertThat(timeline.frames(), is(32));
-        assertThat(timeline.tickAt(0), is(0));
-        assertThat(timeline.tickAt(1), is(2));
-        assertThat(timeline.delayMs(0), is(100));   // 2 ticks * 50 ms
-        assertThat(timeline.playbackMsAt(2), is(200L));
-    }
-
-    @Test
-    @DisplayName("ChangePoints rejects an empty schedule")
-    void changePointsRejectsEmpty() {
-        assertThrows(IllegalArgumentException.class,
-            () -> new Timeline.ChangePoints(List.of()));
-    }
-
-    @Test
-    @DisplayName("ChangePoints rejects non-ascending ticks")
-    void changePointsRejectsNonAscending() {
-        assertThrows(IllegalArgumentException.class, () -> new Timeline.ChangePoints(List.of(
-            new Timeline.ChangePoints.Keyframe(0, 50),
-            new Timeline.ChangePoints.Keyframe(0, 50))));
-    }
-
-    @Test
-    @DisplayName("ChangePoints rejects a non-positive delay")
-    void changePointsRejectsNonPositiveDelay() {
-        assertThrows(IllegalArgumentException.class,
-            () -> new Timeline.ChangePoints(List.of(new Timeline.ChangePoints.Keyframe(0, 0))));
-    }
-
-    @Test
-    @DisplayName("ChangePoints has record value equality")
-    void changePointsEquality() {
-        Timeline.ChangePoints a = new Timeline.ChangePoints(List.of(
-            new Timeline.ChangePoints.Keyframe(0, 50), new Timeline.ChangePoints.Keyframe(2, 100)));
-        Timeline.ChangePoints b = new Timeline.ChangePoints(List.of(
-            new Timeline.ChangePoints.Keyframe(0, 50), new Timeline.ChangePoints.Keyframe(2, 100)));
-        assertThat(a, is(b));
-    }
-
     // ---- schedule (the caller-selected playback fork) -------------------------------------------
 
     @Test
@@ -388,28 +321,28 @@ class TimelineTest {
     @Test
     @DisplayName("derive fire: 32 bare frames -> 32 frames at cadence 1")
     void deriveFire() {
-        assertTickLoop(Timeline.deriveTickStrip(List.of(new Timeline.Source(32, fire())), 0),
+        assertTickLoop(Timeline.deriveTickStrip(List.of(flipbook(32, fire())), 0),
             0, 32, 1, 50);
     }
 
     @Test
     @DisplayName("derive water_still: frametime 2 -> 32 frames at cadence 2")
     void deriveWater() {
-        assertTickLoop(Timeline.deriveTickStrip(List.of(new Timeline.Source(32, waterStill())), 0),
+        assertTickLoop(Timeline.deriveTickStrip(List.of(flipbook(32, waterStill())), 0),
             0, 32, 2, 100);
     }
 
     @Test
     @DisplayName("derive magma: interpolate clamps cadence to 1 (loop 24 -> 24 frames)")
     void deriveMagma() {
-        assertTickLoop(Timeline.deriveTickStrip(List.of(new Timeline.Source(3, magma())), 0),
+        assertTickLoop(Timeline.deriveTickStrip(List.of(flipbook(3, magma())), 0),
             0, 24, 1, 50);
     }
 
     @Test
     @DisplayName("derive prismarine: 6600-tick loop capped at 200 ticks (cadence 1 -> 200 frames)")
     void derivePrismarine() {
-        assertTickLoop(Timeline.deriveTickStrip(List.of(new Timeline.Source(4, prismarine())), 0),
+        assertTickLoop(Timeline.deriveTickStrip(List.of(flipbook(4, prismarine())), 0),
             0, Timeline.MAX_LOOP_TICKS, 1, 50);
     }
 
@@ -417,8 +350,8 @@ class TimelineTest {
     @DisplayName("derive multi-texture: LCM loop over GCD cadence (lcm 24, gcd 2 -> 12 frames)")
     void deriveMultiTexture() {
         assertTickLoop(Timeline.deriveTickStrip(List.of(
-            new Timeline.Source(4, implicit(2)),
-            new Timeline.Source(3, implicit(4))), 0), 0, 12, 2, 100);
+            flipbook(4, implicit(2)),
+            flipbook(3, implicit(4))), 0), 0, 12, 2, 100);
     }
 
     // ---- terminals -----------------------------------------------------------------------------
@@ -534,38 +467,46 @@ class TimelineTest {
         return ticks;
     }
 
+    /**
+     * Resolves an animation over a one-pixel-wide strip of the given frame count - the frame height
+     * falls back to the strip's width, so a strip {@code frameCount} tall holds exactly that many.
+     */
+    private static @NotNull Flipbook flipbook(int frameCount, @NotNull MCMeta.Animation animation) {
+        return Flipbook.of(PixelBuffer.create(1, frameCount), animation).orElseThrow();
+    }
+
     /** fire_0.png.mcmeta: 32 bare frame indices [16..31, 0..15], default frametime (1 tick each). */
-    private static @NotNull AnimationData fire() {
-        ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
-        for (int i = 16; i <= 31; i++) frames.add(new AnimationData.FrameEntry(i, -1));
-        for (int i = 0; i <= 15; i++) frames.add(new AnimationData.FrameEntry(i, -1));
-        return new AnimationData(1, false, frames, -1, -1);
+    private static @NotNull MCMeta.Animation fire() {
+        ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
+        for (int i = 16; i <= 31; i++) frames.add(new MCMeta.Frame(i, -1));
+        for (int i = 0; i <= 15; i++) frames.add(new MCMeta.Frame(i, -1));
+        return new MCMeta.Animation(1, false, -1, -1, frames);
     }
 
     /** water_still.png.mcmeta: bare {@code frametime: 2}, no frames list. */
-    private static @NotNull AnimationData waterStill() {
-        return new AnimationData(2, false, Concurrent.newList(), -1, -1);
+    private static @NotNull MCMeta.Animation waterStill() {
+        return new MCMeta.Animation(2, false, -1, -1, Concurrent.newList());
     }
 
     /** magma.png.mcmeta: {@code frametime: 8}, interpolate, frames [0, 1, 2]. */
-    private static @NotNull AnimationData magma() {
-        ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
-        frames.add(new AnimationData.FrameEntry(0, -1));
-        frames.add(new AnimationData.FrameEntry(1, -1));
-        frames.add(new AnimationData.FrameEntry(2, -1));
-        return new AnimationData(8, true, frames, -1, -1);
+    private static @NotNull MCMeta.Animation magma() {
+        ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
+        frames.add(new MCMeta.Frame(0, -1));
+        frames.add(new MCMeta.Frame(1, -1));
+        frames.add(new MCMeta.Frame(2, -1));
+        return new MCMeta.Animation(8, true, -1, -1, frames);
     }
 
     /** prismarine.png.mcmeta: {@code frametime: 300}, interpolate, 22 frames -> loop far over the cap. */
-    private static @NotNull AnimationData prismarine() {
-        ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
+    private static @NotNull MCMeta.Animation prismarine() {
+        ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
         int[] seq = {0, 1, 0, 2, 0, 3, 0, 1, 2, 1, 3, 1, 0, 2, 1, 2, 3, 2, 0, 3, 1, 3};
-        for (int index : seq) frames.add(new AnimationData.FrameEntry(index, -1));
-        return new AnimationData(300, true, frames, -1, -1);
+        for (int index : seq) frames.add(new MCMeta.Frame(index, -1));
+        return new MCMeta.Animation(300, true, -1, -1, frames);
     }
 
     /** A frametime-only source with the given tick length and implicit frame count. */
-    private static @NotNull AnimationData implicit(int frametime) {
-        return new AnimationData(frametime, false, Concurrent.newList(), -1, -1);
+    private static @NotNull MCMeta.Animation implicit(int frametime) {
+        return new MCMeta.Animation(frametime, false, -1, -1, Concurrent.newList());
     }
 }

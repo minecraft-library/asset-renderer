@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.parity.ParityJson;
+import lib.minecraft.renderer.parity.ParityStore;
 import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.parity.SelfCapture;
 import org.jetbrains.annotations.NotNull;
@@ -21,7 +22,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -34,8 +37,8 @@ import static org.hamcrest.Matchers.is;
  * {@code src/main/resources/lib/minecraft/renderer/}: the block snapshots
  * ({@code block_models}, {@code block_geometry}, {@code block_defaults}, {@code block_tints},
  * {@code block_items}) plus the colormap, entity, and potion / glint tables ({@code color_maps},
- * {@code entity_geometry}, {@code entity_models}, {@code potion_colors}, {@code glint_items}).
- * All ten are covered; the criterion is that a native reader consumes the file directly, which
+ * {@code entity_geometry}, {@code entity_models}, {@code entity_poses}, {@code potion_colors},
+ * {@code glint_items}). All eleven are covered; the criterion is that a native reader consumes the file directly, which
  * {@code BlockItemsLoader} does.
  * <p>
  * It guards the resources that the native readers consume directly. {@code block_geometry} carries
@@ -49,13 +52,13 @@ import static org.hamcrest.Matchers.is;
  * only, NOT a parity or value-parity gate: a file can be byte-stable and wrong, and the render
  * sweeps catch that.
  * <p>
- * <b>The covered set is discovered, not listed.</b> Every {@code .json} beside the ten is one of
+ * <b>The covered set is discovered, not listed.</b> Every {@code .json} beside the eleven is one of
  * them, so a table added or dropped by a flow shows up as a name in the directory and not in the
  * pin, or the reverse - where a hardcoded roster would have gone quietly out of date.
  * <p>
  * <b>table-canonical is Gson's form and the version rides in provenance.</b> The digest encodes
- * Gson's number formatting, so a dependency bump moves all ten at once; without the recorded
- * version that reads as ten simultaneous regressions. It is not {@code store-canonical}, which is
+ * Gson's number formatting, so a dependency bump moves all eleven at once; without the recorded
+ * version that reads as eleven simultaneous regressions. It is not {@code store-canonical}, which is
  * pretty-printed and recursively key-sorted, and a digest taken under one form says nothing under
  * the other.
  * <p>
@@ -78,7 +81,7 @@ class BundledResourceShaTest {
     /** The digest-set this test both writes and reads. */
     private static final @NotNull String ARTIFACT = "digest.shipped-tables";
 
-    /** The canonical form the ten digests are taken over, recorded per entry beside each. */
+    /** The canonical form the eleven digests are taken over, recorded per entry beside each. */
     private static final @NotNull String FORM = "table-canonical";
 
     private static final @NotNull Path RESOURCES = Path.of("src/main/resources/lib/minecraft/renderer");
@@ -89,19 +92,20 @@ class BundledResourceShaTest {
      * <p>Pinned beside the digest because the three places that record it today can disagree: each
      * shipped JSON's own {@code "//"} line, this class's javadoc, and a loader test's exception
      * string. Only the first is machine-readable, and it lives inside the file the regen rewrites.
-     * Two flows write two files each.
+     * {@code blockModels} writes two files and {@code entityModels} three.
      */
-    private static final @NotNull Map<String, String> REGEN = Map.of(
-        "block_defaults", "blockDefaults",
-        "block_geometry", "blockModels",
-        "block_items", "blockItems",
-        "block_models", "blockModels",
-        "block_tints", "blockTints",
-        "color_maps", "colorMaps",
-        "entity_geometry", "entityModels",
-        "entity_models", "entityModels",
-        "glint_items", "glintItems",
-        "potion_colors", "potionColors");
+    private static final @NotNull Map<String, String> REGEN = Map.ofEntries(
+        Map.entry("block_defaults", "blockDefaults"),
+        Map.entry("block_geometry", "blockModels"),
+        Map.entry("block_items", "blockItems"),
+        Map.entry("block_models", "blockModels"),
+        Map.entry("block_tints", "blockTints"),
+        Map.entry("color_maps", "colorMaps"),
+        Map.entry("entity_geometry", "entityModels"),
+        Map.entry("entity_models", "entityModels"),
+        Map.entry("entity_poses", "entityModels"),
+        Map.entry("glint_items", "glintItems"),
+        Map.entry("potion_colors", "potionColors"));
 
     @Test
     @DisplayName("table-canonical SHA-256 of each resource equals its pin")
@@ -115,16 +119,64 @@ class BundledResourceShaTest {
                 + "a table a flow added or dropped is a review, not a silent narrowing",
             Pins.keys(ARTIFACT), equalTo(List.copyOf(observed.keySet())));
 
+        Map<String, Set<String>> registered = registeredDigests();
         List<String> drift = new ArrayList<>();
         for (Map.Entry<String, String> table : observed.entrySet()) {
+            Set<String> declared = registered.get(table.getKey());
+            if (declared != null) {
+                // A move somebody wrote down, checked against the value they wrote rather than
+                // against the pin it is on its way to replacing.
+                if (!declared.contains(table.getValue()))
+                    drift.add(table.getKey() + ".json: registered to move to " + declared
+                        + " but actual " + table.getValue());
+                continue;
+            }
             String expected = Pins.digest(ARTIFACT, table.getKey());
             if (!expected.equals(table.getValue()))
-                drift.add(table.getKey() + ".json: pinned " + expected + " but actual " + table.getValue());
+                drift.add(table.getKey() + ".json: pinned " + expected + " but actual " + table.getValue()
+                    + " (register it with `./gradlew parityExpect -Partifact=" + ARTIFACT + " -Pkey="
+                    + table.getKey() + " -Pto=" + table.getValue() + " -Preason=<why>` if the move is intended)");
         }
         assertThat("bundled JSON drifted from the digests pinned in the parity store. If intentional, "
                 + "re-baseline it: " + Pins.rebaselineCommand(ARTIFACT)
                 + "\n" + String.join("\n", drift),
             drift, is(empty()));
+    }
+
+    /**
+     * The digests each table is registered to move to, out of the working root's expected-diff.
+     *
+     * <p>A phase that regenerates a table is red here from its first edit until the promote, which is
+     * a whole phase of the suite reporting a regression nobody is going to look at - and a standing
+     * red is what hides the next real one. A registration is what turns that move into a declared
+     * one: it names the table, the digest it must land on, and the reason it moved. So a registered
+     * table is checked against THAT value instead of against the pin.
+     *
+     * <p>It is exactly as strong a guard and not a suppression. A registration naming the wrong
+     * digest fails here the way the pin would, the value has to have been written down by somebody,
+     * and the manifest lives under the gitignored working root - so it cannot be committed, and a
+     * capture of a later phase clears it.
+     *
+     * @return the registered digests per table, empty where nothing is registered
+     */
+    private static @NotNull Map<String, Set<String>> registeredDigests() {
+        Path manifest = ParityStore.WORKING.resolve(ParityStore.RUN_DIR).resolve("expected-diff.json");
+        if (!Files.isRegularFile(manifest)) return Map.of();
+        Map<String, Set<String>> registered = new TreeMap<>();
+        try {
+            JsonObject payload = GSON.fromJson(Files.readString(manifest, StandardCharsets.UTF_8),
+                JsonObject.class);
+            if (payload == null || !payload.has("movers")) return Map.of();
+            for (JsonElement element : payload.getAsJsonArray("movers")) {
+                JsonObject row = element.getAsJsonObject();
+                if (!ARTIFACT.equals(row.get("artifact").getAsString())) continue;
+                registered.computeIfAbsent(row.get("key").getAsString(), key -> new TreeSet<>())
+                    .add(row.get("to").getAsString());
+            }
+        } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
+        }
+        return registered;
     }
 
     /**

@@ -6,10 +6,8 @@
  * is the sole classpath-read site (try-with-resources, and a per-file choice between
  * {@link lib.minecraft.renderer.pipeline.util.BundledResource#require(java.lang.String) require}
  * and {@link lib.minecraft.renderer.pipeline.util.BundledResource#read(java.lang.String) read}),
- * {@link lib.minecraft.renderer.pipeline.util.ResourceDocument} is the envelope-aware reader (asserts
- * {@code format == 2}, deserialises into typed DTOs), and
- * {@link lib.minecraft.renderer.pipeline.util.ArgbHex} is the one ARGB hex parser with the one
- * white-fallback policy.
+ * and {@link lib.minecraft.renderer.pipeline.util.ResourceDocument} is the envelope-aware reader
+ * (asserts {@code format == 2}, deserialises into typed DTOs).
  *
  * <p>The read side reuses the {@code JsonTree} core rather than duplicating it.
  *

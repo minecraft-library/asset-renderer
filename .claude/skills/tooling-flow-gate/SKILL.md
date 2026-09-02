@@ -45,8 +45,8 @@ writes nothing, so the diff passes over a change that was never executed.
 
 ## Flow to golden
 
-Eight flows, ten tables. `./gradlew generateTables` runs every flow; `-Pflows=a,b` runs a subset and
-refuses a name that is not one of the eight.
+Eight flows, eleven tables - `entityModels` writes three of them. `./gradlew generateTables` runs
+every flow; `-Pflows=a,b` runs a subset and refuses a name that is not one of the eight.
 
 | flow | golden |
 |---|---|
@@ -104,9 +104,26 @@ that flaps run to run is not a gate input.
 ## Verdict
 
 - **Golden empty + log identical + digest green** -> byte-neutral. Commit.
-- **Golden moved** -> the change is not byte-neutral. That is the finding. Do not commit it as
-  neutral, and do not regenerate a "new baseline" to make it quiet - re-running the flow is what
-  produced the moved bytes, so a re-baseline just records them as intended.
+- **Golden moved, and the change declared no table** -> the change is not byte-neutral. That is the
+  finding. Do not commit it as neutral, and do not regenerate a "new baseline" to make it quiet -
+  re-running the flow is what produced the moved bytes, so a re-baseline just records them as
+  intended.
+- **Golden moved, and the change DECLARED which tables would move** -> read it against that
+  declaration rather than against zero. A change that rewrites what a flow emits is measured by the
+  bytes moving where it said they would, so the arm above inverts: the golden must be non-empty and
+  must name **exactly** the declared tables. A table the declaration does not name is the finding,
+  and so is a declared table that did not move. The declaration is the commit's own, written before
+  the flow is re-run, never read back off the diff.
+
+  Two things this arm does not relax. The **log** still has to be identical unless the change says it
+  touched a walk - a moved log line is a second claim needing its own evidence. And the moved bytes
+  still owe the proof that only the intended edit is in them: rebuild the committed table with that
+  edit applied and compare it to the regenerated one, rather than reading the diff by eye. That check
+  is what catches an edit which reaches further than its author thinks - dropping a bone member the
+  emitter's own later passes read back, say.
+- **`BundledResourceShaTest` red under either arm above** -> expected, and only until
+  `digest.shipped-tables` is re-promoted. It is a producer, so `parityCapture` needs `--continue` to
+  run the rest of the bundle past it.
 - **Golden empty but log moved** -> a real change with no table effect. Say so; it still moves the
   store's log digest, so `parity-gate` will report it.
 - **Flow exits non-zero** -> read the exception before anything else. A loud re-entry firing is the

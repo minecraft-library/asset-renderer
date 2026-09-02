@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.PackId;
@@ -10,12 +12,13 @@ import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Tolerate-and-maps a pre-format-46 {@code models/item/*.json} {@code overrides} array onto the 26.1
@@ -109,13 +112,11 @@ public class LegacyOverrideMapper {
         // Group mapped overrides by their gate signature, preserving file order within each group and
         // first-appearance order of groups. A file is almost always one group (all custom_model_data,
         // or all pulling/pull); multiple groups fold safely below.
-        LinkedHashMap<TreeMap<String, Boolean>, List<MappedOverride>> groups = new LinkedHashMap<>();
-        for (JsonTree element : overrides.elements().toList()) {
-            if (!element.isObject()) continue;
-            MappedOverride mapped = parseOverride(element, itemId, namespace, packId);
-            if (mapped == null) continue;
-            groups.computeIfAbsent(mapped.gates(), k -> new ArrayList<>()).add(mapped);
-        }
+        LinkedHashMap<TreeMap<String, Boolean>, List<MappedOverride>> groups = overrides.elements()
+            .filter(JsonTree::isObject)
+            .map(element -> parseOverride(element, itemId, namespace, packId))
+            .filter(Objects::nonNull)
+            .collect(Collectors.groupingBy(MappedOverride::gates, LinkedHashMap::new, Collectors.toList()));
         if (groups.isEmpty()) return Optional.empty();
 
         // Fold each group over the running fallback: a later group wraps the accumulator so it is
@@ -192,21 +193,21 @@ public class LegacyOverrideMapper {
         List<MappedOverride> plain = group.stream().filter(o -> o.range() == null).toList();
 
         if (ranged.isEmpty())
-            return new ItemModelNode.Model(group.getLast().modelRef(), List.of());
+            return new ItemModelNode.Model(group.getLast().modelRef(), Concurrent.newUnmodifiableList());
 
         RangeConstraint first = ranged.getFirst().range();
-        LinkedHashMap<Float, String> byThreshold = new LinkedHashMap<>();
-        for (MappedOverride o : ranged)
-            byThreshold.put(o.range().threshold(), o.modelRef());
-
-        List<ItemModelNode.RangeDispatch.Entry> entries = new ArrayList<>();
-        byThreshold.forEach((threshold, ref) ->
-            entries.add(new ItemModelNode.RangeDispatch.Entry(threshold, new ItemModelNode.Model(ref, List.of()))));
+        ConcurrentList<ItemModelNode.RangeDispatch.Entry> entries = ranged.stream()
+            .collect(Collectors.toMap(o -> o.range().threshold(), MappedOverride::modelRef, (a, b) -> b, LinkedHashMap::new))
+            .entrySet()
+            .stream()
+            .map(entry -> new ItemModelNode.RangeDispatch.Entry(entry.getKey(),
+                new ItemModelNode.Model(entry.getValue(), Concurrent.newUnmodifiableList())))
+            .collect(Concurrent.toUnmodifiableList());
 
         ItemModelNode rangeFallback = plain.isEmpty()
             ? fallback
-            : new ItemModelNode.Model(plain.getLast().modelRef(), List.of());
-        return new ItemModelNode.RangeDispatch(first.property(), first.scale(), "", 0, List.copyOf(entries), rangeFallback);
+            : new ItemModelNode.Model(plain.getLast().modelRef(), Concurrent.newUnmodifiableList());
+        return new ItemModelNode.RangeDispatch(first.property(), first.scale(), "", 0, entries, rangeFallback);
     }
 
     /**

@@ -6,7 +6,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
@@ -20,6 +19,7 @@ import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
@@ -34,6 +34,7 @@ import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
 import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder.BlockTables;
 import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder;
 import lib.minecraft.renderer.pipeline.index.ItemIndexBuilder;
@@ -56,7 +57,6 @@ import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +81,7 @@ import java.util.Optional;
  * {@link PackStack}, so the context holds only immutable indexes.
  */
 @RequiredArgsConstructor
+@Parity(ignored = true)
 public final class PipelineRendererContext implements RendererContext {
 
     private final @NotNull PackStack stack;
@@ -130,7 +131,7 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
-        ConcurrentMap<String, List<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
+        ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
         ConcurrentSet<String> glintItems = GlintItemsLoader.load();
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(stack);
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
@@ -150,7 +151,7 @@ public final class PipelineRendererContext implements RendererContext {
             itemTrees,
             models.items()
         );
-        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(blockTables, blockStates, blockTags);
+        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
         ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(
             itemTints, glintItems, models.items(), itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
@@ -244,32 +245,22 @@ public final class PipelineRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * The sidecar's {@code animation} section, adapted into the {@link AnimationData} the renderer
-     * consumes.
+     * The sidecar's {@code animation} section, handed over as captured.
      */
     @Override
-    public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
-        return this.findMeta(textureId)
-            .flatMap(MCMeta::animation)
-            .map(PipelineRendererContext::toAnimationData);
+    public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+        return this.findMeta(textureId).flatMap(MCMeta::animation);
     }
 
     /**
-     * Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationData} the renderer
-     * consumes. The frames collect unmodifiable, as the section's own are, so the renderer's copy reads
-     * through the no-op lock an unmodifiable list carries rather than through a read lock.
+     * {@inheritDoc}
+     * <p>
+     * Resolved once per texture and memoised on the pack stack, beside the decoded pixels it is a
+     * function of.
      */
-    private static @NotNull AnimationData toAnimationData(@NotNull MCMeta.Animation animation) {
-        return new AnimationData(
-            animation.frametime(),
-            animation.interpolate(),
-            animation.frames()
-                .stream()
-                .map(AnimationData.FrameEntry::new)
-                .collect(Concurrent.toUnmodifiableList()),
-            animation.width(),
-            animation.height()
-        );
+    @Override
+    public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+        return this.stack.flipbook(ResourceId.parse(textureId));
     }
 
     /**
@@ -287,14 +278,15 @@ public final class PipelineRendererContext implements RendererContext {
      * Sorts the block ids by primary tag then id (both case-insensitive); the shared, precomputed order.
      */
     private static @NotNull ConcurrentList<String> sortedBlockIds(@NotNull ConcurrentMap<String, Block> blockIndex, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
-        ArrayList<String> ids = new ArrayList<>(blockIndex.keySet());
-        ids.sort((a, b) -> {
-            String groupA = primaryTag(a, blockIndex, blockTags);
-            String groupB = primaryTag(b, blockIndex, blockTags);
-            int cmp = String.CASE_INSENSITIVE_ORDER.compare(groupA, groupB);
-            return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
-        });
-        return Concurrent.adoptList(ids).toUnmodifiable();
+        return blockIndex.keySet()
+            .stream()
+            .sorted((a, b) -> {
+                String groupA = primaryTag(a, blockIndex, blockTags);
+                String groupB = primaryTag(b, blockIndex, blockTags);
+                int cmp = String.CASE_INSENSITIVE_ORDER.compare(groupA, groupB);
+                return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
+            })
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**
@@ -311,12 +303,13 @@ public final class PipelineRendererContext implements RendererContext {
      * Sorts the item ids by material prefix then id (both case-insensitive); the shared, precomputed order.
      */
     private static @NotNull ConcurrentList<String> sortedItemIds(@NotNull ConcurrentMap<String, Item> itemIndex) {
-        ArrayList<String> ids = new ArrayList<>(itemIndex.keySet());
-        ids.sort((a, b) -> {
-            int cmp = String.CASE_INSENSITIVE_ORDER.compare(idPrefix(a), idPrefix(b));
-            return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
-        });
-        return Concurrent.adoptList(ids).toUnmodifiable();
+        return itemIndex.keySet()
+            .stream()
+            .sorted((a, b) -> {
+                int cmp = String.CASE_INSENSITIVE_ORDER.compare(idPrefix(a), idPrefix(b));
+                return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
+            })
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /** {@inheritDoc} */
@@ -334,7 +327,9 @@ public final class PipelineRendererContext implements RendererContext {
     /** {@inheritDoc} */
     @Override
     public @NotNull ConcurrentList<BannerPattern> knownBannerPatterns() {
-        return Concurrent.adoptList(new ArrayList<>(this.bannerPatterns.values()));
+        return this.bannerPatterns.values()
+            .stream()
+            .collect(Concurrent.toList());
     }
 
     /** {@inheritDoc} */

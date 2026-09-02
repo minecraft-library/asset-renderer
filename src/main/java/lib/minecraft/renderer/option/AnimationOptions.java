@@ -2,15 +2,120 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Optional;
 
 /**
  * The animation timing shared by the animated renderers (item, block, entity, fluid, portal): seed
- * tick, frame count, ticks-per-frame and playback schedule, plus the portal loop-crossfade fraction.
+ * tick, frame count, ticks-per-frame and playback schedule.
  */
 @Getter
 @ClassBuilder
 public class AnimationOptions {
+
+    /**
+     * Animation seed tick - frame 0 samples at this tick.
+     */
+    private final int startTick = 0;
+
+    /**
+     * Number of output frames. Empty means the subject decides - one frame for a still subject,
+     * the shipped strip for a moving one; an explicit {@code 1} means one frame OF the animation,
+     * sampled at the start tick.
+     */
+    private final @NotNull Optional<Integer> frameCount = Optional.empty();
+
+    /**
+     * Vanilla ticks advanced between successive output frames. Empty means the subject decides -
+     * the subject's shipped cadence.
+     */
+    private final @NotNull Optional<Integer> ticksPerFrame = Optional.empty();
+
+    /**
+     * How the baked frames play back, honoured by every subject that builds its schedule through
+     * {@link lib.minecraft.renderer.engine.compose.Timeline#schedule}. Defaults to
+     * {@link Schedule#TEXTURE_STRIP}, the authored-rate flipbook every subject rendered before the
+     * alternative existed.
+     */
+    private final @NotNull Schedule schedule = Schedule.TEXTURE_STRIP;
+
+    /**
+     * Opt-in {@code AUTO} timeline derivation: when {@code true}, a
+     * subject that cannot know a sensible {@link #frameCount} / {@link #ticksPerFrame} for its textures
+     * probes its resolved {@code .mcmeta} sidecars once at {@link #startTick} and derives the timeline
+     * (LCM loop capped at 200 ticks, GCD cadence) via {@link Timeline#deriveTickStrip}, then renders that
+     * ordinary explicit timeline. Default {@code false} leaves the caller's explicit values untouched;
+     * a subject with no animated texture degrades to a single static frame, so requesting it costs
+     * nothing on a static subject. The parity floor is preserved mechanically - the default is static.
+     */
+    private final boolean deriveTimeline = false;
+
+    /**
+     * The frame count, answering {@code 1} where none is named, so a renderer that treats
+     * {@code 1} as static reads what an unnamed count means to it.
+     *
+     * @return the named frame count, or {@code 1}
+     */
+    public int getFrameCount() {
+        return this.frameCount.orElse(1);
+    }
+
+    /**
+     * The tick step, answering {@code 1} where none is named, so a renderer stepping one tick a
+     * frame reads what an unnamed cadence means to it.
+     *
+     * @return the named tick step, or {@code 1}
+     */
+    public int getTicksPerFrame() {
+        return this.ticksPerFrame.orElse(1);
+    }
+
+    /**
+     * Whether the caller named a frame count, telling an explicit {@code 1} apart from an unnamed
+     * count the subject decides.
+     *
+     * @return whether a frame count is named
+     */
+    public boolean isFrameCountNamed() {
+        return this.frameCount.isPresent();
+    }
+
+    /**
+     * Whether the caller named a tick step, telling an explicit cadence apart from an unnamed one
+     * the subject decides.
+     *
+     * @return whether a tick step is named
+     */
+    public boolean isTicksPerFrameNamed() {
+        return this.ticksPerFrame.isPresent();
+    }
+
+    /**
+     * These options with every unnamed strip knob filled - the entity path's one defaulting site.
+     * A named knob always wins.
+     *
+     * @param fallbackFrames what fills an unnamed frame count
+     * @param fallbackTicks what fills an unnamed tick step
+     * @return these options with both strip knobs concrete
+     */
+    public @NotNull AnimationOptions resolved(int fallbackFrames, int fallbackTicks) {
+        if (isFrameCountNamed() && isTicksPerFrameNamed()) return this;
+        return mutate()
+            .frameCount(this.frameCount.orElse(fallbackFrames))
+            .ticksPerFrame(this.ticksPerFrame.orElse(fallbackTicks))
+            .build();
+    }
+
+    /**
+     * Builds an instance with every field at its default value.
+     *
+     * @return the default animation timing
+     */
+    public static @NotNull AnimationOptions defaults() {
+        return builder().build();
+    }
 
     /**
      * What a frame's tick means to the schedule that bakes it, and so how fast the baked frames play
@@ -32,73 +137,7 @@ public class AnimationOptions {
          * plays out in seconds instead of the twenty real-time minutes it depicts.
          */
         GAME_TIME
+
     }
 
-    /**
-     * Animation seed tick - frame 0 samples at this tick.
-     */
-    private final int startTick = 0;
-
-    /**
-     * Number of output frames; 1 = static, &gt;1 = animated.
-     */
-    private final int frameCount = 1;
-
-    /**
-     * Vanilla ticks advanced between successive output frames.
-     */
-    private final int ticksPerFrame = 1;
-
-    /**
-     * Frames sampled per whole-tick step, for a subject whose appearance is a continuous function of
-     * time. One frame per tick caps output at 20 frames a second, which is visibly coarse on
-     * continuous motion; a higher value samples between ticks, covering the same span of game time at
-     * the same speed but more finely. Defaults to {@code 1} - whole ticks, the only instants an
-     * offline bake sampled before.
-     * <p>
-     * Honoured only by subjects that read time as a quantity rather than as a lookup key. A texture
-     * flipbook has no state between its frames, so subdividing its ticks would bake duplicates.
-     * <p>
-     * Carried faithfully only by a container that stores delays in milliseconds. GIF stores
-     * centiseconds, and the smallest delay players honour is two of them, so a 50 ms tick has room
-     * for at most two sub-steps there and none at all at the default three - a GIF written from a
-     * subdivided schedule declares a longer tick than intended. Write WebP for these, or drop back
-     * to {@code 1} for a strip that has to be a GIF.
-     */
-    private final int subTickSteps = 1;
-
-    /**
-     * How the baked frames play back, honoured by every subject that builds its schedule through
-     * {@link lib.minecraft.renderer.engine.compose.Timeline#schedule}. Defaults to
-     * {@link Schedule#TEXTURE_STRIP}, the authored-rate flipbook every subject rendered before the
-     * alternative existed.
-     */
-    private final @NotNull Schedule schedule = Schedule.TEXTURE_STRIP;
-
-    /**
-     * Fraction of frameCount used as a shifted-continuation crossfade for a seamless loop; consumed
-     * only by the portal parallax bake, inert for the simple fluid strip loop.
-     */
-    private final float loopFadeBridgePct = 0.2f;
-
-    /**
-     * Opt-in {@code AUTO} timeline derivation: when {@code true}, a
-     * subject that cannot know a sensible {@link #frameCount} / {@link #ticksPerFrame} for its textures
-     * probes its resolved {@code .mcmeta} sidecars once at {@link #startTick} and derives the timeline
-     * (LCM loop capped at 200 ticks, GCD cadence) via
-     * {@link lib.minecraft.renderer.engine.compose.Timeline#deriveTickStrip}, then renders that
-     * ordinary explicit timeline. Default {@code false} leaves the caller's explicit values untouched;
-     * a subject with no animated texture degrades to a single static frame, so requesting it costs
-     * nothing on a static subject. The parity floor is preserved mechanically - the default is static.
-     */
-    private final boolean deriveTimeline = false;
-
-    /**
-     * Builds an instance with every field at its default value.
-     *
-     * @return the default animation timing
-     */
-    public static @NotNull AnimationOptions defaults() {
-        return builder().build();
-    }
 }

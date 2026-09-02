@@ -6,9 +6,9 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,32 +27,39 @@ import java.util.function.Function;
  * a higher pack adds permutations without dropping the vanilla trim set. A vanilla-only stack ships
  * only the trim atlas, and every vanilla trim reference is served by the item renderer's explicit
  * {@link TrimKit} branch before resolution, so this synthesiser never fires there - inert on vanilla.
+ *
+ * <p><b>Parity.</b> Reached only across the pipeline context, which is wiring, so no producer root
+ * reaches it. It sits behind a texture miss and its first client is the armour-trim item overlay,
+ * so what it can move is what an item draws.
  */
 @Parity(claim = "texture-synthesis")
+@Parity(subject = Subject.ITEM)
 public final class TextureSynthesizer {
 
     /** The empty synthesiser - no sources, never synthesises (test / stub contexts). */
     public static final @NotNull TextureSynthesizer EMPTY = new TextureSynthesizer(List.of());
 
-    private final @NotNull Map<String, Entry> registry;
+    private final @NotNull ConcurrentMap<String, Entry> registry;
     private final @NotNull ConcurrentMap<String, PixelBuffer> cache = Concurrent.newMap();
 
     /**
-     * Builds a synthesiser from the merged paletted-permutation sources.
+     * Builds a synthesiser from the merged paletted-permutation sources. Sources arrive ascending by
+     * pack, so a later source declaring the same {@code <base>_<permutation>} id takes the key.
      *
      * @param sources the concatenated {@code atlases/*.json} paletted-permutation sources
      */
     public TextureSynthesizer(@NotNull List<PalettedPermutationSource> sources) {
-        Map<String, Entry> registry = new HashMap<>();
-        for (PalettedPermutationSource source : sources) {
-            String paletteKey = normalize(source.paletteKey());
-            for (String base : source.textures()) {
-                String baseId = normalize(base);
-                for (Map.Entry<String, String> permutation : source.permutations().entrySet())
-                    registry.put(baseId + "_" + permutation.getKey(), new Entry(baseId, paletteKey, normalize(permutation.getValue())));
-            }
-        }
-        this.registry = Map.copyOf(registry);
+        this.registry = sources.stream()
+            .flatMap(source -> source.textures()
+                .stream()
+                .map(TextureSynthesizer::normalize)
+                .flatMap(baseId -> source.permutations()
+                    .entrySet()
+                    .stream()
+                    .map(permutation -> Map.entry(
+                        baseId + "_" + permutation.getKey(),
+                        new Entry(baseId, normalize(source.paletteKey()), normalize(permutation.getValue()))))))
+            .collect(Concurrent.toUnmodifiableMap((a, b) -> b));
     }
 
     /**

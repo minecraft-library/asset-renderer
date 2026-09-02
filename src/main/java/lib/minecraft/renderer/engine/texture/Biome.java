@@ -1,15 +1,15 @@
 package lib.minecraft.renderer.engine.texture;
 
 import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.Block;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Arrays;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -297,6 +297,7 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
      * 26.1 biome JSON (via {@code slowTest}, see the per-section comments in the constant table).
      * Grass overrides are the hardcoded badlands / cherry-grove values from the same source.
      */
+    @EnumLookup
     @Getter(style = NamingStyle.FLUENT)
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     enum Vanilla implements Biome {
@@ -397,6 +398,7 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
         SMALL_END_ISLANDS   ("minecraft:small_end_islands",         0.5f,  0.5f, GrassColorModifier.NONE),
         THE_VOID            ("minecraft:the_void",                  0.5f,  0.5f, GrassColorModifier.NONE);
 
+        @KeyField
         private final @NotNull String id;
         private final float temperature;
         private final float downfall;
@@ -459,18 +461,6 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
             @NotNull GrassColorModifier grassColorModifier
         ) {
             this(id, temperature, downfall, grassColorOverride, foliageColorOverride, dryFoliageColorOverride, Optional.empty(), grassColorModifier);
-        }
-
-        /**
-         * Looks up a vanilla biome by its Minecraft identifier.
-         *
-         * @param id the biome identifier, e.g. {@code "minecraft:plains"}
-         * @return the matching vanilla biome, or empty if no match exists
-         */
-        public static @NotNull Optional<Vanilla> byId(@NotNull String id) {
-            return Arrays.stream(values())
-                .filter(biome -> Objects.equals(biome.id, id))
-                .findFirst();
         }
 
     }

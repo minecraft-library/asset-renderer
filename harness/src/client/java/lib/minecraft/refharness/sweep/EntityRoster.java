@@ -351,7 +351,8 @@ public final class EntityRoster {
         EntityType.LLAMA, List.of("chest"),
         EntityType.TRADER_LLAMA, List.of("chest"),
         EntityType.GOAT, List.of("horn"),
-        EntityType.TURTLE, List.of("egg"));
+        EntityType.TURTLE, List.of("egg"),
+        EntityType.FROG, List.of("croak"));
 
     /**
      * The bones a subject's selections force, mapped to the visibility they force them to.
@@ -375,14 +376,28 @@ public final class EntityRoster {
         return pins;
     }
 
-    /** The bones one toggle name reaches, and what selecting it does to them. */
+    /**
+     * The bones one toggle name reaches, and what selecting it does to them.
+     *
+     * <p><b>A toggle names the state its subject is NOT resting in</b>, so every entry here is the
+     * opposite of what the subject draws with nothing selected. A stand rests without arms and keeps
+     * its base plate, a goat rests horned, a donkey rests without its chest - so selecting reads
+     * true, false, false, true in that order, and a pin that answered a subject's own resting side
+     * would render a second copy of the reference beside it rather than the other appearance.
+     */
     private static Map<String, Boolean> toggleBones(String toggle) {
         return switch (toggle) {
             case "arms" -> Map.of("left_arm", true, "right_arm", true);
             case "base_plate" -> Map.of("base_plate", false);
-            case "stinger" -> Map.of("stinger", true);
+            // A bee rests WITH its sting: BeeRenderState builds hasStinger at one, nothing pins the
+            // bone, and the cancelled setupAnim leaves ModelPart's constructed visible standing. So
+            // the toggle is the bee that has stung, and pinning it true drew the resting bee twice.
+            case "stinger" -> Map.of("stinger", false);
             case "chest" -> Map.of("left_chest", true, "right_chest", true);
             case "horn" -> Map.of("left_horn", false, "right_horn", false);
+            // A frog rests with the sac undrawn - its model draws it only while the croak state
+            // runs, and nothing has started one - so selecting it is the frog mid-croak.
+            case "croak" -> Map.of("croaking_body", true);
             case "egg" -> Map.of("egg_belly", true);
             default -> throw new IllegalArgumentException("No bone toggle named '" + toggle + "'");
         };
@@ -442,16 +457,30 @@ public final class EntityRoster {
      * <p>Variants of one type group automatically, since they all key on the same type; an entry is
      * needed only when two distinct types should group.
      *
-     * <p>Stray joins skeleton because they share a mesh: the Java pipeline canvas-fits skeleton with
-     * stray's inflated clothing-layer overlay, so the harness has to apply the same union to keep
-     * skeleton's reference at the same canvas dimensions as stray's.
+     * <p><b>This map is the asset-renderer's {@code Entity.members()} spelled a second time, and the
+     * two are one set.</b> That side derives its list from shared primary geometry and measures every
+     * member of it in the pose the render draws; this side declares the same groups by hand. A group
+     * only one of them carries is a canvas one renderer unions and the other does not, and the
+     * comparison then reports framing rather than the render - measured at 333 of animated delta over
+     * the piglin family while the two disagreed. So a group added on either side is added on both.
      *
-     * <p>Mooshroom is deliberately <b>not</b> grouped into cow. The asset-renderer sizes cow to the
-     * cow body alone and mooshroom to its own body plus mushrooms, so grouping them here would push
-     * the cow reference down by the mushroom height and diverge from the Java render.
+     * <p>These are the cross-type siblings that share a mesh. Their canvases were already equal while
+     * every subject was measured at rest, because the unposed silhouettes nest inside one another;
+     * what a stride does is take that coincidence away.
+     *
+     * <p>Two entries of {@link #GROUP_OF} are deliberately <b>not</b> here, and both for the same
+     * reason: a variant family's canvas is its own coats' union, so the asset-renderer keeps
+     * {@code mooshroom} and {@code trader_llama} out of any group and pushing them in here would size
+     * cow and llama against bodies the Java render never fits them to.
      */
     public static final Map<EntityType<?>, EntityType<?>> FAMILY_OVERRIDES = Map.of(
-        EntityType.STRAY, EntityType.SKELETON
+        EntityType.STRAY, EntityType.SKELETON,
+        EntityType.CAMEL_HUSK, EntityType.CAMEL,
+        EntityType.GLOW_SQUID, EntityType.SQUID,
+        EntityType.ZOGLIN, EntityType.HOGLIN,
+        EntityType.PIGLIN_BRUTE, EntityType.PIGLIN,
+        EntityType.ZOMBIFIED_PIGLIN, EntityType.PIGLIN,
+        EntityType.WANDERING_TRADER, EntityType.VILLAGER
     );
 
     /**

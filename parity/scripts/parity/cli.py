@@ -16,7 +16,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from parity import VERSION
 from parity import blindness as blindness_mod
@@ -26,6 +26,7 @@ from parity import declarations as declarations_mod
 from parity import ids as ids_mod
 from parity import promote as promote_mod
 from parity import provenance as provenance_mod
+from parity import reach as reach_mod
 from parity import jsondiff as jsondiff_mod
 from parity import manifest as manifest_mod
 from parity import render as render_mod
@@ -213,6 +214,81 @@ def _cmd_triggers(args: argparse.Namespace) -> int:
             + (" - " + ", ".join(moved) if moved else ""))
     _emit(args, text, {"moved": moved, "checked": bool(args.check)})
     return DIFFERENCES if moved and args.check else OK
+
+
+def _cmd_reach(args: argparse.Namespace) -> int:
+    """Answer which artifacts a changed Java type can move, off the compiled constant pool.
+
+    Four questions over one derived graph: ``of`` is what a plan asks, ``why`` prints the reference
+    chain behind an answer so a wide one can be argued with rather than worked around, ``orphans``
+    names the types no producer root reaches - the ones a declaration has to answer for - and
+    ``build`` writes the graph for the committed file.
+    """
+    base = _bases(args)
+    graph = reach_mod.build(base)
+    if args.reach_command in ("build", "check"):
+        target = base / "parity" / reach_mod.STORED
+        if args.reach_command == "build" and getattr(args, "target", None):
+            target = Path(args.target)
+        derived = reach_mod.to_payload(graph)
+        if args.reach_command == "build":
+            write_json(target, derived)
+            _emit(args, f"reach: wrote {target} - {len(graph.declared)} types",
+                  {"types": len(graph.declared)})
+            return OK
+        if not target.is_file():
+            raise MissingInput(f"no committed reach graph at {target} - run 'parity reach build'")
+        moved = reach_mod.differences(read_json(target), derived)
+        # And the second half, which the comparison above cannot see: a library type that reaches
+        # nothing and says nothing about it. Both halves of `check`, because both are the same
+        # failure - a gate that has quietly stopped being consulted - and a run that reported the
+        # first and passed over the second would say "agrees with the tree" about a tree it agrees
+        # with and cannot answer for.
+        unexplained = reach_mod.unexplained(base, graph)
+        lines = []
+        if moved:
+            lines.append(f"reach: would move {len(moved)} type(s)")
+            lines += moved
+        if unexplained:
+            lines.append(
+                f"reach: {len(unexplained)} library type(s) reach nothing and declare nothing. A "
+                "type no producer root reaches is either a renderer this store holds no artifact "
+                "for, or one reached by an edge this graph cannot see, and only the type can say "
+                "which - write @Parity(subject = {...}) naming what it reaches")
+            lines += unexplained
+        if not lines:
+            lines.append("reach: agrees with the tree")
+        _emit(args, "\n".join(lines), {"moved": moved, "unexplained": unexplained})
+        return DIFFERENCES if moved or unexplained else OK
+    if args.reach_command == "orphans":
+        found = reach_mod.orphans(graph)
+        explained = reach_mod.declared_reach(base, graph.declared)
+        lines = [f"{name}"
+                 + (f" - declares {', '.join(explained[name])}" if name in explained else "")
+                 for name in found]
+        _emit(args, f"reach: {len(found)} type(s) no producer root reaches, "
+                    f"{len(reach_mod.unexplained(base, graph))} of them undeclared library types\n"
+                    + "\n".join(lines),
+              {"orphans": found, "unexplained": reach_mod.unexplained(base, graph)})
+        return OK
+    if args.reach_command == "why":
+        binary = reach_mod.to_binary(args.path)
+        if binary is None or binary not in graph.declared:
+            raise MissingInput(f"'{args.path}' is not a scanned Java source path")
+        if args.artifact not in graph.roots:
+            raise MissingInput(f"'{args.artifact}' has no producer root in the reach table")
+        for entry in graph.roots[args.artifact]:
+            found = reach_mod.chain(entry, binary, graph.edges)
+            if found:
+                names = [part.rsplit("/", 1)[1] for part in found]
+                _emit(args, " -> ".join(names), {"chain": found})
+                return OK
+        raise MissingInput(f"no reference chain from '{args.artifact}' to '{args.path}'")
+    answers = reach_mod.of(graph, args.path)
+    lines = [f"{path}: {', '.join(found) if found else '(none derived)'}"
+             for path, found in answers.items()]
+    _emit(args, "\n".join(lines) or "reach: no scanned Java source path given", answers)
+    return OK
 
 
 def _cmd_selftest(args: argparse.Namespace) -> int:
@@ -410,6 +486,37 @@ def _cmd_render_bytes(args: argparse.Namespace) -> int:
     return OK
 
 
+def _render_summary(payload: dict) -> str:
+    """The verdict as the part of it that moved, which is what a reader decides from.
+
+    The full view is every artifact whether it moved or not, so a bundle of two dozen is read in
+    slices and the six rows that matter are somewhere in the middle of them. This is the same
+    numbers with the still rows collapsed to one line: what moved, what it moved to, and a count of
+    what held. ``compare.md`` is written either way and stays the authority.
+
+    :param payload: the compare report
+    :return: the compact text
+    """
+    moved = [result for result in payload.get("artifacts", [])
+             if result["movers"] or result["added"] or result["dropped"]]
+    still = len(payload.get("artifacts", [])) - len(moved)
+    lines = []
+    for result in moved:
+        totals = result["totals"]
+        lines.append(f"## {result['artifact']}  moved {len(result['movers'])} "
+                     f"({totals['expected']} expected, {totals['unexpected']} unexpected) - "
+                     f"added {len(result['added'])} - dropped {len(result['dropped'])}")
+        for mover in result["movers"]:
+            mark = "expected" if mover.get("expected") else "UNEXPECTED"
+            for field, pair in sorted((mover.get("fields") or {}).items()):
+                lines.append(f"  {mover['key']} · {field}: {pair[0]} -> {pair[1]}  [{mark}]")
+    if not moved:
+        lines.append("no artifact moved, and none gained or lost a row")
+    lines.append(f"\n{still} artifact(s) held; {payload['totals']['unexpected']} unexpected "
+                 f"mover(s) over {payload['totals']['artifacts']} compared")
+    return "\n".join(lines)
+
+
 def _cmd_compare(args: argparse.Namespace) -> int:
     root = store_mod.working(args.root, _bases(args))
     # Refuse a root that never finished: a stale tree reported as agreement is the recorded
@@ -450,6 +557,18 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     not_captured = _not_captured_in(root.root)
     if not_captured:
         payload["not_captured"] = not_captured
+    # A row whose producer failed, which is a THIRD outcome beside moved and unchanged and was
+    # reported as neither: the capture step is a finalizer, so it ran, wrote nothing, and the compare
+    # drew its artifact list from what the root holds - so the row simply was not mentioned and a
+    # bundle missing its most interesting member read as a clean pass.
+    unproduced = capture_mod.unproduced_rows(root.root)
+    licensed = compare_mod.registered_unproduced(expected)
+    for row in unproduced:
+        row["expected"] = row["artifact"] in licensed
+        if row["expected"]:
+            row["reason"] = licensed[row["artifact"]]
+    if unproduced:
+        payload["unproduced"] = unproduced
     agreement = _shipped_tables_agreement(args, root)
     payload["checks"] = {compare_mod.AGREEMENT_CHECK: agreement}
     if args.bootstrap:
@@ -466,14 +585,24 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     # than a wrong answer.
     write_json(run / "last-verdict.json", {
         "artifacts": [result.artifact for result in results],
+        "asset_content_digest": provenance_mod.content_digest(_bases(args)),
         "asset_dirty_digest": provenance_mod.dirty_digest(_bases(args)),
         "asset_sha": provenance_mod.asset_state(_bases(args))["asset_sha"],
         "missing_baseline": missing,
+        # Whether this verdict speaks for the CONTENT it measured or for the one tree state it was
+        # taken at. Opt-in and recorded here rather than read from the machine, because it is a claim
+        # the operator makes about a phase - "what I gated is what lands, however it is committed" -
+        # and a claim belongs beside the evidence for it.
+        "phase_gate": bool(args.phase_gate),
         "unexpected": payload["totals"]["unexpected"],
     })
-    text = report_mod.render_diff(payload)
+    text = _render_summary(payload) if args.summary else report_mod.render_diff(payload)
     if missing:
         text += f"\n\n**MISSING_BASELINE**: {', '.join(missing)}"
+    for row in unproduced:
+        tasks = ", ".join(f"{one['task']} - {one['failure']}" for one in row["producers"])
+        mark = f"expected: {row['reason']}" if row["expected"] else "UNEXPECTED"
+        text += f"\n\n**UNPRODUCED** {row['artifact']} [{mark}]: {tasks}"
     if not_captured:
         text += (f"\n\n**not captured by this run** (in the root, stamped by no capture step): "
                  f"{', '.join(not_captured)}")
@@ -484,6 +613,17 @@ def _cmd_compare(args: argparse.Namespace) -> int:
         raise ComparisonFailed(
             f"MISSING_BASELINE for {', '.join(missing)}: nothing to compare against. "
             "The first capture of an artifact is compared with --bootstrap")
+    # Before the mover gate for MISSING_BASELINE's reason and one of its own: a row with no value is
+    # not a row that held, so a verdict drawn from the rest of the bundle is answering about a
+    # narrower set than the one that was planned. `--bootstrap` does not excuse it - a first capture
+    # of a row is still a row somebody has to produce.
+    unexpected = [row["artifact"] for row in unproduced if not row["expected"]]
+    if unexpected:
+        raise ComparisonFailed(
+            f"UNPRODUCED for {', '.join(unexpected)}: the producer failed, so the row has no value "
+            "and the rest of this bundle is a verdict about a narrower set than was planned. Fix the "
+            "producer, or register the failure with "
+            "`./gradlew parityExpect -Partifact=<id> -Punproduced -Preason=<why>`")
     # Before the mover gate, because it is a POPULATION check like MISSING_BASELINE rather than a
     # value one: if the two artifacts disagree about which tables exist, the per-row comparison over
     # them is answering a question about a covered set that is already wrong.
@@ -546,20 +686,52 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
     # Conditional: a step is one process per artifact, so erasing here unconditionally leaves only
     # whichever row ran last. `capture-begin` is what erases when an invocation names several.
     capture_mod.join_or_begin(root)
+    failed = _failed_producers(args.failed or ())
     written = []
+    unproduced = []
     for position, artifact in enumerate(args.artifact):
         source = Path(sources[0] if len(sources) == 1 else sources[position])
         _progress(args, f"capture {position + 1}/{len(args.artifact)} {artifact}")
-        target = capture_mod.normalize(artifact, source, root, repo, producer=args.producer or "",
-                                       mode=args.mode, flags=args.flag or (), runs=args.runs,
-                                       logs=Path(args.logs) if args.logs else None,
-                                       reference_tree=(Path(args.reference_tree)
-                                                       if args.reference_tree else None),
-                                       wall_time_ms=args.wall_time, store=args.store)
+        try:
+            target = capture_mod.normalize(
+                artifact, source, root, repo, producer=args.producer or "",
+                mode=args.mode, flags=args.flag or (), runs=args.runs,
+                logs=Path(args.logs) if args.logs else None,
+                reference_tree=(Path(args.reference_tree) if args.reference_tree else None),
+                wall_time_ms=args.wall_time, store=args.store)
+        except MissingInput:
+            # A producer that failed is a RESULT to record, and only where it left nothing to read.
+            # The order matters: a self-capturing row's writer writes before it asserts, so a suite
+            # that went red over the very value being re-based has still produced a capturable file -
+            # and pre-empting the read on the task's outcome would discard it, which un-circles
+            # nothing. An absent file with no failure to explain it stays a refusal, because that is
+            # what a filtered test run looks like.
+            if not failed:
+                raise
+            unproduced.append(
+                {"artifact": artifact, "path": str(capture_mod.unproduced(root, artifact, failed))})
+            continue
         written.append({"artifact": artifact, "path": str(target)})
-    _emit(args, "\n".join(f"captured {row['artifact']} -> {row['path']}" for row in written),
-          {"captured": written})
+    lines = [f"captured {row['artifact']} -> {row['path']}" for row in written]
+    lines += [f"UNPRODUCED {row['artifact']}: {', '.join(task for task, _ in failed)} failed and "
+              f"wrote nothing -> {row['path']}" for row in unproduced]
+    _emit(args, "\n".join(lines), {"captured": written, "unproduced": unproduced})
     return OK
+
+
+def _failed_producers(entries: Sequence[str]) -> list[tuple[str, str]]:
+    """The failing producers a capture step was told about, each as its task and what it said.
+
+    :param entries: ``task=message`` pairs
+    :raises Refused: if an entry names no task
+    """
+    out = []
+    for entry in entries:
+        task, _, message = entry.partition("=")
+        if not task:
+            raise Refused(f"--failed {entry!r} names no task")
+        out.append((task, message))
+    return out
 
 
 def _cmd_capture_index(args: argparse.Namespace) -> int:
@@ -567,6 +739,23 @@ def _cmd_capture_index(args: argparse.Namespace) -> int:
     marker = capture_mod.index(root)
     _emit(args, f"capture complete: {marker}", {"complete": str(marker)})
     return OK
+
+
+def _derived_reach(base: Path, rules: Sequence[blindness_mod.Rule]) \
+        -> blindness_mod.DerivedReach | None:
+    """What answers a derived rule's selection, or nothing when the map has no derived rule.
+
+    The committed graph, read once. Loading it only when some rule wants it is what keeps a map with
+    none of them resolvable on a tree that has never run ``reach build`` - the file is a guarded
+    artifact rather than a precondition of planning at all.
+
+    :param base: the repository root
+    :param rules: the map's rules, live triggers already folded in
+    """
+    if not any(rule.derived for rule in rules):
+        return None
+    payload = read_json(base / "parity" / reach_mod.STORED)
+    return lambda path: reach_mod.answered_by(payload, path)
 
 
 def _cmd_plan(args: argparse.Namespace) -> int:
@@ -592,8 +781,8 @@ def _cmd_plan(args: argparse.Namespace) -> int:
 
     changed = list(args.changed or [])
     if not changed or args.changed_from_git:
-        changed = sorted(set(changed) | set(_changed_from_git(base)))
-    reach = blindness_mod.resolve(changed, rules, no_reach)
+        changed = sorted(set(changed) | set(_changed_from_git(base, getattr(args, "since", None))))
+    reach = blindness_mod.resolve(changed, rules, no_reach, _derived_reach(base, rules))
     if reach.unknown:
         raise Refused(str(blindness_mod.UnknownReach(reach.unknown)))
 
@@ -662,6 +851,20 @@ def _cmd_plan(args: argparse.Namespace) -> int:
             where = f" {entry['where']}" if entry["where"] else ""
             lines.append(f"  {entry['artifact']} [{entry['home']}]{where} - {act}")
     lines.append(f"BUDGET {budget} ms{_budget_caveat(len(measured), len(plan))}")
+    # The standing verdict, on every plan rather than only under --gate-exit. The predicate is the
+    # hook's own, so the two cannot drift; what differs is that this one REPORTS. A plan is a Gradle
+    # Exec and a non-zero exit fails the build, so answering "already gated" in the exit code would
+    # fail every plan of an ungated change - which is why the hook's flag exists at all.
+    #
+    # It is printed because the alternative is what the cost was: a capture is cheaper to re-run than
+    # to reason about whether the last one still stands, so it got re-run. Whoever reads a plan is
+    # about to spend the budget on the line above it, and this is the line that says they need not.
+    gated = _gate_exit(args, base, root, reach, plan) if reach.sees else OK
+    payload["already_gated"] = gated == GATE_ALREADY_GATED
+    if gated == GATE_ALREADY_GATED:
+        lines.append("VERDICT already gated - a passing compare covers this exact tree state and "
+                     "this whole plan. Nothing here needs running; quote _run/compare.md. Editing "
+                     "any tracked file re-arms it.")
     _emit(args, "\n".join(lines), payload)
     return _gate_exit(args, base, root, reach, plan) if args.gate_exit else OK
 
@@ -906,14 +1109,27 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
         recorded = read_json(verdict)
     except ValueError:
         return GATE_SEES_UNGATED
-    sha = provenance_mod.asset_state(base)["asset_sha"]
-    digest = provenance_mod.dirty_digest(base)
-    # An unreadable git is not evidence of having been gated. Both sides must be present AND equal,
-    # so a null on either side re-arms rather than short-circuits.
-    if sha is None or digest is None:
-        return GATE_SEES_UNGATED
-    if recorded.get("asset_sha") != sha or recorded.get("asset_dirty_digest") != digest:
-        return GATE_SEES_UNGATED
+    # **A phase gate speaks for CONTENT; a plain one speaks for the tree state it was taken at.**
+    # The default is the strict pair, so a gate covers exactly the commit it was taken for and every
+    # commit after it re-arms - which is the prompting the hook exists to do. `--phase-gate` is the
+    # operator saying the opposite on purpose: what was gated is what lands, so committing it in one
+    # piece or four is the same content and the gate covers all of them. Any edit ON TOP still moves
+    # the content and re-arms, and neither form waives the checks below - a red verdict asks either
+    # way. Opt-in, because the cost of the strict default is a re-run and the cost of the loose one
+    # defaulting on is a commit nobody was asked about.
+    if recorded.get("phase_gate"):
+        content = provenance_mod.content_digest(base)
+        if content is None or recorded.get("asset_content_digest") != content:
+            return GATE_SEES_UNGATED
+    else:
+        sha = provenance_mod.asset_state(base)["asset_sha"]
+        digest = provenance_mod.dirty_digest(base)
+        # An unreadable git is not evidence of having been gated. Both sides must be present AND
+        # equal, so a null on either side re-arms rather than short-circuits.
+        if sha is None or digest is None:
+            return GATE_SEES_UNGATED
+        if recorded.get("asset_sha") != sha or recorded.get("asset_dirty_digest") != digest:
+            return GATE_SEES_UNGATED
     # The tree matches, but a verdict that covered fewer artifacts than this plan needs has not
     # gated the difference. Against the PLAN, because a verdict records what a compare covered and a
     # compare covers what a capture produced: an id no capture produces can never appear there, so
@@ -971,17 +1187,118 @@ def _newest_verdict(base: Path, root: Path) -> Path | None:
     return max(found, key=lambda path: (path.stat().st_mtime_ns, str(path)))
 
 
-def _changed_from_git(base: Path) -> list[str]:
-    """The working tree's changed set: tracked modifications plus untracked, unignored files."""
-    changed: list[str] = []
-    for command in (["git", "diff", "--name-only", "HEAD"],
-                    ["git", "ls-files", "--others", "--exclude-standard"]):
-        result = subprocess.run(command, cwd=base, capture_output=True, text=True, check=False)
-        if result.returncode != 0:
-            raise MissingInput(f"{' '.join(command)} failed: {result.stderr.strip()}")
-        changed.extend(line.strip().replace("\\", "/") for line in result.stdout.splitlines()
-                       if line.strip())
-    return changed
+def _git_lines(base: Path, command: list[str]) -> list[str]:
+    """One git command's stdout as repo-relative forward-slash paths."""
+    result = subprocess.run(command, cwd=base, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise MissingInput(f"{' '.join(command)} failed: {result.stderr.strip()}")
+    return [line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()]
+
+
+def _trunk(base: Path) -> str | None:
+    """The ref a branch is measured from, or None where the repo names none.
+
+    Asked of the remote's own default first, because that is the repo's answer rather than a guess;
+    the two conventional names are tried after it, and a repo with neither gets no answer rather
+    than a wrong one.
+    """
+    result = subprocess.run(["git", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+                            cwd=base, capture_output=True, text=True, check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip()
+    for name in ("master", "main"):
+        result = subprocess.run(["git", "rev-parse", "--verify", "--quiet", name],
+                                cwd=base, capture_output=True, text=True, check=False)
+        if result.returncode == 0 and result.stdout.strip():
+            return name
+    return None
+
+
+def _changed_from_git(base: Path, since: str | None = None) -> list[str]:
+    """The change to plan: what is uncommitted, or what the branch changed where nothing is.
+
+    **A clean tree is a phase that has already committed, not a change of nothing.** A phase landing
+    one commit per mover leaves nothing uncommitted, so a set drawn from the dirty tree alone is
+    empty and the plan resolves an empty reach - which reads as "no artifact can see this" when what
+    is true is "everything this phase did is already in". So where nothing is uncommitted the
+    branch's own diff answers instead: every path changed since the branch left the trunk.
+
+    That fallback is what a caller used to have to hand in, and handing it in by hand is how it goes
+    wrong - the ref typed is the one remembered rather than the one the branch forked at. ``since``
+    overrides the trunk where the default is not the ref wanted; a repo naming no trunk, or a HEAD
+    that IS it, answers with the dirty set it has.
+
+    **A path the branch DELETED is left out of the fallback, and only out of the fallback.** Reach
+    for a ``.java`` is answered by a graph derived from the compiled tree, so a file the tree no
+    longer holds has no entry and never will - the refusal names ``reach build``, which cannot put
+    back what was deleted. It is not a gap: the commit that removed the file was gated while the
+    graph still answered for it, which is the dirty set below and is deliberately NOT filtered. What
+    is dropped here is a path the current tree does not have, asked about after the fact.
+
+    :param base: the repo root
+    :param since: the ref to measure a clean tree from, or None to use the trunk merge-base
+    :return: the changed paths, repo-relative
+    """
+    dirty = _git_lines(base, ["git", "diff", "--name-only", "HEAD"])
+    dirty += _git_lines(base, ["git", "ls-files", "--others", "--exclude-standard"])
+    if dirty and not since:
+        return dirty
+
+    start = since or _trunk(base)
+    if not start:
+        return dirty
+    merge_base = subprocess.run(["git", "merge-base", start, "HEAD"],
+                                cwd=base, capture_output=True, text=True, check=False)
+    if merge_base.returncode != 0 or not merge_base.stdout.strip():
+        return dirty
+    fork = merge_base.stdout.strip()
+    landed = [path for path in _git_lines(base, ["git", "diff", "--name-only", f"{fork}..HEAD"])
+              if (base / path).exists()]
+    return sorted(set(dirty) | set(landed))
+
+
+def _movers_from_verdict(args: argparse.Namespace, root: Path) -> list[dict]:
+    """Every unexpected mover the last compare of THIS capture found, as registrations.
+
+    **One registration per moved FIELD, not per row.** A row is expected only where every field it
+    moved landed on a registered value, so a row moving two columns owes two - which is exactly what
+    registering it by hand would write, and exactly what a hand doing it twice gets wrong.
+
+    The verdict has to be about the capture in this root, checked the way a promotion checks it: a
+    ``compare.json`` left by an earlier capture would otherwise register that capture's movers
+    against this one and mark rows expected that nothing has looked at.
+
+    :param args: the parsed namespace
+    :param root: the working root
+    :return: the registrations, in verdict order
+    :raises MissingInput: if no compare has run into this root
+    :raises Refused: if the compare that ran was about a different capture
+    """
+    report_path = root / store_mod.RUN_DIR / compare_mod.REPORT
+    if not report_path.is_file():
+        raise MissingInput(
+            f"expect --from-verdict found no {compare_mod.REPORT} under {root}: it registers what a "
+            "compare FOUND, so run parityCompare first and read its verdict before registering it")
+    report = read_json(report_path)
+    recorded = report.get(compare_mod.CAPTURE_DIGEST)
+    current = capture_mod.content_digest(root)
+    if recorded != current:
+        raise Refused(
+            f"expect --from-verdict read a verdict about capture {str(recorded)[:12]} while this "
+            f"root holds {str(current)[:12]}: those are two captures, and registering one's movers "
+            "against the other marks rows expected that nothing measured. Re-run parityCompare")
+    out: list[dict] = []
+    for result in report.get("artifacts", []):
+        artifact = result.get("artifact")
+        if args.artifact and artifact != args.artifact:
+            continue
+        for mover in result.get("movers", []):
+            if mover.get("expected"):
+                continue
+            for _, pair in sorted((mover.get("fields") or {}).items()):
+                out.append({"artifact": artifact, "key": mover.get("key"),
+                            "reason": args.reason, "to": str(pair[1])})
+    return out
 
 
 def _cmd_expect(args: argparse.Namespace) -> int:
@@ -991,20 +1308,54 @@ def _cmd_expect(args: argparse.Namespace) -> int:
     # and the one that would be dropped here is the registration - so a command that named a row and
     # a value would report "0 mover(s) registered" and exit 0.
     named = [flag for flag, value in (("--artifact", args.artifact), ("--key", args.key),
-                                      ("--to", args.to), ("--reason", args.reason)) if value]
+                                      ("--to", args.to), ("--reason", args.reason),
+                                      ("--unproduced", args.unproduced),
+                                      ("--from-verdict", args.from_verdict)) if value]
     if args.empty and named:
         raise Refused(f"expect was given --empty and {', '.join(named)} together: a clear and a "
                       "registration are two different orders, and one of them would be silently "
                       "dropped. Clear first, then register")
     payload = compare_mod.load_expected(target) or compare_mod.empty_expected() \
         if not args.empty else compare_mod.empty_expected()
-    if not args.empty:
+    if args.from_verdict:
+        # The row and the value are read rather than typed, so --key and --to have nothing to say and
+        # are refused rather than silently losing to the verdict. --artifact still narrows.
+        if args.key or args.to or args.unproduced:
+            raise Refused(
+                "expect was given --from-verdict with --key, --to or --unproduced: what it registers "
+                "is read out of the verdict, so a row or a value typed beside it would be dropped. "
+                "Use --from-verdict alone, or register the row by hand")
+        if not args.reason:
+            raise Refused("expect --from-verdict needs --reason: a mover nobody accounted for is the "
+                          "finding rather than a state to wave through, and that holds however the "
+                          "registration was written")
+        found = _movers_from_verdict(args, root)
+        payload["movers"].extend(found)
+        _emit(args, f"{len(found)} mover(s) registered from the verdict -> {target}", payload)
+        write_json(target, payload)
+        return OK
+    if args.unproduced:
+        # A row and a reason, and no key or value to name: what is wrong with an unproduced row is
+        # that it HAS no value. Given one anyway, the registration would read as a mover's and cover
+        # nothing, so the two spellings are refused together rather than one quietly winning.
+        if args.key or args.to:
+            raise Refused(
+                "expect was given --unproduced with --key or --to: an unproduced row carries no "
+                "value, so there is no key to name and nothing for it to land on. Register the "
+                "artifact and the reason, or drop --unproduced and register the mover")
+        if not (args.artifact and args.reason):
+            raise Refused("expect --unproduced needs --artifact and --reason")
+        payload.setdefault("unproduced", []).append(
+            {"artifact": args.artifact, "reason": args.reason})
+    elif not args.empty:
         if not (args.artifact and args.key and args.to and args.reason):
             raise Refused("expect needs --artifact, --key, --to and --reason, or --empty")
         payload["movers"].append({"artifact": args.artifact, "key": args.key,
                                   "reason": args.reason, "to": args.to})
     write_json(target, payload)
-    _emit(args, f"{len(payload['movers'])} mover(s) registered -> {target}", payload)
+    _emit(args, f"{len(payload['movers'])} mover(s) and "
+                f"{len(payload.get('unproduced', []))} unproduced row(s) registered -> {target}",
+          payload)
     return OK
 
 
@@ -1042,7 +1393,7 @@ def _cmd_promote_apply(args: argparse.Namespace) -> int:
     write_text(run / "promote.md", report_mod.render(payload, "promotion-plan"))
 
     promote_mod.check(root, entries, args.reason or "", target.index(), args.allow_partial,
-                      args.bootstrap, args.allow_dirty, args.population_changed)
+                      args.bootstrap, args.allow_dirty, args.population_changed, repo=_bases(args))
     for position, entry in enumerate(entries, start=1):
         _progress(args, f"promote {position}/{len(entries)} {entry.artifact} ({entry.action})")
     result = promote_mod.apply(root, target, entries, args.reason,
@@ -1209,6 +1560,20 @@ def _register(subparsers: Any) -> dict[str, Command]:
                                  help="answer what would move and write nothing")
     table["triggers"] = _cmd_triggers
 
+    reach_parser = subparsers.add_parser(
+        "reach", help="which artifacts a changed Java type can move, off the constant pool")
+    reach_sub = reach_parser.add_subparsers(dest="reach_command", required=True)
+    reach_of = reach_sub.add_parser("of", help="the artifacts the given paths reach")
+    reach_of.add_argument("path", nargs="+")
+    reach_why = reach_sub.add_parser("why", help="the reference chain behind one answer")
+    reach_why.add_argument("path")
+    reach_why.add_argument("artifact")
+    reach_sub.add_parser("orphans", help="types no producer root reaches")
+    reach_sub.add_parser("check", help="what would move in the committed graph; writes nothing")
+    reach_build = reach_sub.add_parser("build", help="write the derived graph")
+    reach_build.add_argument("target", nargs="?", default=None)
+    table["reach"] = _cmd_reach
+
     selftest_parser = subparsers.add_parser("selftest", help="run the toolkit's own unittest suite")
     selftest_parser.add_argument("-k", dest="pattern", default=None, metavar="PATTERN")
     table["selftest"] = _cmd_selftest
@@ -1271,6 +1636,11 @@ def _register(subparsers: Any) -> dict[str, Command]:
     # under the flag. Dropped rather than left advertising a defence that was never built; the
     # deleted-spellings roster is what makes a resurrection visible instead of silently accepted.
     cmp_parser.add_argument("--bootstrap", action="store_true")
+    cmp_parser.add_argument("--summary", action="store_true",
+                            help="print only what moved; compare.md is written in full either way")
+    cmp_parser.add_argument("--phase-gate", action="store_true", dest="phase_gate",
+                            help="this verdict covers the CONTENT it measured however it is "
+                                 "committed, rather than the one tree state it was taken at")
     table["compare"] = _cmd_compare
 
     rep = subparsers.add_parser("report", help="render a stored artifact or a diff as Markdown")
@@ -1289,6 +1659,9 @@ def _register(subparsers: Any) -> dict[str, Command]:
     cap.add_argument("--artifact", action="append", required=True)
     cap.add_argument("--source", action="append", required=True, metavar="PATH")
     cap.add_argument("--producer", default=None, help="one comma list of producing task names")
+    cap.add_argument("--failed", action="append", default=None, metavar="TASK=MESSAGE",
+                     help="a producer of this row that failed, so an absent source is recorded as "
+                          "UNPRODUCED rather than refused")
     cap.add_argument("--flag", action="append", default=None, metavar="k=v")
     cap.add_argument("--runs", type=int, default=None,
                      help="how many runs AGREED, a measurement; absent means the artifact's "
@@ -1317,6 +1690,8 @@ def _register(subparsers: Any) -> dict[str, Command]:
     pln = subparsers.add_parser("plan", help="resolve which artifacts can SEE the working tree's change")
     pln.add_argument("--changed-from-git", action="store_true", dest="changed_from_git")
     pln.add_argument("--changed", action="append", default=None, metavar="PATH")
+    pln.add_argument("--since", default=None, metavar="REF",
+                     help="the ref a clean tree is measured from; defaults to the trunk merge-base")
     pln.add_argument("--gate-exit", action="store_true", dest="gate_exit",
                      help=f"answer in the exit code: 0 nothing sees it, {GATE_SEES_UNGATED} seen and "
                           f"ungated, {GATE_ALREADY_GATED} already gated for this tree. For the "
@@ -1325,10 +1700,14 @@ def _register(subparsers: Any) -> dict[str, Command]:
 
     exp = subparsers.add_parser("expect", help="register the movers a phase intends")
     exp.add_argument("--empty", action="store_true")
+    exp.add_argument("--from-verdict", action="store_true", dest="from_verdict",
+                     help="register every unexpected mover the last compare of this capture found")
     exp.add_argument("--artifact", default=None)
     exp.add_argument("--key", default=None, help="keyed the way that artifact's envelope key names")
     exp.add_argument("--to", default=None)
     exp.add_argument("--reason", default=None)
+    exp.add_argument("--unproduced", action="store_true",
+                     help="register a row whose producer is expected to fail, rather than a mover")
     table["expect"] = _cmd_expect
 
     prov = subparsers.add_parser("provenance", help="gather a run-provenance record")

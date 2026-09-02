@@ -8,8 +8,8 @@ import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * The block-models registry walk - the ONLY stage that touches the output tree. Builds the
@@ -48,8 +48,10 @@ public final class BlockEntityRegistryWalk {
                 new BlockGeometrySourceResolver(session, subject, layerDefinitions, manifest);
             List<BlockGeometrySourceResolver.Split> splits = geometry.resolveSplits();
 
-            List<String> splitIds = new ArrayList<>();
-            for (BlockGeometrySourceResolver.Split split : splits) splitIds.add(split.splitId());
+            List<String> splitIds = splits
+                .stream()
+                .map(BlockGeometrySourceResolver.Split::splitId)
+                .collect(Collectors.toList());
             BlockCatalogResolver catalog =
                 new BlockCatalogResolver(session, blockRegistry, layerDefinitions, subject, splitIds);
 

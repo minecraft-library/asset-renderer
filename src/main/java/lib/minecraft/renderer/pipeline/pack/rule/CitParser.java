@@ -20,8 +20,9 @@ import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 
@@ -71,7 +72,7 @@ public class CitParser {
         // only type=enchantment legitimately carries neither - it feeds the glint policy, not a texture.
         boolean retextures = type == CitType.ITEM || type == CitType.ARMOR || type == CitType.ELYTRA;
 
-        List<ResourceId> items = parseIds(props.getProperty("items", props.getProperty("matchItems", "")));
+        ConcurrentList<ResourceId> items = parseIds(props.getProperty("items", props.getProperty("matchItems", "")));
         if (retextures && items.isEmpty())
             throw new RuleRejection("items", "", "rule matches no items");
 
@@ -86,7 +87,7 @@ public class CitParser {
         if (retextures && output.isEmpty())
             throw new RuleRejection("texture", "", "rule produces no texture or model output");
 
-        return new CitRule(ruleId, pack, type, Concurrent.adoptList(items).toUnmodifiable(),
+        return new CitRule(ruleId, pack, type, items,
             damage, stackSize, enchantments, hand, nbtRules, output, weight);
     }
 
@@ -116,12 +117,12 @@ public class CitParser {
 
     // --- conditions ---------------------------------------------------------------------------
 
-    private static @NotNull List<ResourceId> parseIds(String value) {
-        List<ResourceId> ids = new ArrayList<>();
-        if (value == null) return ids;
-        for (String token : value.trim().split("\\s+"))
-            if (!token.isBlank()) ids.add(token.contains(":") ? ResourceId.parse(token) : new ResourceId(MINECRAFT, token));
-        return ids;
+    private static @NotNull ConcurrentList<ResourceId> parseIds(String value) {
+        if (value == null) return Concurrent.newUnmodifiableList();
+        return Arrays.stream(value.trim().split("\\s+"))
+            .filter(token -> !token.isBlank())
+            .map(token -> token.contains(":") ? ResourceId.parse(token) : new ResourceId(MINECRAFT, token))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     private static int parseWeight(String raw) {
@@ -176,7 +177,7 @@ public class CitParser {
 
         if (!hasIds && !hasLevels && !idKeyPresent) return Optional.empty();
 
-        List<ResourceId> idList = hasIds ? parseIds(ids) : new ArrayList<>();
+        ConcurrentList<ResourceId> idList = hasIds ? parseIds(ids) : Concurrent.newUnmodifiableList();
         Optional<IntRanges> levels = Optional.empty();
         if (hasLevels) {
             try {
@@ -185,16 +186,17 @@ public class CitParser {
                 throw new RuleRejection("enchantmentLevels", levelsRaw, "invalid level range");
             }
         }
-        return Optional.of(new EnchantmentSpec(Concurrent.adoptList(idList).toUnmodifiable(), levels));
+        return Optional.of(new EnchantmentSpec(idList, levels));
     }
 
     private static @NotNull ConcurrentList<NbtRule> parseNbtRules(@NotNull Properties props) {
-        List<NbtRule> rules = new ArrayList<>();
-        for (String key : props.stringPropertyNames()) {
-            if (key.startsWith("nbt.")) rules.add(buildNbtRule(nbtPath(key.substring("nbt.".length())), props.getProperty(key)));
-            else if (key.startsWith("components.")) rules.add(buildNbtRule(componentsPath(key.substring("components.".length())), props.getProperty(key)));
-        }
-        return Concurrent.adoptList(rules).toUnmodifiable();
+        return props.stringPropertyNames()
+            .stream()
+            .filter(key -> key.startsWith("nbt.") || key.startsWith("components."))
+            .map(key -> key.startsWith("nbt.")
+                ? buildNbtRule(nbtPath(key.substring("nbt.".length())), props.getProperty(key))
+                : buildNbtRule(componentsPath(key.substring("components.".length())), props.getProperty(key)))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /** Builds the path for a legacy {@code nbt.<path>} key, rewriting {@code nbt.display.Name} to the modern component path. */
@@ -255,14 +257,13 @@ public class CitParser {
     private static @NotNull ConcurrentMap<String, ResourceId> parseSubEntries(
         @NotNull Properties props, @NotNull String prefix, @NotNull String propsDir, @NotNull String citRoot, boolean texture
     ) {
-        HashMap<String, ResourceId> entries = new HashMap<>();
-        for (String key : props.stringPropertyNames()) {
-            if (!key.startsWith(prefix)) continue;
-            String name = key.substring(prefix.length());
-            String value = props.getProperty(key);
-            entries.put(name, texture ? resolveTexturePath(value, propsDir, citRoot, name) : resolveModelPath(value, propsDir, citRoot));
-        }
-        return Concurrent.adoptMap(entries).toUnmodifiable();
+        return props.stringPropertyNames()
+            .stream()
+            .filter(key -> key.startsWith(prefix))
+            .map(key -> Map.entry(key.substring(prefix.length()), props.getProperty(key)))
+            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, entry -> texture
+                ? resolveTexturePath(entry.getValue(), propsDir, citRoot, entry.getKey())
+                : resolveModelPath(entry.getValue(), propsDir, citRoot)));
     }
 
     /**

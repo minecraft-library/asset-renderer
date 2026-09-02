@@ -12,7 +12,9 @@ import lib.minecraft.renderer.engine.compose.Timeline;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.stream.LongStream;
 
 /**
  * Generates animated enchantment glint frames by scrolling a glint texture over a base image and
@@ -472,7 +474,6 @@ public class GlintKit {
         @NotNull GlintOptions options,
         @Nullable SpriteUv spriteUv
     ) {
-        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         PixelBuffer tintedGlint = options.tintArgb() == ColorMath.WHITE
             ? glintTexture
             : ColorMath.tint(glintTexture, options.tintArgb());
@@ -480,12 +481,13 @@ public class GlintKit {
         // stamp loop, so stampGlint's inner loop reads a plain nullable rather than an Optional.
         PixelMask glintMask = base.mask().orElse(null);
 
-        for (long glintTime : glintTimes) {
-            PixelBuffer frame = base.copy();
-            stampGlint(frame, tintedGlint, glintTime, options, spriteUv, glintMask);
-            frames.add(frame);
-        }
-        return frames;
+        return Arrays.stream(glintTimes)
+            .mapToObj(glintTime -> {
+                PixelBuffer frame = base.copy();
+                stampGlint(frame, tintedGlint, glintTime, options, spriteUv, glintMask);
+                return frame;
+            })
+            .collect(Concurrent.toList());
     }
 
     /**

@@ -17,32 +17,34 @@ Values this store holds, one file each.
 | artifact | file | entries | headline | promoted at | baselined |
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
-| `digest.shipped-tables` | `digests/shipped-tables.json` | 10 | 10 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
-| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
-| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
+| `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `0c6485c13e76b443d94933424cf692d4c6f4e30b` | yes |
+| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `5b82eb6d137caf1540b4cb3fefe6807330cec07a` | yes |
+| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `5b82eb6d137caf1540b4cb3fefe6807330cec07a` | yes |
+| `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
+| `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
+| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.references` | `manifests/references.json` | 2322 | 2322 entries | `494a152fd3bf76bc2290aada4291024e0e49791e` | yes |
-| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 10 | 10 entries | `0bcb42335c9f472169445099c348bceaf2b92e58` | yes |
-| `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `77b9bda348563f75d55b0de82b9d76085af7b80c` | yes |
-| `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
+| `manifest.references` | `manifests/references.json` | 4435 | 4435 entries | `9c8be4be16a676b3a7a1cacb3a8a468fb6b1f04d` | yes |
+| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `0c6485c13e76b443d94933424cf692d4c6f4e30b` | yes |
+| `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
+| `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `pin.kit-corners` | `pins/kit-corners.json` | 1 | 1 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
-| `pin.player-crc` | `pins/player-crc.json` | 3 | 3 entries | `23fdf579e8e9da8054f22dc3f4a5ac09d032da8c` | yes |
+| `pin.player-crc` | `pins/player-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.portal-crc` | `pins/portal-crc.json` | 2 | 2 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `pin.vanilla-iso-pose` | `pins/vanilla-iso-pose.json` | 1 | 1 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `report.oracle-index` | `index.json` | - | - | - | **no** |
 | `roster.blindness-rules` | `blindness.json` | - | - | - | **no** |
-| `sweep.armor` | `sweeps/armor.json` | 7 | sum 18.2471 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
-| `sweep.block` | `sweeps/block.json` | 1055 | sum 131.5270 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
-| `sweep.entity` | `sweeps/entity.json` | 402 | sum 60.0047 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
-| `sweep.glint` | `sweeps/glint.json` | 11 | sum 528.0484 | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
-| `sweep.item` | `sweeps/item.json` | 479 | sum 128.9575 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
+| `sweep.armor` | `sweeps/armor.json` | 7 | sum 17.9822 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
+| `sweep.block` | `sweeps/block.json` | 1055 | sum 117.9441 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
+| `sweep.entity` | `sweeps/entity.json` | 403 | sum 17.7543 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
+| `sweep.entity-animation` | `sweeps/entity-animation.json` | 132 | sum 138.8948 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
+| `sweep.entity-walk` | `sweeps/entity-walk.json` | 132 | sum 175.3489 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
+| `sweep.glint` | `sweeps/glint.json` | 11 | sum 528.0750 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
+| `sweep.item` | `sweeps/item.json` | 479 | sum 128.9549 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
-| `sweep.player` | `sweeps/player.json` | 2 | sum 8.4315 | `65a62ff78ae8e916c1fb25527df23a6c32288c02` | yes |
+| `sweep.player` | `sweeps/player.json` | 2 | sum 8.3792 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 
 ## Pointers
 

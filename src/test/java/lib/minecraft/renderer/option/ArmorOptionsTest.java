@@ -51,8 +51,8 @@ class ArmorOptionsTest {
     @DisplayName("piece() answers every slot constant, and answers empty where nothing is worn")
     void pieceAnswersEverySlot() {
         ArmorOptions bare = ArmorOptions.defaults();
-        for (ArmorSlot slot : ArmorSlot.CACHED_VALUES)
-            assertThat("slot " + slot + " must be answered", bare.piece(slot), is(Optional.empty()));
+        ArmorSlot.forEach(slot ->
+            assertThat("slot " + slot + " must be answered", bare.piece(slot), is(Optional.empty())));
     }
 
     @Test

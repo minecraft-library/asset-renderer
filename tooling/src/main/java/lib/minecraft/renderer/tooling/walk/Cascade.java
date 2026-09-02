@@ -9,8 +9,8 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.StringJoiner;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * The per-run stage cascade - one execution model for both fold tiers. Per yielded element:
@@ -209,9 +209,10 @@ final class Cascade {
         if (this.fold != null)
             return "cells{buffer=" + List.copyOf(this.buffer) + " latch=" + this.latch + " register=" + this.register
                 + " parked=" + this.parked + " gate=" + (this.gateOpen ? "OPEN" : "CLOSED") + "}";
-        StringJoiner cells = new StringJoiner(" ", "cells{", "}");
-        for (Cells.Cell<?> cell : this.attached) cells.add(cell.describe());
-        return cells.toString();
+        return this.attached
+            .stream()
+            .map(Cells.Cell::describe)
+            .collect(Collectors.joining(" ", "cells{", "}"));
     }
 
 }

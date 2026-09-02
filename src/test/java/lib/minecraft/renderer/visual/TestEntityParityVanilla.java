@@ -29,7 +29,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -211,7 +210,7 @@ public final class TestEntityParityVanilla {
             int vh = vanillaImg.getHeight();
 
             EntityOptions.Builder optionsBuilder = EntityOptions.builder()
-                .entityId(Optional.of(subject.key().entityId()))
+                .entityId(subject.key().entityId())
                 .appearance(subject.key().appearance())
                 .fitMode(EntityOptions.FitMode.GROUP_BOUNDS);
             subject.key().armor().ifPresent(optionsBuilder::armor);

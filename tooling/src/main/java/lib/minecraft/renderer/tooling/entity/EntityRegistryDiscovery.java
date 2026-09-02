@@ -16,7 +16,6 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -27,7 +26,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Single-pass discovery of every living mob entity with a registered renderer via a
@@ -114,14 +115,15 @@ public final class EntityRegistryDiscovery {
      * signatures drop out - those don't correspond to any one spawn-registered entity.
      */
     private static @NotNull Map<String, String> collectEntityTypeFieldClasses(@NotNull ClassNode entityType) {
-        Map<String, String> out = new LinkedHashMap<>();
-        for (FieldNode field : entityType.fields) {
-            if (!VanillaSourceClasses.Descs.ENTITY_TYPE_REF.equals(field.desc)) continue;
-            if (field.signature == null) continue;
-            String concrete = ClassKit.extractGenericTypeParameter(field.signature, VanillaSourceClasses.Types.ENTITY_TYPE);
-            if (concrete != null) out.put(field.name, concrete);
-        }
-        return out;
+        return entityType.fields
+            .stream()
+            .filter(field -> VanillaSourceClasses.Descs.ENTITY_TYPE_REF.equals(field.desc) && field.signature != null)
+            .flatMap(field -> Optional
+                .ofNullable(ClassKit.extractGenericTypeParameter(field.signature, VanillaSourceClasses.Types.ENTITY_TYPE))
+                .map(concrete -> Map.entry(field.name, concrete))
+                .stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                (first, second) -> second, LinkedHashMap::new));
     }
 
     /**

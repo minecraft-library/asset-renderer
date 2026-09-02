@@ -27,10 +27,11 @@ import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
-import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.ElytraKit;
+import lib.minecraft.renderer.engine.kit.GeometryKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
+import lib.minecraft.renderer.engine.kit.PlayerArmorKit;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -56,7 +57,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -370,7 +370,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         Box cape = new Box(cx - capeW / 2f, capeTop - capeH, capeBack - capeD, cx + capeW / 2f, capeTop, capeBack);
 
-        triangles.addAll(BlockGeometryKit.buildBox(cape, capeTextures(capeTexture), ColorMath.WHITE));
+        triangles.addAll(GeometryKit.buildBox(cape, capeTextures(capeTexture), ColorMath.WHITE));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -395,7 +395,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         PixelBuffer skin = resolveSkin(parent, options);
         int size = options.getOutput().getCanvasSize();
 
-        List<BodyPart2D> parts = options.getType().layout2D(size);
+        ConcurrentList<BodyPart2D> parts = options.getType().layout2D(size);
 
         boolean overlay = options.getSkin().isRenderOverlay();
         boolean enchanted = options.getArmor().hasEnchanted();
@@ -447,7 +447,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static void compositeArmor2D(
         @NotNull PixelBuffer target,
-        @NotNull List<BodyPart2D> parts,
+        @NotNull ConcurrentList<BodyPart2D> parts,
         @NotNull PlayerOptions options,
         @NotNull RendererContext context
     ) {
@@ -457,7 +457,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
             for (BodyPart2D row : parts)
                 if (ArmorForm.playerSlots(row.part()).contains(slot))
-                    ArmorKit.compositeSlot2D(target, row, slot, entry.getValue(), item, context);
+                    PlayerArmorKit.compositeSlot2D(target, row, slot, entry.getValue(), item, context);
         }
     }
 
@@ -496,9 +496,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             // hasOverlay rejects; unifying the two would delete the hat layer on every such skin.
             Box head = PlayerOptions.Type.SKULL.boxOf(HumanoidPart.HEAD);
             stack.append(PlayerSlot3D.BODY, sink -> {
-                sink.addAll(BlockGeometryKit.buildBox(head, HumanoidPart.HEAD.textures(skin, false), ColorMath.WHITE));
+                sink.addAll(GeometryKit.buildBox(head, HumanoidPart.HEAD.textures(skin, false), ColorMath.WHITE));
                 if (options.getSkin().isRenderOverlay() && hasHatOverlay(skin))
-                    sink.addAll(BlockGeometryKit.buildBox(
+                    sink.addAll(GeometryKit.buildBox(
                         head.expand(SKULL_OVERLAY_INFLATE),
                         HumanoidPart.HEAD.textures(skin, true), ColorMath.WHITE));
             });
@@ -583,7 +583,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * Re-shades an assembled player stack under the lighting entry vanilla binds for a humanoid drawn in
-     * a GUI, replacing the cardinal bucket {@link BlockGeometryKit#buildBox} bakes at emit time. Every 3D
+     * a GUI, replacing the cardinal bucket {@link GeometryKit#buildBox} bakes at emit time. Every 3D
      * scope goes through this after its stack is folded, so body, overlay, cape, wings and armour are lit
      * as one draw, the way the one {@code setupFor} vanilla issues per GUI entity lights them.
      * <p>
@@ -679,15 +679,15 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull Box box,
         @NotNull PlayerOptions options
     ) {
-        triangles.addAll(BlockGeometryKit.buildBox(box, part.textures(skin, false), ColorMath.WHITE));
+        triangles.addAll(GeometryKit.buildBox(box, part.textures(skin, false), ColorMath.WHITE));
         if (options.getSkin().isRenderOverlay() && hasOverlay(skin))
-            triangles.addAll(BlockGeometryKit.buildBox(
+            triangles.addAll(GeometryKit.buildBox(
                 box.expand(OVERLAY_INFLATE), part.textures(skin, true), ColorMath.WHITE));
     }
 
     /**
      * Appends the worn-armor layer for a player scope: the scope's own
-     * {@link PlayerOptions.Type}'s {@code boxes} handed to {@link ArmorKit#buildHumanoidArmor3D}
+     * {@link PlayerOptions.Type}'s {@code boxes} handed to {@link PlayerArmorKit#buildHumanoidArmor3D}
      * with the four equipped slots. Shared by the SKULL / BUST / FULL 3D renderers so the append and
      * armor call live here once.
      *
@@ -698,7 +698,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static void appendArmor(@NotNull LayerStack<GeometryLayer> stack, @NotNull PlayerOptions.Type type,
                                     @NotNull PlayerOptions options, @NotNull ModelEngine engine) {
-        stack.append(PlayerSlot3D.ARMOR, sink -> sink.addAll(ArmorKit.buildHumanoidArmor3D(
+        stack.append(PlayerSlot3D.ARMOR, sink -> sink.addAll(PlayerArmorKit.buildHumanoidArmor3D(
             type.boxes(), options.getArmor().equipped(),
             options.getArmor().getItems(), engine.context())));
     }

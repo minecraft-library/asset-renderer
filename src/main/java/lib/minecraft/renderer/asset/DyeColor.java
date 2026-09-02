@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset;
 
+import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
@@ -61,7 +62,7 @@ public sealed interface DyeColor {
     }
 
     /**
-     * Looks up a vanilla dye by enum name (case-sensitive), e.g. {@code "RED"}.
+     * Looks up a vanilla dye by enum name (case-insensitive), e.g. {@code "RED"}.
      *
      * @param name the enum constant name
      * @return the matching vanilla dye, or {@code null} if unknown
@@ -83,6 +84,7 @@ public sealed interface DyeColor {
      * relationship this doc claims against the code, instead of taking sixteen transcribed constants
      * on trust.
      */
+    @EnumLookup
     @Getter(style = NamingStyle.FLUENT)
     @RequiredArgsConstructor
     enum Vanilla implements DyeColor {
@@ -141,21 +143,6 @@ public sealed interface DyeColor {
             int green = (int) ((argb >> 8 & 0xFF) * WOOL_BRIGHTNESS);
             int blue = (int) ((argb & 0xFF) * WOOL_BRIGHTNESS);
             return 0xFF000000 | red << 16 | green << 8 | blue;
-        }
-
-        /**
-         * Looks up a vanilla dye by enum name.
-         *
-         * @param name the enum constant name (case-sensitive)
-         * @return the matching vanilla dye, or {@code null} if unknown
-         */
-        public static @Nullable Vanilla ofName(@NotNull String name) {
-            for (Vanilla dye : values()) {
-                if (dye.name().equals(name))
-                    return dye;
-            }
-
-            return null;
         }
 
     }

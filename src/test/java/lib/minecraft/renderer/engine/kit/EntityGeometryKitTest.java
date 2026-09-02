@@ -144,13 +144,13 @@ class EntityGeometryKitTest {
     @DisplayName("each cardinal face direction is represented by exactly two triangles")
     void faceCoverage_eachFaceHasTwoTriangles() {
         Map<Face, Integer> faceCount = new HashMap<>();
-        for (Face face : Face.CACHED_VALUES) faceCount.put(face, 0);
+        Face.forEach(face -> faceCount.put(face, 0));
         for (VisibleTriangle tri : collect(buildSingleCube())) {
             Face face = cardinalFor(tri.normal());
             faceCount.put(face, faceCount.get(face) + 1);
         }
-        for (Face face : Face.CACHED_VALUES)
-            assertThat("face " + face + " triangle count", faceCount.get(face), equalTo(2));
+        Face.forEach(face ->
+            assertThat("face " + face + " triangle count", faceCount.get(face), equalTo(2)));
     }
 
     /**
@@ -286,7 +286,7 @@ class EntityGeometryKitTest {
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", bone);
 
-        EntityModelData model = new EntityModelData(TextureSize.DEFAULT, 0f, bones, false);
+        EntityModelData model = new EntityModelData(TextureSize.DEFAULT, bones, false);
         return EntityGeometryKit.buildTriangles(model, solidTexture(64, 64));
     }
 
@@ -312,7 +312,7 @@ class EntityGeometryKitTest {
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", body);
         bones.put("head", head);
-        return new EntityModelData(TextureSize.DEFAULT, 0f, bones, false);
+        return new EntityModelData(TextureSize.DEFAULT, bones, false);
     }
 
     /** Single root {@code head} bone at a pre-flattened world pivot + rotation (no parent). */
@@ -321,7 +321,7 @@ class EntityGeometryKitTest {
             worldPivot, rot, EulerRotation.NONE, 1f, unitChildCube(), null);
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("head", head);
-        return new EntityModelData(TextureSize.DEFAULT, 0f, bones, false);
+        return new EntityModelData(TextureSize.DEFAULT, bones, false);
     }
 
     /** Asserts two boxes match on all six extents within {@code eps}. */

@@ -13,9 +13,7 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Capacity pins for what the tooling flows emitted: two schema forms the readers handle that no
@@ -56,9 +54,11 @@ class ShippedTableCapacityTest {
             if (!object.has("block_overlays")) continue;
             for (JsonElement row : object.getAsJsonArray("block_overlays")) {
                 if (!row.getAsJsonObject().has("transforms")) continue;
+                // A transform is a single-member object named for what it does, so the op IS the
+                // member name.
                 for (JsonElement op : row.getAsJsonObject().getAsJsonArray("transforms"))
                     assertThat("no rotate_z op in " + family.getKey(),
-                        op.getAsJsonObject().get("op").getAsString(), is(not(equalTo("rotate_z"))));
+                        op.getAsJsonObject().has("rotate_z"), is(false));
             }
         }
     }

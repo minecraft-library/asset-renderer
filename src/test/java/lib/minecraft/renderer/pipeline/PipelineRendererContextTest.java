@@ -2,11 +2,11 @@ package lib.minecraft.renderer.pipeline;
 
 import com.google.gson.Gson;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ColorMap;
@@ -47,9 +47,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
@@ -134,7 +132,8 @@ class PipelineRendererContextTest {
         // `blockTints` run emitted. The end-to-end loader is exercised by the slowTest.
         ResourcePack vanillaPack = new ResourcePack(
             PackId.VANILLA, new PackContainer.Directory(packRoot), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableTreeSet("minecraft"),
+            Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE));
         stack = PackStack.of(Concurrent.newList(vanillaPack))
             .withTextureIndex(TextureIndexer.index(PackStack.of(Concurrent.newList(vanillaPack))));
         ConcurrentMap<Block.TintTarget, ColorMap> colorMaps = ColorMapLoader.load(stack);
@@ -198,8 +197,8 @@ class PipelineRendererContextTest {
 
         // Per-layer tints parsed from the item definitions (here a single dye tint on layer0,
         // matching leather_helmet's vanilla `tints: [{dye, default -6265536}]`).
-        ConcurrentMap<String, List<LayerTint>> itemTints = Concurrent.newMap();
-        itemTints.put("minecraft:leather_helmet", List.of(new LayerTint.Dye(0xFFA06540)));
+        ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints = Concurrent.newMap();
+        itemTints.put("minecraft:leather_helmet", Concurrent.newUnmodifiableList(new LayerTint.Dye(0xFFA06540)));
 
         // Always-glinted item set. Synthetic: marks the fixture stick as foil so the alwaysGlinted
         // flag plumbing through ItemIndexBuilder can be asserted in isolation; vanilla's real set is
@@ -217,7 +216,7 @@ class PipelineRendererContextTest {
             blockModels, blockTints, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             blockEntities, beResult.variants(), itemTrees, itemModels);
         ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(
-            blockTables, new BlockStates(Concurrent.newMap(), Concurrent.newMap()), blockTags);
+            blockTables, new BlockStates(Concurrent.newMap(), Concurrent.newMap()), blockTags, stack);
         ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
@@ -405,10 +404,10 @@ class PipelineRendererContextTest {
     @Test
     @DisplayName("findAnimation returns the parsed mcmeta sidecar with mixed-form frames")
     void findAnimationReturnsParsedMcmeta() {
-        Optional<AnimationData> animation = context.findAnimation("minecraft:block/fixture");
+        Optional<MCMeta.Animation> animation = context.findAnimation("minecraft:block/fixture");
         assertThat(animation.isPresent(), is(true));
 
-        AnimationData a = animation.get();
+        MCMeta.Animation a = animation.get();
         assertThat(a.frametime(), equalTo(4));
         assertThat(a.interpolate(), is(true));
         assertThat(a.frames().size(), equalTo(4));

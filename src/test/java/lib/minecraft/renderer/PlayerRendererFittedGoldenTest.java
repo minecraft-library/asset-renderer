@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.is;
  *     ({@link Lens.Kind#PERSPECTIVE}), the 2D post-projection {@code Fit2D} path.</li>
  * <li><b>The armoured skin path</b> - the same FULL body in a full iron set. The other two carry no
  *     armour at all, so this case is the one covering the player's <em>own</em> armour build: the boxes
- *     {@code ArmorKit.buildHumanoidArmor3D} adds around each body part, the order it adds them in, and
+ *     {@code PlayerArmorKit.buildHumanoidArmor3D} adds around each body part, the order it adds them in, and
  *     which of the shell's parts each slot reaches.</li>
  * </ul>
  * Each case asserts render-twice determinism (parallel Pass 1 + tiled Pass 2 must be stable) then

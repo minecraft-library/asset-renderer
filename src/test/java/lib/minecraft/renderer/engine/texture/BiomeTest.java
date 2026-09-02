@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.startsWith;
  * and spot-checks a few known entries: PLAINS' temperate values, BADLANDS' hardcoded grass/foliage
  * overrides, and the SWAMP / DARK_FOREST {@link Biome.GrassColorModifier}s. Also covers the
  * {@link Biome#of(String, float, float)} shorthand and {@link Biome#builder(String)} custom
- * factories, plus the {@link Biome.Vanilla#byId(String)} id round-trip and its empty miss.
+ * factories, plus the {@link Biome.Vanilla#findById(String)} id round-trip and its empty miss.
  */
 @DisplayName("Biome - vanilla metadata and custom factories")
 class BiomeTest {
@@ -89,17 +89,17 @@ class BiomeTest {
     }
 
     @Test
-    @DisplayName("Biome.Vanilla.byId() round-trips a known id")
+    @DisplayName("Biome.Vanilla.findById() round-trips a known id")
     void byIdRoundtrip() {
-        Optional<Biome.Vanilla> match = Biome.Vanilla.byId("minecraft:plains");
+        Optional<Biome.Vanilla> match = Biome.Vanilla.findById("minecraft:plains");
         assertThat(match.isPresent(), is(true));
         assertThat(match.get(), is(sameInstance(Biome.Vanilla.PLAINS)));
     }
 
     @Test
-    @DisplayName("Biome.Vanilla.byId() returns empty for an unknown id")
+    @DisplayName("Biome.Vanilla.findById() returns empty for an unknown id")
     void byIdUnknown() {
-        Optional<Biome.Vanilla> match = Biome.Vanilla.byId("minecraft:does_not_exist");
+        Optional<Biome.Vanilla> match = Biome.Vanilla.findById("minecraft:does_not_exist");
         assertThat(match.isPresent(), is(false));
     }
 

@@ -20,7 +20,6 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
@@ -58,7 +57,8 @@ class ColorMapLoaderTest {
         png(colormap.resolve("dry_foliage.png"));
 
         ResourcePack vanilla = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
         PackStack bare = PackStack.of(Concurrent.newList(vanilla));
         PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
 
@@ -80,7 +80,8 @@ class ColorMapLoaderTest {
         png(colormap.resolve("grass.png"));
 
         ResourcePack vanilla = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
         PackStack bare = PackStack.of(Concurrent.newList(vanilla));
         PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
 

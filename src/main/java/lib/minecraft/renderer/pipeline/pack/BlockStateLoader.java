@@ -21,6 +21,7 @@ import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -59,12 +60,18 @@ import java.util.Optional;
  * the same id - matching the vanilla client's per-file topmost-pack-wins semantics. A vanilla-only
  * stack scans exactly {@code assets/minecraft/blockstates}.
  *
+ *
+ * <p><b>Parity.</b> Reached only across the pipeline context, which is wiring, so no producer root
+ * reaches it. Every variant a block draws is resolved from what it loads, and that reaches a block
+ * item's icon, an entity's carried block and a menu's cells with it.
+ *
  * @see Block.Variant
  * @see Block.Multipart
  */
 @Parity(claim = "loader-intermediates")
 @Parity(claim = "blockstate-multipart")
 @UtilityClass
+@Parity(subject = {Subject.BLOCK, Subject.ENTITY, Subject.ITEM, Subject.MENU})
 public class BlockStateLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
@@ -171,6 +178,13 @@ public class BlockStateLoader {
      * freezes the survivors. The result is empty when the {@code "variants"} object carried no usable
      * apply - the shadow signal.
      *
+     * <p><b>Filled by iteration and put rather than collected.</b> A block that declares no default
+     * state is drawn with whichever apply this map yields FIRST, so the hash order these puts settle
+     * on is a rendered value rather than an implementation detail, and a collector that fills its
+     * table any other way silently draws a different variant. Every door proved it, flipping from its
+     * lower half to its upper; so did the pitcher crop, whose newly-first apply renders nothing and
+     * took the whole block out of the index.
+     *
      * @param raw the deserialised {@code "variants"} map, values {@code null} where skipped
      * @return the non-null variant applies, unmodifiable
      */
@@ -191,10 +205,9 @@ public class BlockStateLoader {
      * @return the renderable parts in author order, unmodifiable
      */
     private static @NotNull ConcurrentList<MultipartPart> cleanParts(@NotNull List<MultipartPart> raw) {
-        ArrayList<MultipartPart> result = new ArrayList<>();
-        for (MultipartPart part : raw)
-            if (part != null && part.apply() != null) result.add(part);
-        return Concurrent.adoptList(result).toUnmodifiable();
+        return raw.stream()
+            .filter(part -> part != null && part.apply() != null)
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**
@@ -352,11 +365,14 @@ public class BlockStateLoader {
             private static @NotNull ConcurrentList<ApplyDto> weighted(@NotNull JsonElement json) {
                 if (!json.isJsonArray() || json.getAsJsonArray().size() < 2) return Concurrent.newList();
 
-                ArrayList<ApplyDto> entries = new ArrayList<>();
-                for (JsonElement entry : json.getAsJsonArray())
-                    if (entry.isJsonObject()) entries.add(new ApplyDto(entry.getAsJsonObject(), Concurrent.newList()));
+                ConcurrentList<ApplyDto> entries = json.getAsJsonArray()
+                    .asList()
+                    .stream()
+                    .filter(JsonElement::isJsonObject)
+                    .map(entry -> new ApplyDto(entry.getAsJsonObject(), Concurrent.newList()))
+                    .collect(Concurrent.toUnmodifiableList());
 
-                return entries.size() < 2 ? Concurrent.newList() : Concurrent.adoptList(entries).toUnmodifiable();
+                return entries.size() < 2 ? Concurrent.newList() : entries;
             }
         }
     }

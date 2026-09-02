@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -17,12 +18,15 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * The equipment side of the {@code layers[]} node - one row per saddle / body-armor layer
@@ -35,6 +39,12 @@ import java.util.Map;
  * {@code material -> asset id} table and default material come from the inverted equipment corpus
  * ({@link EquipmentAssetIndex}), a sole-material layer naming its own default and a multi-material
  * one consulting {@link EntityOverlayPolicies#defaultMaterialFor}.
+ *
+ * <p>A row also carries its own {@code bones}, because the layer poses its mesh with a model class
+ * of its own and gates its own bones - a saddle's reins draw only while something is riding. That
+ * class is the one the layer is handed, never the one the mesh factory is declared on: a donkey's
+ * saddle is baked by {@code DonkeyModel} and posed by {@code EquineSaddleModel}, and reading the
+ * factory's own class instead answers the wearer's chest gate for a mesh with reins.
  */
 final class EntityEquipmentResolver {
 
@@ -43,6 +53,7 @@ final class EntityEquipmentResolver {
     private final @NotNull LayerDefinitionIndex layerDefinitions;
     private final @NotNull EquipmentAssetIndex equipmentAssets;
     private final @NotNull GeometryManifest manifest;
+    private final @NotNull EntityBoneResolver bones;
     private final @NotNull Diagnostics diagnostics;
 
     EntityEquipmentResolver(@NotNull EntityContext context) {
@@ -51,6 +62,7 @@ final class EntityEquipmentResolver {
         this.layerDefinitions = context.indexes().layerDefinitions();
         this.equipmentAssets = context.indexes().equipmentAssets();
         this.manifest = context.indexes().manifest();
+        this.bones = new EntityBoneResolver(context.scope("bones"));
         this.diagnostics = context.diagnostics();
     }
 
@@ -161,8 +173,9 @@ final class EntityEquipmentResolver {
     /**
      * Assembles one {@code layers[]} row: {@code id} is the slot, the gate is
      * {@code when: {equipment: <slot>}}, and the overlay body carries the registered
-     * adult mesh, the render layer, its {@code material -> asset id} table, the derived or
-     * declared default material, and the captured baby mesh.
+     * adult mesh, the bones its model class gates, the render layer, its
+     * {@code material -> asset id} table, the derived or declared default material, and the
+     * captured baby mesh.
      */
     private @Nullable JsonTree buildRow(
         @NotNull EntityRendererResolver.LayerSite site,
@@ -190,23 +203,28 @@ final class EntityEquipmentResolver {
             this.diagnostics.warn("layer '%s' has no equipment asset declaring it - row dropped", layerTypeId);
             return null;
         }
-        String adultKey = registerMesh(adultField);
-        if (adultKey == null) {
+        GeometryRequest adultRequest = meshRequest(adultField);
+        if (adultRequest == null) {
             this.diagnostics.info("equipment mesh ModelLayers.%s unresolved - row dropped", adultField);
             return null;
         }
-        Map<String, JsonTree> materialAssets = new LinkedHashMap<>();
-        materials.forEach((material, assetId) -> materialAssets.put(material, JsonTree.of(assetId)));
+        String adultKey = this.manifest.register(adultRequest);
+        Map<String, JsonTree> materialAssets = materials.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, material -> JsonTree.of(material.getValue()),
+                (first, second) -> second, LinkedHashMap::new));
         JsonTree overlay = JsonTree.object()
             .put("geometry", adultKey)
+            .putIf("bones", layerBones(site, adultRequest))
             .put("layer_type", layerTypeId)
             .put("default_material", defaultMaterial(layerTypeId, materials))
             .put("material_assets", materialAssets);
-        if (babyField != null) {
-            String babyKey = registerMesh(babyField);
-            if (babyKey != null) overlay.put("baby_geometry", babyKey);
-        }
-        this.diagnostics.info("equipment row '%s' (%s) meshes adult=%s baby=%s over %d materials",
+        // The baby mesh is DECLARED by the layer and never drawn. Vanilla's own render of a ghastling
+        // with its body slot equipped is byte-identical to the same ghastling with nothing equipped, so
+        // registering the second ModelLayers static would ship a mesh no subject can reach - an entry
+        // the closure walk keeps alive and no consumer ever resolves. The field is named in the
+        // diagnostic because what vanilla declares is worth reading; it is not registered.
+        this.diagnostics.info("equipment row '%s' (%s) meshes adult=%s (baby %s declared, undrawn) over %d materials",
             slot, layerTypeId, adultField, babyField, materials.size());
         return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
@@ -216,14 +234,70 @@ final class EntityEquipmentResolver {
             .put("overlay", overlay);
     }
 
-    /** Registers an equipment mesh request off its index entry, or {@code null} when unindexed. */
-    private @Nullable String registerMesh(@NotNull String meshField) {
+    /** The request an equipment mesh's index entry describes, or {@code null} when unindexed. */
+    private @Nullable GeometryRequest meshRequest(@NotNull String meshField) {
         LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(meshField);
         if (entry == null) return null;
-        return this.manifest.register(GeometryRequest.equipment(
+        return GeometryRequest.equipment(
             entry.factoryClass(), entry.factoryMethod(), entry.factoryDesc(), this.subject.entityId(),
             entry.texWidthOverride(), entry.texHeightOverride(), entry.floatParam(),
-            entry.grow(), entry.appliedMeshTransformerScale()));
+            entry.grow(), entry.appliedMeshTransformerScale());
+    }
+
+    /**
+     * The {@code bones} node the layer's own model class declares over the row's mesh, or
+     * {@code null} when it declares none or the class cannot be recovered.
+     *
+     * @param site the roster site the row belongs to
+     * @param mesh the row's adult mesh, which the toggles are expanded and filtered against
+     * @return the node, or {@code null} to omit
+     */
+    private @Nullable JsonTree layerBones(
+        @NotNull EntityRendererResolver.LayerSite site, @NotNull GeometryRequest mesh) {
+
+        String modelClass = layerModelClass(site);
+        if (modelClass == null) {
+            this.diagnostics.info("layer '%s' allocates no model - no bones", ClassKit.simpleName(site.layerClass()));
+            return null;
+        }
+        return this.bones.resolve(modelClass, mesh);
+    }
+
+    /**
+     * The model class a layer poses its mesh with: the first model allocated as part of the layer's
+     * own construction.
+     *
+     * <p>Three spellings, one rule. A layer built inline holds its model in its own argument region,
+     * which is what the window covers; one produced by a factory helper builds it in that helper's
+     * body; and a bespoke layer builds it in its own constructor. So the window is read first and
+     * the body the site's allocation names is read when the window carries none, which is the same
+     * hop for the last two. Models the renderer allocated for itself sit before the layer's
+     * allocation and are outside all three regions.
+     *
+     * @param site the roster site the row belongs to
+     * @return the model's internal name, or {@code null} when no region allocates one
+     */
+    private @Nullable String layerModelClass(@NotNull EntityRendererResolver.LayerSite site) {
+        String inWindow = firstModelAllocation(AsmWalker.from(site.allocation()).until(site.addLayer()));
+        if (inWindow != null) return inWindow;
+        MethodNode body = site.allocation() instanceof MethodInsnNode factory
+            ? ClassKit.findMethodInHierarchy(this.cache, factory.owner, factory.name, factory.desc)
+            : layerConstructor(site.layerClass());
+        return body == null ? null : firstModelAllocation(AsmWalker.over(body));
+    }
+
+    /** The named layer class's constructor, or {@code null} when the class or it is missing. */
+    private @Nullable MethodNode layerConstructor(@NotNull String layerClass) {
+        ClassNode cn = this.cache.load(layerClass);
+        return cn == null ? null : ClassKit.findMethod(cn, ClassKit.INIT);
+    }
+
+    /** The first {@code EntityModel} subclass the walk allocates, or {@code null} when it allocates none. */
+    private @Nullable String firstModelAllocation(@NotNull AsmWalker walk) {
+        return walk.firstNotNull(node -> node.getOpcode() == Opcodes.NEW
+            && node instanceof TypeInsnNode type
+            && ClassKit.extendsClass(this.cache, type.desc, VanillaSourceClasses.Types.ENTITY_MODEL)
+            ? type.desc : null);
     }
 
     /**

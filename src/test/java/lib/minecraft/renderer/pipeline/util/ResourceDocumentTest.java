@@ -9,12 +9,14 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins for {@link ResourceDocument} envelope validation: {@code format == 2} accept, missing/wrong format
- * reject, a {@code source_version} mismatch parsing rather than throwing, and the typed DTO
- * deserialisation surface. The envelope members are validated and not retained, so the throw is what
- * the validation is observable through.
+ * reject, the multi-format overload accepting every named value and refusing the rest, a
+ * {@code source_version} mismatch parsing rather than throwing, and the typed DTO deserialisation
+ * surface. The accepted format is retained on {@code format()}; the rest of the envelope is
+ * validated and not retained, so the throw is what the validation is observable through.
  */
 @DisplayName("ResourceDocument envelope validation + DTO surface")
 class ResourceDocumentTest {
@@ -54,6 +56,32 @@ class ResourceDocumentTest {
     void rejectsMalformedJson() {
         assertThrows(PipelineException.class,
             () -> ResourceDocument.open(bytes("not json at all")));
+    }
+
+    @Test
+    @DisplayName("the multi-format open accepts every named format, and format() answers the declared value")
+    void acceptsEveryNamedFormat() {
+        assertEquals(2, ResourceDocument.open(bytes("{\"format\":2}"), 2, 3).format());
+        assertEquals(3, ResourceDocument.open(bytes("{\"format\":3}"), 2, 3).format());
+        assertEquals(2, ResourceDocument.open(bytes("{\"format\":2}")).format());
+    }
+
+    @Test
+    @DisplayName("the multi-format open rejects a format outside the named set, listing the set")
+    void rejectsFormatOutsideTheNamedSet() {
+        PipelineException below = assertThrows(PipelineException.class,
+            () -> ResourceDocument.open(bytes("{\"format\":1}"), 2, 3));
+        assertTrue(below.getMessage().contains("expected '2 or 3'"),
+            "the refusal lists the accepted set: " + below.getMessage());
+        assertThrows(PipelineException.class,
+            () -> ResourceDocument.open(bytes("{\"format\":4}"), 2, 3));
+    }
+
+    @Test
+    @DisplayName("the strict path still rejects format 3")
+    void strictPathStillRejectsFormatThree() {
+        assertThrows(PipelineException.class,
+            () -> ResourceDocument.open(bytes("{\"format\":3}")));
     }
 
     @Test

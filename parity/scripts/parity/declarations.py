@@ -61,7 +61,14 @@ ANNOTATION = "Parity"
 PACKAGE_INFO = "package-info.java"
 
 #: The members a declaration may carry, against the vocabulary each one takes.
-MEMBERS = {"claim": None, "as": None, "mode": "Mode", "scope": "Scope", "subject": "Subject"}
+#: The member that marks a type as wiring rather than behaviour. A declaration naming it alone makes
+#: no claim about any artifact - it says reach does not compose THROUGH this type - so it is the one
+#: shape exempt from the claim-or-as rule. A flag rather than a `Subject`, because a subject says
+#: which pipelines a type reaches and this says not to ask; one member cannot answer both.
+SEAM_MEMBER = "ignored"
+
+MEMBERS = {"claim": None, "as": None, "mode": "Mode", "scope": "Scope", "subject": "Subject",
+           SEAM_MEMBER: None}
 
 #: The modes that narrow, so a declaration of one has to say so at the call site.
 NARROWING = ("DEMOTE", "SUPPRESS")
@@ -121,6 +128,9 @@ class Declaration:
     scope: str
     subject: tuple[str, ...]
     written: frozenset[str]
+    #: Wiring rather than behaviour: reach does not compose THROUGH this type, and it claims nothing.
+    #: Last and defaulted, so every construction that predates the seam reads as what it is.
+    ignored: bool = False
 
     @property
     def trigger_path(self) -> str:
@@ -139,11 +149,24 @@ class Scan:
     reports: list[Report] = field(default_factory=list)
 
     def by_claim(self) -> dict[str, list[Declaration]]:
-        """The declarations of each claim, keyed by slug, in the order the tree was walked."""
+        """The declarations of each claim, keyed by slug, in the order the tree was walked.
+
+        The two shapes that make no claim are not among them, and for one reason: a declaration
+        carrying no slug would be filed under a claim spelled '' and the map asked to carry a row for
+        it - which is every rule whose own ``claim_key`` is empty inheriting all of their paths. A
+        seam says reach does not compose through this type and a reach says what a type reaches, and
+        both are statements about the graph rather than about the store.
+        """
         out: dict[str, list[Declaration]] = {}
         for declaration in self.declarations:
+            if declaration.ignored or not declaration.claim:
+                continue
             out.setdefault(declaration.claim, []).append(declaration)
         return out
+
+    def seams(self) -> list[Declaration]:
+        """The declarations naming a wiring type, which the reach graph reads and the map does not."""
+        return [declaration for declaration in self.declarations if declaration.ignored]
 
 
 def blank(source: str) -> str:
@@ -315,6 +338,15 @@ def _members(path: str, line: int, arguments: str,
             out[name] = tuple(
                 _constant(path, line, name, "Subject", part, vocabulary["Subject"])
                 for part in constants)
+        elif name == SEAM_MEMBER:
+            # The one boolean member, and the only value worth writing is the one that is not the
+            # default: `ignored = false` states the default and reads as though it decided something.
+            if value.strip() != "true":
+                raise DeclarationError(
+                    path, line, f"'{SEAM_MEMBER}' reads '{value}' and not 'true'",
+                    f"write {SEAM_MEMBER} = true, or drop the member - false is the default and "
+                    "writing it states nothing")
+            out[name] = True
         else:
             out[name] = _constant(path, line, name, MEMBERS[name], value, vocabulary[MEMBERS[name]])
     return out
@@ -410,10 +442,39 @@ def parse(path: str, source: str, vocabulary: dict[str, tuple[str, ...]],
 
         claim = str(spelled.get("claim", ""))
         joins = str(spelled.get("as", ""))
-        if bool(claim) == bool(joins):
+        # A seam declaration is the one shape that names neither, because it makes no claim about any
+        # artifact. `ignored = true` says this type is WIRING - reach does not compose through it -
+        # which is a statement about the graph rather than about the store, and giving it a slug
+        # would file it under a claim it does not make.
+        seam = bool(spelled.get(SEAM_MEMBER, False))
+        if seam and (claim or joins):
+            raise DeclarationError(
+                path, line, f"the declaration is {SEAM_MEMBER} and also names a claim",
+                f"an {SEAM_MEMBER} type makes no claim about an artifact - drop the claim or the "
+                f"{SEAM_MEMBER}")
+        if seam and spelled.get("subject"):
+            raise DeclarationError(
+                path, line, f"the declaration is {SEAM_MEMBER} and also names a subject",
+                "a subject says which pipelines a type reaches and this says not to ask - drop one")
+        # The third shape, and the second that names no claim: a REACH, which is what a type says
+        # where the reference graph cannot derive one. A type reached only across a seam, or built by
+        # a service loader from a file no constant pool mentions, is reachable from no producer root
+        # and answers nothing - so it writes what it reaches here and `reach check` refuses one that
+        # writes neither. It is not a claim about an artifact, so giving it a slug would file it
+        # under one it does not make.
+        subjects = tuple(spelled.get("subject", ()))
+        reach_only = bool(subjects) and not (claim or joins)
+        if reach_only and on == "package":
+            raise DeclarationError(
+                path, line, "a package declares a reach and no claim",
+                "a reach is what one TYPE the graph cannot derive says about itself; a package says "
+                "what its files claim - write a claim, or move the reach onto the type")
+        if not seam and not reach_only and bool(claim) == bool(joins):
             shape = "names both a claim and an as" if claim else "names neither a claim nor an as"
             raise DeclarationError(path, line, f"the declaration {shape}",
-                                   'write exactly one of claim = "<slug>" or as = <Type>.class')
+                                   'write exactly one of claim = "<slug>" or as = <Type>.class, '
+                                   f"{SEAM_MEMBER} = true for a wiring type, or subject = {{...}} "
+                                   "for a reach the graph cannot derive")
         if "scope" in spelled and on != "package":
             raise DeclarationError(path, line, "'scope' is written on a type",
                                    "scope is read on a package declaration alone - drop it")
@@ -427,7 +488,8 @@ def parse(path: str, source: str, vocabulary: dict[str, tuple[str, ...]],
         declarations.append(Declaration(
             path=path, line=line, on=on, claim=claim, joins=joins,
             mode=str(spelled.get("mode", "SELECT")), scope=scope,
-            subject=tuple(spelled.get("subject", ())), written=frozenset(spelled)))
+            subject=tuple(spelled.get("subject", ())), ignored=seam,
+            written=frozenset(spelled)))
     return declarations, reports
 
 
@@ -438,13 +500,15 @@ class Claim:
     key: str
     mode: str
     trigger_paths: tuple[str, ...]
+    derived: bool = False
 
 
 def claims_of(rules: Iterable) -> tuple[Claim, ...]:
     """The claims a rule list carries, keyed by the slug a declaration joins by."""
     return tuple(
         Claim(key=getattr(rule, "claim_key", "") or "", mode=rule.mode,
-              trigger_paths=tuple(rule.trigger_paths))
+              trigger_paths=tuple(rule.trigger_paths),
+              derived=bool(getattr(rule, "derived", False)))
         for rule in rules)
 
 
@@ -512,7 +576,7 @@ def scan(repo_root: Path, source_roots: Sequence[str] = SOURCE_ROOTS,
             Declaration(path=declaration.path, line=declaration.line, on=declaration.on,
                         claim=anchor.claim, joins=declaration.joins, mode=declaration.mode,
                         scope=declaration.scope, subject=declaration.subject,
-                        written=declaration.written))
+                        ignored=declaration.ignored, written=declaration.written))
 
     _refuse_two_declarations_of_one_claim(result)
     return result
@@ -581,7 +645,10 @@ def verify(result: Scan, claims: Sequence[Claim], files: Sequence[str]) -> None:
                     f"'{claim}' is a {row.mode} and its scope is left at the default",
                     "a wider scope over-plans for a selection and under-plans for a subtraction - "
                     "write the scope this subtraction is meant to reach")
-        if not narrowing:
+        # A derived claim's demotion subtracts from its OWN selection, the graph having put the
+        # artifact there, so it needs no sibling claim on the path to remove anything. That is the
+        # shipped shape wherever the graph reaches an artifact a perturbation says cannot move.
+        if not narrowing or row.derived:
             continue
         reached = {path for glob in derived[claim] for path in files if compile_glob(glob).match(path)}
         elsewhere = any(

@@ -1,10 +1,9 @@
 package lib.minecraft.renderer.asset.pack.item;
 
+import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode.Special;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -32,11 +31,11 @@ class ItemModelNodeSpecialTest {
     @DisplayName("a known kind resolves; an unknown kind is dropped")
     void resolveOrDrop() {
         ItemModelNode.Special known = new ItemModelNode.Special(
-            "minecraft:bed", "minecraft:item/white_bed", Map.of(), SpecialTransform.IDENTITY);
+            "minecraft:bed", "minecraft:item/white_bed", Concurrent.newUnmodifiableMap(), SpecialTransform.IDENTITY);
         assertThat("known kind kept", known.resolveOrDrop().isPresent(), is(true));
 
         ItemModelNode.Special unknown = new ItemModelNode.Special(
-            "minecraft:future_widget", "minecraft:item/widget", Map.of(), SpecialTransform.IDENTITY);
+            "minecraft:future_widget", "minecraft:item/widget", Concurrent.newUnmodifiableMap(), SpecialTransform.IDENTITY);
         assertThat("unknown kind dropped", unknown.resolveOrDrop().isPresent(), is(false));
     }
 
