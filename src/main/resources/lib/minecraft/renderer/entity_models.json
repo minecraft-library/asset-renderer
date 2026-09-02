@@ -1335,9 +1335,6 @@
     },
     "minecraft:cod": {
       "renderer": "net/minecraft/client/renderer/entity/CodRenderer",
-      "rest": {
-        "isInWater": "true"
-      },
       "axes": {
         "age": {
           "options": {
@@ -2172,9 +2169,6 @@
     },
     "minecraft:ender_dragon": {
       "renderer": "net/minecraft/client/renderer/entity/EnderDragonRenderer",
-      "rest": {
-        "isSitting": "true"
-      },
       "axes": {
         "age": {
           "options": {
@@ -2241,10 +2235,6 @@
     },
     "minecraft:evoker": {
       "renderer": "net/minecraft/client/renderer/entity/EvokerRenderer",
-      "rest": {
-        "armPose": "CROSSED",
-        "mainArm": "RIGHT"
-      },
       "axes": {
         "age": {
           "options": {
@@ -3091,10 +3081,6 @@
     },
     "minecraft:illusioner": {
       "renderer": "net/minecraft/client/renderer/entity/IllusionerRenderer",
-      "rest": {
-        "armPose": "CROSSED",
-        "mainArm": "RIGHT"
-      },
       "axes": {
         "age": {
           "options": {
@@ -4049,9 +4035,6 @@
     },
     "minecraft:piglin": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
-      "rest": {
-        "armPose": "DEFAULT"
-      },
       "axes": {
         "age": {
           "options": {
@@ -4131,9 +4114,6 @@
     },
     "minecraft:piglin_brute": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
-      "rest": {
-        "armPose": "DEFAULT"
-      },
       "axes": {
         "age": {
           "options": {
@@ -4197,10 +4177,6 @@
     },
     "minecraft:pillager": {
       "renderer": "net/minecraft/client/renderer/entity/PillagerRenderer",
-      "rest": {
-        "armPose": "NEUTRAL",
-        "mainArm": "RIGHT"
-      },
       "axes": {
         "age": {
           "options": {
@@ -4284,9 +4260,6 @@
     },
     "minecraft:pufferfish": {
       "renderer": "net/minecraft/client/renderer/entity/PufferfishRenderer",
-      "rest": {
-        "isInWater": "true"
-      },
       "axes": {
         "age": {
           "options": {
@@ -4504,9 +4477,6 @@
     },
     "minecraft:salmon": {
       "renderer": "net/minecraft/client/renderer/entity/SalmonRenderer",
-      "rest": {
-        "isInWater": "true"
-      },
       "axes": {
         "age": {
           "options": {
@@ -5371,9 +5341,6 @@
     },
     "minecraft:tadpole": {
       "renderer": "net/minecraft/client/renderer/entity/TadpoleRenderer",
-      "rest": {
-        "isInWater": "true"
-      },
       "axes": {
         "age": {
           "options": {
@@ -5542,9 +5509,6 @@
       "renderer": "net/minecraft/client/renderer/entity/TropicalFishRenderer",
       "render": {
         "tint": "0xFFF9FFFE"
-      },
-      "rest": {
-        "isInWater": "true"
       },
       "axes": {
         "age": {
@@ -5800,10 +5764,6 @@
     },
     "minecraft:vindicator": {
       "renderer": "net/minecraft/client/renderer/entity/VindicatorRenderer",
-      "rest": {
-        "armPose": "CROSSED",
-        "mainArm": "RIGHT"
-      },
       "axes": {
         "age": {
           "options": {

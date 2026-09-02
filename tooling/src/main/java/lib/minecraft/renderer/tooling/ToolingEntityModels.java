@@ -79,6 +79,10 @@ public final class ToolingEntityModels {
             // the pose table actually carries.
             PoseFlow.Emitted posed = PoseFlow.emit(session, manifest, rootBones, posing, renderers,
                 root.child("models"), session.resolve("entity_poses.json"));
+            // The fold has taken what each subject rests at, and that answer is folded into the
+            // rows the pose table ships - so the member comes off the model table here, the way the
+            // bone members below do, and a written row states only what a reader joins on.
+            root.child("models").members().forEach((entity, row) -> row.remove("rest"));
             // With both halves of what each subject rests without now settled, they go onto the mesh
             // that renders rather than beside it, and the members saying so come off the model table.
             EntityMeshMarking.apply(session.diagnostics().child("bones"), root.child("models"), geometries);
