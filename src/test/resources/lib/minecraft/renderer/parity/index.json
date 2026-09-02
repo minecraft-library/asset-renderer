@@ -88,9 +88,9 @@
       "entries": 4435,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 71541,
-      "promoted_at": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
-      "sha256": "7819c7a21dcbc097715f3df168fc4d249b91b07ae78c92d596d31a2cfefe02e2"
+      "last_duration_ms": 75898,
+      "promoted_at": "9c8be4be16a676b3a7a1cacb3a8a468fb6b1f04d",
+      "sha256": "84a9f66c4251d73eb85f7268eba7b14209ffe1bfe2ef7c7df41d45c27b22b40e"
     },
     "manifest.tooling-tables": {
       "baselined": true,

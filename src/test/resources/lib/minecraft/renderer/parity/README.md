@@ -24,7 +24,7 @@ Values this store holds, one file each.
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.references` | `manifests/references.json` | 4435 | 4435 entries | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
+| `manifest.references` | `manifests/references.json` | 4435 | 4435 entries | `9c8be4be16a676b3a7a1cacb3a8a468fb6b1f04d` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `0c6485c13e76b443d94933424cf692d4c6f4e30b` | yes |
 | `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
