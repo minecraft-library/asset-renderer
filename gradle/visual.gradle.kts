@@ -175,7 +175,7 @@ register<JavaExec>("entityParityVanilla") {
 }
 
 register<JavaExec>("entityAnimationParityVanilla") {
-    description = "Per-entity animated parity report comparing the Java pipeline posed at each tick of the shared schedule against the harness animation references at cache/.../references/animation/<entity>/frame_NNN.png. Writes per-frame vanilla/java/diff PNGs, a per-subject contact sheet and a TSV to cache/visual/entity-animation-parity-vanilla/. Run renderVanillaAnimationReferences first. -PentityId=minecraft:zombie"
+    description = "Per-entity animated parity report comparing the Java pipeline posed at each tick of the shared schedule against the harness idle references at cache/.../references/idle/<entity>/frame_NNN.png. Writes per-frame vanilla/java/diff PNGs, a per-subject contact sheet and a TSV to cache/visual/entity-animation-parity-vanilla/. Run renderVanillaAnimationReferences first. -PentityId=minecraft:zombie"
     group = "visual"
     mainClass.set("lib.minecraft.renderer.visual.TestEntityAnimationParityVanilla")
     classpath = sourceSets["test"].runtimeClasspath

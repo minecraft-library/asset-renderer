@@ -78,7 +78,7 @@ loom {
             // renderer two sweeps share cannot leave one of them behind. Driven by
             // renderVanillaAllReferences.
             optionalProperty("refharnessEverySweep")?.let { property("refharness.everySweep", it) }
-            // Animated entity references under animation/, at the gait a subject standing still is
+            // Animated entity references under idle/, at the gait a subject standing still is
             // in. Driven by renderVanillaAnimationReferences.
             optionalProperty("refharnessAnimated")?.let { property("refharness.animated", it) }
             // The same posed sweep at a gait, under walk/ - it lifts the same freezes and

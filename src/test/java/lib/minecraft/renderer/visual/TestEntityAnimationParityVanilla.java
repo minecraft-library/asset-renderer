@@ -67,7 +67,7 @@ import java.util.stream.Stream;
  * {@code parity-report.tsv} ranks subjects by mean per-frame ARGB delta.
  *
  * <p>Usage: {@code ./gradlew entityAnimationParityVanilla [-PentityId=minecraft:zombie]}. Run
- * {@code renderVanillaAnimationReferences} first if the reference tree has no {@code animation/}.
+ * {@code renderVanillaAnimationReferences} first if the reference tree has no {@code idle/}.
  */
 @UtilityClass
 public final class TestEntityAnimationParityVanilla {
@@ -91,7 +91,7 @@ public final class TestEntityAnimationParityVanilla {
 
         /** A subject standing still, which is what the promoted animation gate measures. */
         private static final Gait IDLE =
-            new Gait(PoseStyle.IDLE, "animation", "entity-animation-parity-vanilla");
+            new Gait(PoseStyle.IDLE, "idle", "entity-animation-parity-vanilla");
 
         /** A subject walking as hard as vanilla ever clamps one to. */
         private static final Gait WALK =

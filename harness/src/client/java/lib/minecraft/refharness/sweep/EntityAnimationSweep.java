@@ -153,12 +153,13 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
      * <p>One sweep and two sub-trees, because what separates them is a pair of render-state fields
      * and not a work list: the subjects, the schedule, the canvas pass and the naming are the same
      * on both, and the asset-renderer compares one against {@code IDLE} and the other against
-     * {@code WALK}. Driving the stride into {@code animation/} instead would move every row of a
-     * promoted gate rather than adding a second one.
+     * {@code WALK}. Each answers the gait's own name, so the mapping is one spelling from the enum
+     * constant through to the directory on disk; driving the stride into {@code idle/} instead would
+     * move every row of a promoted gate rather than adding a second one.
      */
     @Override
     public String outputDir() {
-        return this.gait == Gait.WALK ? "walk" : "animation";
+        return this.gait == Gait.WALK ? "walk" : "idle";
     }
 
     @Override

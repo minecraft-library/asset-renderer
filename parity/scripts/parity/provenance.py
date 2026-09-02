@@ -35,7 +35,16 @@ HARNESS_PROPERTIES = "harness/gradle.properties"
 #: nothing at all saying why.
 REFERENCE_ROOT_TEMPLATE = "cache/asset-renderer/vanilla/{version}/references"
 
-REFERENCE_SUBTREES = ("blocks", "entities", "items", "glint", "armor", "players")
+#: Every sub-tree the reference tree holds, because the counts are the per-sub-tree evidence and a
+#: sub-tree left out of this tuple is one the record silently says nothing about. That reads exactly
+#: like a sub-tree the tree does not hold: ``reference_counts`` walks this list and skips what is not
+#: a directory, so an absent key means either, and a record naming six of nine understates the
+#: reference set every number in it was measured against. The build declares the same nine as
+#: ``referenceSubTrees`` so a partial run can name what it did NOT refresh; the two lists are written
+#: for different readers and nothing holds them to each other, so a sub-tree added to the tree is
+#: added to both.
+REFERENCE_SUBTREES = ("blocks", "items", "entities", "players", "glint", "armor", "menus", "idle",
+                      "walk")
 
 #: The artifact whose stored form the reference digest below IS. Named rather than spelled inline,
 #: because the two have to be the same manifest for the digest to identify anything: the globs, the

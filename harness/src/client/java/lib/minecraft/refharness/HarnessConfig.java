@@ -131,7 +131,7 @@ public final class HarnessConfig {
 
     /**
      * When {@code true}, the harness runs <em>only</em> the {@link EntityAnimationSweep} - each
-     * entity posed at every tick of one shared schedule, under {@code animation/}, at the gait a
+     * entity posed at every tick of one shared schedule, under {@code idle/}, at the gait a
      * subject standing still is in.
      *
      * <p>What turns the freezes off is {@link #POSED} rather than this, because
@@ -142,7 +142,7 @@ public final class HarnessConfig {
 
     /**
      * When {@code true}, the harness runs <em>only</em> the animated entity sweep with a stride
-     * under it, writing to {@code walk/} rather than to {@code animation/} - every subject posed at
+     * under it, writing to {@code walk/} rather than to {@code idle/} - every subject posed at
      * every tick of the same schedule, walking as hard as vanilla ever clamps a subject to walk.
      *
      * <p><b>It implies {@link #ANIMATED} and is not the same run.</b> A stride reaches a model only
@@ -150,7 +150,7 @@ public final class HarnessConfig {
      * {@code FreezeAnimationStateMixin} answers the two figures a gait is carried on from the
      * schedule instead of pinning them at zero. The two sets are two sub-trees because they are two
      * poses of one subject at one tick - the asset-renderer renders {@code IDLE} against one and
-     * {@code WALK} against the other - so a run that drove the stride into {@code animation/} would
+     * {@code WALK} against the other - so a run that drove the stride into {@code idle/} would
      * move every row of a promoted gate rather than adding a second one.
      *
      * <p>Pair with {@code -PrefharnessWalking=true} on {@code renderVanillaWalkReferences}.

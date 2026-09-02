@@ -463,12 +463,12 @@ val parityArtifacts = listOf(
     ParityArtifact("sweep.armor", listOf("armorParityVanilla"), "cache/visual/armor-parity-vanilla"),
     ParityArtifact("sweep.glint", listOf("glintParityVanilla"), "cache/visual/glint-parity-vanilla", listOf("itemId")),
     ParityArtifact("sweep.menu", listOf("menuParityVanilla"), "cache/visual/menu-parity-vanilla", listOf("menuId")),
-    // Measured against animation/ rather than entities/, which is the same reference tree and a
+    // Measured against idle/ rather than entities/, which is the same reference tree and a
     // different sub-tree of it - so the digest this row's provenance carries names the ground truth
     // it was taken off, exactly as the seven above do.
     ParityArtifact("sweep.entity-animation", listOf("entityAnimationParityVanilla"),
         "cache/visual/entity-animation-parity-vanilla", listOf("entityId")),
-    // The same driver at a gait, measured against walk/ rather than animation/ - so the two rows are
+    // The same driver at a gait, measured against walk/ rather than idle/ - so the two rows are
     // the same measurement over the two sub-trees, and each carries the digest of the ground truth it
     // was taken off. It is a gate rather than a report because a subject that holds still under IDLE
     // and moves under a stride is animated THROUGH this row and through no other: the animation sweep
@@ -634,12 +634,12 @@ val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDum
 
 // Every sub-tree the reference tree holds, so a partial run can name what it did NOT refresh.
 //
-// `animation` and `walk` are written in the same boot as the seven above now - the freezes are armed
+// `idle` and `walk` are written in the same boot as the seven above now - the freezes are armed
 // per sweep off PoseState rather than read once per JVM. They are in this list because they are in
 // the tree: the reference manifest walks the root for images at any depth, so a sub-tree left out of
 // the list is one every partial run stops naming while the manifest goes on hashing it.
 val referenceSubTrees =
-    listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "animation", "walk")
+    listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "idle", "walk")
 
 /** The whole-suite producers, which order a capture step but are never finalized by one. */
 val paritySuiteProducers = setOf("test", "slowTest")
@@ -1076,8 +1076,8 @@ tasks {
         "each drawn through the client's own GUI pipeline. Then run menuParityVanilla.")
 
     registerHarnessRun("renderVanillaAnimationReferences", "refharnessAnimated", "ANIMATION", true,
-        listOf("animation"),
-        "Runs the harness in ANIMATION mode: references/animation/ only - every entity posed at each tick " +
+        listOf("idle"),
+        "Runs the harness in ANIMATION mode: references/idle/ only - every entity posed at each tick " +
         "of one schedule, with vanilla's own setupAnim running. The two freezes are off for the whole boot, " +
         "which is why no other sweep shares it. Then run entityAnimationParityVanilla.")
 

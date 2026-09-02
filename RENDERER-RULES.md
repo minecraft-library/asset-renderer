@@ -483,7 +483,7 @@ the speed and a value that moved on one side puts the two at different points of
 divergence in how they were measured.
 
 - **A stride reaches only what reads one**, which is measured rather than assumed: 29 of the 90
-  subjects render byte-identical between `animation/` and `walk/`, and `rabbit_brown` and `bat` carry
+  subjects render byte-identical between `idle/` and `walk/`, and `rabbit_brown` and `bat` carry
   the same delta to the digit under both presets.
 - **A walk-gated clip carries the branch it sits inside, where a state-gated one needs none.** A
   state's gate names the clip that is running, so the exclusion is the selection; a walk's gate is
@@ -727,7 +727,7 @@ vanilla writes the eye `true` unconditionally, and calls the fox's `setWalkingPo
 four legs `true` - before any branch, leaving only `setSleepingPose` behind an `isSleeping` that
 rests false.
 
-**The ground truth for a posed subject is `animation/`, and it is a second reference set rather than
+**The ground truth for a posed subject is `idle/`, and it is a second reference set rather than
 a replacement.** `entityAnimationParityVanilla` renders each subject at the `idle` row over the same
 schedule the harness stepped - `EntityAnimationSweep`'s `START_TICK`, `FRAME_COUNT` and
 `TICKS_PER_FRAME` are pinned on both sides - and diffs frame by frame. It is the only gate that can
