@@ -163,11 +163,11 @@ public final class PoseFlow {
      * </ul>
      *
      * <p><b>Ordered, and a {@code Map.of} here was a table that flapped per JVM launch.</b> Every
-     * entry lands in the emitted {@code input_defaults} through one {@code putIfAbsent} apiece into
-     * an insertion-ordered map, so this map's ITERATION order is shipped bytes - and
-     * {@code Map.of} salts that order per launch from two entries up. Two runs of the same flow on
-     * the same tree emitted the two keys either way round, which reads as a table that does not
-     * reproduce and cost a parity capture a mover nothing had changed.
+     * entry seeds the fold's defaults through one {@code putIfAbsent} apiece into an
+     * insertion-ordered map, and {@code Map.of} salts its iteration per launch from two entries up -
+     * so the order is kept determinate rather than left to whatever a launch hashes it to, and
+     * nothing the fold or its diagnostics derive can inherit a per-launch ordering, which is the
+     * shape that once cost a parity capture a mover nothing had changed.
      */
     private static final @NotNull Map<String, Float> DECLARED_RESTS = declaredRests();
 

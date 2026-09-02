@@ -195,9 +195,10 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
 
 ## What a resting subject answers
 
-`entity_poses.json` carries three tables of what a figure rests at - `rest_defaults`,
-`input_defaults` and `question_defaults`. All three are resolved here and **none is read at render**:
-they are what the fold resolved against, kept in the table until the emitter stops writing them.
+Three resolutions of what a figure rests at are made here - `rest_defaults`, `input_defaults` and
+`question_defaults`, by the flow's own names - and the fold consumes all three whole; **none is
+emitted and none is read at render**. Every claim below is about generation rather than about a
+shipped byte.
 
 **A figure a pose names rests at what its own render state builds it at, and an enum member is the
 same question with no zero to fall back on.** Answering false to every constant is a state no enum is
