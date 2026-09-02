@@ -17,7 +17,7 @@ Values this store holds, one file each.
 | artifact | file | entries | headline | promoted at | baselined |
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
-| `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `5b82eb6d137caf1540b4cb3fefe6807330cec07a` | yes |
+| `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `0c6485c13e76b443d94933424cf692d4c6f4e30b` | yes |
 | `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `5b82eb6d137caf1540b4cb3fefe6807330cec07a` | yes |
 | `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `5b82eb6d137caf1540b4cb3fefe6807330cec07a` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
@@ -25,7 +25,7 @@ Values this store holds, one file each.
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.references` | `manifests/references.json` | 4435 | 4435 entries | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
-| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `5b82eb6d137caf1540b4cb3fefe6807330cec07a` | yes |
+| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `0c6485c13e76b443d94933424cf692d4c6f4e30b` | yes |
 | `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |

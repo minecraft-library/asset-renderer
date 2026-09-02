@@ -40,7 +40,7 @@
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "8aec39d3d549ff3969a91bb6af6c4965c55aa515459c3a7a1c2de70420d3096a"
+      "sha256": "4d332af39888159c4e2a401ef24b41f6b80925f7fcd05e3bcd0037217bb2448a"
     },
     "entity_poses": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "6083bea5c715cc96082c88a6091e19590cf9b8e643dafdaebfe7b510e5537914",
-    "asset_dirty": false,
-    "asset_sha": "5b82eb6d137caf1540b4cb3fefe6807330cec07a",
+    "asset_content_digest": "56725a1be5a96943d90410412f5f46d69144f37a553f06b7d34d6d498128d38b",
+    "asset_dirty": true,
+    "asset_sha": "0c6485c13e76b443d94933424cf692d4c6f4e30b",
     "counts": {
       "digests": 11
     },
@@ -76,7 +76,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "The entity tables move to format 3 with the shipped style catalog: play sites state their drive as motion-source tokens, containers arrive composed with the ground frame, the defaults tables, flag channels and renderers table stop being emitted, and entity_models.json carries period_ticks plus 180 style rows over 86 entities. The dump manifests carry the same loaded data respelled - drive tokens none/stride/select under the dump's gate key, and the loaded catalog. Load equality proven bit-exact old-vs-new over all 90 entities; the emitted inventory agrees with the live classifier on 135 subjects.",
+    "reason": "The fold-consumed rest member comes off the written model table; twelve rows drop it and nothing else moves - geometry and poses byte-identical, diagnostics line-identical, every sweep, dump and pin held at zero",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -85,8 +85,7 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-09-01T21:14:27Z",
-    "tool_version": "1.0.0",
-    "wall_time_ms": 9418
+    "timestamp": "2026-09-02T01:36:56Z",
+    "tool_version": "1.0.0"
   }
 }
