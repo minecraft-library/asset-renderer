@@ -26,7 +26,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * what an {@code int} field no constructor writes rests at - so the two sides agreed without either
  * of them choosing. They agreed on a nose that never moves: zero is the one frequency in ten at
  * which the bob is constant. {@link IdleFigures#PINNED_ENTITY_ID} carries the chosen value and the
- * asset side declares the identical number, held together by {@code IdleFigureMirrorTest} - the same
+ * asset side declares the identical number, held together by {@code StyleCatalogMirrorTest} - the same
  * terms an idle excursion is legitimate on.
  *
  * <h2>Where the pin sits</h2>

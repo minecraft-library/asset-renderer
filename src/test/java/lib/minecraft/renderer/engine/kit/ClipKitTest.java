@@ -11,6 +11,8 @@ import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
@@ -43,6 +45,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @DisplayName("the authored clips a model plays")
 class ClipKitTest {
+
+    /** The universal standing row, which is what an undriven site's clip plays under. */
+    private static final @NotNull PoseStyle IDLE_ROW =
+        StyleCatalog.BIND_ONLY.resolve(PoseStyle.IDLE, EntityOptions.of("minecraft:test"));
 
     private static ConcurrentMap<String, Entity> entities;
 
@@ -89,8 +95,8 @@ class ClipKitTest {
         mesh.getBones().put("body", new EntityModelData.Bone());
         mesh.getBones().put("head", child("body"));
 
-        EntityModelData posed =
-            PoseKit.posed(EntityOptions.PoseMode.IDLE, scaling("body"), mesh, 0);
+        EntityModelData posed = PoseKit.posed(scaling("body"), mesh, IDLE_ROW,
+            StyleCatalog.BIND_ONLY.periodTicks(), 0);
 
         assertTrue(posed.getBones().get("body").isPoseScaled(), "the bone the clip names is scaled");
         assertFalse(posed.getBones().get("head").isPoseScaled(),
@@ -129,10 +135,9 @@ class ClipKitTest {
         // amplitude, so the age term runs the clock and the floor keeps the amplitude off zero. A
         // reading that gated a walk-driven clip on something walking would freeze it.
         Entity nautilus = subject("minecraft:nautilus");
-        EntityModelData still = PoseKit.posed(
-            EntityOptions.PoseMode.IDLE, nautilus, 0);
-        EntityModelData later = PoseKit.posed(
-            EntityOptions.PoseMode.IDLE, nautilus, 9);
+        PoseStyle idle = nautilus.styles().resolve(PoseStyle.IDLE, EntityOptions.of("minecraft:nautilus"));
+        EntityModelData still = PoseKit.posed(nautilus, idle, nautilus.styles().periodTicks(), 0).model();
+        EntityModelData later = PoseKit.posed(nautilus, idle, nautilus.styles().periodTicks(), 9).model();
 
         assertNotEqualMeshes(still, later);
     }

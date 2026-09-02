@@ -117,10 +117,11 @@ public final class PoseFlow {
      * toggle can say that, so it stays symbolic here and {@link #restingUndrawn} refuses it. Keeping
      * both halves symbolic refused a frog whose croaking body is exactly the first case.
      *
-     * <p>The membership is the asset side's own split, one roster each: the three the frame answers
-     * off the tick, plus every {@code IdleFigure}. Everything else in {@code DRIVEN} is an
-     * {@code IdleState}, and {@code IdleFigureMirrorTest} holds this set to that roster so a figure
-     * added on one side cannot arrive here as a state.
+     * <p>The membership is the split the emitted style rows are derived from: the three fields the
+     * universal rows drive, plus every swept render-state scalar. Everything else in {@code DRIVEN}
+     * is a one-hot state, and the shipped catalog those rows land in is held to the harness
+     * contract by {@code StyleCatalogMirrorTest} - so a figure filed on the wrong side ships as a
+     * held selection rather than a wave, and the mirror reports it.
      */
     private static final @NotNull Set<String> DRIVEN_FIGURES = Set.of(
         "ageInTicks", "walkAnimationPos", "walkAnimationSpeed",
@@ -158,7 +159,7 @@ public final class PoseFlow {
      *       one strip and every lower one is a fraction of the same curve - the same argument the
      *       stride amplitude rests on. It is a caller's coinage, legitimate on the same terms as an
      *       idle excursion: the harness answers the identical number, and
-     *       {@code IdleFigureMirrorTest} holds the two together.</li>
+     *       {@code StyleCatalogMirrorTest} holds the two together.</li>
      * </ul>
      *
      * <p><b>Ordered, and a {@code Map.of} here was a table that flapped per JVM launch.</b> Every

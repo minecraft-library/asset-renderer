@@ -6,22 +6,15 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.asset.pose.IdleFigure;
-import lib.minecraft.renderer.asset.pose.IdleState;
-import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
-import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.exception.RendererException;
-import lib.minecraft.renderer.option.AnimationOptions;
-import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -29,7 +22,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
@@ -56,10 +48,10 @@ import java.util.stream.Collectors;
  * through radians.
  *
  * <p><b>A subject is more than one posed mesh.</b> Each overlay pass carries geometry of its own and
- * poses it with its own model class, so {@link #posedSubject} poses the body and every pass together
- * - posing the body alone leaves a sheep's wool where the sheep no longer is. The passes that redraw
- * the body's own mesh, the collar and the horse marking, are handed the posed body directly and move
- * with it for free.
+ * poses it with its own model class, so {@link #posed(Entity, PoseStyle, int, int)} poses the body
+ * and every pass together - posing the body alone leaves a sheep's wool where the sheep no longer
+ * is. The passes that redraw the body's own mesh, the collar and the horse marking, are handed the
+ * posed body directly and move with it for free.
  *
  * <p><b>What the subject's RENDERER composes arrives already composed.</b> Vanilla applies
  * {@code setupRotations} to the pose stack before it submits the body or any layer, so the index
@@ -73,215 +65,11 @@ import java.util.stream.Collectors;
 @UtilityClass
 public final class PoseKit {
 
-    /** The render-state figure a frame's tick answers - vanilla's free-running age for the subject. */
-    private static final @NotNull String AGE_IN_TICKS = "ageInTicks";
-
-    /** How far through its stride a walking subject is, which vanilla steps rather than derives. */
-    private static final @NotNull String WALK_POSITION = "walkAnimationPos";
-
-    /** How hard a walking subject is walking, and the amount its stride advances by each tick. */
-    private static final @NotNull String WALK_SPEED = "walkAnimationSpeed";
-
-    /**
-     * The stride amplitude {@link EntityOptions.PoseMode#WALK} walks at.
-     *
-     * <p>The full one: vanilla clamps what it accumulates into this figure to one, so a subject here
-     * is walking as hard as anything ever does and every lesser gait is a fraction of the same
-     * curve. It is also what the phase advances by per tick, the two being one schedule.
-     */
-    private static final float WALK_AMPLITUDE = 1f;
-
     /**
      * The name the container enters the bone map under, when a pose writes one at all - chosen to
      * collide with nothing a vanilla model class declares a field for.
      */
     private static final @NotNull String CONTAINER_BONE = "$container";
-
-    /**
-     * The excursions every caller gets who names none, which are the ones the harness drives.
-     *
-     * <p>Held rather than built per call so the default path allocates nothing, and so that a caller
-     * who overrides an idle figure is the only one whose render is not comparable against the
-     * reference set.
-     */
-    private static final @NotNull AnimationOptions DEFAULT_ANIMATION = AnimationOptions.defaults();
-
-    /**
-     * The mesh this subject's model leaves it holding at one tick.
-     *
-     * @param mode the authored pose, or the one its model evaluates at the tick under a gait
-     * @param subject the resolved subject, supplying the mesh, the pose and what it rests at
-     * @param tick the frame's sample tick
-     * @return the posed mesh, or the subject's own mesh itself where nothing poses it
-     */
-    public static @NotNull EntityModelData posed(
-        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
-
-        return posed(mode, subject, tick, DEFAULT_ANIMATION);
-    }
-
-    /**
-     * The mesh this subject's model leaves it holding at one tick, at a caller's own excursions.
-     *
-     * @param mode the authored pose, or the one its model evaluates at the tick under a gait
-     * @param subject the resolved subject, supplying the mesh, the pose and what it rests at
-     * @param tick the frame's sample tick
-     * @param animation what each idle figure rests at and reaches
-     * @return the posed mesh, or the subject's own mesh itself where nothing poses it
-     */
-    public static @NotNull EntityModelData posed(
-        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick,
-        @NotNull AnimationOptions animation) {
-
-        EntityOptions.PoseMode gait = gaitOf(mode, subject, animation);
-        if (gait == EntityOptions.PoseMode.BIND) return subject.model();
-        return posed(gait, subject.pose(), subject.model(), tick, animation);
-    }
-
-    /**
-     * One mesh where the pose that belongs to it leaves it at one tick.
-     *
-     * <p>Held apart from the subject because a subject is more than one posed mesh: each overlay pass
-     * poses its own with its own model class, and a pose belongs to a mesh rather than to a subject.
-     *
-     * @param mode the authored pose, or the one its model evaluates at the tick under a gait
-     * @param pose the pose belonging to this mesh
-     * @param model the mesh to pose
-     * @param tick the frame's sample tick
-     * @return the posed mesh, or the given mesh itself where nothing poses it
-     */
-    public static @NotNull EntityModelData posed(
-        @NotNull EntityOptions.PoseMode mode, @NotNull EntityPose pose,
-        @NotNull EntityModelData model, int tick) {
-
-        return posed(mode, pose, model, tick, DEFAULT_ANIMATION);
-    }
-
-    /**
-     * One mesh where the pose that belongs to it leaves it at one tick, at a caller's own excursions.
-     *
-     * @param mode the authored pose, or the one its model evaluates at the tick under a gait
-     * @param pose the pose belonging to this mesh
-     * @param model the mesh to pose
-     * @param tick the frame's sample tick
-     * @param animation what each idle figure rests at and reaches
-     * @return the posed mesh, or the given mesh itself where nothing poses it
-     */
-    public static @NotNull EntityModelData posed(
-        @NotNull EntityOptions.PoseMode mode, @NotNull EntityPose pose,
-        @NotNull EntityModelData model, int tick, @NotNull AnimationOptions animation) {
-
-        if (mode == EntityOptions.PoseMode.BIND) return model;
-        if (!pose.isReadable()) return model;
-
-        // A lone mesh answers for itself. The subject-level entries resolve before they reach here, so
-        // this arm is only taken by a caller who has one mesh and no subject to ask about - and a mesh
-        // on its own cannot scroll, there being no pass to carry the rate.
-        EntityOptions.PoseMode gait = mode == EntityOptions.PoseMode.ANIMATED
-            ? gaitOf(motionOf(List.of(new Drawn(pose, model)), false, animation))
-            : mode;
-        ToDoubleFunction<String> frame = frameAt(gait, tick, animation);
-        PoseEvaluator.ChannelWrites writes = PoseEvaluator.evaluate(pose, model, frame);
-        // The clips a model plays are applied ON TOP of what its body assigned, because vanilla's
-        // three offset members all add to the value already there. So the two are resolved apart and
-        // composed here rather than merged into one write set, which is also what keeps the replace
-        // rule and the add rule from having to be told apart per channel further down.
-        ClipKit.Displacement displaced = ClipKit.deltas(pose, model, frame);
-        if (writes.isEmpty() && displaced.isEmpty()) return model;
-        return rebuild(model, writes, displaced);
-    }
-
-    /**
-     * The whole subject as it stands at one tick - its own mesh posed, and every overlay pass's mesh
-     * posed by the model class that pass belongs to.
-     *
-     * <p>An overlay carries geometry of its own and a pose of its own, so posing the body alone
-     * leaves a sheep's wool where the sheep no longer is. What they share is the sequence the
-     * subject's renderer composes above them, seated at the front of each pose's container at index
-     * build, the subject being one animal however many passes draw it.
-     *
-     * <p>Answers the very definition it was given when nothing moved, which is what keeps the
-     * authored pose from rebuilding a definition per frame and per measured bound.
-     *
-     * @param mode the authored pose, or the one its models evaluate at the tick under a gait
-     * @param subject the resolved subject
-     * @param tick the frame's sample tick
-     * @return the subject carrying the meshes it holds at that tick
-     */
-    public static @NotNull Entity posedSubject(
-        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick) {
-
-        return posedSubject(mode, subject, tick, DEFAULT_ANIMATION);
-    }
-
-    /**
-     * The subject with every mesh it draws posed at one tick, at a caller's own excursions.
-     *
-     * @param mode the authored pose, or the one its models evaluate at the tick under a gait
-     * @param subject the resolved subject
-     * @param tick the frame's sample tick
-     * @param animation what each idle figure rests at and reaches
-     * @return the subject carrying the meshes it holds at that tick
-     */
-    public static @NotNull Entity posedSubject(
-        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick,
-        @NotNull AnimationOptions animation) {
-
-        EntityOptions.PoseMode gait = gaitOf(mode, subject, animation);
-        if (gait == EntityOptions.PoseMode.BIND) return subject;
-        EntityModelData model = posed(gait, subject, tick, animation);
-        ConcurrentList<Entity.OverlayLayer> overlays = posedOverlays(gait, subject, tick, animation);
-        if (model == subject.model() && overlays == subject.overlays()) return subject;
-        return subject.mutate().model(model).overlays(overlays).build();
-    }
-
-    /**
-     * The preset a request resolves to for this subject - the request itself, unless it asked for
-     * movement without naming a gait.
-     *
-     * <p>Worth calling once and carrying where a subject is posed at more than one tick: the answer
-     * is a property of the subject rather than of the instant, and reaching it evaluates a whole
-     * excursion.
-     *
-     * @param mode what the caller asked for
-     * @param subject the resolved subject
-     * @param animation what each idle figure rests at and reaches
-     * @return the preset to pose with, which is never {@link EntityOptions.PoseMode#ANIMATED}
-     */
-    public static EntityOptions.@NotNull PoseMode gaitOf(
-        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject,
-        @NotNull AnimationOptions animation) {
-
-        if (mode != EntityOptions.PoseMode.ANIMATED) return mode;
-        return gaitOf(motionOf(subject, animation));
-    }
-
-    /** The preset that reaches a motion's movement - the walk for a stride, the resting one for the rest. */
-    private static EntityOptions.@NotNull PoseMode gaitOf(@NotNull MotionSource motion) {
-        return motion == MotionSource.STRIDE ? EntityOptions.PoseMode.WALK : EntityOptions.PoseMode.IDLE;
-    }
-
-    /**
-     * What carries this subject's movement, read off the poses it draws through.
-     *
-     * <p>Every mesh the subject draws is evaluated across one excursion at both moving presets, and
-     * what varied decides the answer. So this is a question about the shipped tables and the
-     * excursions in force rather than about the entity, and a caller who flattens an excursion gets a
-     * subject that genuinely no longer moves.
-     *
-     * <p><b>Answered for the subject as an appearance left it</b>, passes included, so a gate that
-     * dropped a pass drops what that pass would have moved: an uncharged creeper does not scroll,
-     * because the swirl that scrolls is not one of the overlays it draws.
-     *
-     * @param subject the resolved subject, supplying every mesh it draws and the pose belonging to each
-     * @param animation what each idle figure rests at and reaches
-     * @return what moves it, and so which gait reaches that movement
-     */
-    public static @NotNull MotionSource motionOf(
-        @NotNull Entity subject, @NotNull AnimationOptions animation) {
-
-        return motionOf(drawnBy(subject), scrolls(subject), animation);
-    }
 
     /**
      * The per-render memo the bounds pass and the build pass share, posing this subject under the
@@ -471,211 +259,6 @@ public final class PoseKit {
 
         }
 
-    }
-
-    /** Each overlay pass where its own model leaves it, or the list itself when none of them moved. */
-    private static @NotNull ConcurrentList<Entity.OverlayLayer> posedOverlays(
-        @NotNull EntityOptions.PoseMode mode, @NotNull Entity subject, int tick,
-        @NotNull AnimationOptions animation) {
-
-        ConcurrentList<Entity.OverlayLayer> overlays = subject.overlays();
-        List<Entity.OverlayLayer> out = new ArrayList<>(overlays.size());
-        boolean moved = false;
-        for (Entity.OverlayLayer overlay : overlays) {
-            EntityModelData mesh = posed(mode, overlay.pose(), overlay.model(), tick, animation);
-            // The suppressed-pass alternate is the same mesh with a subtree emptied, so it takes the
-            // same pose - a villager under a full-hat profession still moves the head it draws none of.
-            Optional<EntityModelData> noHat = overlay.noHatModel()
-                .map(alternate -> posed(mode, overlay.pose(), alternate, tick, animation));
-            moved |= mesh != overlay.model()
-                || !noHat.equals(overlay.noHatModel());
-            out.add(new Entity.OverlayLayer(mesh, overlay.textureRef(), overlay.pass(),
-                overlay.tintArgb(), overlay.skipBounds(), overlay.tintBy(), overlay.textureBy(),
-                overlay.gate(), noHat, overlay.pose(), overlay.textureScroll()));
-        }
-        return moved ? Concurrent.newUnmodifiableList(out) : overlays;
-    }
-
-    // ------------------------------------------------------------------------------------
-
-    /**
-     * What the subject answers about itself at one tick - nothing, with the figures this preset
-     * drives run forward.
-     *
-     * <p>A subject an offline render poses is standing where it is, and a shipped pose names no
-     * figure but the ones the tick drives - everything else about a subject standing still was
-     * answered where the table was written. So elapsed age is the reason a frame differs from its
-     * neighbour at all, and the rest rests.
-     *
-     * <p>A gait names the further figures that stop resting, and nothing else about it differs.
-     * {@link EntityOptions.PoseMode#WALK} answers the two a stride is carried on: vanilla steps the
-     * phase by the amplitude once a tick rather than deriving it from the clock, so the phase is the
-     * tick times the amplitude and the two are one schedule.
-     *
-     * <p>Package-visible as the seam the oracle-equivalence test reads this classifier through.
-     */
-    static @NotNull ToDoubleFunction<String> frameAt(
-        @NotNull EntityOptions.PoseMode mode, int tick, @NotNull AnimationOptions animation) {
-
-        boolean walking = mode == EntityOptions.PoseMode.WALK;
-        return field -> {
-            if (AGE_IN_TICKS.equals(field)) return tick;
-            // Answered before the stride pair, because these are what a subject standing still does:
-            // a walking subject's tentacles do not stop waving, so a gait adds to this rather than
-            // replacing it. Anything the roster does not name still rests, which is what keeps the
-            // contract that a shipped pose names no figure but the ones the tick drives.
-            //
-            // A scalar figure is answered without the gait and a one-hot WITH it: a figure is a
-            // function of the tick alone, where the member a group rests at is not the member it
-            // moves at for a subject whose locomotion is a state-gated clip.
-            IdleFigure figure = IdleFigure.ofField(field);
-            if (figure != null) return animation.idleValue(figure, tick);
-            IdleState factor = IdleState.ofField(field);
-            if (factor != null) return animation.idleValue(factor, walking);
-            if (!walking) return 0d;
-            if (WALK_SPEED.equals(field)) return WALK_AMPLITUDE;
-            if (WALK_POSITION.equals(field)) return tick * WALK_AMPLITUDE;
-            return 0d;
-        };
-    }
-
-    /** One mesh a subject draws, and the pose belonging to it. */
-    private record Drawn(@NotNull EntityPose pose, @NotNull EntityModelData model) {}
-
-    /** What every mesh a subject draws writes and displaces at one tick. */
-    private record Instant(
-        @NotNull List<PoseEvaluator.ChannelWrites> writes,
-        @NotNull List<ClipKit.Displacement> clips
-    ) {}
-
-    /**
-     * What moves a set of meshes, told apart by what varies across one excursion.
-     *
-     * <p>A swept figure and elapsed age both vary the written channels across the resting strip, and
-     * this measurement cannot tell the two apart, so both answer {@link MotionSource#TICK}.
-     */
-    private static @NotNull MotionSource motionOf(
-        @NotNull List<Drawn> drawn, boolean scrolls, @NotNull AnimationOptions animation) {
-
-        List<Instant> resting = strip(drawn, EntityOptions.PoseMode.IDLE, animation);
-        if (varies(resting, Instant::writes)) return MotionSource.TICK;
-        if (varies(resting, Instant::clips)) return MotionSource.SELECT;
-        // Asked after the geometry rather than before it: a pass that scrolls decides the answer only
-        // where nothing about the mesh moved, this being a question about which gait to ask for.
-        if (scrolls) return MotionSource.SCROLL;
-        List<Instant> walking = strip(drawn, EntityOptions.PoseMode.WALK, animation);
-        if (varies(walking, Instant::writes) || varies(walking, Instant::clips)) return MotionSource.STRIDE;
-        return MotionSource.NONE;
-    }
-
-    /** Every mesh the subject draws, each carrying the pose its own model class wrote. */
-    private static @NotNull List<Drawn> drawnBy(@NotNull Entity subject) {
-        List<Drawn> out = new ArrayList<>();
-        out.add(new Drawn(subject.pose(), subject.model()));
-        for (Entity.OverlayLayer overlay : subject.overlays()) {
-            out.add(new Drawn(overlay.pose(), overlay.model()));
-            // The suppressed-pass alternate is the same mesh with a subtree emptied and takes the same
-            // pose, so it moves wherever the pass it stands in for moves.
-            overlay.noHatModel().ifPresent(alternate -> out.add(new Drawn(overlay.pose(), alternate)));
-        }
-        return out;
-    }
-
-    /** Whether any pass this subject draws translates its texture rather than its geometry. */
-    private static boolean scrolls(@NotNull Entity subject) {
-        return subject.overlays().stream().anyMatch(overlay -> overlay.textureScroll().isPresent());
-    }
-
-    /** What each tick of one excursion evaluates to, at one preset. */
-    private static @NotNull List<Instant> strip(
-        @NotNull List<Drawn> drawn, @NotNull EntityOptions.PoseMode mode,
-        @NotNull AnimationOptions animation) {
-
-        List<Instant> out = new ArrayList<>(IdleFigure.PERIOD_TICKS);
-        for (int tick = 0; tick < IdleFigure.PERIOD_TICKS; tick++) {
-            ToDoubleFunction<String> frame = frameAt(mode, tick, animation);
-            List<PoseEvaluator.ChannelWrites> writes = new ArrayList<>(drawn.size());
-            List<ClipKit.Displacement> clips = new ArrayList<>(drawn.size());
-            for (Drawn one : drawn) {
-                if (!one.pose().isReadable()) continue;
-                writes.add(canonical(PoseEvaluator.evaluate(one.pose(), one.model(), frame)));
-                clips.add(canonical(ClipKit.deltas(one.pose(), one.model(), frame)));
-            }
-            out.add(new Instant(writes, clips));
-        }
-        return out;
-    }
-
-    /**
-     * The writes with the two float zeros held together - they compare equal as primitives and
-     * unequal boxed, and a write flipping the sign of zero is not a change a render can show.
-     */
-    private static PoseEvaluator.@NotNull ChannelWrites canonical(PoseEvaluator.@NotNull ChannelWrites writes) {
-        return new PoseEvaluator.ChannelWrites(
-            writes.container().stream().map(PoseKit::canonical).toList(),
-            canonicalBones(writes.bones()));
-    }
-
-    /** The displacements with the two float zeros held together, as {@link #canonical(PoseEvaluator.ChannelWrites)}. */
-    private static ClipKit.@NotNull Displacement canonical(ClipKit.@NotNull Displacement clips) {
-        return new ClipKit.Displacement(canonicalBones(clips.bones()), canonical(clips.container()));
-    }
-
-    private static @NotNull Map<String, Map<PoseChannel, Float>> canonicalBones(
-        @NotNull Map<String, Map<PoseChannel, Float>> bones) {
-
-        Map<String, Map<PoseChannel, Float>> out = new LinkedHashMap<>(bones.size());
-        bones.forEach((bone, channels) -> out.put(bone, canonical(channels)));
-        return out;
-    }
-
-    private static @NotNull Map<PoseChannel, Float> canonical(@NotNull Map<PoseChannel, Float> channels) {
-        Map<PoseChannel, Float> out = new LinkedHashMap<>(channels.size());
-        channels.forEach((channel, value) -> out.put(channel, value == 0f ? 0f : value));
-        return out;
-    }
-
-    /** Whether one half of a strip answers differently at any two of its ticks. */
-    private static boolean varies(
-        @NotNull List<Instant> strip, @NotNull Function<Instant, Object> part) {
-
-        Object first = part.apply(strip.getFirst());
-        return strip.stream().anyMatch(instant -> !first.equals(part.apply(instant)));
-    }
-
-    /**
-     * Whether the poses read a render-state figure nothing here answers, which is what separates a
-     * subject whose animation has no driver from one carrying no animation at all.
-     *
-     * <p>Recorded off the evaluation rather than read off the table, so a figure named only down a
-     * branch nothing takes is not counted - what decides this is what the subject actually asked for.
-     */
-    private static boolean readsUndriven(
-        @NotNull List<Drawn> drawn, @NotNull AnimationOptions animation) {
-
-        Set<String> read = new HashSet<>();
-        for (int tick = 0; tick < IdleFigure.PERIOD_TICKS; tick++) {
-            ToDoubleFunction<String> driven = frameAt(EntityOptions.PoseMode.WALK, tick, animation);
-            ToDoubleFunction<String> recording = field -> {
-                read.add(field);
-                return driven.applyAsDouble(field);
-            };
-            for (Drawn one : drawn) {
-                if (!one.pose().isReadable()) continue;
-                PoseEvaluator.evaluate(one.pose(), one.model(), recording);
-                ClipKit.deltas(one.pose(), one.model(), recording);
-            }
-        }
-        return read.stream().anyMatch(field -> !answered(field));
-    }
-
-    /** Whether a render answers this render-state figure with anything but the resting zero. */
-    private static boolean answered(@NotNull String field) {
-        return AGE_IN_TICKS.equals(field)
-            || WALK_POSITION.equals(field)
-            || WALK_SPEED.equals(field)
-            || IdleFigure.ofField(field) != null
-            || IdleState.ofField(field) != null;
     }
 
     /** The mesh with every written channel applied, or the mesh itself when none of them moved it. */

@@ -1532,58 +1532,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/asset/pose/IdleFigure": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.fluid",
-        "manifest.player-raw",
-        "manifest.player-sheets",
-        "manifest.portal",
-        "manifest.visual",
-        "pin.block-crc",
-        "pin.fluid-crc",
-        "pin.player-crc",
-        "pin.portal-crc",
-        "sweep.armor",
-        "sweep.block",
-        "sweep.entity",
-        "sweep.entity-animation",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu",
-        "sweep.player"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/pose/IdleFigureMirrorTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/pose/IdleState": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.fluid",
-        "manifest.player-raw",
-        "manifest.player-sheets",
-        "manifest.portal",
-        "manifest.visual",
-        "pin.block-crc",
-        "pin.fluid-crc",
-        "pin.player-crc",
-        "pin.portal-crc",
-        "sweep.armor",
-        "sweep.block",
-        "sweep.entity",
-        "sweep.entity-animation",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu",
-        "sweep.player"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/asset/pose/MotionSource": {
       "artifacts": [
         "manifest.dump.packs",
@@ -2621,10 +2569,6 @@
         "sweep.entity",
         "sweep.entity-animation"
       ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/engine/kit/PoseKitMotionTest": {
-      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/kit/PoseKitStyleTest": {
@@ -3783,10 +3727,6 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/pipeline/dump/StyleInventoryVsMotionOf": {
-      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/pipeline/index/BlockIndexBuilder": {

@@ -6,8 +6,6 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.asset.pose.IdleFigure;
-import lib.minecraft.renderer.asset.pose.IdleState;
 import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
@@ -302,13 +300,15 @@ class EntityPoseLoadTest {
         // zero in silence: the arm a switch ends at is not the arm a subject stands in, and it cost
         // the skeleton family a forty-four degree forward swing at rest before it was resolved.
         //
-        // Taken from the roster the RUNTIME answers rather than typed out, so a table that ships a
-        // figure PoseKit cannot answer fails here rather than rendering it as a silent zero.
-        Set<String> driven = Stream.of(
+        // Taken from the roster the RUNTIME answers rather than typed out - the three fields the
+        // universal rows drive, plus every field any shipped style row drives - so a table that
+        // ships a figure no catalog row can answer fails here rather than rendering it as a silent
+        // zero.
+        Set<String> driven = Stream.concat(
                 Stream.of("ageInTicks", "walkAnimationPos", "walkAnimationSpeed"),
-                Stream.of(IdleFigure.values()).map(IdleFigure::field),
-                Stream.of(IdleState.values()).map(IdleState::field))
-            .flatMap(figures -> figures)
+                entities.values().stream()
+                    .flatMap(entity -> entity.styles().styles().stream())
+                    .flatMap(style -> style.drivers().keySet().stream()))
             .collect(Collectors.toSet());
         Map<String, Set<String>> named = new TreeMap<>();
         for (Map.Entry<String, Entity> subject : entities.entrySet()) {

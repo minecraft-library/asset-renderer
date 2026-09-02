@@ -537,7 +537,7 @@ disagree.
   refusal is empty, so `isReadable()` answers true and the mesh draws unposed and unstripped - so the
   emitter refuses a declared poser with no row rather than leaving it to be noticed in a render.
 - **Every overlay pass poses its own mesh with its own class**, so `Entity.OverlayLayer` carries a
-  pose and `PoseKit.posedSubject` poses the body and every pass together. Posing the body alone
+  pose and `PoseKit.posed` poses the subject's body and every pass together. Posing the body alone
   leaves a sheep's wool where the sheep no longer is. A pass drawing the body's own mesh takes the
   body's pose rather than its coordinate's, or the two part company on a subject that moves.
 - The insertion is one line at the top of `EntityRenderer.renderEntity`'s `buildAtTick` lambda - the
@@ -563,7 +563,7 @@ disagree.
 **What a subject's RENDERER composes goes above every mesh it submits, and it is its own table keyed
 by the renderer.** Vanilla runs `setupRotations` on the pose stack before it submits the body or any
 layer, so `entity_poses.json`'s `renderers` member holds a step sequence per renderer and
-`PoseKit.posedSubject` puts it at the FRONT of every mesh's container - the body's, each overlay
+`PoseKit.posed` puts it at the FRONT of every mesh's container - the body's, each overlay
 pass's, and the alternate a suppressed pass carries. A transform reaching the body alone swims a
 tropical fish out from under its own pattern overlays. It is keyed by renderer rather than by model
 because one renderer answers for several model classes, and `entity_models.json`'s `renderer` member
@@ -646,12 +646,12 @@ at - so there is nothing a caller can leave out and be wrong about. That is what
 an operation and a choice, and a choice turns on a numeric comparison alone.
 
 **The roster is elapsed age, the stride pair, and what a never-ticked subject leaves at zero.** The
-last of those is the one that grows, and it grows on both sides at once: `asset/pose/IdleFigure` is a
-scalar its own vanilla arithmetic bounds, moved from what it RESTS at to what it reaches across one
-strip; `asset/pose/IdleState` is a one-hot over a selector, whose selected member's field answers one
-while every other answers zero. They are two types rather than one interface with two arms - a figure
-is a function of the tick and carries no notion of a selection, a state is the reverse - and what
-they share is only that the frame resolves both by render-state field name.
+last of those is the one that grows, and it ships as catalog drivers: a swept scalar is a
+`StyleDriver` at `sweep` or `cycle`, moved from the rest it names to the extent it reaches across
+one strip, its decimals shipped; a one-hot selection is a `hold` driver on the row that selects it,
+whose field answers one while every other member's rests at zero. They are two wave shapes rather
+than two mechanisms, and what they share is that the resolved row's driver map answers both by
+render-state field name.
 
 - **A figure's excursion runs from rest, so tick zero is free.** Frame 0 of a strip, every authored
   render and every frozen reference answer exactly what they answered before the figure was driven.
@@ -662,13 +662,11 @@ they share is only that the frame resolves both by render-state field name.
   number wherever the body reads it, and a body that branches on one leaves a select comparing that
   number against zero. So a dolphin's `isMoving` is one arm of a two-member selection, and adding it
   to the generator's driven set is the whole of what keeping it symbolic takes.
-- **A member that drives no field is spelled with the empty token**, which is how a caller asks for a
-  whole group to rest. Every member that names a field names one no other member does, and
-  `IdleFigureMirrorTest` pins that - a shared name would make the lookup a first match rather than an
-  answer. **The empty token is the one spelling four members share, so `IdleState.ofField` is written
-  out rather than generated off a key field**: the generated lookup is a linear scan where the first
-  match wins, and it answered `IN_AIR` for the empty string. Passing the resting members over makes
-  that token unreachable rather than merely unasked for.
+- **A group's resting member is nobody's driver**, which is how a caller asks for a whole group to
+  rest: an undriven field answers zero, exactly what a member nobody selected holds, so exclusion is
+  free. Every member that names a field names one no other member does - a shared name would make
+  the frame's field lookup a first match rather than an answer - and the harness contract copy
+  spells the resting member with the empty token.
 - **A group carries a resting member only where vanilla has a resting arm.** An axolotl's `IN_AIR` is
   one of its own enum's members, a dolphin's `STILL` is the false arm of a boolean, and the clip
   groups rest on a stopped `AnimationState` - which is a boolean too, `isStarted()` being
@@ -678,49 +676,48 @@ they share is only that the frame resolves both by render-state field name.
   unconditionally - `Breeze.tick` runs `idle.startIfStopped` before the pose switch and regardless of
   which arm it takes - so its group has one member and nothing to select against. A member for either
   absence would be a coinage, and neither still subject is selectable.
-- **A group is a selector rather than a subject, and a shared field name merges two.** `IDLE_CLIP` is
-  a camel's idle and a copper golem's; `ACTION_CLIP` is a warden's, a creaking's and a sniffer's,
-  because the first pair spell an attack `attackAnimationState` and the second spell a dig
-  `diggingAnimationState`. A field name is the whole of what the frame is asked, so splitting those
-  per subject would make `IdleState.ofField` a first match rather than an answer.
-- **A gait reaches the DEFAULT of a group, and only where the subject's locomotion IS a state-gated
-  clip.** `Group.selected(boolean)` answers a different member under a stride for `RABBIT` and
-  `BREEZE_POSE` alone: a rabbit travels by hopping and a breeze by sliding, and neither carries a
-  walk-gated clip at all, so a walking render left at the resting arm swings the legs of a subject
-  vanilla draws in a clip. Every other group answers the same member either way, because what a stride
-  reaches for those subjects is a walk-gated clip that already plays - a camel's dash is a synched
-  flag a rider sets and an armadillo's roll is fear, and selecting either under `WALK` would animate
-  something vanilla does not do when the animal merely walks. **Reading a subject's delta between the
-  two gaits rather than its gates is what makes those look like locomotion.**
-- **One state vanilla drives is left off the roster for a mechanism reason**, and it is named where
-  the group that would have held it is declared: a baby axolotl's `walkAnimationState` gates a
-  walk-driven play site the fold settles and drops, so driving it puts that site back.
+- **A selector is a field vocabulary rather than a subject, and a shared field name merges two.** A
+  camel's idle clip and a copper golem's both gate on `idleAnimationState`; a warden's, a creaking's
+  and a sniffer's actions spell a shared `attackAnimationState` and `diggingAnimationState` between
+  them. A field name is the whole of what the frame is asked, so two rows that exclude one another
+  say so through the `group` their drivers carry, never through who reads the field.
+- **A per-gait default is a base plus a replacement, never a switch.** The rabbit's `idle` row
+  drives its head tilt and its `stride` row's hop driver REPLACES it in the same group; the breeze
+  slides under a stride where it stands grounded at rest - the two subjects whose locomotion is a
+  state-gated clip. Every other subject's stride row keeps its idle selections, because what a
+  stride reaches for those subjects is a walk-gated clip that already plays - a camel's dash is a
+  synched flag a rider sets and an armadillo's roll is fear, and selecting either under a stride
+  would animate something vanilla does not do when the animal merely walks. **Reading a subject's
+  delta between the two gaits rather than its gates is what makes those look like locomotion.**
+- **One state vanilla drives is deliberately driven by no shipped row**, for a mechanism reason: a
+  baby axolotl's `walkAnimationState` gates a walk-driven play site the fold settles and drops, so
+  driving it puts that site back. The load-time validation of the select join tolerates exactly
+  that field and no other.
 - **A flag is folded against the FIGURES alone, which is what lets a state gate one.** Nothing at
   render reads a flag channel, so a bone's visibility has to be settled where the table is written -
   but the two halves of the driven set differ in whether a selection could carry it. A flag gated on
   a one-hot STATE is a bone a selection draws, so the fold settles the state and the mesh keeps the
   bone resting undrawn with a toggle over it; a flag gated on a FIGURE is a bone that blinks with the
   clock, which no toggle can say, so it stays symbolic and the flow refuses. `PoseFlow.DRIVEN_FIGURES`
-  is that line and `IdleFigureMirrorTest` holds it to the scalar roster, a field on the wrong side
-  being silent either way.
+  is that line, and a field filed on the wrong side ships wrongly shaped rows rather than failing
+  loudly - the shipped catalog is what `StyleCatalogMirrorTest` then holds to the harness contract.
 - **A bone drawn only while a clip runs is a toggle, and the frog's croak is the corpus's one.**
   `EntityBoneResolver` reads a gate by descriptor, so `<AnimationState>.isStarted()` is matched beside
   a plain `:Z` field read and the toggle is named off the state with its type suffix dropped. The
   clip and the bone are then inseparable and a render wanting the croak asks for both - the state, and
   the `croak` appearance - which is the same pair an armour stand's arms already take.
-- **Three builds answer from the same numbers and none can name another's type**, so
-  `IdleFigureMirrorTest` compares all three as text. The harness declares its copy in `IdleFigures`,
-  where a value that moved on one side only renders happily and reports as a defect in this renderer.
-  The generator declares a third in `PoseFlow.DRIVEN`, and its drift is silent a different way: **a
-  field a roster names and the generator folds ships the arm a never-ticked subject takes whatever a
-  caller selects**, which is what cost the rabbit's head 55.73 of delta. The set is the two rosters'
-  named fields plus elapsed age and the stride pair, and the test asserts that equality rather than
-  an inclusion, because a field kept symbolic that no roster names reads zero at every tick.
-`EntityPoseLoadTest` pins it, because the failure mode is a silent zero: the arm a switch ends at is
-not the arm a subject stands in, and it cost the skeleton family a forty-four degree forward swing at
-rest before the fold reached it. **`entity_poses.json` still carries `input_defaults`,
-`rest_defaults` and `question_defaults`, and nothing reads them** - they are what the generator
-resolved against, kept in the table until the emitter stops writing them.
+- **The roster ships once, and the contract copies are held to the shipped file.** The generator's
+  `PoseFlow.DRIVEN` / `DRIVEN_FIGURES` are derivation input: what they split is emitted as the
+  style catalog on `entity_models.json`, the pipeline loads it, and the harness keeps its
+  deliberate copy in `IdleFigures` - pinned against the shipped rows, field for field and bit for
+  bit, by `StyleCatalogMirrorTest`, where a value that moved on one side only renders happily and
+  reports as a defect in this renderer. Generator drift is silent a different way: **a field the
+  roster names and the generator folds ships the arm a never-ticked subject takes whatever a caller
+  selects**, which is what cost the rabbit's head 55.73 of delta - and a field kept symbolic that
+  no shipped row drives reads zero at every tick. `EntityPoseLoadTest` pins that the shipped poses
+  read nothing outside the driven set, because that failure mode is a silent zero: the arm a switch
+  ends at is not the arm a subject stands in, and it cost the skeleton family a forty-four degree
+  forward swing at rest before the fold reached it.
 
 **Nothing at render reads a flag channel.** Every flag in the corpus folds to a literal at
 generation, so which bones a subject rests without is written onto the mesh it rests in - a bone
