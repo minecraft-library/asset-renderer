@@ -16,21 +16,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The pose table's two grammars, read against each other.
+ * The pose table's grammar, read at its refusals as well as its reads.
  *
- * <p>A format 2 and a format 3 spelling of one table have to load to EQUAL in-memory poses,
- * because the dual-read exists so the emitted bytes can move without the loaded shape moving - a
- * reader whose two arms disagree turns the byte cutover into a silent behaviour change. And the
- * format 3 arm has to refuse what its grammar dropped: a {@code renderers} table, a flag channel,
- * a drive token no play site takes, and a selection naming no field.
+ * <p>The reader's arms are what the emitter writes and nothing more, so what its grammar dropped
+ * refuses rather than reading as something else: a {@code renderers} table, a flag channel, a drive
+ * token no play site takes, and a selection naming no field. Each refusal is pinned from a written
+ * table rather than from the shipped one, the shipped table carrying none of them.
  */
-@DisplayName("the pose table's two grammars")
+@DisplayName("the pose table's grammar")
 class EntityPoseFormatTest {
 
     /** Plain, because the reader is declared on the type it reads rather than configured onto one. */
     private static final @NotNull Gson GSON = new Gson();
 
-    /** The clip tables both spellings share - the play-site grammar is what differs, never these. */
+    /** The clip tables the play sites resolve against - what varies per test is the sites alone. */
     private static final @NotNull String CLIPS = """
         "clips": {
           "TestAnimation#JUMP": { "length": 1.0, "channels": [ { "bone": "body", "target": "position",
@@ -41,25 +40,8 @@ class EntityPoseFormatTest {
               "keyframes": [ { "time": 0.0, "value": [1.0, 1.0, 1.0], "curve": "catmullrom" } ] } ] }
         }""";
 
-    /** One model, spelled in the format 2 grammar: gate/state play sites over a shared table. */
-    private static final @NotNull String FORMAT_TWO = """
-        { "format": 2,
-          %s,
-          "poses": { "TestModel": {
-            "shared": [ { "const": 0.25 } ],
-            "container": [ { "y": { "ref": 0 } } ],
-            "bones": { "head": { "x_rot": { "ref": 0 }, "y_rot": { "input": "ageInTicks" } } },
-            "clips": [
-              { "clip": "TestAnimation#JUMP", "gate": "state", "state": "jumpAnimationState",
-                "args": [ { "const": 1.0 } ] },
-              { "clip": "TestAnimation#WALK", "gate": "walk",
-                "args": [ { "const": 1.0 }, { "const": 2.5 },
-                          { "input": "walkAnimationPos" }, { "input": "walkAnimationSpeed" } ] },
-              { "clip": "TestAnimation#REST", "gate": "static" }
-            ] } } }""".formatted(CLIPS);
-
-    /** The same model in the format 3 grammar: drive/field play sites, container complete, no renderers. */
-    private static final @NotNull String FORMAT_THREE = """
+    /** One model in the shipped grammar: drive/field play sites, container complete, no renderers. */
+    private static final @NotNull String TABLE = """
         { "format": 3,
           %s,
           "poses": { "TestModel": {
@@ -76,19 +58,15 @@ class EntityPoseFormatTest {
             ] } } }""".formatted(CLIPS);
 
     @Test
-    @DisplayName("one table spelled in both grammars loads to equal poses")
-    void bothGrammarsLoadToEqualPoses() {
-        EntityPose two = GSON.fromJson(FORMAT_TWO, RawEntityPosesFile.class).poses().get("TestModel");
-        EntityPose three = GSON.fromJson(FORMAT_THREE, RawEntityPosesFile.class).poses().get("TestModel");
+    @DisplayName("a table loads its container, bones and play sites, each site carrying its drive")
+    void theGrammarLoadsWhole() {
+        EntityPose pose = GSON.fromJson(TABLE, RawEntityPosesFile.class).poses().get("TestModel");
 
-        assertEquals(two, three, "the two spellings are one pose in memory");
-        // Pinned member by member too, so a disagreement names the half that moved rather than
-        // printing two whole poses.
-        assertEquals(two.container(), three.container(), "the container arrives the same");
-        assertEquals(two.bones(), three.bones(), "the bones arrive the same");
-        assertEquals(two.clips(), three.clips(), "the play sites arrive the same");
+        assertTrue(pose.isReadable(), "a table carrying no refusal is readable");
+        assertEquals(1, pose.container().size(), "the container arrives complete, one step as written");
+        assertEquals(2, pose.bones().get("head").size(), "and the bones carry the channels they write");
 
-        List<EntityPose.Clip> clips = three.clips();
+        List<EntityPose.Clip> clips = pose.clips();
         assertEquals(MotionSource.SELECT, clips.get(0).drive(), "a select site carries its drive");
         assertEquals(Optional.of("jumpAnimationState"), clips.get(0).field(), "and names its field");
         assertEquals(MotionSource.STRIDE, clips.get(1).drive(), "a stride site carries its drive");
@@ -98,8 +76,8 @@ class EntityPoseFormatTest {
     }
 
     @Test
-    @DisplayName("a format 3 table carrying a renderers member is refused")
-    void formatThreeRefusesRenderers() {
+    @DisplayName("a table carrying a renderers member is refused")
+    void aRenderersMemberIsRefused() {
         PipelineException raised = assertThrows(PipelineException.class, () -> GSON.fromJson("""
             { "format": 3, "renderers": {}, "poses": {} }""", RawEntityPosesFile.class));
         assertTrue(raised.getMessage().contains("renderers"),
@@ -107,21 +85,13 @@ class EntityPoseFormatTest {
     }
 
     @Test
-    @DisplayName("a flag channel refuses under format 3, and skips under format 2")
-    void flagChannelsAreFormatTwosAlone() {
-        String bones = """
-            { "format": %d, "poses": { "TestModel": {
-              "bones": { "head": { "visible": { "const": 1.0 } } } } } }""";
-
-        PipelineException raised = assertThrows(PipelineException.class,
-            () -> GSON.fromJson(bones.formatted(3), RawEntityPosesFile.class));
+    @DisplayName("a flag channel is the unknown channel it is")
+    void aFlagChannelIsRefused() {
+        PipelineException raised = assertThrows(PipelineException.class, () -> GSON.fromJson("""
+            { "format": 3, "poses": { "TestModel": {
+              "bones": { "head": { "visible": { "const": 1.0 } } } } } }""", RawEntityPosesFile.class));
         assertTrue(raised.getMessage().contains("not a channel"),
-            "format 3 reads it as the unknown channel it is: " + raised.getMessage());
-
-        EntityPose skipped = GSON.fromJson(bones.formatted(2), RawEntityPosesFile.class)
-            .poses().get("TestModel");
-        assertEquals(List.of(), List.copyOf(skipped.bones().get("head").keySet()),
-            "format 2 skips the flag channel it still ships");
+            "which bones a subject rests without is the model table's fact: " + raised.getMessage());
     }
 
     @Test
@@ -151,7 +121,7 @@ class EntityPoseFormatTest {
             "the refusal says what is missing: " + raised.getMessage());
     }
 
-    /** A format 3 table whose one play site carries the given members beside its coordinate. */
+    /** A table whose one play site carries the given members beside its coordinate. */
     private static @NotNull String site(@NotNull String members) {
         return """
             { "format": 3,

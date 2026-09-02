@@ -185,11 +185,9 @@ class EntityIndexBuilderBabyOverlayTest {
         return new RawEquipmentRow(
             "saddle",                              // slot
             ADULT_COORD,                           // geometry
-            null,                                  // bones
             "pig_saddle",                          // layer_type
             Map.of("saddle", "minecraft:saddle"),  // material_assets
-            "saddle",                              // default_material
-            null);                                 // pose
+            "saddle");                             // default_material
     }
 
     /** The block overlay a baby drops wholesale. */
@@ -210,8 +208,6 @@ class EntityIndexBuilderBabyOverlayTest {
         return new RawModel(
             null,                                      // renderer
             null,                                      // render
-            null,                                      // rest
-            null,                                      // bones
             List.of(typePass(), professionPass()),     // overlays
             List.of(mushroomOverlay()),                // block_overlays
             null,                                      // armor
@@ -227,8 +223,6 @@ class EntityIndexBuilderBabyOverlayTest {
         return new RawModel(
             null,                 // renderer
             null,                 // render
-            null,                 // rest
-            null,                 // bones
             List.of(woolPass()),  // overlays
             null,                 // block_overlays
             null,                 // armor
@@ -243,7 +237,7 @@ class EntityIndexBuilderBabyOverlayTest {
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, villagerFamily());
         models.put(CONTROL, controlFamily());
-        return EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models, null), Map.of(), Map.of());
+        return EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models, null), Map.of());
     }
 
     @Test
@@ -308,8 +302,6 @@ class EntityIndexBuilderBabyOverlayTest {
         models.put(ENTITY, new RawModel(
             null,                                        // renderer
             null,                                        // render
-            null,                                        // rest
-            null,                                        // bones
             List.of(decor),                              // overlays
             null,                                        // block_overlays
             null,                                        // armor
@@ -318,7 +310,7 @@ class EntityIndexBuilderBabyOverlayTest {
                 "llama/llama_creamy_baby"),  // axes
             null,                                        // members
             null));                                      // styles
-        Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models, null), Map.of(), Map.of()).get(ENTITY);
+        Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models, null), Map.of()).get(ENTITY);
 
         assertThat("the adult decor draws the mesh its row names",
             firstCubeGrow(llama.overlays().getFirst().model()), is(0.5f));

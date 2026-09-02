@@ -44,14 +44,10 @@ public record RawEntityModelsFile(
  * One raw entity model (a family), 1:1 with a {@code models} member. Every {@code source} /
  * {@code layer_index} authoring hint is simply not declared, so Gson ignores it.
  *
- * @param renderer the vanilla renderer class's internal name, which is what the pose table keys its
- *     {@code renderers} transforms by - the one member here that names a class rather than an asset,
- *     because what a renderer composes above its meshes is its own fact and no model carries it
+ * @param renderer the vanilla renderer class's internal name - the one member here that names a
+ *     class rather than an asset, carried as the file's own statement of which renderer draws the
+ *     subject
  * @param render the family render tuning ({@code scale} / {@code tint}), or {@code null}
- * @param rest which constant each of the subject's enum render-state fields holds before anything
- *     has happened to it, or {@code null} when its renderer fills none from a readable accessor
- * @param bones the model class the family's body is posed through, or {@code null} where the
- *     mesh coordinate already names it
  * @param overlays the body overlay layers in declared order, or {@code null} when absent
  * @param blockOverlays the vanilla-block-shaped overlays, or {@code null} when absent
  * @param armor the worn-armor shell node, or {@code null} for a subject vanilla never armors
@@ -65,8 +61,6 @@ public record RawEntityModelsFile(
 record RawModel(
     @Nullable String renderer,
     @Nullable RawRender render,
-    @Nullable Map<String, String> rest,
-    @Nullable RawBones bones,
     @Nullable List<RawOverlay> overlays,
     @SerializedName("block_overlays") @Nullable List<RawBlockOverlay> blockOverlays,
     @Nullable RawArmor armor,
@@ -85,18 +79,6 @@ record RawModel(
 record RawRender(
     @Nullable Float scale,
     @Nullable String tint
-) {}
-
-/**
- * A {@code bones} block, on the family or on an equipment layer's overlay.
- *
- * @param pose the simple name of the model class whose pose says which way these bones point,
- *     or {@code null} when the mesh's own geometry coordinate already names it. Written only
- *     where the two disagree, which is a saddle: vanilla declares a saddle's mesh factory on
- *     the wearer's model class and hands the layer a different class to pose it with
- */
-record RawBones(
-    @Nullable String pose
 ) {}
 
 /**
@@ -229,8 +211,8 @@ record RawAxis(
  * @param block the block a coat's fixed block overlays draw (the mooshroom's brown mushroom), or
  *     {@code null} when they draw the one the {@code block_overlays[]} rows already name
  * @param pose the simple name of the model class whose pose says which way this form's bones
- *     point, stated explicitly per form in a format 3 table, or {@code null} where the geometry
- *     coordinate's own head (or the family {@code bones.pose}) still answers
+ *     point, stated explicitly per form, or {@code null} where the geometry coordinate's own head
+ *     answers - the scale-only size options, whose form is the base row's
  */
 record RawOption(
     @Nullable String geometry,
@@ -409,27 +391,22 @@ record RawArmor(
 ) {}
 
 /**
- * One {@code equipment} row - a saddle or body-armor layer, gated on its {@code slot}.
+ * One {@code equipment} row - a saddle or body-armor layer, gated on its {@code slot}. An equipment
+ * mesh is drawn where its wearer's pose leaves the body, so the row names no poser of its own here;
+ * what the file states about one is the file's own fact and stays undeclared.
  *
  * @param slot the equipment slot this row is gated on
  * @param geometry the row's mesh coordinate
- * @param bones the model class the layer is posed through, which is not always the one that baked
- *     its mesh, or {@code null} where the two agree
  * @param layerType the equipment render layer's serialized id ({@code pig_saddle}), or {@code null}
  * @param materialAssets the equipment asset id per selectable material, or {@code null}
  * @param defaultMaterial the equipment default material, or {@code null}
- * @param pose the simple name of the model class this row is posed through, stated explicitly in a
- *     format 3 table, or {@code null} where the {@code bones} node (or the geometry coordinate)
- *     still answers
  */
 record RawEquipmentRow(
     @Nullable String slot,
     @Nullable String geometry,
-    @Nullable RawBones bones,
     @SerializedName("layer_type") @Nullable String layerType,
     @SerializedName("material_assets") @Nullable Map<String, String> materialAssets,
-    @SerializedName("default_material") @Nullable String defaultMaterial,
-    @Nullable String pose
+    @SerializedName("default_material") @Nullable String defaultMaterial
 ) {}
 
 /**

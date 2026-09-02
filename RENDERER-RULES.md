@@ -560,22 +560,21 @@ disagree.
   it, which is wider than a null parent: **a bone naming a parent its mesh does not declare hangs
   from the root too**, and the breeze ships two of them.
 
-**What a subject's RENDERER composes goes above every mesh it submits, and it is its own table keyed
-by the renderer.** Vanilla runs `setupRotations` on the pose stack before it submits the body or any
-layer, so `entity_poses.json`'s `renderers` member holds a step sequence per renderer and
-`PoseKit.posed` puts it at the FRONT of every mesh's container - the body's, each overlay
-pass's, and the alternate a suppressed pass carries. A transform reaching the body alone swims a
-tropical fish out from under its own pattern overlays. It is keyed by renderer rather than by model
-because one renderer answers for several model classes, and `entity_models.json`'s `renderer` member
-is what a subject joins on.
+**What a subject's RENDERER composes goes above every mesh it submits, and it arrives composed.**
+Vanilla runs `setupRotations` on the pose stack before it submits the body or any layer, so the
+emitter seats those steps at the FRONT of every pose row's container - the body's, each overlay
+pass's, and the alternate a suppressed pass carries - and the loaded container is the whole
+sequence, read as one keyspace with nothing joined at load. A transform reaching the body alone
+swims a tropical fish out from under its own pattern overlays, which is why the seat is per mesh
+rather than per subject.
 
 - **A renderer composes in the frame of the GROUND its subject stands on, and a mesh's origin is not
   it.** `LivingEntityRenderer.submit` translates the stack `1.501` blocks along the flipped y between
   the `setupRotations` it has just run and the mesh it submits, so the sequence reaches the roots
   through a translate of `1.501 * 16` model pixels or it turns the subject about its neck.
-  `EntityIndexBuilder.under` emits it as the step closing the sequence, that being the one place a
-  renderer's steps and a model's own container write are both in hand. It is INSIDE the chirality
-  flip, so unlike every step above it it crosses no frame and is not conjugated.
+  The emitter closes every composed sequence with it, that being the one place a renderer's steps
+  and a model's own container write are both in hand. It is INSIDE the chirality flip, so unlike
+  every step above it it crosses no frame and is not conjugated.
 - **That offset is rigid, so it moves no silhouette and only ever moves where one stands** - which
   reads as a canvas of the wrong size rather than as a transform of the wrong shape, and is what
   makes it a canvas question until it is read. It is inert wherever the angle is settled at

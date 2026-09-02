@@ -109,8 +109,6 @@ class EntityTextureScrollJoinTest {
         models.put(ENTITY, new RawModel(
             null,                                   // renderer
             null,                                   // render
-            null,                                   // rest
-            null,                                   // bones
             List.of(new RawOverlay(
                 null,                               // geometry
                 null,                               // no_hat_geometry
@@ -130,7 +128,7 @@ class EntityTextureScrollJoinTest {
             null,                                   // members
             null));                                 // styles
         return EntityIndexBuilder.assemble(
-            Map.of(COORD, mesh()), new RawEntityModelsFile(models, null), Map.of(), Map.of()).get(ENTITY);
+            Map.of(COORD, mesh()), new RawEntityModelsFile(models, null), Map.of()).get(ENTITY);
     }
 
     private static @NotNull RawAxes ageAxis() {

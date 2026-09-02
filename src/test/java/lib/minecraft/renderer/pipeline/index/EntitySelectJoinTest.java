@@ -123,7 +123,7 @@ class EntitySelectJoinTest {
 
         RawEntityModelsFile raw = GSON.fromJson(json, RawEntityModelsFile.class);
         return EntityIndexBuilder.assemble(
-            Map.of(COORD, mesh(), BABY_COORD, mesh()), raw, poses, Map.of());
+            Map.of(COORD, mesh(), BABY_COORD, mesh()), raw, poses);
     }
 
     /** A pose whose one play site is a selection gated on the given render-state field. */

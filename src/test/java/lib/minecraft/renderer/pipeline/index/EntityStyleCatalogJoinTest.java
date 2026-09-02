@@ -226,7 +226,7 @@ class EntityStyleCatalogJoinTest {
     private static @NotNull Entity assemble(@NotNull String json, @NotNull Map<String, EntityPose> poses) {
         RawEntityModelsFile raw = GSON.fromJson(json, RawEntityModelsFile.class);
         Entity built = EntityIndexBuilder.assemble(
-                Map.of(COORD, mesh(), BABY_COORD, mesh()), raw, poses, Map.of())
+                Map.of(COORD, mesh(), BABY_COORD, mesh()), raw, poses)
             .get(ENTITY);
         assertNotNull(built, ENTITY + " is expected to assemble");
         return built;

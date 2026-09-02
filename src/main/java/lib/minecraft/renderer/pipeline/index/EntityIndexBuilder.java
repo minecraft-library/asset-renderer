@@ -24,8 +24,6 @@ import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.MotionSource;
-import lib.minecraft.renderer.asset.pose.PoseChannel;
-import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
@@ -81,32 +79,11 @@ public final class EntityIndexBuilder {
     private static final int WHITE = 0xFFFFFFFF;
 
     /**
-     * The step that carries a renderer's sequence from the frame it composes in down to the mesh's
-     * own, which is a translate of {@code 1.501} blocks in model pixels.
-     *
-     * <p>{@code LivingEntityRenderer.submit} translates the stack by that much - inside the
-     * chirality flip, so along the mesh's own downward y and needing no crossing - between the
-     * {@code setupRotations} it has just run and the mesh it is about to submit. So a renderer turns
-     * the subject about the ground it stands on, and a mesh's origin is roughly a head above that:
-     * the sequence has to reach the roots through this or it turns the subject about its neck.
-     *
-     * <p><b>It is rigid, so it moves no silhouette and only ever moves where one stands</b> - which
-     * reads as a canvas of the wrong size rather than as a transform of the wrong shape. And it is
-     * inert wherever the angle is settled: a constant turn displaces the subject by a constant and
-     * the fit centres whatever it measured, so the fish and the phantom were exact without it and
-     * the iron golem's lurch, which a tick changes about an axis this offset is not parallel to,
-     * was not.
-     */
-    private static final @NotNull Map<PoseChannel, PoseExpr> GROUND_FRAME = Map.of(
-        PoseChannel.Y, new PoseExpr.Const(-1.501f * 16f, PoseOperator.Width.FLOAT));
-
-    /**
      * Assembles the entity index from the raw model tree and the geometry table.
      *
      * @param geometries the geometry coordinate to bone tree table
      * @param rawFile the raw model catalog
      * @param poses the pose of each model class, by the simple name a coordinate is headed with
-     * @param renderTransforms the steps each renderer composes above its meshes, by renderer simple name
      * @return definitions keyed by namespaced entity id, in file order
      * @throws PipelineException if an entity references a geometry coordinate absent from the
      *     geometry file, or plays a selection-driven clip on a field another family's style rows
@@ -115,8 +92,7 @@ public final class EntityIndexBuilder {
     public static @NotNull ConcurrentMap<String, Entity> assemble(
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull RawEntityModelsFile rawFile,
-        @NotNull Map<String, EntityPose> poses,
-        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms
+        @NotNull Map<String, EntityPose> poses
     ) {
         Map<String, RawModel> models = rawFile.models();
         if (models == null) return Concurrent.newMap();
@@ -127,7 +103,7 @@ public final class EntityIndexBuilder {
             .collect(Concurrent.toLinkedMap(
                 Map.Entry::getKey,
                 entry -> readDefinition(entry.getKey(), entry.getValue(), geometries, poses,
-                    renderTransforms, rawFile.periodTicks())));
+                    rawFile.periodTicks())));
         built.forEach((id, definition) -> validateSelectJoins(id, definition, corpusDriven));
         return built;
     }
@@ -145,7 +121,6 @@ public final class EntityIndexBuilder {
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
-        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> renderTransforms,
         @Nullable Integer periodTicks
     ) {
         // The family baseline (primary geometry + adult texture) lives under the mandatory age axis'
@@ -156,14 +131,6 @@ public final class EntityIndexBuilder {
         RawRender render = family.render();
         float rendererScale = render == null || render.scale() == null ? 1f : render.scale();
         int baseTint = render == null || render.tint() == null ? WHITE : ColorTypeAdapter.parse(render.tint()).getRGB();
-        List<Map<PoseChannel, PoseExpr>> renderTransform = renderTransformOf(renderTransforms, family);
-
-        RawBones bones = family.bones();
-        // The class the body's pose is read against, which is the renderer's own and not always the
-        // one that baked the mesh - a model reusing its parent's layer is headed with the parent
-        // everywhere a coordinate appears, and reading it there poses a zombie as a plain humanoid.
-        // Written only where the two disagree, so a coordinate answers for the rest.
-        String poseClass = bones == null ? null : bones.pose();
 
         List<RawOverlay> familyOverlays = nullToEmpty(family.overlays());
         ConcurrentList<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null
@@ -175,14 +142,14 @@ public final class EntityIndexBuilder {
         // Beside the baby MESH rather than derived from it: a baby is its own model class, and two of
         // the families that pose at all are posed through that class alone.
         Optional<EntityPose> babyPose = babyCoord == null ? Optional.empty()
-            : Optional.of(under(renderTransform, poseOf(poses, poseKeyOf(babyPoseKeyOf(family), babyCoord))));
+            : Optional.of(poseOf(poses, poseKeyOf(babyPoseKeyOf(family), babyCoord)));
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
             : Optional.ofNullable(geometries.get(babyCoord));
         ConcurrentList<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
-            renderTransform, babyPose.orElse(EntityPose.NONE), babyCoord, babyModel, familyId);
+            babyPose.orElse(EntityPose.NONE), babyCoord, babyModel, familyId);
 
-        FamilyContext ctx = new FamilyContext(family, familyId, poseClass, geometries, poses,
-            renderTransform, familyOverlays, baseTint, rendererScale,
+        FamilyContext ctx = new FamilyContext(family, familyId, geometries, poses,
+            familyOverlays, baseTint, rendererScale,
             babyModel, babyPose, babyOverlays,
             equipment, humanoidArmor, stateDefaultOf(family),
             styleCatalogOf(family, familyId, periodTicks));
@@ -244,15 +211,14 @@ public final class EntityIndexBuilder {
      */
     private static @NotNull Entity buildRow(@NotNull RowForm form, @NotNull FamilyContext ctx) {
         EntityModelData model = resolveModel(ctx.geometries(), form.coordinate(), ctx.familyId());
-        // A coat swaps the mesh and never the renderer, so the class the pose is read against is the
-        // family's whatever geometry the form names - unless the form states its pose key outright.
-        EntityPose pose = under(ctx.renderTransform(),
-            poseOf(ctx.poses(), poseKeyOf(form.pose(),
-                ctx.poseClass() == null ? form.coordinate() : ctx.poseClass())));
+        // The form states the class its body is posed through outright - the emitter writes the key
+        // it already knows - so the join is a lookup, and a form stating none answers off its own
+        // coordinate's head, the honest fallback for a mesh the pose table never looked at.
+        EntityPose pose = poseOf(ctx.poses(), poseKeyOf(form.pose(), form.coordinate()));
         // Ahead of the size derivation so a same-geometry pass is materialised on the mesh this row
         // actually draws, and travels with it into every form derived from the row.
         ConcurrentList<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
-            ctx.renderTransform(), pose, form.coordinate(), model, ctx.familyId());
+            pose, form.coordinate(), model, ctx.familyId());
 
         ConcurrentMap<String, String> states = weathered(form.stateTextures(), ctx.familyOverlays(), ctx.familyId());
 
@@ -323,26 +289,6 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * The steps this subject's renderer composes above every mesh it submits.
-     *
-     * <p>Joined on the renderer's simple name, which the model table carries per subject and the
-     * pose table keys its transforms by. A subject whose renderer the walk refused, or which
-     * composes nothing at all, has no row and stands where its mesh puts it.
-     *
-     * <p>A transform and a baked {@code setupRotations} translate are two spellings of one thing and
-     * only one may answer, so a subject reaching both is refused where the translate is still known -
-     * at generation, before it goes into the mesh.
-     */
-    private static @NotNull List<Map<PoseChannel, PoseExpr>> renderTransformOf(
-        @NotNull Map<String, List<Map<PoseChannel, PoseExpr>>> transforms, @NotNull RawModel family) {
-
-        String renderer = family.renderer();
-        if (renderer == null) return List.of();
-        int member = renderer.lastIndexOf('/');
-        return transforms.getOrDefault(member < 0 ? renderer : renderer.substring(member + 1), List.of());
-    }
-
-    /**
      * The pose of whatever model a geometry coordinate names.
      *
      * <p>The join is the coordinate's own head: a coordinate is {@code Class#member} and a pose is
@@ -362,11 +308,10 @@ public final class EntityIndexBuilder {
 
     /**
      * The key one form's pose is joined at - the explicit {@code pose} member where the form states
-     * one (a format 3 table states it on every form), else the derived fallback the format 2 read
-     * lands on.
+     * one, else the form's own geometry coordinate, whose head {@link #poseOf} splits.
      *
      * @param explicit the form's own {@code pose} member, or {@code null} where it states none
-     * @param fallback the key the existing derivation answers
+     * @param fallback the coordinate whose head answers where no key is stated
      * @return the key the pose table is joined at
      */
     private static @NotNull String poseKeyOf(@Nullable String explicit, @NotNull String fallback) {
@@ -380,37 +325,6 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * One pose composed under the steps its renderer puts above every mesh it submits.
-     *
-     * <p>Vanilla applies {@code setupRotations} to the pose stack before the body or any layer is
-     * drawn, so what it composes is outermost: it goes at the FRONT of the container, and every pose
-     * the subject's meshes take gets the same sequence, seated once here rather than per frame. A
-     * renderer that composes nothing hands back the pose itself.
-     *
-     * <p>The {@link #GROUND_FRAME} closes that sequence, because this is the one place both halves
-     * are in hand: what a renderer composes is in the frame of the ground its subject stands on, and
-     * what a model's own container writes is in the frame of the mesh, and the two meet exactly
-     * here.
-     *
-     * <p>A pose that could not be read stays unreadable rather than becoming a container with no
-     * bones under it: a subject whose model nothing could walk is not one a transform can place, and
-     * placing it anyway would draw a mesh that is neither authored nor posed.
-     *
-     * @param steps what the subject's renderer composes above its meshes
-     * @param pose the pose belonging to one of those meshes
-     * @return the pose with the renderer's steps ahead of its own container
-     */
-    private static @NotNull EntityPose under(
-        @NotNull List<Map<PoseChannel, PoseExpr>> steps, @NotNull EntityPose pose) {
-
-        if (steps.isEmpty() || !pose.isReadable()) return pose;
-        ConcurrentList<Map<PoseChannel, PoseExpr>> container =
-            Stream.concat(Stream.concat(steps.stream(), Stream.of(GROUND_FRAME)), pose.container().stream())
-                .collect(Concurrent.toUnmodifiableList());
-        return new EntityPose(container, pose.bones(), pose.clips(), pose.refusal());
-    }
-
-    /**
      * What the whole family shares, so one row build restates none of it.
      *
      * <p>Held once per family and handed to every row of it, the family's own and each of its coats
@@ -420,10 +334,8 @@ public final class EntityIndexBuilder {
     private record FamilyContext(
         @NotNull RawModel family,
         @NotNull String familyId,
-        @Nullable String poseClass,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
-        @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform,
         @NotNull List<RawOverlay> familyOverlays,
         int baseTint,
         float rendererScale,
@@ -543,7 +455,6 @@ public final class EntityIndexBuilder {
         @NotNull List<RawOverlay> overlays,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
-        @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform,
         @NotNull EntityPose bodyPose,
         @NotNull String baseCoord,
         @NotNull EntityModelData baseModel,
@@ -567,9 +478,9 @@ public final class EntityIndexBuilder {
             }
             // A pass poses its mesh with its own model class, so it reads the pose its own coordinate
             // names - and a pass drawing the body's mesh takes the BODY's pose, which is the one the
-            // family's own posing class was resolved against rather than whatever the coordinate says.
-            // Either way the renderer's steps sit at the front, the body's arriving composed already.
-            EntityPose overlayPose = sameGeometry ? bodyPose : under(renderTransform, poseOf(poses, coord));
+            // form's own key was resolved against rather than whatever the coordinate says. Either
+            // way the container arrives composed, the emitter having seated the renderer's steps.
+            EntityPose overlayPose = sameGeometry ? bodyPose : poseOf(poses, coord);
             Optional<String> overlayTexture = Optional.ofNullable(entry.texture());
             boolean hasTint = entry.tint() != null;
             RawPipeline pipeline = entry.pipeline();
@@ -662,7 +573,6 @@ public final class EntityIndexBuilder {
         @NotNull List<RawOverlay> overlays,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, EntityPose> poses,
-        @NotNull List<Map<PoseChannel, PoseExpr>> renderTransform,
         @NotNull EntityPose babyPose,
         @Nullable String babyCoord,
         @NotNull Optional<EntityModelData> babyModel,
@@ -687,7 +597,7 @@ public final class EntityIndexBuilder {
                 entityId, babyCoord);
             return Concurrent.newUnmodifiableList();
         }
-        return loadOverlays(forms, geometries, poses, renderTransform, babyPose, babyCoord, babyModel.get(), entityId);
+        return loadOverlays(forms, geometries, poses, babyPose, babyCoord, babyModel.get(), entityId);
     }
 
     /**
@@ -1051,8 +961,7 @@ public final class EntityIndexBuilder {
         EntityModelData model = ctx.geometries().get(coord);
         if (model == null) return Entity.Axis.none();
         ConcurrentList<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), ctx.geometries(), ctx.poses(),
-            ctx.renderTransform(),
-            under(ctx.renderTransform(), poseOf(ctx.poses(), poseKeyOf(large.pose(), coord))), coord, model,
+            poseOf(ctx.poses(), poseKeyOf(large.pose(), coord)), coord, model,
             ctx.familyId());
         Entity largeForm = bare.mutate()
             .model(model)

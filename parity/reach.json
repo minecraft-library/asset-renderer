@@ -3718,10 +3718,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pipeline/dump/FormatMigrationStructuralDiff": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/pipeline/dump/PipelineParityDump": {
       "artifacts": [
         "manifest.dump.packs",
@@ -3766,10 +3762,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/pipeline/index/EntityPoseLoadTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/pipeline/index/EntityRenderTransformJoinTest": {
       "artifacts": [],
       "source": "derived"
     },

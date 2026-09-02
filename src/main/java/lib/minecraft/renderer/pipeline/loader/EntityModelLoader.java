@@ -22,9 +22,8 @@ import java.util.Optional;
  * The reader for entity model definitions, orchestrating three pure reads and one assembler:
  * {@code entity_geometry.json} decodes straight into the deduplicated bone/cube trees keyed by geometry
  * coordinate, {@code entity_models.json} decodes straight into the raw {@link RawEntityModelsFile} tree
- * (90 base-entity models), {@code entity_poses.json} decodes into the pose each model class takes and
- * the transform each renderer composes above the meshes it submits, and {@link EntityIndexBuilder}
- * joins them into the {@link Entity} map the renderer consumes.
+ * (90 base-entity models), {@code entity_poses.json} decodes into the pose each model class takes, and
+ * {@link EntityIndexBuilder} joins them into the {@link Entity} map the renderer consumes.
  *
  * <p>The geometry file is keyed by the same manifest factory coordinate the model baseline names under
  * {@code axes.age.options.adult.geometry} (e.g. {@code AdultWolfModel#createBodyLayer},
@@ -40,10 +39,10 @@ public final class EntityModelLoader {
     private static final @NotNull String POSES_RESOURCE = "entity_poses.json";
 
     /**
-     * The {@code format} values the models and poses tables are read under - the two entity tables
-     * ship under either grammar, where the geometry table keeps the strict single-format read.
+     * The {@code format} value the models and poses tables are read under - the two entity tables
+     * ship at format 3, where the geometry table keeps the strict format 2 read.
      */
-    private static final int @NotNull [] ACCEPTED_FORMATS = {2, 3};
+    private static final int ENTITY_TABLE_FORMAT = 3;
 
     /** Guards {@link #memo}, so concurrent first callers assemble the index once. */
     private static final @NotNull Object MEMO_LOCK = new Object();
@@ -75,7 +74,7 @@ public final class EntityModelLoader {
     /** One whole assembly of the index - the three raw reads and the {@link EntityIndexBuilder} join. */
     private static @NotNull ConcurrentMap<String, Entity> assemble() {
         Optional<ResourceDocument> geometryDoc = BundledResource.read(GEOMETRY_RESOURCE);
-        Optional<ResourceDocument> modelsDoc = BundledResource.read(MODELS_RESOURCE, ACCEPTED_FORMATS);
+        Optional<ResourceDocument> modelsDoc = BundledResource.read(MODELS_RESOURCE, ENTITY_TABLE_FORMAT);
         if (geometryDoc.isEmpty() || modelsDoc.isEmpty()) return Concurrent.newMap();
 
         Map<String, EntityModelData> geometries = parseGeometries(geometryDoc.get());
@@ -83,8 +82,7 @@ public final class EntityModelLoader {
         RawEntityModelsFile raw = modelsDoc.get().as(RawEntityModelsFile.class);
         if (raw == null || raw.models() == null) return Concurrent.newMap();
 
-        RawEntityPosesFile posed = parsePoses();
-        return EntityIndexBuilder.assemble(geometries, raw, posed.poses(), posed.renderTransforms());
+        return EntityIndexBuilder.assemble(geometries, raw, parsePoses().poses());
     }
 
     /**
@@ -96,13 +94,12 @@ public final class EntityModelLoader {
      * still rather than no entities at all. Joining this read to that disjunction would turn a
      * missing pose table into a renderer with no entities in it.
      *
-     * @return the pose of each model class and the transform of each renderer, or nothing answered
-     *     when the resource is absent
+     * @return the pose of each model class, or nothing answered when the resource is absent
      */
     private static @NotNull RawEntityPosesFile parsePoses() {
-        return BundledResource.read(POSES_RESOURCE, ACCEPTED_FORMATS)
+        return BundledResource.read(POSES_RESOURCE, ENTITY_TABLE_FORMAT)
             .map(document -> document.as(RawEntityPosesFile.class))
-            .orElseGet(() -> new RawEntityPosesFile(Map.of(), Map.of()));
+            .orElseGet(() -> new RawEntityPosesFile(Map.of()));
     }
 
     /** Reads the {@code geometries} coordinate map straight into {@link EntityModelData} values. */
