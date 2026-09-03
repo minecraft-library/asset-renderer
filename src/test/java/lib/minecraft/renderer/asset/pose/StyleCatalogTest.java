@@ -104,7 +104,7 @@ class StyleCatalogTest {
             Concurrent.newUnmodifiableMap(Map.of("rollUpAnimationState",
                 new StyleDriver("rollUpAnimationState", StyleDriver.Wave.HOLD, 0f, 1f,
                     Optional.of("action")))),
-            Concurrent.newUnmodifiableList(), Optional.of(Age.BABY));
+            Concurrent.newUnmodifiableList(), Optional.of(Age.BABY), Optional.empty());
         StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(rollUp));
         EntityOptions adult = EntityOptions.of("minecraft:test");
         EntityOptions baby = EntityOptions.builder()
@@ -126,12 +126,13 @@ class StyleCatalogTest {
             Concurrent.newUnmodifiableList(
                 new PoseStyle.StyleSource(MotionSource.FIGURE, Optional.empty()),
                 new PoseStyle.StyleSource(MotionSource.SCROLL, Optional.of("charged"))),
-            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty(),
+            Optional.empty());
         PoseStyle babyRow = new PoseStyle("roll_up",
             Concurrent.newUnmodifiableList(
                 new PoseStyle.StyleSource(MotionSource.SELECT, Optional.empty())),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(),
-            Optional.of(Age.BABY));
+            Optional.of(Age.BABY), Optional.empty());
         StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(idle, babyRow));
 
         StyleCatalog narrowed = catalog.inForce(false, gate -> false);
@@ -152,7 +153,8 @@ class StyleCatalogTest {
         PoseStyle scrollsWhenCharged = new PoseStyle(PoseStyle.IDLE,
             Concurrent.newUnmodifiableList(
                 new PoseStyle.StyleSource(MotionSource.SCROLL, Optional.of("charged"))),
-            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty(),
+            Optional.empty());
         StyleCatalog catalog =
             new StyleCatalog(24, Concurrent.newUnmodifiableList(scrollsWhenCharged));
 
@@ -170,7 +172,7 @@ class StyleCatalogTest {
             Concurrent.newUnmodifiableMap(Map.of("restAnimationState",
                 new StyleDriver("restAnimationState", StyleDriver.Wave.HOLD, 0f, 1f,
                     Optional.of("action")))),
-            Concurrent.newUnmodifiableList(), Optional.empty());
+            Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
         StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(rest));
 
         assertTrue(rest.sources().isEmpty(), "the row holds still");
@@ -212,7 +214,7 @@ class StyleCatalogTest {
             Concurrent.newUnmodifiableMap(Map.of("playingDeadAnimationState",
                 new StyleDriver("playingDeadAnimationState", StyleDriver.Wave.HOLD, 0f, 1f,
                     Optional.of("action")))),
-            Concurrent.newUnmodifiableList(), Optional.of(age));
+            Concurrent.newUnmodifiableList(), Optional.of(age), Optional.empty());
     }
 
 }

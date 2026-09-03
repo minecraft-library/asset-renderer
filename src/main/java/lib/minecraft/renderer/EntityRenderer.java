@@ -216,7 +216,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         PoseStyle style = resolved.styles().resolve(options.getStyle(), options);
         AnimationOptions anim = options.getAnimation().resolved(
             style.moves() ? StyleCatalog.STRIP_FRAMES : 1,
-            resolved.styles().stripTicksPerFrame());
+            resolved.styles().stripTicksPerFrame(style));
         PoseKit.PosedFrames posed = PoseKit.frames(resolved, style, resolved.styles().periodTicks());
         EntityModelData model = resolved.model();
 

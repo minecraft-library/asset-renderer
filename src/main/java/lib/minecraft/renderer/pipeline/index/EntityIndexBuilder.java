@@ -1145,7 +1145,7 @@ public final class EntityIndexBuilder {
                 composedDrivers(row, byId, composed, familyId, new LinkedHashSet<>()),
                 row.toggles() == null
                     ? Concurrent.newUnmodifiableList() : Concurrent.newUnmodifiableList(row.toggles()),
-                styleAge(row, familyId)));
+                styleAge(row, familyId), Optional.empty()));
         return new StyleCatalog(periodTicks, Concurrent.newUnmodifiableList(styles));
     }
 
