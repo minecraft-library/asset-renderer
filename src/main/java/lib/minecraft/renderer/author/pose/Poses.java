@@ -1,0 +1,50 @@
+package lib.minecraft.renderer.author.pose;
+
+import org.jetbrains.annotations.NotNull;
+
+/**
+ * The entry point of pose authoring - one factory per tier vocabulary.
+ *
+ * <p>Each factory opens a builder whose selectors speak that tier's bone roster: the humanoid
+ * tier the canonical seven of bipeds, the quadruped tier the head-body-legs-tail roster of
+ * four-legged walkers, and the custom tier raw bone names for every roster the other two do not
+ * fit - a fused pair, an extra wing, an eight-legged crawler.
+ */
+public final class Poses {
+
+    private Poses() {}
+
+    /**
+     * Opens a humanoid builder - the canonical seven-bone vocabulary with paired-limb stamps,
+     * mirror verbs and whole-silhouette presets.
+     *
+     * @param styleId the id a caller selects the built style by
+     * @return the humanoid builder
+     */
+    public static @NotNull HumanoidPose.Builder humanoid(@NotNull String styleId) {
+        return new HumanoidPose.Builder(styleId);
+    }
+
+    /**
+     * Opens a quadruped builder - head, body, four corner legs and tail, with paired-leg
+     * stamps.
+     *
+     * @param styleId the id a caller selects the built style by
+     * @return the quadruped builder
+     */
+    public static @NotNull QuadrupedPose.Builder quadruped(@NotNull String styleId) {
+        return new QuadrupedPose.Builder(styleId);
+    }
+
+    /**
+     * Opens a custom builder - raw bone names for any roster, plus the raw expression escape
+     * hatch.
+     *
+     * @param styleId the id a caller selects the built style by
+     * @return the custom builder
+     */
+    public static @NotNull CustomPose.Builder custom(@NotNull String styleId) {
+        return new CustomPose.Builder(styleId);
+    }
+
+}

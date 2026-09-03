@@ -1,0 +1,52 @@
+{
+  "format": 3,
+  "clips": {
+    "style:wave": {
+      "length": 0.6,
+      "looping": true,
+      "channels": [
+        {
+          "bone": "right_arm",
+          "target": "rotation",
+          "keyframes": [
+            { "time": 0.0, "value": [0.0, 0.0, -0.3490658503988659], "curve": "linear" },
+            { "time": 0.3, "value": [0.0, 0.0, 0.3490658503988659], "curve": "linear" },
+            { "time": 0.6, "value": [0.0, 0.0, -0.3490658503988659], "curve": "linear" }
+          ]
+        }
+      ]
+    }
+  },
+  "poses": {
+    "WovenWave": {
+      "shared": [
+        {
+          "dadd": [
+            { "dadd": [ { "const": 0.25 }, { "input": "ageInTicks" } ] },
+            { "input": "style$wave$head$y_rot" }
+          ]
+        }
+      ],
+      "bones": {
+        "head": { "y_rot": { "ref": 0 } },
+        "hat": { "y_rot": { "ref": 0 } },
+        "right_arm": {
+          "x_rot": {
+            "dadd": [
+              { "bone": ["right_arm", "x_rot"] },
+              { "input": "style$wave$right_arm$x_rot" }
+            ]
+          }
+        }
+      },
+      "clips": [
+        {
+          "clip": "style:wave",
+          "drive": "select",
+          "field": "style$wave",
+          "args": [ { "input": "style$wave$clock" } ]
+        }
+      ]
+    }
+  }
+}
