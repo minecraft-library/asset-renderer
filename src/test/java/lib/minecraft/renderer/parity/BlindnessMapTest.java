@@ -203,7 +203,10 @@ final class BlindnessMapTest {
      * <p>The git index is the one no guard opens by name. It is what {@code git ls-files} answers
      * from, and that answer is the operand of every check here that judges the map against what the
      * repository holds - so tracking a file under a root nothing else declares is precisely the edit
-     * those checks exist for, and precisely the edit that would otherwise leave them UP-TO-DATE.
+     * those checks exist for, and precisely the edit that would otherwise leave them UP-TO-DATE. It
+     * is declared through a value rather than as a literal path because git keeps a linked
+     * worktree's index under the primary checkout's {@code .git/worktrees/}, and the build resolves
+     * which of the two this checkout is.
      *
      * <p>Every one of them names a path, and the reader below takes a declared value as well, so
      * that a value declared here arrives as a mismatch rather than as a declaration nothing
@@ -220,7 +223,7 @@ final class BlindnessMapTest {
         "paritySkillFile", "paritySkillFile",
         "parityTestSources", "\"src/test/java\"",
         "parityMainSources", "\"src/main/java\"",
-        "parityGitIndex", "\".git/index\"",
+        "parityGitIndex", "gitIndex",
         "parityClaudeMd", "\"CLAUDE.md\"",
         "parityRendererRules", "\"RENDERER-RULES.md\"");
 
