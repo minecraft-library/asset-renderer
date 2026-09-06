@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.author.pose;
 
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -16,6 +18,7 @@ import java.util.function.UnaryOperator;
  * the seven names do not fit - a fused arm pair, a wing, an extra head shell - belong to the
  * custom tier rather than a stretched vocabulary.
  */
+@Parity(subject = Subject.ENTITY)
 public final class HumanoidPose {
 
     private HumanoidPose() {}

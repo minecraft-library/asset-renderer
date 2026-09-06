@@ -6,6 +6,8 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import org.jetbrains.annotations.NotNull;
 
@@ -39,6 +41,7 @@ import java.util.Optional;
  * definitions map before the registrar opens over it, and every style a humanoid row takes
  * installs on it unchanged.
  */
+@Parity(subject = Subject.ENTITY)
 public final class PlayerRig {
 
     /**

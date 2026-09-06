@@ -2,6 +2,8 @@ package lib.minecraft.renderer.author.pose;
 
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.UnaryOperator;
@@ -16,6 +18,7 @@ import java.util.function.UnaryOperator;
  * pointing down its length and takes the quarter-turn pitch offset; a bone that aims its facing
  * direction wants the humanoid or quadruped head selector instead.
  */
+@Parity(subject = Subject.ENTITY)
 public final class CustomPose {
 
     private CustomPose() {}

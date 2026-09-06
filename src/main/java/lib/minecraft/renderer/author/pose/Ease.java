@@ -1,10 +1,13 @@
 package lib.minecraft.renderer.author.pose;
 
 import lib.minecraft.renderer.asset.pose.PoseClip;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 
 /**
  * How a timeline's keyframes reach one another.
  */
+@Parity(subject = Subject.ENTITY)
 public enum Ease {
 
     /**

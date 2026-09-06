@@ -3,6 +3,8 @@ package lib.minecraft.renderer.author.pose;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -20,6 +22,7 @@ import org.jetbrains.annotations.NotNull;
  */
 @Getter(style = NamingStyle.FLUENT)
 @RequiredArgsConstructor
+@Parity(subject = Subject.ENTITY)
 public enum Preset {
 
     /**

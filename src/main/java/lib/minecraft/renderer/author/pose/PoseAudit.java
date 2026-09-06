@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.author.pose;
 
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
@@ -17,6 +19,7 @@ import java.util.Optional;
  * @param droppedBones the written bones the target mesh does not declare
  * @param findings the pairs that left the shipped envelope, in mesh order
  */
+@Parity(subject = Subject.ENTITY)
 public record PoseAudit(
     @NotNull String styleId,
     @NotNull String rowId,

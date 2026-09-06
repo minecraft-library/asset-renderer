@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.author.pose;
 
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -35,6 +37,7 @@ import java.util.stream.Collectors;
  * <p>Counts are SUBTREE-aggregated: {@link #count(Severity)} and {@link #failed()} cover this
  * scope and every descendant. {@link Severity} declaration order is escalation order.
  */
+@Parity(subject = Subject.ENTITY)
 public final class StyleDiagnostics {
 
     /**

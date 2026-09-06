@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.author.pose;
 
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.UnaryOperator;
@@ -13,6 +15,7 @@ import java.util.function.UnaryOperator;
  * tolerant install - roster oddities like a split tail or an extra head shell belong to the
  * custom tier rather than a stretched vocabulary.
  */
+@Parity(subject = Subject.ENTITY)
 public final class QuadrupedPose {
 
     private QuadrupedPose() {}

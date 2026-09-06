@@ -18,6 +18,8 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleDriver;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
@@ -66,6 +68,7 @@ import java.util.Set;
  * state axis re-declares the reserved ref, and {@link #renderer(RendererContext)} wraps its
  * context so the reserved id answers the caller's sheet ahead of every pack.
  */
+@Parity(subject = Subject.ENTITY)
 public final class StyleRegistrar {
 
     /**

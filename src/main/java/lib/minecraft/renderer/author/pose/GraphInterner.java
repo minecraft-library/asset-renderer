@@ -5,6 +5,8 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PosePredicate;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -38,6 +40,7 @@ import java.util.Set;
  * deep and a key never re-walks a subtree. Every walk here short-circuits on an instance already
  * seen, because a graph's tree expansion does not terminate in practice.
  */
+@Parity(subject = Subject.ENTITY)
 final class GraphInterner {
 
     private final @NotNull Map<Key, PoseExpr> exprs = new HashMap<>();

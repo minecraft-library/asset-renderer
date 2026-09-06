@@ -6,6 +6,8 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -29,6 +31,7 @@ import java.util.Set;
  * @param toggles the appearance bone toggles the style entails
  * @param age the age the style applies to; empty applies to both
  */
+@Parity(subject = Subject.ENTITY)
 public record BuiltStyle(
     @NotNull String styleId,
     @NotNull PoseScript script,

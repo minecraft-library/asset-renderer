@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.author.pose;
 
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -10,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
  * four-legged walkers, and the custom tier raw bone names for every roster the other two do not
  * fit - a fused pair, an extra wing, an eight-legged crawler.
  */
+@Parity(subject = Subject.ENTITY)
 public final class Poses {
 
     private Poses() {}

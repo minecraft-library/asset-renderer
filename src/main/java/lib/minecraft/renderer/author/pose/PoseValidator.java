@@ -11,6 +11,8 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.engine.kit.BoneKit;
 import lib.minecraft.renderer.engine.kit.PoseKit;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -37,6 +39,7 @@ import java.util.Set;
  * scaled to how much that pair already moves under shipped motion - a tight pair (a socket) is
  * held tight, a free pair (a striding arm) keeps its swing room.
  */
+@Parity(subject = Subject.ENTITY)
 public final class PoseValidator {
 
     /**

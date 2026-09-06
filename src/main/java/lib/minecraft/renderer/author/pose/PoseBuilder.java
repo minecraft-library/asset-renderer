@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.author.pose;
 
 import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -17,6 +19,7 @@ import java.util.function.UnaryOperator;
  * verbs return the concrete builder through {@link #self()}, so a chain reads the same in any
  * verb order.
  */
+@Parity(subject = Subject.ENTITY)
 abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
     permits HumanoidPose.Builder, QuadrupedPose.Builder, CustomPose.Builder {
 

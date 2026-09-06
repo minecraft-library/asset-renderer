@@ -4,6 +4,8 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,6 +37,7 @@ import java.util.function.UnaryOperator;
  * @param hover the container lift-and-bob idiom, when authored
  * @param periodSeconds the declared excursion period in seconds; empty rides the catalog period
  */
+@Parity(subject = Subject.ENTITY)
 public record PoseScript(
     @NotNull ConcurrentList<Stance> stances,
     @NotNull ConcurrentList<Raw> raws,

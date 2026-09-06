@@ -9,6 +9,8 @@ import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PosePredicate;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -44,6 +46,7 @@ import java.util.function.Consumer;
  * load - and a row playing no site emits the fragment alone. Where the emission lands is the
  * caller's decision; nothing here writes a file.
  */
+@Parity(subject = Subject.ENTITY)
 public final class PoseEmitter {
 
     private PoseEmitter() {}

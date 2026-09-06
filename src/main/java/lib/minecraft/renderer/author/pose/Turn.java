@@ -1,10 +1,13 @@
 package lib.minecraft.renderer.author.pose;
 
 import lib.minecraft.renderer.asset.pose.PoseChannel;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 
 /**
  * The rotation axis a verb turns a limb about.
  */
+@Parity(subject = Subject.ENTITY)
 public enum Turn {
 
     /**

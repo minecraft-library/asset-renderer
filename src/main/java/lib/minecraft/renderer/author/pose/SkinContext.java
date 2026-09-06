@@ -2,6 +2,8 @@ package lib.minecraft.renderer.author.pose;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -20,6 +22,7 @@ import java.util.Optional;
  * @param delegate the wrapped context every other lookup reaches
  * @param skin the decoded caller skin the reserved id answers with
  */
+@Parity(subject = Subject.ENTITY)
 record SkinContext(
     @NotNull RendererContext delegate,
     @NotNull PixelBuffer skin

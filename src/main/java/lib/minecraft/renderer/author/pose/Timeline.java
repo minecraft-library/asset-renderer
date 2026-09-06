@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.author.pose;
 
 import dev.simplified.collection.Concurrent;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -16,6 +18,7 @@ import java.util.OptionalDouble;
  * axes are inert. Times are seconds. Verbs capture only: keyframe emission, unit conversion and
  * every refusal happen at compile.
  */
+@Parity(subject = Subject.ENTITY)
 public final class Timeline {
 
     private final @NotNull List<PoseScript.Motion> motions = new ArrayList<>();

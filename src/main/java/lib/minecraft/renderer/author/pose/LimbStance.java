@@ -2,6 +2,8 @@ package lib.minecraft.renderer.author.pose;
 
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -23,6 +25,7 @@ import java.util.function.UnaryOperator;
  * with live stride math. Position is always additive: a pivot is not a human unit, so no verb
  * states one absolutely.
  */
+@Parity(subject = Subject.ENTITY)
 public final class LimbStance {
 
     private final @NotNull List<PoseScript.Write> writes = new ArrayList<>();

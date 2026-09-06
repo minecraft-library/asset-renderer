@@ -36,6 +36,11 @@
       "reason": "A standalone authoring script that regenerates one javadoc illustration. It is not imported by the toolkit, not invoked by any Gradle task, and its output is a comment. It sits under the test resource root and processTestResources excludes the directory holding it, so no suite can reach it as a fixture either. The glob names the file rather than the directory, so a second script there is a decision somebody makes rather than a reach answer that arrives with the file."
     },
     {
+      "glob": "src/main/java/lib/minecraft/renderer/author/**",
+      "probe": "install a custom style through StyleRegistrar and capture every artifact: no stored byte moves, because no producer constructs a registrar - every sweep, dump and digest renders the definitions EntityModelLoader loads, and this package reads that loader without ever being read back",
+      "reason": "The authoring surface for custom poses and styles. It points downward only - it compiles against the pose vocabulary under asset/pose and the evaluator under engine/kit, and nothing under asset, engine, pipeline or option imports it - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Its own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/author/pose evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered."
+    },
+    {
       "glob": "harness/COMMIT-MAP.tsv",
       "probe": "grep the harness build for any read of it; there is none, and the client renders identically with the file deleted",
       "reason": "The old-to-new sha map recorded when the harness was imported as a subtree. It is a provenance record that nothing at build or render time opens, so it sits under harness/ without being part of what B29 speaks about."

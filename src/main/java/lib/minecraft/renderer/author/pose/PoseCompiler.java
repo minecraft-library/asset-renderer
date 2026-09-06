@@ -15,6 +15,8 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleDriver;
 import lib.minecraft.renderer.engine.kit.PoseEvaluator;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
@@ -57,6 +59,7 @@ import java.util.Set;
  * load nor render failures - and each records its context as an {@code ERROR} entry immediately
  * before the throw.
  */
+@Parity(subject = Subject.ENTITY)
 public final class PoseCompiler {
 
     /**

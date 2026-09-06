@@ -829,6 +829,12 @@ A standalone authoring script that regenerates one javadoc illustration. It is n
 
 *Probe:* run it and diff the tree: the only file it writes is the SVG inlined in EulerRotation's javadoc, and no artifact digests a javadoc
 
+### `src/main/java/lib/minecraft/renderer/author/**`
+
+The authoring surface for custom poses and styles. It points downward only - it compiles against the pose vocabulary under asset/pose and the evaluator under engine/kit, and nothing under asset, engine, pipeline or option imports it - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Its own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/author/pose evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered.
+
+*Probe:* install a custom style through StyleRegistrar and capture every artifact: no stored byte moves, because no producer constructs a registrar - every sweep, dump and digest renders the definitions EntityModelLoader loads, and this package reads that loader without ever being read back
+
 ### `harness/COMMIT-MAP.tsv`
 
 The old-to-new sha map recorded when the harness was imported as a subtree. It is a provenance record that nothing at build or render time opens, so it sits under harness/ without being part of what B29 speaks about.
