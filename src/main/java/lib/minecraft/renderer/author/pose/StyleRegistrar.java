@@ -87,6 +87,14 @@ public final class StyleRegistrar {
     private final @NotNull ConcurrentLinkedMap<String, Entity> working;
 
     /**
+     * The definitions as they were given, which no install touches - the evidence every compile
+     * reads for which bones vanilla articulates. A woven row carries earlier installs' splices,
+     * and a splice is the author's mark on a bone, never vanilla's, so a stance's landing is
+     * read off the row as it shipped and does not depend on what was installed before it.
+     */
+    private final @NotNull ConcurrentMap<String, Entity> given;
+
+    /**
      * The root scope every install records under.
      */
     private final @NotNull StyleDiagnostics root;
@@ -103,6 +111,7 @@ public final class StyleRegistrar {
 
     private StyleRegistrar(@NotNull ConcurrentLinkedMap<String, Entity> working, @NotNull StyleDiagnostics root) {
         this.working = working;
+        this.given = Concurrent.newUnmodifiableLinkedMap(new LinkedHashMap<>(working));
         this.root = root;
     }
 
@@ -271,7 +280,8 @@ public final class StyleRegistrar {
                 joined(foldedTokens), joined(displacing));
 
         GraphInterner pool = this.pools.computeIfAbsent(entityId, id -> new GraphInterner());
-        PoseCompiler.Compiled body = PoseCompiler.compile(style, row, scope, pool);
+        Entity given = this.given.get(entityId);
+        PoseCompiler.Compiled body = PoseCompiler.compile(style, row, given.pose(), scope, pool);
 
         if (strict && !body.droppedBones().isEmpty())
             this.refuse(install, "Style '%s' writes bone(s) [%s] that entity '%s' does not declare - its mesh declares [%s]",
@@ -298,7 +308,10 @@ public final class StyleRegistrar {
             if (wovenRows.containsKey(layer.pose()))
                 woven = wovenRows.get(layer.pose());
             else {
-                woven = this.wovenLayer(entityId, style, strict, layer, index, scope, install,
+                EntityPose evidence = index < given.overlays().size()
+                    ? given.overlays().get(index).pose()
+                    : layer.pose();
+                woven = this.wovenLayer(entityId, style, strict, layer, evidence, index, scope, install,
                     pool, site, row.styles().periodTicks(), scaled, foldedTokens, drivers);
                 wovenRows.put(layer.pose(), woven);
             }
@@ -330,10 +343,10 @@ public final class StyleRegistrar {
      * the body compile's copy of a shared field stands and a field only this layer's splices
      * read - a bone the body's mesh dropped - still lands its driver. Answers {@code null}
      * where nothing the script spells lands on the layer, leaving the pass untouched by
-     * instance.
+     * instance. The evidence is the pass's pose as it was given, for the reason the body's is.
      */
     private @Nullable EntityPose wovenLayer(@NotNull String entityId, @NotNull BuiltStyle style, boolean strict,
-                                            @NotNull Entity.OverlayLayer layer, int index,
+                                            @NotNull Entity.OverlayLayer layer, @NotNull EntityPose evidence, int index,
                                             @NotNull StyleDiagnostics scope, @NotNull StyleDiagnostics install,
                                             @NotNull GraphInterner pool, @NotNull Optional<EntityPose.Clip> site,
                                             int periodTicks,
@@ -357,7 +370,7 @@ public final class StyleRegistrar {
             events.info("fold-seat: container channel(s) [%s] fold into the seat clip(s) [%s] displace",
                 joined(foldedTokens), joined(displacing));
 
-        PoseCompiler.Compiled arm = PoseCompiler.compileLayer(style, layer.pose(), mesh, coined,
+        PoseCompiler.Compiled arm = PoseCompiler.compileLayer(style, layer.pose(), evidence, mesh, coined,
             scope, pool, site, periodTicks);
         if (!arm.droppedBones().isEmpty()) {
             if (strict)

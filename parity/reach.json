@@ -1660,6 +1660,218 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/author/pose/BuilderLoaderParityTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/BuiltStyle": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/BuiltStyleTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/CompilerFixtures": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/ContainerInstallParityTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/Corner": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/CustomPose": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/CustomPoseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/Ease": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/FoldSeatAbTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/GraphInterner": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/GraphInternerTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/HumanoidPose": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/HumanoidPoseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/LimbStance": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PeriodFramingTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PlayerRig": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PlayerRigTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseAudit": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseBuilder": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseCompiler": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseCompilerCouplingTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseCompilerRefusalTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseCompilerTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseCookbookCreatureTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseCookbookHumanoidTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseEmitter": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseEmitterTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseScript": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseScriptCaptureTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseValidator": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PoseValidatorTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/Poses": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/Preset": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/PresetTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/QuadrupedPose": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/QuadrupedPoseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/RegistrarFixtures": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/SeatInstallParityTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/Seats": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/SeatsRosterTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/SeatsTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/Side": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/SkinContext": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/StyleDiagnostics": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/StyleDiagnosticsTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/StyleRegistrar": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/StyleRegistrarSkinTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/StyleRegistrarTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/StyleRegistrarWeaveTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/StyleResolutionTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/Timeline": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/pose/Turn": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/BiomeTintTest": {
       "artifacts": [],
       "source": "derived"
@@ -2576,6 +2788,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/kit/PoseKitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/kit/PoseStatesBlindnessTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -3809,6 +4025,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pipeline/index/RawEntityPosesStatesTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pipeline/loader/BlockDefaultsLivePipelineTest": {
       "artifacts": [],
       "source": "derived"
@@ -4656,6 +4876,10 @@
       "artifacts": [
         "manifest.portal"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/visual/PoseShowcaseDriver": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/visual/RedstoneTintsDriver": {

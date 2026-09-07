@@ -53,6 +53,14 @@ import java.util.Set;
  * bans any recorded line from rendering an expression - diagnostics speak field, bone, channel
  * and count vocabulary only.
  *
+ * <p>Two relationships are derived here that no author spells and no shipped row states
+ * outright. An anatomical stance - every tier verb but the hat - lands on the articulation the
+ * pose as it shipped turns for that part, read off the mesh's own parents; and a bone the
+ * shipped state silhouettes show riding another bone's frame is seated on it, its pivot carried
+ * by the leader's held stance as an ordinary additive displacement. A seat is a position and
+ * never a rotation, and a pair merely adjacent at bind is a contact the audit measures and no
+ * seat.
+ *
  * <p>Units convert exactly once at this boundary: degrees to radians through
  * {@link Math#toRadians}, model pixels across the mesh's flattened factor, seconds passing
  * through untouched. Refusals are {@link IllegalArgumentException} - authoring errors, neither
@@ -96,6 +104,11 @@ public final class PoseCompiler {
      * The name vanilla reserves for the part every bone hangs from, which the mesh names nowhere.
      */
     private static final String ROOT_PART = "root";
+
+    /**
+     * The least a seat carries a follower by, in model units, for the carry to be written at all.
+     */
+    private static final float SEAT_EPSILON = 1e-4f;
 
     private PoseCompiler() {}
 
@@ -146,25 +159,29 @@ public final class PoseCompiler {
      */
     public static @NotNull Compiled compile(@NotNull BuiltStyle style, @NotNull Entity row,
                                             @NotNull StyleDiagnostics scope) {
-        return compile(style, row, scope, new GraphInterner());
+        return compile(style, row, row.pose(), scope, new GraphInterner());
     }
 
     /**
      * Compiles a built style against one target row over a caller-held interner pool - the arm
      * an installer reuses so splices stack and subtrees unify across every style added to one
-     * row.
+     * row. The evidence pose is the row's pose as it shipped: an installer whose row has been
+     * woven by earlier installs hands the pristine one here, so what the joint rule reads as
+     * "the pose turns this bone" is vanilla's articulation and never an author's splice.
      *
      * @param style the built style to lower
      * @param row the target row whose mesh and shipped pose the lowering runs against
+     * @param evidence the row's pose as it shipped, read for which bones vanilla articulates
      * @param scope the diagnostics scope the compile records under
      * @param pool the interner pool shared across the row's compiles
      * @return the compiled style
      * @throws IllegalArgumentException if any lowering rule refuses the authored content
      */
     static @NotNull Compiled compile(@NotNull BuiltStyle style, @NotNull Entity row,
-                                     @NotNull StyleDiagnostics scope, @NotNull GraphInterner pool) {
+                                     @NotNull EntityPose evidence, @NotNull StyleDiagnostics scope,
+                                     @NotNull GraphInterner pool) {
         double window = row.styles().periodTicks() / (double) TICKS_PER_SECOND;
-        return new Lowering(style, row.pose(), row.model(), Optional.empty(), scope, pool,
+        return new Lowering(style, row.pose(), evidence, row.model(), Optional.empty(), scope, pool,
             Optional.empty(), window).lower();
     }
 
@@ -188,7 +205,7 @@ public final class PoseCompiler {
     public static @NotNull Compiled compileLayer(@NotNull BuiltStyle style, @NotNull EntityPose pose,
                                                  @NotNull EntityModelData mesh, @NotNull String layer,
                                                  @NotNull StyleDiagnostics scope) {
-        return compileLayer(style, pose, mesh, layer, scope, new GraphInterner(), Optional.empty(),
+        return compileLayer(style, pose, pose, mesh, layer, scope, new GraphInterner(), Optional.empty(),
             DEFAULT_PERIOD_TICKS);
     }
 
@@ -196,10 +213,12 @@ public final class PoseCompiler {
      * Compiles a built style against one distinct layer row over a caller-held interner pool
      * and, when given, the body compile's play site - so the layer's woven row carries the very
      * clip and site instances the body's does. The target catalog's period frames the default
-     * strip window exactly as the body compile's does.
+     * strip window exactly as the body compile's does, and the evidence pose is the layer's as
+     * it shipped, for the reason the body compile takes one.
      *
      * @param style the built style to lower
      * @param pose the layer's shipped pose
+     * @param evidence the layer's pose as it shipped, read for which bones vanilla articulates
      * @param mesh the layer's mesh
      * @param layer the coined layer coordinate the rebased fields are spelled under
      * @param scope the diagnostics scope the compile records under
@@ -212,11 +231,12 @@ public final class PoseCompiler {
      * @throws IllegalArgumentException if any lowering rule refuses the authored content
      */
     static @NotNull Compiled compileLayer(@NotNull BuiltStyle style, @NotNull EntityPose pose,
-                                          @NotNull EntityModelData mesh, @NotNull String layer,
-                                          @NotNull StyleDiagnostics scope, @NotNull GraphInterner pool,
-                                          @NotNull Optional<EntityPose.Clip> playSite, int periodTicks) {
+                                          @NotNull EntityPose evidence, @NotNull EntityModelData mesh,
+                                          @NotNull String layer, @NotNull StyleDiagnostics scope,
+                                          @NotNull GraphInterner pool, @NotNull Optional<EntityPose.Clip> playSite,
+                                          int periodTicks) {
         double window = periodTicks / (double) TICKS_PER_SECOND;
-        return new Lowering(style, pose, mesh, Optional.of(layer), scope, pool, playSite, window).lower();
+        return new Lowering(style, pose, evidence, mesh, Optional.of(layer), scope, pool, playSite, window).lower();
     }
 
     // ------------------------------------------------------------------------------------
@@ -231,6 +251,13 @@ public final class PoseCompiler {
         private final @NotNull BuiltStyle style;
         private final @NotNull PoseScript script;
         private final @NotNull EntityPose shipped;
+
+        /**
+         * The row's pose as it shipped - what the joint rule reads for which bones vanilla
+         * articulates. On a row earlier installs have woven, {@link #shipped} carries their
+         * splices, and a splice is the author's evidence, never vanilla's.
+         */
+        private final @NotNull EntityPose evidence;
         private final @NotNull EntityModelData mesh;
         private final @NotNull Optional<String> layer;
         private final @NotNull StyleDiagnostics scope;
@@ -289,13 +316,14 @@ public final class PoseCompiler {
         private int clipChannelCount;
         private int containerStepCount;
 
-        private Lowering(@NotNull BuiltStyle style, @NotNull EntityPose shipped,
+        private Lowering(@NotNull BuiltStyle style, @NotNull EntityPose shipped, @NotNull EntityPose evidence,
                          @NotNull EntityModelData mesh, @NotNull Optional<String> layer,
                          @NotNull StyleDiagnostics scope, @NotNull GraphInterner pool,
                          @NotNull Optional<EntityPose.Clip> sharedSite, double defaultWindow) {
             this.style = style;
             this.script = style.script();
             this.shipped = shipped;
+            this.evidence = evidence;
             this.mesh = mesh;
             this.layer = layer;
             this.scope = scope;
@@ -320,6 +348,7 @@ public final class PoseCompiler {
             this.validatePeriod();
             this.pool.adopt(this.shipped);
             this.foldStances();
+            this.seatFollowers();
 
             if (this.script.keepStride())
                 this.strideDrivers();
@@ -346,7 +375,8 @@ public final class PoseCompiler {
                 Concurrent.newUnmodifiableList(container),
                 Concurrent.newUnmodifiableMap(bones),
                 clips,
-                this.shipped.refusal());
+                this.shipped.refusal(),
+                this.shipped.states());
             PoseStyle row = new PoseStyle(this.style.styleId(), this.style.sources(),
                 Concurrent.newUnmodifiableMap(this.drivers), this.style.toggles(), this.style.age(),
                 this.declaredPeriodTicks());
@@ -408,19 +438,67 @@ public final class PoseCompiler {
                 }
                 PoseScript.Limb limb = stance.limb().get();
                 boolean implicit = this.implicitHatMirror(stance);
-                if (implicit)
+                if (implicit) {
                     this.hatMirror = true;
-                else
-                    for (PoseScript.Track track : stance.tracks())
-                        this.trackPlans.add(new TrackPlan(limb.bone(), track));
-                if (!this.mesh.getBones().containsKey(limb.bone())) {
-                    if (!implicit && !this.dropped.contains(limb.bone()))
-                        this.dropped.add(limb.bone());
                     continue;
                 }
-                if (!implicit)
-                    this.foldLimb(limb, stance);
+                if (!this.mesh.getBones().containsKey(limb.bone())) {
+                    if (!this.dropped.contains(limb.bone()))
+                        this.dropped.add(limb.bone());
+                    for (PoseScript.Track track : stance.tracks())
+                        this.trackPlans.add(new TrackPlan(limb.bone(), track));
+                    continue;
+                }
+                PoseScript.Limb landed = this.articulated(limb);
+                for (PoseScript.Track track : stance.tracks())
+                    this.trackPlans.add(new TrackPlan(landed.bone(), track));
+                this.foldLimb(landed, stance);
             }
+        }
+
+        /**
+         * The limb a stance lands on - an anatomical name resolves to the articulation the
+         * shipped pose turns for that part: the named bone itself where the pose writes a
+         * rotation channel of it, else up the mesh's own parents to the nearest ancestor whose
+         * rotation the pose writes, and the named bone again where the climb stops short. A
+         * literal name is itself.
+         *
+         * <p>The climb passes only through a part seated exactly at its parent's pivot: such a
+         * part turns about the very point the parent does, so stancing it apart from the
+         * parent could only leave its siblings behind, which vanilla - never writing it -
+         * never does. A bone with a pivot of its own is a joint whatever the pose does with it,
+         * and stops the climb on itself.
+         *
+         * <p>Read off the pose as it shipped and the mesh's own parents, never off a list of
+         * names: an equine {@code head} lands on {@code head_parts} because the pose turns the
+         * neck assembly and never the head cube, while a wolf's {@code head} lands on itself
+         * because the pose turns that shell.
+         */
+        private @NotNull PoseScript.Limb articulated(@NotNull PoseScript.Limb limb) {
+            if (!limb.anatomical() || this.writesRotation(limb.bone())) return limb;
+            String joint = limb.bone();
+            while (!this.writesRotation(joint)) {
+                EntityModelData.Bone part = this.mesh.getBones().get(joint);
+                String parent = part.getParent();
+                if (parent == null || parent.equals(joint) || !this.mesh.getBones().containsKey(parent)
+                    || !part.getPivot().equals(Vector3f.ZERO))
+                    return limb;
+                joint = parent;
+            }
+            this.events.info("joint: '%s' lands on '%s' - the articulation the shipped pose turns for it",
+                limb.bone(), joint);
+            return new PoseScript.Limb(joint, limb.axis(), true);
+        }
+
+        /**
+         * Whether the pose as it shipped writes any rotation channel of a bone.
+         */
+        private boolean writesRotation(@NotNull String bone) {
+            Map<PoseChannel, PoseExpr> channels = this.evidence.bones().get(bone);
+            if (channels == null) return false;
+            for (PoseChannel channel : channels.keySet())
+                if (channel.kind() == PoseChannel.Kind.ROTATION) return true;
+            return false;
         }
 
         /**
@@ -509,6 +587,152 @@ public final class PoseCompiler {
         }
 
         /**
+         * Re-seats every bone whose seat's leader the style stances - the follower's pivot is
+         * carried to where the leader's held stance puts the frame the follower rides, and the
+         * carry lands on the follower's plan as an ordinary additive displacement, so it lowers
+         * through the same field, driver and splice a spelled {@code offset} would. Position
+         * only: the follower keeps whatever rotation its own channels hold. A seat is read off
+         * the shipped silhouettes beside the mesh, never spelled by the author, and a follower
+         * seated on a leader that stands where it rests is left exactly where it is.
+         *
+         * <p>The carry follows the leader's HELD stance - its absolute and additive writes - and
+         * not a wave or a timeline on it, which is recorded where it would matter. A chain of
+         * seats carries in order, each follower's displacement computed before any plan is
+         * written so a re-seated leader is read once. A carry is solved against this row's own
+         * pivots, so on a woven layer it reads a per-row field, as a rebased absolute does.
+         */
+        private void seatFollowers() {
+            Seats.Derived derived = Seats.derive(this.shipped, this.mesh);
+            if (derived.seats().isEmpty()) return;
+
+            Map<String, Vector3f> carried = new LinkedHashMap<>();
+            for (String follower : derived.seats().keySet())
+                this.carry(follower, derived, carried, new LinkedHashSet<>());
+
+            carried.forEach((follower, delta) -> {
+                if (delta.length() < SEAT_EPSILON) return;
+                String leader = derived.seats().get(follower).leader();
+                if (this.flattened != 1f && this.mesh.getBones().get(follower).getParent() == null) {
+                    this.events.warn("seat: '%s' rides '%s', but it is parentless on a mesh flattened at '%s' and cannot be placed - left at rest",
+                        follower, leader, this.flattened);
+                    return;
+                }
+                if (this.waved(leader))
+                    this.events.warn("seat: '%s' rides '%s' through its held stance alone - the wave or timeline on '%s' is not followed",
+                        follower, leader, leader);
+                LinkedHashMap<PoseChannel, ChannelPlan> plan =
+                    this.bonePlans.computeIfAbsent(follower, bone -> new LinkedHashMap<>());
+                carrySeat(plan, PoseChannel.X, delta.x());
+                carrySeat(plan, PoseChannel.Y, delta.y());
+                carrySeat(plan, PoseChannel.Z, delta.z());
+                this.events.info("seat: '%s' rides '%s' - re-seated by (%.3f, %.3f, %.3f) where the held stance carries it",
+                    follower, leader, delta.x(), delta.y(), delta.z());
+            });
+        }
+
+        /**
+         * Lands one axis of a carry on the follower's plan - an additive shift, marked as this
+         * row's own; an axis the seat does not move along is left unspelled.
+         */
+        private static void carrySeat(@NotNull LinkedHashMap<PoseChannel, ChannelPlan> plan,
+                                      @NotNull PoseChannel channel, float shift) {
+            if (shift == 0f) return;
+            ChannelPlan folded = plan.computeIfAbsent(channel, key -> new ChannelPlan());
+            folded.additive += shift;
+            folded.perRow = true;
+        }
+
+        /**
+         * How far a seated bone's pivot is carried from rest under this style - zero for a bone
+         * seated on nothing, or on a leader standing where it rests; memoized per follower,
+         * and a cycle of seats carries nothing rather than recursing.
+         */
+        private @NotNull Vector3f carry(@NotNull String follower, @NotNull Seats.Derived derived,
+                                        @NotNull Map<String, Vector3f> carried, @NotNull Set<String> visiting) {
+            Vector3f known = carried.get(follower);
+            if (known != null) return known;
+            Seats.Seat seat = derived.seats().get(follower);
+            if (seat == null) return Vector3f.ZERO;
+            if (!visiting.add(follower)) {
+                this.events.warn("seat: '%s' rides a chain of seats that returns to it - carried nowhere", follower);
+                return Vector3f.ZERO;
+            }
+            Seats.Placement leaderRest = derived.rest().get(seat.leader());
+            Seats.Placement leaderHeld = this.held(seat.leader(), derived, carried, visiting);
+            Vector3f delta = leaderHeld.equals(leaderRest)
+                ? Vector3f.ZERO
+                : snapped(leaderHeld.carry(seat.offset()).subtract(derived.rest().get(follower).pivot()));
+            carried.put(follower, delta);
+            return delta;
+        }
+
+        /**
+         * A carry with the rounding dust of a rotate and its inverse taken off each component,
+         * so an axis the seat does not move along emits no field.
+         */
+        private static @NotNull Vector3f snapped(@NotNull Vector3f carry) {
+            return new Vector3f(
+                Math.abs(carry.x()) < SEAT_EPSILON ? 0f : carry.x(),
+                Math.abs(carry.y()) < SEAT_EPSILON ? 0f : carry.y(),
+                Math.abs(carry.z()) < SEAT_EPSILON ? 0f : carry.z());
+        }
+
+        /**
+         * Where one top-level bone stands under this style's held stance - its rest with the
+         * folded absolute and additive writes over it, its pivot carried by its own seat.
+         */
+        private @NotNull Seats.Placement held(@NotNull String bone, @NotNull Seats.Derived derived,
+                                              @NotNull Map<String, Vector3f> carried, @NotNull Set<String> visiting) {
+            Seats.Placement rest = derived.rest().get(bone);
+            Map<PoseChannel, Float> written = new EnumMap<>(PoseChannel.class);
+            LinkedHashMap<PoseChannel, ChannelPlan> plan = this.bonePlans.get(bone);
+            if (plan != null)
+                plan.forEach((channel, folded) -> {
+                    boolean rotation = channel.kind() == PoseChannel.Kind.ROTATION;
+                    if (channel.kind() == PoseChannel.Kind.SCALE) return;
+                    double atRest = restChannel(rest, channel);
+                    double value = rotation
+                        ? (folded.absoluteDegrees != null ? Math.toRadians(folded.absoluteDegrees) : atRest)
+                            + Math.toRadians(folded.additive)
+                        : atRest + folded.additive;
+                    written.put(channel, (float) value);
+                });
+            Vector3f delta = this.carry(bone, derived, carried, visiting);
+            Seats.Placement stanced = rest.with(written);
+            return delta.equals(Vector3f.ZERO)
+                ? stanced
+                : new Seats.Placement(stanced.pivot().add(delta), stanced.pitch(), stanced.yaw(), stanced.roll());
+        }
+
+        /**
+         * Whether a bone's stance carries a wave or a timeline, which a seat does not follow.
+         */
+        private boolean waved(@NotNull String bone) {
+            LinkedHashMap<PoseChannel, ChannelPlan> plan = this.bonePlans.get(bone);
+            if (plan != null)
+                for (ChannelPlan folded : plan.values())
+                    if (folded.sway != null || folded.spin != null) return true;
+            for (TrackPlan track : this.trackPlans)
+                if (track.bone().equals(bone)) return true;
+            return false;
+        }
+
+        /**
+         * One channel of a resting placement, positions in model units and rotations in radians.
+         */
+        private static double restChannel(@NotNull Seats.Placement rest, @NotNull PoseChannel channel) {
+            return switch (channel) {
+                case X -> rest.pivot().x();
+                case Y -> rest.pivot().y();
+                case Z -> rest.pivot().z();
+                case X_ROT -> rest.pitch();
+                case Y_ROT -> rest.yaw();
+                case Z_ROT -> rest.roll();
+                case X_SCALE, Y_SCALE, Z_SCALE -> 1d;
+            };
+        }
+
+        /**
          * Lowers every bone plan into splices woven over the shipped bone map - shipped
          * expression instances kept where untouched, spliced channels replacing their entries,
          * and freshly written bones appended after the shipped roster.
@@ -574,7 +798,7 @@ public final class PoseCompiler {
             if (!rotation && this.flattened != 1f && this.mesh.getBones().get(bone).getParent() == null)
                 this.refuse("Style '%s' displaces parentless bone '%s' of a mesh flattened at '%s', which that factor alone does not answer",
                     this.style.styleId(), bone, this.flattened);
-            String field = this.boneField(bone, channel.token(), rebased);
+            String field = this.boneField(bone, channel.token(), rebased || plan.perRow);
             this.emitDriver(field, plan, delta);
             out.put(channel, this.splice(base, field));
         }
@@ -1055,11 +1279,12 @@ public final class PoseCompiler {
         }
 
         /**
-         * One bone channel's field - rebased splices on a woven layer read per-layer fields.
+         * One bone channel's field - a splice solved against this row's own rests or pivots
+         * reads a per-layer field on a woven layer, the shared spelling everywhere else.
          */
-        private @NotNull String boneField(@NotNull String bone, @NotNull String token, boolean rebased) {
+        private @NotNull String boneField(@NotNull String bone, @NotNull String token, boolean perRow) {
             String gate = FIELD_PREFIX + this.style.styleId();
-            return rebased && this.layer.isPresent()
+            return perRow && this.layer.isPresent()
                 ? gate + "$" + this.layer.get() + "$" + bone + "$" + token
                 : gate + "$" + bone + "$" + token;
         }
@@ -1111,6 +1336,12 @@ public final class PoseCompiler {
          * The cycling wave riding the folded stance, or {@code null}.
          */
         private @Nullable PoseScript.Spin spin;
+
+        /**
+         * Whether the additive shift was solved against this row's own pivots - a carried
+         * seat - and so reads a per-row field on a woven layer, the way a rebased absolute does.
+         */
+        private boolean perRow;
 
     }
 

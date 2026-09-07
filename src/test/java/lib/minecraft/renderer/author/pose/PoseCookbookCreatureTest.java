@@ -12,6 +12,7 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleDriver;
 import lib.minecraft.renderer.engine.kit.PoseKit;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -24,6 +25,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -73,7 +75,7 @@ class PoseCookbookCreatureTest {
             .build();
 
         @Test
-        @DisplayName("the wolf install lowers to six held splices, one swept tail and one smooth clip")
+        @DisplayName("the wolf install lowers to six held splices, one swept tail, one smooth clip and three seated rides")
         void wolfLoweringShape() {
             StyleRegistrar registrar = StyleRegistrar.ofShipped();
             EntityPose shipped = registrar.definitions().get("minecraft:wolf").pose();
@@ -90,6 +92,25 @@ class PoseCookbookCreatureTest {
             assertEquals(StyleDriver.Wave.SWEEP, wag.wave());
             assertEquals(rad(-25), wag.rest(), "the wag starts at its near bound");
             assertEquals(rad(25), wag.extent(), "and peaks at the far one mid-period");
+
+            // The tail and the hind legs ride the body's frame - seats the sitting silhouette
+            // derives - so each takes a held displacement on the two axes the pitch carries it
+            // along, spliced over the shipped read of its authored pivot, and nothing sideways.
+            for (String seated : List.of("tail", "right_hind_leg", "left_hind_leg")) {
+                for (String token : List.of("y", "z")) {
+                    String field = "style$beg$" + seated + "$" + token;
+                    assertEquals(StyleDriver.Wave.HOLD, installed.drivers().get(field).wave(),
+                        "'" + field + "' carries the seat");
+                }
+                assertNull(installed.drivers().get("style$beg$" + seated + "$x"),
+                    "a pitch carries nothing sideways, so no field is spelled for it");
+                PoseExpr.Op ride = assertInstanceOf(PoseExpr.Op.class,
+                    woven.pose().bones().get(seated).get(PoseChannel.Y));
+                assertSame(shipped.bones().get(seated).get(PoseChannel.Y), ride.operands().getFirst(),
+                    "the seat splices over the shipped instance, never a rebuilt one");
+            }
+            assertNull(installed.drivers().get("style$beg$upper_body$y"),
+                "the mane is placed by hand in every state vanilla poses and rides nothing");
 
             assertEquals(1, woven.pose().clips().size(), "one clip joins the shipped none");
             PoseClip clip = woven.pose().clips().getFirst().clip();
@@ -130,6 +151,16 @@ class PoseCookbookCreatureTest {
                 "the wag rests at its near bound - the shipped stride term rests at zero");
             assertEquals(-8, start.getBones().get("head").getRotation().roll(), 1e-3,
                 "the sway opens at its first keyframe");
+
+            // The tail's seat sits six pixels down the body's own axis and two above it; pitched
+            // to -40 that frame carries the seat to where the tail now stands, its own pitch kept.
+            assertPivot(start.getBones().get("tail").getPivot(), -1f, 19.883f, -0.325f, "the tail rides the seated body");
+            assertEquals(36, start.getBones().get("tail").getRotation().pitch(), 1e-3,
+                "a seat carries position only - the tail keeps its own pitch");
+            assertPivot(start.getBones().get("right_hind_leg").getPivot(), -2.5f, 16.545f, -2.746f,
+                "the hind leg folds under the seated haunch");
+            assertPivot(start.getBones().get("upper_body").getPivot(), -1f, 14f, -3f,
+                "the mane is no follower and stays where the mesh authored it");
 
             EntityModelData middle = posed(woven, installed, 12);
             assertEquals(25, middle.getBones().get("tail").getRotation().yaw(), 1e-3,
@@ -219,14 +250,16 @@ class PoseCookbookCreatureTest {
         }
 
         @Test
-        @DisplayName("the tilt, tuck, curl and tail land as authored at tick zero")
+        @DisplayName("the tilt, tuck, curl and tail land as authored at tick zero - the curl on the neck assembly")
         void landsTheRearingSilhouette() {
             EntityModelData posed = PoseKit.posed(
                 this.compiled.pose(), this.horse.model(), this.compiled.style(), PERIOD, 0);
             assertEquals(-30, posed.getBones().get("$container").getRotation().pitch(), 1e-3,
                 "the whole body tips about the seat");
-            assertEquals(25, posed.getBones().get("head").getRotation().pitch(), 1e-3,
-                "the neck curls against the tilt");
+            assertEquals(25, posed.getBones().get("head_parts").getRotation().pitch(), 1e-3,
+                "the neck curls against the tilt - the head verb lands on the articulation the pose turns");
+            assertEquals(0, posed.getBones().get("head").getRotation().pitch(), 1e-3,
+                "the head cube is untouched and rides the assembly with the snout, mane and ears");
             assertEquals(-30, posed.getBones().get("tail").getRotation().pitch(), 1e-3);
             assertEquals(-65, posed.getBones().get("right_front_leg").getRotation().pitch(), 1e-3);
             assertEquals(-65, posed.getBones().get("left_front_leg").getRotation().pitch(), 1e-3,
@@ -345,6 +378,15 @@ class PoseCookbookCreatureTest {
      */
     private static float rad(double degrees) {
         return (float) Math.toRadians(degrees);
+    }
+
+    /**
+     * One pivot against its expected components, within the rounding of a rotate and its inverse.
+     */
+    private static void assertPivot(@NotNull Vector3f pivot, float x, float y, float z, @NotNull String message) {
+        assertEquals(x, pivot.x(), 2e-3, message + " (x)");
+        assertEquals(y, pivot.y(), 2e-3, message + " (y)");
+        assertEquals(z, pivot.z(), 2e-3, message + " (z)");
     }
 
 }

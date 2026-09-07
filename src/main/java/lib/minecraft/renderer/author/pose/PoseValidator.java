@@ -19,6 +19,7 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -38,6 +39,16 @@ import java.util.Set;
  * and reports every pair whose excursion leaves the shipped envelope by more than a margin
  * scaled to how much that pair already moves under shipped motion - a tight pair (a socket) is
  * held tight, a free pair (a striding arm) keeps its swing room.
+ *
+ * <p><b>The envelope is what the shipped table draws of the subject and what its seats
+ * reproduce</b> - the bind, idle and stride styles across their periods, and each state
+ * silhouette that witnesses a seat the row derives, which is a placement vanilla makes by hand
+ * of parts that move together. A sitting wolf's body and mane interpenetrate by the amount
+ * vanilla sat them at, and a pose landing inside that is a contact vanilla draws, not a
+ * coupling the author forgot. A silhouette that witnesses no seat places its parts by amounts
+ * no frame explains and widens nothing: a humanoid's crouch, its attack swing and its arm poses
+ * each bury a limb in the torso by their own measure, and an arm an author drives into the
+ * torso is read against the stride rather than against them.
  */
 @Parity(subject = Subject.ENTITY)
 public final class PoseValidator {
@@ -58,6 +69,13 @@ public final class PoseValidator {
      */
     private static final float MARGIN_SHARE = 0.35f;
 
+    /**
+     * A style row driving nothing, under which a pose evaluates with every figure resting.
+     */
+    private static final @NotNull PoseStyle STILL = new PoseStyle("silhouette",
+        Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(Map.of()),
+        Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
+
     private PoseValidator() {}
 
     /**
@@ -77,7 +95,7 @@ public final class PoseValidator {
         // but does shift every pair's axis-aligned clearance - so the audit samples the woven
         // bones over the SHIPPED container list, keeping the measure coupling-only.
         EntityPose sampled = new EntityPose(row.pose().container(), compiled.pose().bones(),
-            compiled.pose().clips(), compiled.pose().refusal());
+            compiled.pose().clips(), compiled.pose().refusal(), compiled.pose().states());
 
         Map<String, List<OrientedBox>> bind = worldBoxes(mesh);
         List<String> boneOrder = List.copyOf(bind.keySet());
@@ -91,6 +109,11 @@ public final class PoseValidator {
         for (PoseStyle shipped : knownStyles(row.styles()))
             for (int tick : ticks(shipped, catalogPeriod))
                 widen(known, pairs, worldBoxes(PoseKit.posed(row.pose(), mesh, shipped, catalogPeriod, tick)));
+        for (String state : Seats.derive(row.pose(), mesh).witnesses()) {
+            EntityPose.Silhouette silhouette = row.pose().states().get(state);
+            if (!placeable(mesh, silhouette)) continue;
+            widen(known, pairs, worldBoxes(PoseKit.posed(placedBy(row.pose(), silhouette), mesh, STILL, catalogPeriod, 0)));
+        }
 
         Set<String> stanced = carried(mesh, stancedBones(row.pose(), compiled, style.styleId()));
 
@@ -133,6 +156,40 @@ public final class PoseValidator {
 
         return new PoseAudit(style.styleId(), row.id().toString(), pairs.size(),
             compiled.droppedBones(), Concurrent.newUnmodifiableList(findings));
+    }
+
+    /**
+     * The shipped pose standing in one state - its bones with the silhouette's channels written
+     * over them, no clip playing, so what the state places evaluates with every figure resting.
+     */
+    private static @NotNull EntityPose placedBy(@NotNull EntityPose shipped, @NotNull EntityPose.Silhouette silhouette) {
+        Map<String, Map<PoseChannel, PoseExpr>> bones = new LinkedHashMap<>(shipped.bones());
+        silhouette.bones().forEach((bone, channels) -> {
+            Map<PoseChannel, PoseExpr> placed = new EnumMap<>(PoseChannel.class);
+            placed.putAll(bones.getOrDefault(bone, Map.of()));
+            placed.putAll(channels);
+            bones.put(bone, placed);
+        });
+        return new EntityPose(shipped.container(), Concurrent.newUnmodifiableMap(bones),
+            Concurrent.newUnmodifiableList(), shipped.refusal());
+    }
+
+    /**
+     * Whether the kit can place a silhouette on the mesh. A parentless bone of a flattened mesh
+     * cannot be displaced - the factor alone does not answer where the placement lands, and
+     * {@link PoseKit} refuses it - so a silhouette writing such a bone's position widens the
+     * envelope by nothing rather than failing the audit; the compiler leaves the same seat at
+     * rest for the same reason.
+     */
+    private static boolean placeable(@NotNull EntityModelData mesh, @NotNull EntityPose.Silhouette silhouette) {
+        if (mesh.getFlattenedScale() == 1f) return true;
+        for (Map.Entry<String, Map<PoseChannel, PoseExpr>> placed : silhouette.bones().entrySet()) {
+            EntityModelData.Bone bone = mesh.getBones().get(placed.getKey());
+            if (bone == null || bone.getParent() != null) continue;
+            for (PoseChannel channel : placed.getValue().keySet())
+                if (channel.kind() == PoseChannel.Kind.POSITION) return false;
+        }
+        return true;
     }
 
     /**

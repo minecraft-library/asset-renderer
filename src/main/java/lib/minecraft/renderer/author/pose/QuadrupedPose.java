@@ -14,6 +14,10 @@ import java.util.function.UnaryOperator;
  * and roll negated) and drops the tail stance silently where a mesh carries none only under a
  * tolerant install - roster oddities like a split tail or an extra head shell belong to the
  * custom tier rather than a stretched vocabulary.
+ *
+ * <p>Every verb here names anatomy, so a stance lands on the articulation the shipped pose
+ * turns for that part - an equine head is a cube under the neck assembly the pose turns as
+ * one, and the head verb turns the assembly, snout and mane and ears with it.
  */
 @Parity(subject = Subject.ENTITY)
 public final class QuadrupedPose {
@@ -43,7 +47,7 @@ public final class QuadrupedPose {
          * @return this builder
          */
         public @NotNull Builder head(@NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.stance("head", PoseScript.AimAxis.FACING, stance);
+            this.capture.stance("head", PoseScript.AimAxis.FACING, true, stance);
             return this;
         }
 
@@ -54,7 +58,7 @@ public final class QuadrupedPose {
          * @return this builder
          */
         public @NotNull Builder body(@NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.stance("body", PoseScript.AimAxis.DOWN, stance);
+            this.capture.stance("body", PoseScript.AimAxis.DOWN, true, stance);
             return this;
         }
 
@@ -66,7 +70,7 @@ public final class QuadrupedPose {
          * @return this builder
          */
         public @NotNull Builder tail(@NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.stance("tail", PoseScript.AimAxis.DOWN, stance);
+            this.capture.stance("tail", PoseScript.AimAxis.DOWN, true, stance);
             return this;
         }
 
@@ -78,7 +82,7 @@ public final class QuadrupedPose {
          * @return this builder
          */
         public @NotNull Builder leg(@NotNull Corner corner, @NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.stance(legOf(corner), PoseScript.AimAxis.DOWN, stance);
+            this.capture.stance(legOf(corner), PoseScript.AimAxis.DOWN, true, stance);
             return this;
         }
 

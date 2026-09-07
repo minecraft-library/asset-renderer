@@ -55,7 +55,7 @@ public final class HumanoidPose {
          * @return this builder
          */
         public @NotNull Builder head(@NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.stance("head", PoseScript.AimAxis.FACING, stance);
+            this.capture.stance("head", PoseScript.AimAxis.FACING, true, stance);
             return this;
         }
 
@@ -78,7 +78,7 @@ public final class HumanoidPose {
          * @return this builder
          */
         public @NotNull Builder torso(@NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.stance("body", PoseScript.AimAxis.DOWN, stance);
+            this.capture.stance("body", PoseScript.AimAxis.DOWN, true, stance);
             return this;
         }
 
@@ -90,7 +90,7 @@ public final class HumanoidPose {
          * @return this builder
          */
         public @NotNull Builder arm(@NotNull Side side, @NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.stance(armOf(side), PoseScript.AimAxis.DOWN, stance);
+            this.capture.stance(armOf(side), PoseScript.AimAxis.DOWN, true, stance);
             return this;
         }
 
@@ -102,7 +102,7 @@ public final class HumanoidPose {
          * @return this builder
          */
         public @NotNull Builder leg(@NotNull Side side, @NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.stance(legOf(side), PoseScript.AimAxis.DOWN, stance);
+            this.capture.stance(legOf(side), PoseScript.AimAxis.DOWN, true, stance);
             return this;
         }
 
@@ -221,7 +221,7 @@ public final class HumanoidPose {
          * Stamps one limb's absolute rotation triple.
          */
         private void triple(@NotNull String bone, @NotNull PoseScript.AimAxis axis, @NotNull Preset.Triple triple) {
-            this.capture.stance(bone, axis, stance ->
+            this.capture.stance(bone, axis, true, stance ->
                 stance.rotate(triple.pitchDegrees(), triple.yawDegrees(), triple.rollDegrees()));
         }
 

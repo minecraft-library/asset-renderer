@@ -64,12 +64,33 @@ public record PoseScript(
     }
 
     /**
-     * The bone a stance addresses, with the aim axis stamped for it.
+     * The bone a stance addresses, with the aim axis stamped for it and whether the name speaks
+     * anatomy.
+     *
+     * <p>A tier verb names a part of the animal - the head, the body, a leg - and lands on the
+     * articulation the shipped pose turns for that part: the bone itself where the pose writes
+     * its rotation, else the nearest ancestor whose rotation the pose does write. An equine
+     * {@code head} is a cube under the {@code head_parts} neck assembly the pose turns as one, so
+     * the head verb turns the assembly. A custom-tier name is the mesh bone itself, literally.
      *
      * @param bone the bone name, as the mesh names it
      * @param axis the direction the limb's rest posture points along
+     * @param anatomical whether the name is a tier's anatomy, landing on the articulation the
+     *     shipped pose turns for it, rather than a literal mesh bone
      */
-    public record Limb(@NotNull String bone, @NotNull AimAxis axis) {}
+    public record Limb(@NotNull String bone, @NotNull AimAxis axis, boolean anatomical) {
+
+        /**
+         * Constructs a literal limb - the mesh bone named, with no articulation resolved for it.
+         *
+         * @param bone the bone name, as the mesh names it
+         * @param axis the direction the limb's rest posture points along
+         */
+        public Limb(@NotNull String bone, @NotNull AimAxis axis) {
+            this(bone, axis, false);
+        }
+
+    }
 
     /**
      * One captured selector call - a limb's (or a container step's) verbs, each fragment list in
@@ -239,9 +260,23 @@ public record PoseScript(
          * @return this capture
          */
         @NotNull Capture stance(@NotNull String bone, @NotNull AimAxis axis, @NotNull UnaryOperator<LimbStance> verbs) {
+            return this.stance(bone, axis, false, verbs);
+        }
+
+        /**
+         * Captures one limb stance, the bone named as a tier's anatomy or as a literal mesh bone.
+         *
+         * @param bone the stanced bone, as the mesh names it
+         * @param axis the aim axis stamped for this limb
+         * @param anatomical whether the name lands on the articulation the shipped pose turns for it
+         * @param verbs the stance lambda
+         * @return this capture
+         */
+        @NotNull Capture stance(@NotNull String bone, @NotNull AimAxis axis, boolean anatomical,
+                                @NotNull UnaryOperator<LimbStance> verbs) {
             LimbStance stance = new LimbStance();
             verbs.apply(stance);
-            this.stances.add(stance.captured(Optional.of(new Limb(bone, axis))));
+            this.stances.add(stance.captured(Optional.of(new Limb(bone, axis, anatomical))));
             return this;
         }
 
@@ -275,9 +310,9 @@ public record PoseScript(
         @NotNull Capture pair(@NotNull String authored, @NotNull String paired, @NotNull AimAxis axis, @NotNull UnaryOperator<LimbStance> verbs) {
             LimbStance stance = new LimbStance();
             verbs.apply(stance);
-            Stance captured = stance.captured(Optional.of(new Limb(authored, axis)));
+            Stance captured = stance.captured(Optional.of(new Limb(authored, axis, true)));
             this.stances.add(captured);
-            this.stances.add(mirrored(captured, Optional.of(new Limb(paired, axis))));
+            this.stances.add(mirrored(captured, Optional.of(new Limb(paired, axis, true))));
             return this;
         }
 
@@ -306,7 +341,8 @@ public record PoseScript(
             for (Stance stance : this.stances)
                 stance.limb()
                     .filter(limb -> limb.bone().equals(source))
-                    .ifPresent(limb -> copies.add(mirrored(stance, Optional.of(new Limb(target, limb.axis())))));
+                    .ifPresent(limb -> copies.add(mirrored(stance,
+                        Optional.of(new Limb(target, limb.axis(), limb.anatomical())))));
             this.stances.addAll(copies);
             return this;
         }
@@ -341,7 +377,7 @@ public record PoseScript(
          */
         @NotNull Capture flip(@NotNull Map<String, String> pairs) {
             this.stances.replaceAll(stance -> mirrored(stance, stance.limb()
-                .map(limb -> new Limb(pairs.getOrDefault(limb.bone(), limb.bone()), limb.axis()))));
+                .map(limb -> new Limb(pairs.getOrDefault(limb.bone(), limb.bone()), limb.axis(), limb.anatomical()))));
             return this;
         }
 
