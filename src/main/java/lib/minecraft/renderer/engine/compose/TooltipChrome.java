@@ -11,7 +11,6 @@ import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
-import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.engine.kit.NineSliceKit;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.TextOptions;
@@ -257,8 +256,11 @@ public interface TooltipChrome {
         public static @NotNull Optional<ChromeSprites> resolve(@NotNull RendererContext context, @Nullable ResourceId style) {
             ResourceId backgroundId = spriteId(style, "background");
             ResourceId frameId = spriteId(style, "frame");
-            Optional<PixelBuffer> background = context.resolveTexture(backgroundId.id());
-            Optional<PixelBuffer> frame = context.resolveTexture(frameId.id());
+            // Tick zero, because a pack shipping an animated tooltip sprite pins to frame 0 rather than
+            // nine-slicing the whole flipbook strip. Sampling it is the port's own job; asking for the
+            // strip and sampling it here is the same operations in the same order, spelled twice.
+            Optional<PixelBuffer> background = context.resolveTextureAtTick(backgroundId.id(), 0);
+            Optional<PixelBuffer> frame = context.resolveTextureAtTick(frameId.id(), 0);
             if (background.isEmpty() || frame.isEmpty()) {
                 System.err.printf("Tooltip chrome: %s sprite pair unresolved (%s%s / %s%s); dropping chrome, no fallback%n",
                     style == null ? "default" : "style '" + style + "'",
@@ -267,17 +269,8 @@ public interface TooltipChrome {
                 return Optional.empty();
             }
             return Optional.of(new ChromeSprites(
-                backgroundId, flattenAnimated(context, backgroundId, background.get()), context.findMeta(backgroundId.id()).flatMap(MCMeta::gui).orElse(STRETCH_DEFAULT),
-                frameId, flattenAnimated(context, frameId, frame.get()), context.findMeta(frameId.id()).flatMap(MCMeta::gui).orElse(STRETCH_DEFAULT)));
-        }
-
-        /**
-         * Flattens an animated chrome sprite to its tick-0 frame: a pack shipping
-         * an animated tooltip sprite pins to frame 0 rather than nine-slicing the whole flipbook strip. A
-         * sprite with no animation sidecar is returned unchanged (byte-neutral - vanilla ships none).
-         */
-        private static @NotNull PixelBuffer flattenAnimated(@NotNull RendererContext context, @NotNull ResourceId id, @NotNull PixelBuffer buffer) {
-            return context.findFlipbook(id.id()).map(flipbook -> AnimationKit.sampleFrame(buffer, flipbook, 0)).orElse(buffer);
+                backgroundId, background.get(), context.findMeta(backgroundId.id()).flatMap(MCMeta::gui).orElse(STRETCH_DEFAULT),
+                frameId, frame.get(), context.findMeta(frameId.id()).flatMap(MCMeta::gui).orElse(STRETCH_DEFAULT)));
         }
 
         /**

@@ -8,7 +8,6 @@ import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
@@ -253,14 +252,14 @@ public interface Window {
         /**
          * Resolves one sprite's pixels, pinned to tick zero where the art is animated, and raises
          * where the pack stack answers with nothing.
+         * <p>
+         * Sampling a tick is the port's own job, so this asks for tick zero rather than resolving the
+         * strip and sampling it here - a chrome sprite is nine-sliced, and slicing a whole flipbook
+         * strip would tile the frames into the borders.
          */
         private static @NotNull PixelBuffer art(@NotNull RendererContext context, @NotNull ResourceId id) {
-            PixelBuffer buffer = context.resolveTexture(id.id())
+            return context.resolveTextureAtTick(id.id(), 0)
                 .orElseThrow(() -> new RenderException("Window chrome sprite '%s' does not resolve", id));
-
-            return context.findFlipbook(id.id())
-                .map(flipbook -> AnimationKit.sampleFrame(buffer, flipbook, 0))
-                .orElse(buffer);
         }
 
         /**
