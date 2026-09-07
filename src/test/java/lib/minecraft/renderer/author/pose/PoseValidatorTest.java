@@ -62,7 +62,7 @@ class PoseValidatorTest {
     }
 
     @Test
-    @DisplayName("the beg audits on the cat the cookbook reuses it for - a flattened mesh whose silhouettes place its root")
+    @DisplayName("the beg audits on the cat the cookbook reuses it for - a flattened mesh whose seated tail rides its placed root")
     void begAuditsOnTheCookbooksCatReuse() {
         Entity cat = row("minecraft:cat");
         assumeTrue(cat.model().getFlattenedScale() != 1f && !cat.pose().states().isEmpty(),
@@ -71,6 +71,15 @@ class PoseValidatorTest {
         PoseAudit audit = assertDoesNotThrow(() -> BEG.validate(cat));
 
         assertTrue(audit.pairsChecked() > 0, audit.report());
+        assertTrue(audit.findings().stream().noneMatch(finding ->
+                names(finding, "body", "tail1") || names(finding, "tail1", "tail2")),
+            "the feline tail rides its pitched body, parentless on a flattened mesh though it is:\n" + audit.report());
+    }
+
+    /** Whether a finding is about the given pair, in either order. */
+    private static boolean names(@NotNull PoseAudit.Finding finding, @NotNull String a, @NotNull String b) {
+        return (finding.boneA().equals(a) && finding.boneB().equals(b))
+            || (finding.boneA().equals(b) && finding.boneB().equals(a));
     }
 
     @Test

@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.asset.pose.PoseOperator;
 import lib.minecraft.renderer.engine.kit.PoseKit;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -167,19 +168,37 @@ class PoseCompilerCouplingTest {
         }
 
         @Test
-        @DisplayName("leaves a parentless follower of a flattened mesh at rest, and says so")
-        void leavesAFlattenedParentlessFollowerAtRest() {
-            EntityModelData mesh = new EntityModelData();
-            mesh.getBones().put("body", bone(0f, 20f, 0f, 0f, 0f, 0f, 2f, null));
-            mesh.getBones().put("tail", bone(0f, 20f, 10f, 0f, 0f, 0f, 2f, null));
-            PoseCompiler.Compiled compiled = PoseCompiler.compile(
-                Poses.quadruped("sit").body(body -> body.pitch(90)).build(), row(mesh, sitting(mesh)));
+        @DisplayName("carries a parentless follower of a flattened mesh, crossing the factor exactly once")
+        void carriesAFlattenedParentlessFollowerAcrossTheFactorOnce() {
+            // The flattened twin is the plain mesh as the generator stores it - every pivot times
+            // the factor, the feet-anchor translate on each top-level y - so both speak one set of
+            // vanilla units and the same silhouette seats the tail on both.
+            float factor = 2f;
+            EntityModelData plain = bodyAndTail();
+            EntityModelData flat = new EntityModelData();
+            plain.getBones().forEach((name, bone) -> flat.getBones().put(name, new EntityModelData.Bone(
+                new Vector3f(
+                    bone.getPivot().x() * factor,
+                    bone.getPivot().y() * factor + (bone.getParent() == null ? EntityModelData.flattenedShift(factor) : 0f),
+                    bone.getPivot().z() * factor),
+                bone.getRotation(), EulerRotation.NONE, factor, bone.getCubes(), bone.getParent())));
+            BuiltStyle sit = Poses.quadruped("sit").body(body -> body.pitch(90)).build();
 
-            assertFalse(compiled.style().drivers().containsKey("style$sit$tail$y"), "no carry is written");
-            assertTrue(compiled.diagnostics().entries().stream().anyMatch(entry ->
+            PoseCompiler.Compiled onPlain = PoseCompiler.compile(sit, row(plain, sitting(plain)));
+            PoseCompiler.Compiled onFlat = PoseCompiler.compile(sit, row(flat, sitting(flat)));
+
+            assertEquals(onPlain.style().drivers().get("style$sit$tail$y").extent(),
+                onFlat.style().drivers().get("style$sit$tail$y").extent(), 1e-4f,
+                "the carry is solved in vanilla units on both and crosses no factor inside the graph");
+            Vector3f plainTail = PoseKit.posed(onPlain.pose(), plain, onPlain.style(), 24, 0).getBones().get("tail").getPivot();
+            Vector3f flatTail = PoseKit.posed(onFlat.pose(), flat, onFlat.style(), 24, 0).getBones().get("tail").getPivot();
+            assertEquals(plainTail.y() * factor + EntityModelData.flattenedShift(factor), flatTail.y(), 1e-3f,
+                "the write-back multiplies the factor once and puts the anchor back, so the twin lands where the generator would store it");
+            assertEquals(plainTail.z() * factor, flatTail.z(), 1e-3f, "z carries no anchor");
+            assertTrue(onFlat.diagnostics().entries().stream().noneMatch(entry ->
                     entry.severity() == StyleDiagnostics.Severity.WARN
-                        && entry.message().contains("flattened at '2.0'")),
-                "the reason is recorded where the author reads");
+                        && entry.message().contains("flattened")),
+                "nothing is left at rest");
         }
 
     }

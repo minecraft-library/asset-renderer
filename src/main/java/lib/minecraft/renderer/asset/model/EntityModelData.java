@@ -92,6 +92,32 @@ public class EntityModelData {
     }
 
     /**
+     * The feet anchor a whole-mesh scale is taken about, in model units. Vanilla's
+     * {@code MeshTransformer.scaling} expands to
+     * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, and {@code 24.016} is {@code 1.501}
+     * blocks at 16 units a block - the living-entity render chain's own {@code translate(0, -1.501, 0)},
+     * which is also the point a renderer's own scale is taken about. The generator names the same
+     * number and expands it the same way onto the top-level bones of a flattened mesh, so a top-level
+     * pivot stores {@code F * p + 24.016 * (1 - F)} on y where vanilla's field holds {@code p}, and a
+     * worn shell seats at the same offset. The two builds pin the value separately and nothing
+     * compares them across the boundary.
+     */
+    public static final float FEET_ANCHOR = 24.016f;
+
+    /**
+     * The translate a top-level pivot of a mesh flattened at {@code factor} carries on y beside the
+     * factor - {@code FEET_ANCHOR * (1 - factor)}, and exactly zero for a mesh flattened at nothing.
+     * A bone below the top level carries none: its pivot is parent-relative, and the translate is
+     * where the dissolved root stood.
+     *
+     * @param factor the whole-mesh factor
+     * @return the y translate in the mesh's own units
+     */
+    public static float flattenedShift(float factor) {
+        return factor == 1f ? 0f : FEET_ANCHOR * (1f - factor);
+    }
+
+    /**
      * The one factor this whole mesh was flattened at, or {@code 1f} where its bones do not share one.
      *
      * <p>A {@code MeshTransformer.scaling(F)} rides vanilla's root, so every descendant is positioned

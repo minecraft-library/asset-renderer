@@ -211,9 +211,10 @@ public final class PoseEvaluator {
      *
      * <p>A position is answered in the MODEL's own units, which a mesh flattened at
      * {@link EntityModelData#getFlattenedScale() one factor} does not store it in: every pivot below
-     * the dissolved root arrived multiplied by that factor, and the number vanilla's own field holds
-     * is the one before it. So the read crosses back, and what a pose does with it crosses forward
-     * again where it is written.
+     * the dissolved root arrived multiplied by that factor, and a top-level pivot carries the
+     * feet-anchor translate beside it. The kit's read undoes both, so the number vanilla's own field
+     * holds is what is answered, and what a pose does with it crosses forward again where the kit
+     * writes it.
      */
     private static double authored(@NotNull PoseExpr.BoneRead read, @NotNull EntityModelData model) {
         EntityModelData.Bone bone = model.getBones().get(read.bone());
@@ -221,16 +222,7 @@ public final class PoseEvaluator {
             throw new RendererException("entity pose: reads '%s' of bone '%s', which this mesh does not declare",
                 read.channel().token(), read.bone());
 
-        float flattened = model.getFlattenedScale();
-        return switch (read.channel()) {
-            case X -> bone.getPivot().x() / flattened;
-            case Y -> bone.getPivot().y() / flattened;
-            case Z -> bone.getPivot().z() / flattened;
-            case X_ROT -> bone.getRotation().pitchRadians();
-            case Y_ROT -> bone.getRotation().yawRadians();
-            case Z_ROT -> bone.getRotation().rollRadians();
-            case X_SCALE, Y_SCALE, Z_SCALE -> bone.getScale();
-        };
+        return PoseKit.authored(bone, read.channel(), model.getFlattenedScale());
     }
 
     /** One condition, memoized the same way an expression is. */

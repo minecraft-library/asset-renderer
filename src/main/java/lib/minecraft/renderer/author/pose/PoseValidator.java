@@ -111,7 +111,6 @@ public final class PoseValidator {
                 widen(known, pairs, worldBoxes(PoseKit.posed(row.pose(), mesh, shipped, catalogPeriod, tick)));
         for (String state : Seats.derive(row.pose(), mesh).witnesses()) {
             EntityPose.Silhouette silhouette = row.pose().states().get(state);
-            if (!placeable(mesh, silhouette)) continue;
             widen(known, pairs, worldBoxes(PoseKit.posed(placedBy(row.pose(), silhouette), mesh, STILL, catalogPeriod, 0)));
         }
 
@@ -172,24 +171,6 @@ public final class PoseValidator {
         });
         return new EntityPose(shipped.container(), Concurrent.newUnmodifiableMap(bones),
             Concurrent.newUnmodifiableList(), shipped.refusal());
-    }
-
-    /**
-     * Whether the kit can place a silhouette on the mesh. A parentless bone of a flattened mesh
-     * cannot be displaced - the factor alone does not answer where the placement lands, and
-     * {@link PoseKit} refuses it - so a silhouette writing such a bone's position widens the
-     * envelope by nothing rather than failing the audit; the compiler leaves the same seat at
-     * rest for the same reason.
-     */
-    private static boolean placeable(@NotNull EntityModelData mesh, @NotNull EntityPose.Silhouette silhouette) {
-        if (mesh.getFlattenedScale() == 1f) return true;
-        for (Map.Entry<String, Map<PoseChannel, PoseExpr>> placed : silhouette.bones().entrySet()) {
-            EntityModelData.Bone bone = mesh.getBones().get(placed.getKey());
-            if (bone == null || bone.getParent() != null) continue;
-            for (PoseChannel channel : placed.getValue().keySet())
-                if (channel.kind() == PoseChannel.Kind.POSITION) return false;
-        }
-        return true;
     }
 
     /**

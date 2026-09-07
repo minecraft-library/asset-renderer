@@ -95,16 +95,6 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
-    @DisplayName("a pixel offset on a parentless bone of a flattened mesh refuses at compile")
-    void parentlessOffsetOnFlattenedMeshRefuses() {
-        IllegalArgumentException refusal = refusalOf(
-            Poses.custom("shift").bone("body", body -> body.offset(0, 3, 0)).build(),
-            flattened(2f), EntityPose.NONE);
-        assertTrue(refusal.getMessage().contains("body"), refusal.getMessage());
-        assertTrue(refusal.getMessage().contains("2.0"), refusal.getMessage());
-    }
-
-    @Test
     @DisplayName("an aim whose target coincides with the pivot refuses - no direction to aim")
     void aimAtOwnPivotRefuses() {
         IllegalArgumentException refusal = refusalOf(Poses.humanoid("stare")

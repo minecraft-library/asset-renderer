@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseExpr;
 import lib.minecraft.renderer.engine.kit.PoseEvaluator;
+import lib.minecraft.renderer.engine.kit.PoseKit;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -323,16 +324,18 @@ final class Seats {
 
     /**
      * One bone's placement - a written channel where the pose writes it, the mesh's own value
-     * where it does not, positions in the model's own units.
+     * where it does not, positions in the model's own units: the kit's read, so a top-level pivot
+     * of a flattened mesh rests where a written channel would evaluate it, factor and feet anchor
+     * both taken off.
      */
     private static @NotNull Placement placement(
         @NotNull EntityModelData.Bone bone, float flattened, @NotNull Map<PoseChannel, Float> written) {
 
         return new Placement(
             new Vector3f(
-                held(written, PoseChannel.X, bone.getPivot().x() / flattened),
-                held(written, PoseChannel.Y, bone.getPivot().y() / flattened),
-                held(written, PoseChannel.Z, bone.getPivot().z() / flattened)),
+                held(written, PoseChannel.X, PoseKit.authored(bone, PoseChannel.X, flattened)),
+                held(written, PoseChannel.Y, PoseKit.authored(bone, PoseChannel.Y, flattened)),
+                held(written, PoseChannel.Z, PoseKit.authored(bone, PoseChannel.Z, flattened))),
             held(written, PoseChannel.X_ROT, bone.getRotation().pitchRadians()),
             held(written, PoseChannel.Y_ROT, bone.getRotation().yawRadians()),
             held(written, PoseChannel.Z_ROT, bone.getRotation().rollRadians()));

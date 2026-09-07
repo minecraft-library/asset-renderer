@@ -589,8 +589,9 @@ public final class PoseCompiler {
         /**
          * Re-seats every bone whose seat's leader the style stances - the follower's pivot is
          * carried to where the leader's held stance puts the frame the follower rides, and the
-         * carry lands on the follower's plan as an ordinary additive displacement, so it lowers
-         * through the same field, driver and splice a spelled {@code offset} would. Position
+         * carry lands on the follower's plan in the evaluator's own units beside the author's
+         * pixel shifts, so it lowers through the same field, driver and splice a spelled
+         * {@code offset} would and crosses the flattened factor exactly once, where they do. Position
          * only: the follower keeps whatever rotation its own channels hold. A seat is read off
          * the shipped silhouettes beside the mesh, never spelled by the author, and a follower
          * seated on a leader that stands where it rests is left exactly where it is.
@@ -612,11 +613,6 @@ public final class PoseCompiler {
             carried.forEach((follower, delta) -> {
                 if (delta.length() < SEAT_EPSILON) return;
                 String leader = derived.seats().get(follower).leader();
-                if (this.flattened != 1f && this.mesh.getBones().get(follower).getParent() == null) {
-                    this.events.warn("seat: '%s' rides '%s', but it is parentless on a mesh flattened at '%s' and cannot be placed - left at rest",
-                        follower, leader, this.flattened);
-                    return;
-                }
                 if (this.waved(leader))
                     this.events.warn("seat: '%s' rides '%s' through its held stance alone - the wave or timeline on '%s' is not followed",
                         follower, leader, leader);
@@ -631,14 +627,14 @@ public final class PoseCompiler {
         }
 
         /**
-         * Lands one axis of a carry on the follower's plan - an additive shift, marked as this
-         * row's own; an axis the seat does not move along is left unspelled.
+         * Lands one axis of a carry on the follower's plan - a shift in the evaluator's own units,
+         * marked as this row's own; an axis the seat does not move along is left unspelled.
          */
         private static void carrySeat(@NotNull LinkedHashMap<PoseChannel, ChannelPlan> plan,
                                       @NotNull PoseChannel channel, float shift) {
             if (shift == 0f) return;
             ChannelPlan folded = plan.computeIfAbsent(channel, key -> new ChannelPlan());
-            folded.additive += shift;
+            folded.carried += shift;
             folded.perRow = true;
         }
 
@@ -787,7 +783,7 @@ public final class PoseCompiler {
                 double rest = this.restOf(base);
                 delta = Math.toRadians(plan.absoluteDegrees) - rest + Math.toRadians(plan.additive);
             } else
-                delta = rotation ? Math.toRadians(plan.additive) : plan.additive / this.flattened;
+                delta = rotation ? Math.toRadians(plan.additive) : plan.additive / this.flattened + plan.carried;
             boolean waved = plan.sway != null || plan.spin != null;
             if (!waved && delta == 0d) {
                 if (rebased)
@@ -795,9 +791,6 @@ public final class PoseCompiler {
                         bone, channel.token());
                 return;
             }
-            if (!rotation && this.flattened != 1f && this.mesh.getBones().get(bone).getParent() == null)
-                this.refuse("Style '%s' displaces parentless bone '%s' of a mesh flattened at '%s', which that factor alone does not answer",
-                    this.style.styleId(), bone, this.flattened);
             String field = this.boneField(bone, channel.token(), rebased || plan.perRow);
             this.emitDriver(field, plan, delta);
             out.put(channel, this.splice(base, field));
@@ -1326,6 +1319,13 @@ public final class PoseCompiler {
          * The summed additive shifts, in author units.
          */
         private double additive;
+
+        /**
+         * The seat carry, in the evaluator's own units - solved beside the mesh at the pivots the
+         * graph reads, so it has crossed the flattened factor already and adds after the pixel
+         * shifts cross it.
+         */
+        private double carried;
 
         /**
          * The swept wave riding the folded stance, or {@code null}.

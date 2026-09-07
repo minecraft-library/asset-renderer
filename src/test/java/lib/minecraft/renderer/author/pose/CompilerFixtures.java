@@ -45,7 +45,8 @@ final class CompilerFixtures {
 
     /**
      * A four-bone quadruped flattened at one whole-mesh factor - a parentless body carrying a
-     * tail child, the shape whose parentless displacements refuse.
+     * tail child, so a displacement crosses the factor and the feet anchor on the one and the
+     * factor alone on the other.
      *
      * @param factor the whole-mesh factor every bone carries
      * @return a fresh mesh

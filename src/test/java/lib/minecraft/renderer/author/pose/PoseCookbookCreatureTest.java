@@ -202,16 +202,22 @@ class PoseCookbookCreatureTest {
         }
 
         @Test
-        @DisplayName("a body settle refuses on the feline - its parentless body rides a flattened mesh")
-        void bodySettleRefusesOnTheFlattenedFeline() {
+        @DisplayName("a body settle lands on the feline - its parentless body crosses the flattened factor and the feet anchor once")
+        void bodySettleLandsOnTheFlattenedFeline() {
+            Entity cat = EntityModelLoader.load().get("minecraft:cat");
+            float factor = cat.model().getFlattenedScale();
+            float authored = cat.model().getBones().get("body").getPivot().y();
             BuiltStyle settle = Poses.quadruped("settle")
                 .body(body -> body.pitch(-40).offset(0, 2, 0))
                 .build();
-            IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
-                () -> PoseCompiler.compile(settle, EntityModelLoader.load().get("minecraft:cat")));
-            assertTrue(refused.getMessage().contains("'body'"), refused.getMessage());
-            assertTrue(refused.getMessage().contains("0.8"),
-                "the factor that cannot answer the displacement is named: " + refused.getMessage());
+
+            PoseCompiler.Compiled compiled = PoseCompiler.compile(settle, cat);
+
+            assertEquals(2f / factor, compiled.style().drivers().get("style$settle$body$y").extent(), 1e-6f,
+                "the surface pixels divide the factor once");
+            EntityModelData posed = PoseKit.posed(compiled.pose(), cat.model(), compiled.style(), 24, 0);
+            assertEquals(authored + 2f, posed.getBones().get("body").getPivot().y(), 1e-3f,
+                "and the write-back puts the factor and the anchor back, landing the two pixels");
         }
 
     }

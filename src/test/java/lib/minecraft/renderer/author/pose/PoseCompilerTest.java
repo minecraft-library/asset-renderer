@@ -505,6 +505,21 @@ class PoseCompilerTest {
     }
 
     @Test
+    @DisplayName("a pixel offset on a parentless bone of a flattened mesh crosses the factor and its anchor once")
+    void parentlessOffsetOnAFlattenedMeshLandsWholePixels() {
+        EntityModelData mesh = flattened(2f);
+        float authored = mesh.getBones().get("body").getPivot().y();
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.custom("settle").bone("body", body -> body.offset(0, 4, 0)).build(),
+            row(mesh, EntityPose.NONE));
+
+        assertEquals(2f, compiled.style().drivers().get("style$settle$body$y").extent(),
+            "the surface pixels divide once, a top-level bone no differently from a child");
+        assertEquals(authored + 4f, posed(compiled, mesh, 0).getBones().get("body").getPivot().y(), 1e-4f,
+            "and the write-back multiplies the factor once and puts the feet anchor back, landing the authored pixels");
+    }
+
+    @Test
     @DisplayName("driver extents narrow to float exactly once at the record boundary")
     void extentsNarrowOnceAtTheDriverBoundary() {
         EntityModelData mesh = humanoid();
