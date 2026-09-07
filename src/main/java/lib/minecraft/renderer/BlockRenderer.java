@@ -11,6 +11,8 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.model.ModelElement;
+import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -783,14 +785,50 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             Block block = found.get();
             PixelBuffer buffer = PixelBuffer.create(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
-            String textureId = block.textureRef(options.getFace().direction(), "all", "side", "particle");
+            String direction = options.getFace().direction();
+            String textureId = block.textureRef(direction, "all", "side", "particle");
             PixelBuffer face = MissingTexture.texture(this.context, textureId);
-            int tint = resolveBlockTint(this.context, block, options);
+            int tint = tintIndexFor(block, direction) >= 0
+                ? resolveBlockTint(this.context, block, options)
+                : ColorMath.WHITE;
             PixelBuffer tinted = ColorMath.tint(face, tint);
             int size = options.getOutput().getCanvasSize();
             buffer.blitScaled(tinted, 0, 0, size, size);
 
             return Timeline.still(buffer);
+        }
+
+        /**
+         * Answers the tint index the block's model declares for a face direction.
+         * <p>
+         * The first element that declares the direction wins, which is what matches the sprite this
+         * path draws: a block declaring one direction twice binds the flat face to whichever texture
+         * {@link Block#textureRef} resolves first, and that is the earlier element's. A face present
+         * with no {@code tintindex} answers {@code -1} and is drawn untinted, which is how a flower
+         * pot's own sides stay uncoloured while the plant inside them does not.
+         * <p>
+         * A direction <i>no</i> element declares is different in kind and takes the model's first
+         * declared index instead. Nothing was drawn for that face, so {@code textureRef} fell through
+         * to its own {@code all} / {@code side} / {@code particle} chain and put one of the model's
+         * other sprites on the square - a cross-shaped plant has no top face, yet a top render still
+         * shows its tinted sprite. The tint index follows the texture rather than the direction,
+         * because the texture is what is actually on the canvas.
+         *
+         * @param block the block whose model declares the faces
+         * @param direction the vanilla direction key the face is drawn for
+         * @return the tint index governing this face, or {@code -1} when nothing tints it
+         */
+        private static int tintIndexFor(@NotNull Block block, @NotNull String direction) {
+            for (ModelElement element : block.model().getElements()) {
+                ModelFace face = element.getFaces().get(direction);
+                if (face != null) return face.getTintIndex();
+            }
+
+            for (ModelElement element : block.model().getElements())
+                for (ModelFace face : element.getFaces().values())
+                    if (face.getTintIndex() >= 0) return face.getTintIndex();
+
+            return -1;
         }
 
     }
