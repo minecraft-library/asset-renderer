@@ -46,14 +46,15 @@ tasks {
 // Run with `./gradlew tasks --group visual` to list. Outputs land under cache/visual/.
 
 register<JavaExec>("blockRender3D") {
-    description = "Renders blocks to cache/visual/block-render-3d/ for visual inspection. -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2. -PrenderSize and -Pssaa are only forwarded when -PblockId is also supplied; with no block id the task runs its default list at the built-in defaults."
+    description = "Renders blocks to cache/visual/block-render-3d/ for visual inspection. -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2 -PhideTextures=minecraft:block/oak_planks. -PrenderSize, -Pssaa and -PhideTextures are only forwarded when -PblockId is also supplied; with no block id the task runs its default list at the built-in defaults. -PhideTextures forces the named ids absent, which is the only way to reach a texture miss on a vanilla-only stack."
     group = "visual"
     mainClass.set("lib.minecraft.renderer.visual.BlockRenderDriver")
     classpath = sourceSets["test"].runtimeClasspath
     val blockId = project.findProperty("blockId") as String?
     val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
     val ssaa = (project.findProperty("ssaa") as String?) ?: "2"
-    args = if (blockId != null) listOf(blockId, renderSize, ssaa) else listOf()
+    val hideTextures = (project.findProperty("hideTextures") as String?) ?: ""
+    args = if (blockId != null) listOf(blockId, renderSize, ssaa, hideTextures) else listOf()
 }
 
 register<JavaExec>("blockFlipbook") {
@@ -86,7 +87,7 @@ register<JavaExec>("projectionSmoke") {
 }
 
 register<JavaExec>("itemRender2D") {
-    description = "Renders items to cache/visual/item-render-2d/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256 -Ptype=gui|held -Psupersample=2 -PantiAlias=true. -Psupersample only affects -Ptype=held (the GUI icon is a sprite blit and ignores it); -PantiAlias (FXAA) applies to both."
+    description = "Renders items to cache/visual/item-render-2d/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256 -Ptype=gui|held|icon -Psupersample=2 -PantiAlias=true -PhideTextures=minecraft:item/stick. -Psupersample only affects -Ptype=held (the GUI icon is a sprite blit and ignores it); -PantiAlias (FXAA) applies to both. -Ptype=icon is the faithful inventory icon, the only mode that answers for a block-backed id. -PhideTextures forces the named ids absent, which is the only way to reach a texture miss on a vanilla-only stack."
     group = "visual"
     mainClass.set("lib.minecraft.renderer.visual.ItemRenderDriver")
     classpath = sourceSets["test"].runtimeClasspath
@@ -95,7 +96,8 @@ register<JavaExec>("itemRender2D") {
     val supersample = (project.findProperty("supersample") as String?) ?: "1"
     val antiAlias = (project.findProperty("antiAlias") as String?) ?: "false"
     val type = (project.findProperty("type") as String?) ?: "gui"
-    args = if (itemId != null) listOf(itemId, renderSize, supersample, antiAlias, type) else listOf()
+    val hideTextures = (project.findProperty("hideTextures") as String?) ?: ""
+    args = if (itemId != null) listOf(itemId, renderSize, supersample, antiAlias, type, hideTextures) else listOf()
 }
 
 register<JavaExec>("playerRender") {

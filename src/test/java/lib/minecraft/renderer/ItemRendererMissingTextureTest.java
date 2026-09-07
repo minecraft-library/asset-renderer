@@ -1,6 +1,5 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingTexture;
@@ -8,6 +7,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.parity.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.support.HidingRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -126,8 +126,8 @@ class ItemRendererMissingTextureTest {
         // canonicalised - a raw string compare silently hides nothing and the render then passes for
         // having substituted nowhere.
         String canonical = ResourceId.parse(textureId).id();
-        RendererContext inert = new HiddenTextures(context, Set.of());
-        RendererContext hidden = new HiddenTextures(context, Set.of(canonical));
+        RendererContext inert = HidingRendererContext.hiding(context);
+        RendererContext hidden = HidingRendererContext.hiding(context, canonical);
 
         assertThat(canonical + " resolves before it is hidden",
             context.resolveTexture(canonical).isPresent(), is(true));
@@ -192,25 +192,6 @@ class ItemRendererMissingTextureTest {
             if (pixel == argb) return true;
 
         return false;
-    }
-
-    /**
-     * A pass-through context that answers empty for a named set of texture ids, so a render meets a
-     * miss on exactly one lookup while every index and every other texture stays real.
-     *
-     * @param delegate the real context every other lookup forwards to
-     * @param hidden the namespaced texture ids that answer empty
-     */
-    private record HiddenTextures(@NotNull RendererContext delegate, @NotNull Set<String> hidden)
-        implements RendererContext.Forwarding {
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-            if (this.hidden.contains(ResourceId.parse(textureId).id())) return Optional.empty();
-            return this.delegate.resolveTexture(textureId);
-        }
-
     }
 
 }

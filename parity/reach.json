@@ -4552,6 +4552,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/support/HidingRendererContext": {
+      "artifacts": [
+        "manifest.visual"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/support/MinecraftFontsExtension": {
       "artifacts": [],
       "source": "derived"
