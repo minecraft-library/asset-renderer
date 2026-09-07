@@ -65,6 +65,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 
 /**
  * Renders an {@link Item} as a flat 2D GUI icon, a held 3D view, or the faithful inventory icon by
@@ -136,6 +137,29 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             case GUI_ICON -> this.guiIcon.render(options);
         };
         return options.getBackground().composite(rendered);
+    }
+
+    /**
+     * Answers what an item render draws for an id neither index carries, or refuses where the caller
+     * turned the substitution off.
+     * <p>
+     * All three entry points decide that here, so the flag is read in one place. Both the picture and
+     * the noun stay the caller's: a slot's flat square differs from a held cube, and the faithful icon
+     * looked in both indexes where the other two looked in one, so it says so.
+     *
+     * @param options the caller's options, supplying the id and the substitution flag
+     * @param subject the noun naming what was looked for, as the refusal words it
+     * @param drawn the picture to draw where the substitution is on
+     * @return the drawn picture
+     * @throws RenderException where the caller turned the substitution off
+     */
+    static @NotNull ImageData missingItem(
+        @NotNull ItemOptions options, @NotNull String subject, @NotNull Supplier<ImageData> drawn) {
+        if (!options.isSubstituteMissing())
+            throw new RenderException("No %s registered for id '%s'", subject, options.getItemId());
+
+        MissingModelKit.reportSubstitution(options.getItemId());
+        return drawn.get();
     }
 
     /**
@@ -640,13 +664,21 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             // An id neither index carries has no layer stack to compose, no CIT walk to hoist and no
             // glint policy to finish with, so it draws the checkerboard filling the slot.
-            Optional<Item> found = this.context.findItem(options.getItemId());
-            if (found.isEmpty()) {
-                MissingModelKit.reportSubstitution(options.getItemId());
-                return Timeline.still(MissingModelKit.icon(options.getOutput().getCanvasSize()));
-            }
-            Item baked = found.get();
+            return this.context.findItem(options.getItemId())
+                .map(baked -> compose(baked, options))
+                .orElseGet(() -> missingItem(options, "item",
+                    () -> Timeline.still(MissingModelKit.icon(options.getOutput().getCanvasSize()))));
+        }
 
+        /**
+         * Composes the icon for a resolved item: the CIT walk, the per-frame item resolver, and the
+         * layer stack each frame folds.
+         *
+         * @param baked the pipeline-baked item every frame starts from
+         * @param options the caller's options
+         * @return the composed icon, before the shared background composite
+         */
+        private @NotNull ImageData compose(@NotNull Item baked, @NotNull ItemOptions options) {
             // One CIT walk per render, shared by the layer stack (texture overrides) and the glint tail
             // (its GlintPolicy). The empty-context vanilla path yields CitResult.NONE, so both stay
             // vanilla-identical. The CIT walk reads no clock, so it is hoisted; the item is not, because
@@ -773,22 +805,41 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
-            // An id neither index carries draws the missing-model cube at the identity transform. The
-            // camera is the resolving path's own, which hard-codes EulerRotation.NONE because the held
-            // pose lives in the model's display transform - and a missing model has none, so the cube
-            // sits where an absent display slot would have put it.
-            Optional<Item> found = this.context.findItem(options.getItemId());
-            if (found.isEmpty()) {
-                MissingModelKit.reportSubstitution(options.getItemId());
-                OutputOptions output = options.getOutput();
-                Camera missing = Camera.identity(output.getProjection().resolve(EulerRotation.NONE, output.getFacing()).camera().lens());
-                int canvas = output.getCanvasSize();
-                return Timeline.schedule(itemAnimation(this.context, options)).bake(
-                    RasterPass.of(canvas, canvas, output.getSupersample(), output.isAntiAlias(), (target, tick) ->
-                        new ModelEngine(this.context, missing).rasterize(MissingModelKit.cube(), target, Matrix4f.IDENTITY)));
-            }
-            Item baked = found.get();
+            return this.context.findItem(options.getItemId())
+                .map(baked -> heldOf(baked, options))
+                .orElseGet(() -> missingItem(options, "item", () -> missingCube(this.context, options)));
+        }
 
+        /**
+         * Draws the missing-model cube at the identity transform.
+         * <p>
+         * The camera is the resolving path's own, which hard-codes {@link EulerRotation#NONE} because
+         * the held pose lives in the model's display transform - and a missing model has none, so the
+         * cube sits where an absent display slot would have put it.
+         *
+         * @param context the render context the cube rasterizes through
+         * @param options the caller's options, supplying the output frame and the timing
+         * @return the cube seen square-on
+         */
+        private static @NotNull ImageData missingCube(
+            @NotNull RendererContext context, @NotNull ItemOptions options) {
+            OutputOptions output = options.getOutput();
+            Camera missing = Camera.identity(output.getProjection().resolve(EulerRotation.NONE, output.getFacing()).camera().lens());
+            int canvas = output.getCanvasSize();
+            return Timeline.schedule(itemAnimation(context, options)).bake(
+                RasterPass.of(canvas, canvas, output.getSupersample(), output.isAntiAlias(), (target, tick) ->
+                    new ModelEngine(context, missing).rasterize(MissingModelKit.cube(), target, Matrix4f.IDENTITY)));
+        }
+
+        /**
+         * Renders a resolved item held: the CIT walk, the per-frame item resolver, and the geometry
+         * each frame builds at its own tick.
+         *
+         * @param baked the pipeline-baked item every frame starts from
+         * @param options the caller's options
+         * @return the held render, before the shared background composite
+         */
+        private @NotNull ImageData heldOf(@NotNull Item baked, @NotNull ItemOptions options) {
             // Identity-pose camera carrying only the projection's lens: the held-item pose lives
             // entirely in the model's display transform (applied as the modelTransform below), so the
             // camera pose stays identity and only the rotation-independent lens comes from resolve().
@@ -958,8 +1009,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 return this.gui2D.render(options);
             if (this.context.findBlock(options.getItemId()).isPresent())
                 return this.blockRenderer.render(adaptToBlock(options));
-            MissingModelKit.reportSubstitution(options.getItemId());
-            return Timeline.still(MissingModelKit.icon(options.getOutput().getCanvasSize()));
+            return missingItem(options, "item or block",
+                () -> Timeline.still(MissingModelKit.icon(options.getOutput().getCanvasSize())));
         }
 
         /**
@@ -968,6 +1019,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * facing / rotation) so the block honours its authored {@code display.gui} pose - the vanilla
          * inventory look - rather than the item icon's {@code VANILLA_GUI_ITEM} projection. Renders on
          * a transparent background so the caller composites its own background once.
+         * <p>
+         * Every field the block branch is to honour is named here by hand, and one left out is not a
+         * compile error - the builder seeds it from its own default instead, so the block render
+         * silently answers for something the caller did not ask for. That is what
+         * {@link ItemOptions#isSubstituteMissing()} is copied for, and it is the reason a block-backed
+         * id is worth a test row of its own rather than an item-backed one standing in for it.
          *
          * @param options the item render options
          * @return the block options for the isometric block render
@@ -983,6 +1040,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     .antiAlias(itemOutput.isAntiAlias())
                     .build())
                 .animation(options.getAnimation())
+                .substituteMissing(options.isSubstituteMissing())
                 .background(Background.TRANSPARENT)
                 .build();
         }

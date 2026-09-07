@@ -217,6 +217,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/MissingSubjectRefusalTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/MissingTextureTintRosterTest": {
       "artifacts": [],
       "source": "derived"

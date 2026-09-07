@@ -34,6 +34,7 @@ import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.engine.texture.MissingTexture;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.AnimationOptions;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.OutputOptions;
@@ -47,6 +48,7 @@ import org.jetbrains.annotations.Nullable;
 import java.awt.Color;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Renders a {@link Block} as either a full 3D isometric tile or a single flat face by
@@ -109,6 +111,27 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
     }
 
     /**
+     * Answers what a block render draws for an id the block index does not carry, or refuses where the
+     * caller turned the substitution off.
+     * <p>
+     * Both entry points decide that here, so the flag is read in one place and the refusal is worded
+     * once. The picture stays the caller's, because the two draw different ones - a slot's flat square
+     * where a posed render gets the cube.
+     *
+     * @param options the caller's options, supplying the id and the substitution flag
+     * @param drawn the picture to draw where the substitution is on
+     * @return the drawn picture
+     * @throws RenderException where the caller turned the substitution off
+     */
+    static @NotNull ImageData missingBlock(@NotNull BlockOptions options, @NotNull Supplier<ImageData> drawn) {
+        if (!options.isSubstituteMissing())
+            throw new RenderException("No block registered for id '%s'", options.getBlockId());
+
+        MissingModelKit.reportSubstitution(options.getBlockId());
+        return drawn.get();
+    }
+
+    /**
      * Resolves the ARGB tint applied to a block's faces based on its
      * {@link Block.TintTarget}, sampling against the {@link BlockOptions#getBiome() options biome}.
      */
@@ -159,23 +182,31 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
-            // An id no index carries has no model to pose and no flipbooks to derive a timeline from,
-            // so it draws the missing-model cube through the caller's own output frame - the same view
-            // a block with no authored display.gui pose resolves to. The pose stays the caller's; only
-            // the subject is substituted.
-            Optional<Block> found = this.context.findBlock(options.getBlockId());
-            if (found.isEmpty()) {
-                MissingModelKit.reportSubstitution(options.getBlockId());
-                OutputOptions output = options.getOutput();
-                View missing = output.getProjection().resolve(output.getRotation(), output.getFacing());
-                int canvas = output.getCanvasSize();
-                return Timeline.schedule(options.getAnimation()).bake(
-                    RasterPass.of(canvas, canvas, output.getSupersample(), output.isAntiAlias(), (target, tick) ->
-                        new ModelEngine(this.context, missing.camera()).rasterize(
-                            Shading.relightForItems3d(MissingModelKit.cube(), missing.lighting(), true), target)));
-            }
+            return this.context.findBlock(options.getBlockId())
+                .map(block -> new Assembly(this.context, options, block).bake())
+                .orElseGet(() -> missingBlock(options, () -> missingCube(this.context, options)));
+        }
 
-            return new Assembly(this.context, options, found.get()).bake();
+        /**
+         * Draws the missing-model cube through the caller's own output frame - the same view a block
+         * with no authored {@code display.gui} pose resolves to.
+         * <p>
+         * An id no index carries has no model to pose and no flipbooks to derive a timeline from, so
+         * the pose stays the caller's and only the subject is substituted.
+         *
+         * @param context the render context the cube rasterizes through
+         * @param options the caller's options, supplying the output frame and the timing
+         * @return the posed cube
+         */
+        private static @NotNull ImageData missingCube(
+            @NotNull RendererContext context, @NotNull BlockOptions options) {
+            OutputOptions output = options.getOutput();
+            View missing = output.getProjection().resolve(output.getRotation(), output.getFacing());
+            int canvas = output.getCanvasSize();
+            return Timeline.schedule(options.getAnimation()).bake(
+                RasterPass.of(canvas, canvas, output.getSupersample(), output.isAntiAlias(), (target, tick) ->
+                    new ModelEngine(context, missing.camera()).rasterize(
+                        Shading.relightForItems3d(MissingModelKit.cube(), missing.lighting(), true), target)));
         }
 
         /**
@@ -855,13 +886,20 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             // A single face is a flat square whether or not the subject resolves, so an unknown id
             // draws the checkerboard filling the same canvas the resolved face would have.
-            Optional<Block> found = this.context.findBlock(options.getBlockId());
-            if (found.isEmpty()) {
-                MissingModelKit.reportSubstitution(options.getBlockId());
-                return Timeline.still(MissingModelKit.icon(options.getOutput().getCanvasSize()));
-            }
+            return this.context.findBlock(options.getBlockId())
+                .map(block -> faceOf(block, options))
+                .orElseGet(() -> missingBlock(options,
+                    () -> Timeline.still(MissingModelKit.icon(options.getOutput().getCanvasSize()))));
+        }
 
-            Block block = found.get();
+        /**
+         * Blits the block's chosen face flat, tinted where its own model asks the face to be.
+         *
+         * @param block the resolved subject
+         * @param options the caller's options, supplying the face and the canvas
+         * @return the flat face
+         */
+        private @NotNull ImageData faceOf(@NotNull Block block, @NotNull BlockOptions options) {
             PixelBuffer buffer = PixelBuffer.create(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
             String direction = options.getFace().direction();

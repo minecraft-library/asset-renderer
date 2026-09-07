@@ -104,6 +104,16 @@ public class BlockOptions implements RenderOptions {
     private final boolean mergeParts = true;
 
     /**
+     * Whether an id the block index does not carry draws the missing-model cube rather than refusing.
+     * On by default.
+     * <p>
+     * Turned off, the render raises instead - which is what every renderer outside the block and item
+     * paths already does with a subject it cannot resolve. A caller rendering a batch and catching per
+     * subject turns it off to have an unrenderable one dropped rather than drawn.
+     */
+    private final boolean substituteMissing = true;
+
+    /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
      * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */
