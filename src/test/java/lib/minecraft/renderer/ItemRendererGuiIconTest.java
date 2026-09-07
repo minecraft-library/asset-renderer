@@ -1,7 +1,7 @@
 package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.engine.texture.MissingTexture;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.OutputOptions;
@@ -13,9 +13,11 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Equivalence coverage for the {@link ItemOptions.Type#GUI_ICON} faithful-inventory-icon dispatch.
@@ -26,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * <li>a plain block with no flat item icon (not in the item index) is byte-identical to the
  * isometric {@link BlockRenderer} render at the same output frame;</li>
  * <li>a block-entity id (bed) likewise routes to the isometric block path;</li>
- * <li>an id backing neither an item nor a block raises {@link RenderException}.</li>
+ * <li>an id backing neither an item nor a block draws the missing-model square.</li>
  * </ul>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
  * {@code ./gradlew slowTest}.
@@ -89,10 +91,33 @@ class ItemRendererGuiIconTest {
     }
 
     @Test
-    @DisplayName("id backing neither an item nor a block raises RenderException")
-    void guiIconThrowsForUnknownId() {
-        assertThrows(RenderException.class,
-            () -> itemRenderer.render(item("minecraft:definitely_not_a_real_id", ItemOptions.Type.GUI_ICON)));
+    @DisplayName("id backing neither an item nor a block draws the missing-model square")
+    void guiIconDrawsMissingModelForUnknownId() {
+        String id = "minecraft:definitely_not_a_real_id";
+        assertThat("absent from the item index", context.findItem(id).isPresent(), is(false));
+        assertThat("absent from the block index", context.findBlock(id).isPresent(), is(false));
+
+        int[] pixels = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
+
+        // Exactly two opaque colours, which is what separates the slot's flat square from a posed
+        // cube: three visible faces at three shades would answer four. A GUI_ICON that came back with
+        // four has been routed through the isometric projection, a picture no slot shows for an id
+        // nothing resolved for.
+        assertThat(distinctOpaque(pixels), is(Set.of(MissingTexture.BLACK_ARGB, MissingTexture.MAGENTA_ARGB)));
+    }
+
+    /**
+     * Collects the distinct fully-opaque colours a rendered frame carries.
+     *
+     * @param pixels the frame's ARGB texels
+     * @return every opaque colour present, without duplicates
+     */
+    private static Set<Integer> distinctOpaque(int[] pixels) {
+        Set<Integer> colours = new HashSet<>();
+        for (int pixel : pixels)
+            if ((pixel >>> 24) == 0xFF) colours.add(pixel);
+
+        return colours;
     }
 
     /**

@@ -25,13 +25,13 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.GeometryKit;
+import lib.minecraft.renderer.engine.kit.MissingModelKit;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.engine.texture.MissingTexture;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.AnimationOptions;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.OutputOptions;
@@ -107,14 +107,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
     }
 
     /**
-     * Looks up a block by id in the renderer context, throwing a descriptive
-     * {@link RenderException} when the block is missing.
-     */
-    static @NotNull Block requireBlock(@NotNull RendererContext context, @NotNull String blockId) {
-        return context.findBlock(blockId).orElseThrow(() -> new RenderException("No block registered for id '%s'", blockId));
-    }
-
-    /**
      * Resolves the ARGB tint applied to a block's faces based on its
      * {@link Block.TintTarget}, sampling against the {@link BlockOptions#getBiome() options biome}.
      */
@@ -165,7 +157,23 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
-            Block block = requireBlock(this.context, options.getBlockId());
+            // An id no index carries has no model to pose and no flipbooks to derive a timeline from,
+            // so it draws the missing-model cube through the caller's own output frame - the same view
+            // a block with no authored display.gui pose resolves to. The pose stays the caller's; only
+            // the subject is substituted.
+            Optional<Block> found = this.context.findBlock(options.getBlockId());
+            if (found.isEmpty()) {
+                MissingModelKit.reportSubstitution(options.getBlockId());
+                OutputOptions output = options.getOutput();
+                View missing = output.getProjection().resolve(output.getRotation(), output.getFacing());
+                int canvas = output.getCanvasSize();
+                return Timeline.schedule(options.getAnimation()).bake(
+                    RasterPass.of(canvas, canvas, output.getSupersample(), output.isAntiAlias(), (target, tick) ->
+                        new ModelEngine(this.context, missing.camera()).rasterize(
+                            Shading.relightForItems3d(MissingModelKit.cube(), missing.lighting(), true), target)));
+            }
+
+            Block block = found.get();
             // Honor the model's authored display.gui for a default block-icon render, so mirrored-Y
             // blocks (stairs / slabs / fence gates ship [30, 135, 0] or [30, 45, 0]) face the side
             // they do in-game rather than the [30, 225, 0] mirror. block/block.json's standard gui
@@ -764,7 +772,15 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
-            Block block = requireBlock(this.context, options.getBlockId());
+            // A single face is a flat square whether or not the subject resolves, so an unknown id
+            // draws the checkerboard filling the same canvas the resolved face would have.
+            Optional<Block> found = this.context.findBlock(options.getBlockId());
+            if (found.isEmpty()) {
+                MissingModelKit.reportSubstitution(options.getBlockId());
+                return Timeline.still(MissingModelKit.icon(options.getOutput().getCanvasSize()));
+            }
+
+            Block block = found.get();
             PixelBuffer buffer = PixelBuffer.create(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
             String textureId = block.textureRef(options.getFace().direction(), "all", "side", "particle");

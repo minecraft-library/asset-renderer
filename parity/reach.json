@@ -213,6 +213,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/MissingModelFallbackTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/PlayerRenderer": {
       "artifacts": [
         "manifest.player-raw",
@@ -2468,6 +2472,25 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/kit/ItemStackKitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/kit/MissingModelKit": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/kit/MissingModelKitTest": {
       "artifacts": [],
       "source": "derived"
     },
