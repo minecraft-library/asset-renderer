@@ -12,7 +12,10 @@ import dev.simplified.image.data.FrameDisposal;
 import dev.simplified.image.data.ImageFrame;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.author.pose.BuiltStyle;
+import lib.minecraft.renderer.author.pose.Corner;
+import lib.minecraft.renderer.author.pose.CustomPose;
 import lib.minecraft.renderer.author.pose.Ease;
 import lib.minecraft.renderer.author.pose.Poses;
 import lib.minecraft.renderer.author.pose.Preset;
@@ -44,7 +47,10 @@ import java.util.Optional;
  * <p>
  * The roster installs on shipped rows: the zombie carries the humanoid animated set (wave, clap,
  * jog, levitate) and statues (dab), the armor stand the silhouette statues (sit, t_pose), the
- * wolf begs, the horse rears, and the allay flutters through the custom tier.
+ * wolf begs, the horse rears, and the allay flutters through the custom tier. Beside the wolf's
+ * beg and the horse's rear stand vanilla's own resting silhouettes of the sitting and standing
+ * branches, spliced whole through the raw hatch, so a cookbook chain is tuned against what the
+ * client draws for the same stance rather than against a guess.
  * <p>
  * Usage: {@code ./gradlew poseShowcase [-PrenderSize=512] [-Ppose=wave]}.
  */
@@ -80,38 +86,39 @@ public final class PoseShowcaseDriver {
 
         ClientAssets assets = ClientAcquisition.acquire(ClientOptions.defaults());
         PipelineRendererContext context = PipelineRendererContext.of(assets);
+        ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
 
-        List<Showcase> showcases = showcases().stream()
+        List<Showcase> roster = showcases(pristine);
+        List<Showcase> showcases = roster.stream()
             .filter(showcase -> only.map(id -> showcase.style().styleId().equals(id)).orElse(true))
             .toList();
 
         if (showcases.isEmpty()) {
             System.err.printf("No showcase style named '%s'; known ids: %s%n",
                 only.orElse(""),
-                showcases().stream().map(showcase -> showcase.style().styleId()).toList());
+                roster.stream().map(showcase -> showcase.style().styleId()).toList());
             return;
         }
 
-        ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
         for (Showcase showcase : showcases) {
             Entity row = pristine.get(showcase.entityId());
             if (row != null)
                 System.out.println(showcase.style().validate(row).report());
         }
 
-        StyleRegistrar registrar = StyleRegistrar.ofShipped();
-        for (Showcase showcase : showcases)
-            registrar.add(showcase.entityId(), showcase.style());
-        EntityRenderer renderer = registrar.renderer(context);
-
         System.out.printf("Rendering %d pose%s at %dx%d to %s%n",
             showcases.size(), showcases.size() == 1 ? "" : "s", size, size, OUTPUT_DIR.toAbsolutePath());
 
+        // One registrar per subject: a raw splice replaces its channel whole, so a silhouette
+        // statue installed beside a chain on the same row would write under the chain as well.
         for (Showcase showcase : showcases) {
             String styleId = showcase.style().styleId();
             String name = showcase.entityId().replace(':', '_') + "_" + styleId;
 
             try {
+                EntityRenderer renderer = StyleRegistrar.ofShipped()
+                    .add(showcase.entityId(), showcase.style())
+                    .renderer(context);
                 ImageData image = renderer.render(EntityOptions.builder()
                     .entityId(showcase.entityId())
                     .style(styleId)
@@ -136,9 +143,12 @@ public final class PoseShowcaseDriver {
     }
 
     /**
-     * The showcase roster - every cookbook style on the shipped row it reads best on.
+     * The showcase roster - every cookbook style on the shipped row it reads best on, and
+     * vanilla's own silhouette beside each creature chain that has one.
+     *
+     * @param pristine the shipped rows, read for the silhouettes their poses carry
      */
-    private static @NotNull List<Showcase> showcases() {
+    private static @NotNull List<Showcase> showcases(@NotNull ConcurrentMap<String, Entity> pristine) {
         return List.of(
             new Showcase("minecraft:zombie", Poses.humanoid("wave")
                 .arm(Side.RIGHT, arm -> arm.rotate(-160, 0, 10)
@@ -174,19 +184,22 @@ public final class PoseShowcaseDriver {
                 .allAges()
                 .build()),
             new Showcase("minecraft:wolf", Poses.quadruped("beg")
-                .body(body -> body.pitch(-40))
-                .hindLegs(leg -> leg.pitch(-70))
-                .frontLegs(leg -> leg.pitch(-35))
+                .body(body -> body.pitch(45).offset(0, 4, -2))
+                .hindLegs(leg -> leg.pitch(-90))
+                .frontLegs(leg -> leg.pitch(-27).offset(0, 1, 0))
                 .head(head -> head.pitch(-15)
                     .timeline(timeline -> timeline.swing(Turn.ROLL, -8, 8).over(1.2).ease(Ease.SMOOTH)))
                 .tail(tail -> tail.sway(Turn.YAW, -25, 25))
                 .build()),
+            new Showcase("minecraft:wolf", silhouette(pristine, "minecraft:wolf", "isSitting=true", "vanilla_sit")),
             new Showcase("minecraft:horse", Poses.quadruped("rear")
-                .container(seat -> seat.pitch(-30))
-                .frontLegs(leg -> leg.pitch(-65))
-                .head(head -> head.pitch(25))
-                .tail(tail -> tail.pitch(-30))
+                .body(body -> body.pitch(-45))
+                .head(head -> head.pitch(15).offset(0, -8.8, 8.8))
+                .leg(Corner.FRONT_LEFT, leg -> leg.pitch(-117.3).offset(0, -13.2, 4.4))
+                .leg(Corner.FRONT_RIGHT, leg -> leg.pitch(-2.7).offset(0, -13.2, 4.4))
+                .hindLegs(leg -> leg.pitch(15))
                 .build()),
+            new Showcase("minecraft:horse", silhouette(pristine, "minecraft:horse", "standAnimation=1", "vanilla_rear")),
             new Showcase("minecraft:allay", Poses.custom("flutter")
                 .bone("left_wing", wing -> wing.timeline(timeline -> timeline.swing(Turn.YAW, -50, 10).over(0.3)))
                 .bone("right_wing", wing -> wing.timeline(timeline -> timeline.swing(Turn.YAW, 50, -10).over(0.3)))
@@ -194,6 +207,29 @@ public final class PoseShowcaseDriver {
                 .hover(4, 1)
                 .build())
         );
+    }
+
+    /**
+     * Vanilla's own resting silhouette of one state branch, spelled as a statue through the raw
+     * hatch - every channel the branch places away from the resting row spliced whole, so the
+     * render shows where the client puts the subject in that state.
+     *
+     * @param pristine the shipped rows
+     * @param entityId the row whose pose carries the silhouette
+     * @param state the silhouette key, as {@code member=value}
+     * @param styleId the style id the statue installs under
+     */
+    private static @NotNull BuiltStyle silhouette(
+        @NotNull ConcurrentMap<String, Entity> pristine, @NotNull String entityId,
+        @NotNull String state, @NotNull String styleId) {
+
+        EntityPose.Silhouette silhouette = pristine.get(entityId).pose().states().get(state);
+        if (silhouette == null)
+            throw new IllegalArgumentException("Row '" + entityId + "' carries no silhouette for '" + state + "'");
+        CustomPose.Builder builder = Poses.custom(styleId);
+        silhouette.bones().forEach((bone, channels) ->
+            channels.forEach((channel, expr) -> builder.expr(bone, channel, expr)));
+        return builder.build();
     }
 
     /**

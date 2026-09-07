@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -32,25 +33,31 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 class PoseValidatorTest {
 
     /**
-     * A begging wolf whose body pitches - the tail seat and the hind legs are carried by the
-     * seat the sitting silhouette derives, and the mane's contact is one vanilla itself sits at.
+     * A begging wolf at vanilla's own sitting numbers - the body settled and pitched to
+     * forty-five, the hips folded flat, the paws pitched back a hair - so the tail seat and the
+     * hind legs are carried by the seat the sitting silhouette derives, and the mane's contact is
+     * one vanilla itself sits at.
      */
     private static final @NotNull BuiltStyle BEG = Poses.quadruped("beg")
-        .body(body -> body.pitch(-40))
-        .hindLegs(leg -> leg.pitch(-70))
-        .frontLegs(leg -> leg.pitch(-35))
+        .body(body -> body.pitch(45).offset(0, 4, -2))
+        .hindLegs(leg -> leg.pitch(-90))
+        .frontLegs(leg -> leg.pitch(-27).offset(0, 1, 0))
         .head(head -> head.pitch(-15))
         .tail(tail -> tail.sway(Turn.YAW, -25, 25))
         .build();
 
     /**
-     * A rearing horse whose neck curl lands on the {@code head_parts} assembly the shipped pose
-     * turns for the head, so the snout, mane and ears ride with it.
+     * A rearing horse at vanilla's own standing numbers - the body tipped up, the neck lifted
+     * and curled, the forelegs lifted and pawing, the hind legs braced, the tail written
+     * nothing - whose neck curl lands on the {@code head_parts} assembly the shipped pose turns
+     * for the head, so the snout, mane and ears ride with it.
      */
     private static final @NotNull BuiltStyle REAR = Poses.quadruped("rear")
-        .frontLegs(leg -> leg.pitch(-65))
-        .head(head -> head.pitch(25))
-        .tail(tail -> tail.pitch(-30))
+        .body(body -> body.pitch(-45))
+        .head(head -> head.pitch(15).offset(0, -8.8, 8.8))
+        .leg(Corner.FRONT_LEFT, leg -> leg.pitch(-117.3).offset(0, -13.2, 4.4))
+        .leg(Corner.FRONT_RIGHT, leg -> leg.pitch(-2.7).offset(0, -13.2, 4.4))
+        .hindLegs(leg -> leg.pitch(15))
         .build();
 
     @Test
@@ -100,20 +107,21 @@ class PoseValidatorTest {
     }
 
     @Test
-    @DisplayName("vanilla's own sitting branch buries the chest in the mane by the same measure the beg does")
-    void vanillaSittingMeasuresTheSameManeContact() {
+    @DisplayName("vanilla's own sitting branch buries the chest in the mane it settles and pitches - the beg, its mane out of reach, leaves the pair inside the bare envelope")
+    void vanillaSittingMeasuresTheManeContactTheBegCannotSpell() {
         Entity wolf = row("minecraft:wolf");
         Entity bare = withoutSilhouettes(wolf);
 
-        // Over the bare envelope the sitting branch is a hand placement the audit has never seen,
-        // so it measures the mane the way the beg's is measured: a chest set two to three pixels
-        // into the mane.
+        // Over the bare envelope the sitting branch is a hand placement the audit has never seen:
+        // the mane settled two down and pitched to seventy-two sets the chest two to three pixels
+        // into it. The beg spells the same body and no quadruped verb reaches the mane, so the
+        // chest meets the resting mane inside what the stride already draws.
         PoseAudit.Finding mane = finding(sitting(true).validate(bare), PoseAudit.Kind.OVERLAP, "body", "upper_body");
         assertTrue(mane.posedMin() < -2f && mane.posedMin() > -3f,
             "vanilla's own sitting silhouette sets the chest between two and three pixels into the mane: " + mane.describe());
-        PoseAudit.Finding beg = finding(BEG.validate(bare), PoseAudit.Kind.OVERLAP, "body", "upper_body");
-        assertTrue(Math.abs(beg.posedMin() - mane.posedMin()) < 1f,
-            "the beg's mane contact is within a pixel of vanilla's own: " + beg.describe());
+        PoseAudit beg = BEG.validate(bare);
+        assertTrue(beg.findings().stream().noneMatch(finding -> names(finding, "body", "upper_body")),
+            "the beg's resting mane reads no contact of its own:\n" + beg.report());
 
         // Over the row as it ships, the same silhouette is in the envelope and the seats carry the
         // tail and the hips, so neither placement reads as a fault.
@@ -124,18 +132,15 @@ class PoseValidatorTest {
     }
 
     @Test
-    @DisplayName("the same beg on a wolf carrying no silhouette splits the tail and buries the mane")
-    void begWithoutSilhouettesReadsTheTailAndMane() {
+    @DisplayName("the same beg on a wolf carrying no silhouette splits the tail - the one reading the seats answer")
+    void begWithoutSilhouettesReadsTheTail() {
         PoseAudit audit = BEG.validate(withoutSilhouettes(row("minecraft:wolf")));
 
         assertFalse(audit.clean(), "with no seat to derive, the beg leaves the shipped envelope");
+        assertEquals(1, audit.findings().size(), audit.report());
         PoseAudit.Finding tail = finding(audit, PoseAudit.Kind.SPLIT, "body", "real_tail");
         assertTrue(tail.posedMin() > tail.knownMax(),
             "the tail sits outside the whole shipped range, not merely past the margin");
-
-        PoseAudit.Finding mane = finding(audit, PoseAudit.Kind.OVERLAP, "body", "upper_body");
-        assertTrue(mane.aStanced() && !mane.bStanced(),
-            "the body moved and the mane did not - the reading names the forgotten side");
     }
 
     @Test
@@ -167,29 +172,44 @@ class PoseValidatorTest {
     }
 
     @Test
-    @DisplayName("the rear's one residual is the tail's own stance turned into the rump, read the same over the bare envelope")
-    void rearResidualIsTheTailStanceItself() {
-        PoseAudit audit = REAR.validate(row("minecraft:horse"));
+    @DisplayName("the rear reads what vanilla's own standing branch reads - the legs set into the tipped body - and the same over the bare envelope")
+    void rearReadsVanillasOwnStandingContacts() {
+        Entity horse = row("minecraft:horse");
+        PoseAudit audit = REAR.validate(horse);
+        PoseAudit standing = RegistrarFixtures.silhouette(horse, "standAnimation=1", "standing").validate(horse);
 
-        assertEquals(1, audit.findings().size(), audit.report());
-        PoseAudit.Finding tail = finding(audit, PoseAudit.Kind.OVERLAP, "body", "tail");
-        assertTrue(tail.bStanced() && !tail.aStanced(),
-            "the tail is the stanced side - a real child of the body, turned sixty degrees into it");
-        assertTrue(tail.bindClearance() < 0f, "the pair already interpenetrates at bind");
+        // No seat derives on the horse, so its standing silhouette is not in the envelope and the
+        // branch's own leg contacts read as findings; the rear, spelled at the same numbers, reads
+        // those and no other - the tail, written nothing, rises with the body and reads no contact.
+        assertEquals(pairs(standing), pairs(audit),
+            "vanilla's standing branch reads:\n" + standing.report() + "\nthe rear reads:\n" + audit.report());
+        assertFalse(audit.findings().isEmpty(), "the tipped body meets its legs outside the stride envelope");
+        for (int at = 0; at < audit.findings().size(); at++)
+            assertEquals(standing.findings().get(at).posedMin(), audit.findings().get(at).posedMin(), 0.05f,
+                "the same clearance to a twentieth of a pixel: " + audit.findings().get(at).describe());
+        assertTrue(audit.findings().stream().noneMatch(finding -> names(finding, "body", "tail")),
+            "the tail reads no contact of its own:\n" + audit.report());
 
-        PoseAudit.Finding bare = finding(REAR.validate(withoutSilhouettes(row("minecraft:horse"))),
-            PoseAudit.Kind.OVERLAP, "body", "tail");
-        assertEquals(tail.posedMin(), bare.posedMin(), 0f,
-            "no seat derives on the horse, so the posed clearance is the stance's own with or without the evidence");
+        assertEquals(pairs(audit), pairs(REAR.validate(withoutSilhouettes(horse))),
+            "with the evidence off the readings are the same - the posed clearances are the stance's own");
+    }
+
+    /**
+     * The findings of an audit as their kind and pair, in report order.
+     */
+    private static @NotNull List<String> pairs(@NotNull PoseAudit audit) {
+        return audit.findings().stream()
+            .map(finding -> finding.kind() + " " + finding.boneA() + " <-> " + finding.boneB())
+            .toList();
     }
 
     @Test
-    @DisplayName("the same rear on a horse whose pose turns the head cube itself tears the snout off")
+    @DisplayName("the same rear on a horse whose pose turns the head cube itself lifts the head off the snout")
     void rearWithTheHeadArticulatedReadsTheSnout() {
         PoseAudit audit = REAR.validate(withHeadArticulated(row("minecraft:horse")));
 
         assertFalse(audit.clean(), "with the head its own articulation, the stance lands on the head cube alone");
-        PoseAudit.Finding snout = finding(audit, PoseAudit.Kind.OVERLAP, "head", "upper_mouth");
+        PoseAudit.Finding snout = finding(audit, PoseAudit.Kind.SPLIT, "head", "upper_mouth");
         assertEquals(Optional.of("head_parts"), snout.sharedParent(),
             "the snout hangs beside the head under the neck assembly - the reading names it");
         assertTrue(snout.describe().contains("stance the parent"),

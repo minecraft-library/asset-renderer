@@ -17,11 +17,33 @@ import java.util.Optional;
 
 /**
  * Hand-built rows the registrar tests install onto - entities carrying catalogs and overlay
- * passes beside the compiler fixtures' meshes and poses.
+ * passes beside the compiler fixtures' meshes and poses - and vanilla's own silhouettes spelled
+ * as styles, for laying a chain against what the client draws.
  */
 final class RegistrarFixtures {
 
     private RegistrarFixtures() {}
+
+    /**
+     * Vanilla's own resting silhouette of one state branch, spelled as a statue through the raw
+     * hatch - every channel the branch places away from the resting row spliced whole - so a
+     * chain can be laid bone for bone against what the client draws for the same stance.
+     *
+     * @param row the shipped row whose pose carries the silhouette
+     * @param state the silhouette key, as {@code member=value}
+     * @param styleId the style id the statue builds under
+     * @return the built statue
+     * @throws IllegalArgumentException if the row carries no silhouette under the key
+     */
+    static @NotNull BuiltStyle silhouette(@NotNull Entity row, @NotNull String state, @NotNull String styleId) {
+        EntityPose.Silhouette silhouette = row.pose().states().get(state);
+        if (silhouette == null)
+            throw new IllegalArgumentException("Row '" + row.id() + "' carries no silhouette for '" + state + "'");
+        CustomPose.Builder builder = Poses.custom(styleId);
+        silhouette.bones().forEach((bone, channels) ->
+            channels.forEach((channel, expr) -> builder.expr(bone, channel, expr)));
+        return builder.build();
+    }
 
     /**
      * A target row over a mesh, its shipped pose, a catalog and any overlay passes.
