@@ -12,7 +12,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * {@link Turn} against the frame relations the renderer performs, and against the point turn each of
+ * {@link AxisSigns} against the frame relations the renderer performs, and against the point turn each of
  * them is the face-level shadow of.
  * <p>
  * A shell's unwrap is authored in vanilla's Y-down model frame while the boxes built from it are
@@ -22,17 +22,17 @@ import static org.hamcrest.Matchers.is;
  * normal directly, so the face map is pinned by the arithmetic rather than by a table beside it.
  * <p>
  * The group properties are checked as well, because they are what let one symbol serve every
- * combination: closure under {@link Turn#then}, so a mirrored shell cube can read
+ * combination: closure under {@link AxisSigns#then}, so a mirrored shell cube can read
  * {@code HALF_X.then(MIRROR_X)} rather than needing a relation minted for the combination; the
- * identity and inverse laws; and that {@link Turn#reflects} agrees with the determinant.
+ * identity and inverse laws; and that {@link AxisSigns#reflects} agrees with the determinant.
  * <b>Reflections are not excluded</b> - four of the relations in use are reflections, so a
  * rotation-only set would express none of them.
  * <p>
  * An opposite is one bit of the ordinal, so {@link Face} declaring its constants in opposing pairs is
  * load-bearing and is asserted here rather than assumed.
  */
-@DisplayName("Turn - the frame relations, their group laws, and the half turn about X")
-class TurnTest {
+@DisplayName("AxisSigns - the frame relations, their group laws, and the half turn about X")
+class AxisSignsTest {
 
     @Test
     @DisplayName("the six faces are declared in opposing pairs, which is what makes ordinal ^ 1 the opposite")
@@ -54,18 +54,18 @@ class TurnTest {
     @Test
     @DisplayName("HALF_X maps the model frame onto the upright frame")
     void halfTurnCrossesToTheModelFrame() {
-        assertThat(Turn.HALF_X.apply(Face.DOWN), is(Face.UP));
-        assertThat(Turn.HALF_X.apply(Face.UP), is(Face.DOWN));
-        assertThat(Turn.HALF_X.apply(Face.NORTH), is(Face.SOUTH));
-        assertThat(Turn.HALF_X.apply(Face.SOUTH), is(Face.NORTH));
-        assertThat(Turn.HALF_X.apply(Face.WEST), is(Face.WEST));
-        assertThat(Turn.HALF_X.apply(Face.EAST), is(Face.EAST));
+        assertThat(AxisSigns.HALF_X.apply(Face.DOWN), is(Face.UP));
+        assertThat(AxisSigns.HALF_X.apply(Face.UP), is(Face.DOWN));
+        assertThat(AxisSigns.HALF_X.apply(Face.NORTH), is(Face.SOUTH));
+        assertThat(AxisSigns.HALF_X.apply(Face.SOUTH), is(Face.NORTH));
+        assertThat(AxisSigns.HALF_X.apply(Face.WEST), is(Face.WEST));
+        assertThat(AxisSigns.HALF_X.apply(Face.EAST), is(Face.EAST));
     }
 
     @Test
     @DisplayName("the face map is the face-level shadow of the point turn, on every turn and face")
     void faceMapShadowsThePointTurn() {
-        Turn.forEach(turn ->
+        AxisSigns.forEach(turn ->
             Face.forEach(face ->
                 assertThat(turn + " on " + face,
                     settled(turn.apply(face).normal()), equalTo(settled(turn.apply(face.normal()))))));
@@ -74,17 +74,17 @@ class TurnTest {
     @Test
     @DisplayName("MIRROR_X swaps the two sides and leaves the other four faces alone")
     void sagittalMirrorSwapsTheSidesOnly() {
-        assertThat(Turn.MIRROR_X.apply(Face.WEST), is(Face.EAST));
-        assertThat(Turn.MIRROR_X.apply(Face.EAST), is(Face.WEST));
+        assertThat(AxisSigns.MIRROR_X.apply(Face.WEST), is(Face.EAST));
+        assertThat(AxisSigns.MIRROR_X.apply(Face.EAST), is(Face.WEST));
 
         for (Face face : new Face[]{ Face.DOWN, Face.UP, Face.NORTH, Face.SOUTH })
-            assertThat(face + " keeps its slot under a sagittal mirror", Turn.MIRROR_X.apply(face), is(face));
+            assertThat(face + " keeps its slot under a sagittal mirror", AxisSigns.MIRROR_X.apply(face), is(face));
     }
 
     @Test
     @DisplayName("every turn is axis-preserving - a face pairs with itself or its own opposite")
     void everyTurnIsAxisPreserving() {
-        Turn.forEach(turn ->
+        AxisSigns.forEach(turn ->
             Face.forEach(face -> {
                 Face turned = turn.apply(face);
                 assertThat(turn + " keeps " + face + " on its own axis",
@@ -97,14 +97,14 @@ class TurnTest {
     @Test
     @DisplayName("the eight turns are closed under composition and each is its own inverse")
     void compositionIsClosedAndSelfInverse() {
-        Set<Turn> all = EnumSet.allOf(Turn.class);
+        Set<AxisSigns> all = EnumSet.allOf(AxisSigns.class);
         assertThat("the group has eight members", all.size(), is(8));
 
-        Turn.forEach(a -> {
-            assertThat(a + " composed with itself is the identity", a.then(a), is(Turn.NONE));
-            assertThat("NONE is the identity for " + a, a.then(Turn.NONE), is(a));
+        AxisSigns.forEach(a -> {
+            assertThat(a + " composed with itself is the identity", a.then(a), is(AxisSigns.NONE));
+            assertThat("NONE is the identity for " + a, a.then(AxisSigns.NONE), is(a));
 
-            Turn.forEach(b -> {
+            AxisSigns.forEach(b -> {
                 assertThat(a + " then " + b + " stays in the group", all.contains(a.then(b)), is(true));
                 assertThat(a + " then " + b + " commutes", a.then(b), is(b.then(a)));
                 // Composition on the group must agree with composition on a point.
@@ -118,16 +118,16 @@ class TurnTest {
     @Test
     @DisplayName("a mirrored shell cube is one composition, not a relation of its own")
     void mirroredShellCubeComposes() {
-        assertThat(Turn.HALF_X.then(Turn.MIRROR_X), is(Turn.INVERT));
-        assertThat(Turn.HALF_X.then(Turn.MIRROR_X).apply(Face.WEST), is(Face.EAST));
-        assertThat(Turn.HALF_X.then(Turn.MIRROR_X).apply(Face.DOWN), is(Face.UP));
+        assertThat(AxisSigns.HALF_X.then(AxisSigns.MIRROR_X), is(AxisSigns.INVERT));
+        assertThat(AxisSigns.HALF_X.then(AxisSigns.MIRROR_X).apply(Face.WEST), is(Face.EAST));
+        assertThat(AxisSigns.HALF_X.then(AxisSigns.MIRROR_X).apply(Face.DOWN), is(Face.UP));
     }
 
     @Test
     @DisplayName("reflects agrees with the determinant, and four of the group reflect")
     void reflectsAgreesWithDeterminant() {
         int reflecting = 0;
-        for (Turn turn : Turn.stream().toList()) {
+        for (AxisSigns turn : AxisSigns.stream().toList()) {
             Vector3f x = turn.apply(new Vector3f(1f, 0f, 0f));
             Vector3f y = turn.apply(new Vector3f(0f, 1f, 0f));
             Vector3f z = turn.apply(new Vector3f(0f, 0f, 1f));
@@ -143,11 +143,11 @@ class TurnTest {
     @DisplayName("the point turn negates the axes it names and nothing else")
     void pointTurnNegatesItsOwnAxes() {
         Vector3f point = new Vector3f(2f, 3f, 5f);
-        assertThat(Turn.NONE.apply(point), equalTo(point));
-        assertThat(Turn.HALF_X.apply(point), equalTo(new Vector3f(2f, -3f, -5f)));
-        assertThat(Turn.MIRROR_X.apply(point), equalTo(new Vector3f(-2f, 3f, 5f)));
-        assertThat(Turn.MIRROR_Y.apply(point), equalTo(new Vector3f(2f, -3f, 5f)));
-        assertThat(Turn.INVERT.apply(point), equalTo(new Vector3f(-2f, -3f, -5f)));
+        assertThat(AxisSigns.NONE.apply(point), equalTo(point));
+        assertThat(AxisSigns.HALF_X.apply(point), equalTo(new Vector3f(2f, -3f, -5f)));
+        assertThat(AxisSigns.MIRROR_X.apply(point), equalTo(new Vector3f(-2f, 3f, 5f)));
+        assertThat(AxisSigns.MIRROR_Y.apply(point), equalTo(new Vector3f(2f, -3f, 5f)));
+        assertThat(AxisSigns.INVERT.apply(point), equalTo(new Vector3f(-2f, -3f, -5f)));
     }
 
     /** Settles a negated zero onto the positive one, so the comparison is numeric not by identity. */

@@ -92,20 +92,6 @@ public record Shell(
     }
 
     /**
-     * The entity feet anchor a whole-mesh scale is taken about, in model units - vanilla's
-     * {@code MeshTransformer.scaling} expands to
-     * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, and {@code 24.016} is {@code 1.501}
-     * blocks at 16 units a block, the living-entity render chain's own {@code translate(0, -1.501, 0)}.
-     *
-     * <p>The generator names the same number {@code GeometryParser.FEET_ANCHOR} and expands it the
-     * same way, which is what puts a scaled wearer's baked bone pivots where this seats its shell. The
-     * two are one contract written in two builds and nothing compares them across the boundary, so
-     * each side pins its own value and an edit to either moves a test rather than a render. This side
-     * is pinned by {@code ArmorKitTest.shellSeatsAtTheFeetAnchor}.
-     */
-    private static final float FEET_ANCHOR = 24.016f;
-
-    /**
      * The offset the shell is seated at - the translate vanilla's whole-mesh transformer pairs with the
      * scale, so that scaling happens about the wearer's feet rather than its origin.
      *
@@ -115,7 +101,7 @@ public record Shell(
      * @return the whole-mesh offset, zero at the identity scale
      */
     public @NotNull Vector3f meshOffset() {
-        return new Vector3f(0f, FEET_ANCHOR * (1f - this.meshScale), 0f);
+        return new Vector3f(0f, EntityModelData.flattenedShift(this.meshScale), 0f);
     }
 
     /**

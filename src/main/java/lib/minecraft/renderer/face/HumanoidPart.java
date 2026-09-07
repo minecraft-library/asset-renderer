@@ -23,7 +23,7 @@ import java.util.EnumMap;
  * Each constant declares an integer pixel box in the vanilla player lattice, where the body spans
  * {@code -16..+16} on Y - the 32-pixel vanilla player height - plus the two atlas origins its base
  * and overlay layers are unwrapped from. <b>Everything else is derived.</b> The six skin rectangles
- * per layer are {@link Unwrap.Atlas#rect} evaluated at that origin under the {@link Turn#HALF_X
+ * per layer are {@link Unwrap.Atlas#rect} evaluated at that origin under the {@link AxisSigns#HALF_X
  * model frame turn}, which is the same unwrap the entity cube path resolves its UVs from - the player
  * skin unwrap and the entity cube unwrap are one function, and the overlay column is that same
  * function against a different shipped cube (the head's is vanilla's own {@code hat} cube, the
@@ -215,7 +215,7 @@ public enum HumanoidPart {
             HumanoidPart mirror = legacyMirrorSource();
 
             if (mirror != this)
-                return cropRect(skin, mirror.rect(Turn.MIRROR_X.apply(face), false), true);
+                return cropRect(skin, mirror.rect(AxisSigns.MIRROR_X.apply(face), false), true);
         }
 
         return cropRect(skin, rect, false);
@@ -249,7 +249,7 @@ public enum HumanoidPart {
         Unwrap.Atlas cube = new Unwrap.Atlas(origin, size, false);
 
         Face.forEach(face -> {
-            Vector4f strip = cube.rect(Turn.HALF_X.apply(face));
+            Vector4f strip = cube.rect(AxisSigns.HALF_X.apply(face));
             rects.put(face, new Rectangle((int) strip.x(), (int) strip.y(),
                 (int) (strip.z() - strip.x()), (int) (strip.w() - strip.y())));
         });

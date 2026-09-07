@@ -200,16 +200,33 @@ public enum PoseOperator {
     EASE_IN_OUT_ELASTIC("ease_in_out_elastic", 1, Width.FLOAT);
 
     /** The numeric width an operation computes at, which decides where a value rounds. */
+    @RequiredArgsConstructor
     public enum Width {
 
         /** Single precision - the width a bone channel is finally stored at. */
-        FLOAT,
+        FLOAT("f"),
 
         /** Double precision - what a value crosses into between an {@code f2d} and a {@code d2f}. */
-        DOUBLE,
+        DOUBLE("d"),
 
         /** Integral - a loop counter, a phase index, or vanilla's deliberate truncating divide. */
-        INT
+        INT("i");
+
+        /** The letter a Java literal of this width is written with, and so is spelled with here. */
+        private final @NotNull String suffix;
+
+        /**
+         * Spells one literal at this width, suffixed the way a Java literal of it is.
+         *
+         * <p>The value arrives as a {@code double} because that is the one carrier wide enough for
+         * all three widths, so the suffix is what says which of them was meant.
+         *
+         * @param value the literal value
+         * @return the spelled literal
+         */
+        public @NotNull String literal(double value) {
+            return value + this.suffix;
+        }
 
     }
 

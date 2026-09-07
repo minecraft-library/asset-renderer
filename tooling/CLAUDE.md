@@ -65,6 +65,24 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   comparing the raw resting maps instead refuses three of the corpus's crowded classes over members
   their poses never look at. Any of the raw maps behind one frame folds to one residual, measured by
   regenerating the whole table against the first of them and against the last.
+- **The branch a resting subject does not take is kept as a state silhouette, beside the row and
+  read by nothing at render.** The fold drops it whole, and what it placed is evidence the table
+  otherwise loses - a sitting wolf's body lowered onto its haunches with the tail and hind legs
+  placed by hand where that body carries them says which parts vanilla moves together. `PoseStates`
+  folds the walked program once more per question the body asks of its render state - each boolean
+  it compares against zero, flipped from what it rests at; each enum constant it tests other than
+  the one it rests holding; and each unit figure it reads that rests at zero, moved to one, which is
+  the completed stand of an equine's `standAnimation` or a bear's `standScale`, a branch no
+  comparison spells - with nothing left free, so every figure the tick drives rests and only a read
+  of the mesh stays symbolic. A figure the frame spells as a boolean flips as one however the body
+  reads it. Each state's bones are written under `states` keyed
+  `member=value`, spelled exactly as the row's bones are over a shared table of their own, holding
+  only the position and rotation channels the state places away from the resting row. One answer
+  flipped at a time, never a product: linear in what the body asks, and a placement two answers
+  decide between them has no single branch to be read from. A float figure the body tests against
+  zero for equality is toggled to one under the boolean rule and keyed `member=true`, which is a
+  real frame of it and the one place the key's spelling reads oddly; the same figure read
+  arithmetically is keyed `member=1`.
 - **A class reached at two frames is SPLIT where every site reaching it is a body, and the body names
   the key it takes.** A body - the adult age option, and each coat of a family with them - is the one
   site `EntityIndexBuilder` resolves through the subject's own `bones.pose`, so a class an overlay,

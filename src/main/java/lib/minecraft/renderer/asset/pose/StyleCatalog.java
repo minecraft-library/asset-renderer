@@ -50,7 +50,7 @@ public record StyleCatalog(
     /** The synthesized still row - nothing sourced, nothing driven, nothing toggled, either age. */
     private static final @NotNull PoseStyle BIND_ROW = new PoseStyle(PoseStyle.BIND,
         Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
-        Concurrent.newUnmodifiableList(), Optional.empty());
+        Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
 
     /**
      * The standing row an entity that ships none is answered with - elapsed age ramped at slope
@@ -60,7 +60,7 @@ public record StyleCatalog(
         Concurrent.newUnmodifiableList(),
         Concurrent.newUnmodifiableMap(Map.of("ageInTicks",
             new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()))),
-        Concurrent.newUnmodifiableList(), Optional.empty());
+        Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
 
     /**
      * The walking row an entity that ships none is answered with - the standing drivers plus the
@@ -205,6 +205,18 @@ public record StyleCatalog(
     }
 
     /**
+     * The ticks between two frames of one strip under one resolved row - the row's own
+     * {@link PoseStyle#periodTicks() period} where it declares one, {@link #periodTicks} otherwise,
+     * divided across {@link #STRIP_FRAMES}.
+     *
+     * @param style the resolved row the strip samples
+     * @return the per-frame tick step
+     */
+    public int stripTicksPerFrame(@NotNull PoseStyle style) {
+        return style.periodTicks().orElse(this.periodTicks) / STRIP_FRAMES;
+    }
+
+    /**
      * This catalog as one resolved subject holds it: a row whose age refuses the subject's drops
      * out, and within each kept row a gated source entry survives iff the given predicate admits
      * its gate - an unconditional entry always does. Answers this catalog itself where nothing
@@ -226,7 +238,8 @@ public record StyleCatalog(
             ConcurrentList<PoseStyle.StyleSource> admitted = admitted(style.sources(), gateAdmitted);
             narrowed |= admitted != style.sources();
             kept.add(admitted == style.sources() ? style
-                : new PoseStyle(style.id(), admitted, style.drivers(), style.toggles(), style.age()));
+                : new PoseStyle(style.id(), admitted, style.drivers(), style.toggles(), style.age(),
+                    style.periodTicks()));
         }
         return narrowed
             ? new StyleCatalog(this.periodTicks, Concurrent.newUnmodifiableList(kept))
@@ -258,7 +271,7 @@ public record StyleCatalog(
             new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
         return new PoseStyle(PoseStyle.STRIDE, Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(drivers), Concurrent.newUnmodifiableList(),
-            Optional.empty());
+            Optional.empty(), Optional.empty());
     }
 
 }

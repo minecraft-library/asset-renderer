@@ -3,6 +3,9 @@ package lib.minecraft.renderer.asset.pose;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.pose.MotionSource;
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -45,22 +48,69 @@ import java.util.Optional;
  * elapsed age and the stride, and a caller supplying none of those gets the frame vanilla draws
  * before anything has happened to the subject.
  *
+ * <p><b>A state silhouette is evidence the model carries beside its pose, and nothing at render
+ * reads it.</b> Vanilla's {@code setupAnim} branches on questions of the render state a resting
+ * subject answers one way - whether a wolf sits, which pose a parrot holds - and the shipped
+ * channels hold the arm the resting subject takes. Each other arm is folded once more at rest with
+ * that one answer flipped, and the bones it places away from the resting row are carried under
+ * the answer that reaches them: a sitting wolf's lowered body, and the tail and hind legs placed
+ * by hand where that body carries them. The runtime evaluates the pose exactly as written; the
+ * silhouettes are read by pose authoring alone, beside the mesh, for what they show about which
+ * parts vanilla moves together.
+ *
  * @param container the steps the container is composed of, outermost first, each carrying the
  *     expression its written channels hold
  * @param bones the expression each bone channel is written with, by bone name
  * @param clips the authored clips this model plays, in the order it plays them
  * @param refusal why there is no pose here, or empty when the rest is the whole answer
+ * @param states the resting silhouette of each state branch this model poses, keyed by the
+ *     render-state answer that reaches it as {@code member=value} - empty for a model branching
+ *     on nothing a state can flip
  */
 public record EntityPose(
     @NotNull ConcurrentList<Map<PoseChannel, PoseExpr>> container,
     @NotNull ConcurrentMap<String, Map<PoseChannel, PoseExpr>> bones,
     @NotNull ConcurrentList<Clip> clips,
-    @NotNull Optional<String> refusal
+    @NotNull Optional<String> refusal,
+    @NotNull ConcurrentMap<String, Silhouette> states
 ) {
 
     /** The pose of a model that poses nothing, which is a real answer rather than a missing one. */
     public static final @NotNull EntityPose NONE = new EntityPose(Concurrent.newUnmodifiableList(),
         Concurrent.newUnmodifiableMap(Map.of()), Concurrent.newUnmodifiableList(), Optional.empty());
+
+    /**
+     * Constructs a pose carrying no state silhouettes.
+     *
+     * @param container the steps the container is composed of, outermost first
+     * @param bones the expression each bone channel is written with, by bone name
+     * @param clips the authored clips this model plays, in the order it plays them
+     * @param refusal why there is no pose here, or empty when the rest is the whole answer
+     */
+    public EntityPose(
+        @NotNull ConcurrentList<Map<PoseChannel, PoseExpr>> container,
+        @NotNull ConcurrentMap<String, Map<PoseChannel, PoseExpr>> bones,
+        @NotNull ConcurrentList<Clip> clips,
+        @NotNull Optional<String> refusal) {
+
+        this(container, bones, clips, refusal, Concurrent.newUnmodifiableLinkedMap());
+    }
+
+    /**
+     * Where a model's bones stand in one state it poses - the resting silhouette of one branch of
+     * its {@code setupAnim}, holding only what that branch places away from the resting row.
+     *
+     * <p>Every channel is spelled at rest: a figure the tick drives is folded at what it rests at,
+     * so a channel that is the stride plus a tuck in that state carries the tuck alone, and a
+     * placement relative to the authored pivot keeps the read of that pivot. Evaluated against a
+     * mesh with every figure resting, it answers where the bone stands.
+     *
+     * @param bones the position and rotation channels each placed bone holds in this state, by
+     *     bone name - a bone the state leaves where the resting row leaves it is absent
+     */
+    public record Silhouette(
+        @NotNull ConcurrentMap<String, Map<PoseChannel, PoseExpr>> bones
+    ) {}
 
     /**
      * One authored clip this model plays, and what it plays it at.

@@ -1532,71 +1532,7 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/asset/pose/MotionSource": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.player-raw",
-        "manifest.visual",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/pose/PoseChannel": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.player-raw",
-        "manifest.visual",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/asset/pose/PoseClip": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.player-raw",
-        "manifest.visual",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/pose/PoseExpr": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.player-raw",
-        "manifest.visual",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/pose/PoseOperator": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.player-raw",
-        "manifest.visual",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/pose/PoseOperatorMirrorTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/pose/PosePredicate": {
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
@@ -2579,6 +2515,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/kit/PoseStatesBlindnessTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/kit/ShieldKit": {
       "artifacts": [
         "manifest.visual",
@@ -2957,6 +2897,36 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/face/AxisSigns": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.kit-corners",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "pin.vanilla-iso-pose",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/face/AxisSignsTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/face/CornerPhase": {
       "artifacts": [
         "manifest.dump.packs",
@@ -3066,36 +3036,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/face/HumanoidPartTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/face/Turn": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.fluid",
-        "manifest.player-raw",
-        "manifest.player-sheets",
-        "manifest.portal",
-        "manifest.visual",
-        "pin.block-crc",
-        "pin.fluid-crc",
-        "pin.kit-corners",
-        "pin.player-crc",
-        "pin.portal-crc",
-        "pin.vanilla-iso-pose",
-        "sweep.armor",
-        "sweep.block",
-        "sweep.entity",
-        "sweep.entity-animation",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu",
-        "sweep.player"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/face/TurnTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -3809,6 +3749,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pipeline/index/RawEntityPosesStatesTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pipeline/loader/BlockDefaultsLivePipelineTest": {
       "artifacts": [],
       "source": "derived"
@@ -4264,6 +4208,286 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/MotionSource": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/PoseChannel": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/PoseExpr": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/PoseNodeTextTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/PoseOperator": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/PoseOperatorMirrorTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/PosePredicate": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/audit/PoseAudit": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/audit/PoseValidator": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/audit/PoseValidatorTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/BuiltStyle": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/BuiltStyleTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/Corner": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/CustomPose": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/CustomPoseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/Ease": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/HumanoidPose": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/HumanoidPoseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/Keyframes": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/LimbStance": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/PoseBuilder": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/PoseScript": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/PoseScriptCaptureTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/Poses": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/Preset": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/PresetTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/QuadrupedPose": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/QuadrupedPoseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/Side": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/Turn": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/CompilerFixtures": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/FoldSeatAbTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/GraphInterner": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/GraphInternerTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/PeriodFramingTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/PoseCompiler": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/PoseCompilerCouplingTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/PoseCompilerRefusalTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/PoseCompilerTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/Seats": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/SeatsRosterTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/SeatsTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/StyleDiagnostics": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/StyleDiagnosticsTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/BuilderLoaderParityTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/ContainerInstallParityTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/PlayerRig": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/PlayerRigTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/PoseCookbookCreatureTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/PoseCookbookHumanoidTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/PoseEmitter": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/PoseEmitterTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/RegistrarFixtures": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/SeatInstallParityTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/SkinContext": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/StyleRegistrar": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/StyleRegistrarSkinTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/StyleRegistrarTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/StyleRegistrarWeaveTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/StyleResolutionTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/support/BuildScripts": {
       "artifacts": [],
       "source": "derived"
@@ -4656,6 +4880,10 @@
       "artifacts": [
         "manifest.portal"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/visual/PoseShowcaseDriver": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/visual/RedstoneTintsDriver": {

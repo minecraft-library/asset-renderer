@@ -2,8 +2,8 @@ package lib.minecraft.renderer.pipeline.index;
 
 import com.google.gson.Gson;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.asset.pose.MotionSource;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.pose.MotionSource;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

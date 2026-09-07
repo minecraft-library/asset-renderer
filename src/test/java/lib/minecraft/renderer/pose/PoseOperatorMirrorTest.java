@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.asset.pose;
+package lib.minecraft.renderer.pose;
 
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +37,7 @@ class PoseOperatorMirrorTest {
 
     /** This build's copy, and the one it is a reader for. */
     private static final @NotNull Path RENDERER =
-        Path.of("src/main/java/lib/minecraft/renderer/asset/pose/PoseOperator.java");
+        Path.of("src/main/java/lib/minecraft/renderer/pose/PoseOperator.java");
 
     /** The generator's copy, which is where a folded value came from. */
     private static final @NotNull Path TOOLING = Path.of(

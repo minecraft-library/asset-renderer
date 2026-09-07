@@ -247,6 +247,50 @@
       ]
     },
     {
+      "authored_paths": [],
+      "blind": [
+        "sweep.block",
+        "sweep.item"
+      ],
+      "claim": "Blocks and items are structurally immune to a DEPTH change: 0 of 1055 and 0 of 479 rows move",
+      "claim_key": "depth-immunity",
+      "id": "B11a",
+      "mode": "select",
+      "probe": "-Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved",
+      "reason": "Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.",
+      "sees": [],
+      "source": "measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; RENDERER-RULES.md 'Depth: the contract'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
+        "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
+      ]
+    },
+    {
+      "authored_paths": [],
+      "blind": [],
+      "claim": "The block and item immunity is to DEPTH only and does not generalise",
+      "claim_key": "depth-immunity-limit",
+      "id": "B11b",
+      "mode": "select",
+      "probe": "-Dasset.snap.grid=N and a texel-fetch perturbation both move block rows where -Dasset.depth.range=N does not",
+      "reason": "A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.",
+      "sees": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "pin.player-crc",
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
+      ],
+      "source": "measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
+        "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
+      ]
+    },
+    {
       "authored_paths": [
         "src/test/java/lib/minecraft/renderer/visual/TestPlayerRender.java"
       ],
@@ -1085,50 +1129,6 @@
       ]
     },
     {
-      "authored_paths": [],
-      "blind": [
-        "sweep.block",
-        "sweep.item"
-      ],
-      "claim": "Blocks and items are structurally immune to a DEPTH change: 0 of 1055 and 0 of 479 rows move",
-      "claim_key": "depth-immunity",
-      "id": "B11a",
-      "mode": "select",
-      "probe": "-Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved",
-      "reason": "Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.",
-      "sees": [],
-      "source": "measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; RENDERER-RULES.md 'Depth: the contract'",
-      "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
-        "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
-      ]
-    },
-    {
-      "authored_paths": [],
-      "blind": [],
-      "claim": "The block and item immunity is to DEPTH only and does not generalise",
-      "claim_key": "depth-immunity-limit",
-      "id": "B11b",
-      "mode": "select",
-      "probe": "-Dasset.snap.grid=N and a texel-fetch perturbation both move block rows where -Dasset.depth.range=N does not",
-      "reason": "A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.",
-      "sees": [
-        "sweep.entity",
-        "sweep.block",
-        "sweep.item",
-        "sweep.armor",
-        "pin.player-crc",
-        "manifest.player-raw",
-        "sweep.entity-animation",
-        "sweep.entity-walk"
-      ],
-      "source": "measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7",
-      "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java",
-        "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java"
-      ]
-    },
-    {
       "authored_paths": [
         "build.gradle.kts",
         "gradle/libs.versions.toml"
@@ -1568,6 +1568,41 @@
       "trigger_paths": [
         "harness/src/client/java/lib/minecraft/refharness/frame/AnimatedEntityFrameRenderer.java",
         "harness/src/client/java/lib/minecraft/refharness/sweep/EntityAnimationSweep.java"
+      ]
+    },
+    {
+      "authored_paths": [],
+      "blind": [],
+      "claim": "The pose language decides where every bone of every posed subject goes, so it reaches each artifact that draws one",
+      "claim_key": "pose-vocabulary",
+      "derived": true,
+      "id": "B62",
+      "mode": "select",
+      "probe": "change PoseOperator.DADD's apply arm to subtract and re-capture: every artifact carrying a posed subject moves, because a bone channel is decided by that arithmetic and by nothing else",
+      "reason": "The arithmetic a shipped pose is written in, and the channels and motion sources it is written for. It is read by the evaluator on every render that poses a bone and by the loader that reads the table, so the graph reaches it from each artifact drawing a posed subject and from both dumps, which carry the loaded expressions as serialised data. Nothing is subtracted: no artifact here has been measured blind to a change in the arithmetic, and a demotion nobody measured would be a claim rather than a reading. The rule is per FILE - the five vocabulary types answer for themselves, which is what keeps the region's reach a reading of the graph rather than one sentence about a directory.",
+      "sees": [],
+      "source": "derived per file from the reference graph, which answers the seven artifacts for each of the five vocabulary types. No perturbation is owed because nothing is subtracted; the probe above is what would falsify the selection itself.",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pose/**"
+      ]
+    },
+    {
+      "authored_paths": [],
+      "blind": [],
+      "claim": "The authoring stack reaches no producer, because no producer builds a registrar",
+      "claim_key": "pose-authoring",
+      "derived": true,
+      "id": "B63",
+      "mode": "select",
+      "probe": "install a custom style through StyleRegistrar and capture every artifact: no stored byte moves, because no producer constructs a registrar - every sweep, dump and digest renders the definitions EntityModelLoader loads, and these packages read that loader without ever being read back",
+      "reason": "The four packages an authored pose passes through: the verb surface, the lowering onto a row, the audit against that row's envelope, and the install that binds a woven row to a subject. They point downward only - they read the pose language, the loaded pose and the evaluator, and nothing under asset, engine, pipeline or option reads them back - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Their own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/pose/install evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered. Declared as four package claims rather than one directory glob, so each package answers for itself and a type moving between them moves its own answer.",
+      "sees": [],
+      "source": "derived per file from the reference graph, which answers the empty set for every type in the four packages: no producer root reaches one. The empty answer is the reading, not an assertion the rule makes over the directory.",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pose/audit/**",
+        "src/main/java/lib/minecraft/renderer/pose/author/**",
+        "src/main/java/lib/minecraft/renderer/pose/compile/**",
+        "src/main/java/lib/minecraft/renderer/pose/install/**"
       ]
     }
   ]

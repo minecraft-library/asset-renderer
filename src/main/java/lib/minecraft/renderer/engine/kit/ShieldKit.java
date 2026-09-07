@@ -11,9 +11,9 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.face.AxisSigns;
 import lib.minecraft.renderer.face.CornerPhase;
 import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -159,7 +159,7 @@ public class ShieldKit {
         Unwrap.Atlas unwrap = new Unwrap.Atlas(texOffs, size, false);
 
         Face.forEach(face -> {
-            Vector4f rect = unwrap.rect(Turn.HALF_X.apply(face));
+            Vector4f rect = unwrap.rect(AxisSigns.HALF_X.apply(face));
             Vector2f[] uv = CornerPhase.BAKERY.permuteUv(
                 face, rect.toUvCorners(SHIELD_TEXTURE_SIZE, SHIELD_TEXTURE_SIZE, 0, false));
             Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);

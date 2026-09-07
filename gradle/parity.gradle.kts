@@ -262,6 +262,19 @@ val paritySkillReferences: String = ".claude/skills/parity-gate/references"
 // leaves the suite UP-TO-DATE and the guard never runs on the edit it exists for.
 val paritySkillFile: String = ".claude/skills/parity-gate/SKILL.md"
 
+// This checkout's git index, wherever git keeps it. `.git` at the project root is the git directory
+// of a primary checkout and a `gitdir: <path>` pointer file at a linked worktree; the pointer names
+// the worktree's own directory under the primary's `.git/worktrees/`, and the index sits in
+// whichever of the two answers. A relative pointer is resolved against the project root, which is
+// where git resolves it from.
+val gitIndex: File = run {
+    val dotGit = file(".git")
+    if (!dotGit.isFile) return@run dotGit.resolve("index")
+    val pointed = dotGit.readText().trim().removePrefix("gitdir:").trim()
+    val gitDir = File(pointed).let { if (it.isAbsolute) it else File(projectDir, pointed) }
+    gitDir.resolve("index")
+}
+
 // The directories BlindnessMapTest's own walk skips, at any depth. Kept as one list applied to every
 // root below rather than a per-root spelling, because the two lists differing is unnoticeable by
 // inspection and means the declaration is either missing files the walk reads or declaring ones it
@@ -978,7 +991,13 @@ tasks.withType<Test>().configureEach {
     // declared is the one it has to fail on, and that is exactly the edit that would leave this task
     // UP-TO-DATE. The cost is that any git operation rewriting the index re-runs the fast suite,
     // which is the same trade the whole-file build declaration above already makes.
-    inputs.file(".git/index").withPropertyName("parityGitIndex").optional()
+    //
+    // Resolved through the repository's own git directory rather than spelled as `.git/index`: at a
+    // primary checkout `.git` IS that directory, and at a linked worktree it is a one-line
+    // `gitdir: <path>` pointer to the worktree's directory under the primary's `.git/worktrees/`,
+    // which is where that checkout's index lives. Declaring the literal path makes `test` refuse to
+    // configure on every worktree, the input being a file that does not exist there.
+    inputs.file(gitIndex).withPropertyName("parityGitIndex").optional()
     // CLAUDE.md, because the blindness map's `source` fields cite its headings by name and
     // BlindnessMapTest reads them back: a heading renamed there turns a citation into a dead one
     // with nothing in this file having moved.

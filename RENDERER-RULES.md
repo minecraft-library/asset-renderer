@@ -141,7 +141,7 @@ independently of each other and of the subject - the block-entity path takes `PO
 
 ### Frame turns
 
-`face.Turn` is the order-8 diagonal group: every frame relation pairs a face with itself or its own
+`face.AxisSigns` is the order-8 diagonal group: every frame relation pairs a face with itself or its own
 opposite, so each is `diag(+-1, +-1, +-1)` and a ninety-degree turn appears nowhere. Five elements
 are in use - `HALF_X` (model to upright frame), `MIRROR_Y` (the shading flip an entity's folded stack
 is relit through), `MIRROR_Z` (the same relation for the player's upright boxes), `MIRROR_X` (the cube
@@ -175,7 +175,7 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
   `n * 0.03f` is one ULP low at `n = 12` and every limb is 12 px, so `HumanoidPart` stores `maxPx`
   rather than a span.
 - `HumanoidPart`'s skin rectangles are `Unwrap.Atlas.rect` at the part's atlas origin under
-  `Turn.HALF_X`, derived rather than tabulated, and a scope's extent and both layouts follow from the
+  `AxisSigns.HALF_X`, derived rather than tabulated, and a scope's extent and both layouts follow from the
   union of its parts' boxes, so `PlayerOptions.Type` owns them.
 - The skull scope shares that arithmetic and never the constant or the predicate: `0.02f` and
   `OVERLAY_INFLATE` are two calibrations at two u/px scales, and unifying the gate deletes the hat
@@ -186,7 +186,7 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
   full `[0,1]` UV rect, so a sheet plus a rectangle is a sampler change, and the two part company on
   a mirrored cube where the crop reverses the row and a mirrored UV interpolates a descending `u`.
 - `Unwrap.Atlas.rect` ignores its own `mirror` flag, because six entity-kit predicates ask what a
-  face's own strip holds and the caller applies `Turn.MIRROR_X`; only `crop` applies both.
+  face's own strip holds and the caller applies `AxisSigns.MIRROR_X`; only `crop` applies both.
 
 ### JOML factories
 
@@ -208,8 +208,8 @@ vanilla's `display.gui` pose and scale. It is facing-neutral, presents the model
 **An entity and a player are each lit once, after their layers are folded.** Vanilla binds
 `Lighting.ENTITY_IN_UI` once per GUI entity draw before any layer is submitted, so a wearer, its
 overlays, its carried block, its wings and everything it wears light under one entry. Both renderers
-do exactly that - `EntityRenderer` over the entity's folded stack through `Turn.MIRROR_Y`,
-`PlayerRenderer` over the player's through `Turn.MIRROR_Z`. Block, fluid and portal are not in this
+do exactly that - `EntityRenderer` over the entity's folded stack through `AxisSigns.MIRROR_Y`,
+`PlayerRenderer` over the player's through `AxisSigns.MIRROR_Z`. Block, fluid and portal are not in this
 rule: their kits bake `Lighting.inventory` at emit time and nothing relights them.
 
 - **The fold owns the entity shade; no entity-side producer resolves one.** `EntityGeometryKit`,
@@ -513,6 +513,18 @@ divergence in how they were measured.
   because vanilla holds one part pose for the root and `offsetPos` and `offsetRotation` add into the
   very fields a body assigned. Passed over as an undeclared bone it is silently nothing, which is a
   camel that walks without leaning into its stride and a canvas measured around one.
+- **A row's `states` member is evidence beside the pose, and nothing at render reads it.** A body
+  branches on questions of its render state a resting subject answers one way, and the shipped
+  channels hold the arm the resting subject takes; each other arm - a wolf sitting, a parrot's
+  pose, an equine's completed stand - is folded once more at rest with that one answer flipped,
+  and the bones it places away from the resting row ship under `states` keyed `member=value`,
+  spelled as the row's bones are over a `shared` table of their own. `RawEntityPosesFile` reads
+  them into `EntityPose.states` after the row's own table is read whole, so no reference crosses
+  between a row and a silhouette; `PoseKit` and `PoseEvaluator` read `container`, `bones` and
+  `clips` and never the member, so a table carrying it poses every shipped style to the bits of
+  one that does not. What reads a silhouette is pose authoring, beside the mesh, for which parts
+  vanilla moves together - a sitting wolf's tail and hind legs placed by hand where its lowered
+  body carries them, which the shipped geometry, where they are root-level siblings, cannot say.
 
 **`bind` is the default and hands back the very instance it was given.** Identity, not equality: an
 equal copy is still a copy, and every float in it is one the authored path never computed. The same

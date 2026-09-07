@@ -135,6 +135,19 @@ register<JavaExec>("stackCountBadge") {
     args = if (diff != null) listOf("diff=$diff") else if (label != null) listOf(label) else listOf()
 }
 
+register<JavaExec>("poseShowcase") {
+    description = "Renders the custom-pose cookbook through StyleRegistrar - moving styles as animated GIFs, statues as PNGs - to cache/visual/pose-showcase/ for visual inspection. -PrenderSize=512 -Ppose=wave limits to one style."
+    group = "visual"
+    mainClass.set("lib.minecraft.renderer.visual.PoseShowcaseDriver")
+    classpath = sourceSets["test"].runtimeClasspath
+    val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
+    val pose = project.findProperty("pose") as String?
+    args = buildList {
+        add(renderSize)
+        if (pose != null) add(pose)
+    }
+}
+
 register<JavaExec>("entityRender3D") {
     description = "Renders every entity in entity_models.json via EntityRenderer (3D) to cache/visual/entity-render-3d/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie -Pprojection=ISOMETRIC. The -Dasset.entity.* appearance, lighting and dump knobs it reads are listed in EntityRenderDriver's javadoc."
     group = "visual"

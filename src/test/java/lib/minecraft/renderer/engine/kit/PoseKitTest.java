@@ -7,14 +7,14 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.asset.pose.PoseChannel;
-import lib.minecraft.renderer.asset.pose.PoseExpr;
-import lib.minecraft.renderer.asset.pose.PoseOperator;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -197,6 +197,78 @@ class PoseKitTest {
         assertTrue(posed.getBones().get(container).getCubes().isEmpty(), "and draws nothing of its own");
         assertEquals(container, posed.getBones().get("body").getParent(), "a root hangs from it");
         assertEquals("body", posed.getBones().get("head").getParent(), "and a bone that had a parent keeps it");
+    }
+
+    @Test
+    @DisplayName("a top-level pivot of a flattened mesh is placed through the factor and the feet anchor")
+    void aFlattenedTopLevelPivotIsPlacedThroughFactorAndAnchor() {
+        // The tooling stores a top-level pivot as F * p + anchor * (1 - F) on y, so a delta a pose
+        // adds to the bone's own read lands multiplied by F with the anchor cancelling, an absolute
+        // vanilla number lands the way the generator would have stored it, and a child - whose pivot
+        // is parent-relative - crosses the factor alone.
+        float factor = 2f;
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", new EntityModelData.Bone(new Vector3f(1f, 20f, 4f), EulerRotation.NONE,
+            EulerRotation.NONE, factor, Concurrent.newList(), null));
+        mesh.getBones().put("tail", new EntityModelData.Bone(new Vector3f(0f, 6f, 8f), EulerRotation.NONE,
+            EulerRotation.NONE, factor, Concurrent.newList(), "body"));
+        PoseExpr three = new PoseExpr.Const(3d, PoseOperator.Width.DOUBLE);
+
+        EntityPose shifted = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of(
+                "body", Map.of(
+                    PoseChannel.Y, new PoseExpr.Op(PoseOperator.DADD, Concurrent.newUnmodifiableList(new PoseExpr.BoneRead("body", PoseChannel.Y), three)),
+                    PoseChannel.X, new PoseExpr.Op(PoseOperator.DADD, Concurrent.newUnmodifiableList(new PoseExpr.BoneRead("body", PoseChannel.X), three))),
+                "tail", Map.of(
+                    PoseChannel.Y, new PoseExpr.Op(PoseOperator.DADD, Concurrent.newUnmodifiableList(new PoseExpr.BoneRead("tail", PoseChannel.Y), three))))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
+        Entity built = subject("minecraft:test", mesh, shifted);
+        EntityModelData posed = body(built, idle(built), 0);
+        assertEquals(20f + factor * 3f, posed.getBones().get("body").getPivot().y(), 1e-4f,
+            "a delta on the root's own read lands multiplied by the factor, the anchor cancelling");
+        assertEquals(1f + factor * 3f, posed.getBones().get("body").getPivot().x(), 1e-4f,
+            "x carries no anchor");
+        assertEquals(6f + factor * 3f, posed.getBones().get("tail").getPivot().y(), 1e-4f,
+            "a child crosses the factor alone");
+
+        EntityPose absolute = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("body",
+                Map.of(PoseChannel.Y, new PoseExpr.Const(30d, PoseOperator.Width.DOUBLE)))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
+        Entity assigned = subject("minecraft:test", mesh, absolute);
+        assertEquals(30f * factor + EntityModelData.flattenedShift(factor),
+            body(assigned, idle(assigned), 0).getBones().get("body").getPivot().y(), 1e-4f,
+            "an absolute vanilla number is stored the way the generator stores a top-level pivot");
+
+        EntityPose readsItself = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("body",
+                Map.of(PoseChannel.Y, new PoseExpr.BoneRead("body", PoseChannel.Y)))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
+        Entity held = subject("minecraft:test", mesh, readsItself);
+        assertEquals(20f, body(held, idle(held), 0).getBones().get("body").getPivot().y(),
+            "written back to what it reads, the mesh's own bits stand");
+    }
+
+    @Test
+    @DisplayName("placing the container of a flattened mesh refuses - its seat carries no anchor")
+    void aFlattenedContainerPlacementRefuses() {
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", new EntityModelData.Bone(new Vector3f(0f, 20f, 0f), EulerRotation.NONE,
+            EulerRotation.NONE, 2f, Concurrent.newList(), null));
+
+        EntityPose dropped = new EntityPose(
+            Concurrent.newUnmodifiableList(Map.of(PoseChannel.Y, new PoseExpr.Const(-3d, PoseOperator.Width.FLOAT))),
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
+        Entity placed = subject("minecraft:test", mesh, dropped);
+        RendererException refusal = assertThrows(RendererException.class, () -> body(placed, idle(placed), 0));
+        assertTrue(refusal.getMessage().contains("flattened at '2.0'"), refusal.getMessage());
+
+        EntityPose turned = new EntityPose(
+            Concurrent.newUnmodifiableList(Map.of(PoseChannel.X_ROT, new PoseExpr.Const(0.5d, PoseOperator.Width.FLOAT))),
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
+        Entity tilted = subject("minecraft:test", mesh, turned);
+        assertEquals(2, body(tilted, idle(tilted), 0).getBones().size(),
+            "a rotation-only step seats above the root as it always has");
     }
 
     @Test

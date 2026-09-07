@@ -269,9 +269,13 @@ public final class PoseFlow {
             if (!rebuilt.isEmpty()) derivedByModel.put(name, rebuilt);
         }
 
+        // The silhouette of every state branch a row's body poses, derived beside the fold from the
+        // same walked program and the same frame - the fold drops the branch a resting subject does
+        // not take, and this is where what that branch placed is kept.
+        Map<String, Map<String, PoseStates.Silhouette>> states = new TreeMap<>();
         Map<String, PoseOutcome> poses =
             foldAll(walked, models, restingByModel, questionsByModel, defaults, derivedByModel,
-                diagnostics);
+                states, diagnostics);
         requirePosersResolve(models, poses);
         mergeRestingUndrawn(models, poses, diagnostics);
         transforms = foldTransforms(transforms, models, defaults, diagnostics);
@@ -284,7 +288,9 @@ public final class PoseFlow {
         for (KeyframeClip clip : clips) clipsNode.put(clip.coordinate(), clipNode(clip));
 
         JsonTree posesNode = root.child("poses");
-        PoseJson.all(poses).forEach(posesNode::put);
+        PoseJson.all(poses, states).forEach(posesNode::put);
+        states.forEach((row, silhouettes) -> diagnostics.info(
+            "%s places %d state silhouette(s): %s", row, silhouettes.size(), silhouettes.keySet()));
 
         reportDeadClips(clips, poses, diagnostics);
         reportRefusedPoses(poses, diagnostics);
@@ -425,6 +431,8 @@ public final class PoseFlow {
      * @param questionsByModel what a question rests answering, per model
      * @param inputDefaults what each figure rests at, one keyspace across every model
      * @param derivedByModel which figures a model's renderer rebuilds from a driven one, per model
+     * @param states filled with each folded row's state silhouettes, by row key, for the rows that
+     *     place any - derived from the walked program against the same frame the row folds against
      * @param diagnostics the scope a refusal is recorded against
      * @return the residual per row key, a split class answering under each key it was given
      */
@@ -433,7 +441,9 @@ public final class PoseFlow {
         @NotNull Map<String, Map<String, String>> restingByModel,
         @NotNull Map<String, Map<String, Float>> questionsByModel,
         @NotNull Map<String, Float> inputDefaults,
-        @NotNull Map<String, Map<String, String>> derivedByModel, @NotNull Diagnostics diagnostics) {
+        @NotNull Map<String, Map<String, String>> derivedByModel,
+        @NotNull Map<String, Map<String, PoseStates.Silhouette>> states,
+        @NotNull Diagnostics diagnostics) {
 
         Map<String, Set<String>> bodies = bodyKeysOf(models);
         Map<String, Set<String>> elsewhere = otherKeysOf(models);
@@ -481,6 +491,8 @@ public final class PoseFlow {
                     out.put(key, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(),
                         standIn.get(frame), modelRest, modelAnswers, inputDefaults, DRIVEN,
                         DRIVEN_FIGURES, modelDerived)));
+                    placeStates(states, key, extracted.program(), standIn.get(frame), modelRest,
+                        modelAnswers, inputDefaults, modelDerived);
                 });
                 diagnostics.info("%s poses %d ways and each body names the one it takes: %s",
                     model, split.size(), new TreeSet<>(split.values()));
@@ -494,11 +506,28 @@ public final class PoseFlow {
                 reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
             out.put(model, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(), subjectRest,
                 modelRest, modelAnswers, inputDefaults, DRIVEN, DRIVEN_FIGURES, modelDerived)));
+            placeStates(states, model, extracted.program(), subjectRest, modelRest, modelAnswers,
+                inputDefaults, modelDerived);
             folded++;
         }
         diagnostics.info("folded %d of %d walked pose(s) against the frame their subjects rest in",
             folded, walked.size());
         return out;
+    }
+
+    /**
+     * Derives one folded row's state silhouettes against the frame it folds against, keeping the
+     * row only where a state places something away from rest.
+     */
+    private static void placeStates(
+        @NotNull Map<String, Map<String, PoseStates.Silhouette>> states, @NotNull String key,
+        @NotNull PoseProgram program, @NotNull Map<String, String> subjectRest,
+        @NotNull Map<String, String> modelRest, @NotNull Map<String, Float> modelAnswers,
+        @NotNull Map<String, Float> inputDefaults, @NotNull Map<String, String> modelDerived) {
+
+        Map<String, PoseStates.Silhouette> placed = PoseStates.of(program, subjectRest, modelRest,
+            modelAnswers, inputDefaults, DRIVEN, modelDerived);
+        if (!placed.isEmpty()) states.put(key, placed);
     }
 
     /**

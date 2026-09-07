@@ -10,13 +10,13 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.asset.pose.MotionSource;
-import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseClip;
-import lib.minecraft.renderer.asset.pose.PoseExpr;
-import lib.minecraft.renderer.asset.pose.PoseOperator;
-import lib.minecraft.renderer.asset.pose.PosePredicate;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.pose.MotionSource;
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseOperator;
+import lib.minecraft.renderer.pose.PosePredicate;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -53,6 +53,10 @@ import java.util.Set;
  * keeps a pose the size the file says it is: a humanoid's arms name nine hundred sub-expressions and
  * stand for twenty-two million, and a reader that rebuilt one per reference would be reading the
  * number the table exists not to write.
+ *
+ * <p>A row's {@code states} member, where it carries one, is read into the pose's silhouettes -
+ * each state's bones spelled the way the row's are over a shared table of its own. Nothing at
+ * render reads them; they are carried for pose authoring.
  *
  * @param poses the pose of each model class, by simple name
  */
@@ -240,7 +244,40 @@ public record RawEntityPosesFile(
                 .collect(Concurrent.toUnmodifiableList());
 
         shared.requireAllRead(model);
-        return new EntityPose(container, bones, clips, Optional.empty());
+
+        // The silhouette of each state branch, under the answer that reaches it. Each carries a
+        // shared table of its own, scoped to its bones alone: the row's table above is read whole
+        // before this, so an entry only a silhouette names could never be one the row declares.
+        JsonElement placed = node.get("states");
+        ConcurrentMap<String, EntityPose.Silhouette> states = placed == null
+            ? Concurrent.newUnmodifiableLinkedMap()
+            : object(placed, model)
+                .entrySet()
+                .stream()
+                .collect(Concurrent.toUnmodifiableLinkedMap(
+                    Map.Entry::getKey,
+                    state -> silhouette(model + " in " + state.getKey(), object(state.getValue(), model))));
+
+        return new EntityPose(container, bones, clips, Optional.empty(), states);
+    }
+
+    /**
+     * One state's silhouette - its bones spelled exactly as a row's are, over a shared table of
+     * its own, with no container and no play site.
+     */
+    private static @NotNull EntityPose.Silhouette silhouette(@NotNull String model, @NotNull JsonObject node) {
+        Shared shared = Shared.of(model, node.get("shared"));
+        JsonElement written = node.get("bones");
+        ConcurrentMap<String, Map<PoseChannel, PoseExpr>> bones = written == null
+            ? Concurrent.newUnmodifiableLinkedMap()
+            : object(written, model)
+                .entrySet()
+                .stream()
+                .collect(Concurrent.toUnmodifiableLinkedMap(
+                    Map.Entry::getKey,
+                    bone -> channels(model, bone.getKey(), object(bone.getValue(), model), shared)));
+        shared.requireAllRead(model);
+        return new EntityPose.Silhouette(bones);
     }
 
     /**

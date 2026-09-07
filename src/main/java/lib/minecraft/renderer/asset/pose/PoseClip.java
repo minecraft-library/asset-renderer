@@ -6,6 +6,7 @@ import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.pose.PoseChannel;
 import org.jetbrains.annotations.NotNull;
 
 /**

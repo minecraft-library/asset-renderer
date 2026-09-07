@@ -3,9 +3,9 @@ package lib.minecraft.renderer.engine.kit;
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.pose.PoseChannel;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumMap;

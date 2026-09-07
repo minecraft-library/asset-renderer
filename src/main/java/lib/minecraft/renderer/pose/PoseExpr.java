@@ -1,9 +1,11 @@
-package lib.minecraft.renderer.asset.pose;
+package lib.minecraft.renderer.pose;
 
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.pose.EntityPose;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.OptionalDouble;
+import java.util.StringJoiner;
 
 /**
  * One value a shipped pose expression computes - the arithmetic vanilla runs to decide where a bone
@@ -21,6 +23,13 @@ import java.util.OptionalDouble;
  * render state holds, or for an element of an array it holds. Each of those is a fact about a subject
  * standing still, which the generator answers where it knows the subject rather than leaving to
  * whoever draws it.
+ *
+ * <p><b>Every arm prints as {@code <kind>@<identity>(<local data or child references>)} and never
+ * recurses.</b> A node here stands for enormously many paths - a humanoid's arms are nine hundred
+ * nodes standing for twenty-two million - so a text form that rendered its children would render
+ * the tree rather than the graph and exhaust memory on the very shapes the tables exist to
+ * compress. That binds anything holding one: {@link EntityPose} and the records under it print
+ * their expressions this way because their components do.
  */
 public sealed interface PoseExpr {
 
@@ -34,14 +43,30 @@ public sealed interface PoseExpr {
      * @param value the literal value
      * @param width the width the literal was written at
      */
-    record Const(double value, @NotNull PoseOperator.Width width) implements PoseExpr {}
+    record Const(double value, @NotNull PoseOperator.Width width) implements PoseExpr {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull String toString() {
+            return "const" + ref(this) + "(" + this.width.literal(this.value) + ")";
+        }
+
+    }
 
     /**
      * A field read off the render state, named by the vanilla field name alone.
      *
      * @param field the vanilla render-state field name
      */
-    record Input(@NotNull String field) implements PoseExpr {}
+    record Input(@NotNull String field) implements PoseExpr {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull String toString() {
+            return "input" + ref(this) + "(" + this.field + ")";
+        }
+
+    }
 
     /**
      * A read of a bone channel's current value.
@@ -54,7 +79,15 @@ public sealed interface PoseExpr {
      * @param bone the geometry bone name
      * @param channel the channel being read
      */
-    record BoneRead(@NotNull String bone, @NotNull PoseChannel channel) implements PoseExpr {}
+    record BoneRead(@NotNull String bone, @NotNull PoseChannel channel) implements PoseExpr {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull String toString() {
+            return "read" + ref(this) + "(" + this.bone + "." + this.channel.token() + ")";
+        }
+
+    }
 
     /**
      * An operation applied to operands.
@@ -62,7 +95,18 @@ public sealed interface PoseExpr {
      * @param operator what is applied
      * @param operands the operands, in declaration order
      */
-    record Op(@NotNull PoseOperator operator, @NotNull ConcurrentList<PoseExpr> operands) implements PoseExpr {}
+    record Op(@NotNull PoseOperator operator, @NotNull ConcurrentList<PoseExpr> operands) implements PoseExpr {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull String toString() {
+            StringJoiner joined = new StringJoiner(", ", "(", ")");
+            for (PoseExpr operand : this.operands)
+                joined.add(ref(operand));
+            return this.operator.token() + ref(this) + joined;
+        }
+
+    }
 
     /**
      * The join of a choice the table could not decide.
@@ -78,7 +122,18 @@ public sealed interface PoseExpr {
         @NotNull PosePredicate condition,
         @NotNull PoseExpr whenTrue,
         @NotNull PoseExpr whenFalse
-    ) implements PoseExpr {}
+    ) implements PoseExpr {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull String toString() {
+            return "select" + ref(this)
+                + "(" + ref(this.condition)
+                + " ? " + ref(this.whenTrue)
+                + " : " + ref(this.whenFalse) + ")";
+        }
+
+    }
 
     /**
      * This expression's value when it is already a literal.
@@ -87,6 +142,22 @@ public sealed interface PoseExpr {
      */
     default @NotNull OptionalDouble constantValue() {
         return this instanceof Const literal ? OptionalDouble.of(literal.value()) : OptionalDouble.empty();
+    }
+
+    /**
+     * The reference one node of a pose graph is spelled with wherever it is reached from - what
+     * every arm's text form names itself and its children by, {@link PosePredicate} included.
+     *
+     * <p>It is an identity rather than a value, which is what the two readings of a graph need: two
+     * structurally equal nodes are told apart, so an identity assertion's failure says something,
+     * and one instance reached down two paths reads the same on both, so sharing is visible without
+     * anything walking into it.
+     *
+     * @param node the node to refer to
+     * @return the reference
+     */
+    static @NotNull String ref(@NotNull Object node) {
+        return "@" + Integer.toHexString(System.identityHashCode(node));
     }
 
 }

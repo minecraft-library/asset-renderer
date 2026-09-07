@@ -14,7 +14,7 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.face.Turn;
+import lib.minecraft.renderer.face.AxisSigns;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -46,7 +46,7 @@ public class EntityArmorKit {
      * frame and a built triangle's positions and normal turned back into the other - since the two
      * frames differ by a half turn about X, with Y and Z negated and the two sides left where they are.
      */
-    private static final @NotNull Turn MODEL_FRAME = Turn.HALF_X;
+    private static final @NotNull AxisSigns MODEL_FRAME = AxisSigns.HALF_X;
 
     /**
      * Builds armor triangles for an entity from the shell it is dressed in, mapped into the render

@@ -9,8 +9,8 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.face.AxisSigns;
 import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -371,9 +371,9 @@ class EntityGeometryKitTest {
     @DisplayName("the fold's turn is load-bearing - MIRROR_Z lights the same cube differently")
     void relightTurnSelectsTheFrame() {
         ConcurrentList<VisibleTriangle> asFolded = Shading.relightForEntityInUi(
-            buildSingleCube().triangles(), EntityGeometryKit.DEFAULT_ENTITY_LIGHTING, Turn.MIRROR_Y);
+            buildSingleCube().triangles(), EntityGeometryKit.DEFAULT_ENTITY_LIGHTING, AxisSigns.MIRROR_Y);
         ConcurrentList<VisibleTriangle> asPlayer = Shading.relightForEntityInUi(
-            buildSingleCube().triangles(), EntityGeometryKit.DEFAULT_ENTITY_LIGHTING, Turn.MIRROR_Z);
+            buildSingleCube().triangles(), EntityGeometryKit.DEFAULT_ENTITY_LIGHTING, AxisSigns.MIRROR_Z);
 
         // The two turns are one HALF_X apart, so a cube lit through the wrong one shades its Y and Z
         // faces by the opposite hemisphere. Nothing about the kit's own geometry makes them agree.

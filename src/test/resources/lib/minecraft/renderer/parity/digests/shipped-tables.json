@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "785afe31ec4e9bd6b84ca4b39e0c4aefad75b1868e27e858ab7bc3b3f73c5649"
+      "sha256": "1c2219363638f54de2091cd813dd4e4ec6da00422b6904f29589a04f4f76784a"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "56725a1be5a96943d90410412f5f46d69144f37a553f06b7d34d6d498128d38b",
-    "asset_dirty": true,
-    "asset_sha": "0c6485c13e76b443d94933424cf692d4c6f4e30b",
+    "asset_content_digest": "a4132c9ad1c0518f877bff9d89a463559a65db7495602fbcd4223481e163fde1",
+    "asset_dirty": false,
+    "asset_sha": "174c94b1ae7eeee5400de66cc3fcdf222f208a00",
     "counts": {
       "digests": 11
     },
@@ -76,16 +76,19 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "The fold-consumed rest member comes off the written model table; twelve rows drop it and nothing else moves - geometry and poses byte-identical, diagnostics line-identical, every sweep, dump and pin held at zero",
+    "reason": "The pose table gained each state branch resting silhouette, written beside the row it belongs to, so the entity_poses shipped bytes grew and the tooling manifest copy of the same file moves with them; the entityModels flow log moves with the run that emitted them. Nothing at render reads a silhouette, and the evidence is this capture: every sweep and every pin held, and all 26 artifacts reproduced byte-for-byte across two independent captures.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
       "entities": 403,
       "glint": 330,
+      "idle": 1056,
       "items": 479,
-      "players": 2
+      "menus": 10,
+      "players": 2,
+      "walk": 1056
     },
-    "timestamp": "2026-09-02T01:36:56Z",
+    "timestamp": "2026-09-07T04:29:04Z",
     "tool_version": "1.0.0"
   }
 }

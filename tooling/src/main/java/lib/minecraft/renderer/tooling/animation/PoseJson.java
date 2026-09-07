@@ -59,13 +59,34 @@ public final class PoseJson {
     /** The member holding what this model does to the container its mesh flattened away. */
     private static final @NotNull String CONTAINER = "container";
 
+    /** The member holding the resting silhouette of each state branch the model poses. */
+    private static final @NotNull String STATES = "states";
+
     /**
-     * Writes one model's outcome.
+     * Writes one model's outcome, carrying no state silhouettes.
      *
      * @param outcome the pose, or why there is not one
      * @return the node to file under the model's name
      */
     public static @NotNull JsonTree of(@NotNull PoseOutcome outcome) {
+        return of(outcome, Map.of());
+    }
+
+    /**
+     * Writes one model's outcome and the silhouette of each state branch it poses.
+     *
+     * <p>A silhouette is spelled exactly as a row's bones are - the same vocabulary order, and a
+     * {@code shared} table of its own where it reaches a sub-expression twice - under the key of
+     * the answer that reaches it. It sits after everything the runtime reads, and a row placing
+     * no state spells no member, so a table carrying none is byte-for-byte the table before it.
+     *
+     * @param outcome the pose, or why there is not one
+     * @param states each state's silhouette keyed by the answer that reaches it, in key order
+     * @return the node to file under the model's name
+     */
+    public static @NotNull JsonTree of(
+        @NotNull PoseOutcome outcome, @NotNull Map<String, PoseStates.Silhouette> states) {
+
         if (outcome instanceof PoseOutcome.Refused refused)
             return JsonTree.object().put(REFUSED, refused.reason());
 
@@ -102,6 +123,12 @@ public final class PoseJson {
         if (!program.clipSites().isEmpty()) {
             JsonTree plays = node.childArray("clips");
             for (PoseClipSite site : program.clipSites()) plays.add(clipSite(site, shared));
+        }
+
+        if (!states.isEmpty()) {
+            JsonTree placed = node.child(STATES);
+            states.forEach((key, silhouette) -> placed.put(key,
+                of(new PoseOutcome.Extracted(PoseStates.asProgram(program.model(), silhouette)))));
         }
         return node;
     }
@@ -370,11 +397,18 @@ public final class PoseJson {
         return JsonTree.array().addAll(written);
     }
 
-    /** Every model's outcome, keyed the way the rest of the table keys a model. */
-    static @NotNull Map<String, JsonTree> all(@NotNull Map<String, PoseOutcome> outcomes) {
+    /**
+     * Every model's outcome, keyed the way the rest of the table keys a model, each carrying the
+     * state silhouettes derived for its row.
+     */
+    static @NotNull Map<String, JsonTree> all(
+        @NotNull Map<String, PoseOutcome> outcomes,
+        @NotNull Map<String, Map<String, PoseStates.Silhouette>> states) {
+
         return outcomes.entrySet()
             .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, entry -> of(entry.getValue()),
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                entry -> of(entry.getValue(), states.getOrDefault(entry.getKey(), Map.of())),
                 (a, b) -> b, TreeMap::new));
     }
 

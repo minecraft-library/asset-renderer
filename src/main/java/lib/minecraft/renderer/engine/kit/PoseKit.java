@@ -6,9 +6,9 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
@@ -385,20 +385,41 @@ public final class PoseKit {
 
     /**
      * What a channel holds before anything is written to it, in the units a pose and a clip both
-     * speak - the mesh's own value, with a flattened mesh's factor taken back off a position.
+     * speak - the mesh's own value, with a flattened mesh's factor taken back off a position, and
+     * the feet-anchor translate taken off a top-level pivot's y before it.
+     *
+     * <p>A whole-mesh scale is taken about {@link EntityModelData#FEET_ANCHOR}, so the tooling pushed
+     * {@link EntityModelData#flattenedShift the anchor's translate} onto every top-level pivot beside
+     * the factor, and the number vanilla's own field holds is what is left once both are undone. A
+     * bone below the top level absorbed no translate, its pivot being parent-relative, so its read
+     * divides alone. This is the one place the crossing is spelled: the evaluator's bone read and
+     * the seat derivation's resting placement both take it from here.
+     *
+     * @param bone the bone read
+     * @param channel the channel read
+     * @param flattened the mesh's whole-mesh factor, {@code 1f} where it has none
+     * @return the channel's value before any write, in the units the pose speaks
      */
-    private static float authored(
+    public static float authored(
         @NotNull EntityModelData.Bone bone, @NotNull PoseChannel channel, float flattened) {
 
         return switch (channel) {
             case X -> bone.getPivot().x() / flattened;
-            case Y -> bone.getPivot().y() / flattened;
+            case Y -> (bone.getPivot().y() - anchorShift(bone, flattened)) / flattened;
             case Z -> bone.getPivot().z() / flattened;
             case X_ROT -> bone.getRotation().pitchRadians();
             case Y_ROT -> bone.getRotation().yawRadians();
             case Z_ROT -> bone.getRotation().rollRadians();
             case X_SCALE, Y_SCALE, Z_SCALE -> bone.getScale();
         };
+    }
+
+    /**
+     * The feet-anchor translate a bone's y pivot carries - the flattened mesh's shift on a
+     * top-level bone, and zero on every bone below one or on a mesh flattened at nothing.
+     */
+    private static float anchorShift(@NotNull EntityModelData.Bone bone, float flattened) {
+        return bone.getParent() == null ? EntityModelData.flattenedShift(flattened) : 0f;
     }
 
     /**
@@ -409,13 +430,12 @@ public final class PoseKit {
      * as a matrix and multiplied in reaches {@code rotationZYX} through different arithmetic and
      * parts from the authored pose at a delta of zero.
      *
-     * <p><b>The mesh's root is where a flattened factor stops being one number.</b> The tooling
-     * pushes a whole-mesh scale onto the top-level bones as a translate as well as a factor, and a
-     * pose that places one of them would need both - so this refuses there rather than answering with
-     * half of it. No shipped model does it: the corpus's one mesh that is both flattened and placed
-     * by its pose is the elder guardian's, whose spikes and eye all hang off the head.
-     *
-     * @throws RendererException if a pose places the root of a flattened mesh
+     * <p><b>A top-level pivot of a flattened mesh is two numbers, and a write there crosses both.</b>
+     * The tooling pushes a whole-mesh scale onto the top-level bones as the feet-anchor translate as
+     * well as the factor, so a position written on one lands at the factor times the value plus that
+     * translate on y - the expansion the generator applied to the pivot - and a value written back to
+     * what the bone reads keeps the mesh's own number. The container's seat carries no anchor, so a
+     * placement of it on such a mesh is refused where the seat is built rather than answered here.
      */
     private static @NotNull EntityModelData.Bone posedBone(
         @NotNull EntityModelData.Bone bone, @NotNull String name,
@@ -425,15 +445,11 @@ public final class PoseKit {
 
         Vector3f pivot = bone.getPivot();
         EulerRotation rotation = bone.getRotation();
+        float shift = anchorShift(bone, flattened);
         Vector3f placed = new Vector3f(
-            placed(written, PoseChannel.X, pivot.x(), flattened),
-            placed(written, PoseChannel.Y, pivot.y(), flattened),
-            placed(written, PoseChannel.Z, pivot.z(), flattened));
-        if (flattened != 1f && bone.getParent() == null && !placed.equals(pivot))
-            throw new RendererException(
-                "entity pose: bone '%s' is the root of a mesh flattened at '%s' and the pose places it, "
-                    + "which that factor alone does not answer",
-                name, flattened);
+            placed(written, PoseChannel.X, pivot.x(), flattened, 0f),
+            placed(written, PoseChannel.Y, pivot.y(), flattened, shift),
+            placed(written, PoseChannel.Z, pivot.z(), flattened, 0f));
         // Placed, turned and scaled through one copy: what a clip scales the bone by, and which
         // selection draws it, were both settled before this ran, and a positional rebuild is what
         // would put either back at its default.
@@ -464,19 +480,23 @@ public final class PoseKit {
      * value crosses the same way - which is what places an elder guardian's spikes where a subject
      * 2.35 times the size wears them rather than at a plain guardian's reach.
      *
+     * <p>A top-level pivot's y carries the feet-anchor translate beside the factor, so the crossing
+     * takes it back off before dividing and puts it back after multiplying; every other component
+     * crosses the factor alone, and a zero shift is never added, so a signed zero keeps its sign.
+     *
      * <p>A value written back to what the mesh already held keeps the mesh's own number rather than
      * the one a divide and a multiply land on, for the reason {@link #degrees} keeps the authored
      * degrees.
      */
     private static float placed(
         @NotNull Map<PoseChannel, Float> written, @NotNull PoseChannel channel,
-        float authored, float flattened) {
+        float authored, float flattened, float shift) {
 
         Float value = written.get(channel);
         if (value == null) return authored;
         if (flattened == 1f) return value;
-        if (value == authored / flattened) return authored;
-        return value * flattened;
+        if (value == (authored - shift) / flattened) return authored;
+        return shift == 0f ? value * flattened : value * flattened + shift;
     }
 
     /**
@@ -541,18 +561,30 @@ public final class PoseKit {
      * axes is not a triple, and recovering one by pre-composing the product is the matrix arithmetic
      * that parts from an authored pose at a delta of zero.
      *
-     * @throws RendererException if the container writes a channel a parent bone does not carry
+     * <p>The seat carries no feet anchor: the mesh's own top-level bones absorbed the translate a
+     * whole-mesh scale pushed down, and a step seated above them is placed nowhere on such a mesh. A
+     * placement of it is refused here rather than answered with the factor alone.
+     *
+     * @throws RendererException if the container writes a channel a parent bone does not carry, or
+     *     places the seat of a flattened mesh
      */
     private static void seatUnderContainer(
         @NotNull LinkedHashMap<String, EntityModelData.Bone> bones,
         @NotNull List<Map<PoseChannel, Float>> steps, float flattened) {
 
         for (Map<PoseChannel, Float> written : steps)
-            for (PoseChannel channel : written.keySet())
-                if (channel.kind() == PoseChannel.Kind.SCALE)
+            for (Map.Entry<PoseChannel, Float> channel : written.entrySet()) {
+                if (channel.getKey().kind() == PoseChannel.Kind.SCALE)
                     throw new RendererException(
                         "entity pose: the container writes '%s', which reaches no bone below it",
-                        channel.token());
+                        channel.getKey().token());
+                if (flattened != 1f && channel.getKey().kind() == PoseChannel.Kind.POSITION
+                    && channel.getValue() != 0f)
+                    throw new RendererException(
+                        "entity pose: the container of a mesh flattened at '%s' is placed on '%s', "
+                            + "which its seat carries no anchor to answer",
+                        flattened, channel.getKey().token());
+            }
 
         // Named off the growing set, so the second step cannot take the first's name and the whole
         // chain stays clear of what the mesh already answers to.

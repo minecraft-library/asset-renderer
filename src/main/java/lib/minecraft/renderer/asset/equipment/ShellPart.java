@@ -2,9 +2,9 @@ package lib.minecraft.renderer.asset.equipment;
 
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.face.AxisSigns;
 import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.face.HumanoidPart;
-import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -104,7 +104,7 @@ public sealed interface ShellPart {
          * its texture through the face this turn maps it onto - up with down and north with south
          * swapped, the two sides left where they are.
          */
-        private static final @NotNull Turn MODEL_FRAME = Turn.HALF_X;
+        private static final @NotNull AxisSigns MODEL_FRAME = AxisSigns.HALF_X;
 
         /** {@inheritDoc} */
         @Override

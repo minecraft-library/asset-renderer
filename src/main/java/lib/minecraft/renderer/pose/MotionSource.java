@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.asset.pose;
+package lib.minecraft.renderer.pose;
 
 import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;

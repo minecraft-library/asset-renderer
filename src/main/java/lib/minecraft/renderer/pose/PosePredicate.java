@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.asset.pose;
+package lib.minecraft.renderer.pose;
 
 import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
@@ -20,6 +20,10 @@ import org.jetbrains.annotations.NotNull;
  * question about which constant something holds is a question about a subject standing still, which
  * the generator answers where it knows the subject rather than leaving to whoever draws it.
  *
+ * <p>It prints as its operands' references rather than as its operands, for the reason
+ * {@link PoseExpr} does: a condition sits inside a graph whose nodes stand for enormously many
+ * paths, and rendering one is rendering the tree.
+ *
  * @param comparison how the two are compared
  * @param left the left operand
  * @param right the right operand
@@ -29,6 +33,13 @@ public record PosePredicate(
     @NotNull PoseExpr left,
     @NotNull PoseExpr right
 ) {
+
+    /** {@inheritDoc} */
+    @Override
+    public @NotNull String toString() {
+        return this.comparison.token() + PoseExpr.ref(this)
+            + "(" + PoseExpr.ref(this.left) + ", " + PoseExpr.ref(this.right) + ")";
+    }
 
     /** How two numbers are compared. */
     @EnumLookup

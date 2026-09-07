@@ -17,7 +17,7 @@ Values this store holds, one file each.
 | artifact | file | entries | headline | promoted at | baselined |
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
-| `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `0c6485c13e76b443d94933424cf692d4c6f4e30b` | yes |
+| `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `174c94b1ae7eeee5400de66cc3fcdf222f208a00` | yes |
 | `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `5b82eb6d137caf1540b4cb3fefe6807330cec07a` | yes |
 | `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `5b82eb6d137caf1540b4cb3fefe6807330cec07a` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
@@ -25,8 +25,8 @@ Values this store holds, one file each.
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.references` | `manifests/references.json` | 4435 | 4435 entries | `9c8be4be16a676b3a7a1cacb3a8a468fb6b1f04d` | yes |
-| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `0c6485c13e76b443d94933424cf692d4c6f4e30b` | yes |
-| `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
+| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `174c94b1ae7eeee5400de66cc3fcdf222f208a00` | yes |
+| `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `174c94b1ae7eeee5400de66cc3fcdf222f208a00` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
@@ -93,10 +93,10 @@ where it lives and how to re-derive it, and carries no value.
 | `roster.armor-subjects` | `lib.minecraft.renderer.visual.TestArmorParityVanilla` | must match the harness ArmorSweep roster byte for byte or the sweep finds no reference |
 | `roster.dump-sections` | `lib.minecraft.renderer.pipeline.dump.PipelineParityDump` | PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated |
 | `roster.face-phase` | `lib.minecraft.renderer.face.CornerPhaseTest` | vanilla's own corner order per face, read off the bakery and the polygon paths |
-| `roster.frame-turn` | `lib.minecraft.renderer.face.TurnTest` | the order-8 diagonal group; each constant is which axes it negates |
+| `roster.frame-turn` | `lib.minecraft.renderer.face.AxisSignsTest` | the order-8 diagonal group; each constant is which axes it negates |
 | `roster.glint-subjects` | `lib.minecraft.renderer.visual.TestGlintParityVanilla` | the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders |
 | `roster.humanoid-armor` | `lib.minecraft.renderer.pipeline.loader.EntityModelLoaderArmorRosterTest` | EntityModelLoader.load() filtered on humanoidArmor().isPresent() |
-| `roster.humanoid-part-crop` | `lib.minecraft.renderer.face.HumanoidPartCropTest` | Unwrap.Atlas.rect at each part's atlas origin under Turn.HALF_X |
+| `roster.humanoid-part-crop` | `lib.minecraft.renderer.face.HumanoidPartCropTest` | Unwrap.Atlas.rect at each part's atlas origin under AxisSigns.HALF_X |
 | `roster.overlay-pipeline` | `lib.minecraft.renderer.pipeline.loader.EntityModelLoaderOverlayPassTest` | EntityPipelineTraits over the extracted client jar's layer classes |
 | `roster.pack-fixtures` | `lib.minecraft.renderer.pipeline.dump.PipelineParityDump` | PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere |
 | `roster.player-scopes` | `lib.minecraft.renderer.visual.TestPlayerParityVanilla` | the scopes the harness PlayerSweep renders |

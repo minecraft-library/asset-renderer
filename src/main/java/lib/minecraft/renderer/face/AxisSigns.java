@@ -8,7 +8,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Objects;
 
 /**
- * An axis-preserving turn of the cube - one of the eight ways to negate a subset of the three axes.
+ * A signed relation of the cube's axes - one of the eight ways to negate a subset of the three.
  * <p>
  * Every frame relation the renderer actually performs is a member of this group. A shell's unwrap is
  * authored in vanilla's Y-down model frame while the boxes built from it are upright; a mirrored cube
@@ -27,7 +27,7 @@ import java.util.Objects;
  * members are the proper rotations; the other four {@link #reflects reflect}.
  */
 @EnumLookup
-public enum Turn {
+public enum AxisSigns {
 
     /** The identity - every face and every point unmoved. */
     NONE(false, false, false),
@@ -58,7 +58,7 @@ public enum Turn {
     @KeyField
     private final int mask;
 
-    Turn(boolean negatesX, boolean negatesY, boolean negatesZ) {
+    AxisSigns(boolean negatesX, boolean negatesY, boolean negatesZ) {
         this.negatesX = negatesX;
         this.negatesY = negatesY;
         this.negatesZ = negatesZ;
@@ -95,7 +95,7 @@ public enum Turn {
      * @param next the turn to apply after this one
      * @return the single member of the group with the same effect
      */
-    public @NotNull Turn then(@NotNull Turn next) {
+    public @NotNull AxisSigns then(@NotNull AxisSigns next) {
         return Objects.requireNonNull(ofMask(this.mask ^ next.mask),
             "The group is closed, so a composed mask names a member");
     }

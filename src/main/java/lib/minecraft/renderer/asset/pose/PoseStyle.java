@@ -4,6 +4,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.option.EntityOptions;
+import lib.minecraft.renderer.pose.MotionSource;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -27,13 +28,15 @@ import java.util.function.ToDoubleFunction;
  * @param toggles the appearance bone toggles this style entails - a croak selection draws the sac
  *     bone the croak state inflates
  * @param age the age this row applies to; empty applies to both
+ * @param periodTicks the ticks this row's own excursion spans; empty rides the catalog period
  */
 public record PoseStyle(
     @NotNull String id,
     @NotNull ConcurrentList<StyleSource> sources,
     @NotNull ConcurrentMap<String, StyleDriver> drivers,
     @NotNull ConcurrentList<String> toggles,
-    @NotNull Optional<Age> age
+    @NotNull Optional<Age> age,
+    @NotNull Optional<Integer> periodTicks
 ) {
 
     /** The universal still row every entity has - the authored pose, one frame. */
@@ -87,16 +90,19 @@ public record PoseStyle(
 
     /**
      * What each render-state field holds at one tick under this style - the driven fields their
-     * driver's answer, everything else its resting zero.
+     * driver's answer, everything else its resting zero. A row declaring its own
+     * {@link #periodTicks() period} frames its excursions against that window; every other row
+     * frames against the given one.
      *
      * @param tick the tick being posed
-     * @param periodTicks the ticks one whole excursion spans
+     * @param periodTicks the ticks one whole excursion spans where this row declares no period
      * @return the frame function a pose evaluation reads fields through
      */
     public @NotNull ToDoubleFunction<String> frameAt(int tick, int periodTicks) {
+        int window = this.periodTicks.orElse(periodTicks);
         return field -> {
             StyleDriver driver = this.drivers.get(field);
-            return driver == null ? 0d : driver.at(tick, periodTicks);
+            return driver == null ? 0d : driver.at(tick, window);
         };
     }
 

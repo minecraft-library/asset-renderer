@@ -6,8 +6,8 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.face.AxisSigns;
 import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -242,7 +242,7 @@ public class Shading {
                 // (genuine cube faces, or plain block models under {@code forceCullBackFaces})
                 // already present only their front side, so they are left untouched.
                 Vector3f litNormal = !cull && renderNormal.z() < 0f
-                    ? Turn.INVERT.apply(renderNormal)
+                    ? AxisSigns.INVERT.apply(renderNormal)
                     : renderNormal;
                 // Match vanilla's vertex-stream byte-packed normal: the shader receives the
                 // normal after a signed-byte SNORM round-trip ({@code (int)(c * 127.0F) / 127.0F},
@@ -270,8 +270,8 @@ public class Shading {
      * everything it wears light under it alike. {@link Lighting#resolveEntity} carries the two light
      * directions into the kit frame; {@code intoKitFrame} is the turn taking the caller's own model normal
      * into that same frame, and it is the whole of what varies between two subjects lit by this entry.
-     * {@link Turn#MIRROR_Y} serves geometry already in vanilla's Y-down model frame and
-     * {@link Turn#MIRROR_Z} the player's upright frame, the two sitting a {@link Turn#HALF_X} apart.
+     * {@link AxisSigns#MIRROR_Y} serves geometry already in vanilla's Y-down model frame and
+     * {@link AxisSigns#MIRROR_Z} the player's upright frame, the two sitting a {@link AxisSigns#HALF_X} apart.
      * <p>
      * A face declaring no directional light keeps the full-bright {@code 1.0f} scalar, as it does under
      * {@link #relightForItems3d}. Nothing is snapped to a cardinal: the Lambertian is continuous in the
@@ -292,7 +292,7 @@ public class Shading {
     public static @NotNull ConcurrentList<VisibleTriangle> relightForEntityInUi(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull LightingFrame lighting,
-        @NotNull Turn intoKitFrame
+        @NotNull AxisSigns intoKitFrame
     ) {
         Lighting.EntityLighting basis = Lighting.resolveEntity(lighting);
         return triangles.stream()

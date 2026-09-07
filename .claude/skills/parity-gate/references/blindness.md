@@ -174,6 +174,30 @@ The block and item parity sums are structurally blind to the box BUILDER, so a c
 
 *Probe:* ./gradlew playerRender -Psheets=core-matrix,toggles,armor-per-slot and hash either side with git stash push -- src between the two renders
 
+## B11a - Blocks and items are structurally immune to a DEPTH change: 0 of 1055 and 0 of 479 rows move
+
+- **mode** select
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`, `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`
+- **sees** -
+- **blind** `sweep.block`, `sweep.item`
+- **source** measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; RENDERER-RULES.md 'Depth: the contract'
+
+Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.
+
+*Probe:* -Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved
+
+## B11b - The block and item immunity is to DEPTH only and does not generalise
+
+- **mode** select
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`, `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`
+- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `pin.player-crc`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
+- **blind** -
+- **source** measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7
+
+A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.
+
+*Probe:* -Dasset.snap.grid=N and a texel-fetch perturbation both move block rows where -Dasset.depth.range=N does not
+
 ## B12 - A short -Psheets= list is a hole rather than a sample
 
 - **mode** select
@@ -582,30 +606,6 @@ The client module's build script declares its dependencies and its toolchain. Ne
 
 *Probe:* bump a dependency pin and capture any artifact; every stored byte is identical
 
-## B11a - Blocks and items are structurally immune to a DEPTH change: 0 of 1055 and 0 of 479 rows move
-
-- **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`, `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`
-- **sees** -
-- **blind** `sweep.block`, `sweep.item`
-- **source** measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; RENDERER-RULES.md 'Depth: the contract'
-
-Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.
-
-*Probe:* -Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved
-
-## B11b - The block and item immunity is to DEPTH only and does not generalise
-
-- **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`, `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`
-- **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `pin.player-crc`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
-- **blind** -
-- **source** measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7
-
-A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.
-
-*Probe:* -Dasset.snap.grid=N and a texel-fetch perturbation both move block rows where -Dasset.depth.range=N does not
-
 ## B47 - A version declaration decides which rendering code runs, so bumping one can move any rendered byte
 
 - **mode** select
@@ -785,6 +785,30 @@ The pitch-roll and depth-quantum sweeps refresh no reference: their run tasks ha
 EntityAnimationSweep enumerates one subject per entity and renders each at every tick of its schedule; AnimatedEntityFrameRenderer arms that tick and unions the bounds across the schedule, delegating the draw itself to the shared entity frame renderer, which carries its own wider claim. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory. Here it is tighter still: HarnessMode puts this sweep alone in its run, because the seven frozen sub-trees are ground truth for the two setupAnim freezes this mode turns off, so the boot that writes them never loads this class at all.
 
 *Probe:* change the frame count and re-render the whole tree: idle/ changes population and the seven frozen sub-trees hash identically, because what writes them is a different boot of the client
+
+## B62 - The pose language decides where every bone of every posed subject goes, so it reaches each artifact that draws one
+
+- **mode** select
+- **triggers** `src/main/java/lib/minecraft/renderer/pose/**`
+- **sees** derived per file from the reference graph
+- **blind** -
+- **source** derived per file from the reference graph, which answers the seven artifacts for each of the five vocabulary types. No perturbation is owed because nothing is subtracted; the probe above is what would falsify the selection itself.
+
+The arithmetic a shipped pose is written in, and the channels and motion sources it is written for. It is read by the evaluator on every render that poses a bone and by the loader that reads the table, so the graph reaches it from each artifact drawing a posed subject and from both dumps, which carry the loaded expressions as serialised data. Nothing is subtracted: no artifact here has been measured blind to a change in the arithmetic, and a demotion nobody measured would be a claim rather than a reading. The rule is per FILE - the five vocabulary types answer for themselves, which is what keeps the region's reach a reading of the graph rather than one sentence about a directory.
+
+*Probe:* change PoseOperator.DADD's apply arm to subtract and re-capture: every artifact carrying a posed subject moves, because a bone channel is decided by that arithmetic and by nothing else
+
+## B63 - The authoring stack reaches no producer, because no producer builds a registrar
+
+- **mode** select
+- **triggers** `src/main/java/lib/minecraft/renderer/pose/audit/**`, `src/main/java/lib/minecraft/renderer/pose/author/**`, `src/main/java/lib/minecraft/renderer/pose/compile/**`, `src/main/java/lib/minecraft/renderer/pose/install/**`
+- **sees** derived per file from the reference graph
+- **blind** -
+- **source** derived per file from the reference graph, which answers the empty set for every type in the four packages: no producer root reaches one. The empty answer is the reading, not an assertion the rule makes over the directory.
+
+The four packages an authored pose passes through: the verb surface, the lowering onto a row, the audit against that row's envelope, and the install that binds a woven row to a subject. They point downward only - they read the pose language, the loaded pose and the evaluator, and nothing under asset, engine, pipeline or option reads them back - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Their own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/pose/install evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered. Declared as four package claims rather than one directory glob, so each package answers for itself and a type moving between them moves its own answer.
+
+*Probe:* install a custom style through StyleRegistrar and capture every artifact: no stored byte moves, because no producer constructs a registrar - every sweep, dump and digest renders the definitions EntityModelLoader loads, and these packages read that loader without ever being read back
 
 ## Paths that reach nothing
 
