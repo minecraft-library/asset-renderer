@@ -4,6 +4,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.option.EntityOptions;
+import lib.minecraft.renderer.pose.MotionSource;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

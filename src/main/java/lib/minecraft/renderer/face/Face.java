@@ -125,7 +125,7 @@ public enum Face {
      * <p>
      * The constants are declared in opposing pairs - {@code DOWN, UP} on Y, {@code NORTH, SOUTH} on Z,
      * {@code WEST, EAST} on X - so an opposite is one bit of the ordinal. That layout is what lets
-     * {@link Turn} name a frame relation without a table.
+     * {@link AxisSigns} name a frame relation without a table.
      *
      * @return the opposing face on the same axis
      */

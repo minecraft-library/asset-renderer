@@ -47,7 +47,7 @@ import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.exception.RendererException;
-import lib.minecraft.renderer.face.Turn;
+import lib.minecraft.renderer.face.AxisSigns;
 import lib.minecraft.renderer.option.AnimationOptions;
 import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.option.EntityOptions;
@@ -408,8 +408,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // once per GUI entity before any layer is submitted - so a wearer, its overlays, its carried
             // block and everything it wears light under one entry. Every producer above emits geometry
             // and no shade, and each stores its normal in the one frame the kit emits in - which is what
-            // Turn.MIRROR_Y carries into the frame the two light directions are resolved in.
-            return Shading.relightForEntityInUi(triangles, EntityGeometryKit.DEFAULT_ENTITY_LIGHTING, Turn.MIRROR_Y);
+            // AxisSigns.MIRROR_Y carries into the frame the two light directions are resolved in.
+            return Shading.relightForEntityInUi(triangles, EntityGeometryKit.DEFAULT_ENTITY_LIGHTING, AxisSigns.MIRROR_Y);
         };
 
         // Build frame 0 once, up front, for the empty-geometry early-out (a bones-but-no-triangles
@@ -962,7 +962,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // mooshroom mushroom red showed our 0.67-0.90 block-cardinal range against vanilla's
             // 0.45-0.71 Lambertian range.
             //
-            // The pass that lights the folded stack reads this stored normal through Turn.MIRROR_Y,
+            // The pass that lights the folded stack reads this stored normal through AxisSigns.MIRROR_Y,
             // which is what lands an axis-aligned face in the right light hemisphere - without that flip
             // the snow-golem carved_pumpkin top sits at the 0.4 ambient floor instead of ~1.0.
             // Mushroom-cross planes are unaffected either way: their normals are horizontal (y ~= 0), so

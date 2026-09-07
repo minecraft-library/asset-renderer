@@ -3,6 +3,9 @@ package lib.minecraft.renderer.asset.pose;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.pose.MotionSource;
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;

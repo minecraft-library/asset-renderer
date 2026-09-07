@@ -5,6 +5,7 @@ import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.option.EntityOptions;
+import lib.minecraft.renderer.pose.MotionSource;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

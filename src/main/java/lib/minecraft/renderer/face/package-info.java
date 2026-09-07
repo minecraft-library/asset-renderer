@@ -26,7 +26,7 @@
  *   <li>{@link lib.minecraft.renderer.face.Unwrap Unwrap} - how a texture rectangle is derived: a block
  *       element's <em>position</em> reflected about 16, or a cube <em>origin</em> offset by a linear
  *       form in the cube's sizes.</li>
- *   <li>{@link lib.minecraft.renderer.face.Turn Turn} - the order-8 diagonal group every frame relation
+ *   <li>{@link lib.minecraft.renderer.face.AxisSigns AxisSigns} - the order-8 diagonal group every frame relation
  *       the renderer performs is a member of.</li>
  *   <li>{@link lib.minecraft.renderer.face.HumanoidPart HumanoidPart} - the six boxes a player model
  *       is built from, and the skin regions their faces read. Its rectangles are the atlas unwrap

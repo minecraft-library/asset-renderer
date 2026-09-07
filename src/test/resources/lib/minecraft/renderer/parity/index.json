@@ -406,7 +406,7 @@
     "roster.frame-turn": {
       "cross_repo": false,
       "re_derive": "the order-8 diagonal group; each constant is which axes it negates",
-      "test_class": "lib.minecraft.renderer.face.TurnTest"
+      "test_class": "lib.minecraft.renderer.face.AxisSignsTest"
     },
     "roster.glint-subjects": {
       "anchor": [
@@ -433,7 +433,7 @@
       ],
       "cross_repo": false,
       "lines": "35-48",
-      "re_derive": "Unwrap.Atlas.rect at each part's atlas origin under Turn.HALF_X",
+      "re_derive": "Unwrap.Atlas.rect at each part's atlas origin under AxisSigns.HALF_X",
       "test_class": "lib.minecraft.renderer.face.HumanoidPartCropTest"
     },
     "roster.overlay-pipeline": {

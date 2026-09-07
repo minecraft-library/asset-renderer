@@ -6,9 +6,9 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.face.AxisSigns;
 import lib.minecraft.renderer.face.CornerPhase;
 import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -350,7 +350,7 @@ public class BoneKit {
      * effect of swapping which UV strip is applied to the cube's +X vs -X face (vanilla's WEST
      * polygon UV ends up on the +X face, EAST polygon UV on the -X face). The polygon ctor also
      * reverses each polygon's vertex array, which U-flips every face's UV mapping. Both effects
-     * are replicated for {@code mirror=true} cubes via {@link Turn#MIRROR_X} and the
+     * are replicated for {@code mirror=true} cubes via {@link AxisSigns#MIRROR_X} and the
      * {@link Vector4f#toUvCorners} mirror flag inside {@link #resolveFaceUv}.
      * <p>
      * The per-face slot permutation maps {@link #resolveFaceUv}'s {@code (TL, BL, BR, TR)}
@@ -377,7 +377,7 @@ public class BoneKit {
         float texWidth,
         float texHeight
     ) {
-        Face strip = cube.isMirror() ? Turn.MIRROR_X.apply(face) : face;
+        Face strip = cube.isMirror() ? AxisSigns.MIRROR_X.apply(face) : face;
         Vector2f[] uv = resolveFaceUv(strip, cube, size, texWidth, texHeight);
         return CornerPhase.POLYGON.permuteUv(face, uv);
     }

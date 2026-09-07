@@ -2,8 +2,8 @@ package lib.minecraft.renderer.engine.light;
 
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
+import lib.minecraft.renderer.face.AxisSigns;
 import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -194,7 +194,7 @@ public class Lighting {
         public float shade(@NotNull Vector3f normal, boolean cullBackFaces) {
             Vector3f cameraFacing = cullBackFaces || this.viewDirection.dot(normal) < 0f
                 ? normal
-                : Turn.INVERT.apply(normal);
+                : AxisSigns.INVERT.apply(normal);
             float dot0 = Math.max(0f, this.light0.dot(cameraFacing));
             float dot1 = Math.max(0f, this.light1.dot(cameraFacing));
             return Math.min(1f, (dot0 + dot1) * MINECRAFT_LIGHT_POWER + MINECRAFT_AMBIENT_LIGHT);

@@ -10,13 +10,13 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.asset.pose.MotionSource;
-import lib.minecraft.renderer.asset.pose.PoseChannel;
 import lib.minecraft.renderer.asset.pose.PoseClip;
-import lib.minecraft.renderer.asset.pose.PoseExpr;
-import lib.minecraft.renderer.asset.pose.PoseOperator;
-import lib.minecraft.renderer.asset.pose.PosePredicate;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.pose.MotionSource;
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseOperator;
+import lib.minecraft.renderer.pose.PosePredicate;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

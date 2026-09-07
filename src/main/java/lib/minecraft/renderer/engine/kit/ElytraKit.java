@@ -18,7 +18,7 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.face.Turn;
+import lib.minecraft.renderer.face.AxisSigns;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -196,7 +196,7 @@ public class ElytraKit {
 
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle t : wings) {
-            Vector3f normal = Turn.HALF_X.apply(t.normal()).normalize();
+            Vector3f normal = AxisSigns.HALF_X.apply(t.normal()).normalize();
             out.add(new VisibleTriangle(
                 toPlayerFrame(t.position0(), scale, centreX, shoulderY, centreZ),
                 toPlayerFrame(t.position1(), scale, centreX, shoulderY, centreZ),

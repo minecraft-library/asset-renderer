@@ -101,7 +101,7 @@ public sealed interface Unwrap permits Unwrap.Element, Unwrap.Atlas {
      * own height.
      * <p>
      * <b>{@link #rect} returns the unmirrored rectangle</b>, on a mirrored cube as much as on any other.
-     * A mirrored cube reads the opposite side's strip, which is {@link Turn#MIRROR_X} applied to the
+     * A mirrored cube reads the opposite side's strip, which is {@link AxisSigns#MIRROR_X} applied to the
      * face, and callers apply that themselves because several of them need the unmirrored rectangle:
      * the entity kit's cull and translucency predicates ask what a face's <em>own</em> strip contains.
      * {@link #crop} needs no such caller because it paints one face's pixels, so it applies both the
@@ -145,7 +145,7 @@ public sealed interface Unwrap permits Unwrap.Element, Unwrap.Atlas {
             // A mirrored cube reads the opposite side's strip on the two side faces and reads every
             // strip right to left, which is the same pair of moves the skin table's legacy left-limb
             // fallback makes.
-            Vector4f rect = rect(this.mirror ? Turn.MIRROR_X.apply(face) : face);
+            Vector4f rect = rect(this.mirror ? AxisSigns.MIRROR_X.apply(face) : face);
             float u0 = rect.x();
             float v0 = rect.y();
             float uSpan = rect.z() - u0;

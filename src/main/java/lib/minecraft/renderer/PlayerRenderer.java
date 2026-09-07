@@ -36,10 +36,10 @@ import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.face.AxisSigns;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.face.HumanoidPart;
-import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.option.PlayerOptions.Type.BodyPart2D;
 import lib.minecraft.renderer.option.PlayerOptions;
@@ -326,7 +326,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * while adopting the armour and shield frame instead would move 320 of them and trade the outer
      * design for the inner lining, rendering the cape lining-outward.
      */
-    private static final @NotNull Turn CAPE_FRAME = Turn.MIRROR_Y;
+    private static final @NotNull AxisSigns CAPE_FRAME = AxisSigns.MIRROR_Y;
 
     /**
      * Reads each face of the cape cube out of a cape texture, through the cube's own atlas unwrap in
@@ -587,15 +587,15 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * scope goes through this after its stack is folded, so body, overlay, cape, wings and armour are lit
      * as one draw, the way the one {@code setupFor} vanilla issues per GUI entity lights them.
      * <p>
-     * {@link Turn#MIRROR_Z} rather than the {@link Turn#MIRROR_Y} entity geometry takes: the player's
-     * boxes are built upright where a vanilla mesh is Y-down, the two frames sit a {@link Turn#HALF_X}
+     * {@link AxisSigns#MIRROR_Z} rather than the {@link AxisSigns#MIRROR_Y} entity geometry takes: the player's
+     * boxes are built upright where a vanilla mesh is Y-down, the two frames sit a {@link AxisSigns#HALF_X}
      * apart, and {@code MIRROR_Y} composed with that half turn is {@code MIRROR_Z}.
      */
     private static @NotNull ConcurrentList<VisibleTriangle> relight(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull View view
     ) {
-        return Shading.relightForEntityInUi(triangles, playerLighting(view), Turn.MIRROR_Z);
+        return Shading.relightForEntityInUi(triangles, playerLighting(view), AxisSigns.MIRROR_Z);
     }
 
     /**

@@ -5,11 +5,11 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.asset.pose.PoseChannel;
-import lib.minecraft.renderer.asset.pose.PoseExpr;
-import lib.minecraft.renderer.asset.pose.PoseOperator;
-import lib.minecraft.renderer.asset.pose.PosePredicate;
 import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseOperator;
+import lib.minecraft.renderer.pose.PosePredicate;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
