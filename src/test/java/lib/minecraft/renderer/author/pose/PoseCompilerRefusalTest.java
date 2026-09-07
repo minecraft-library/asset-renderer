@@ -195,14 +195,16 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
-    @DisplayName("a raw graph reading its own gate passes the namespace check")
+    @DisplayName("a raw graph reading its own gate passes the namespace check, and rides the gate the lowering coins")
     void ownStyleFieldPasses() {
         PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.custom("hatch")
                 .expr("head", PoseChannel.X_ROT, input("style$hatch$head$x_rot"))
                 .build(),
             row(humanoid(), EntityPose.NONE));
-        assertEquals("style$hatch$head$x_rot",
-            ((PoseExpr.Input) compiled.pose().bones().get("head").get(PoseChannel.X_ROT)).field());
+        PoseExpr.Select gated = (PoseExpr.Select) compiled.pose().bones().get("head").get(PoseChannel.X_ROT);
+        assertEquals("style$hatch$head$x_rot", ((PoseExpr.Input) gated.whenTrue()).field());
+        assertEquals("style$hatch", ((PoseExpr.Input) gated.condition().left()).field(),
+            "the splice rides this style's own gate");
     }
 
     @Test

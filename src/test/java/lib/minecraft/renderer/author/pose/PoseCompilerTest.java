@@ -110,8 +110,8 @@ class PoseCompilerTest {
     void ladderBaseCompilesByVisitingEachNodeOnce() {
         // Each rung's two operands are the SAME previous-rung instance, so forty-one nodes
         // stand for two-to-the-fortieth paths - the humanoid-arm shape in miniature. The rest
-        // evaluation, the driven-base scan and the raw-hatch check all walk it, and each
-        // completes only by memoizing per node instance.
+        // evaluation, the driven-base scan, the raw-hatch check and the interning of the gate
+        // the hatch rides all walk it, and each completes only by memoizing per node instance.
         PoseExpr ladder = constant(0.25d);
         for (int rung = 0; rung < 40; rung++)
             ladder = dadd(ladder, ladder);
@@ -134,7 +134,9 @@ class PoseCompilerTest {
         PoseCompiler.Compiled hatched = PoseCompiler.compile(
             Poses.custom("twin").expr("right_arm", PoseChannel.Y_ROT, duplicate).build(),
             row(humanoid(), shipped));
-        assertSame(ladder, hatched.pose().bones().get("right_arm").get(PoseChannel.Y_ROT),
+        PoseExpr.Select gated = assertInstanceOf(PoseExpr.Select.class,
+            hatched.pose().bones().get("right_arm").get(PoseChannel.Y_ROT));
+        assertSame(ladder, gated.whenTrue(),
             "a structural duplicate interns to the shipped instances before its checks walk it");
     }
 

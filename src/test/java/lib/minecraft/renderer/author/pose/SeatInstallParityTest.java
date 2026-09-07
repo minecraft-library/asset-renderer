@@ -29,9 +29,26 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * shipped style of the row, bind, idle and stride, at the bits it posed before the install,
  * across the whole strip. The render path is blind to the silhouettes the seats derive from;
  * this asks the same question of an install.
+ *
+ * <p>The raw hatch keeps that promise by a gate rather than by a field resting at zero - the
+ * authored graph rides the true arm of a selection on the style's own field - so the question is
+ * asked of a statue spliced whole as well, and of a chain a statue is installed beside.
  */
-@DisplayName("an install that weaves seats leaves the shipped styles at their bits")
+@DisplayName("an install leaves the shipped styles, and every style beside its own, at their bits")
 class SeatInstallParityTest {
+
+    /**
+     * The cookbook's begging wolf - the chain whose seats this asks the question of.
+     */
+    private static final @NotNull BuiltStyle BEG = Poses.quadruped("beg")
+        .body(body -> body.pitch(45).offset(0, 4, -2))
+        .bone("upper_body", mane -> mane.pitch(72).offset(0, 2, 0))
+        .hindLegs(leg -> leg.pitch(-90))
+        .frontLegs(leg -> leg.pitch(-27).offset(0, 1, 0))
+        .head(head -> head.pitch(-15)
+            .timeline(timeline -> timeline.swing(Turn.ROLL, -8, 8).over(1.2).ease(Ease.SMOOTH)))
+        .tail(tail -> tail.sway(Turn.YAW, -25, 25))
+        .build();
 
     @Test
     @DisplayName("the beg and the rear leave every shipped style of the wolf and the horse at its bits")
@@ -40,14 +57,7 @@ class SeatInstallParityTest {
         assumeTrue(pristine.containsKey("minecraft:wolf") && pristine.containsKey("minecraft:horse"),
             "bundled entity tables answer");
         StyleRegistrar registrar = StyleRegistrar.ofShipped()
-            .add("minecraft:wolf", Poses.quadruped("beg")
-                .body(body -> body.pitch(45).offset(0, 4, -2))
-                .hindLegs(leg -> leg.pitch(-90))
-                .frontLegs(leg -> leg.pitch(-27).offset(0, 1, 0))
-                .head(head -> head.pitch(-15)
-                    .timeline(timeline -> timeline.swing(Turn.ROLL, -8, 8).over(1.2).ease(Ease.SMOOTH)))
-                .tail(tail -> tail.sway(Turn.YAW, -25, 25))
-                .build())
+            .add("minecraft:wolf", BEG)
             .add("minecraft:horse", Poses.quadruped("rear")
                 .body(body -> body.pitch(-45))
                 .head(head -> head.pitch(15).offset(0, -8.8, 8.8))
@@ -87,6 +97,37 @@ class SeatInstallParityTest {
         assertTrue(probed.contains("minecraft:wolf"), "the wolf's seats are among the probed rows");
         for (String id : probed)
             assertShippedStylesHold(pristine.get(id), registrar.definitions().get(id));
+    }
+
+    @Test
+    @DisplayName("a raw statue spliced whole leaves the shipped styles at their bits - the hatch weaves behind the style's own gate like every verb")
+    void aRawStatueLeavesTheShippedStylesAtTheirBits() {
+        ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
+        assumeTrue(pristine.containsKey("minecraft:wolf"), "bundled entity tables answer");
+        Entity wolf = pristine.get("minecraft:wolf");
+        StyleRegistrar registrar = StyleRegistrar.ofShipped()
+            .add("minecraft:wolf", RegistrarFixtures.silhouette(wolf, "isSitting=true", "sitting"));
+
+        assertShippedStylesHold(wolf, registrar.definitions().get("minecraft:wolf"));
+    }
+
+    @Test
+    @DisplayName("a raw statue installed beside a chain leaves the chain's own style at its bits - a gate answers one style, not the row")
+    void aRawStatueLeavesAnInstalledChainAtItsBits() {
+        ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
+        assumeTrue(pristine.containsKey("minecraft:wolf"), "bundled entity tables answer");
+        Entity wolf = pristine.get("minecraft:wolf");
+        Entity alone = StyleRegistrar.ofShipped()
+            .add("minecraft:wolf", BEG)
+            .definitions().get("minecraft:wolf");
+        Entity beside = StyleRegistrar.ofShipped()
+            .add("minecraft:wolf", BEG)
+            .add("minecraft:wolf", RegistrarFixtures.silhouette(wolf, "isSitting=true", "sitting"))
+            .definitions().get("minecraft:wolf");
+
+        assertParity(alone.pose(), beside.pose(), wolf.model(),
+            alone.styles().byId("beg").orElseThrow(), beside.styles().byId("beg").orElseThrow(),
+            wolf.styles().periodTicks());
     }
 
     /**

@@ -9,8 +9,11 @@ import org.jetbrains.annotations.NotNull;
  *
  * <p>Each factory opens a builder whose selectors speak that tier's bone roster: the humanoid
  * tier the canonical seven of bipeds, the quadruped tier the head-body-legs-tail roster of
- * four-legged walkers, and the custom tier raw bone names for every roster the other two do not
- * fit - a fused pair, an extra wing, an eight-legged crawler.
+ * four-legged walkers, and the custom tier no anatomy at all, for every roster the other two do
+ * not fit - a fused pair, an extra wing, an eight-legged crawler.
+ *
+ * <p>Every tier also reaches a bone by its mesh name through {@link PoseBuilder#bone}, so a part
+ * outside a vocabulary's roster is one verb away rather than a move to another tier.
  */
 @Parity(subject = Subject.ENTITY)
 public final class Poses {
@@ -40,8 +43,8 @@ public final class Poses {
     }
 
     /**
-     * Opens a custom builder - raw bone names for any roster, plus the raw expression escape
-     * hatch.
+     * Opens a custom builder - the shared bone-name verbs over any roster at all, plus the raw
+     * expression escape hatch.
      *
      * @param styleId the id a caller selects the built style by
      * @return the custom builder

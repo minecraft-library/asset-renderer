@@ -34,12 +34,13 @@ class PoseValidatorTest {
 
     /**
      * A begging wolf at vanilla's own sitting numbers - the body settled and pitched to
-     * forty-five, the hips folded flat, the paws pitched back a hair - so the tail seat and the
-     * hind legs are carried by the seat the sitting silhouette derives, and the mane's contact is
-     * one vanilla itself sits at.
+     * forty-five, the mane settled two down and pitched to seventy-two, the hips folded flat, the
+     * paws pitched back a hair - so the tail seat and the hind legs are carried by the seat the
+     * sitting silhouette derives, and the mane's contact is one vanilla itself sits at.
      */
     private static final @NotNull BuiltStyle BEG = Poses.quadruped("beg")
         .body(body -> body.pitch(45).offset(0, 4, -2))
+        .bone("upper_body", mane -> mane.pitch(72).offset(0, 2, 0))
         .hindLegs(leg -> leg.pitch(-90))
         .frontLegs(leg -> leg.pitch(-27).offset(0, 1, 0))
         .head(head -> head.pitch(-15))
@@ -107,21 +108,20 @@ class PoseValidatorTest {
     }
 
     @Test
-    @DisplayName("vanilla's own sitting branch buries the chest in the mane it settles and pitches - the beg, its mane out of reach, leaves the pair inside the bare envelope")
-    void vanillaSittingMeasuresTheManeContactTheBegCannotSpell() {
+    @DisplayName("the beg buries the chest in the mane exactly as vanilla's own sitting branch does - the same depth over the bare envelope")
+    void begReadsVanillasOwnManeContact() {
         Entity wolf = row("minecraft:wolf");
         Entity bare = withoutSilhouettes(wolf);
 
         // Over the bare envelope the sitting branch is a hand placement the audit has never seen:
         // the mane settled two down and pitched to seventy-two sets the chest two to three pixels
-        // into it. The beg spells the same body and no quadruped verb reaches the mane, so the
-        // chest meets the resting mane inside what the stride already draws.
+        // into it. The beg settles the same mane at the same numbers and meets it as deep.
         PoseAudit.Finding mane = finding(sitting(true).validate(bare), PoseAudit.Kind.OVERLAP, "body", "upper_body");
         assertTrue(mane.posedMin() < -2f && mane.posedMin() > -3f,
             "vanilla's own sitting silhouette sets the chest between two and three pixels into the mane: " + mane.describe());
-        PoseAudit beg = BEG.validate(bare);
-        assertTrue(beg.findings().stream().noneMatch(finding -> names(finding, "body", "upper_body")),
-            "the beg's resting mane reads no contact of its own:\n" + beg.report());
+        PoseAudit.Finding begMane = finding(BEG.validate(bare), PoseAudit.Kind.OVERLAP, "body", "upper_body");
+        assertEquals(mane.posedMin(), begMane.posedMin(), 0.05f,
+            "the same clearance to a twentieth of a pixel: " + begMane.describe());
 
         // Over the row as it ships, the same silhouette is in the envelope and the seats carry the
         // tail and the hips, so neither placement reads as a fault.
@@ -132,12 +132,13 @@ class PoseValidatorTest {
     }
 
     @Test
-    @DisplayName("the same beg on a wolf carrying no silhouette splits the tail - the one reading the seats answer")
+    @DisplayName("the same beg on a wolf carrying no silhouette splits the tail - the one reading the seats answer, beside the mane contact vanilla's own branch shares")
     void begWithoutSilhouettesReadsTheTail() {
         PoseAudit audit = BEG.validate(withoutSilhouettes(row("minecraft:wolf")));
 
         assertFalse(audit.clean(), "with no seat to derive, the beg leaves the shipped envelope");
-        assertEquals(1, audit.findings().size(), audit.report());
+        assertEquals(List.of("OVERLAP body <-> upper_body", "SPLIT body <-> real_tail"), pairs(audit),
+            audit.report());
         PoseAudit.Finding tail = finding(audit, PoseAudit.Kind.SPLIT, "body", "real_tail");
         assertTrue(tail.posedMin() > tail.knownMax(),
             "the tail sits outside the whole shipped range, not merely past the margin");

@@ -61,9 +61,10 @@ class PoseCookbookCreatureTest {
     // ------------------------------------------------------------------------------------
 
     /**
-     * Vanilla's own sitting branch through the quadruped verbs - the body settled and pitched
-     * to forty-five, the hips folded flat, the paws pitched back a hair and one down - with the
-     * head swaying and the tail wagging over it; wolf first, cat reused.
+     * Vanilla's own sitting branch through the quadruped verbs and one bone name - the body
+     * settled and pitched to forty-five, the mane settled two down and pitched to seventy-two,
+     * the hips folded flat, the paws pitched back a hair and one down - with the head swaying
+     * and the tail wagging over it; wolf first, cat reused.
      */
     @Nested
     @DisplayName("beg")
@@ -71,6 +72,7 @@ class PoseCookbookCreatureTest {
 
         private final @NotNull BuiltStyle beg = Poses.quadruped("beg")
             .body(body -> body.pitch(45).offset(0, 4, -2))
+            .bone("upper_body", mane -> mane.pitch(72).offset(0, 2, 0))
             .hindLegs(leg -> leg.pitch(-90))
             .frontLegs(leg -> leg.pitch(-27).offset(0, 1, 0))
             .head(head -> head.pitch(-15)
@@ -117,8 +119,13 @@ class PoseCookbookCreatureTest {
                 assertSame(shipped.bones().get(seated).get(PoseChannel.Y), ride.operands().getFirst(),
                     "the seat splices over the shipped instance, never a rebuilt one");
             }
-            assertNull(installed.drivers().get("style$beg$upper_body$y"),
-                "the mane is placed by hand in every state vanilla poses and rides nothing");
+            // The mane is placed by hand in every state vanilla poses and rides nothing, so its
+            // two channels are the chain's own held writes rather than a seat's carry.
+            for (String token : List.of("x_rot", "y"))
+                assertEquals(StyleDriver.Wave.HOLD, installed.drivers().get("style$beg$upper_body$" + token).wave(),
+                    "'style$beg$upper_body$" + token + "' holds the mane where the chain names it");
+            assertNull(installed.drivers().get("style$beg$upper_body$z"),
+                "a settle straight down spells no field along the axis it does not move");
 
             assertEquals(1, woven.pose().clips().size(), "one clip joins the shipped none");
             PoseClip clip = woven.pose().clips().getFirst().clip();
@@ -172,8 +179,9 @@ class PoseCookbookCreatureTest {
                 "a seat carries position only - the tail keeps its own pitch");
             assertPivot(start.getBones().get("right_hind_leg").getPivot(), -2.5f, 22.950f, 2.121f,
                 "the hind leg folds flat under the seated haunch");
-            assertPivot(start.getBones().get("upper_body").getPivot(), -1f, 14f, -3f,
-                "the mane is no follower and stays where the mesh authored it");
+            assertPivot(start.getBones().get("upper_body").getPivot(), -1f, 16f, -3f,
+                "the mane is no follower and settles where the chain names it");
+            assertEquals(72, start.getBones().get("upper_body").getRotation().pitch(), 1e-3);
 
             EntityModelData middle = posed(woven, installed, 12);
             assertEquals(25, middle.getBones().get("tail").getRotation().yaw(), 1e-3,
@@ -200,18 +208,19 @@ class PoseCookbookCreatureTest {
             assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
                     entry.severity() == StyleDiagnostics.Severity.WARN
                         && entry.path().contains("minecraft:cat/beg")
-                        && entry.message().contains("tail")),
-                "the feline spells its tail otherwise, and the drop says so");
+                        && entry.message().contains("tail")
+                        && entry.message().contains("upper_body")),
+                "the feline spells its tail otherwise and carries no mane at all, and the drop says so");
         }
 
         @Test
-        @DisplayName("the beg lands vanilla's own sitting branch bone for bone - the seats within four tenths of a pixel of the hand placements, the head, the wag and the mane its own")
+        @DisplayName("the beg lands vanilla's own sitting branch bone for bone - the seats within four tenths of a pixel of the hand placements, the head and the wag its own")
         void begLandsVanillasSittingBranch() {
             Entity wolf = EntityModelLoader.load().get("minecraft:wolf");
             EntityModelData beg = compiled(this.beg, wolf);
             EntityModelData sitting = compiled(RegistrarFixtures.silhouette(wolf, "isSitting=true", "sitting"), wolf);
 
-            for (String bone : List.of("body", "right_front_leg", "left_front_leg", "real_head", "real_tail")) {
+            for (String bone : List.of("body", "upper_body", "right_front_leg", "left_front_leg", "real_head", "real_tail")) {
                 assertPivotWithin(beg, sitting, bone, 0.011f,
                     "spelled at vanilla's own numbers, save the hundredth of a pixel the paws splay");
                 assertTurnAlike(beg, sitting, bone, "spelled at vanilla's own angles");
@@ -227,12 +236,10 @@ class PoseCookbookCreatureTest {
                 "the wag is the tail's one difference - its pitch is vanilla's");
             assertEquals(-25, beg.getBones().get("tail").getRotation().yaw(), 1e-3);
             assertEquals(0, sitting.getBones().get("tail").getRotation().yaw(), 1e-3);
-            // No quadruped verb reaches the mane, so it stays where the mesh authored it while
-            // vanilla settles it two down and pitches it to seventy-two.
-            assertPivot(beg.getBones().get("upper_body").getPivot(), -1f, 14f, -3f, "the mane is out of the vocabulary's reach");
-            assertPivot(sitting.getBones().get("upper_body").getPivot(), -1f, 16f, -3f, "vanilla settles the mane two down");
-            assertEquals(72, sitting.getBones().get("upper_body").getRotation().pitch(), 1e-3);
-            assertEquals(90, beg.getBones().get("upper_body").getRotation().pitch(), 1e-3);
+            // The mane sits outside the quadruped roster and is named as the mesh names it, which
+            // is what carries the branch's own settle and pitch onto the chain.
+            assertPivot(beg.getBones().get("upper_body").getPivot(), -1f, 16f, -3f, "the mane settles two down");
+            assertEquals(72, beg.getBones().get("upper_body").getRotation().pitch(), 1e-3);
         }
 
         @Test
@@ -457,9 +464,8 @@ class PoseCookbookCreatureTest {
     }
 
     /**
-     * One style compiled alone against a shipped row and posed at tick zero - alone, because a
-     * raw splice replaces its channel whole and would otherwise write under every style of a
-     * woven row.
+     * One style compiled against a shipped row and posed at tick zero - the lowering by itself,
+     * without the catalog row and overlay weave an install adds around it.
      */
     private static @NotNull EntityModelData compiled(@NotNull BuiltStyle style, @NotNull Entity row) {
         PoseCompiler.Compiled compiled = PoseCompiler.compile(style, row);

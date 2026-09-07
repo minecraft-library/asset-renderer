@@ -16,7 +16,8 @@ import java.util.function.UnaryOperator;
  * stamps, and hat auto-mirroring - a {@code head} write lands on {@code hat} too unless
  * {@code hat} is authored itself, and the hat write drops silently on hatless meshes. Rosters
  * the seven names do not fit - a fused arm pair, a wing, an extra head shell - belong to the
- * custom tier rather than a stretched vocabulary.
+ * custom tier rather than a stretched vocabulary, while one part beside the seven is reached by
+ * its mesh name through {@link PoseBuilder#bone}.
  */
 @Parity(subject = Subject.ENTITY)
 public final class HumanoidPose {

@@ -46,6 +46,12 @@ import java.util.Set;
  * {@code x}'s exact bits for every value but {@code -0.0}, so under every other style of the row
  * the woven graph evaluates to the shipped value and shipped renders stay bit-identical.
  *
+ * <p>The raw hatch is the one splice that is not a sum, and it keeps the same promise by a gate
+ * instead: the authored graph rides the true arm of a selection on the style's own
+ * {@code style$<id>} field, whose false arm is the expression the channel already held. That
+ * field holds at one under the style and is undriven, so zero, under every other - the same
+ * reading a play site takes of a selection gate.
+ *
  * <p>Every walk over a graph that can hold shipped instances carries an identity-keyed visited
  * or memo structure and short-circuits on an instance already seen, because a pose is a graph
  * whose nodes stand for enormously many paths and whose tree expansion does not terminate in
@@ -1064,8 +1070,9 @@ public final class PoseCompiler {
         }
 
         /**
-         * Splices the raw expression captures - each interned, checked once over every node,
-         * and replacing its channel whole, because the author owns the graph there.
+         * Splices the raw expression captures - each interned, checked once over every node, and
+         * replacing its channel whole under this style's gate, because the author owns the graph
+         * there and every other style of the row owns what the channel already held.
          */
         private void lowerRaws(@NotNull LinkedHashMap<String, Map<PoseChannel, PoseExpr>> bones) {
             for (PoseScript.Raw raw : this.script.raws()) {
@@ -1077,9 +1084,34 @@ public final class PoseCompiler {
                 PoseExpr interned = this.pool.intern(raw.expr());
                 this.checkRaw(interned);
                 EnumMap<PoseChannel, PoseExpr> replaced = new EnumMap<>(PoseChannel.class);
-                replaced.put(raw.channel(), interned);
+                replaced.put(raw.channel(), this.gated(bones, raw.bone(), raw.channel(), interned));
                 this.weave(bones, raw.bone(), replaced);
             }
+        }
+
+        /**
+         * One raw graph behind this style's own gate - the true arm of a selection on the
+         * {@code style$<id>} field, whose false arm is whatever the channel held before the
+         * splice: what this compile has already woven there, else the shipped instance, else the
+         * bone's own read. The gate holds at one under this style and is undriven, so zero, under
+         * every other, which is how a raw carries the promise a summed splice carries by
+         * answering its base's bits.
+         *
+         * <p>A live render-state gate the author wants is spelled inside the graph and composes
+         * with this one: this decides which style is being drawn, and theirs what that style does.
+         */
+        private @NotNull PoseExpr gated(@NotNull LinkedHashMap<String, Map<PoseChannel, PoseExpr>> bones,
+                                        @NotNull String bone, @NotNull PoseChannel channel,
+                                        @NotNull PoseExpr raw) {
+            String gate = FIELD_PREFIX + this.style.styleId();
+            this.driver(gate, new StyleDriver(gate, StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
+            Map<PoseChannel, PoseExpr> woven = bones.get(bone);
+            PoseExpr held = woven == null ? null : woven.get(channel);
+            PosePredicate selected = this.pool.intern(new PosePredicate(PosePredicate.Comparison.NE,
+                this.pool.intern(new PoseExpr.Input(gate)),
+                this.pool.intern(new PoseExpr.Const(0d, PoseOperator.Width.DOUBLE))));
+            return this.pool.intern(new PoseExpr.Select(selected, raw,
+                held != null ? held : this.baseOf(bone, channel)));
         }
 
         /**

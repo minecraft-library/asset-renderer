@@ -12,8 +12,9 @@ import java.util.function.UnaryOperator;
  *
  * <p>Its builder stamps leg pairs front and hind under the mirror sign rule (pitch kept, yaw
  * and roll negated) and drops the tail stance silently where a mesh carries none only under a
- * tolerant install - roster oddities like a split tail or an extra head shell belong to the
- * custom tier rather than a stretched vocabulary.
+ * tolerant install. A whole roster the four names do not fit - a split tail, an eight-legged
+ * crawler - belongs to the custom tier rather than a stretched vocabulary, while one part beside
+ * them, like a wolf's mane, is reached by its mesh name through {@link PoseBuilder#bone}.
  *
  * <p>Every verb here names anatomy, so a stance lands on the articulation the shipped pose
  * turns for that part - an equine head is a cube under the neck assembly the pose turns as

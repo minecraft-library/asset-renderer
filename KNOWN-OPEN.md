@@ -119,29 +119,3 @@ No package holds one class.
   `toolsmith java docs`); `package-info` files keep inline fully-qualified link targets.
 - The move is byte-neutral for every render: no type changes, only its package. The gate is the
   fast suite plus `paritySelfTest`; no capture is owed.
-
-## A raw splice installs ungated, so one custom style's hatch writes under every style of its row
-
-The custom tier's `expr(bone, channel, graph)` replaces the channel whole at compile - verbatim,
-by design, because the author owns the graph and may gate it on a live render-state field. It is
-the one lowering that carries no `style$<id>` gate: a stance verb lowers to a field held at zero
-under every other style, a raw lowers to the graph itself. Installed through the registrar, the
-graph therefore evaluates under every style of the woven row - the shipped bind, idle and walk
-included - which breaks the promise `SeatInstallParityTest` makes for the verbs (an install
-leaves every shipped style of the row at its bits) for any style that carries a raw. Measured:
-vanilla's sitting silhouette spliced whole beside the beg on one wolf registrar put the mane two
-down under the beg. Today's users compile a raw style alone (`PoseCompiler.compile`) or give it a
-registrar of its own, which is what `PoseShowcaseDriver` does. Either the compiler wraps a raw
-in a `Select` on the style's gate (an author who wants a live gate spells it inside the graph
-and gets both), or the hatch documents that a raw is a row-wide edit and the registrar refuses
-one on a row that carries other styles.
-
-## The anatomical tiers reach no part outside their roster
-
-`Poses.quadruped` names head, body, tail and four corner legs; `Poses.humanoid` the canonical
-seven. A row part outside that roster - the wolf's `upper_body` mane, which vanilla's sitting
-branch settles two down and pitches to seventy-two - cannot be placed from an anatomical chain.
-Only the custom tier's `bone(name, stance)` reaches it, and a chain that wants both the
-anatomical selectors and one raw-named part today rewrites itself on the custom tier. The beg
-lands vanilla's own sit on every bone but that one. Either the base builder grows a `bone(name,
-stance)` escape every tier shares, or the gap stays a documented limit of the vocabularies.

@@ -6,17 +6,13 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.function.UnaryOperator;
-
 /**
  * The custom tier - raw bone names for every roster the humanoid and quadruped vocabularies do
  * not fit: a fused arm pair, a wing pair, an eight-legged crawler, a head shell inside a shell.
  *
- * <p>Its builder addresses bones as the mesh names them and carries the one escape hatch of the
- * authoring surface: a raw expression graph replacing a channel whole. Every {@code bone}
- * stance carries the limb-length aim convention - an aim solve treats the bone as resting
- * pointing down its length and takes the quarter-turn pitch offset; a bone that aims its facing
- * direction wants the humanoid or quadruped head selector instead.
+ * <p>It names no anatomy at all - a chain here addresses every part through the shared
+ * {@link PoseBuilder#bone} escape, as the mesh names it - and carries the one escape hatch of the
+ * authoring surface besides: a raw expression graph replacing a channel whole under the style.
  */
 @Parity(subject = Subject.ENTITY)
 public final class CustomPose {
@@ -24,8 +20,8 @@ public final class CustomPose {
     private CustomPose() {}
 
     /**
-     * The custom builder - raw bone stances and the raw expression hatch, sharing the
-     * capture-then-compile tail of every tier.
+     * The custom builder - the raw expression hatch over the shared bone and tail verbs of every
+     * tier.
      */
     public static final class Builder extends PoseBuilder<Builder> {
 
@@ -40,23 +36,15 @@ public final class CustomPose {
         }
 
         /**
-         * Stances one bone by its mesh name, under the limb-length aim convention.
-         *
-         * @param bone the bone name, as the mesh names it
-         * @param stance the stance lambda
-         * @return this builder
-         */
-        public @NotNull Builder bone(@NotNull String bone, @NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.stance(bone, PoseScript.AimAxis.DOWN, stance);
-            return this;
-        }
-
-        /**
          * Splices a raw expression graph over one channel - the escape hatch for shapes the
          * verbs cannot spell, like a stance gated on a live render-state field. The graph
          * rides by reference and replaces the channel whole at compile, under the compiler's
          * own interning and checks; sharing a node instance across expressions is how shared
          * subtrees are spelled, since a graph is never copied or expanded.
+         *
+         * <p>The splice is gated on the style, as every other lowering is: under any other style
+         * of the row the channel answers what it held, and a live gate the graph spells for
+         * itself composes with that one rather than replacing it.
          *
          * @param bone the bone the expression writes
          * @param channel the channel it replaces

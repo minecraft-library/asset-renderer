@@ -109,8 +109,6 @@ public final class PoseShowcaseDriver {
         System.out.printf("Rendering %d pose%s at %dx%d to %s%n",
             showcases.size(), showcases.size() == 1 ? "" : "s", size, size, OUTPUT_DIR.toAbsolutePath());
 
-        // One registrar per subject: a raw splice replaces its channel whole, so a silhouette
-        // statue installed beside a chain on the same row would write under the chain as well.
         for (Showcase showcase : showcases) {
             String styleId = showcase.style().styleId();
             String name = showcase.entityId().replace(':', '_') + "_" + styleId;
@@ -185,6 +183,7 @@ public final class PoseShowcaseDriver {
                 .build()),
             new Showcase("minecraft:wolf", Poses.quadruped("beg")
                 .body(body -> body.pitch(45).offset(0, 4, -2))
+                .bone("upper_body", mane -> mane.pitch(72).offset(0, 2, 0))
                 .hindLegs(leg -> leg.pitch(-90))
                 .frontLegs(leg -> leg.pitch(-27).offset(0, 1, 0))
                 .head(head -> head.pitch(-15)

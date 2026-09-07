@@ -43,6 +43,25 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
     abstract @NotNull B self();
 
     /**
+     * Stances one bone by its mesh name - the escape every tier shares, for a part outside the
+     * roster its vocabulary names. The name is taken literally, so the stance lands on that bone
+     * and climbs to no articulation above it, and a name the target row does not declare refuses
+     * on a strict install and drops with a recorded line on a tolerant one.
+     *
+     * <p>The stance carries the limb-length aim convention: an aim solve treats the bone as
+     * resting pointing down its length and takes the quarter-turn pitch offset. A bone that aims
+     * its facing direction wants a tier's own head selector instead.
+     *
+     * @param bone the bone name, as the mesh names it
+     * @param stance the stance lambda
+     * @return this builder
+     */
+    public final @NotNull B bone(@NotNull String bone, @NotNull UnaryOperator<LimbStance> stance) {
+        this.capture.stance(bone, PoseScript.AimAxis.DOWN, stance);
+        return this.self();
+    }
+
+    /**
      * Captures one container step - the same verb surface addressed at the whole figure's
      * seat, one ordered step per call.
      *

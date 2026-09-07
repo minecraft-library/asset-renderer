@@ -106,6 +106,20 @@ class PoseEmitterTest {
         assertEvaluatesEqually(loadedFixture(), reloaded, mesh, styleRow("wave", true));
     }
 
+    @Test
+    @DisplayName("a raw splice round-trips behind its gate - the selection and its predicate spell, reload and evaluate on both arms")
+    void rawSpliceRoundTripsBehindItsGate() {
+        EntityModelData mesh = humanoid();
+        EntityPose source = woven(mesh, rawStyle());
+        EntityPose loaded = load(envelope(PoseEmitter.emit(source), true));
+
+        PoseExpr.Select gated = (PoseExpr.Select) loaded.bones().get("body").get(PoseChannel.X_ROT);
+        assertEquals("style$hatch", ((PoseExpr.Input) gated.condition().left()).field(),
+            "the reloaded splice still rides this style's own gate");
+        assertEvaluatesEqually(source, loaded, mesh, styleRow("hatch", true));
+        assertEvaluatesEqually(source, loaded, mesh, styleRow("wave", true));
+    }
+
     // ------------------------------------------------------------------------------------
     // refusals, sharing and determinism
     // ------------------------------------------------------------------------------------
@@ -220,6 +234,18 @@ class PoseEmitterTest {
         return Poses.humanoid("sit")
             .head(head -> head.yaw(15))
             .arm(Side.RIGHT, arm -> arm.pitch(-40))
+            .build();
+    }
+
+    /**
+     * A raw splice over one channel beside two ordinary stances - the gated arm the hatch weaves,
+     * whose graph reads a live field of its own so neither arm is a constant.
+     */
+    private static @NotNull BuiltStyle rawStyle() {
+        return Poses.custom("hatch")
+            .bone("head", head -> head.yaw(15))
+            .bone("right_arm", arm -> arm.pitch(-40))
+            .expr("body", PoseChannel.X_ROT, dadd(constant(0.5d), input("ageInTicks")))
             .build();
     }
 
