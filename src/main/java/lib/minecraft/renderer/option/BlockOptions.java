@@ -21,10 +21,9 @@ import java.util.function.UnaryOperator;
  * <p>Two output flavours, selected via {@link Type}:
  * <ul>
  *   <li><b>{@link Type#ISOMETRIC_3D}</b> - the full 3D block icon at the vanilla
- *       {@code [30, 225, 0]} {@code display.gui} pose. Six faces, supersampled by default at
- *       {@code 2x}, FXAA post-processing optional.</li>
- *   <li><b>{@link Type#BLOCK_FACE_2D}</b> - a single face blitted flat. Useful for atlas tiles
- *       that consume one face per output cell.</li>
+ *       {@code [30, 225, 0]} {@code display.gui} pose. Six faces, with no supersampling and no FXAA
+ *       by default; a caller wanting either sets it on the {@link #getOutput output frame}.</li>
+ *   <li><b>{@link Type#BLOCK_FACE_2D}</b> - a single face blitted flat.</li>
  * </ul>
  *
  * <p><b>Biome / variant inputs.</b> {@link #getBiome biome} drives grass / foliage / water
