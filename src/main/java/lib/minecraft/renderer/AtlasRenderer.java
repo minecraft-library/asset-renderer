@@ -39,10 +39,20 @@ import java.util.stream.IntStream;
  * returns a single {@link ImageData}. Callers that also need the tile coordinates should call
  * {@link #renderAtlas(AtlasOptions)} instead, which returns the full {@link AtlasResult}.
  * <p>
- * Models that fail to render (templates without textures, models that reference textures the
- * pack stack does not provide, etc.) are skipped with a warning printed to stderr - one
- * misbehaving model never aborts the run. Both per-tile failure warnings and per-100-tile
- * progress logs are gated on {@link AtlasOptions#isProgressLogging()}.
+ * Models that fail to render are skipped with a warning printed to stderr - one misbehaving model
+ * never aborts the run. Both per-tile failure warnings and per-100-tile progress logs are gated on
+ * {@link AtlasOptions#isProgressLogging()}.
+ * <p>
+ * A subject whose texture the pack stack does not supply is one of those, because
+ * {@link AtlasOptions#isSubstituteMissing()} is off here where a single render leaves it on: the
+ * lookup raises, the per-tile catch drops the tile, and the sheet is smaller by one. Turning it on
+ * keeps the tile and draws the checkerboard instead, which is the view for auditing what a pack is
+ * missing rather than for looking a subject up.
+ * <p>
+ * What that does <i>not</i> cover is a face whose {@code #variable} chain never resolves to a
+ * concrete id: the model walk skips such a ref before any lookup happens, so nothing raises, the face
+ * is simply absent, and the tile ships with a hole in it either way. The flag governs a lookup that
+ * fails, not a reference that never became one.
  *
  * <p><b>Parity.</b> Reaches the atlas alone, which this store holds no artifact for. What measured
  * that is the claim above rather than this paragraph, so the two cannot come to disagree.
@@ -225,6 +235,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                     .blockId(blockId)
                     .type(BlockOptions.Type.ISOMETRIC_3D)
                     .output(OutputOptions.builder().canvasSize(options.getTileSize()).build())
+                    .substituteMissing(options.isSubstituteMissing())
                     .build();
                 image = renderer.render(blockOptions);
                 source = classifyBlockSource(blockId);
@@ -362,6 +373,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             .type(ItemOptions.Type.GUI_ICON)
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(options.getTileSize()).build())
             .animateGlint(false)
+            .substituteMissing(options.isSubstituteMissing())
             .build();
         try {
             ImageData image = renderer.render(itemOptions);

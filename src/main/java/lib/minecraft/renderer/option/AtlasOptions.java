@@ -63,6 +63,25 @@ public class AtlasOptions implements RenderOptions {
     private final boolean animated = false;
 
     /**
+     * Whether a tile the pack cannot fully supply is drawn with the generated checkerboard standing in
+     * for what is missing, rather than dropped. Off by default, which is the opposite of a single
+     * render's own default.
+     * <p>
+     * An atlas is a sheet of subjects a consumer looks things up in, so a tile that cannot be drawn
+     * faithfully is worth less than no tile at all - the consumer wants to know the id is unavailable,
+     * not to receive a magenta square that looks like an asset. Left off, a subject whose texture no
+     * pack supplies raises, the per-tile catch drops it, and the sheet is smaller by one.
+     * <p>
+     * Turned on, the tile is kept and drawn with the checkerboard, which is the view for auditing what
+     * a pack is missing. It matters most where a pack supplies almost nothing: every tile dropping
+     * leaves nothing to compose, and the render raises rather than answering an empty sheet.
+     *
+     * @see BlockOptions#isSubstituteMissing()
+     * @see ItemOptions#isSubstituteMissing()
+     */
+    private final boolean substituteMissing = false;
+
+    /**
      * When {@code true}, the renderer prints per-100-tile progress lines and per-failure
      * warnings to stdout / stderr. CLI consumers (e.g. the {@code generateAtlas} Gradle task)
      * leave this enabled; programmatic consumers that don't want their logs cluttered can flip
