@@ -473,12 +473,21 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     /**
      * A context wrapper that flattens animated textures to their first frame for the static atlas.
      * Implemented as a {@link RendererContext.Forwarding} view: every lookup reaches the wrapped context
-     * except the {@link #resolveTexture} frame-0 override and the explicit empty pins below, each of
+     * except the {@link #resolveTexture} frame-0 override and the two animation pins below, each of
      * which preserves the static atlas's prior behaviour.
+     * <p>
+     * The pins come in a pair because the port answers "does this animate" through two doors that a
+     * wrapper can move independently - one derived from the other in the concrete context, the other
+     * forwarded straight to the delegate. Pinning either alone leaves the wrapper contradicting itself.
+     *
+     * <p>
+     * Package-private rather than private so the pair can be asserted directly. Nothing reads the
+     * second door today, so the contradiction it closes is invisible to any render and a behavioural
+     * test cannot reach it.
      *
      * @param delegate the wrapped context every non-overridden method forwards to
      */
-    private record StaticTextureContext(@NotNull RendererContext delegate) implements RendererContext.Forwarding {
+    record StaticTextureContext(@NotNull RendererContext delegate) implements RendererContext.Forwarding {
 
         /**
          * Resolves a texture, flattening animation strips to frame 0 via
@@ -496,11 +505,32 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         }
 
         // Pinned empty (load-bearing): forwarding re-animates the atlas; every texture must read static.
-        // This is the sole surviving pin - the tint / override / gui-scaling lookups now forward to the
-        // delegate so static-atlas sprites see potion tints and pack color.properties.
+        // The tint / override / gui-scaling lookups forward to the delegate, so static-atlas sprites
+        // still see potion tints and pack color.properties.
         @Override
         public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
             return Optional.empty();
+        }
+
+        /**
+         * Answers the sidecar with its animation section removed, so the two ways of asking whether a
+         * texture animates cannot disagree.
+         * <p>
+         * Pinning {@link #findAnimation} alone is not enough. The concrete context derives that answer
+         * from this one, while {@link RendererContext.Forwarding Forwarding} hands this one straight to
+         * the delegate - so a wrapper overriding only the derived method says "nothing animates" through
+         * one door and hands back a populated {@code animation} section through the other. Removing the
+         * section at the source is what makes the pin total; every other section survives, because
+         * nothing but animation is what the static atlas is pinning against.
+         *
+         * @param textureId the namespaced texture id whose sidecar is read
+         * @return the delegate's sidecar carrying no animation, empty where it has none at all
+         */
+        @Override
+        public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
+            return this.delegate.findMeta(textureId)
+                .map(meta -> new MCMeta(meta.id(), meta.pack(), Optional.empty(),
+                    meta.texture(), meta.gui(), meta.villager()));
         }
 
     }

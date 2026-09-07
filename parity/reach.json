@@ -280,6 +280,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/StaticTextureContextTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/TextRenderer": {
       "artifacts": [
         "manifest.visual"
