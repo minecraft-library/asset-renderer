@@ -3,8 +3,11 @@
  * {@code entity_poses.json} rather than reproduced here.
  *
  * <p>{@link lib.minecraft.renderer.asset.pose.EntityPose EntityPose} is one model's whole answer:
- * an expression per bone channel it writes, and the authored clips it plays with the rate and
- * amplitude it plays them at. The expression grammar is
+ * an expression per bone channel it writes, the authored clips it plays with the rate and
+ * amplitude it plays them at, and the resting silhouette of each state branch it poses
+ * ({@link lib.minecraft.renderer.asset.pose.EntityPose.Silhouette EntityPose.Silhouette}) -
+ * carried beside the pose for authoring to read, and read by nothing at render. The expression
+ * grammar is
  * {@link lib.minecraft.renderer.asset.pose.PoseExpr PoseExpr} over
  * {@link lib.minecraft.renderer.asset.pose.PoseOperator PoseOperator}, with
  * {@link lib.minecraft.renderer.asset.pose.PosePredicate PosePredicate} deciding a choice the

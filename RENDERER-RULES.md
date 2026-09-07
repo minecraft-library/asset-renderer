@@ -513,6 +513,18 @@ divergence in how they were measured.
   because vanilla holds one part pose for the root and `offsetPos` and `offsetRotation` add into the
   very fields a body assigned. Passed over as an undeclared bone it is silently nothing, which is a
   camel that walks without leaning into its stride and a canvas measured around one.
+- **A row's `states` member is evidence beside the pose, and nothing at render reads it.** A body
+  branches on questions of its render state a resting subject answers one way, and the shipped
+  channels hold the arm the resting subject takes; each other arm - a wolf sitting, a parrot's
+  pose, an equine's completed stand - is folded once more at rest with that one answer flipped,
+  and the bones it places away from the resting row ship under `states` keyed `member=value`,
+  spelled as the row's bones are over a `shared` table of their own. `RawEntityPosesFile` reads
+  them into `EntityPose.states` after the row's own table is read whole, so no reference crosses
+  between a row and a silhouette; `PoseKit` and `PoseEvaluator` read `container`, `bones` and
+  `clips` and never the member, so a table carrying it poses every shipped style to the bits of
+  one that does not. What reads a silhouette is pose authoring, beside the mesh, for which parts
+  vanilla moves together - a sitting wolf's tail and hind legs placed by hand where its lowered
+  body carries them, which the shipped geometry, where they are root-level siblings, cannot say.
 
 **`bind` is the default and hands back the very instance it was given.** Identity, not equality: an
 equal copy is still a copy, and every float in it is one the authored path never computed. The same

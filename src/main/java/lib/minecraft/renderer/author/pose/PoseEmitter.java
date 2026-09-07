@@ -19,6 +19,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
@@ -206,7 +207,8 @@ public final class PoseEmitter {
         // ------------------------------------------------------------------------------------
 
         /**
-         * The pose-row fragment - shared, container, bones and play sites, empty members omitted.
+         * The pose-row fragment - shared, container, bones, play sites and state silhouettes,
+         * empty members omitted.
          */
         private @NotNull JsonObject row() {
             JsonObject out = new JsonObject();
@@ -234,6 +236,15 @@ public final class PoseEmitter {
                 for (EntityPose.Clip site : this.pose.clips())
                     sites.add(this.site(site));
                 out.add("clips", sites);
+            }
+            if (!this.pose.states().isEmpty()) {
+                // Each silhouette spells its bones through a writer of its own, so its shared
+                // table is scoped to its bones exactly as the reader scopes it on the way back.
+                JsonObject states = new JsonObject();
+                new TreeMap<>(this.pose.states()).forEach((key, silhouette) ->
+                    states.add(key, new Writer(new EntityPose(Concurrent.newUnmodifiableList(),
+                        silhouette.bones(), Concurrent.newUnmodifiableList(), Optional.empty())).row()));
+                out.add("states", states);
             }
             return out;
         }
