@@ -450,18 +450,37 @@ public interface RendererContext {
      * wrapped context through {@code delegate()} (a record component named {@code delegate} satisfies it
      * directly).
      *
-     * <p>Because every lookup is forwarded rather than defaulted, a wrapper that wants one to behave
+     * <p>Most lookups are forwarded rather than defaulted, so a wrapper that wants one to behave
      * differently from its delegate must say so explicitly - pinning an override rather than relying on
      * a silent empty default. A lookup a wrapper leaves alone reaches the real context, which is the
-     * safe default for a pass-through view; the deliberate exceptions are stated at the override.
+     * safe default for a pass-through view.
      *
-     * <p>{@link #sampleBiomeTint} and {@link #sampleRedstoneTint} are deliberately absent: they resolve
-     * against {@link #findColorMap} and {@link #findColorOverride}, which this mixin already forwards,
-     * so forwarding them too would put a second copy of the resolution behind a wrapper that could
-     * drift from the port's. {@link #findFlipbook} is absent for the same reason and one more: it
-     * resolves against {@link #resolveTexture} as well as {@link #findAnimation}, and a wrapper that
-     * overrides either - flattening a strip to one frame, or pinning the sidecar away - is answered by
-     * the default, where a forward would pair the delegate's frame rectangle with the wrapper's pixels.
+     * <p><b>Six are deliberately not forwarded, and every one of them derives its answer from a lookup
+     * that is.</b> Leaving them defaulted is what makes them compute on {@code this}, so they pick a
+     * wrapper's override up rather than answering past it. That is the whole reason a wrapper can
+     * change one lookup and have everything built on it follow.
+     * <ul>
+     * <li>{@link #sampleBiomeTint} and {@link #sampleRedstoneTint} resolve against
+     * {@link #findColorMap} and {@link #findColorOverride}, which this mixin already forwards, so
+     * forwarding them too would put a second copy of the resolution behind a wrapper that could drift
+     * from the port's.</li>
+     * <li>{@link #findFlipbook} is absent for that reason and one more: it resolves against
+     * {@link #resolveTexture} as well as {@link #findAnimation}, and a wrapper that overrides either -
+     * flattening a strip to one frame, or pinning the sidecar away - is answered by the default, where
+     * a forward would pair the delegate's frame rectangle with the wrapper's pixels.</li>
+     * <li>{@link #resolveTextureAtTick}, {@link #requireTexture} and {@link #requireTextureAtTick} all
+     * bottom out in {@link #resolveTexture}. Leaving them defaulted is what makes overriding that one
+     * method total for the texture path; every wrapper in the tree relies on it, and adding these three
+     * to the mixin would quietly answer past all of them.</li>
+     * </ul>
+     *
+     * <p><b>A wrapper that pins one lookup owes a thought to whatever is derived from it, and the debt
+     * runs both ways.</b> Pinning a derived lookup while its source stays forwarded lets the two
+     * disagree: the concrete context reads {@link #findAnimation} out of {@link #findMeta}, so a
+     * wrapper overriding only the first says nothing animates while still handing back a populated
+     * animation section through the second. Pinning a source whose derived lookup is forwarded is the
+     * same fault mirrored - the derived answer keeps coming from the delegate and describes a texture
+     * the wrapper no longer serves.
      */
     interface Forwarding extends RendererContext {
 

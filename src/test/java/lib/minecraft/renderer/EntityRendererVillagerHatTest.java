@@ -170,6 +170,18 @@ class EntityRendererVillagerHatTest {
             return Optional.ofNullable(this.metas.get(textureId));
         }
 
+        /**
+         * {@inheritDoc}
+         * <p>
+         * Answered off this context's own seeded sidecar rather than forwarded, so the two ways of
+         * asking cannot disagree. The concrete context derives this from {@code findMeta}; forwarding
+         * it would let the delegate answer for a sidecar this one replaced.
+         */
+        @Override
+        public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+            return findMeta(textureId).flatMap(MCMeta::animation);
+        }
+
     }
 
     /**
