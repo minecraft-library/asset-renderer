@@ -1580,6 +1580,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/pose/PoseNodeTextTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/pose/PoseOperator": {
       "artifacts": [
         "manifest.dump.packs",
