@@ -30,6 +30,7 @@ import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Biome;
+import lib.minecraft.renderer.engine.texture.MissingTexture;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.AnimationOptions;
 import lib.minecraft.renderer.option.BlockOptions;
@@ -418,7 +419,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
                 // Build triangles for this part's model
                 ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
-                    id -> Optional.of(this.context.requireTextureAtTick(id, tick)));
+                    id -> Optional.of(MissingTexture.textureAtTick(this.context, id, tick)));
                 var forceRefs = partModel.resolveForceTranslucentRefs();
 
                 boolean uvlock = apply.uvlock();
@@ -473,7 +474,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull ModelData model, @Nullable Block.Variant variant, int tint, int untintedTint, int tick,
             @NotNull String blockId, @NotNull ConcurrentMap<String, String> state) {
             ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
-                id -> Optional.of(this.context.requireTextureAtTick(id, tick)));
+                id -> Optional.of(MissingTexture.textureAtTick(this.context, id, tick)));
             var forceRefs = model.resolveForceTranslucentRefs();
 
             // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
@@ -506,7 +507,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 String baseId = model.resolveTextureReference(rawRef);
                 if (baseId.startsWith("#")) return Optional.empty();
                 return this.context.resolveConnectedTexture(blockId, state, baseId, face)
-                    .map(id -> this.context.requireTextureAtTick(id.id(), tick));
+                    .map(id -> MissingTexture.textureAtTick(this.context, id.id(), tick));
             };
         }
 
@@ -523,7 +524,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * @return the composed block-frame triangle list
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBoneModel(@NotNull Block.Entity.BoneModel boneModel, @NotNull String textureId, int tint, int tick) {
-            PixelBuffer texture = this.context.requireTextureAtTick(textureId, tick);
+            PixelBuffer texture = MissingTexture.textureAtTick(this.context, textureId, tick);
             // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
             // an untinted model (the banner post's wood) samples its texture raw.
             int faceTint = boneModel.tinted() ? tint : ColorMath.WHITE;
@@ -554,7 +555,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // texture (which may differ from the primary - decorated_pot sides use
                 // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
                 Block.Entity.BoneModel boneModel = part.boneModel();
-                PixelBuffer texture = this.context.requireTextureAtTick(part.texture(), tick);
+                PixelBuffer texture = MissingTexture.textureAtTick(this.context, part.texture(), tick);
                 int partTint = boneModel.tinted() ? tint : ColorMath.WHITE;
                 ConcurrentList<VisibleTriangle> partTriangles =
                     BlockGeometryKit.buildFromBones(boneModel.model(), texture, partTint, boneModel.presentation());
@@ -613,7 +614,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 return Concurrent.newList();
 
             ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
-                id -> Optional.of(this.context.requireTextureAtTick(id, tick)));
+                id -> Optional.of(MissingTexture.textureAtTick(this.context, id, tick)));
             var forceRefs = partModel.resolveForceTranslucentRefs();
 
             boolean uvlock = first.uvlock();
@@ -767,7 +768,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             PixelBuffer buffer = PixelBuffer.create(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
             String textureId = block.textureRef(options.getFace().direction(), "all", "side", "particle");
-            PixelBuffer face = this.context.requireTexture(textureId);
+            PixelBuffer face = MissingTexture.texture(this.context, textureId);
             int tint = resolveBlockTint(this.context, block, options);
             PixelBuffer tinted = ColorMath.tint(face, tint);
             int size = options.getOutput().getCanvasSize();

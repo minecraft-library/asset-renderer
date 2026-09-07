@@ -42,6 +42,7 @@ import lib.minecraft.renderer.engine.kit.ShieldKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.engine.texture.MissingTexture;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.option.AnimationOptions;
@@ -464,7 +465,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         int tick
     ) {
         ModelEngine engine = new ModelEngine(context, SHIELD_CAMERA);
-        PixelBuffer texture = engine.context().requireTextureAtTick(SHIELD_NOPATTERN_TEXTURE_ID, tick);
+        PixelBuffer texture = MissingTexture.textureAtTick(engine.context(), SHIELD_NOPATTERN_TEXTURE_ID, tick);
         ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture);
         triangles = ShieldKit.relightShield(triangles, SHIELD_LIGHTING);
 
@@ -529,7 +530,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         String layer0Ref = cit.textureFor("layer0").map(ResourceId::id).orElse(item.textures().get("layer0"));
         if (layer0Ref == null || layer0Ref.isBlank())
             throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.id().id());
-        PixelBuffer base = engine.context().requireTextureAtTick(layer0Ref, tick);
+        PixelBuffer base = MissingTexture.textureAtTick(engine.context(), layer0Ref, tick);
         PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
 
         int layerIndex = 0;
@@ -537,7 +538,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
             String textureRef = cit.textureFor(layerKey).map(ResourceId::id).orElse(item.textures().get(layerKey));
             if (textureRef == null || textureRef.isBlank()) break;
-            PixelBuffer layer = engine.context().requireTextureAtTick(textureRef, tick);
+            PixelBuffer layer = MissingTexture.textureAtTick(engine.context(), textureRef, tick);
             int color = resolveLayerTint(context, item, layerIndex, options);
             // ColorMath.tint returns a multiplied copy (alpha preserved); blit composites it
             // source-over so layer0 lands cleanly even when the composite is still empty.
@@ -616,7 +617,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 TrimKit.resolveFromTextureRef(context, textureRef)
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
             } else {
-                PixelBuffer layer = context.requireTextureAtTick(textureRef, tick);
+                PixelBuffer layer = MissingTexture.textureAtTick(context, textureRef, tick);
                 int color = resolveLayerTint(context, item, layerIndex, options);
                 // ColorMath.tint multiplies each texel by the colour (preserving alpha) and returns
                 // a fresh buffer, then blitScaled composites it over the prior layers - unlike
@@ -845,7 +846,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             int tick
         ) {
             return item.model().loadElementFaceTextures(
-                id -> Optional.of(engine.context().requireTextureAtTick(id, tick)));
+                id -> Optional.of(MissingTexture.textureAtTick(engine.context(), id, tick)));
         }
 
         /**

@@ -112,6 +112,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/BlockRendererMissingTextureTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/BlockRendererRasterPinTest": {
       "artifacts": [
         "pin.block-crc"
@@ -175,6 +179,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/ItemRendererGuiIconTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/ItemRendererMissingTextureTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -2771,6 +2779,25 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/texture/BiomeTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/texture/MissingTexture": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/texture/MissingTextureTest": {
       "artifacts": [],
       "source": "derived"
     },
