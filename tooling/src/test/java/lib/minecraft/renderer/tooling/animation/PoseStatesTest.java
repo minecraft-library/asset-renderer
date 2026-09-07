@@ -110,6 +110,26 @@ class PoseStatesTest {
     }
 
     @Test
+    @DisplayName("a shared term is compared once however many paths reach it")
+    void sharedTermsCompareOncePerNode() {
+        // Forty doublings of one read stand for a million million paths; a comparison that recursed
+        // per path would not return, and one that answers each pair of nodes once returns at once.
+        assertTrue(PoseStates.sameShape(doubled(40), doubled(40)), "one shape, however it is shared");
+        assertFalse(PoseStates.sameShape(doubled(40),
+                PoseExpr.Op.of(PoseOperator.ADD, doubled(39), PoseExpr.Const.of(1f))),
+            "a leaf that differs is found down the one path it lives on");
+        assertFalse(PoseStates.sameShape(doubled(3), null));
+    }
+
+    /** One read of the mesh added to itself {@code depth} times over, each sum shared by the next. */
+    private static @NotNull PoseExpr doubled(int depth) {
+        PoseExpr term = new PoseExpr.BoneRead("body", PoseChannel.Y);
+        for (int level = 0; level < depth; level++)
+            term = PoseExpr.Op.of(PoseOperator.ADD, term, term);
+        return term;
+    }
+
+    @Test
     @DisplayName("a stride term folds to what it rests at, so a tuck over the stride is the tuck alone")
     void strideFoldsAtRest() {
         PoseExpr walk = stride();

@@ -1,13 +1,13 @@
 package lib.minecraft.renderer.tooling.animation;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
@@ -151,12 +151,75 @@ final class PoseStates {
                 if (channel.kind() != PoseChannel.Kind.POSITION && channel.kind() != PoseChannel.Kind.ROTATION)
                     continue;
                 PoseExpr here = channels.get(channel);
-                if (here == null || Objects.equals(here, atRest.get(channel)) || !isPlacement(here)) continue;
+                if (here == null || sameShape(here, atRest.get(channel)) || !isPlacement(here)) continue;
                 away.put(channel, here);
             }
             if (!away.isEmpty()) moved.put(bone, Collections.unmodifiableMap(away));
         });
         if (!moved.isEmpty()) out.put(key, new Silhouette(Collections.unmodifiableMap(moved)));
+    }
+
+    /**
+     * Whether two folded channels spell one expression - the same shape node for node, each pair
+     * of nodes visited once however many paths reach it.
+     *
+     * <p>A folded channel is a graph rather than a tree: a term reached down several paths is one
+     * instance, and a comparison recursing per path - the record equality an {@code Op} inherits -
+     * would visit it per path and not terminate on the shapes the shared table exists to compress.
+     * The pairs already answered are memoized by identity on both sides, so a shared term is
+     * compared once and answered thereafter.
+     */
+    static boolean sameShape(@Nullable PoseExpr here, @Nullable PoseExpr there) {
+        return sameShape(here, there, new IdentityHashMap<>());
+    }
+
+    private static boolean sameShape(
+        @Nullable PoseExpr here, @Nullable PoseExpr there,
+        @NotNull Map<PoseExpr, Map<PoseExpr, Boolean>> answered) {
+
+        if (here == there) return true;
+        if (here == null || there == null) return false;
+        Map<PoseExpr, Boolean> against = answered.computeIfAbsent(here, key -> new IdentityHashMap<>());
+        Boolean known = against.get(there);
+        if (known != null) return known;
+        boolean same = switch (here) {
+            case PoseExpr.Op op -> there instanceof PoseExpr.Op other
+                && op.operator() == other.operator()
+                && sameOperands(op.operands(), other.operands(), answered);
+            case PoseExpr.Select select -> there instanceof PoseExpr.Select other
+                && sameCondition(select.condition(), other.condition(), answered)
+                && sameShape(select.whenTrue(), other.whenTrue(), answered)
+                && sameShape(select.whenFalse(), other.whenFalse(), answered);
+            default -> here.equals(there);
+        };
+        against.put(there, same);
+        return same;
+    }
+
+    private static boolean sameOperands(
+        @NotNull List<PoseExpr> here, @NotNull List<PoseExpr> there,
+        @NotNull Map<PoseExpr, Map<PoseExpr, Boolean>> answered) {
+
+        if (here.size() != there.size()) return false;
+        for (int at = 0; at < here.size(); at++)
+            if (!sameShape(here.get(at), there.get(at), answered)) return false;
+        return true;
+    }
+
+    private static boolean sameCondition(
+        @NotNull PosePredicate here, @NotNull PosePredicate there,
+        @NotNull Map<PoseExpr, Map<PoseExpr, Boolean>> answered) {
+
+        if (here == there) return true;
+        return switch (here) {
+            case PosePredicate.Compare compare -> there instanceof PosePredicate.Compare other
+                && compare.comparison() == other.comparison()
+                && sameShape(compare.left(), other.left(), answered)
+                && sameShape(compare.right(), other.right(), answered);
+            case PosePredicate.Not not -> there instanceof PosePredicate.Not other
+                && sameCondition(not.operand(), other.operand(), answered);
+            default -> here.equals(there);
+        };
     }
 
     /**
