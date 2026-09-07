@@ -434,13 +434,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * texture for all six slab faces mirrors the flat-sprite fallback already used for other item
      * kinds.
      *
-     * @param engine the model engine whose context resolves the pattern textures
+     * @param context the renderer context that resolves the pattern textures
      * @param itemId the item id (used to pick the banner vs. shield atlas variant)
      * @param options the render options carrying {@code baseDye} + {@code bannerLayers}
      * @return the list of triangles ready for rasterisation
      */
     static @NotNull ConcurrentList<VisibleTriangle> buildBannerOrShield3D(
-        @NotNull ModelEngine engine,
+        @NotNull RendererContext context,
         @NotNull String itemId,
         @NotNull ItemOptions options
     ) {
@@ -450,7 +450,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ? BannerKit.Variant.SHIELD_BLOCK_3D
             : BannerKit.Variant.BANNER_BLOCK_3D;
 
-        PixelBuffer composite = BannerKit.composite2D(engine.context(), baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
+        PixelBuffer composite = BannerKit.composite2D(context, baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
 
         return GeometryKit.buildBox(
             FLAT_ITEM_SLAB,
@@ -471,7 +471,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      *
      * @param context the renderer context for texture resolution
      * @param buffer the output buffer (the freshly created GUI buffer the shared tail consumes)
-     * @param options the render options (unused beyond the buffer for the plain shield)
+     * @param options the render options, read for what an absent shield base texture means
      * @param tick the animation tick the shield base texture is sampled at
      */
     static void renderShield3D(
@@ -481,7 +481,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         int tick
     ) {
         ModelEngine engine = new ModelEngine(context, SHIELD_CAMERA);
-        PixelBuffer texture = MissingTexture.textureAtTick(engine.context(), SHIELD_NOPATTERN_TEXTURE_ID, tick);
+        PixelBuffer texture = MissingTexture.textureAtTick(
+            context, SHIELD_NOPATTERN_TEXTURE_ID, tick, options.isSubstituteMissing());
         ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture);
         triangles = ShieldKit.relightShield(triangles, SHIELD_LIGHTING);
 
@@ -537,7 +538,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      */
     static @NotNull PixelBuffer composeTintedLayers(
         @NotNull RendererContext context,
-        @NotNull ModelEngine engine,
         @NotNull Item item,
         @NotNull ItemOptions options,
         @NotNull CitResult cit,
@@ -546,7 +546,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         String layer0Ref = cit.textureFor("layer0").map(ResourceId::id).orElse(item.textures().get("layer0"));
         if (layer0Ref == null || layer0Ref.isBlank())
             throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.id().id());
-        PixelBuffer base = MissingTexture.textureAtTick(engine.context(), layer0Ref, tick);
+        boolean substituting = options.isSubstituteMissing();
+        PixelBuffer base = MissingTexture.textureAtTick(context, layer0Ref, tick, substituting);
         PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
 
         int layerIndex = 0;
@@ -554,7 +555,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
             String textureRef = cit.textureFor(layerKey).map(ResourceId::id).orElse(item.textures().get(layerKey));
             if (textureRef == null || textureRef.isBlank()) break;
-            PixelBuffer layer = MissingTexture.textureAtTick(engine.context(), textureRef, tick);
+            PixelBuffer layer = MissingTexture.textureAtTick(context, textureRef, tick, substituting);
             int color = resolveLayerTint(context, item, layerIndex, options);
             // ColorMath.tint returns a multiplied copy (alpha preserved); blit composites it
             // source-over so layer0 lands cleanly even when the composite is still empty.
@@ -619,6 +620,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull CitResult cit,
         int tick
     ) {
+        // Only the layer lookup below substitutes. The trim overlay resolves against the port itself,
+        // where a palette the pack ships no file for is synthesised and an absent one is skipped rather
+        // than drawn or refused - which is what leaves the icon untrimmed instead of checkered.
+        boolean substituting = options.isSubstituteMissing();
         int size = options.getOutput().getCanvasSize();
         // The CIT walk ran once per render (shared with the glint decision); each layer resolves against
         // the result (layer0 -> texture, layerN -> texture.<name>), falling back to the model-bound id.
@@ -633,7 +638,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 TrimKit.resolveFromTextureRef(context, textureRef)
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
             } else {
-                PixelBuffer layer = MissingTexture.textureAtTick(context, textureRef, tick);
+                PixelBuffer layer = MissingTexture.textureAtTick(context, textureRef, tick, substituting);
                 int color = resolveLayerTint(context, item, layerIndex, options);
                 // ColorMath.tint multiplies each texel by the colour (preserving alpha) and returns
                 // a fresh buffer, then blitScaled composites it over the prior layers - unlike
@@ -753,7 +758,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          *
          * @param context renderer context for texture and override resolution
          * @param item resolved item definition being rendered
-         * @param options caller-supplied item render options
+         * @param options caller-supplied item render options, read for what an absent texture means
          * @param cit the render's single CIT walk result, shared by every base-layer pass
          */
         private record LayerContext(
@@ -787,11 +792,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * The renderer context supplying pack / model / texture lookups.
          */
         private final @NotNull RendererContext context;
-
-        /**
-         * The pack-aware texture-resolution service bound once to {@link #context}, shared by the
-         * flat-slab layer composite and the glint tail.
-         */
 
         /**
          * Constructs the held-3D sub-renderer bound to the given context.
@@ -866,7 +866,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     // between frames can swap their authored poses with them.
                     Item item = itemAt.apply(tick);
                     ModelEngine engine = new ModelEngine(this.context, camera);
-                    engine.rasterize(buildTrianglesAtTick(engine, item, options, cit, tint, tick), target,
+                    engine.rasterize(buildTrianglesAtTick(this.context, item, options, cit, tint, tick), target,
                         resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D));
                 }).finishing(itemGlint(this.context, itemAt.apply(0), options, cit.glint())));
         }
@@ -881,39 +881,34 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * carries the same colour as the GUI icon (degenerate no-elements-and-no-layer0 cases throw
          * inside it). Called once per frame from the raster callback so an animated pack
          * texture rebuilds per frame.
+         *
+         * @param context the renderer context every texture this frame reads is resolved against
+         * @param item the item this frame resolved to
+         * @param options the caller's options, read for what an absent texture means
+         * @param cit the render's single CIT walk result
+         * @param tint the caller's tint, applied to an element model's faces
+         * @param tick the animation tick this frame draws at
+         * @return the frame's triangles
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildTrianglesAtTick(
-            @NotNull ModelEngine engine, @NotNull Item item, @NotNull ItemOptions options, @NotNull CitResult cit, int tint, int tick
+            @NotNull RendererContext context, @NotNull Item item, @NotNull ItemOptions options, @NotNull CitResult cit, int tint, int tick
         ) {
             if (isBannerOrShield(options.getItemId()))
-                return buildBannerOrShield3D(engine, options.getItemId(), options);
+                return buildBannerOrShield3D(context, options.getItemId(), options);
             if (!item.model().getElements().isEmpty()) {
-                ConcurrentMap<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item, tick);
+                // The map is keyed by the original face reference string (including any leading
+                // {@code #}), which is what BlockGeometryKit#buildFromElements expects.
+                ConcurrentMap<String, PixelBuffer> faceTextures = item.model().loadElementFaceTextures(
+                    MissingTexture.faces(context, tick, options.isSubstituteMissing()));
                 var forceRefs = item.model().resolveForceTranslucentRefs();
                 return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint, tint, forceRefs);
             }
-            PixelBuffer texture = composeTintedLayers(this.context, engine, item, options, cit, tick);
+            PixelBuffer texture = composeTintedLayers(context, item, options, cit, tick);
             return GeometryKit.buildBox(
                 FLAT_ITEM_SLAB,
                 FaceTextures.uniform(texture),
                 ColorMath.WHITE
             );
-        }
-
-        /**
-         * Walks the item model's element face texture references, dereferences {@code #var}
-         * chains against the model's texture bindings, and loads each unique resolved id into a
-         * {@link PixelBuffer} sampled at animation {@code tick}. The returned map is keyed by the
-         * original face reference string (including any leading {@code #}), which matches what
-         * {@link BlockGeometryKit#buildFromElements} expects.
-         */
-        private static @NotNull ConcurrentMap<String, PixelBuffer> loadFaceTextures(
-            @NotNull ModelEngine engine,
-            @NotNull Item item,
-            int tick
-        ) {
-            return item.model().loadElementFaceTextures(
-                id -> Optional.of(MissingTexture.textureAtTick(engine.context(), id, tick)));
         }
 
         /**

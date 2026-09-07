@@ -104,12 +104,17 @@ public class BlockOptions implements RenderOptions {
     private final boolean mergeParts = true;
 
     /**
-     * Whether an id the block index does not carry draws the missing-model cube rather than refusing.
-     * On by default.
+     * Whether a face whose texture no pack supplies draws the generated checkerboard, and an id the
+     * block index does not carry draws the missing-model cube. On by default.
      * <p>
-     * Turned off, the render raises instead - which is what every renderer outside the block and item
-     * paths already does with a subject it cannot resolve. A caller rendering a batch and catching per
-     * subject turns it off to have an unrenderable one dropped rather than drawn.
+     * Turned off, both raise instead - which is what every renderer outside the block and item paths
+     * already does. A caller rendering a batch and catching per subject turns it off to have an
+     * unrenderable one dropped rather than drawn.
+     * <p>
+     * It governs this renderer's own face lookups and its subject lookup, and nothing beyond them. A
+     * connected-texture tile, a trim overlay, a banner pattern and an enchantment glint each ask the
+     * pack for themselves and skip what it does not supply, so a render missing one of those is drawn
+     * without it either way.
      */
     private final boolean substituteMissing = true;
 

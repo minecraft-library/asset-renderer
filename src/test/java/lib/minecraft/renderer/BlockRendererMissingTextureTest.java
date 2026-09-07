@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -33,23 +34,49 @@ class BlockRendererMissingTextureTest {
     private static final PixelBuffer FIXTURE = PixelBuffer.of(new int[]{0xFF102030, 0xFF405060}, 2, 1);
 
     @Test
-    @DisplayName("a texture no pack supplies draws the checkerboard")
+    @DisplayName("substituting, a texture no pack supplies draws the checkerboard")
     void aMissSubstitutesTheSprite() {
         StubRendererContext context = StubRendererContext.builder().build();
 
-        assertThat(MissingTexture.texture(context, ABSENT), sameInstance(MissingTexture.sprite()));
-        assertThat(MissingTexture.textureAtTick(context, ABSENT, 7), sameInstance(MissingTexture.sprite()));
+        assertThat(MissingTexture.texture(context, ABSENT, true), sameInstance(MissingTexture.sprite()));
+        assertThat(MissingTexture.textureAtTick(context, ABSENT, 7, true), sameInstance(MissingTexture.sprite()));
     }
 
     @Test
-    @DisplayName("a texture a pack does supply is handed back untouched")
+    @DisplayName("not substituting, a texture no pack supplies raises through both arms")
+    void aMissRaisesWhenNotSubstituting() {
+        // The caller's own answer, not a property of the id: the same absent id draws above and raises
+        // here, which is what lets one texture reference mean two things to two renders.
+        StubRendererContext context = StubRendererContext.builder().build();
+
+        assertThrows(RenderException.class, () -> MissingTexture.texture(context, ABSENT, false));
+        assertThrows(RenderException.class, () -> MissingTexture.textureAtTick(context, ABSENT, 7, false));
+    }
+
+    @Test
+    @DisplayName("a texture a pack does supply is handed back untouched, either way")
     void aHitIsUntouched() {
         StubRendererContext context = StubRendererContext.builder()
             .texturesById(Map.of(PRESENT, FIXTURE))
             .build();
 
-        assertThat(MissingTexture.texture(context, PRESENT), sameInstance(FIXTURE));
-        assertThat(MissingTexture.textureAtTick(context, PRESENT, 0), sameInstance(FIXTURE));
+        assertThat(MissingTexture.texture(context, PRESENT, true), sameInstance(FIXTURE));
+        assertThat(MissingTexture.textureAtTick(context, PRESENT, 0, true), sameInstance(FIXTURE));
+        assertThat(MissingTexture.texture(context, PRESENT, false), sameInstance(FIXTURE));
+        assertThat(MissingTexture.textureAtTick(context, PRESENT, 0, false), sameInstance(FIXTURE));
+    }
+
+    @Test
+    @DisplayName("the face resolver never answers empty, on either arm")
+    void theFaceResolverIsTotal() {
+        // Empty is the third answer neither arm may give. A model's element walk DROPS a face it gets
+        // empty for, so a render that asked to be refused would come out holed instead, and one that
+        // asked for the checkerboard would lose it.
+        StubRendererContext context = StubRendererContext.builder().build();
+
+        assertThat(MissingTexture.faces(context, 0, true).apply(ABSENT),
+            is(Optional.of(MissingTexture.sprite())));
+        assertThrows(RenderException.class, () -> MissingTexture.faces(context, 0, false).apply(ABSENT));
     }
 
     @Test
@@ -59,7 +86,7 @@ class BlockRendererMissingTextureTest {
             .texturesById(Map.of(PRESENT, FIXTURE))
             .build();
 
-        MissingTexture.textureAtTick(context, PRESENT, 4);
+        MissingTexture.textureAtTick(context, PRESENT, 4, true);
 
         assertThat(context.getResolved(), contains(PRESENT));
     }
@@ -84,7 +111,7 @@ class BlockRendererMissingTextureTest {
             .texturesById(Map.of(PRESENT, FIXTURE))
             .build();
 
-        assertThat(MissingTexture.texture(context, PRESENT) == MissingTexture.sprite(), is(false));
+        assertThat(MissingTexture.texture(context, PRESENT, true) == MissingTexture.sprite(), is(false));
     }
 
 }

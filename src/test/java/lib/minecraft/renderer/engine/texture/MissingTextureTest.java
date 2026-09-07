@@ -110,8 +110,8 @@ class MissingTextureTest {
         String id = "minecraft:block/missing_texture_test_reported_once";
 
         String first = errDuring(() ->
-            assertThat(MissingTexture.texture(context, id) == MissingTexture.sprite(), is(true)));
-        String second = errDuring(() -> MissingTexture.texture(context, id));
+            assertThat(MissingTexture.texture(context, id, true) == MissingTexture.sprite(), is(true)));
+        String second = errDuring(() -> MissingTexture.texture(context, id, true));
 
         assertThat(first, containsString("Missing texture '" + id + "' - drawing the checkerboard"));
         assertThat("the ninetieth face does not re-report", second, is(emptyString()));
@@ -124,8 +124,8 @@ class MissingTextureTest {
         String first = "minecraft:block/missing_texture_test_distinct_one";
         String second = "minecraft:block/missing_texture_test_distinct_two";
 
-        errDuring(() -> MissingTexture.texture(context, first));
-        String output = errDuring(() -> MissingTexture.textureAtTick(context, second, 3));
+        errDuring(() -> MissingTexture.texture(context, first, true));
+        String output = errDuring(() -> MissingTexture.textureAtTick(context, second, 3, true));
 
         assertThat(output, containsString("Missing texture '" + second + "'"));
     }

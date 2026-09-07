@@ -133,6 +133,12 @@ public class ModelData {
      * the context's {@code Optional}-returning lookup - so this never decides the resolution
      * strategy. Refs whose {@code resolve} yields an empty {@link Optional} are dropped, leaving
      * the kit to treat them as no-texture faces.
+     * <p>
+     * A {@code resolve} may also raise, and the raise propagates rather than dropping the face. That
+     * is the difference a caller choosing between the two answers is choosing: empty leaves the render
+     * with a hole where the face was, and raising refuses the render. A caller that wants an
+     * unrenderable subject dropped whole wants the second, so answering empty on its behalf would
+     * quietly give it the first.
      *
      * @param resolve maps a concrete namespaced texture id to its pixel buffer, or empty to skip
      * @return a new map from raw face ref to its loaded pixel buffer

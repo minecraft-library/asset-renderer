@@ -388,8 +388,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private static final class Assembly {
 
-            /** The render context supplying the texture, colormap and connected-texture lookups. */
+            /** The render context supplying the colormap and connected-texture lookups. */
             private final @NotNull RendererContext context;
+
+            /** Whether a face whose texture no pack supplies draws the checkerboard rather than raising. */
+            private final boolean substituting;
 
             /** The caller's options, read for the output frame, the layer decorator and the merge flag. */
             private final @NotNull BlockOptions options;
@@ -446,6 +449,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              */
             private Assembly(@NotNull RendererContext context, @NotNull BlockOptions options, @NotNull Block block) {
                 this.context = context;
+                this.substituting = options.isSubstituteMissing();
                 this.options = options;
                 this.block = block;
                 this.blockId = block.id().id();
@@ -631,7 +635,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
                     // Build triangles for this part's model
                     ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
-                        id -> Optional.of(MissingTexture.textureAtTick(this.context, id, tick)));
+                        MissingTexture.faces(this.context, tick, this.substituting));
                     var forceRefs = partModel.resolveForceTranslucentRefs();
 
                     boolean uvlock = apply.uvlock();
@@ -666,7 +670,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             private @NotNull ConcurrentList<VisibleTriangle> elementsAt(
                 @NotNull ModelData model, @Nullable Block.Variant variant, int tick) {
                 ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
-                    id -> Optional.of(MissingTexture.textureAtTick(this.context, id, tick)));
+                    MissingTexture.faces(this.context, tick, this.substituting));
                 var forceRefs = model.resolveForceTranslucentRefs();
 
                 // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
@@ -695,7 +699,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     String baseId = model.resolveTextureReference(rawRef);
                     if (baseId.startsWith("#")) return Optional.empty();
                     return this.context.resolveConnectedTexture(this.blockId, this.state, baseId, face)
-                        .map(id -> MissingTexture.textureAtTick(this.context, id.id(), tick));
+                        .map(id -> MissingTexture.textureAtTick(this.context, id.id(), tick, this.substituting));
                 };
             }
 
@@ -712,7 +716,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              */
             private @NotNull ConcurrentList<VisibleTriangle> bonesAt(
                 @NotNull Block.Entity.BoneModel boneModel, @NotNull String textureId, int tick) {
-                PixelBuffer texture = MissingTexture.textureAtTick(this.context, textureId, tick);
+                PixelBuffer texture = MissingTexture.textureAtTick(this.context, textureId, tick, this.substituting);
                 // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
                 // an untinted model (the banner post's wood) samples its texture raw.
                 int faceTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
@@ -750,7 +754,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     // texture (which may differ from the primary - decorated_pot sides use
                     // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
                     Block.Entity.BoneModel boneModel = part.boneModel();
-                    PixelBuffer texture = MissingTexture.textureAtTick(this.context, part.texture(), tick);
+                    PixelBuffer texture = MissingTexture.textureAtTick(this.context, part.texture(), tick, this.substituting);
                     int partTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
                     ConcurrentList<VisibleTriangle> partTriangles =
                         BlockGeometryKit.buildFromBones(boneModel.model(), texture, partTint, boneModel.presentation());
@@ -812,7 +816,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     return Concurrent.newList();
 
                 ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
-                    id -> Optional.of(MissingTexture.textureAtTick(this.context, id, tick)));
+                    MissingTexture.faces(this.context, tick, this.substituting));
                 var forceRefs = partModel.resolveForceTranslucentRefs();
 
                 boolean uvlock = first.uvlock();
@@ -904,7 +908,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
             String direction = options.getFace().direction();
             String textureId = block.textureRef(direction, "all", "side", "particle");
-            PixelBuffer face = MissingTexture.texture(this.context, textureId);
+            // The resolving arm rather than the tick one, which is what a flat face has always read:
+            // an animated id blits its whole strip squashed onto the square, where sampling a frame
+            // would show one of them.
+            PixelBuffer face = MissingTexture.texture(this.context, textureId, options.isSubstituteMissing());
             int tint = tintIndexFor(block, direction) >= 0
                 ? resolveBlockTint(this.context, block, options)
                 : ColorMath.WHITE;
