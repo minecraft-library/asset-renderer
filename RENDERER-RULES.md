@@ -63,6 +63,36 @@ enumerate. `BlockRendererOverrides` is exempt by API - three fixed pack-root pat
 `BlockModelLoader.reportShadowedIds` runs the enumeration backwards, probing `exists()` for a
 supplied id set. Extract a diagnostic when two callers need it, not one.
 
+## What a block or item draws when the pack has not got it
+
+A **block or item face** whose texture no pack supplies draws the generated checkerboard and reports
+the id once. Every other caller still refuses: fluid, portal, player, elytra and equipment reach the
+port's `require` arm and raise exactly as before, and every `Optional`-reading caller - the trim and
+banner composites, the entity texture chain - still reads its empty and skips.
+
+- **The seam is the block and item renderers' own twelve texture calls, and it cannot move.** Each
+  reads the port's `resolve` arm and falls back on the empty, so nothing about `resolveTexture` or the
+  two `require` defaults changed. **The call site is the discriminator and the id is not**:
+  `BlockRenderer`'s per-face load and `EntityRenderer`'s carried-block overlay both walk a *block*
+  model, so both see the same id string, and the first must substitute where the second must see empty
+  to drop the overlay. One input, two required answers - no rule over the id can serve both. A
+  centralised substitution also disarms `require`, which is what a batch renderer's skip-and-continue
+  catches.
+- **A texture miss never substitutes geometry.** A model that resolves keeps its own shape and
+  substitutes only the texels of the face that failed - stairs with no plank texture are still stairs.
+  Only an id neither index carries loses its geometry, and that draws the unit cube.
+- **The inventory slot shows that cube square-on**, a flat square of two colours, because a slot
+  applies no rotation to it. An explicitly posed render answers at the pose the caller asked for, so
+  the posed cube shows three faces at three shades and carries four colours where the slot carries
+  two. That count is the cheapest way to tell the two pictures apart.
+- **The sprite is generated, not stamped.** It is the client's own selector,
+  `(y < height / 2) ^ (x < width / 2)` with both halves integer division, so an odd dimension splits
+  unevenly - seventeen texels is eight then nine. A literal that happens to equal it at even sizes is
+  not it.
+- **Nothing misses on a vanilla-only stack**, which is why no gate can see any of this and why a
+  texture cannot be made missing by deleting the file - the renderer re-extracts it. Forcing the id to
+  answer empty is the only way in, and the visual drivers take `-PhideTextures` for exactly that.
+
 ## Texture flipbooks
 
 A texture's `.mcmeta` animation resolves against the strip it plays over into one `Flipbook` - the
