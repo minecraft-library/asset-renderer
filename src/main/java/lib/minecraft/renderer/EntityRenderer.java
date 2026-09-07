@@ -886,7 +886,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             : block.get().model();
 
         // Pre-load each face's texture by dereferencing #variable bindings against the model's
-        // texture map, exactly mirroring {@code BlockRenderer.Isometric3D.buildFromBlockElements}.
+        // texture map, walking the same loader the block icon walks in
+        // {@code BlockRenderer.Isometric3D.Assembly.elementsAt} - and reading the port's RESOLVING arm
+        // where that one substitutes. The two see the same id string off the same block model, so the
+        // empty below is the only thing that can tell them apart: an overlay whose texture no pack
+        // supplies is dropped here, where a block face draws the checkerboard. That is why the
+        // substitution cannot be centralised on the texture id.
         // Faces whose ref still resolves to a {@code #} after dereference (broken bindings) skip
         // texture loading; the kit treats them as no-texture faces. Sampled at the frame's tick so a
         // carried animated block matches the block-icon path (which also flattens to frame 0 by default).
