@@ -8,6 +8,8 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.support.StubRendererContext;
@@ -61,6 +63,26 @@ class StyleRegistrarSkinTest {
             "an id the delegate cannot answer stays unanswered");
         assertTrue(spy.getResolved().contains("minecraft:entity/zombie/zombie"),
             "because every other id forwards to the delegate untouched");
+    }
+
+    @Test
+    @DisplayName("the reserved id's sidecar stops at the wrapper, even where the delegate would answer one")
+    void theReservedIdCarriesNoSidecar() {
+        // The delegate answers a sidecar for EVERY id, including the reserved one - which is the state
+        // the wrapper has to be correct in. Forwarding the sidecar doors would pair a pack's metadata
+        // with the caller's pixels, describing a texture nothing serves. Nothing reads a skin's sidecar
+        // today, so this is the only thing that would notice.
+        SkinContext wrapped = new SkinContext(new AlwaysMeta(StubRendererContext.builder().build()), sheet(0xFFAA5511));
+
+        assertTrue(wrapped.findMeta(PlayerRig.SKIN_TEXTURE_ID).isEmpty(),
+            "the reserved id's pixels and metadata come from the same place, and the sheet has none");
+        assertTrue(wrapped.findAnimation(PlayerRig.SKIN_TEXTURE_ID).isEmpty(),
+            "and the answer derived from that sidecar agrees with it");
+        assertTrue(wrapped.resolveTextureAtTick(PlayerRig.SKIN_TEXTURE_ID, 21).isPresent(),
+            "so no flipbook resolves and every tick still answers the sheet");
+
+        assertTrue(wrapped.findMeta("minecraft:entity/zombie/zombie").isPresent(),
+            "every other id still reaches the delegate's sidecar");
     }
 
     @Test
@@ -131,6 +153,29 @@ class StyleRegistrarSkinTest {
     }
 
     // ------------------------------------------------------------------------------------
+
+    /**
+     * A delegate answering a sidecar for every id, so a wrapper that forwards the sidecar doors is
+     * caught pairing pack metadata with a caller's pixels. It derives its animation answer from that
+     * sidecar exactly as the concrete context does, which is what couples the two doors.
+     *
+     * @param delegate the stub every other lookup forwards to
+     */
+    private record AlwaysMeta(@NotNull RendererContext delegate) implements RendererContext.Forwarding {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
+            return Optional.of(MCMeta.EMPTY);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+            return findMeta(textureId).flatMap(MCMeta::animation);
+        }
+
+    }
 
     /**
      * A registrar over a copy of the shipped rows plus a fresh rig row.
