@@ -52,6 +52,12 @@ class AtlasRendererMissingTextureTest {
     /** A second block, left intact, so the sheet never renders zero tiles and refuses to compose. */
     private static final String INTACT_SUBJECT = "minecraft:oak_planks";
 
+    /** A flat item, so the sheet's OTHER pass is exercised - the two partition on item-index membership. */
+    private static final String HIDDEN_ITEM = "minecraft:stick";
+
+    /** The one texture id {@link #HIDDEN_ITEM}'s layer stack draws with. */
+    private static final String HIDDEN_ITEM_TEXTURE = "minecraft:item/stick";
+
     private static final int TILE = 64;
 
     private static RendererContext context;
@@ -111,6 +117,25 @@ class AtlasRendererMissingTextureTest {
             .build();
 
         assertThat(tileIds(new AtlasRenderer(hidden).renderAtlas(animated).sidecar().tiles()),
+            contains(INTACT_SUBJECT));
+    }
+
+    @Test
+    @DisplayName("the item pass drops too, so both halves of the sheet honour the flag")
+    void theItemPassDropsAsWell() {
+        // The two passes partition on item-index membership, so a block id never proves anything about
+        // the item one. This filter straddles them: the stick enters through the item pass and the
+        // planks through the block pass, and only the stick's texture is hidden.
+        assertThat(HIDDEN_ITEM + " is carried by the item index",
+            context.findItem(HIDDEN_ITEM).isPresent(), is(true));
+
+        RendererContext hiddenItem = HidingRendererContext.hiding(context, HIDDEN_ITEM_TEXTURE);
+        AtlasOptions options = AtlasOptions.builder()
+            .filter(Optional.of(List.of(HIDDEN_ITEM, INTACT_SUBJECT)::contains))
+            .tileSize(TILE)
+            .build();
+
+        assertThat(tileIds(new AtlasRenderer(hiddenItem).renderAtlas(options).sidecar().tiles()),
             contains(INTACT_SUBJECT));
     }
 
