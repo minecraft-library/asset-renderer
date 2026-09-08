@@ -7,9 +7,11 @@ import lib.minecraft.renderer.asset.pack.item.ItemModelContext;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.support.HidingRendererContext;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -21,16 +23,24 @@ import java.nio.file.Path;
 /**
  * Diagnostic task that renders items to PNG files under {@code cache/visual/item-render-2d/} for
  * visual inspection. Defaults to flat 2D GUI sprites ({@link ItemOptions.Type#GUI_2D}); pass
- * {@code -Ptype=held} for the 3D held-item view ({@link ItemOptions.Type#HELD_3D}). With no
+ * {@code -Ptype=held} for the 3D held-item view ({@link ItemOptions.Type#HELD_3D}) or
+ * {@code -Ptype=icon} for the faithful inventory icon ({@link ItemOptions.Type#GUI_ICON}), which
+ * routes by index membership and is the only one that can answer for a block-backed id. With no
  * {@code -PitemId} it renders {@link #DEFAULT_ITEMS} - a mix of plain items and armor-trim variants
  * that exercises sprite layering and paletted trim permutation.
  * <p>
  * {@code -Psupersample} (SSAA) sharpens the held-item render only - the GUI icon is a sprite blit and
- * ignores it; {@code -PantiAlias} (FXAA) applies to both. Held renders are written with a
- * {@code _held} filename suffix so they never overwrite a GUI icon of the same item.
+ * ignores it; {@code -PantiAlias} (FXAA) applies to both. Held and icon renders are written with a
+ * {@code _held} or {@code _icon} filename suffix so they never overwrite a GUI sprite of the same
+ * item.
+ * <p>
+ * {@code -PhideTextures} forces the named texture ids absent for the run, which is what makes a
+ * texture miss reachable at all - a vanilla-only stack resolves everything, and deleting the file on
+ * disk only makes the renderer re-extract it.
  * <p>
  * Usage: {@code ./gradlew itemRender2D [-PitemId=minecraft:diamond_sword]
- * [-PrenderSize=256] [-Ptype=gui|held] [-Psupersample=2] [-PantiAlias=true]}.
+ * [-PrenderSize=256] [-Ptype=gui|held|icon] [-Psupersample=2] [-PantiAlias=true]
+ * [-PhideTextures=minecraft:item/stick]}.
  */
 @UtilityClass
 public final class ItemRenderDriver {
@@ -54,7 +64,10 @@ public final class ItemRenderDriver {
      *     {@code args[1]} is an optional render size (defaults to 256); {@code args[2]} is an
      *     optional supersample factor (defaults to 1, held items only); {@code args[3]} is an
      *     optional FXAA flag (defaults to false); {@code args[4]} is an optional render type
-     *     ({@code held} for {@link ItemOptions.Type#HELD_3D}, otherwise {@link ItemOptions.Type#GUI_2D})
+     *     ({@code held} for {@link ItemOptions.Type#HELD_3D}, {@code icon} for
+     *     {@link ItemOptions.Type#GUI_ICON}, otherwise {@link ItemOptions.Type#GUI_2D});
+     *     {@code args[5]} is an optional semicolon-separated list of texture ids to force absent,
+     *     which is how a texture miss is made reachable on a vanilla-only stack
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
@@ -64,9 +77,8 @@ public final class ItemRenderDriver {
         int size = args.length > 1 ? Integer.parseInt(args[1]) : 256;
         int supersample = args.length > 2 ? Integer.parseInt(args[2]) : 1;
         boolean antiAlias = args.length > 3 && Boolean.parseBoolean(args[3]);
-        ItemOptions.Type type = args.length > 4 && args[4].equalsIgnoreCase("held")
-            ? ItemOptions.Type.HELD_3D
-            : ItemOptions.Type.GUI_2D;
+        ItemOptions.Type type = resolveType(args.length > 4 ? args[4] : "");
+        String[] hidden = args.length > 5 && !args[5].isBlank() ? args[5].split(";") : new String[0];
 
         ClientAssets result;
         try {
@@ -76,15 +88,21 @@ public final class ItemRenderDriver {
             throw ex;
         }
 
-        PipelineRendererContext context = PipelineRendererContext.of(result);
+        PipelineRendererContext pipeline = PipelineRendererContext.of(result);
+        RendererContext context = hidden.length == 0
+            ? pipeline
+            : HidingRendererContext.hiding(pipeline, hidden);
         ItemRenderer renderer = new ItemRenderer(context);
         Path outputDir = Path.of("cache/visual/item-render-2d");
         Files.createDirectories(outputDir);
 
         for (String itemId : itemIds) {
             itemId = itemId.trim();
-            String safeName = itemId.replace(":", "_")
-                + (type == ItemOptions.Type.HELD_3D ? "_held" : "");
+            String safeName = itemId.replace(":", "_") + switch (type) {
+                case HELD_3D -> "_held";
+                case GUI_ICON -> "_icon";
+                default -> "";
+            };
 
             ItemOptions options = ItemOptions.builder()
                 .itemId(itemId)
@@ -105,6 +123,18 @@ public final class ItemRenderDriver {
                 ex.printStackTrace(System.err);
             }
         }
+    }
+
+    /**
+     * Resolves the render type a {@code -Ptype} value names, defaulting to the flat GUI sprite.
+     *
+     * @param requested the caller's type name, empty when none was passed
+     * @return the render mode to dispatch through
+     */
+    private static ItemOptions.@NotNull Type resolveType(@NotNull String requested) {
+        if (requested.equalsIgnoreCase("held")) return ItemOptions.Type.HELD_3D;
+        if (requested.equalsIgnoreCase("icon")) return ItemOptions.Type.GUI_ICON;
+        return ItemOptions.Type.GUI_2D;
     }
 
     /**

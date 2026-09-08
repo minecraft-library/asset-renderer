@@ -93,6 +93,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/AtlasRendererMissingTextureTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/AtlasRendererParallelismTest": {
       "artifacts": [],
       "source": "derived"
@@ -110,6 +114,10 @@
         "sweep.item",
         "sweep.menu"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/BlockRendererMissingTextureTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/BlockRendererRasterPinTest": {
@@ -178,6 +186,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/ItemRendererMissingTextureTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/ItemRendererTintIndexTest": {
       "artifacts": [],
       "source": "derived"
@@ -202,6 +214,18 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/MenuRendererItemBoxTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/MissingModelFallbackTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/MissingSubjectRefusalTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/MissingTextureTintRosterTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -254,6 +278,10 @@
         "sweep.menu",
         "sweep.player"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/StaticTextureContextTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/TextRenderer": {
@@ -2463,6 +2491,25 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/kit/MissingModelKit": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/kit/MissingModelKitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/kit/NineSliceKit": {
       "artifacts": [
         "manifest.visual"
@@ -2771,6 +2818,25 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/texture/BiomeTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/texture/MissingTexture": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/texture/MissingTextureTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4499,6 +4565,12 @@
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/support/HidingRendererContext": {
+      "artifacts": [
+        "manifest.visual"
       ],
       "source": "derived"
     },

@@ -18,19 +18,20 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Probe of the per-frame block rebuild inside {@code BlockRenderer.Isometric3D}. The
- * isometric block path runs {@code buildRelitTriangles(tick, ...)} - variant resolution, face-texture
+ * isometric block path runs {@code Assembly.relightAt(tick)} - variant resolution, face-texture
  * resolution, geometry assembly, and the inventory relight - <b>inside</b> the raster callback that
  * {@code Timeline.bake} invokes once per output frame, so an animated block (magma / sea_lantern -
  * flipbook {@code .mcmeta} strips) re-runs the entire build for every frame even though only the
- * face-texture re-sample truly varies per tick. The open question is whether hoisting the
- * frame-invariant build (variant / geometry / relight once, texture re-sample per frame) would
- * meaningfully cut render time.
+ * face-texture re-sample truly varies per tick. The subject, its state, its tint and its pose are
+ * already bound once per render on the {@code Assembly} itself; the open question is how much of what
+ * is left - variant selection, geometry, relight - could be hoisted beside them, leaving only the
+ * texture re-sample per frame.
  * <p>
  * This benchmark isolates that cost by rendering the same animated block at {@link #frameCount} 1 vs
  * {@code N}, holding every other input fixed. The marginal per-frame cost - both {@code (ms@N - ms@1)
  * / (N - 1)} and, under the {@code gc} profiler, {@code (alloc@N - alloc@1) / (N - 1)} - is the
  * per-frame rebuild-plus-raster the hoist would target; the {@code stack} profiler attributes that
- * marginal between the rebuild ({@code buildRelitTriangles} / {@code BlockGeometryKit.buildFromElements}
+ * marginal between the rebuild ({@code Assembly.relightAt} / {@code BlockGeometryKit.buildFromElements}
  * / {@code ModelData.loadElementFaceTextures}) and the raster ({@code ModelEngine.rasterizeInternal}).
  * <p>
  * Rendered at {@code 128} px with SSAA and FXAA <b>off</b> so the raster is as cheap as possible and

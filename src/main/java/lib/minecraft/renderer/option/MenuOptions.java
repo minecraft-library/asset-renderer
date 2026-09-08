@@ -154,6 +154,18 @@ public class MenuOptions implements RenderOptions {
     private final @NotNull Fill fill = Fill.EMPTY;
 
     /**
+     * Whether an id neither index carries draws the missing-model cube rather than refusing, for the
+     * item renders a menu builds itself - the {@link #getFill() fill} and each decoration mark's icon.
+     * On by default.
+     * <p>
+     * It governs those two alone. A slot carries its own {@link ItemOptions} and answers for itself,
+     * the same way a slot's canvas size is the renderer's answer and everything else in it is the
+     * caller's. Turned off, a menu naming a fill or an icon nothing resolves for raises rather than
+     * drawing the cube into every cell it reaches.
+     */
+    private final boolean substituteMissing = true;
+
+    /**
      * Target frame rate for animated output when any slot contains an animated item.
      */
     private final int framesPerSecond = 30;

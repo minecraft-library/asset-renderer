@@ -8,6 +8,10 @@
  * read, none of it pipeline-built, which is what keeps it out of the
  * {@link lib.minecraft.renderer.asset asset} layer:
  * <ul>
+ *   <li>{@link lib.minecraft.renderer.engine.texture.MissingTexture MissingTexture} - the generated
+ *       checkerboard an absent texture draws, and the three lookups a block or item face reads
+ *       through, each taking the render's own answer for what an absent one means rather than
+ *       deciding it here.</li>
  *   <li>{@link lib.minecraft.renderer.engine.texture.Biome Biome} - the caller-supplied biome
  *       identity (temperature, downfall, colour overrides, grass modifier), which answers for its
  *       own overrides and applies its own modifier.</li>

@@ -6,11 +6,13 @@ import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.OutputOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.support.HidingRendererContext;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -48,7 +50,8 @@ public final class BlockRenderDriver {
      * @param args {@code args[0]} is an optional semicolon-separated list of block specs (id
      *     plus optional {@code [state=foo,...]} suffix parsed as the render variant); {@code args[1]}
      *     is an optional render size (defaults to 512); {@code args[2]} is an optional supersample
-     *     factor (defaults to 2)
+     *     factor (defaults to 2); {@code args[3]} is an optional semicolon-separated list of texture
+     *     ids to force absent, which is how a texture miss is made reachable on a vanilla-only stack
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
@@ -57,6 +60,7 @@ public final class BlockRenderDriver {
             : DEFAULT_BLOCKS;
         int size = args.length > 1 ? Integer.parseInt(args[1]) : 512;
         int ssaa = args.length > 2 ? Integer.parseInt(args[2]) : 2;
+        String[] hidden = args.length > 3 && !args[3].isBlank() ? args[3].split(";") : new String[0];
 
         ClientAssets result;
         try {
@@ -66,7 +70,10 @@ public final class BlockRenderDriver {
             throw ex;
         }
 
-        PipelineRendererContext context = PipelineRendererContext.of(result);
+        PipelineRendererContext pipeline = PipelineRendererContext.of(result);
+        RendererContext context = hidden.length == 0
+            ? pipeline
+            : HidingRendererContext.hiding(pipeline, hidden);
         BlockRenderer renderer = new BlockRenderer(context);
         Path outputDir = Path.of("cache/visual/block-render-3d");
         Files.createDirectories(outputDir);

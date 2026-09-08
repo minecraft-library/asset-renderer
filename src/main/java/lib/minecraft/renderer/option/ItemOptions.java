@@ -95,6 +95,21 @@ public class ItemOptions implements RenderOptions {
     private final boolean showDamageBar = true;
 
     /**
+     * Whether a layer or face whose texture no pack supplies draws the generated checkerboard, and an
+     * id neither index carries draws the missing-model cube. On by default.
+     * <p>
+     * Turned off, both raise instead - which is what every renderer outside the block and item paths
+     * already does. A caller rendering a batch and catching per subject turns it off to have an
+     * unrenderable one dropped rather than drawn.
+     * <p>
+     * It governs this renderer's own layer and face lookups and its subject lookup, and nothing beyond
+     * them. A trim overlay, a banner pattern and an enchantment glint each ask the pack for themselves
+     * and skip what it does not supply, so an icon missing one of those is drawn without it either
+     * way - untrimmed, or unglinted, rather than refused.
+     */
+    private final boolean substituteMissing = true;
+
+    /**
      * The default output frame for an item icon - the GUI-item projection
      * ({@link Projection#VANILLA_GUI_ITEM}) with neutral output size, no supersampling and no FXAA.
      */

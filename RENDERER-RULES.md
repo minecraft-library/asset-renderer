@@ -63,6 +63,61 @@ enumerate. `BlockRendererOverrides` is exempt by API - three fixed pack-root pat
 `BlockModelLoader.reportShadowedIds` runs the enumeration backwards, probing `exists()` for a
 supplied id set. Extract a diagnostic when two callers need it, not one.
 
+## What a block or item draws when the pack has not got it
+
+A **block or item face** whose texture no pack supplies draws the generated checkerboard and reports
+the id once, **unless the caller's own options turn the substitution off**, in which case it refuses.
+Every other caller refuses either way: fluid, portal, player, elytra and equipment reach the port's
+`require` arm and raise exactly as before, and every `Optional`-reading caller - the trim, banner and
+glint composites, the entity texture chain - still reads its empty and skips.
+
+- **The seam is the block and item renderers' own twelve texture calls, and it cannot move.** Each
+  reads `MissingTexture`, which picks an arm of the port with the answer the render passed it, so
+  nothing about `resolveTexture` or the two `require` defaults changed. **The call site is the
+  discriminator and the id is not**: `BlockRenderer`'s per-face load and `EntityRenderer`'s
+  carried-block overlay both walk a *block* model, so both see the same id string, and the first must
+  substitute where the second must see empty to drop the overlay. One input, two required answers - no
+  rule over the id can serve both. A centralised substitution also disarms `require`, which is what a
+  batch renderer's skip-and-continue catches.
+- **`BlockOptions`, `ItemOptions` and `MenuOptions` carry `substituteMissing`, defaulting on;
+  `AtlasOptions` carries it defaulting OFF.** A single render draws something rather than nothing; a
+  sheet of subjects would rather be short a tile than carry a magenta square that looks like an asset.
+  Turned off, the twelve face calls and the subject lookup raise, and a batch renderer's existing
+  per-tile catch drops the subject - no new drop path exists.
+  - **It governs those two lookups and nothing else.** A trim overlay, a banner pattern, a
+    connected-texture tile and an enchantment glint each ask the pack for themselves and skip what it
+    does not supply, so a render missing one of those is drawn without it on either arm - untrimmed,
+    or unglinted, rather than refused.
+  - **It governs a lookup that fails, not a reference that never became one.** A face whose
+    `#variable` chain does not resolve is skipped before any lookup happens, so nothing raises and the
+    subject still renders with a hole where that face was.
+  - **A flag written on one options type and not the other is no compile error, and neither is one
+    dropped where options are hand-copied.** `GuiIcon.adaptToBlock` copies item options into block
+    options field by field, and `MenuRenderer` builds fresh item options for its fill and its mark
+    icons; in all three a missing line means the builder answers with its own default. The atlas
+    routes every block-backed tile through the first of those, so it is covered by a row that fails if
+    and only if that one line goes.
+- **The refusing arm answers a buffer or raises, and never an empty.** A model's element walk *drops*
+  a face whose resolver answers empty, so an empty there would hand back a subject with a hole in it
+  where the caller asked for the subject to be refused - which a batch renderer would then keep.
+- **A texture miss never substitutes geometry.** A model that resolves keeps its own shape and
+  substitutes only the texels of the face that failed - stairs with no plank texture are still stairs.
+  Only an id neither index carries loses its geometry, and that draws the unit cube.
+- **The inventory slot shows that cube square-on**, a flat square of two colours, because a slot
+  applies no rotation to it. An explicitly posed render answers at the pose the caller asked for, so
+  the posed cube shows three faces at three shades and carries four colours where the slot carries
+  two. That count is the cheapest way to tell the two pictures apart.
+- **The sprite is generated, not stamped.** It is the client's own selector,
+  `(y < height / 2) ^ (x < width / 2)` with both halves integer division, so an odd dimension splits
+  unevenly - seventeen texels is eight then nine. A literal that happens to equal it at even sizes is
+  not it.
+- **Nothing misses on a vanilla-only stack**, which is why no gate can see any of this and why a
+  texture cannot be made missing by deleting the file - the renderer re-extracts it. Forcing the id to
+  answer empty is the only way in, and the visual drivers take `-PhideTextures` for exactly that.
+  A capture therefore proves the *substituting* arm byte-neutral and can say nothing at all about the
+  refusing one; that arm's only evidence is its tests, and `AtlasRenderer` reaches **zero** artifacts,
+  so `AtlasRendererMissingTextureTest` is not a supplement to a gate there - it is the gate.
+
 ## Texture flipbooks
 
 A texture's `.mcmeta` animation resolves against the strip it plays over into one `Flipbook` - the
