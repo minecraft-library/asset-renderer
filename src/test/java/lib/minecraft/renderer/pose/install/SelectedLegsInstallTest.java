@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pose.install;
 
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.LimbSelector;
@@ -8,6 +9,7 @@ import lib.minecraft.renderer.pose.author.Poses;
 import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Reach;
 import lib.minecraft.renderer.pose.author.Side;
+import lib.minecraft.renderer.pose.author.Turn;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,37 @@ class SelectedLegsInstallTest {
         Entity woven = registrar.definitions().get(entityId);
         PoseStyle installed = woven.styles().byId(style.styleId()).orElseThrow();
         return installed.drivers().keySet().stream().sorted().toList();
+    }
+
+    /**
+     * One style tolerantly installed on one subject, and the row it wove.
+     */
+    private static @NotNull Entity tolerantly(@NotNull BuiltStyle style,
+                                              @NotNull String entityId) {
+        StyleRegistrar registrar = StyleRegistrar.ofShipped();
+        registrar.addTolerant(entityId, style);
+        return registrar.definitions().get(entityId);
+    }
+
+    /**
+     * The clip one style's play site carries on one subject.
+     */
+    private static @NotNull PoseClip clipOf(@NotNull BuiltStyle style, @NotNull String entityId) {
+        return tolerantly(style, entityId).pose().clips().stream()
+            .filter(site -> site.coordinate().equals("style:" + style.styleId()))
+            .findFirst().orElseThrow(() -> new AssertionError(
+                "no play site for '" + style.styleId() + "' on " + entityId))
+            .clip();
+    }
+
+    /**
+     * One timeline over every leg of every row.
+     */
+    private static @NotNull BuiltStyle wag() {
+        return Poses.custom("wag")
+            .legs(new LimbSelector.Legs(Optional.empty(), Optional.empty()),
+                leg -> leg.timeline(track -> track.swing(Turn.PITCH, -10, 10).over(1.0)))
+            .build();
     }
 
     @Test
@@ -139,6 +172,46 @@ class SelectedLegsInstallTest {
         assertTrue(refusal.getMessage().contains("answers with one row"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("FRONT"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("HIND"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a leg timeline coins the same clip whether or not the subject answers a leg")
+    void anUnansweredSelectorStillCoinsTheClip() {
+        BuiltStyle wag = wag();
+
+        PoseClip walker = clipOf(wag, "minecraft:wolf");
+        PoseClip crawler = clipOf(wag, "minecraft:spider");
+        PoseClip legless = clipOf(wag, "minecraft:squid");
+
+        assertEquals(4, walker.channels().size(), "a wolf plays four legs");
+        assertEquals(8, crawler.channels().size(), "a spider plays eight");
+        assertEquals(0, legless.channels().size(), "a squid plays none");
+        assertEquals(walker.lengthSeconds(), legless.lengthSeconds(),
+            "the length a track states is the style's, never the mesh's");
+        assertEquals(walker.looping(), legless.looping(),
+            "and so is whether the clip loops or holds");
+
+        assertEquals(List.of("style$wag", "style$wag$clock"),
+            tolerantly(wag, "minecraft:squid").styles().byId("wag").orElseThrow()
+                .drivers().keySet().stream().sorted().toList(),
+            "a subject answering no leg is still gated and clocked");
+    }
+
+    @Test
+    @DisplayName("mixing loop() and once() refuses on a subject whose legs the selector misses")
+    void theLoopRefusalDoesNotDependOnTheMesh() {
+        BuiltStyle mixed = Poses.custom("mixed")
+            .bone("body", body -> body.timeline(track -> track.swing(Turn.PITCH, -2, 2)))
+            .legs(new LimbSelector.Legs(Optional.empty(), Optional.empty()),
+                leg -> leg.timeline(track -> track.swing(Turn.PITCH, -10, 10).once()))
+            .build();
+
+        for (String entityId : List.of("minecraft:wolf", "minecraft:squid")) {
+            IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+                () -> StyleRegistrar.ofShipped().addTolerant(entityId, mixed),
+                () -> "a clip loops or holds as one on " + entityId);
+            assertTrue(refusal.getMessage().contains("loop() and once()"), refusal.getMessage());
+        }
     }
 
     @Test

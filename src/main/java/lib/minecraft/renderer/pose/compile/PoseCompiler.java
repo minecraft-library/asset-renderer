@@ -517,12 +517,12 @@ public final class PoseCompiler {
                 if (!this.dropped.contains(limb.bone()))
                     this.dropped.add(limb.bone());
                 for (PoseScript.Track track : stance.tracks())
-                    this.trackPlans.add(new TrackPlan(limb.bone(), track));
+                    this.trackPlans.add(new TrackPlan(Optional.of(limb.bone()), track));
                 return;
             }
             PoseScript.Limb.Named landed = this.articulated(limb);
             for (PoseScript.Track track : stance.tracks())
-                this.trackPlans.add(new TrackPlan(landed.bone(), track));
+                this.trackPlans.add(new TrackPlan(Optional.of(landed.bone()), track));
             this.foldLimb(landed, stance);
         }
 
@@ -534,6 +534,11 @@ public final class PoseCompiler {
          * A member's side is the side of the leg it hangs off and never the side its own name
          * claims - two boots in the corpus are cross-parented by vanilla, so a segment's name is
          * the one thing about it that cannot be trusted.
+         *
+         * <p>A selector no bone answers still contributes its clip tracks, carrying no bone. What
+         * a track states about the clip - its length, and whether the clip loops or holds - is a
+         * property of the style rather than of the mesh, so a subject answering fewer legs must
+         * not answer with a shorter clip, a differently gated one, or none.
          */
         private void foldSelected(@NotNull PoseScript.Limb.Selected selected,
                                   @NotNull PoseScript.Stance stance) {
@@ -545,6 +550,8 @@ public final class PoseCompiler {
                     selected.reading());
                 if (!derived && !this.dropped.contains(selected.reading()))
                     this.dropped.add(selected.reading());
+                for (PoseScript.Track track : stance.tracks())
+                    this.trackPlans.add(new TrackPlan(Optional.empty(), track));
                 return;
             }
             this.events.info("selector: %s reaches %d bone(s) %s",
@@ -554,7 +561,7 @@ public final class PoseCompiler {
                     new PoseScript.Limb.Named(member, selected.axis(), selected.anatomical());
                 PoseScript.Limb.Named landed = this.articulated(named);
                 for (PoseScript.Track track : stance.tracks())
-                    this.trackPlans.add(new TrackPlan(landed.bone(), track));
+                    this.trackPlans.add(new TrackPlan(Optional.of(landed.bone()), track));
                 this.foldLimb(landed, stance);
             }
         }
@@ -813,7 +820,7 @@ public final class PoseCompiler {
                 for (ChannelPlan folded : plan.values())
                     if (folded.sway != null || folded.spin != null) return true;
             for (TrackPlan track : this.trackPlans)
-                if (track.bone().equals(bone)) return true;
+                if (track.bone().filter(bone::equals).isPresent()) return true;
             return false;
         }
 
@@ -1067,9 +1074,15 @@ public final class PoseCompiler {
             for (TrackPlan plan : this.trackPlans)
                 length = Math.max(length, plan.track().overSeconds().orElse(this.windowSeconds));
             LinkedHashMap<ChannelKey, List<PoseClip.Keyframe>> accumulated = new LinkedHashMap<>();
-            for (TrackPlan plan : this.trackPlans)
-                this.emitTrack(plan, accumulated);
-            if (accumulated.isEmpty()) return Optional.empty();
+            boolean unplaced = false;
+            for (TrackPlan plan : this.trackPlans) {
+                if (plan.bone().isEmpty()) {
+                    unplaced |= !plan.track().motions().isEmpty();
+                    continue;
+                }
+                this.emitTrack(plan.bone().get(), plan.track(), accumulated);
+            }
+            if (accumulated.isEmpty() && !unplaced) return Optional.empty();
 
             List<PoseClip.Channel> channels = new ArrayList<>(accumulated.size());
             accumulated.forEach((key, keyframes) -> {
@@ -1104,10 +1117,13 @@ public final class PoseCompiler {
 
         /**
          * Emits one track's motion fragments as keyframes onto the accumulated channels.
+         *
+         * @param bone the bone the track keys
+         * @param track the captured timeline
+         * @param accumulated the per-channel keyframe lists the clip is assembled from
          */
-        private void emitTrack(@NotNull TrackPlan plan,
+        private void emitTrack(@NotNull String bone, @NotNull PoseScript.Track track,
                                @NotNull LinkedHashMap<ChannelKey, List<PoseClip.Keyframe>> accumulated) {
-            PoseScript.Track track = plan.track();
             double length = track.overSeconds().orElse(this.windowSeconds);
             PoseClip.Interpolation curve = track.ease() == Ease.SMOOTH
                 ? PoseClip.Interpolation.CATMULLROM
@@ -1115,26 +1131,26 @@ public final class PoseCompiler {
             for (PoseScript.Motion motion : track.motions()) {
                 switch (motion) {
                     case PoseScript.Swing swing -> {
-                        List<PoseClip.Keyframe> frames = this.framesOf(accumulated, plan.bone(), PoseClip.Target.ROTATION);
+                        List<PoseClip.Keyframe> frames = this.framesOf(accumulated, bone, PoseClip.Target.ROTATION);
                         frames.add(rotationFrame(0d, swing.axis(), swing.fromDegrees(), curve));
                         frames.add(rotationFrame(length / 2d, swing.axis(), swing.toDegrees(), curve));
                         frames.add(rotationFrame(length, swing.axis(), swing.fromDegrees(), curve));
                     }
                     case PoseScript.Bob bob -> {
-                        List<PoseClip.Keyframe> frames = this.framesOf(accumulated, plan.bone(), PoseClip.Target.POSITION);
+                        List<PoseClip.Keyframe> frames = this.framesOf(accumulated, bone, PoseClip.Target.POSITION);
                         float lifted = (float) (-bob.pixels() / this.flattened);
                         frames.add(new PoseClip.Keyframe(0f, 0f, 0f, 0f, curve));
                         frames.add(new PoseClip.Keyframe((float) (length / 2d), 0f, lifted, 0f, curve));
                         frames.add(new PoseClip.Keyframe((float) length, 0f, 0f, 0f, curve));
                     }
                     case PoseScript.Keyframe frame ->
-                        this.framesOf(accumulated, plan.bone(), PoseClip.Target.ROTATION)
+                        this.framesOf(accumulated, bone, PoseClip.Target.ROTATION)
                             .add(new PoseClip.Keyframe((float) frame.atSeconds(),
                                 (float) Math.toRadians(frame.pitchDegrees()),
                                 (float) Math.toRadians(frame.yawDegrees()),
                                 (float) Math.toRadians(frame.rollDegrees()), curve));
                     case PoseScript.Shift shift ->
-                        this.framesOf(accumulated, plan.bone(), PoseClip.Target.POSITION)
+                        this.framesOf(accumulated, bone, PoseClip.Target.POSITION)
                             .add(new PoseClip.Keyframe((float) shift.atSeconds(),
                                 (float) (shift.xPixels() / this.flattened),
                                 (float) (shift.yPixels() / this.flattened),
@@ -1487,12 +1503,13 @@ public final class PoseCompiler {
     }
 
     /**
-     * One captured timeline addressed at one bone.
+     * One captured timeline and the bone it keys.
      *
-     * @param bone the stanced bone the track keys
+     * @param bone the stanced bone the track keys, empty where the address the author wrote
+     *     answered no bone at all on this mesh
      * @param track the captured timeline
      */
-    private record TrackPlan(@NotNull String bone, @NotNull PoseScript.Track track) {}
+    private record TrackPlan(@NotNull Optional<String> bone, @NotNull PoseScript.Track track) {}
 
     /**
      * One clip channel coordinate.
