@@ -7,7 +7,7 @@ import lib.minecraft.renderer.pose.PoseExpr;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The custom tier - raw bone names for every roster the humanoid and quadruped vocabularies do
+ * The custom tier - raw bone names for every roster the humanoid and legged vocabularies do
  * not fit: a fused arm pair, a wing pair, an eight-legged crawler, a head shell inside a shell.
  *
  * <p>It names no anatomy at all - a chain here addresses every part through the shared

@@ -14,12 +14,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * stamps.
  */
 @DisplayName("the quadruped builder maps the walker roster and stamps leg pairs")
-class QuadrupedPoseTest {
+class LeggedPoseTest {
 
     @Test
     @DisplayName("selectors land on the walker bones with their aim-axis stamps")
     void selectorsMapTheWalkerRoster() {
-        PoseScript script = Poses.quadruped("map")
+        PoseScript script = Poses.legged("map")
             .head(h -> h.pitch(-15))
             .body(b -> b.pitch(-40))
             .tail(t -> t.yaw(20))
@@ -33,13 +33,13 @@ class QuadrupedPoseTest {
     }
 
     @Test
-    @DisplayName("each corner selector lands on its own leg bone")
-    void cornersMapTheirLegs() {
-        PoseScript script = Poses.quadruped("splay")
-            .leg(Corner.FRONT_LEFT, l -> l.pitch(1))
-            .leg(Corner.FRONT_RIGHT, l -> l.pitch(2))
-            .leg(Corner.HIND_LEFT, l -> l.pitch(3))
-            .leg(Corner.HIND_RIGHT, l -> l.pitch(4))
+    @DisplayName("each rank and side pair lands on its own leg bone")
+    void ranksAndSidesMapTheirLegs() {
+        PoseScript script = Poses.legged("splay")
+            .leg(Rank.FRONT, Side.LEFT, l -> l.pitch(1))
+            .leg(Rank.FRONT, Side.RIGHT, l -> l.pitch(2))
+            .leg(Rank.HIND, Side.LEFT, l -> l.pitch(3))
+            .leg(Rank.HIND, Side.RIGHT, l -> l.pitch(4))
             .build()
             .script();
 
@@ -54,10 +54,10 @@ class QuadrupedPoseTest {
     }
 
     @Test
-    @DisplayName("frontLegs stamps the right as authored and the left under x, -y, -z")
-    void frontLegsStampTheMirrorPair() {
-        PoseScript script = Poses.quadruped("beg")
-            .frontLegs(l -> l.pitch(-35).yawBy(5))
+    @DisplayName("the front row stamps the right as authored and the left under x, -y, -z")
+    void frontRowStampsTheMirrorPair() {
+        PoseScript script = Poses.legged("beg")
+            .legs(Rank.FRONT, l -> l.pitch(-35).yawBy(5))
             .build()
             .script();
 
@@ -72,10 +72,10 @@ class QuadrupedPoseTest {
     }
 
     @Test
-    @DisplayName("hindLegs stamps its pair the same way")
-    void hindLegsStampTheMirrorPair() {
-        PoseScript script = Poses.quadruped("kick")
-            .hindLegs(l -> l.roll(10))
+    @DisplayName("the hind row stamps its pair the same way")
+    void hindRowStampsTheMirrorPair() {
+        PoseScript script = Poses.legged("kick")
+            .legs(Rank.HIND, l -> l.roll(10))
             .build()
             .script();
 
@@ -86,10 +86,10 @@ class QuadrupedPoseTest {
     @Test
     @DisplayName("a whole begging chain captures seven stances in author order")
     void begChainCapturesInOrder() {
-        PoseScript script = Poses.quadruped("beg")
+        PoseScript script = Poses.legged("beg")
             .body(b -> b.pitch(-40))
-            .hindLegs(l -> l.pitch(-70))
-            .frontLegs(l -> l.pitch(-35))
+            .legs(Rank.HIND, l -> l.pitch(-70))
+            .legs(Rank.FRONT, l -> l.pitch(-35))
             .head(h -> h.pitch(-15)
                 .timeline(t -> t.swing(Turn.ROLL, -8, 8).over(1.2).ease(Ease.SMOOTH)))
             .tail(t -> t.sway(Turn.YAW, -25, 25))

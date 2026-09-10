@@ -21,7 +21,7 @@ import java.util.function.UnaryOperator;
  */
 @Parity(subject = Subject.ENTITY)
 abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
-    permits HumanoidPose.Builder, QuadrupedPose.Builder, CustomPose.Builder {
+    permits HumanoidPose.Builder, LeggedPose.Builder, CustomPose.Builder {
 
     /**
      * The capture engine the tier selectors and the tail verbs write into.

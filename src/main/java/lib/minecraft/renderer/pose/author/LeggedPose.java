@@ -7,27 +7,27 @@ import org.jetbrains.annotations.NotNull;
 import java.util.function.UnaryOperator;
 
 /**
- * The quadruped tier - the head-body-legs-tail vocabulary of four-legged walkers: head, body,
- * four corner legs and tail.
+ * The legged tier - the head-body-legs-tail vocabulary of walkers: head, body, legs addressed by
+ * the row they sit in and the side they sit on, and tail.
  *
- * <p>Its builder stamps leg pairs front and hind under the mirror sign rule (pitch kept, yaw
+ * <p>Its builder stamps both legs of a row in one call under the mirror sign rule (pitch kept, yaw
  * and roll negated) and drops the tail stance silently where a mesh carries none only under a
- * tolerant install. A whole roster the four names do not fit - a split tail, an eight-legged
- * crawler - belongs to the custom tier rather than a stretched vocabulary, while one part beside
- * them, like a wolf's mane, is reached by its mesh name through {@link PoseBuilder#bone}.
+ * tolerant install. A whole roster this vocabulary does not fit - a split tail, an eight-legged
+ * crawler - belongs to the custom tier rather than a stretched one, while one part beside it,
+ * like a wolf's mane, is reached by its mesh name through {@link PoseBuilder#bone}.
  *
  * <p>Every verb here names anatomy, so a stance lands on the articulation the shipped pose
  * turns for that part - an equine head is a cube under the neck assembly the pose turns as
  * one, and the head verb turns the assembly, snout and mane and ears with it.
  */
 @Parity(subject = Subject.ENTITY)
-public final class QuadrupedPose {
+public final class LeggedPose {
 
-    private QuadrupedPose() {}
+    private LeggedPose() {}
 
     /**
-     * The quadruped builder - selectors and paired-leg stamps over the walker roster, sharing
-     * the capture-then-compile tail of every tier.
+     * The legged builder - selectors and paired-leg stamps over the walker roster, sharing the
+     * capture-then-compile tail of every tier.
      */
     public static final class Builder extends PoseBuilder<Builder> {
 
@@ -76,50 +76,46 @@ public final class QuadrupedPose {
         }
 
         /**
-         * Stances one corner leg.
+         * Stances one leg, addressed by its row and its side.
          *
-         * @param corner which leg
+         * @param rank which row front to back
+         * @param side which side of that row
          * @param stance the stance lambda
          * @return this builder
          */
-        public @NotNull Builder leg(@NotNull Corner corner, @NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.stance(legOf(corner), PoseScript.AimAxis.DOWN, true, stance);
+        public @NotNull Builder leg(@NotNull Rank rank, @NotNull Side side,
+                                    @NotNull UnaryOperator<LimbStance> stance) {
+            this.capture.stance(legOf(rank, side), PoseScript.AimAxis.DOWN, true, stance);
             return this;
         }
 
         /**
-         * Stances both forelegs in one stamp - the right as authored, the left derived under
-         * the mirror sign rule, timeline values included.
+         * Stances both legs of one row in one stamp - the right as authored, the left derived
+         * under the mirror sign rule, timeline values included.
          *
-         * @param stance the stance lambda, run once for the right foreleg
+         * @param rank which row front to back
+         * @param stance the stance lambda, run once for the right leg of the row
          * @return this builder
          */
-        public @NotNull Builder frontLegs(@NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.pair("right_front_leg", "left_front_leg", PoseScript.AimAxis.DOWN, stance);
+        public @NotNull Builder legs(@NotNull Rank rank, @NotNull UnaryOperator<LimbStance> stance) {
+            this.capture.pair(legOf(rank, Side.RIGHT), legOf(rank, Side.LEFT),
+                PoseScript.AimAxis.DOWN, stance);
             return this;
         }
 
         /**
-         * Stances both hindlegs in one stamp - the right as authored, the left derived under
-         * the mirror sign rule, timeline values included.
-         *
-         * @param stance the stance lambda, run once for the right hindleg
-         * @return this builder
+         * The mesh name of one row's leg on one side.
          */
-        public @NotNull Builder hindLegs(@NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.pair("right_hind_leg", "left_hind_leg", PoseScript.AimAxis.DOWN, stance);
-            return this;
-        }
-
-        /**
-         * The mesh name of one corner's leg.
-         */
-        private static @NotNull String legOf(@NotNull Corner corner) {
-            return switch (corner) {
-                case FRONT_LEFT -> "left_front_leg";
-                case FRONT_RIGHT -> "right_front_leg";
-                case HIND_LEFT -> "left_hind_leg";
-                case HIND_RIGHT -> "right_hind_leg";
+        private static @NotNull String legOf(@NotNull Rank rank, @NotNull Side side) {
+            return switch (side) {
+                case LEFT -> switch (rank) {
+                    case FRONT -> "left_front_leg";
+                    case HIND -> "left_hind_leg";
+                };
+                case RIGHT -> switch (rank) {
+                    case FRONT -> "right_front_leg";
+                    case HIND -> "right_hind_leg";
+                };
             };
         }
 

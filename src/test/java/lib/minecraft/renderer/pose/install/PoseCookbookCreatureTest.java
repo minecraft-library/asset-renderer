@@ -13,9 +13,10 @@ import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
-import lib.minecraft.renderer.pose.author.Corner;
 import lib.minecraft.renderer.pose.author.Ease;
 import lib.minecraft.renderer.pose.author.Poses;
+import lib.minecraft.renderer.pose.author.Rank;
+import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.PoseCompiler;
 import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
@@ -77,11 +78,11 @@ class PoseCookbookCreatureTest {
     @DisplayName("beg")
     class Beg {
 
-        private final @NotNull BuiltStyle beg = Poses.quadruped("beg")
+        private final @NotNull BuiltStyle beg = Poses.legged("beg")
             .body(body -> body.pitch(45).offset(0, 4, -2))
             .bone("upper_body", mane -> mane.pitch(72).offset(0, 2, 0))
-            .hindLegs(leg -> leg.pitch(-90))
-            .frontLegs(leg -> leg.pitch(-27).offset(0, 1, 0))
+            .legs(Rank.HIND, leg -> leg.pitch(-90))
+            .legs(Rank.FRONT, leg -> leg.pitch(-27).offset(0, 1, 0))
             .head(head -> head.pitch(-15)
                 .timeline(track -> track.swing(Turn.ROLL, -8, 8).over(1.2).ease(Ease.SMOOTH)))
             .tail(tail -> tail.sway(Turn.YAW, -25, 25))
@@ -265,7 +266,7 @@ class PoseCookbookCreatureTest {
             Entity cat = EntityModelLoader.load().get("minecraft:cat");
             float factor = cat.model().getFlattenedScale();
             float authored = cat.model().getBones().get("body").getPivot().y();
-            BuiltStyle settle = Poses.quadruped("settle")
+            BuiltStyle settle = Poses.legged("settle")
                 .body(body -> body.pitch(-40).offset(0, 2, 0))
                 .build();
 
@@ -296,12 +297,12 @@ class PoseCookbookCreatureTest {
 
         private final @NotNull Entity horse = EntityModelLoader.load().get("minecraft:horse");
 
-        private final @NotNull BuiltStyle rear = Poses.quadruped("rear")
+        private final @NotNull BuiltStyle rear = Poses.legged("rear")
             .body(body -> body.pitch(-45))
             .head(head -> head.pitch(15).offset(0, -8.8, 8.8))
-            .leg(Corner.FRONT_LEFT, leg -> leg.pitch(-117.3).offset(0, -13.2, 4.4))
-            .leg(Corner.FRONT_RIGHT, leg -> leg.pitch(-2.7).offset(0, -13.2, 4.4))
-            .hindLegs(leg -> leg.pitch(15))
+            .leg(Rank.FRONT, Side.LEFT, leg -> leg.pitch(-117.3).offset(0, -13.2, 4.4))
+            .leg(Rank.FRONT, Side.RIGHT, leg -> leg.pitch(-2.7).offset(0, -13.2, 4.4))
+            .legs(Rank.HIND, leg -> leg.pitch(15))
             .build();
 
         private final PoseCompiler.@NotNull Compiled compiled = PoseCompiler.compile(this.rear, this.horse);
@@ -310,7 +311,7 @@ class PoseCookbookCreatureTest {
         @DisplayName("a container tilt is one bare rotation read - no base, no second channel")
         void containerTiltIsOneBareRotationRead() {
             PoseCompiler.Compiled tilt = PoseCompiler.compile(
-                Poses.quadruped("tilt").container(step -> step.pitch(-30)).build(), this.horse);
+                Poses.legged("tilt").container(step -> step.pitch(-30)).build(), this.horse);
             assertEquals(1, tilt.pose().container().size());
             Map<PoseChannel, PoseExpr> step = tilt.pose().container().getFirst();
             assertEquals(1, step.size(), "the tilt is the step's whole content");
@@ -367,7 +368,7 @@ class PoseCookbookCreatureTest {
         @Test
         @DisplayName("a haunch shift on the container refuses - the seat rides a flattened mesh")
         void haunchShiftRefusesOnTheFlattenedMesh() {
-            BuiltStyle shifted = Poses.quadruped("rear_shift")
+            BuiltStyle shifted = Poses.legged("rear_shift")
                 .container(step -> step.pitch(-30).offset(0, 3, -5))
                 .build();
             IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,

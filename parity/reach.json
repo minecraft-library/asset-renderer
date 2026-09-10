@@ -4362,10 +4362,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pose/author/Corner": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/pose/author/CustomPose": {
       "artifacts": [],
       "source": "derived"
@@ -4387,6 +4383,14 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/pose/author/Keyframes": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/LeggedPose": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/LeggedPoseTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4418,11 +4422,7 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pose/author/QuadrupedPose": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/pose/author/QuadrupedPoseTest": {
+    "lib/minecraft/renderer/pose/author/Rank": {
       "artifacts": [],
       "source": "derived"
     },

@@ -19,6 +19,7 @@ import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.Poses;
+import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.CompilerFixtures;
@@ -112,9 +113,9 @@ class StyleRegistrarTest {
         EntityModelData mesh = flattened(1f);
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
             entity("minecraft:test", mesh, EntityPose.NONE, StyleCatalog.BIND_ONLY)));
-        BuiltStyle beg = Poses.quadruped("beg")
+        BuiltStyle beg = Poses.legged("beg")
             .head(head -> head.pitch(-15))
-            .hindLegs(leg -> leg.pitch(-70))
+            .legs(Rank.HIND, leg -> leg.pitch(-70))
             .build();
 
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
@@ -130,9 +131,9 @@ class StyleRegistrarTest {
         EntityModelData mesh = flattened(1f);
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
             entity("minecraft:test", mesh, EntityPose.NONE, StyleCatalog.BIND_ONLY)));
-        registrar.addTolerant("minecraft:test", Poses.quadruped("beg")
+        registrar.addTolerant("minecraft:test", Poses.legged("beg")
             .head(head -> head.pitch(-15))
-            .hindLegs(leg -> leg.pitch(-70))
+            .legs(Rank.HIND, leg -> leg.pitch(-70))
             .build());
 
         Entity woven = registrar.definitions().get("minecraft:test");

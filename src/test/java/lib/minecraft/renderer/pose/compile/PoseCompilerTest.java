@@ -12,8 +12,8 @@ import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
-import lib.minecraft.renderer.pose.author.Corner;
 import lib.minecraft.renderer.pose.author.Poses;
+import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
 import org.jetbrains.annotations.NotNull;
@@ -585,9 +585,9 @@ class PoseCompilerTest {
     void droppedBonesAreRecordedAndWarned() {
         EntityModelData mesh = flattened(1f);
         PoseCompiler.Compiled compiled = PoseCompiler.compile(
-            Poses.quadruped("beg")
+            Poses.legged("beg")
                 .head(head -> head.pitch(-15))
-                .leg(Corner.HIND_LEFT, leg -> leg.pitch(-70))
+                .leg(Rank.HIND, Side.LEFT, leg -> leg.pitch(-70))
                 .build(),
             row(mesh, EntityPose.NONE));
 

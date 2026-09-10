@@ -34,7 +34,7 @@ class BuiltStyleTest {
     @Test
     @DisplayName("every tier refuses a reserved id the same way")
     void everyTierRefuses() {
-        assertThrows(IllegalArgumentException.class, () -> Poses.quadruped("stride").build());
+        assertThrows(IllegalArgumentException.class, () -> Poses.legged("stride").build());
         assertThrows(IllegalArgumentException.class, () -> Poses.custom("animated").build());
     }
 
@@ -63,7 +63,7 @@ class BuiltStyleTest {
     @Test
     @DisplayName("a sway infers the clock source")
     void swayInfersTick() {
-        BuiltStyle beg = Poses.quadruped("beg")
+        BuiltStyle beg = Poses.legged("beg")
             .tail(t -> t.sway(Turn.YAW, -25, 25))
             .build();
 

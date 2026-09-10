@@ -5,7 +5,7 @@
  * {@link lib.minecraft.renderer.pose.author.Poses Poses} on one of three tiers - the canonical
  * seven of {@link lib.minecraft.renderer.pose.author.HumanoidPose HumanoidPose}, the
  * head-body-legs-tail roster of
- * {@link lib.minecraft.renderer.pose.author.QuadrupedPose QuadrupedPose}, or
+ * {@link lib.minecraft.renderer.pose.author.LeggedPose LeggedPose}, or
  * {@link lib.minecraft.renderer.pose.author.CustomPose CustomPose}, which names no anatomy and
  * carries the raw expression hatch - over the shared tail
  * {@link lib.minecraft.renderer.pose.author.PoseBuilder PoseBuilder} owns, whose
@@ -15,7 +15,7 @@
  * the keyframes, and {@link lib.minecraft.renderer.pose.author.Preset Preset} a whole silhouette
  * at once, addressed limb by limb through
  * {@link lib.minecraft.renderer.pose.author.Side Side},
- * {@link lib.minecraft.renderer.pose.author.Corner Corner},
+ * {@link lib.minecraft.renderer.pose.author.Rank Rank},
  * {@link lib.minecraft.renderer.pose.author.Turn Turn} and
  * {@link lib.minecraft.renderer.pose.author.Ease Ease}.
  *

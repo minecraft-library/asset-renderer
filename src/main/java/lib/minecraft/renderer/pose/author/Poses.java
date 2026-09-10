@@ -8,9 +8,9 @@ import org.jetbrains.annotations.NotNull;
  * The entry point of pose authoring - one factory per tier vocabulary.
  *
  * <p>Each factory opens a builder whose selectors speak that tier's bone roster: the humanoid
- * tier the canonical seven of bipeds, the quadruped tier the head-body-legs-tail roster of
- * four-legged walkers, and the custom tier no anatomy at all, for every roster the other two do
- * not fit - a fused pair, an extra wing, an eight-legged crawler.
+ * tier the canonical seven of bipeds, the legged tier the head-body-legs-tail roster of walkers,
+ * and the custom tier no anatomy at all, for every roster the other two do not fit - a fused
+ * pair, an extra wing, an eight-legged crawler.
  *
  * <p>Every tier also reaches a bone by its mesh name through {@link PoseBuilder#bone}, so a part
  * outside a vocabulary's roster is one verb away rather than a move to another tier.
@@ -32,14 +32,14 @@ public final class Poses {
     }
 
     /**
-     * Opens a quadruped builder - head, body, four corner legs and tail, with paired-leg
+     * Opens a legged builder - head, body, legs by row and side, and tail, with paired-leg
      * stamps.
      *
      * @param styleId the id a caller selects the built style by
-     * @return the quadruped builder
+     * @return the legged builder
      */
-    public static @NotNull QuadrupedPose.Builder quadruped(@NotNull String styleId) {
-        return new QuadrupedPose.Builder(styleId);
+    public static @NotNull LeggedPose.Builder legged(@NotNull String styleId) {
+        return new LeggedPose.Builder(styleId);
     }
 
     /**

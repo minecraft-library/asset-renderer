@@ -85,9 +85,9 @@ class SeatsRosterTest {
         assumeTrue(!definitions.isEmpty(), "bundled entity tables are present");
 
         Map<String, Function<String, BuiltStyle>> verbs = new LinkedHashMap<>();
-        verbs.put("head", id -> Poses.quadruped(id).head(head -> head.pitch(37)).build());
-        verbs.put("body", id -> Poses.quadruped(id).body(body -> body.pitch(37)).build());
-        verbs.put("tail", id -> Poses.quadruped(id).tail(tail -> tail.pitch(37)).build());
+        verbs.put("head", id -> Poses.legged(id).head(head -> head.pitch(37)).build());
+        verbs.put("body", id -> Poses.legged(id).body(body -> body.pitch(37)).build());
+        verbs.put("tail", id -> Poses.legged(id).tail(tail -> tail.pitch(37)).build());
         verbs.put("right_arm", id -> Poses.humanoid(id).arm(Side.RIGHT, arm -> arm.pitch(37)).build());
         verbs.put("right_leg", id -> Poses.humanoid(id).leg(Side.RIGHT, leg -> leg.pitch(37)).build());
 
