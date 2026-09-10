@@ -186,13 +186,10 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
      * refuses one naming a side - half a bone is not addressable, and answering both sides with the
      * same bone would let two stances collide on it silently.
      *
-     * @param selector which limbs the mesh is asked for
+     * @param legs which legs the mesh is asked for
      * @return the bones addressed, empty where the mesh answers none
      */
-    public @NotNull ConcurrentList<String> members(@NotNull LimbSelector selector) {
-        if (!(selector instanceof LimbSelector.Legs legs))
-            return Concurrent.newUnmodifiableList();
-
+    public @NotNull ConcurrentList<String> members(@NotNull LimbSelector.Legs legs) {
         List<Row> addressed = legs.rank()
             .map(rank -> this.row(rank).stream().toList())
             .orElseGet(() -> List.copyOf(this.rows));

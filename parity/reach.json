@@ -4470,6 +4470,14 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/compile/LimbFamily": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/LimbFamilyTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/compile/LimbRoster": {
       "artifacts": [],
       "source": "derived"
@@ -4527,6 +4535,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/pose/install/ContainerInstallParityTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/FamilyInstallTest": {
       "artifacts": [],
       "source": "derived"
     },

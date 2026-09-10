@@ -81,6 +81,29 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
     }
 
     /**
+     * Stances every bone the target mesh spells as one stem and a running number.
+     *
+     * <p>The escape {@link #bone} is, with the count left to the mesh: a squid's arms, a dragon's
+     * neck and a cat's split tail are each one word here and however many bones that subject
+     * declares. The stance lands on each member as written, so a family whose members hang off one
+     * another compounds what it was given down the chain and one whose members are siblings does
+     * not - the selector reports which it met and states neither.
+     *
+     * <p>Names are taken literally, as {@link #bone} takes one: a member climbs to no articulation
+     * above it, and a stem the mesh spells no bone for drops with a recorded line.
+     *
+     * @param stem the name every member begins with
+     * @param stance the stance lambda, run once and stamped on each member
+     * @return this builder
+     */
+    public final @NotNull B family(@NotNull String stem,
+                                   @NotNull UnaryOperator<LimbStance> stance) {
+        this.capture.selected(new LimbSelector.Family(stem), PoseScript.AimAxis.DOWN, false,
+            Mirror.SIGNED, stance);
+        return this.self();
+    }
+
+    /**
      * Captures one container step - the same verb surface addressed at the whole figure's
      * seat, one ordered step per call.
      *

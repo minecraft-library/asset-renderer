@@ -542,7 +542,16 @@ public final class PoseCompiler {
          */
         private void foldSelected(@NotNull PoseScript.Limb.Selected selected,
                                   @NotNull PoseScript.Stance stance) {
-            List<String> members = this.roster.members(selected.selector());
+            List<String> members = switch (selected.selector()) {
+                case LimbSelector.Legs legs -> this.roster.members(legs);
+                case LimbSelector.Family family -> {
+                    List<String> spelled = LimbFamily.members(this.mesh, family.stem());
+                    if (LimbFamily.chained(this.mesh, spelled))
+                        this.events.info("family: %s hangs each member off the one before it, so one stance compounds down the chain",
+                            selected.reading());
+                    yield spelled;
+                }
+            };
             if (members.isEmpty()) {
                 boolean derived = selected.selector() instanceof LimbSelector.Legs legs
                     && legs.derived();

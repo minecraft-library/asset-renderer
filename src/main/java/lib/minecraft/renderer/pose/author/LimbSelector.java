@@ -12,9 +12,16 @@ import java.util.Optional;
  * <p>The leg vocabulary is a naming convention and not an anatomy. A turtle's and an axolotl's
  * flippers are legs because their meshes call them legs, and a dolphin's identically shaped
  * {@code left_fin} is not. No geometric predicate separates the two, and none is attempted.
+ *
+ * <p>An indexed family is the same bargain with the anatomy dropped entirely: it claims only that
+ * a mesh spells a set of bones as one word and a running number, which is what lets the count be
+ * the mesh's answer. It says nothing about how those bones are arranged, because the meshes that
+ * share a spelling do not share an arrangement - one mesh's {@code tail0} chain hangs each bone
+ * off the one before it while another's are siblings, and a stance that suited either would be
+ * wrong on the other.
  */
 @Parity(subject = Subject.ENTITY)
-public sealed interface LimbSelector permits LimbSelector.Legs {
+public sealed interface LimbSelector permits LimbSelector.Legs, LimbSelector.Family {
 
     /**
      * How a diagnostics line names this selector.
@@ -51,6 +58,27 @@ public sealed interface LimbSelector permits LimbSelector.Legs {
             String rows = this.rank.map(Enum::name).orElse("every row");
             String sides = this.side.map(Enum::name).orElse("both sides");
             return rows + " " + sides + " " + this.reach.name();
+        }
+
+    }
+
+    /**
+     * An indexed family - every bone a mesh spells as the stem alone or as the stem followed by a
+     * number, in numeric order, however many of them it declares.
+     *
+     * <p>The number may follow the stem directly or across an underscore, so one stem reaches a
+     * mesh counting from zero without a separator and one counting from one with it. A name the
+     * stem only begins is no member: a stem of {@code tail} reaches {@code tail} and
+     * {@code tail0}, and neither {@code tail_base} nor {@code tail_fin}.
+     *
+     * @param stem the name every member begins with
+     */
+    record Family(@NotNull String stem) implements LimbSelector {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull String reading() {
+            return this.stem + " family";
         }
 
     }
