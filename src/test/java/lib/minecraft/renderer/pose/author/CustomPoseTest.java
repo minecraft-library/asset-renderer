@@ -30,12 +30,11 @@ class CustomPoseTest {
             .build()
             .script();
 
-        PoseScript.Limb.Named wing =
-            (PoseScript.Limb.Named) script.stances().getFirst().limb().orElseThrow();
-        assertEquals("left_wing", wing.bone());
+        PoseScript.Limb wing = script.stances().getFirst().limb().orElseThrow();
+        assertEquals(Optional.of("left_wing"), wing.named());
         assertEquals(PoseScript.AimAxis.DOWN, wing.axis(), "every custom bone aims down its length");
-        assertEquals("real_head", ((PoseScript.Limb.Named)
-            script.stances().getLast().limb().orElseThrow()).bone());
+        assertEquals(Optional.of("real_head"),
+            script.stances().getLast().limb().orElseThrow().named());
     }
 
     @Test

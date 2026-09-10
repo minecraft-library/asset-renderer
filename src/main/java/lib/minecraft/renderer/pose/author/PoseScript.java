@@ -91,6 +91,16 @@ public record PoseScript(
         @NotNull String reading();
 
         /**
+         * The bone this addresses, where it addresses one by name.
+         *
+         * <p>Empty for a limb the target mesh answers, which carries no bone until it is resolved
+         * against a row - so a caller wanting a name says what it does about the one that has none.
+         *
+         * @return the bone name, or empty where the mesh has not been asked yet
+         */
+        @NotNull Optional<String> named();
+
+        /**
          * One mesh bone, named as the mesh names it.
          *
          * @param bone the bone name, as the mesh names it
@@ -116,6 +126,12 @@ public record PoseScript(
                 return "'" + this.bone + "'";
             }
 
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Optional<String> named() {
+                return Optional.of(this.bone);
+            }
+
         }
 
         /**
@@ -133,6 +149,12 @@ public record PoseScript(
             @Override
             public @NotNull String reading() {
                 return this.selector.reading();
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Optional<String> named() {
+                return Optional.empty();
             }
 
         }
@@ -391,8 +413,9 @@ public record PoseScript(
          */
         boolean stanced(@NotNull String bone) {
             return this.stances.stream().anyMatch(stance -> stance.limb()
-                .map(limb -> limb instanceof Limb.Named named && named.bone().equals(bone))
-                .orElse(false));
+                .flatMap(Limb::named)
+                .filter(bone::equals)
+                .isPresent());
         }
 
         /**
@@ -407,7 +430,7 @@ public record PoseScript(
             List<Stance> copies = new ArrayList<>();
             for (Stance stance : this.stances)
                 stance.limb()
-                    .filter(limb -> limb instanceof Limb.Named named && named.bone().equals(source))
+                    .filter(limb -> limb.named().filter(source::equals).isPresent())
                     .ifPresent(limb -> copies.add(mirrored(stance,
                         Optional.of(new Limb.Named(target, limb.axis(), limb.anatomical())))));
             this.stances.addAll(copies);
@@ -426,7 +449,7 @@ public record PoseScript(
             List<Stance> copies = new ArrayList<>();
             for (Stance stance : this.stances)
                 stance.limb()
-                    .filter(limb -> limb instanceof Limb.Named named && named.bone().equals(source))
+                    .filter(limb -> limb.named().filter(source::equals).isPresent())
                     .ifPresent(limb -> copies.add(new Stance(
                         Optional.of(new Limb.Named(target, limb.axis(), limb.anatomical())),
                         stance.writes(), stance.scales(), stance.aims(),
@@ -445,10 +468,10 @@ public record PoseScript(
          */
         @NotNull Capture flip(@NotNull Map<String, String> pairs) {
             this.stances.replaceAll(stance -> mirrored(stance, stance.limb()
-                .map(limb -> limb instanceof Limb.Named named
-                    ? (Limb) new Limb.Named(pairs.getOrDefault(named.bone(), named.bone()),
-                        named.axis(), named.anatomical())
-                    : limb)));
+                .map(limb -> limb.named()
+                    .<Limb>map(bone -> new Limb.Named(pairs.getOrDefault(bone, bone),
+                        limb.axis(), limb.anatomical()))
+                    .orElse(limb))));
             return this;
         }
 

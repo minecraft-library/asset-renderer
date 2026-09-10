@@ -449,28 +449,37 @@ public final class PoseCompiler {
                     this.foldStep(stance);
                     continue;
                 }
-                if (stance.limb().get() instanceof PoseScript.Limb.Selected selected) {
-                    this.foldSelected(selected, stance);
-                    continue;
+                switch (stance.limb().get()) {
+                    case PoseScript.Limb.Named named -> this.foldNamed(named, stance);
+                    case PoseScript.Limb.Selected selected -> this.foldSelected(selected, stance);
                 }
-                PoseScript.Limb.Named limb = (PoseScript.Limb.Named) stance.limb().get();
-                boolean implicit = this.implicitHatMirror(stance);
-                if (implicit) {
-                    this.hatMirror = true;
-                    continue;
-                }
-                if (!this.mesh.getBones().containsKey(limb.bone())) {
-                    if (!this.dropped.contains(limb.bone()))
-                        this.dropped.add(limb.bone());
-                    for (PoseScript.Track track : stance.tracks())
-                        this.trackPlans.add(new TrackPlan(limb.bone(), track));
-                    continue;
-                }
-                PoseScript.Limb.Named landed = this.articulated(limb);
-                for (PoseScript.Track track : stance.tracks())
-                    this.trackPlans.add(new TrackPlan(landed.bone(), track));
-                this.foldLimb(landed, stance);
             }
+        }
+
+        /**
+         * Folds one stance addressed at a bone the author named.
+         *
+         * <p>A name the mesh does not declare drops, and its clip tracks are collected anyway - a
+         * clip channel of an absent bone filters at render, and keeping it makes the clip identical
+         * across every row one style weaves into.
+         */
+        private void foldNamed(PoseScript.Limb.@NotNull Named limb,
+                               @NotNull PoseScript.Stance stance) {
+            if (this.implicitHatMirror(stance)) {
+                this.hatMirror = true;
+                return;
+            }
+            if (!this.mesh.getBones().containsKey(limb.bone())) {
+                if (!this.dropped.contains(limb.bone()))
+                    this.dropped.add(limb.bone());
+                for (PoseScript.Track track : stance.tracks())
+                    this.trackPlans.add(new TrackPlan(limb.bone(), track));
+                return;
+            }
+            PoseScript.Limb.Named landed = this.articulated(limb);
+            for (PoseScript.Track track : stance.tracks())
+                this.trackPlans.add(new TrackPlan(landed.bone(), track));
+            this.foldLimb(landed, stance);
         }
 
         /**
@@ -620,16 +629,15 @@ public final class PoseCompiler {
          * drops silently where a mesh lacks the shell, because the author never spelled it.
          */
         private boolean implicitHatMirror(@NotNull PoseScript.Stance stance) {
-            if (stance.limb().map(limb -> !(limb instanceof PoseScript.Limb.Named named)
-                || !"hat".equals(named.bone())).orElse(true)) return false;
+            if (stance.limb().flatMap(PoseScript.Limb::named)
+                .filter("hat"::equals).isEmpty()) return false;
             boolean carries = !stance.writes().isEmpty() || !stance.scales().isEmpty()
                 || !stance.aims().isEmpty() || !stance.sways().isEmpty()
                 || !stance.spins().isEmpty() || !stance.tracks().isEmpty();
             if (!carries) return false;
             for (PoseScript.Stance other : this.script.stances()) {
                 if (other == stance) continue;
-                if (other.limb().map(limb -> limb instanceof PoseScript.Limb.Named named
-                        && "head".equals(named.bone())).orElse(false)
+                if (other.limb().flatMap(PoseScript.Limb::named).filter("head"::equals).isPresent()
                     && other.writes() == stance.writes() && other.scales() == stance.scales()
                     && other.aims() == stance.aims() && other.sways() == stance.sways()
                     && other.spins() == stance.spins() && other.tracks() == stance.tracks())

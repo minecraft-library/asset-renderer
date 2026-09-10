@@ -297,8 +297,8 @@ class HumanoidPoseTest {
      */
     private static @NotNull List<PoseScript.Stance> stancesOf(@NotNull PoseScript script, @NotNull String bone) {
         return script.stances().stream()
-            .filter(stance -> stance.limb().map(limb ->
-                limb instanceof PoseScript.Limb.Named named && named.bone().equals(bone)).orElse(false))
+            .filter(stance -> stance.limb().flatMap(PoseScript.Limb::named)
+                .filter(bone::equals).isPresent())
             .toList();
     }
 
