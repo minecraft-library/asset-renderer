@@ -8,6 +8,7 @@ import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.Poses;
+import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
 import org.jetbrains.annotations.NotNull;
@@ -275,6 +276,42 @@ class PoseCompilerRefusalTest {
             .period(2.4)
             .build());
         assertTrue(refusal.getMessage().contains("holds still"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("two ranks one mesh answers with a single row refuse")
+    void aliasedRanksRefuse() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("crouch")
+            .legs(Rank.FRONT, leg -> leg.pitch(-20))
+            .legs(Rank.HIND, leg -> leg.pitch(20))
+            .build());
+        assertTrue(refusal.getMessage().contains("answers with one row"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("FRONT"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("HIND"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("one rank stanced over both sides is one name and not two")
+    void oneRankOverBothSidesPasses() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.legged("brace").legs(Rank.FRONT, leg -> leg.pitch(-20)).build(),
+            row(humanoid(), EntityPose.NONE));
+        assertEquals(2, compiled.style().drivers().size(),
+            "a row verb captures an authored half and a derived one, both naming the one rank");
+    }
+
+    @Test
+    @DisplayName("a rank the mesh has no row for is passed over rather than collided with")
+    void absentRankDoesNotCollide() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.legged("reach")
+                .legs(Rank.FRONT, leg -> leg.pitch(-20))
+                .legs(Rank.SECOND, leg -> leg.pitch(10))
+                .build(),
+            row(humanoid(), EntityPose.NONE));
+        assertEquals(2, compiled.style().drivers().size(),
+            "an interior rank addresses nothing on a one-row mesh, and nothing already held");
+        assertEquals(1, compiled.droppedBones().size(),
+            () -> "the reach that answered nothing is what drops: " + compiled.droppedBones());
     }
 
     // ------------------------------------------------------------------------------------

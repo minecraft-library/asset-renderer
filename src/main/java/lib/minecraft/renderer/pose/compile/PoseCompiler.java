@@ -21,6 +21,7 @@ import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.Ease;
 import lib.minecraft.renderer.pose.author.LimbSelector;
 import lib.minecraft.renderer.pose.author.PoseScript;
+import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.intellij.lang.annotations.PrintFormat;
@@ -359,6 +360,7 @@ public final class PoseCompiler {
                     this.style.styleId(), this.shipped.refusal().orElse(""));
 
             this.validatePeriod();
+            this.validateRanks();
             this.pool.adopt(this.shipped);
             this.foldStances();
             this.seatFollowers();
@@ -412,6 +414,48 @@ public final class PoseCompiler {
             if (this.style.sources().isEmpty())
                 this.refuse("Style '%s' declares a period but holds still - only a moving style reads one",
                     this.style.styleId());
+        }
+
+        /**
+         * Refuses two ranks this mesh answers with one row.
+         *
+         * <p>Ranks are ordinals into however many rows a mesh carries, so more than one of them
+         * reaches the same row on a mesh shorter than the ladder - {@code FRONT} and {@code HIND}
+         * are one row on every mesh carrying a single row of legs, which is what lets one chain
+         * run over two legs and eight. Stancing both names that row twice, and the second stamp
+         * lands on the first with nothing in either name saying so.
+         *
+         * <p>A rank the mesh has no row for is passed over here: it addresses nothing rather than
+         * something already held, and the roster filter answers it.
+         */
+        private void validateRanks() {
+            LinkedHashMap<Integer, Rank> claimed = new LinkedHashMap<>();
+            Set<Rank> named = EnumSet.noneOf(Rank.class);
+            for (PoseScript.Stance stance : this.script.stances()) {
+                Optional<Rank> addressed = rankOf(stance);
+                if (addressed.isEmpty() || !named.add(addressed.get())) continue;
+                Rank rank = addressed.get();
+                Optional<LimbRoster.Row> row = this.roster.row(rank);
+                if (row.isEmpty()) continue;
+                Rank held = claimed.putIfAbsent(row.get().ordinal(), rank);
+                if (held != null)
+                    this.refuse("Style '%s' stances rank '%s' and rank '%s', which a mesh carrying '%d' leg row(s) answers with one row - the second stamp lands on the row the first already holds",
+                        this.style.styleId(), held, rank, this.roster.rows().size());
+            }
+        }
+
+        /**
+         * The rank one stance addresses, empty where it names no row of legs.
+         *
+         * @param stance the captured stance to read
+         * @return the rank, or empty where the stance addresses a bone or every row at once
+         */
+        private static @NotNull Optional<Rank> rankOf(@NotNull PoseScript.Stance stance) {
+            if (stance.limb().isEmpty()) return Optional.empty();
+            if (!(stance.limb().get() instanceof PoseScript.Limb.Selected selected))
+                return Optional.empty();
+            if (!(selected.selector() instanceof LimbSelector.Legs legs)) return Optional.empty();
+            return legs.rank();
         }
 
         /**

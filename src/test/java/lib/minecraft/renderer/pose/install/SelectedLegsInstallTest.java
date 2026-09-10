@@ -124,6 +124,24 @@ class SelectedLegsInstallTest {
     }
 
     @Test
+    @DisplayName("the two end ranks name two rows on a walker and one row on a biped, which refuses")
+    void endRanksOnOneRowRefuse() {
+        BuiltStyle stretch = Poses.legged("stretch")
+            .legs(Rank.FRONT, leg -> leg.pitch(-30))
+            .legs(Rank.HIND, leg -> leg.pitch(15))
+            .build();
+
+        List<String> wolf = fieldsOf(stretch, "minecraft:wolf");
+        assertEquals(4, wolf.size(), () -> "two rows answer two ranks: " + wolf);
+
+        IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.ofShipped().addTolerant("minecraft:zombie", stretch));
+        assertTrue(refusal.getMessage().contains("answers with one row"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("FRONT"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("HIND"), refusal.getMessage());
+    }
+
+    @Test
     @DisplayName("a subject with no legs drops the stance on a tolerant install and weaves the rest")
     void alegLessSubjectDropsTolerantly() {
         StyleRegistrar registrar = StyleRegistrar.ofShipped();
