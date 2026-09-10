@@ -8,12 +8,13 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The quadruped tier's verb table - the walker roster's bone mappings and the paired-leg
- * stamps.
+ * The legged tier's verb table - the walker roster's bone mappings and the paired-leg stamps.
  */
-@DisplayName("the quadruped builder maps the walker roster and stamps leg pairs")
+@DisplayName("the legged builder maps the walker roster and stamps leg pairs")
 class LeggedPoseTest {
 
     @Test
@@ -51,6 +52,21 @@ class LeggedPoseTest {
             List.copyOf(stanceOf(script, "left_hind_leg").writes()));
         assertEquals(List.of(new PoseScript.Write(PoseChannel.X_ROT, 4, true)),
             List.copyOf(stanceOf(script, "right_hind_leg").writes()));
+    }
+
+    @Test
+    @DisplayName("a rank naming a row between the ends refuses rather than folding onto the hind row")
+    void aMiddleRankRefuses() {
+        for (Rank rank : List.of(Rank.SECOND, Rank.THIRD)) {
+            IllegalArgumentException single = assertThrows(IllegalArgumentException.class,
+                () -> Poses.legged("amble").leg(rank, Side.LEFT, l -> l.pitch(1)));
+            assertTrue(single.getMessage().contains(rank.name()), single.getMessage());
+            assertTrue(single.getMessage().contains("between the ends"), single.getMessage());
+
+            IllegalArgumentException paired = assertThrows(IllegalArgumentException.class,
+                () -> Poses.legged("amble").legs(rank, l -> l.pitch(1)));
+            assertTrue(paired.getMessage().contains(rank.name()), paired.getMessage());
+        }
     }
 
     @Test

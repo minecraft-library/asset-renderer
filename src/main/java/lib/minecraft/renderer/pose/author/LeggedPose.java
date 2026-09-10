@@ -105,17 +105,18 @@ public final class LeggedPose {
 
         /**
          * The mesh name of one row's leg on one side.
+         *
+         * <p>The roster is the two rows of a walker, so a rank naming a row between them refuses
+         * rather than landing on the hind one - a chain written for a middle row means a mesh this
+         * vocabulary does not cover, and folding it onto an end renders a gait nobody wrote.
          */
         private static @NotNull String legOf(@NotNull Rank rank, @NotNull Side side) {
-            return switch (side) {
-                case LEFT -> switch (rank) {
-                    case FRONT -> "left_front_leg";
-                    case HIND -> "left_hind_leg";
-                };
-                case RIGHT -> switch (rank) {
-                    case FRONT -> "right_front_leg";
-                    case HIND -> "right_hind_leg";
-                };
+            return switch (rank) {
+                case FRONT -> side == Side.LEFT ? "left_front_leg" : "right_front_leg";
+                case HIND -> side == Side.LEFT ? "left_hind_leg" : "right_hind_leg";
+                case SECOND, THIRD -> throw new IllegalArgumentException(String.format(
+                    "Rank '%s' names a row between the ends, which the walker roster does not carry",
+                    rank));
             };
         }
 

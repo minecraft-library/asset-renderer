@@ -180,15 +180,30 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
     /**
      * The row one rank addresses, or empty where the mesh carries no such row.
      *
+     * <p>The two ends answer on any mesh carrying a leg at all. A rank naming a row between them
+     * answers only where the mesh has one to name, so a chain written for a middle row addresses
+     * nothing on a mesh without one rather than landing on the row behind it.
+     *
      * @param rank which row front to back
      * @return the addressed row
      */
     public @NotNull Optional<Row> row(@NotNull Rank rank) {
         if (this.rows.isEmpty()) return Optional.empty();
-        return Optional.of(switch (rank) {
-            case FRONT -> this.rows.getFirst();
-            case HIND -> this.rows.getLast();
-        });
+        return switch (rank) {
+            case FRONT -> Optional.of(this.rows.getFirst());
+            case SECOND -> this.interior(1);
+            case THIRD -> this.interior(2);
+            case HIND -> Optional.of(this.rows.getLast());
+        };
+    }
+
+    /**
+     * The row at one ordinal, where that ordinal falls between the frontmost and the rearmost.
+     */
+    private @NotNull Optional<Row> interior(int ordinal) {
+        return ordinal > 0 && ordinal < this.rows.size() - 1
+            ? Optional.of(this.rows.get(ordinal))
+            : Optional.empty();
     }
 
     /**

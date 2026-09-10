@@ -72,7 +72,7 @@ class LimbRosterAgreementTest {
         List<String> disagreements = new ArrayList<>();
         for (String coordinate : coordinates) {
             LimbRoster roster = LimbRoster.of(GEOMETRIES.get(coordinate));
-            for (Rank rank : Rank.values())
+            for (Rank rank : List.of(Rank.FRONT, Rank.HIND))
                 for (Side side : Side.values()) {
                     String expected = SPELLINGS.get(rank + " " + side);
                     Optional<String> resolved = roster.resolve(rank, side);
@@ -105,8 +105,8 @@ class LimbRosterAgreementTest {
     }
 
     @Test
-    @DisplayName("a walker carrying a row between the two ranks leaves that row unaddressed")
-    void aRowBetweenTheRanksIsUnaddressed() {
+    @DisplayName("a walker carrying a row between the ends answers every leg once the middle rank is spelled")
+    void everyLegOfADeeperWalkerIsAddressable() {
         List<String> deeper = walkerCoordinates().stream()
             .filter(coordinate -> LimbRoster.of(GEOMETRIES.get(coordinate)).rows().size() > 2)
             .toList();
@@ -124,11 +124,56 @@ class LimbRosterAgreementTest {
                 .flatMap(row -> row.members().stream())
                 .filter(member -> member.depth() == 0)
                 .map(LimbRoster.Member::bone)
+                .sorted()
                 .toList();
 
-            assertEquals(4, addressable.size(), coordinate + " answers four of its legs");
-            assertTrue(seated.size() > addressable.size(),
-                () -> coordinate + " seats legs no rank names: " + seated + " against " + addressable);
+            assertEquals(seated, addressable.stream().sorted().toList(),
+                () -> coordinate + " answers every leg it seats, the middle row included");
+        }
+    }
+
+    @Test
+    @DisplayName("a rank naming a middle row answers only where the mesh carries one")
+    void aMiddleRankAnswersOnlyAnInteriorRow() {
+        Map<Integer, Integer> second = new TreeMap<>();
+        Map<Integer, Integer> third = new TreeMap<>();
+
+        GEOMETRIES.forEach((coordinate, mesh) -> {
+            LimbRoster roster = LimbRoster.of(mesh);
+            int size = roster.rows().size();
+            if (roster.row(Rank.SECOND).isPresent()) second.merge(size, 1, Integer::sum);
+            if (roster.row(Rank.THIRD).isPresent()) third.merge(size, 1, Integer::sum);
+
+            roster.row(Rank.SECOND).ifPresent(row -> {
+                assertTrue(row.ordinal() > 0, coordinate + " reads a second row behind the front");
+                assertTrue(row.ordinal() < size - 1, coordinate + " reads a second row ahead of the hind");
+            });
+            if (size <= 2)
+                assertTrue(roster.row(Rank.SECOND).isEmpty(),
+                    coordinate + " carries no row between its ends, so a middle rank names nothing");
+            if (size <= 3)
+                assertTrue(roster.row(Rank.THIRD).isEmpty(),
+                    coordinate + " carries no third interior row");
+        });
+
+        assertEquals(6, second.values().stream().mapToInt(Integer::intValue).sum(),
+            () -> "a second row answers on the three- and four-row meshes alone, over " + second);
+        assertEquals(2, third.values().stream().mapToInt(Integer::intValue).sum(),
+            () -> "a third row answers on the four-row meshes alone, over " + third);
+    }
+
+    @Test
+    @DisplayName("a three-row walker answers its middle row on the second rank and nothing on the third")
+    void aThreeRowWalkerAnswersItsMiddleRow() {
+        for (String coordinate : walkerCoordinates()) {
+            LimbRoster roster = LimbRoster.of(GEOMETRIES.get(coordinate));
+            if (roster.rows().size() != 3) continue;
+
+            LimbRoster.Row middle = roster.row(Rank.SECOND).orElseThrow();
+            assertEquals(1, middle.ordinal(), coordinate + " reads its middle row as the second rank");
+            assertTrue(roster.row(Rank.THIRD).isEmpty(),
+                coordinate + " carries no row behind its middle one but the hind");
+            assertFalse(middle.members().isEmpty(), coordinate + " seats legs in its middle row");
         }
     }
 
