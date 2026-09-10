@@ -35,8 +35,8 @@ class LeggedPoseTest {
     }
 
     @Test
-    @DisplayName("each rank and side pair lands on its own leg bone")
-    void ranksAndSidesMapTheirLegs() {
+    @DisplayName("each rank and side pair captures the address it was written with")
+    void ranksAndSidesCaptureTheirAddress() {
         PoseScript script = Poses.legged("splay")
             .leg(Rank.FRONT, Side.LEFT, l -> l.pitch(1))
             .leg(Rank.FRONT, Side.RIGHT, l -> l.pitch(2))
@@ -45,29 +45,31 @@ class LeggedPoseTest {
             .build()
             .script();
 
-        assertEquals(List.of(new PoseScript.Write(PoseChannel.X_ROT, 1, true)),
-            List.copyOf(stanceOf(script, "left_front_leg").writes()));
-        assertEquals(List.of(new PoseScript.Write(PoseChannel.X_ROT, 2, true)),
-            List.copyOf(stanceOf(script, "right_front_leg").writes()));
-        assertEquals(List.of(new PoseScript.Write(PoseChannel.X_ROT, 3, true)),
-            List.copyOf(stanceOf(script, "left_hind_leg").writes()));
-        assertEquals(List.of(new PoseScript.Write(PoseChannel.X_ROT, 4, true)),
-            List.copyOf(stanceOf(script, "right_hind_leg").writes()));
+        assertEquals(List.of(
+                new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.LEFT)),
+                new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.RIGHT)),
+                new LimbSelector.Legs(Optional.of(Rank.HIND), Optional.of(Side.LEFT)),
+                new LimbSelector.Legs(Optional.of(Rank.HIND), Optional.of(Side.RIGHT))),
+            selectorsOf(script), "one address per call, in author order");
+        assertEquals(List.of(1d, 2d, 3d, 4d),
+            script.stances().stream().map(stance -> stance.writes().getFirst().value()).toList(),
+            "each keeping the value it was written with");
     }
 
     @Test
-    @DisplayName("a rank naming a row between the ends refuses rather than folding onto the hind row")
-    void aMiddleRankRefuses() {
-        for (Rank rank : List.of(Rank.SECOND, Rank.THIRD)) {
-            IllegalArgumentException single = assertThrows(IllegalArgumentException.class,
-                () -> Poses.legged("amble").leg(rank, Side.LEFT, l -> l.pitch(1)));
-            assertTrue(single.getMessage().contains(rank.name()), single.getMessage());
-            assertTrue(single.getMessage().contains("between the ends"), single.getMessage());
+    @DisplayName("a rank naming a row between the ends is captured, and the mesh decides whether it lands")
+    void aMiddleRankIsCapturedForTheMeshToAnswer() {
+        PoseScript script = Poses.legged("amble")
+            .legs(Rank.SECOND, l -> l.pitch(1))
+            .build()
+            .script();
 
-            IllegalArgumentException paired = assertThrows(IllegalArgumentException.class,
-                () -> Poses.legged("amble").legs(rank, l -> l.pitch(1)));
-            assertTrue(paired.getMessage().contains(rank.name()), paired.getMessage());
-        }
+        assertEquals(List.of(
+                new LimbSelector.Legs(Optional.of(Rank.SECOND), Optional.of(Side.RIGHT)),
+                new LimbSelector.Legs(Optional.of(Rank.SECOND), Optional.of(Side.LEFT),
+                    Reach.ROOT, true)),
+            selectorsOf(script),
+            "the tier states the row rather than resolving it, so a three-row mesh can answer");
     }
 
     @Test
@@ -81,11 +83,16 @@ class LeggedPoseTest {
         assertEquals(List.of(
                 new PoseScript.Write(PoseChannel.X_ROT, -35, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, 5, false)),
-            List.copyOf(stanceOf(script, "right_front_leg").writes()));
+            List.copyOf(script.stances().getFirst().writes()), "the near side as authored");
         assertEquals(List.of(
                 new PoseScript.Write(PoseChannel.X_ROT, -35, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, -5, false)),
-            List.copyOf(stanceOf(script, "left_front_leg").writes()));
+            List.copyOf(script.stances().getLast().writes()), "the far side under the sign rule");
+        assertEquals(List.of(
+                new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.RIGHT)),
+                new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.LEFT),
+                    Reach.ROOT, true)),
+            selectorsOf(script), "the far side is the derived half and reports no miss of its own");
     }
 
     @Test
@@ -96,8 +103,19 @@ class LeggedPoseTest {
             .build()
             .script();
 
-        assertEquals(10, stanceOf(script, "right_hind_leg").writes().getFirst().value());
-        assertEquals(-10, stanceOf(script, "left_hind_leg").writes().getFirst().value());
+        assertEquals(10, script.stances().getFirst().writes().getFirst().value());
+        assertEquals(-10, script.stances().getLast().writes().getFirst().value());
+    }
+
+    /**
+     * The address each captured stance was written with, in author order.
+     */
+    private static @NotNull List<LimbSelector> selectorsOf(@NotNull PoseScript script) {
+        return script.stances().stream()
+            .map(stance -> stance.limb().orElseThrow())
+            .map(PoseScript.Limb.Selected.class::cast)
+            .map(PoseScript.Limb.Selected::selector)
+            .toList();
     }
 
     @Test

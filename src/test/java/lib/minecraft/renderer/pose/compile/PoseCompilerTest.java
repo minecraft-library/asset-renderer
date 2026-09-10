@@ -587,7 +587,7 @@ class PoseCompilerTest {
         PoseCompiler.Compiled compiled = PoseCompiler.compile(
             Poses.legged("beg")
                 .head(head -> head.pitch(-15))
-                .leg(Rank.HIND, Side.LEFT, leg -> leg.pitch(-70))
+                .bone("left_hind_leg", leg -> leg.pitch(-70))
                 .build(),
             row(mesh, EntityPose.NONE));
 

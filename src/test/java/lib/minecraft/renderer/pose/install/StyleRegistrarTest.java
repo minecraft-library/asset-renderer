@@ -115,7 +115,8 @@ class StyleRegistrarTest {
             entity("minecraft:test", mesh, EntityPose.NONE, StyleCatalog.BIND_ONLY)));
         BuiltStyle beg = Poses.legged("beg")
             .head(head -> head.pitch(-15))
-            .legs(Rank.HIND, leg -> leg.pitch(-70))
+            .bone("right_hind_leg", leg -> leg.pitch(-70))
+            .bone("left_hind_leg", leg -> leg.pitch(-70))
             .build();
 
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
@@ -133,7 +134,8 @@ class StyleRegistrarTest {
             entity("minecraft:test", mesh, EntityPose.NONE, StyleCatalog.BIND_ONLY)));
         registrar.addTolerant("minecraft:test", Poses.legged("beg")
             .head(head -> head.pitch(-15))
-            .legs(Rank.HIND, leg -> leg.pitch(-70))
+            .bone("right_hind_leg", leg -> leg.pitch(-70))
+            .bone("left_hind_leg", leg -> leg.pitch(-70))
             .build());
 
         Entity woven = registrar.definitions().get("minecraft:test");

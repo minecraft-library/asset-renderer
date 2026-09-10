@@ -370,6 +370,38 @@ public record PoseScript(
         }
 
         /**
+         * Captures one stance over a selected near side and stamps its mirror over the far one.
+         *
+         * <p>Two stances rather than one selector reaching both sides, because the far side reads
+         * the near one's values rather than repeating them: under {@link Mirror#SIGNED} yaw, roll
+         * and the sideways components are negated, which no single stance can say about two bones
+         * at once.
+         *
+         * @param authored which limbs the stance is written for
+         * @param derived which limbs read it back, mirrored
+         * @param axis the direction the limbs' rest posture points along
+         * @param mirror how the far side reads the near one
+         * @param verbs the stance lambda, run once for the authored side
+         * @return this capture
+         */
+        @NotNull Capture selectedPair(@NotNull LimbSelector authored, @NotNull LimbSelector derived,
+                                      @NotNull AimAxis axis, @NotNull Mirror mirror,
+                                      @NotNull UnaryOperator<LimbStance> verbs) {
+            LimbStance stance = new LimbStance();
+            verbs.apply(stance);
+            Stance captured = stance.captured(
+                Optional.of(new Limb.Selected(authored, axis, true, mirror)));
+            this.stances.add(captured);
+
+            Optional<Limb> far = Optional.of(new Limb.Selected(derived, axis, true, mirror));
+            this.stances.add(mirror == Mirror.SIGNED
+                ? mirrored(captured, far)
+                : new Stance(far, captured.writes(), captured.scales(), captured.aims(),
+                    captured.sways(), captured.spins(), captured.tracks()));
+            return this;
+        }
+
+        /**
          * Captures one container step - the same verb surface addressed at the whole figure's
          * seat rather than at a bone.
          *

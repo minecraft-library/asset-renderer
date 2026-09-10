@@ -4,6 +4,7 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 /**
@@ -85,7 +86,9 @@ public final class LeggedPose {
          */
         public @NotNull Builder leg(@NotNull Rank rank, @NotNull Side side,
                                     @NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.stance(legOf(rank, side), PoseScript.AimAxis.DOWN, true, stance);
+            this.capture.selected(
+                new LimbSelector.Legs(Optional.of(rank), Optional.of(side)),
+                PoseScript.AimAxis.DOWN, true, Mirror.SIGNED, stance);
             return this;
         }
 
@@ -98,26 +101,11 @@ public final class LeggedPose {
          * @return this builder
          */
         public @NotNull Builder legs(@NotNull Rank rank, @NotNull UnaryOperator<LimbStance> stance) {
-            this.capture.pair(legOf(rank, Side.RIGHT), legOf(rank, Side.LEFT),
-                PoseScript.AimAxis.DOWN, stance);
+            this.capture.selectedPair(
+                new LimbSelector.Legs(Optional.of(rank), Optional.of(Side.RIGHT)),
+                new LimbSelector.Legs(Optional.of(rank), Optional.of(Side.LEFT), Reach.ROOT, true),
+                PoseScript.AimAxis.DOWN, Mirror.SIGNED, stance);
             return this;
-        }
-
-        /**
-         * The mesh name of one row's leg on one side.
-         *
-         * <p>The roster is the two rows of a walker, so a rank naming a row between them refuses
-         * rather than landing on the hind one - a chain written for a middle row means a mesh this
-         * vocabulary does not cover, and folding it onto an end renders a gait nobody wrote.
-         */
-        private static @NotNull String legOf(@NotNull Rank rank, @NotNull Side side) {
-            return switch (rank) {
-                case FRONT -> side == Side.LEFT ? "left_front_leg" : "right_front_leg";
-                case HIND -> side == Side.LEFT ? "left_hind_leg" : "right_hind_leg";
-                case SECOND, THIRD -> throw new IllegalArgumentException(String.format(
-                    "Rank '%s' names a row between the ends, which the walker roster does not carry",
-                    rank));
-            };
         }
 
     }
