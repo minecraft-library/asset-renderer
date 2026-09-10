@@ -283,16 +283,45 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
     private static boolean straddles(@NotNull String bone,
                                      @NotNull Map<String, EntityModelData.Bone> bones,
                                      @NotNull Map<String, Matrix4f> chains) {
-        double anchor = accumulated(bone, chains).x();
-        double min = Double.MAX_VALUE;
-        double max = -Double.MAX_VALUE;
-        for (EntityModelData.Cube cube : bones.get(bone).getCubes()) {
-            min = Math.min(min, anchor + cube.getOrigin().x());
-            max = Math.max(max, anchor + cube.getOrigin().x() + cube.getSize().x());
-        }
+        double[] span = spanX(bone, bones, chains, new double[]{Double.MAX_VALUE, -Double.MAX_VALUE});
+        double min = span[0];
+        double max = span[1];
         if (min > max || min >= 0d || max <= 0d) return false;
         double half = (max - min) / 2d;
         return half > 0d && Math.abs((min + max) / 2d) / half < FUSED_CENTRE_SHARE;
+    }
+
+    /**
+     * One bone's cubes as a sideways span, placed the way the renderer places them.
+     *
+     * <p>Every corner is carried through the cube's own composed transform rather than added to the
+     * bone's anchor as a raw offset. A bone under a bind rotation carries its cubes around with it -
+     * a half turn puts what the model authored on one side out the other - so an offset added to a
+     * turned anchor reports a side the renderer never draws.
+     *
+     * @param span the span so far, widened in place and returned
+     */
+    private static double @NotNull [] spanX(@NotNull String bone,
+                                            @NotNull Map<String, EntityModelData.Bone> bones,
+                                            @NotNull Map<String, Matrix4f> chains,
+                                            double @NotNull [] span) {
+        EntityModelData.Bone held = bones.get(bone);
+        Matrix4f chain = chains.getOrDefault(bone, Matrix4f.IDENTITY);
+        for (EntityModelData.Cube cube : held.getCubes()) {
+            Matrix4f placed = BoneKit.composeCubeTransform(cube, held, chain);
+            Vector3f origin = cube.getOrigin();
+            Vector3f size = cube.getSize();
+            for (int corner = 0; corner < 8; corner++) {
+                Vector3f point = new Vector3f(
+                    origin.x() + ((corner & 1) == 0 ? 0f : size.x()),
+                    origin.y() + ((corner & 2) == 0 ? 0f : size.y()),
+                    origin.z() + ((corner & 4) == 0 ? 0f : size.z())
+                ).transform(placed);
+                span[0] = Math.min(span[0], point.x());
+                span[1] = Math.max(span[1], point.x());
+            }
+        }
+        return span;
     }
 
     /**
@@ -307,16 +336,12 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
                                                      @NotNull Map<String, EntityModelData.Bone> bones,
                                                      @NotNull Set<String> legNames,
                                                      @NotNull Map<String, Matrix4f> chains) {
-        double min = Double.MAX_VALUE;
-        double max = -Double.MAX_VALUE;
-        for (String below : subtree(bone, bones)) {
-            double anchor = accumulated(below, chains).x();
-            for (EntityModelData.Cube cube : bones.get(below).getCubes()) {
-                min = Math.min(min, anchor + cube.getOrigin().x());
-                max = Math.max(max, anchor + cube.getOrigin().x() + cube.getSize().x());
-            }
-        }
-        double centre = min > max ? accumulated(bone, chains).x() : (min + max) / 2d;
+        double[] span = {Double.MAX_VALUE, -Double.MAX_VALUE};
+        for (String below : subtree(bone, bones))
+            spanX(below, bones, chains, span);
+        double centre = span[0] > span[1]
+            ? accumulated(bone, chains).x()
+            : (span[0] + span[1]) / 2d;
         if (Math.abs(centre) <= 1.0e-4d) return Optional.empty();
         return Optional.of(centre < 0d ? Side.RIGHT : Side.LEFT);
     }

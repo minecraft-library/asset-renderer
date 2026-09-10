@@ -194,6 +194,51 @@ class LimbRosterCorpusTest {
     }
 
     @Test
+    @DisplayName("exactly one mesh names a leg against the side it sits on, and the detector says so")
+    void onlyOneMeshNamesALegAgainstItsPosition() {
+        List<String> crossed = new ArrayList<>();
+        rosters().forEach((coordinate, roster) -> roster.ambiguities().stream()
+            .filter(note -> note.contains("is named"))
+            .forEach(note -> crossed.add(coordinate + ": " + note)));
+
+        assertEquals(List.of(
+                "BabyArmadilloModel#createBodyLayer: leg 'right_front_leg' is named RIGHT and sits LEFT",
+                "BabyArmadilloModel#createBodyLayer: leg 'left_front_leg' is named LEFT and sits RIGHT"),
+            crossed,
+            "the one mesh vanilla names against its own geometry, and the only one");
+    }
+
+    @Test
+    @DisplayName("a segment takes the side of the leg it hangs off, never the side its own name claims")
+    void aSegmentInheritsTheSeatsSide() {
+        List<String> misread = new ArrayList<>();
+        rosters().forEach((coordinate, roster) -> roster.rows().forEach(row -> {
+            for (LimbRoster.Member seat : row.members()) {
+                if (seat.depth() != 0) continue;
+                row.members().stream()
+                    .filter(member -> member.depth() > 0)
+                    .filter(member -> member.side().equals(seat.side()))
+                    .filter(member -> member.bone().contains("foot"))
+                    .forEach(member -> {
+                        String claims = member.bone().startsWith("left") ? "LEFT" : "RIGHT";
+                        String holds = seat.side().map(Enum::name).orElse("none");
+                        if (!claims.equals(holds))
+                            misread.add(coordinate + ": '" + member.bone() + "' claims " + claims
+                                + " and is held at " + holds);
+                    });
+            }
+        }));
+
+        assertEquals(List.of(
+                "HumanoidModel#createBabyArmorMesh: 'left_foot' claims LEFT and is held at RIGHT",
+                "HumanoidModel#createBabyArmorMesh: 'right_foot' claims RIGHT and is held at LEFT",
+                "HumanoidModel#createBabyArmorMesh@pose=0.5,-0.5,0.0: 'left_foot' claims LEFT and is held at RIGHT",
+                "HumanoidModel#createBabyArmorMesh@pose=0.5,-0.5,0.0: 'right_foot' claims RIGHT and is held at LEFT"),
+            misread,
+            "vanilla cross-parents the baby boots, so the chain edge decides the side and the name does not");
+    }
+
+    @Test
     @DisplayName("a mesh naming no leg carries no row rather than an empty one")
     void alegSlessMeshCarriesNoRow() {
         LimbRoster roster = LimbRoster.of(new EntityModelData());
