@@ -113,8 +113,10 @@ class LeggedPoseTest {
             .script();
 
         assertEquals(7, script.stances().size());
-        assertEquals("body", script.stances().getFirst().limb().orElseThrow().bone());
-        assertEquals("tail", script.stances().getLast().limb().orElseThrow().bone());
+        assertEquals("body", ((PoseScript.Limb.Named)
+            script.stances().getFirst().limb().orElseThrow()).bone());
+        assertEquals("tail", ((PoseScript.Limb.Named)
+            script.stances().getLast().limb().orElseThrow()).bone());
         assertEquals(1, stanceOf(script, "head").tracks().size());
         assertEquals(List.of(new PoseScript.Sway(Turn.YAW, -25, 25)),
             List.copyOf(stanceOf(script, "tail").sways()));
@@ -125,7 +127,8 @@ class LeggedPoseTest {
      */
     private static @NotNull PoseScript.Stance stanceOf(@NotNull PoseScript script, @NotNull String bone) {
         return script.stances().stream()
-            .filter(stance -> stance.limb().map(limb -> limb.bone().equals(bone)).orElse(false))
+            .filter(stance -> stance.limb().map(limb ->
+                limb instanceof PoseScript.Limb.Named named && named.bone().equals(bone)).orElse(false))
             .reduce((first, second) -> second)
             .orElseThrow();
     }

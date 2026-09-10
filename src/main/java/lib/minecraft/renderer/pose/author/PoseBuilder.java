@@ -62,6 +62,25 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
     }
 
     /**
+     * Captures one stance over every leg the target mesh answers a selector with.
+     *
+     * <p>How many legs a subject has is the mesh's answer and never the author's: one chain reaches
+     * a biped's pair, a walker's four and a crawler's eight, because the roster resolves the
+     * selector against the row being built rather than against a count typed here. A selector the
+     * mesh answers with nothing drops with a recorded line, as a bone name it does not declare
+     * does.
+     *
+     * @param selector which legs the mesh is asked for
+     * @param stance the stance lambda, run once and stamped on each answered leg
+     * @return this builder
+     */
+    public final @NotNull B legs(@NotNull LimbSelector selector,
+                                 @NotNull UnaryOperator<LimbStance> stance) {
+        this.capture.selected(selector, PoseScript.AimAxis.DOWN, true, Mirror.SIGNED, stance);
+        return this.self();
+    }
+
+    /**
      * Captures one container step - the same verb surface addressed at the whole figure's
      * seat, one ordered step per call.
      *

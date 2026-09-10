@@ -72,10 +72,7 @@ public record PoseScript(
      * {@code head} is a cube under the {@code head_parts} neck assembly the pose turns as one, so
      * the head verb turns the assembly. A custom-tier name is the mesh bone itself, literally.
      */
-    public sealed interface Limb permits Limb.Named {
-
-        /** The bone name, as the mesh names it. */
-        @NotNull String bone();
+    public sealed interface Limb permits Limb.Named, Limb.Selected {
 
         /** The direction the limb's rest posture points along. */
         @NotNull AimAxis axis();
@@ -85,6 +82,13 @@ public record PoseScript(
          * for it, rather than a literal mesh bone.
          */
         boolean anatomical();
+
+        /**
+         * How a diagnostics line names this limb.
+         *
+         * @return the reading, in the author's own terms
+         */
+        @NotNull String reading();
 
         /**
          * One mesh bone, named as the mesh names it.
@@ -104,6 +108,31 @@ public record PoseScript(
              */
             public Named(@NotNull String bone, @NotNull AimAxis axis) {
                 this(bone, axis, false);
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull String reading() {
+                return "'" + this.bone + "'";
+            }
+
+        }
+
+        /**
+         * An intent the target mesh answers, resolved against its own roster at compile.
+         *
+         * @param selector which limbs the mesh is asked for
+         * @param axis the direction the limbs' rest posture points along
+         * @param anatomical whether the resolved names are anatomy rather than literal mesh bones
+         * @param mirror how the far side of a pair reads the authored stance
+         */
+        record Selected(@NotNull LimbSelector selector, @NotNull AimAxis axis, boolean anatomical,
+                        @NotNull Mirror mirror) implements Limb {
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull String reading() {
+                return this.selector.reading();
             }
 
         }
@@ -299,6 +328,26 @@ public record PoseScript(
         }
 
         /**
+         * Captures one stance addressed at whatever a selector resolves to on the target row.
+         *
+         * @param selector which limbs the mesh is asked for
+         * @param axis the direction the limbs' rest posture points along
+         * @param anatomical whether the resolved names are anatomy rather than literal mesh bones
+         * @param mirror how the far side of a pair reads the authored stance
+         * @param verbs the stance lambda
+         * @return this capture
+         */
+        @NotNull Capture selected(@NotNull LimbSelector selector, @NotNull AimAxis axis,
+                                  boolean anatomical, @NotNull Mirror mirror,
+                                  @NotNull UnaryOperator<LimbStance> verbs) {
+            LimbStance stance = new LimbStance();
+            verbs.apply(stance);
+            this.stances.add(stance.captured(
+                Optional.of(new Limb.Selected(selector, axis, anatomical, mirror))));
+            return this;
+        }
+
+        /**
          * Captures one container step - the same verb surface addressed at the whole figure's
          * seat rather than at a bone.
          *
@@ -342,7 +391,7 @@ public record PoseScript(
          */
         boolean stanced(@NotNull String bone) {
             return this.stances.stream().anyMatch(stance -> stance.limb()
-                .map(limb -> limb.bone().equals(bone))
+                .map(limb -> limb instanceof Limb.Named named && named.bone().equals(bone))
                 .orElse(false));
         }
 
@@ -358,7 +407,7 @@ public record PoseScript(
             List<Stance> copies = new ArrayList<>();
             for (Stance stance : this.stances)
                 stance.limb()
-                    .filter(limb -> limb.bone().equals(source))
+                    .filter(limb -> limb instanceof Limb.Named named && named.bone().equals(source))
                     .ifPresent(limb -> copies.add(mirrored(stance,
                         Optional.of(new Limb.Named(target, limb.axis(), limb.anatomical())))));
             this.stances.addAll(copies);
@@ -377,8 +426,9 @@ public record PoseScript(
             List<Stance> copies = new ArrayList<>();
             for (Stance stance : this.stances)
                 stance.limb()
-                    .filter(limb -> limb.bone().equals(source))
-                    .ifPresent(limb -> copies.add(new Stance(Optional.of(new Limb.Named(target, limb.axis())),
+                    .filter(limb -> limb instanceof Limb.Named named && named.bone().equals(source))
+                    .ifPresent(limb -> copies.add(new Stance(
+                        Optional.of(new Limb.Named(target, limb.axis(), limb.anatomical())),
                         stance.writes(), stance.scales(), stance.aims(),
                         stance.sways(), stance.spins(), stance.tracks())));
             this.stances.addAll(copies);
@@ -395,7 +445,10 @@ public record PoseScript(
          */
         @NotNull Capture flip(@NotNull Map<String, String> pairs) {
             this.stances.replaceAll(stance -> mirrored(stance, stance.limb()
-                .map(limb -> new Limb.Named(pairs.getOrDefault(limb.bone(), limb.bone()), limb.axis(), limb.anatomical()))));
+                .map(limb -> limb instanceof Limb.Named named
+                    ? (Limb) new Limb.Named(pairs.getOrDefault(named.bone(), named.bone()),
+                        named.axis(), named.anatomical())
+                    : limb)));
             return this;
         }
 

@@ -6,6 +6,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.kit.BoneKit;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.pose.author.LimbSelector;
 import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -175,6 +176,41 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
             .filter(member -> member.side().filter(side::equals).isPresent())
             .map(Member::bone)
             .findFirst();
+    }
+
+    /**
+     * Every bone one selector addresses, in roster order.
+     *
+     * <p>A rank the mesh carries no row for answers nothing, and so does a side a row does not
+     * carry. A fused row is one bone painting two legs, so it answers a call naming no side and
+     * refuses one naming a side - half a bone is not addressable, and answering both sides with the
+     * same bone would let two stances collide on it silently.
+     *
+     * @param selector which limbs the mesh is asked for
+     * @return the bones addressed, empty where the mesh answers none
+     */
+    public @NotNull ConcurrentList<String> members(@NotNull LimbSelector selector) {
+        if (!(selector instanceof LimbSelector.Legs legs))
+            return Concurrent.newUnmodifiableList();
+
+        List<Row> addressed = legs.rank()
+            .map(rank -> this.row(rank).stream().toList())
+            .orElseGet(() -> List.copyOf(this.rows));
+
+        List<String> bones = new ArrayList<>();
+        for (Row row : addressed)
+            for (Member member : row.members()) {
+                if (legs.side().isPresent()
+                    && !legs.side().equals(member.side())) continue;
+                boolean root = member.depth() == 0;
+                boolean reached = switch (legs.reach()) {
+                    case ROOT -> root;
+                    case CHAIN -> true;
+                    case SEGMENTS -> !root;
+                };
+                if (reached) bones.add(member.bone());
+            }
+        return Concurrent.newUnmodifiableList(bones);
     }
 
     /**

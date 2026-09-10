@@ -194,7 +194,8 @@ class PoseScriptCaptureTest {
             .script();
 
         assertEquals(3, script.stances().size());
-        assertEquals("right_arm", script.stances().getFirst().limb().orElseThrow().bone());
+        assertEquals("right_arm", ((PoseScript.Limb.Named)
+            script.stances().getFirst().limb().orElseThrow()).bone());
         assertTrue(script.stances().get(1).limb().isEmpty(), "the step sits where it was authored");
         assertEquals(List.of(new PoseScript.Write(PoseChannel.Y_ROT, 25, true)),
             List.copyOf(script.stances().getLast().writes()),

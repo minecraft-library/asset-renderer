@@ -19,6 +19,7 @@ import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.PosePredicate;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.Ease;
+import lib.minecraft.renderer.pose.author.LimbSelector;
 import lib.minecraft.renderer.pose.author.PoseScript;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -269,6 +270,7 @@ public final class PoseCompiler {
          */
         private final @NotNull EntityPose evidence;
         private final @NotNull EntityModelData mesh;
+        private final @NotNull LimbRoster roster;
         private final @NotNull Optional<String> layer;
         private final @NotNull StyleDiagnostics scope;
         private final @NotNull StyleDiagnostics events;
@@ -335,6 +337,7 @@ public final class PoseCompiler {
             this.shipped = shipped;
             this.evidence = evidence;
             this.mesh = mesh;
+            this.roster = LimbRoster.of(mesh);
             this.layer = layer;
             this.scope = scope;
             this.events = scope.child("compile");
@@ -446,7 +449,11 @@ public final class PoseCompiler {
                     this.foldStep(stance);
                     continue;
                 }
-                PoseScript.Limb limb = stance.limb().get();
+                if (stance.limb().get() instanceof PoseScript.Limb.Selected selected) {
+                    this.foldSelected(selected, stance);
+                    continue;
+                }
+                PoseScript.Limb.Named limb = (PoseScript.Limb.Named) stance.limb().get();
                 boolean implicit = this.implicitHatMirror(stance);
                 if (implicit) {
                     this.hatMirror = true;
@@ -459,7 +466,40 @@ public final class PoseCompiler {
                         this.trackPlans.add(new TrackPlan(limb.bone(), track));
                     continue;
                 }
-                PoseScript.Limb landed = this.articulated(limb);
+                PoseScript.Limb.Named landed = this.articulated(limb);
+                for (PoseScript.Track track : stance.tracks())
+                    this.trackPlans.add(new TrackPlan(landed.bone(), track));
+                this.foldLimb(landed, stance);
+            }
+        }
+
+        /**
+         * Folds one selected stance onto every leg the target mesh answers with.
+         *
+         * <p>The roster resolves the selector against this row's own bones, so one authored stance
+         * lands on two legs of a walker and eight of a crawler without the author counting either.
+         * A member's side is the side of the leg it hangs off and never the side its own name
+         * claims - two boots in the corpus are cross-parented by vanilla, so a segment's name is
+         * the one thing about it that cannot be trusted.
+         */
+        private void foldSelected(@NotNull PoseScript.Limb.Selected selected,
+                                  @NotNull PoseScript.Stance stance) {
+            List<String> members = this.roster.members(selected.selector());
+            if (members.isEmpty()) {
+                boolean derived = selected.selector() instanceof LimbSelector.Legs legs
+                    && legs.derived();
+                this.events.info("selector: %s reaches no bone this mesh declares",
+                    selected.reading());
+                if (!derived && !this.dropped.contains(selected.reading()))
+                    this.dropped.add(selected.reading());
+                return;
+            }
+            this.events.info("selector: %s reaches %d bone(s) %s",
+                selected.reading(), members.size(), members);
+            for (String member : members) {
+                PoseScript.Limb.Named named =
+                    new PoseScript.Limb.Named(member, selected.axis(), selected.anatomical());
+                PoseScript.Limb.Named landed = this.articulated(named);
                 for (PoseScript.Track track : stance.tracks())
                     this.trackPlans.add(new TrackPlan(landed.bone(), track));
                 this.foldLimb(landed, stance);
@@ -484,7 +524,7 @@ public final class PoseCompiler {
          * neck assembly and never the head cube, while a wolf's {@code head} lands on itself
          * because the pose turns that shell.
          */
-        private @NotNull PoseScript.Limb articulated(@NotNull PoseScript.Limb limb) {
+        private PoseScript.Limb.@NotNull Named articulated(PoseScript.Limb.@NotNull Named limb) {
             if (!limb.anatomical() || this.writesRotation(limb.bone())) return limb;
             String joint = limb.bone();
             while (!this.writesRotation(joint)) {
@@ -532,7 +572,7 @@ public final class PoseCompiler {
         /**
          * Folds one limb stance's verbs into the bone's accumulated plan.
          */
-        private void foldLimb(@NotNull PoseScript.Limb limb, @NotNull PoseScript.Stance stance) {
+        private void foldLimb(PoseScript.Limb.@NotNull Named limb, @NotNull PoseScript.Stance stance) {
             LinkedHashMap<PoseChannel, ChannelPlan> plan =
                 this.bonePlans.computeIfAbsent(limb.bone(), bone -> new LinkedHashMap<>());
             this.foldVerbs(stance, plan);
@@ -580,14 +620,16 @@ public final class PoseCompiler {
          * drops silently where a mesh lacks the shell, because the author never spelled it.
          */
         private boolean implicitHatMirror(@NotNull PoseScript.Stance stance) {
-            if (stance.limb().map(limb -> !"hat".equals(limb.bone())).orElse(true)) return false;
+            if (stance.limb().map(limb -> !(limb instanceof PoseScript.Limb.Named named)
+                || !"hat".equals(named.bone())).orElse(true)) return false;
             boolean carries = !stance.writes().isEmpty() || !stance.scales().isEmpty()
                 || !stance.aims().isEmpty() || !stance.sways().isEmpty()
                 || !stance.spins().isEmpty() || !stance.tracks().isEmpty();
             if (!carries) return false;
             for (PoseScript.Stance other : this.script.stances()) {
                 if (other == stance) continue;
-                if (other.limb().map(limb -> "head".equals(limb.bone())).orElse(false)
+                if (other.limb().map(limb -> limb instanceof PoseScript.Limb.Named named
+                        && "head".equals(named.bone())).orElse(false)
                     && other.writes() == stance.writes() && other.scales() == stance.scales()
                     && other.aims() == stance.aims() && other.sways() == stance.sways()
                     && other.spins() == stance.spins() && other.tracks() == stance.tracks())
@@ -1182,7 +1224,7 @@ public final class PoseCompiler {
          * pair lands as ordinary absolute writes, so rebase, elision and the driven-base
          * refusal all apply unchanged.
          */
-        private void foldAim(@NotNull PoseScript.Limb limb, @NotNull PoseScript.Aim aim,
+        private void foldAim(PoseScript.Limb.@NotNull Named limb, @NotNull PoseScript.Aim aim,
                              @NotNull LinkedHashMap<PoseChannel, ChannelPlan> plan) {
             Vector3f pivot = this.mesh.getBones().get(limb.bone()).getPivot();
             double dx = aim.xPixels() - pivot.x();

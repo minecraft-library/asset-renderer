@@ -4394,7 +4394,15 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/author/LimbSelector": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/author/LimbStance": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/Mirror": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4423,6 +4431,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/pose/author/Rank": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/Reach": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4539,6 +4551,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/pose/install/SeatInstallParityTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/SelectedLegsInstallTest": {
       "artifacts": [],
       "source": "derived"
     },

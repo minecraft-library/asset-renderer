@@ -25,6 +25,7 @@ import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.PoseScript;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.GraphInterner;
+import lib.minecraft.renderer.pose.compile.LimbRoster;
 import lib.minecraft.renderer.pose.compile.PoseCompiler;
 import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
 import org.intellij.lang.annotations.PrintFormat;
@@ -278,7 +279,7 @@ public final class StyleRegistrar {
             this.refuse(install, "Entity '%s' already carries style '%s' - shipped ids and previously installed ids are taken alike",
                 entityId, style.styleId());
 
-        Set<String> scaled = scaledBones(style.script());
+        Set<String> scaled = scaledBones(style.script(), row.model());
         List<String> foldedTokens = containerTokens(style.script());
         List<String> displacing = this.scanShippedClips(install, style, scaled, row.pose(), row.model());
         if (!displacing.isEmpty() && !foldedTokens.isEmpty())
@@ -363,7 +364,7 @@ public final class StyleRegistrar {
         EntityModelData mesh = layer.model();
         String texture = layer.textureRef().map(ref -> " (texture '" + ref + "')").orElse("");
 
-        List<String> landing = writtenBones(style.script()).stream()
+        List<String> landing = writtenBones(style.script(), mesh).stream()
             .filter(mesh.getBones()::containsKey)
             .toList();
         if (landing.isEmpty() && foldedTokens.isEmpty()) {
@@ -520,12 +521,18 @@ public final class StyleRegistrar {
 
     /**
      * Every bone the script addresses with content, in first-written order - raw captures included.
+     *
+     * <p>A selected limb is resolved against the mesh being asked about, because until a mesh
+     * answers it there is no bone to name. Reading one as though it addressed nothing would leave
+     * every distinct overlay layer of a legged style weave-skipped, with one info line and no
+     * refusal.
      */
-    private static @NotNull Set<String> writtenBones(@NotNull PoseScript script) {
+    private static @NotNull Set<String> writtenBones(@NotNull PoseScript script,
+                                                     @NotNull EntityModelData mesh) {
         Set<String> bones = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances())
             stance.limb().ifPresent(limb -> {
-                if (carries(stance)) bones.add(limb.bone());
+                if (carries(stance)) bones.addAll(addressed(limb, mesh));
             });
         for (PoseScript.Raw raw : script.raws())
             bones.add(raw.bone());
@@ -535,15 +542,29 @@ public final class StyleRegistrar {
     /**
      * Every bone the script writes a scale channel on - uniform scales and scale-channel raws.
      */
-    private static @NotNull Set<String> scaledBones(@NotNull PoseScript script) {
+    private static @NotNull Set<String> scaledBones(@NotNull PoseScript script,
+                                                    @NotNull EntityModelData mesh) {
         Set<String> bones = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances())
             stance.limb().ifPresent(limb -> {
-                if (!stance.scales().isEmpty()) bones.add(limb.bone());
+                if (!stance.scales().isEmpty()) bones.addAll(addressed(limb, mesh));
             });
         for (PoseScript.Raw raw : script.raws())
             if (raw.channel().kind() == PoseChannel.Kind.SCALE) bones.add(raw.bone());
         return bones;
+    }
+
+    /**
+     * The bones one captured limb names on the given mesh - the bone itself where it was written
+     * by name, and whatever the mesh's own roster answers where it was written as a selector.
+     */
+    private static @NotNull List<String> addressed(PoseScript.@NotNull Limb limb,
+                                                   @NotNull EntityModelData mesh) {
+        return switch (limb) {
+            case PoseScript.Limb.Named named -> List.of(named.bone());
+            case PoseScript.Limb.Selected selected ->
+                LimbRoster.of(mesh).members(selected.selector());
+        };
     }
 
     /**
