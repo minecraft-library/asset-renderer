@@ -65,9 +65,10 @@ class LeggedPoseTest {
             .script();
 
         assertEquals(List.of(
-                new LimbSelector.Legs(Optional.of(Rank.SECOND), Optional.of(Side.RIGHT)),
+                new LimbSelector.Legs(Optional.of(Rank.SECOND), Optional.of(Side.RIGHT), Reach.ROOT,
+                    LimbSelector.Stamp.NEAR),
                 new LimbSelector.Legs(Optional.of(Rank.SECOND), Optional.of(Side.LEFT),
-                    Reach.ROOT, true)),
+                    Reach.ROOT, LimbSelector.Stamp.FAR)),
             selectorsOf(script),
             "the tier states the row rather than resolving it, so a three-row mesh can answer");
     }
@@ -89,9 +90,10 @@ class LeggedPoseTest {
                 new PoseScript.Write(PoseChannel.Y_ROT, -5, false)),
             List.copyOf(script.stances().getLast().writes()), "the far side under the sign rule");
         assertEquals(List.of(
-                new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.RIGHT)),
+                new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.RIGHT), Reach.ROOT,
+                    LimbSelector.Stamp.NEAR),
                 new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.LEFT),
-                    Reach.ROOT, true)),
+                    Reach.ROOT, LimbSelector.Stamp.FAR)),
             selectorsOf(script), "the far side is the derived half and reports no miss of its own");
     }
 

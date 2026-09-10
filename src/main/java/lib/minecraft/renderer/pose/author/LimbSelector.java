@@ -31,25 +31,52 @@ public sealed interface LimbSelector permits LimbSelector.Legs, LimbSelector.Fam
     @NotNull String reading();
 
     /**
+     * Whether an address stands on its own or is one side of a pair stamped together.
+     *
+     * <p>What turns on it is the row one bone paints whole. Such a row carries no side to name, so
+     * an address naming one reaches it only where the address speaks for the row rather than for a
+     * leg of it - which is the difference between stancing a row and stancing one of its legs, and
+     * is not otherwise written down anywhere.
+     */
+    enum Stamp {
+
+        /**
+         * An address written on its own, reaching the legs it names and no others.
+         */
+        LONE,
+
+        /**
+         * The authored side of a pair, which speaks for its whole row where the row is one bone.
+         */
+        NEAR,
+
+        /**
+         * The side derived from the authored one, which is nothing where the row has no far side.
+         */
+        FAR
+
+    }
+
+    /**
      * Rows of legs, addressed by where they sit on the body rather than by what a mesh calls them.
      *
      * @param rank which row front to back, or empty for every row
      * @param side which side, or empty for both
      * @param reach how far down each leg's own chain the stance carries
-     * @param derived whether this half was mirrored from an authored one rather than authored
+     * @param stamp whether this address stands alone or is one side of a pair
      */
     record Legs(@NotNull Optional<Rank> rank, @NotNull Optional<Side> side, @NotNull Reach reach,
-                boolean derived) implements LimbSelector {
+                @NotNull Stamp stamp) implements LimbSelector {
 
         /**
-         * Constructs a selector reaching each addressed leg's root alone, authored rather than
-         * derived.
+         * Constructs a selector reaching each addressed leg's root alone, standing on its own
+         * rather than as one side of a pair.
          *
          * @param rank which row front to back, or empty for every row
          * @param side which side, or empty for both
          */
         public Legs(@NotNull Optional<Rank> rank, @NotNull Optional<Side> side) {
-            this(rank, side, Reach.ROOT, false);
+            this(rank, side, Reach.ROOT, Stamp.LONE);
         }
 
         /** {@inheritDoc} */

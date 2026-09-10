@@ -586,7 +586,7 @@ public final class PoseCompiler {
             };
             if (members.isEmpty()) {
                 boolean derived = selected.selector() instanceof LimbSelector.Legs legs
-                    && legs.derived();
+                    && legs.stamp() == LimbSelector.Stamp.FAR;
                 this.events.info("selector: %s reaches no bone this mesh declares",
                     selected.reading());
                 if (!derived && !this.dropped.contains(selected.reading()))

@@ -182,9 +182,11 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
      * Every bone one selector addresses, in roster order.
      *
      * <p>A rank the mesh carries no row for answers nothing, and so does a side a row does not
-     * carry. A fused row is one bone painting two legs, so it answers a call naming no side and
-     * refuses one naming a side - half a bone is not addressable, and answering both sides with the
-     * same bone would let two stances collide on it silently.
+     * carry. A fused row is one bone painting two legs, and half a bone is not addressable, so what
+     * reaches it is an address speaking for the whole row: one naming no side, or the near side of
+     * a pair, whose far side then answers nothing and the row takes one stance rather than two
+     * cancelling on yaw and doubling on pitch. An address written for one leg of the row reaches
+     * nothing, because the leg it names is not a bone this mesh has.
      *
      * @param legs which legs the mesh is asked for
      * @return the bones addressed, empty where the mesh answers none
@@ -197,8 +199,7 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
         List<String> bones = new ArrayList<>();
         for (Row row : addressed)
             for (Member member : row.members()) {
-                if (legs.side().isPresent()
-                    && !legs.side().equals(member.side())) continue;
+                if (!reaches(legs, member)) continue;
                 boolean root = member.depth() == 0;
                 boolean reached = switch (legs.reach()) {
                     case ROOT -> root;
@@ -208,6 +209,20 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
                 if (reached) bones.add(member.bone());
             }
         return Concurrent.newUnmodifiableList(bones);
+    }
+
+    /**
+     * Whether one address reaches one leg, on the side it names.
+     *
+     * <p>A leg carrying a side answers the address that names that side and no other. A leg
+     * carrying none is a whole row painted by one bone, so it answers an address speaking for the
+     * row - one naming no side, or the near side of a pair, never the far side and never an
+     * address written for a single leg.
+     */
+    private static boolean reaches(@NotNull LimbSelector.Legs legs, @NotNull Member member) {
+        if (member.side().isPresent())
+            return legs.side().isEmpty() || legs.side().equals(member.side());
+        return legs.side().isEmpty() || legs.stamp() == LimbSelector.Stamp.NEAR;
     }
 
     /**

@@ -42,8 +42,9 @@ class GaitTest {
             .script();
 
         assertEquals(List.of(
-                new LimbSelector.Legs(Optional.empty(), Optional.of(Side.RIGHT)),
-                new LimbSelector.Legs(Optional.empty(), Optional.of(Side.LEFT), Reach.ROOT, true)),
+                new LimbSelector.Legs(Optional.empty(), Optional.of(Side.RIGHT), Reach.ROOT,
+                    LimbSelector.Stamp.NEAR),
+                new LimbSelector.Legs(Optional.empty(), Optional.of(Side.LEFT), Reach.ROOT, LimbSelector.Stamp.FAR)),
             selectorsOf(script),
             "no rank is named, so however many rows the mesh carries are the rows it walks");
     }
@@ -60,12 +61,15 @@ class GaitTest {
             .script();
 
         assertEquals(List.of(
-                new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.RIGHT)),
-                new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.LEFT), Reach.ROOT, true),
-                new LimbSelector.Legs(Optional.of(Rank.SECOND), Optional.of(Side.RIGHT)),
-                new LimbSelector.Legs(Optional.of(Rank.SECOND), Optional.of(Side.LEFT), Reach.ROOT, true),
-                new LimbSelector.Legs(Optional.of(Rank.HIND), Optional.of(Side.RIGHT)),
-                new LimbSelector.Legs(Optional.of(Rank.HIND), Optional.of(Side.LEFT), Reach.ROOT, true)),
+                new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.RIGHT), Reach.ROOT,
+                    LimbSelector.Stamp.NEAR),
+                new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.LEFT), Reach.ROOT, LimbSelector.Stamp.FAR),
+                new LimbSelector.Legs(Optional.of(Rank.SECOND), Optional.of(Side.RIGHT), Reach.ROOT,
+                    LimbSelector.Stamp.NEAR),
+                new LimbSelector.Legs(Optional.of(Rank.SECOND), Optional.of(Side.LEFT), Reach.ROOT, LimbSelector.Stamp.FAR),
+                new LimbSelector.Legs(Optional.of(Rank.HIND), Optional.of(Side.RIGHT), Reach.ROOT,
+                    LimbSelector.Stamp.NEAR),
+                new LimbSelector.Legs(Optional.of(Rank.HIND), Optional.of(Side.LEFT), Reach.ROOT, LimbSelector.Stamp.FAR)),
             selectorsOf(script),
             "three rows, six addresses, and not one bone name among them");
         assertEquals(List.of(22.5, 22.5, 45d, 45d, 45d, 45d),

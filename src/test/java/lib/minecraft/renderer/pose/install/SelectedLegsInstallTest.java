@@ -126,11 +126,11 @@ class SelectedLegsInstallTest {
     void theChainTakesTheSegments() {
         BuiltStyle roots = Poses.custom("roots")
             .legs(new LimbSelector.Legs(Optional.empty(), Optional.empty(),
-                Reach.ROOT, false), leg -> leg.pitch(-10))
+                Reach.ROOT, LimbSelector.Stamp.LONE), leg -> leg.pitch(-10))
             .build();
         BuiltStyle chain = Poses.custom("chain")
             .legs(new LimbSelector.Legs(Optional.empty(), Optional.empty(),
-                Reach.CHAIN, false), leg -> leg.pitch(-10))
+                Reach.CHAIN, LimbSelector.Stamp.LONE), leg -> leg.pitch(-10))
             .build();
 
         List<String> rootFields = fieldsOf(roots, "minecraft:ender_dragon");
@@ -190,6 +190,32 @@ class SelectedLegsInstallTest {
         assertEquals(8, crawler.size(), () -> "eight: " + crawler);
         assertTrue(crawler.stream().allMatch(field -> field.endsWith("$y_rot")),
             () -> "every leg sweeps the yaw the one step stated: " + crawler);
+    }
+
+    @Test
+    @DisplayName("a row one bone paints whole answers the row stamp and refuses the single leg")
+    void aFusedRowAnswersTheRowAndNotTheLeg() {
+        BuiltStyle hover = Poses.legged("hover")
+            .gait(gait -> gait
+                .step(Rank.FRONT, leg -> leg.pitchBy(22.5))
+                .step(Rank.SECOND, leg -> leg.pitchBy(45))
+                .step(Rank.HIND, leg -> leg.pitchBy(45)))
+            .build();
+
+        List<String> bee = fieldsOf(hover, "minecraft:bee");
+        assertEquals(3, bee.size(),
+            () -> "three rows, three bones, one stance each rather than two cancelling: " + bee);
+        assertTrue(bee.stream().anyMatch(field -> field.contains("front_legs")), bee::toString);
+        assertTrue(bee.stream().anyMatch(field -> field.contains("middle_legs")), bee::toString);
+        assertTrue(bee.stream().anyMatch(field -> field.contains("back_legs")), bee::toString);
+
+        BuiltStyle one = Poses.legged("lift")
+            .leg(Rank.FRONT, Side.RIGHT, leg -> leg.pitchBy(22.5))
+            .build();
+        Entity woven = tolerantly(one, "minecraft:bee");
+        assertEquals(List.of(), woven.styles().byId("lift").orElseThrow()
+                .drivers().keySet().stream().sorted().toList(),
+            "one bone paints both legs of the row, so the row has no right leg to stance");
     }
 
     @Test

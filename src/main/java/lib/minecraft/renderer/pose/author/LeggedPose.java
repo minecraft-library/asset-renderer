@@ -102,8 +102,10 @@ public final class LeggedPose {
          */
         public @NotNull Builder legs(@NotNull Rank rank, @NotNull UnaryOperator<LimbStance> stance) {
             this.capture.selectedPair(
-                new LimbSelector.Legs(Optional.of(rank), Optional.of(Side.RIGHT)),
-                new LimbSelector.Legs(Optional.of(rank), Optional.of(Side.LEFT), Reach.ROOT, true),
+                new LimbSelector.Legs(Optional.of(rank), Optional.of(Side.RIGHT), Reach.ROOT,
+                    LimbSelector.Stamp.NEAR),
+                new LimbSelector.Legs(Optional.of(rank), Optional.of(Side.LEFT), Reach.ROOT,
+                    LimbSelector.Stamp.FAR),
                 PoseScript.AimAxis.DOWN, Mirror.SIGNED, stance);
             return this;
         }

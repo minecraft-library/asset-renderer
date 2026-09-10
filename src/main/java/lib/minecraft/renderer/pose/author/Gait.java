@@ -117,8 +117,10 @@ public final class Gait {
             capture.cycle(new PoseScript.Cycle(Map.copyOf(this.phases)));
         for (Shape shape : this.shapes)
             capture.selectedPair(
-                new LimbSelector.Legs(shape.rank(), Optional.of(Side.RIGHT)),
-                new LimbSelector.Legs(shape.rank(), Optional.of(Side.LEFT), Reach.ROOT, true),
+                new LimbSelector.Legs(shape.rank(), Optional.of(Side.RIGHT), Reach.ROOT,
+                    LimbSelector.Stamp.NEAR),
+                new LimbSelector.Legs(shape.rank(), Optional.of(Side.LEFT), Reach.ROOT,
+                    LimbSelector.Stamp.FAR),
                 PoseScript.AimAxis.DOWN, this.mirror, shape.verbs());
     }
 
