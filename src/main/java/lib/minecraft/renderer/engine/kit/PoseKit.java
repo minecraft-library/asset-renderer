@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.tensor.EulerRotation;

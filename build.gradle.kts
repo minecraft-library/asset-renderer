@@ -97,14 +97,32 @@ extra["assetFlagsInForce"] = assetPropertiesInForce()
 
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add(addVectorModuleArg)
+
+    // The annotation processor writes each compilation unit out again with its generated members
+    // spliced in, for the javadoc task below to read in place of the authored tree. One directory per
+    // source set, derived from the task name - `compileJava` answers `main` and `compileTestJava`
+    // answers `test` - so neither overwrites the other's copy of a qualified name. The `outputs.dir`
+    // registration is what makes Gradle rebuild the copy rather than document a stale one.
+    val into = layout.buildDirectory.get().asFile.resolve("expanded-sources").resolve(
+        name.removePrefix("compile").removeSuffix("Java")
+            .replaceFirstChar { it.lowercase() }.ifEmpty { "main" }
+    )
+    options.compilerArgs.add("-Adev.simplified.expandTo=$into")
+    outputs.dir(into)
 }
 // The fifth consumer, and the only one that is not a JVM launch: javadoc resolves the incubator
-// module at doclet time, so without this `SimdOps` reports the package as not visible. The task is
-// red at HEAD for an unrelated reason - an annotation processor generates builders the doclet cannot
-// see - so this makes two of its errors go away and no gate become usable; wiring it is about the
-// flag being wired everywhere it is read rather than about the exit code.
+// module at doclet time, so without this `SimdOps` reports the package as not visible.
 tasks.withType<Javadoc>().configureEach {
     (options as StandardJavadocDocletOptions).addStringOption("-add-modules", "jdk.incubator.vector")
+}
+// The doclet runs no annotation processors and cannot be made to, so a link to a generated member
+// resolves against the expanded copy or not at all. `setSource` replaces the task's source outright,
+// which is what the library's own init script does; a unit that generated nothing is still copied
+// verbatim, so nothing is dropped. `fileTree` carries no task dependency of its own, which is why the
+// `dependsOn` is not optional. Only the task documenting `main` is retargeted.
+tasks.named<Javadoc>("javadoc") {
+    dependsOn(tasks.named("compileJava"))
+    setSource(fileTree(layout.buildDirectory.dir("expanded-sources/main")) { include("**/*.java") })
 }
 // The two parity roots go AFTER forwardAssetProperties() so the resolved value wins whether or not
 // one was also forwarded from the command line. The working root on the Test hook is what lets the
