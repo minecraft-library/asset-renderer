@@ -316,15 +316,17 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
-    @DisplayName("a phase at a rank the mesh has no row for refuses")
-    void phaseAtAnAbsentRankRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
-            .gait(gait -> gait
-                .step(Rank.SECOND, leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20)))
-                .phase(Rank.SECOND, 0.25))
-            .build());
-        assertTrue(refusal.getMessage().contains("has no row for"), refusal.getMessage());
-        assertTrue(refusal.getMessage().contains("SECOND"), refusal.getMessage());
+    @DisplayName("a phase at a rank the mesh has no row for addresses nothing rather than refusing")
+    void phaseAtAnAbsentRankIsInert() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.legged("amble")
+                .gait(gait -> gait
+                    .step(Rank.FRONT, leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20)))
+                    .phase(Rank.SECOND, 0.25))
+                .build(),
+            row(humanoid(), EntityPose.NONE));
+        assertEquals(1, compiled.pose().clips().size(),
+            "an offset keyed on a row this mesh does not carry starts nothing late, and a chain "
+                + "reaching one subject's rows must not refuse on the next");
     }
 
     @Test
@@ -337,6 +339,61 @@ class PoseCompilerRefusalTest {
             .build());
         assertTrue(refusal.getMessage().contains("carries no offset of its own"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("timeline"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a phase over an unranked shape refuses too - the shape reaches the phased row")
+    void phaseOverAnUnrankedSwayRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.sway(Turn.PITCH, -20, 20))
+                .phase(Rank.FRONT, 0.25))
+            .build());
+        assertTrue(refusal.getMessage().contains("carries no offset of its own"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a whole number of cycles is no offset, so what an offset refuses it does not")
+    void aWholeCycleIsNoOffset() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.legged("amble")
+                .gait(gait -> gait
+                    .step(Rank.FRONT, leg -> leg.timeline(track -> track
+                        .swing(Turn.PITCH, -20, 20).over(0.4).ease(Ease.SMOOTH)))
+                    .phase(Rank.FRONT, 1.0))
+                .build(),
+            row(humanoid(), EntityPose.NONE));
+        assertEquals(1, compiled.pose().clips().size(),
+            "the wrap takes a whole cycle to zero, so it states what no phase at all states");
+    }
+
+    @Test
+    @DisplayName("a phase over a track keying one instant twice refuses, as the unphased track does")
+    void phaseOverACollidingTrackRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+            .gait(gait -> gait
+                .step(Rank.FRONT, leg -> leg.timeline(track -> track
+                    .keyframe(0, -30, 0, 0)
+                    .keyframe(0.2, 10, 0, 0)
+                    .keyframe(0.2, -10, 0, 0)
+                    .keyframe(0.4, -30, 0, 0)
+                    .over(0.4)))
+                .phase(Rank.FRONT, 0.25))
+            .build());
+        assertTrue(refusal.getMessage().contains("ascend strictly"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a phase over two motions writing one target refuses, as the unphased pair does")
+    void phaseOverTwoMotionsOnOneTargetRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+            .gait(gait -> gait
+                .step(Rank.FRONT, leg -> leg.timeline(track -> track
+                    .swing(Turn.PITCH, 0, 35)
+                    .swing(Turn.YAW, 0, 10)
+                    .over(0.4)))
+                .phase(Rank.FRONT, 0.25))
+            .build());
+        assertTrue(refusal.getMessage().contains("ascend strictly"), refusal.getMessage());
     }
 
     @Test

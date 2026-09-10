@@ -10,6 +10,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -54,9 +56,9 @@ public record PoseScript(
      *
      * <p>The shapes a gait stamps are ordinary stances and need nothing here. What does is the
      * timing, because a row's offset is a fact about the row rather than about any one bone, and
-     * because what a mesh can answer decides whether the offset means anything at all.
+     * one shape stated over the whole roster carries a different offset per row it lands on.
      *
-     * @param phases each row's own offset into the cycle, in cycles
+     * @param phases each row's own offset into the cycle, in cycles, in rank order
      */
     public record Cycle(@NotNull Map<Rank, Double> phases) {}
 
@@ -331,7 +333,7 @@ public record PoseScript(
         private boolean keepStride;
         private @Nullable Hover hover;
         private @NotNull OptionalDouble periodSeconds = OptionalDouble.empty();
-        private @Nullable Cycle cycle;
+        private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
 
         /**
          * Captures one limb stance - the lambda's verbs land on a fresh stance whose fragments
@@ -581,18 +583,25 @@ public record PoseScript(
                 this.keepStride,
                 Optional.ofNullable(this.hover),
                 this.periodSeconds,
-                Optional.ofNullable(this.cycle)
+                this.phases.isEmpty()
+                    ? Optional.empty()
+                    : Optional.of(new Cycle(Collections.unmodifiableMap(new EnumMap<>(this.phases))))
             );
         }
 
         /**
          * Captures what a walking cycle said about time.
          *
-         * @param cycle the cycle's own numbers
+         * <p>The offsets accumulate across every cycle a style writes, because a row's offset is a
+         * fact about the row rather than about the gait that stated it, and a second gait naming
+         * other rows must not unsay the first one's. A rank stated twice takes the later number,
+         * as a period or a hover stated twice does.
+         *
+         * @param phases each row's own offset into the cycle, in cycles
          * @return this capture
          */
-        @NotNull Capture cycle(@NotNull Cycle cycle) {
-            this.cycle = cycle;
+        @NotNull Capture cycle(@NotNull Map<Rank, Double> phases) {
+            this.phases.putAll(phases);
             return this;
         }
 

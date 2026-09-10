@@ -113,8 +113,7 @@ public final class Gait {
      */
     void captured(@NotNull PoseScript.Capture capture) {
         this.lengthSeconds.ifPresent(capture::period);
-        if (!this.phases.isEmpty())
-            capture.cycle(new PoseScript.Cycle(Map.copyOf(this.phases)));
+        if (!this.phases.isEmpty()) capture.cycle(this.phases);
         for (Shape shape : this.shapes)
             capture.selectedPair(
                 new LimbSelector.Legs(shape.rank(), Optional.of(Side.RIGHT), Reach.ROOT,

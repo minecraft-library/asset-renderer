@@ -122,13 +122,6 @@ public final class PoseCompiler {
      */
     private static final float SEAT_EPSILON = 1e-4f;
 
-    /**
-     * How close in seconds two clip frames sit before an offset is read as having landed them on
-     * one instant - far below the twentieth of a second a tick spans, and far above the residue a
-     * wrap leaves.
-     */
-    private static final double FRAME_EPSILON = 1e-6d;
-
     private PoseCompiler() {}
 
     // ------------------------------------------------------------------------------------
@@ -453,27 +446,80 @@ public final class PoseCompiler {
         }
 
         /**
-         * Refuses a cycle offset the target mesh or the shape it was written over cannot carry.
+         * Refuses a cycle offset the shape it was written over cannot carry.
          *
-         * <p>Two things can be wrong with an offset, and neither is a property of any one bone. A
-         * rank the mesh carries no row for has nothing to start late; and a shape written as a
-         * wave has no offset to start late BY, because a wave lowers to a driver and a driver
-         * derives its whole phase from the tick. Moving such a shape onto the clip clock to make
-         * room for the offset would drop the field it was emitting and change every table the
-         * style writes, so the author is asked for a timeline instead.
+         * <p>Every reason an offset is unstateable is a fact about what the author wrote, so every
+         * refusal here reads the script and no mesh. A rank the target carries no row for is NOT
+         * one of them: it addresses nothing, which is the answer rather than an error, and a
+         * refusal keyed on it would let the same chain install on one subject and refuse on the
+         * next.
+         *
+         * <p>What is unstateable: a shape written as a wave, which has no offset to start late by,
+         * because a wave lowers to a driver and a driver derives its whole phase from the tick -
+         * moving it onto the clip clock to make room would drop the field it was emitting and
+         * change every table the style writes, so the author is asked for a timeline instead; a
+         * clip that holds rather than loops, which has no wrap for a share of a cycle to mean
+         * anything in; a smoothed track, whose frames read their neighbours from the clip's ends
+         * rather than across them, so re-timing one states a different curve; a track whose two
+         * ends disagree, where moving the wrap moves a jump; and a track keying one instant twice,
+         * which the clip refuses however it was written.
+         *
+         * <p>A whole number of cycles is passed over, because it is no offset at all - the wrap
+         * takes it to zero, and the same chain written as a zero would be lowered rather than
+         * read.
          */
         private void validateGait() {
             if (this.script.cycle().isEmpty()) return;
-            for (Rank rank : this.script.cycle().get().phases().keySet()) {
-                if (this.roster.row(rank).isEmpty())
-                    this.refuse("Style '%s' gaits a phase at rank '%s', which a mesh carrying '%d' leg row(s) has no row for - an offset keyed on an absent row starts nothing late",
-                        this.style.styleId(), rank, this.roster.rows().size());
+            this.script.cycle().get().phases().forEach((rank, cycles) -> {
+                if (cycles % 1d == 0d) return;
                 for (PoseScript.Stance stance : this.script.stances())
-                    if (rankOf(stance).filter(rank::equals).isPresent()
-                        && (!stance.sways().isEmpty() || !stance.spins().isEmpty()))
-                        this.refuse("Style '%s' gaits a phase at rank '%s' over a swayed shape - a wave carries no offset of its own, so a row starting late in the cycle states its shape as a timeline",
+                    if (phased(stance, rank)) this.checkOffset(rank, stance);
+            });
+        }
+
+        /**
+         * Refuses one stance a phase cannot start late.
+         */
+        private void checkOffset(@NotNull Rank rank, @NotNull PoseScript.Stance stance) {
+            if (!stance.sways().isEmpty() || !stance.spins().isEmpty())
+                this.refuse("Style '%s' gaits a phase at rank '%s' over a swayed shape - a wave carries no offset of its own, so a row starting late in the cycle states its shape as a timeline",
+                    this.style.styleId(), rank);
+            for (PoseScript.Track track : stance.tracks()) {
+                if (!track.looping())
+                    this.refuse("Style '%s' gaits a phase at rank '%s' over a clip that holds rather than loops - a share of a cycle needs a cycle to wrap in",
+                        this.style.styleId(), rank);
+                if (track.ease() == Ease.SMOOTH)
+                    this.refuse("Style '%s' gaits a phase at rank '%s' over a smoothed track - a smoothed frame reads its neighbours from the clip's ends rather than across them, so re-timing one states a different curve",
+                        this.style.styleId(), rank);
+                double length = track.overSeconds().orElse(this.windowSeconds);
+                framesOf(track, length, 1f).values().forEach(frames -> {
+                    List<Frame> sorted = new ArrayList<>(frames);
+                    sorted.sort(Comparator.comparingDouble(Frame::atSeconds));
+                    for (int at = 1; at < sorted.size(); at++)
+                        if ((float) sorted.get(at).atSeconds()
+                            == (float) sorted.get(at - 1).atSeconds())
+                            this.refuse("Style '%s' gaits a phase at rank '%s' over a track keying '%s' seconds twice - keyframe times ascend strictly per channel, an offset included",
+                                this.style.styleId(), rank, sorted.get(at).atSeconds());
+                    if (sorted.getFirst().atSeconds() != 0d
+                        || sorted.getLast().atSeconds() != length
+                        || !sorted.getFirst().rests(sorted.getLast()))
+                        this.refuse("Style '%s' gaits a phase at rank '%s' over a track that does not close - an offset moves where the cycle wraps, and a wrap the two ends disagree across is a jump",
                             this.style.styleId(), rank);
+                });
             }
+        }
+
+        /**
+         * Whether one stance's address reaches the row a rank names.
+         *
+         * <p>An address naming no rank reaches every row the mesh answers, so it reaches that one
+         * too - which is what makes a phase written beside the whole-roster step verb bind.
+         */
+        private static boolean phased(@NotNull PoseScript.Stance stance, @NotNull Rank rank) {
+            if (stance.limb().isEmpty()) return false;
+            if (!(stance.limb().get() instanceof PoseScript.Limb.Selected selected)) return false;
+            if (!(selected.selector() instanceof LimbSelector.Legs legs)) return false;
+            return legs.rank().isEmpty() || legs.rank().get() == rank;
         }
 
         /**
@@ -597,8 +643,8 @@ public final class PoseCompiler {
             }
             this.events.info("selector: %s reaches %d bone(s) %s",
                 selected.reading(), members.size(), members);
-            double shift = this.phaseOf(selected.selector());
             for (String member : members) {
+                double shift = this.phaseOf(selected.selector(), member);
                 PoseScript.Limb.Named named =
                     new PoseScript.Limb.Named(member, selected.axis(), selected.anatomical());
                 PoseScript.Limb.Named landed = this.articulated(named);
@@ -609,13 +655,30 @@ public final class PoseCompiler {
         }
 
         /**
-         * How far into the cycle one selector's copy of a gait's shape starts, as a share of it.
+         * How far into the cycle one leg's copy of a gait's shape starts, as a share of it.
+         *
+         * <p>An address naming a rank takes that rank's offset. One naming none reaches every row,
+         * so the offset is the leg's own row's - read per leg rather than per address, or a shape
+         * stated once over the whole roster would take one row's offset or none at all, and a gait
+         * written the way the verb set is meant to be written would walk in lockstep.
+         *
+         * @param selector the address the stance was written with
+         * @param bone the leg the roster answered, as the mesh names it
+         * @return the share of a cycle this leg starts into
          */
-        private double phaseOf(@NotNull LimbSelector selector) {
-            if (!(selector instanceof LimbSelector.Legs legs) || legs.rank().isEmpty()) return 0d;
-            return this.script.cycle()
-                .map(cycle -> cycle.phases().getOrDefault(legs.rank().get(), 0d))
-                .orElse(0d);
+        private double phaseOf(@NotNull LimbSelector selector, @NotNull String bone) {
+            if (this.script.cycle().isEmpty()) return 0d;
+            if (!(selector instanceof LimbSelector.Legs legs)) return 0d;
+            Map<Rank, Double> phases = this.script.cycle().get().phases();
+            if (legs.rank().isPresent()) return phases.getOrDefault(legs.rank().get(), 0d);
+
+            double shift = 0d;
+            for (Map.Entry<Rank, Double> phase : phases.entrySet())
+                if (this.roster.row(phase.getKey()).stream()
+                    .flatMap(row -> row.members().stream())
+                    .anyMatch(member -> member.bone().equals(bone)))
+                    shift = phase.getValue();
+            return shift;
         }
 
         /**
@@ -1186,41 +1249,13 @@ public final class PoseCompiler {
             PoseClip.Interpolation curve = track.ease() == Ease.SMOOTH
                 ? PoseClip.Interpolation.CATMULLROM
                 : PoseClip.Interpolation.LINEAR;
-            LinkedHashMap<PoseClip.Target, List<Frame>> emitted = new LinkedHashMap<>();
-            for (PoseScript.Motion motion : track.motions()) {
-                switch (motion) {
-                    case PoseScript.Swing swing -> {
-                        List<Frame> frames = framesOf(emitted, PoseClip.Target.ROTATION);
-                        frames.add(rotationFrame(0d, swing.axis(), swing.fromDegrees()));
-                        frames.add(rotationFrame(length / 2d, swing.axis(), swing.toDegrees()));
-                        frames.add(rotationFrame(length, swing.axis(), swing.fromDegrees()));
-                    }
-                    case PoseScript.Bob bob -> {
-                        List<Frame> frames = framesOf(emitted, PoseClip.Target.POSITION);
-                        double lifted = -bob.pixels() / this.flattened;
-                        frames.add(new Frame(0d, 0d, 0d, 0d));
-                        frames.add(new Frame(length / 2d, 0d, lifted, 0d));
-                        frames.add(new Frame(length, 0d, 0d, 0d));
-                    }
-                    case PoseScript.Keyframe frame ->
-                        framesOf(emitted, PoseClip.Target.ROTATION)
-                            .add(new Frame(frame.atSeconds(),
-                                Math.toRadians(frame.pitchDegrees()),
-                                Math.toRadians(frame.yawDegrees()),
-                                Math.toRadians(frame.rollDegrees())));
-                    case PoseScript.Shift shift ->
-                        framesOf(emitted, PoseClip.Target.POSITION)
-                            .add(new Frame(shift.atSeconds(),
-                                shift.xPixels() / this.flattened,
-                                shift.yPixels() / this.flattened,
-                                shift.zPixels() / this.flattened));
-                }
-            }
+            LinkedHashMap<PoseClip.Target, List<Frame>> emitted =
+                framesOf(track, length, this.flattened);
             for (Map.Entry<PoseClip.Target, List<Frame>> channel : emitted.entrySet()) {
-                List<Frame> frames = plan.shiftCycles() == 0d
+                List<Frame> frames = plan.shiftCycles() % 1d == 0d
                     ? channel.getValue()
-                    : this.offset(bone, track, channel.getValue(),
-                        plan.shiftCycles() * length, length, curve);
+                    : this.offset(bone, channel.getValue(),
+                        plan.shiftCycles() * length, length);
                 List<PoseClip.Keyframe> out = accumulated.computeIfAbsent(
                     new ChannelKey(bone, channel.getKey()), key -> new ArrayList<>());
                 for (Frame frame : frames)
@@ -1234,31 +1269,28 @@ public final class PoseCompiler {
          *
          * <p>Every frame inside the cycle moves by the offset and wraps, and the pair at the
          * cycle's own ends is read back off the unshifted shape at the time the wrap brings there.
-         * Where that time is a frame of its own the two land together carrying one value, and the
-         * later of them is dropped rather than refused - the clip's own rule is that a channel's
-         * times ascend strictly, and a shift is the one thing that can put two frames on one
-         * instant honestly.
+         * Where that time is a frame of its own the two land together, and the later is dropped -
+         * the wrap reads the shape at exactly that frame's own instant, so what it carries is that
+         * frame's own value and the drop loses nothing. Two frames written close together both
+         * survive, because they narrow to two instants the clip can tell apart.
+         *
+         * <p>Everything this could refuse is refused ahead of it, against the script alone, so one
+         * chain reaches the same verdict on every subject rather than on the ones whose mesh
+         * happened to answer.
+         *
+         * <p>A share already inside the cycle is left exactly as it was rather than taken through
+         * a round trip that would return it a whole ulp away - which lands the frame that should
+         * have hit the cycle's start a hair past it, where nothing carries it back and the clip
+         * ships two frames a fraction of a nanosecond apart.
          */
-        private @NotNull List<Frame> offset(@NotNull String bone, @NotNull PoseScript.Track track,
-                                            @NotNull List<Frame> base, double shift, double length,
-                                            @NotNull PoseClip.Interpolation curve) {
-            if (!track.looping())
-                this.refuse("Style '%s' offsets bone '%s' into a clip that holds rather than loops - a share of a cycle needs a cycle to wrap in",
-                    this.style.styleId(), bone);
-            if (curve != PoseClip.Interpolation.LINEAR)
-                this.refuse("Style '%s' offsets bone '%s' over a smoothed track - a smoothed frame reads its neighbours from the clip's ends rather than across them, so re-timing one states a different curve",
-                    this.style.styleId(), bone);
-
+        private @NotNull List<Frame> offset(@NotNull String bone, @NotNull List<Frame> base,
+                                            double shift, double length) {
             List<Frame> sorted = new ArrayList<>(base);
             sorted.sort(Comparator.comparingDouble(Frame::atSeconds));
-            Frame opens = sorted.getFirst();
-            Frame closes = sorted.getLast();
-            if (opens.atSeconds() != 0d || closes.atSeconds() != length || !opens.rests(closes))
-                this.refuse("Style '%s' offsets bone '%s' over a track that does not close - an offset moves where the cycle wraps, and a wrap the two ends disagree across is a jump",
-                    this.style.styleId(), bone);
-
-            double wrapped = ((shift % length) + length) % length;
+            double wrapped = shift % length;
+            if (wrapped < 0d) wrapped += length;
             if (wrapped == 0d) return sorted;
+
             List<Frame> moved = new ArrayList<>(sorted.size() + 1);
             for (Frame frame : sorted)
                 if (frame.atSeconds() < length)
@@ -1269,11 +1301,61 @@ public final class PoseCompiler {
             moved.sort(Comparator.comparingDouble(Frame::atSeconds));
 
             List<Frame> kept = new ArrayList<>(moved.size());
-            for (Frame frame : moved)
+            for (Frame frame : moved) {
                 if (kept.isEmpty()
-                    || frame.atSeconds() - kept.getLast().atSeconds() > FRAME_EPSILON)
+                    || (float) frame.atSeconds() != (float) kept.getLast().atSeconds()) {
                     kept.add(frame);
+                    continue;
+                }
+                if (!frame.narrows(kept.getLast()))
+                    this.refuse("Style '%s' keys bone '%s' twice at '%s' seconds - keyframe times ascend strictly per channel",
+                        this.style.styleId(), bone, (float) frame.atSeconds());
+            }
             return kept;
+        }
+
+        /**
+         * One track's motion fragments as frames, per target, in the precision they were written.
+         *
+         * @param track the captured timeline
+         * @param length the seconds one run of the track spans
+         * @param flattened the whole-mesh factor model units cross
+         * @return the frames each target takes, in the order the motions named them
+         */
+        private static @NotNull LinkedHashMap<PoseClip.Target, List<Frame>> framesOf(
+            @NotNull PoseScript.Track track, double length, float flattened) {
+
+            LinkedHashMap<PoseClip.Target, List<Frame>> emitted = new LinkedHashMap<>();
+            for (PoseScript.Motion motion : track.motions()) {
+                switch (motion) {
+                    case PoseScript.Swing swing -> {
+                        List<Frame> frames = framesOf(emitted, PoseClip.Target.ROTATION);
+                        frames.add(rotationFrame(0d, swing.axis(), swing.fromDegrees()));
+                        frames.add(rotationFrame(length / 2d, swing.axis(), swing.toDegrees()));
+                        frames.add(rotationFrame(length, swing.axis(), swing.fromDegrees()));
+                    }
+                    case PoseScript.Bob bob -> {
+                        List<Frame> frames = framesOf(emitted, PoseClip.Target.POSITION);
+                        double lifted = -bob.pixels() / flattened;
+                        frames.add(new Frame(0d, 0d, 0d, 0d));
+                        frames.add(new Frame(length / 2d, 0d, lifted, 0d));
+                        frames.add(new Frame(length, 0d, 0d, 0d));
+                    }
+                    case PoseScript.Keyframe frame ->
+                        framesOf(emitted, PoseClip.Target.ROTATION)
+                            .add(new Frame(frame.atSeconds(),
+                                Math.toRadians(frame.pitchDegrees()),
+                                Math.toRadians(frame.yawDegrees()),
+                                Math.toRadians(frame.rollDegrees())));
+                    case PoseScript.Shift shift ->
+                        framesOf(emitted, PoseClip.Target.POSITION)
+                            .add(new Frame(shift.atSeconds(),
+                                shift.xPixels() / flattened,
+                                shift.yPixels() / flattened,
+                                shift.zPixels() / flattened));
+                }
+            }
+            return emitted;
         }
 
         /**
@@ -1687,6 +1769,22 @@ public final class PoseCompiler {
          */
         private boolean rests(@NotNull Frame other) {
             return this.x == other.x && this.y == other.y && this.z == other.z;
+        }
+
+        /**
+         * Whether another frame displaces what this one does once the clip has narrowed both.
+         *
+         * <p>The clip stores floats, so two frames a clip cannot tell apart are the same frame
+         * whatever their authored precision said, and comparing at the wider width would refuse a
+         * wrap that landed a hair off the instant it was read at.
+         *
+         * @param other the frame to compare against
+         * @return {@code true} where all three members agree as the clip holds them
+         */
+        private boolean narrows(@NotNull Frame other) {
+            return (float) this.x == (float) other.x
+                && (float) this.y == (float) other.y
+                && (float) this.z == (float) other.z;
         }
 
     }

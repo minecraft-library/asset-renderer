@@ -192,6 +192,56 @@ class SelectedLegsInstallTest {
             () -> "every leg sweeps the yaw the one step stated: " + crawler);
     }
 
+    /**
+     * The rotation keyframes one style plays on one bone of one subject, as second-and-pitch pairs.
+     */
+    private static @NotNull List<String> framesOf(@NotNull BuiltStyle style,
+                                                  @NotNull String entityId,
+                                                  @NotNull String bone) {
+        return tolerantly(style, entityId).pose().clips().stream()
+            .filter(site -> site.coordinate().equals("style:" + style.styleId()))
+            .findFirst().orElseThrow().clip().channels().stream()
+            .filter(channel -> channel.bone().equals(bone))
+            .findFirst().orElseThrow(() -> new AssertionError("no channel for " + bone))
+            .keyframes().stream()
+            .map(frame -> frame.timeSeconds() + " " + frame.x())
+            .toList();
+    }
+
+    @Test
+    @DisplayName("a phase reaches a shape stated once over the whole roster, row by row")
+    void aPhaseReachesTheWholeRosterStep() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.8)))
+                .phase(Rank.HIND, 0.5))
+            .build();
+
+        List<String> front = framesOf(amble, "minecraft:wolf", "right_front_leg");
+        List<String> hind = framesOf(amble, "minecraft:wolf", "right_hind_leg");
+
+        assertEquals(List.of("0.0 -0.34906584", "0.4 0.34906584", "0.8 -0.34906584"), front,
+            () -> "the front row opens where the shape does: " + front);
+        assertEquals(List.of("0.0 0.34906584", "0.4 -0.34906584", "0.8 0.34906584"), hind,
+            () -> "and the hind row half a cycle later, from the same one stated shape: " + hind);
+    }
+
+    @Test
+    @DisplayName("a second gait keeps the first one's offsets rather than unsaying them")
+    void asecondGaitKeepsTheFirstOnesOffsets() {
+        BuiltStyle twogaits = Poses.legged("twogaits")
+            .gait(gait -> gait
+                .step(Rank.FRONT, leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.8)))
+                .phase(Rank.FRONT, 0.5))
+            .gait(gait -> gait
+                .step(Rank.HIND, leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.8))))
+            .build();
+
+        assertEquals(List.of("0.0 0.34906584", "0.4 -0.34906584", "0.8 0.34906584"),
+            framesOf(twogaits, "minecraft:wolf", "right_front_leg"),
+            "a row's offset is the style's, so a later cycle naming other rows leaves it standing");
+    }
+
     @Test
     @DisplayName("a row one bone paints whole answers the row stamp and refuses the single leg")
     void aFusedRowAnswersTheRowAndNotTheLeg() {
