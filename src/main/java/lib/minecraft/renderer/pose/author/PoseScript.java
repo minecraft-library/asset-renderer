@@ -36,6 +36,8 @@ import java.util.function.UnaryOperator;
  * @param keepStride whether the universal stride drivers ride the built style
  * @param hover the container lift-and-bob idiom, when authored
  * @param periodSeconds the declared excursion period in seconds; empty rides the catalog period
+ * @param cycle the numbers a walking cycle places each row's copy of its shape by, when one was
+ *     written
  */
 @Parity(subject = Subject.ENTITY)
 public record PoseScript(
@@ -43,8 +45,20 @@ public record PoseScript(
     @NotNull ConcurrentList<Raw> raws,
     boolean keepStride,
     @NotNull Optional<Hover> hover,
-    @NotNull OptionalDouble periodSeconds
+    @NotNull OptionalDouble periodSeconds,
+    @NotNull Optional<Cycle> cycle
 ) {
+
+    /**
+     * One captured walking cycle - what a gait said about time, kept beside the stances it wrote.
+     *
+     * <p>The shapes a gait stamps are ordinary stances and need nothing here. What does is the
+     * timing, because a row's offset is a fact about the row rather than about any one bone, and
+     * because what a mesh can answer decides whether the offset means anything at all.
+     *
+     * @param phases each row's own offset into the cycle, in cycles
+     */
+    public record Cycle(@NotNull Map<Rank, Double> phases) {}
 
     /**
      * Which model-space direction a limb's rest posture points along, for aim solves.
@@ -317,6 +331,7 @@ public record PoseScript(
         private boolean keepStride;
         private @Nullable Hover hover;
         private @NotNull OptionalDouble periodSeconds = OptionalDouble.empty();
+        private @Nullable Cycle cycle;
 
         /**
          * Captures one limb stance - the lambda's verbs land on a fresh stance whose fragments
@@ -565,8 +580,20 @@ public record PoseScript(
                 Concurrent.newUnmodifiableList(this.raws),
                 this.keepStride,
                 Optional.ofNullable(this.hover),
-                this.periodSeconds
+                this.periodSeconds,
+                Optional.ofNullable(this.cycle)
             );
+        }
+
+        /**
+         * Captures what a walking cycle said about time.
+         *
+         * @param cycle the cycle's own numbers
+         * @return this capture
+         */
+        @NotNull Capture cycle(@NotNull Cycle cycle) {
+            this.cycle = cycle;
+            return this;
         }
 
         /**

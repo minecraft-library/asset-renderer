@@ -122,6 +122,13 @@ public final class PoseCompiler {
      */
     private static final float SEAT_EPSILON = 1e-4f;
 
+    /**
+     * How close in seconds two clip frames sit before an offset is read as having landed them on
+     * one instant - far below the twentieth of a second a tick spans, and far above the residue a
+     * wrap leaves.
+     */
+    private static final double FRAME_EPSILON = 1e-6d;
+
     private PoseCompiler() {}
 
     // ------------------------------------------------------------------------------------
@@ -361,6 +368,7 @@ public final class PoseCompiler {
 
             this.validatePeriod();
             this.validateRanks();
+            this.validateGait();
             this.pool.adopt(this.shipped);
             this.foldStances();
             this.seatFollowers();
@@ -441,6 +449,30 @@ public final class PoseCompiler {
                 if (held != null)
                     this.refuse("Style '%s' stances rank '%s' and rank '%s', which a mesh carrying '%d' leg row(s) answers with one row - the second stamp lands on the row the first already holds",
                         this.style.styleId(), held, rank, this.roster.rows().size());
+            }
+        }
+
+        /**
+         * Refuses a cycle offset the target mesh or the shape it was written over cannot carry.
+         *
+         * <p>Two things can be wrong with an offset, and neither is a property of any one bone. A
+         * rank the mesh carries no row for has nothing to start late; and a shape written as a
+         * wave has no offset to start late BY, because a wave lowers to a driver and a driver
+         * derives its whole phase from the tick. Moving such a shape onto the clip clock to make
+         * room for the offset would drop the field it was emitting and change every table the
+         * style writes, so the author is asked for a timeline instead.
+         */
+        private void validateGait() {
+            if (this.script.cycle().isEmpty()) return;
+            for (Rank rank : this.script.cycle().get().phases().keySet()) {
+                if (this.roster.row(rank).isEmpty())
+                    this.refuse("Style '%s' gaits a phase at rank '%s', which a mesh carrying '%d' leg row(s) has no row for - an offset keyed on an absent row starts nothing late",
+                        this.style.styleId(), rank, this.roster.rows().size());
+                for (PoseScript.Stance stance : this.script.stances())
+                    if (rankOf(stance).filter(rank::equals).isPresent()
+                        && (!stance.sways().isEmpty() || !stance.spins().isEmpty()))
+                        this.refuse("Style '%s' gaits a phase at rank '%s' over a swayed shape - a wave carries no offset of its own, so a row starting late in the cycle states its shape as a timeline",
+                            this.style.styleId(), rank);
             }
         }
 
@@ -565,14 +597,25 @@ public final class PoseCompiler {
             }
             this.events.info("selector: %s reaches %d bone(s) %s",
                 selected.reading(), members.size(), members);
+            double shift = this.phaseOf(selected.selector());
             for (String member : members) {
                 PoseScript.Limb.Named named =
                     new PoseScript.Limb.Named(member, selected.axis(), selected.anatomical());
                 PoseScript.Limb.Named landed = this.articulated(named);
                 for (PoseScript.Track track : stance.tracks())
-                    this.trackPlans.add(new TrackPlan(Optional.of(landed.bone()), track));
+                    this.trackPlans.add(new TrackPlan(Optional.of(landed.bone()), track, shift));
                 this.foldLimb(landed, stance);
             }
+        }
+
+        /**
+         * How far into the cycle one selector's copy of a gait's shape starts, as a share of it.
+         */
+        private double phaseOf(@NotNull LimbSelector selector) {
+            if (!(selector instanceof LimbSelector.Legs legs) || legs.rank().isEmpty()) return 0d;
+            return this.script.cycle()
+                .map(cycle -> cycle.phases().getOrDefault(legs.rank().get(), 0d))
+                .orElse(0d);
         }
 
         /**
@@ -1089,7 +1132,7 @@ public final class PoseCompiler {
                     unplaced |= !plan.track().motions().isEmpty();
                     continue;
                 }
-                this.emitTrack(plan.bone().get(), plan.track(), accumulated);
+                this.emitTrack(plan.bone().get(), plan, accumulated);
             }
             if (accumulated.isEmpty() && !unplaced) return Optional.empty();
 
@@ -1125,71 +1168,153 @@ public final class PoseCompiler {
         }
 
         /**
-         * Emits one track's motion fragments as keyframes onto the accumulated channels.
+         * Emits one track's motion fragments as keyframes onto the accumulated channels, offset
+         * into the cycle by however far the plan says this copy of the shape starts.
+         *
+         * <p>Times and values are carried in author precision and narrowed once, at the end. An
+         * offset applied after the narrowing lands a frame a few nanoseconds off the boundary it
+         * was meant to hit, which no equality catches and which ships a duplicate frame.
          *
          * @param bone the bone the track keys
-         * @param track the captured timeline
+         * @param plan the captured timeline and how far into the cycle it starts
          * @param accumulated the per-channel keyframe lists the clip is assembled from
          */
-        private void emitTrack(@NotNull String bone, @NotNull PoseScript.Track track,
+        private void emitTrack(@NotNull String bone, @NotNull TrackPlan plan,
                                @NotNull LinkedHashMap<ChannelKey, List<PoseClip.Keyframe>> accumulated) {
+            PoseScript.Track track = plan.track();
             double length = track.overSeconds().orElse(this.windowSeconds);
             PoseClip.Interpolation curve = track.ease() == Ease.SMOOTH
                 ? PoseClip.Interpolation.CATMULLROM
                 : PoseClip.Interpolation.LINEAR;
+            LinkedHashMap<PoseClip.Target, List<Frame>> emitted = new LinkedHashMap<>();
             for (PoseScript.Motion motion : track.motions()) {
                 switch (motion) {
                     case PoseScript.Swing swing -> {
-                        List<PoseClip.Keyframe> frames = this.framesOf(accumulated, bone, PoseClip.Target.ROTATION);
-                        frames.add(rotationFrame(0d, swing.axis(), swing.fromDegrees(), curve));
-                        frames.add(rotationFrame(length / 2d, swing.axis(), swing.toDegrees(), curve));
-                        frames.add(rotationFrame(length, swing.axis(), swing.fromDegrees(), curve));
+                        List<Frame> frames = framesOf(emitted, PoseClip.Target.ROTATION);
+                        frames.add(rotationFrame(0d, swing.axis(), swing.fromDegrees()));
+                        frames.add(rotationFrame(length / 2d, swing.axis(), swing.toDegrees()));
+                        frames.add(rotationFrame(length, swing.axis(), swing.fromDegrees()));
                     }
                     case PoseScript.Bob bob -> {
-                        List<PoseClip.Keyframe> frames = this.framesOf(accumulated, bone, PoseClip.Target.POSITION);
-                        float lifted = (float) (-bob.pixels() / this.flattened);
-                        frames.add(new PoseClip.Keyframe(0f, 0f, 0f, 0f, curve));
-                        frames.add(new PoseClip.Keyframe((float) (length / 2d), 0f, lifted, 0f, curve));
-                        frames.add(new PoseClip.Keyframe((float) length, 0f, 0f, 0f, curve));
+                        List<Frame> frames = framesOf(emitted, PoseClip.Target.POSITION);
+                        double lifted = -bob.pixels() / this.flattened;
+                        frames.add(new Frame(0d, 0d, 0d, 0d));
+                        frames.add(new Frame(length / 2d, 0d, lifted, 0d));
+                        frames.add(new Frame(length, 0d, 0d, 0d));
                     }
                     case PoseScript.Keyframe frame ->
-                        this.framesOf(accumulated, bone, PoseClip.Target.ROTATION)
-                            .add(new PoseClip.Keyframe((float) frame.atSeconds(),
-                                (float) Math.toRadians(frame.pitchDegrees()),
-                                (float) Math.toRadians(frame.yawDegrees()),
-                                (float) Math.toRadians(frame.rollDegrees()), curve));
+                        framesOf(emitted, PoseClip.Target.ROTATION)
+                            .add(new Frame(frame.atSeconds(),
+                                Math.toRadians(frame.pitchDegrees()),
+                                Math.toRadians(frame.yawDegrees()),
+                                Math.toRadians(frame.rollDegrees())));
                     case PoseScript.Shift shift ->
-                        this.framesOf(accumulated, bone, PoseClip.Target.POSITION)
-                            .add(new PoseClip.Keyframe((float) shift.atSeconds(),
-                                (float) (shift.xPixels() / this.flattened),
-                                (float) (shift.yPixels() / this.flattened),
-                                (float) (shift.zPixels() / this.flattened), curve));
+                        framesOf(emitted, PoseClip.Target.POSITION)
+                            .add(new Frame(shift.atSeconds(),
+                                shift.xPixels() / this.flattened,
+                                shift.yPixels() / this.flattened,
+                                shift.zPixels() / this.flattened));
                 }
+            }
+            for (Map.Entry<PoseClip.Target, List<Frame>> channel : emitted.entrySet()) {
+                List<Frame> frames = plan.shiftCycles() == 0d
+                    ? channel.getValue()
+                    : this.offset(bone, track, channel.getValue(),
+                        plan.shiftCycles() * length, length, curve);
+                List<PoseClip.Keyframe> out = accumulated.computeIfAbsent(
+                    new ChannelKey(bone, channel.getKey()), key -> new ArrayList<>());
+                for (Frame frame : frames)
+                    out.add(new PoseClip.Keyframe((float) frame.atSeconds(), (float) frame.x(),
+                        (float) frame.y(), (float) frame.z(), curve));
             }
         }
 
         /**
-         * The accumulating keyframe list of one bone and target.
+         * One channel's frames re-timed to start a share of the cycle in.
+         *
+         * <p>Every frame inside the cycle moves by the offset and wraps, and the pair at the
+         * cycle's own ends is read back off the unshifted shape at the time the wrap brings there.
+         * Where that time is a frame of its own the two land together carrying one value, and the
+         * later of them is dropped rather than refused - the clip's own rule is that a channel's
+         * times ascend strictly, and a shift is the one thing that can put two frames on one
+         * instant honestly.
          */
-        private @NotNull List<PoseClip.Keyframe> framesOf(
-            @NotNull LinkedHashMap<ChannelKey, List<PoseClip.Keyframe>> accumulated,
-            @NotNull String bone, @NotNull PoseClip.Target target) {
+        private @NotNull List<Frame> offset(@NotNull String bone, @NotNull PoseScript.Track track,
+                                            @NotNull List<Frame> base, double shift, double length,
+                                            @NotNull PoseClip.Interpolation curve) {
+            if (!track.looping())
+                this.refuse("Style '%s' offsets bone '%s' into a clip that holds rather than loops - a share of a cycle needs a cycle to wrap in",
+                    this.style.styleId(), bone);
+            if (curve != PoseClip.Interpolation.LINEAR)
+                this.refuse("Style '%s' offsets bone '%s' over a smoothed track - a smoothed frame reads its neighbours from the clip's ends rather than across them, so re-timing one states a different curve",
+                    this.style.styleId(), bone);
 
-            return accumulated.computeIfAbsent(new ChannelKey(bone, target), key -> new ArrayList<>());
+            List<Frame> sorted = new ArrayList<>(base);
+            sorted.sort(Comparator.comparingDouble(Frame::atSeconds));
+            Frame opens = sorted.getFirst();
+            Frame closes = sorted.getLast();
+            if (opens.atSeconds() != 0d || closes.atSeconds() != length || !opens.rests(closes))
+                this.refuse("Style '%s' offsets bone '%s' over a track that does not close - an offset moves where the cycle wraps, and a wrap the two ends disagree across is a jump",
+                    this.style.styleId(), bone);
+
+            double wrapped = ((shift % length) + length) % length;
+            if (wrapped == 0d) return sorted;
+            List<Frame> moved = new ArrayList<>(sorted.size() + 1);
+            for (Frame frame : sorted)
+                if (frame.atSeconds() < length)
+                    moved.add(frame.at((frame.atSeconds() + wrapped) % length));
+            Frame boundary = sample(sorted, (length - wrapped) % length);
+            moved.add(boundary.at(0d));
+            moved.add(boundary.at(length));
+            moved.sort(Comparator.comparingDouble(Frame::atSeconds));
+
+            List<Frame> kept = new ArrayList<>(moved.size());
+            for (Frame frame : moved)
+                if (kept.isEmpty()
+                    || frame.atSeconds() - kept.getLast().atSeconds() > FRAME_EPSILON)
+                    kept.add(frame);
+            return kept;
         }
 
         /**
-         * One rotation keyframe - the swung axis carries the delta in radians, the others rest.
+         * The unshifted shape read at one instant, straight between the frames bracketing it.
          */
-        private static @NotNull PoseClip.Keyframe rotationFrame(
-            double atSeconds, @NotNull Turn axis, double degrees, @NotNull PoseClip.Interpolation curve) {
+        private static @NotNull Frame sample(@NotNull List<Frame> frames, double atSeconds) {
+            Frame before = frames.getFirst();
+            for (Frame frame : frames) {
+                if (frame.atSeconds() > atSeconds) {
+                    double span = frame.atSeconds() - before.atSeconds();
+                    double progress = span == 0d ? 0d : (atSeconds - before.atSeconds()) / span;
+                    return new Frame(atSeconds,
+                        before.x() + (frame.x() - before.x()) * progress,
+                        before.y() + (frame.y() - before.y()) * progress,
+                        before.z() + (frame.z() - before.z()) * progress);
+                }
+                before = frame;
+            }
+            return before.at(atSeconds);
+        }
 
-            float radians = (float) Math.toRadians(degrees);
-            return new PoseClip.Keyframe((float) atSeconds,
-                axis == Turn.PITCH ? radians : 0f,
-                axis == Turn.YAW ? radians : 0f,
-                axis == Turn.ROLL ? radians : 0f,
-                curve);
+        /**
+         * The accumulating frame list of one target.
+         */
+        private static @NotNull List<Frame> framesOf(
+            @NotNull LinkedHashMap<PoseClip.Target, List<Frame>> emitted,
+            @NotNull PoseClip.Target target) {
+
+            return emitted.computeIfAbsent(target, key -> new ArrayList<>());
+        }
+
+        /**
+         * One rotation frame - the swung axis carries the delta in radians, the others rest.
+         */
+        private static @NotNull Frame rotationFrame(double atSeconds, @NotNull Turn axis,
+                                                    double degrees) {
+            double radians = Math.toRadians(degrees);
+            return new Frame(atSeconds,
+                axis == Turn.PITCH ? radians : 0d,
+                axis == Turn.YAW ? radians : 0d,
+                axis == Turn.ROLL ? radians : 0d);
         }
 
         /**
@@ -1512,13 +1637,59 @@ public final class PoseCompiler {
     }
 
     /**
-     * One captured timeline and the bone it keys.
+     * One captured timeline, the bone it keys, and how far into the cycle it starts.
      *
      * @param bone the stanced bone the track keys, empty where the address the author wrote
      *     answered no bone at all on this mesh
      * @param track the captured timeline
+     * @param shiftCycles the share of one cycle this copy of the shape starts into
      */
-    private record TrackPlan(@NotNull Optional<String> bone, @NotNull PoseScript.Track track) {}
+    private record TrackPlan(@NotNull Optional<String> bone, @NotNull PoseScript.Track track,
+                             double shiftCycles) {
+
+        /**
+         * Constructs a plan playing the track from the cycle's own start.
+         *
+         * @param bone the stanced bone the track keys
+         * @param track the captured timeline
+         */
+        private TrackPlan(@NotNull Optional<String> bone, @NotNull PoseScript.Track track) {
+            this(bone, track, 0d);
+        }
+
+    }
+
+    /**
+     * One clip frame in the precision the author wrote it, before the clip narrows it.
+     *
+     * @param atSeconds when in the cycle the frame lands
+     * @param x the first member the frame displaces - pitch in radians, or a model-unit offset
+     * @param y the second
+     * @param z the third
+     */
+    private record Frame(double atSeconds, double x, double y, double z) {
+
+        /**
+         * This frame's values read at another instant.
+         *
+         * @param seconds when the copy lands
+         * @return the copy
+         */
+        private @NotNull Frame at(double seconds) {
+            return new Frame(seconds, this.x, this.y, this.z);
+        }
+
+        /**
+         * Whether another frame displaces exactly what this one does.
+         *
+         * @param other the frame to compare against
+         * @return {@code true} where all three members agree
+         */
+        private boolean rests(@NotNull Frame other) {
+            return this.x == other.x && this.y == other.y && this.z == other.z;
+        }
+
+    }
 
     /**
      * One clip channel coordinate.

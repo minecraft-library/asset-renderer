@@ -7,6 +7,7 @@ import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
+import lib.minecraft.renderer.pose.author.Ease;
 import lib.minecraft.renderer.pose.author.Poses;
 import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
@@ -312,6 +313,54 @@ class PoseCompilerRefusalTest {
             "an interior rank addresses nothing on a one-row mesh, and nothing already held");
         assertEquals(1, compiled.droppedBones().size(),
             () -> "the reach that answered nothing is what drops: " + compiled.droppedBones());
+    }
+
+    @Test
+    @DisplayName("a phase at a rank the mesh has no row for refuses")
+    void phaseAtAnAbsentRankRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+            .gait(gait -> gait
+                .step(Rank.SECOND, leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20)))
+                .phase(Rank.SECOND, 0.25))
+            .build());
+        assertTrue(refusal.getMessage().contains("has no row for"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("SECOND"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a phase over a swayed shape refuses - a wave carries no offset of its own")
+    void phaseOverASwayRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+            .gait(gait -> gait
+                .step(Rank.FRONT, leg -> leg.sway(Turn.PITCH, -20, 20))
+                .phase(Rank.FRONT, 0.25))
+            .build());
+        assertTrue(refusal.getMessage().contains("carries no offset of its own"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("timeline"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a phase over a smoothed track refuses - re-timing a spline states a different curve")
+    void phaseOverASmoothedTrackRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+            .gait(gait -> gait
+                .step(Rank.FRONT, leg -> leg.timeline(track -> track
+                    .swing(Turn.PITCH, -20, 20).over(0.4).ease(Ease.SMOOTH)))
+                .phase(Rank.FRONT, 0.25))
+            .build());
+        assertTrue(refusal.getMessage().contains("smoothed track"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a phase over a clip that holds rather than loops refuses")
+    void phaseOverAHeldClipRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+            .gait(gait -> gait
+                .step(Rank.FRONT, leg -> leg.timeline(track -> track
+                    .swing(Turn.PITCH, -20, 20).over(0.4).once()))
+                .phase(Rank.FRONT, 0.25))
+            .build());
+        assertTrue(refusal.getMessage().contains("holds rather than loops"), refusal.getMessage());
     }
 
     // ------------------------------------------------------------------------------------

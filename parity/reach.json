@@ -4462,6 +4462,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/compile/GaitPhaseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/compile/GraphInterner": {
       "artifacts": [],
       "source": "derived"

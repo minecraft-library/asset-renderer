@@ -5,7 +5,9 @@ import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.function.UnaryOperator;
@@ -29,6 +31,7 @@ import java.util.function.UnaryOperator;
 public final class Gait {
 
     private final @NotNull List<Shape> shapes = new ArrayList<>();
+    private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
     private @NotNull OptionalDouble lengthSeconds = OptionalDouble.empty();
     private @NotNull Mirror mirror = Mirror.SIGNED;
 
@@ -72,6 +75,24 @@ public final class Gait {
     }
 
     /**
+     * States where one row's copy of the shape starts in the cycle.
+     *
+     * <p>A phase is a real offset in time, which is the clip clock's to state and not the driver
+     * clock's: a driver derives its phase from the tick alone and carries no offset to add. So a
+     * phased row's shape is written as a {@link LimbStance#timeline timeline}, and a phase over a
+     * {@link LimbStance#sway sway} refuses rather than quietly moving the shape onto the other
+     * clock and dropping the field it was emitting.
+     *
+     * @param rank which row front to back
+     * @param cycles the share of one cycle that row starts into
+     * @return this gait
+     */
+    public @NotNull Gait phase(@NotNull Rank rank, double cycles) {
+        this.phases.put(rank, cycles);
+        return this;
+    }
+
+    /**
      * Reads the far side of every pair with every sign as written.
      *
      * <p>The far side otherwise derives under the mirror sign rule - pitch kept, yaw and roll
@@ -92,6 +113,8 @@ public final class Gait {
      */
     void captured(@NotNull PoseScript.Capture capture) {
         this.lengthSeconds.ifPresent(capture::period);
+        if (!this.phases.isEmpty())
+            capture.cycle(new PoseScript.Cycle(Map.copyOf(this.phases)));
         for (Shape shape : this.shapes)
             capture.selectedPair(
                 new LimbSelector.Legs(shape.rank(), Optional.of(Side.RIGHT)),
