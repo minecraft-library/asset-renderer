@@ -497,7 +497,7 @@ public final class PoseCompiler {
             }
             this.events.info("joint: '%s' lands on '%s' - the articulation the shipped pose turns for it",
                 limb.bone(), joint);
-            return new PoseScript.Limb(joint, limb.axis(), true);
+            return new PoseScript.Limb.Named(joint, limb.axis(), true);
         }
 
         /**

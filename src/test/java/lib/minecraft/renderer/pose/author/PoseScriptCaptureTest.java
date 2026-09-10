@@ -29,7 +29,7 @@ class PoseScriptCaptureTest {
             .script();
 
         PoseScript.Stance stance = script.stances().getFirst();
-        assertEquals(Optional.of(new PoseScript.Limb("head", PoseScript.AimAxis.FACING)), stance.limb());
+        assertEquals(Optional.of(new PoseScript.Limb.Named("head", PoseScript.AimAxis.FACING)), stance.limb());
         assertEquals(List.of(
                 new PoseScript.Write(PoseChannel.X_ROT, 30, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, -35, true),
