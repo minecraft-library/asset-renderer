@@ -108,6 +108,22 @@ public final class LeggedPose {
             return this;
         }
 
+        /**
+         * Walks every leg the mesh carries through one cycle.
+         *
+         * <p>A gait states its shape once and the rows it lands on are the mesh's answer, so one
+         * chain walks a two-legged strider, a four-legged wolf and an eight-legged crawler.
+         *
+         * @param gait the cycle lambda
+         * @return this builder
+         */
+        public @NotNull Builder gait(@NotNull UnaryOperator<Gait> gait) {
+            Gait cycle = new Gait();
+            gait.apply(cycle);
+            cycle.captured(this.capture);
+            return this;
+        }
+
     }
 
 }

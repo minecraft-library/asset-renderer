@@ -175,6 +175,46 @@ class SelectedLegsInstallTest {
     }
 
     @Test
+    @DisplayName("one gait chain walks a biped, a walker and a crawler with no count in it")
+    void oneGaitWalksEveryLegCount() {
+        BuiltStyle scuttle = Poses.legged("scuttle")
+            .gait(gait -> gait.over(0.8).step(leg -> leg.sway(Turn.YAW, -23, 23)))
+            .build();
+
+        List<String> biped = fieldsOf(scuttle, "minecraft:zombie");
+        List<String> walker = fieldsOf(scuttle, "minecraft:wolf");
+        List<String> crawler = fieldsOf(scuttle, "minecraft:spider");
+
+        assertEquals(2, biped.size(), () -> "two legs: " + biped);
+        assertEquals(4, walker.size(), () -> "four: " + walker);
+        assertEquals(8, crawler.size(), () -> "eight: " + crawler);
+        assertTrue(crawler.stream().allMatch(field -> field.endsWith("$y_rot")),
+            () -> "every leg sweeps the yaw the one step stated: " + crawler);
+    }
+
+    @Test
+    @DisplayName("a gait's rows are the mesh's, so a keyed row lands only where the mesh has one")
+    void aKeyedRowLandsOnlyWhereTheMeshCarriesIt() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait.over(0.8)
+                .step(Rank.FRONT, leg -> leg.sway(Turn.PITCH, -35, 35))
+                .step(Rank.SECOND, leg -> leg.sway(Turn.PITCH, -20, 20)))
+            .build();
+
+        List<String> crawler = fieldsOf(amble, "minecraft:spider");
+        assertEquals(4, crawler.size(),
+            () -> "a crawler carries a second row, so both shapes land: " + crawler);
+
+        Entity walker = tolerantly(amble, "minecraft:wolf");
+        List<String> fields = walker.styles().byId("amble").orElseThrow()
+            .drivers().keySet().stream().sorted().toList();
+        assertEquals(2, fields.size(),
+            () -> "a walker carries no row between its ends, so only the front shape lands: " + fields);
+        assertTrue(fields.stream().allMatch(field -> field.contains("front")),
+            () -> "and it lands on the front row: " + fields);
+    }
+
+    @Test
     @DisplayName("a leg timeline coins the same clip whether or not the subject answers a leg")
     void anUnansweredSelectorStillCoinsTheClip() {
         BuiltStyle wag = wag();

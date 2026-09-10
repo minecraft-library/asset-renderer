@@ -4374,6 +4374,14 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/author/Gait": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/GaitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/author/HumanoidPose": {
       "artifacts": [],
       "source": "derived"
