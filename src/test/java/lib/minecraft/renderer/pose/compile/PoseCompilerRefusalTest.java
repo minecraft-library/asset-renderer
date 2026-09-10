@@ -79,13 +79,28 @@ class PoseCompilerRefusalTest {
         IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
             () -> PoseCompiler.compile(style, row(humanoid(), shipped), scope));
         assertTrue(refusal.getMessage().contains("walkAnimationPos"), refusal.getMessage());
-        assertTrue(refusal.getMessage().contains("additive verbs"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("pitchBy, yawBy and rollBy compose with a live base"),
+            refusal.getMessage());
         assertEquals(1, scope.count(StyleDiagnostics.Severity.ERROR),
             "the entry is the post-mortem, recorded beside the throw");
         assertEquals(refusal.getMessage(), scope.entries().stream()
                 .filter(entry -> entry.severity() == StyleDiagnostics.Severity.ERROR)
                 .findFirst().orElseThrow().message(),
             "carrying the exact thrown message");
+    }
+
+    @Test
+    @DisplayName("a scale over a driven base names no remedy, because the verb set holds none")
+    void drivenScaleBaseNamesNoRemedy() {
+        EntityPose shipped = boneWrite("right_arm", PoseChannel.X_SCALE, input("walkAnimationSpeed"));
+        IllegalArgumentException refusal = refusalOf(Poses.humanoid("swell")
+                .keepStride()
+                .arm(Side.RIGHT, arm -> arm.scale(1.5))
+                .build(),
+            humanoid(), shipped);
+        assertTrue(refusal.getMessage().contains("walkAnimationSpeed"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("no additive scale spelling exists"),
+            refusal.getMessage());
     }
 
     @Test

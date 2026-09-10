@@ -53,6 +53,21 @@ class PoseScriptCaptureTest {
     }
 
     @Test
+    @DisplayName("rotateBy adds to all three rotation channels in one stamp")
+    void rotateByAddsToAllThree() {
+        PoseScript script = new PoseScript.Capture()
+            .stance("right_arm", PoseScript.AimAxis.DOWN, s -> s.rotateBy(-160, 0, 10))
+            .script();
+
+        assertEquals(List.of(
+                new PoseScript.Write(PoseChannel.X_ROT, -160, false),
+                new PoseScript.Write(PoseChannel.Y_ROT, 0, false),
+                new PoseScript.Write(PoseChannel.Z_ROT, 10, false)),
+            List.copyOf(script.stances().getFirst().writes()),
+            "three additive writes, where rotate stamps three absolute ones");
+    }
+
+    @Test
     @DisplayName("offset captures additive position writes in model pixels")
     void offsetCapturesAdditivePosition() {
         PoseScript script = new PoseScript.Capture()

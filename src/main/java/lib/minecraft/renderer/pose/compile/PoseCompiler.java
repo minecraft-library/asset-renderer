@@ -1217,8 +1217,8 @@ public final class PoseCompiler {
 
         /**
          * Refuses a rebase over a base reading a field the built row drives - the rest snapshot
-         * would part company with the live value, and the additive verbs are the spelling that
-         * composes with a live base. The scan visits each node once by instance.
+         * would part company with the live value. The remedy is the one the channel actually
+         * has, which on a scale is none. The scan visits each node once by instance.
          */
         private void refuseDrivenBase(@NotNull PoseExpr base, @NotNull String bone,
                                       @NotNull PoseChannel channel) {
@@ -1226,8 +1226,19 @@ public final class PoseCompiler {
             String driven = drivenFieldIn(base, this.drivenFields,
                 Collections.newSetFromMap(new IdentityHashMap<>()));
             if (driven != null)
-                this.refuse("Style '%s' writes bone '%s' channel '%s' absolutely over a base reading driven field '%s' - the additive verbs compose with a live base",
-                    this.style.styleId(), bone, channel.token(), driven);
+                this.refuse("Style '%s' writes bone '%s' channel '%s' absolutely over a base reading driven field '%s' - %s",
+                    this.style.styleId(), bone, channel.token(), driven, remedyFor(channel));
+        }
+
+        /**
+         * The spelling that composes with a live base on the given channel, where one exists.
+         */
+        private static @NotNull String remedyFor(@NotNull PoseChannel channel) {
+            return switch (channel.kind()) {
+                case ROTATION -> "pitchBy, yawBy and rollBy compose with a live base, and an aim has no additive spelling of its own";
+                case SCALE -> "no additive scale spelling exists, so a driven scale channel cannot be stated";
+                case POSITION -> "offset composes with a live base";
+            };
         }
 
         /**

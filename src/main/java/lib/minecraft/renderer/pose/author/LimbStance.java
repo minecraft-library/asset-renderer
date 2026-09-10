@@ -19,11 +19,14 @@ import java.util.function.UnaryOperator;
  * author units - degrees, model pixels, seconds - and capture ONLY: rest rebasing, unit
  * conversion and every refusal happen at compile, against the target row.
  *
- * <p>Absolute writes ({@link #pitch}, {@link #yaw}, {@link #roll}, {@link #rotate}) state where
- * a channel lands - the statue vocabulary. Additive writes ({@link #pitchBy}, {@link #yawBy},
- * {@link #rollBy}, {@link #offset}) add to whatever already drives the channel, so they compose
- * with live stride math. Position is always additive: a pivot is not a human unit, so no verb
- * states one absolutely.
+ * <p>Absolute writes ({@link #pitch}, {@link #yaw}, {@link #roll}, {@link #rotate},
+ * {@link #aimAt}, {@link #scale}) state where a channel lands - the statue vocabulary. Additive
+ * writes ({@link #pitchBy}, {@link #yawBy}, {@link #rollBy}, {@link #rotateBy}, {@link #offset})
+ * add to whatever already drives the channel, so they compose with live stride math. Position is
+ * always additive: a pivot is not a human unit, so no verb states one absolutely.
+ *
+ * <p>The remaining verbs ({@link #sway}, {@link #spin}, {@link #timeline}) are neither, carrying
+ * their values as deltas around the stance rather than stating or adding to a rest.
  */
 @Parity(subject = Subject.ENTITY)
 public final class LimbStance {
@@ -40,6 +43,10 @@ public final class LimbStance {
     /**
      * States where the limb's pitch lands.
      *
+     * <p>Replaces what the channel holds, so a stance riding the stride refuses it over a channel
+     * the shipped pose drives - a live base has no fixed angle to land on - where
+     * {@link #pitchBy} composes with it instead.
+     *
      * @param degrees the absolute pitch in degrees
      * @return this stance
      */
@@ -51,6 +58,10 @@ public final class LimbStance {
     /**
      * States where the limb's yaw lands.
      *
+     * <p>Replaces what the channel holds, so a stance riding the stride refuses it over a channel
+     * the shipped pose drives - a live base has no fixed angle to land on - where {@link #yawBy}
+     * composes with it instead.
+     *
      * @param degrees the absolute yaw in degrees
      * @return this stance
      */
@@ -61,6 +72,10 @@ public final class LimbStance {
 
     /**
      * States where the limb's roll lands.
+     *
+     * <p>Replaces what the channel holds, so a stance riding the stride refuses it over a channel
+     * the shipped pose drives - a live base has no fixed angle to land on - where {@link #rollBy}
+     * composes with it instead.
      *
      * @param degrees the absolute roll in degrees
      * @return this stance
@@ -74,6 +89,10 @@ public final class LimbStance {
      * States where all three rotation channels land in one stamp - a zero component is an
      * absolute zero write, not an omission.
      *
+     * <p>Replaces what the channel holds, so a stance riding the stride refuses it over a channel
+     * the shipped pose drives - a live base has no fixed angle to land on - where
+     * {@link #rotateBy} composes with it instead.
+     *
      * @param pitchDegrees the absolute pitch in degrees
      * @param yawDegrees the absolute yaw in degrees
      * @param rollDegrees the absolute roll in degrees
@@ -86,6 +105,10 @@ public final class LimbStance {
     /**
      * Scales the limb uniformly - all three scale channels take one factor.
      *
+     * <p>Replaces what the channel holds, so a stance riding the stride refuses it over a channel
+     * the shipped pose drives - a live base has no fixed extent to land on - and no additive
+     * scale spelling composes with it instead.
+     *
      * @param factor the scale factor, resting at one
      * @return this stance
      */
@@ -96,6 +119,9 @@ public final class LimbStance {
 
     /**
      * Displaces the limb from its authored pivot, in model pixels on vanilla's y-down axis.
+     *
+     * <p>Adds to what the channel holds, so it composes with a live base and rides the stride
+     * where an absolute write would refuse - position has no absolute spelling at all.
      *
      * @param xPixels the sideways displacement
      * @param yPixels the vertical displacement, positive downward
@@ -110,8 +136,10 @@ public final class LimbStance {
     }
 
     /**
-     * Adds to the limb's pitch - stride-safe, composing with whatever already drives the
-     * channel.
+     * Adds to the limb's pitch.
+     *
+     * <p>Adds to what the channel holds, so it composes with a live base and rides the stride
+     * where {@link #pitch} refuses.
      *
      * @param degrees the pitch delta in degrees
      * @return this stance
@@ -122,7 +150,10 @@ public final class LimbStance {
     }
 
     /**
-     * Adds to the limb's yaw - stride-safe, composing with whatever already drives the channel.
+     * Adds to the limb's yaw.
+     *
+     * <p>Adds to what the channel holds, so it composes with a live base and rides the stride
+     * where {@link #yaw} refuses.
      *
      * @param degrees the yaw delta in degrees
      * @return this stance
@@ -133,8 +164,10 @@ public final class LimbStance {
     }
 
     /**
-     * Adds to the limb's roll - stride-safe, composing with whatever already drives the
-     * channel.
+     * Adds to the limb's roll.
+     *
+     * <p>Adds to what the channel holds, so it composes with a live base and rides the stride
+     * where {@link #roll} refuses.
      *
      * @param degrees the roll delta in degrees
      * @return this stance
@@ -145,9 +178,28 @@ public final class LimbStance {
     }
 
     /**
+     * Adds to all three rotation channels in one stamp.
+     *
+     * <p>Adds to what the channel holds, so it composes with a live base and rides the stride
+     * where {@link #rotate} refuses.
+     *
+     * @param pitchDegrees the pitch delta in degrees
+     * @param yawDegrees the yaw delta in degrees
+     * @param rollDegrees the roll delta in degrees
+     * @return this stance
+     */
+    public @NotNull LimbStance rotateBy(double pitchDegrees, double yawDegrees, double rollDegrees) {
+        return this.pitchBy(pitchDegrees).yawBy(yawDegrees).rollBy(rollDegrees);
+    }
+
+    /**
      * Aims the limb at a model-space target point - pitch and yaw are solved from the limb's
      * own pivot per target row at compile, roll untouched. The target speaks the space
      * {@link #offset} speaks: model pixels, y-down, origin at the model root.
+     *
+     * <p>Replaces what the channel holds, so a stance riding the stride refuses it over a channel
+     * the shipped pose drives - a live base has no fixed angle to land on - where
+     * {@link #pitchBy} and {@link #yawBy} compose with it instead.
      *
      * @param xPixels the target's sideways component
      * @param yPixels the target's vertical component, positive downward
@@ -161,8 +213,10 @@ public final class LimbStance {
 
     /**
      * Sweeps the limb there and back between two bounds once per period - resting at the first
-     * bound at the period's ends, peaking at the second mid-period. Bounds are deltas around
-     * the stance.
+     * bound at the period's ends, peaking at the second mid-period.
+     *
+     * <p>Carries its values as deltas around the stance, so it neither states nor adds to a rest
+     * and never meets the driven-base refusal.
      *
      * @param axis the rotation axis swept
      * @param fromDegrees the resting bound in degrees
@@ -178,6 +232,9 @@ public final class LimbStance {
      * Turns the limb through a seamless ramp of the given angle once per period, wrapping
      * without a snap when the angle is a full turn.
      *
+     * <p>Carries its values as deltas around the stance, so it neither states nor adds to a rest
+     * and never meets the driven-base refusal.
+     *
      * @param axis the rotation axis turned
      * @param perPeriodDegrees the degrees one period travels
      * @return this stance
@@ -190,6 +247,9 @@ public final class LimbStance {
     /**
      * Captures a keyframed timeline for this limb - the lambda's verbs land on a fresh
      * {@link Keyframes} that never escapes it.
+     *
+     * <p>Carries its values as deltas around the stance, so it neither states nor adds to a rest
+     * and never meets the driven-base refusal.
      *
      * @param motion the timeline lambda
      * @return this stance
