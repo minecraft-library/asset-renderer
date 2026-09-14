@@ -26,6 +26,7 @@ import static lib.minecraft.renderer.pose.compile.CompilerFixtures.fused;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.input;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.row;
+import static lib.minecraft.renderer.pose.compile.CompilerFixtures.walker;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -480,6 +481,44 @@ class PoseCompilerRefusalTest {
                 .toList(),
             "one bone paints both legs of the row, so there is no far half to start behind the "
                 + "near one and the row takes one copy of the shape");
+    }
+
+    @Test
+    @DisplayName("a plant of the whole cycle refuses - a shape that never travels is no cycle")
+    void aPlantOfTheWholeCycleRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+            .gait(gait -> gait
+                .plant(1.0)
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4))))
+            .build());
+        assertTrue(refusal.getMessage().contains("less than all of it"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("1.0"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a plant of less than none of the cycle refuses on the same words")
+    void aNegativePlantRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+            .gait(gait -> gait
+                .plant(-0.1)
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4))))
+            .build());
+        assertTrue(refusal.getMessage().contains("at least none of it"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a plant refuses against the script, so a legless subject refuses with the rest")
+    void aPlantRefusesOnEverySubject() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .plant(1.5)
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4))))
+            .build();
+
+        for (EntityModelData mesh : List.of(humanoid(), walker(), fused(), new EntityModelData()))
+            assertTrue(refusalOf(amble, mesh, EntityPose.NONE).getMessage()
+                    .contains("less than all of it"),
+                "a share of a cycle is a number the author wrote, so no mesh has a say in it");
     }
 
     @Test

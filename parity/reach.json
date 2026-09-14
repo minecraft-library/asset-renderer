@@ -4466,6 +4466,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/compile/GaitShapeTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/compile/GraphInterner": {
       "artifacts": [],
       "source": "derived"

@@ -482,6 +482,12 @@ public final class PoseCompiler {
         private void validateGait() {
             if (this.script.cycle().isEmpty()) return;
             PoseScript.Cycle cycle = this.script.cycle().get();
+            if (cycle.plantShare().isPresent()) {
+                double share = cycle.plantShare().getAsDouble();
+                if (!(share >= 0d && share < 1d))
+                    this.refuse("Style '%s' plants for '%s' of a cycle - a plant holds a shape at rest for a share of the cycle it then travels in, which is at least none of it and less than all of it",
+                        this.style.styleId(), share);
+            }
             cycle.phases().forEach((rank, cycles) -> {
                 if (whole(cycles)) return;
                 for (PoseScript.Stance stance : this.script.stances())
@@ -519,7 +525,7 @@ public final class PoseCompiler {
                     this.refuse("Style '%s' gaits %s over a smoothed track - a smoothed frame reads its neighbours from the clip's ends rather than across them, so re-timing one states a different curve",
                         this.style.styleId(), reading);
                 double length = track.overSeconds().orElse(this.windowSeconds);
-                framesOf(track, length, 1f).values().forEach(frames -> {
+                framesOf(track, length, 1f, this.planted()).values().forEach(frames -> {
                     List<Frame> sorted = new ArrayList<>(frames);
                     sorted.sort(Comparator.comparingDouble(Frame::atSeconds));
                     for (int at = 1; at < sorted.size(); at++)
@@ -1316,7 +1322,7 @@ public final class PoseCompiler {
                 ? PoseClip.Interpolation.CATMULLROM
                 : PoseClip.Interpolation.LINEAR;
             LinkedHashMap<PoseClip.Target, List<Frame>> emitted =
-                framesOf(track, length, this.flattened);
+                framesOf(track, length, this.flattened, this.planted());
             for (Map.Entry<PoseClip.Target, List<Frame>> channel : emitted.entrySet()) {
                 List<Frame> frames = plan.shiftCycles() % 1d == 0d
                     ? channel.getValue()
@@ -1381,30 +1387,50 @@ public final class PoseCompiler {
         }
 
         /**
+         * The share of a cycle every triangle this style emits stays at its resting bound, which
+         * is none of it where no gait planted one.
+         */
+        private double planted() {
+            if (this.script.cycle().isEmpty()) return 0d;
+            return this.script.cycle().get().plantShare().orElse(0d);
+        }
+
+        /**
          * One track's motion fragments as frames, per target, in the precision they were written.
+         *
+         * <p>A plant reshapes the two fragments that are triangles into trapezoids, holding the
+         * resting bound until the plateau ends and reaching the peak midway through what is left.
+         * A share of none of the cycle is the triangle itself, to the bit: the peak of an unplanted
+         * shape solves to half the length exactly, which is what it was written as.
          *
          * @param track the captured timeline
          * @param length the seconds one run of the track spans
          * @param flattened the whole-mesh factor model units cross
+         * @param planted the share of the cycle a triangle stays at its resting bound
          * @return the frames each target takes, in the order the motions named them
          */
         private static @NotNull LinkedHashMap<PoseClip.Target, List<Frame>> framesOf(
-            @NotNull PoseScript.Track track, double length, float flattened) {
+            @NotNull PoseScript.Track track, double length, float flattened, double planted) {
 
+            double peak = (planted + 1d) / 2d;
             LinkedHashMap<PoseClip.Target, List<Frame>> emitted = new LinkedHashMap<>();
             for (PoseScript.Motion motion : track.motions()) {
                 switch (motion) {
                     case PoseScript.Swing swing -> {
                         List<Frame> frames = framesOf(emitted, PoseClip.Target.ROTATION);
                         frames.add(rotationFrame(0d, swing.axis(), swing.fromDegrees()));
-                        frames.add(rotationFrame(length / 2d, swing.axis(), swing.toDegrees()));
+                        if (planted > 0d)
+                            frames.add(rotationFrame(planted * length, swing.axis(),
+                                swing.fromDegrees()));
+                        frames.add(rotationFrame(peak * length, swing.axis(), swing.toDegrees()));
                         frames.add(rotationFrame(length, swing.axis(), swing.fromDegrees()));
                     }
                     case PoseScript.Bob bob -> {
                         List<Frame> frames = framesOf(emitted, PoseClip.Target.POSITION);
                         double lifted = -bob.pixels() / flattened;
                         frames.add(new Frame(0d, 0d, 0d, 0d));
-                        frames.add(new Frame(length / 2d, 0d, lifted, 0d));
+                        if (planted > 0d) frames.add(new Frame(planted * length, 0d, 0d, 0d));
+                        frames.add(new Frame(peak * length, 0d, lifted, 0d));
                         frames.add(new Frame(length, 0d, 0d, 0d));
                     }
                     case PoseScript.Keyframe frame ->

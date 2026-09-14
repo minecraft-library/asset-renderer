@@ -131,6 +131,18 @@ class GaitTest {
     }
 
     @Test
+    @DisplayName("a plant alone is enough of a cycle to capture one")
+    void aPlantAloneCapturesACycle() {
+        PoseScript script = Poses.legged("amble")
+            .gait(gait -> gait.plant(0.4).step(leg -> leg.pitchBy(10)))
+            .build()
+            .script();
+
+        assertEquals(0.4, script.cycle().orElseThrow().plantShare().orElseThrow(),
+            "how a cycle is spent is a fact about the cycle, whether or not any row starts late");
+    }
+
+    @Test
     @DisplayName("a gait that says nothing about time captures no cycle at all")
     void aTimelessGaitCapturesNoCycle() {
         PoseScript script = Poses.legged("hover")

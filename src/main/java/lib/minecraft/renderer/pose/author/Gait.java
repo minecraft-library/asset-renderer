@@ -34,6 +34,7 @@ public final class Gait {
     private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
     private @NotNull OptionalDouble lengthSeconds = OptionalDouble.empty();
     private @NotNull OptionalDouble opposed = OptionalDouble.empty();
+    private @NotNull OptionalDouble plantShare = OptionalDouble.empty();
     private @NotNull Mirror mirror = Mirror.SIGNED;
 
     Gait() {}
@@ -94,6 +95,28 @@ public final class Gait {
     }
 
     /**
+     * Holds the shape at rest for a share of the cycle before it travels.
+     *
+     * <p>This is the flat where the foot is down, and it is what makes a cycle read as a walk
+     * rather than a wobble - a shape that leaves its rest the instant it reaches it never stands on
+     * anything. The shape's own bounds and the cycle's length are untouched: a plant spends the
+     * cycle differently, it does not lengthen it or travel further.
+     *
+     * <p>It reshapes the two fragments that are triangles - {@link Keyframes#swing swing} and
+     * {@link Keyframes#bob bob}, which rest at both ends of the cycle and peak in the middle - and
+     * leaves an explicitly timed frame where the author put it. A share of none of the cycle is the
+     * triangle itself.
+     *
+     * @param share the share of one cycle the shape stays at its resting bound, at least none of
+     *     it and less than all of it
+     * @return this gait
+     */
+    public @NotNull Gait plant(double share) {
+        this.plantShare = OptionalDouble.of(share);
+        return this;
+    }
+
+    /**
      * States how far behind the near one the far side of every pair starts.
      *
      * <p>Half a cycle is a pace on its own - the two sides of every row exactly opposite, which is
@@ -139,6 +162,7 @@ public final class Gait {
         this.lengthSeconds.ifPresent(capture::period);
         if (!this.phases.isEmpty()) capture.cycle(this.phases);
         this.opposed.ifPresent(capture::opposed);
+        this.plantShare.ifPresent(capture::plant);
         for (Shape shape : this.shapes)
             capture.selectedPair(
                 new LimbSelector.Legs(shape.rank(), Optional.of(Side.RIGHT), Reach.ROOT,
