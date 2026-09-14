@@ -65,3 +65,27 @@ a texture is absent but cannot raise on the caller's behalf - so neither a carri
 the buffer with what is known about it, nor a container distinguishing absent from empty, removes a
 single one of the twelve. Both were evaluated against exactly this and neither survived it. Anything
 that closes this is on the calling side.
+
+## A gait's row-keyed numbers land on nothing in silence where the mesh HAS the row
+
+`phase(Rank, cycles)` and `gain(Rank, factor)` are numbers on a cycle rather than addresses, so
+they resolve nothing and have no empty resolution to report. Where the rank names a row the mesh
+does not carry, that is now reported - the reading joins the written bones the mesh does not
+declare, so a strict install refuses and names it. Where the rank names a row the mesh DOES carry
+and no shape was stamped on it, nothing is reported and nothing can be: the number is correct about
+a row that exists, and the only thing wrong is that no shape reached it.
+
+The shape that would catch it was considered and put down. Requiring a gain to name a rank some
+`step(Rank, ...)` also names is checkable against the script alone, but it forbids the spelling the
+verb exists for - one shape stated over every row with one row's travel scaled - and the chain it
+forces is a line LONGER than dropping the verb and multiplying the bounds out by hand. Counting
+which numbers were applied to a member instead is checkable, but it computes inside the emission
+fold, so its message depends on fold order and on what the shape contained, and it fires after the
+compile has done its work where every other gait rule fires before any of it.
+
+The same gap covers `plant(share)` beside a shape carrying no excursion: a plateau needs something
+to flatten, and a plant over a shape that only writes a rest shapes nothing. `plant` keys on no leg
+axis, so the rule that refuses a verb whose axis the mesh cannot answer structurally cannot see it.
+
+What is open is whether an inert number is worth catching at all. No style in the tree writes a
+gait yet, so there is no evidence about how often an author strands one.
