@@ -378,6 +378,33 @@ class SelectedLegsInstallTest {
     }
 
     @Test
+    @DisplayName("one trailing cycle reaches a dragon's twelve leg bones with no reach in it")
+    void aTrailReachesTheWholeChain() {
+        BuiltStyle glide = Poses.legged("glide")
+            .gait(gait -> gait
+                .share()
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -6, 6).over(0.8)))
+                .trail(0.5, 0.5))
+            .build();
+        float root = (float) Math.toRadians(6);
+        float link = (float) Math.toRadians(3);
+        float foot = (float) Math.toRadians(1.5);
+
+        assertEquals(12, clipOf(glide, "minecraft:ender_dragon").channels().size(),
+            "four roots, four links and four feet, from a chain naming none of them");
+        assertEquals(List.of("0.0 " + -root, "0.4 " + root, "0.8 " + -root),
+            framesOf(glide, "minecraft:ender_dragon", "right_front_leg"),
+            "the root travels the whole authored bound from the cycle's own start");
+        assertEquals(List.of("0.0 " + link, "0.4 " + -link, "0.8 " + link),
+            framesOf(glide, "minecraft:ender_dragon", "right_front_leg_tip"),
+            "the link below it half as far and half a cycle late");
+        assertEquals(List.of("0.0 " + -foot, "0.4 " + foot, "0.8 " + -foot),
+            framesOf(glide, "minecraft:ender_dragon", "right_front_foot"),
+            "and the foot a quarter as far, a whole cycle late, which wraps back to the "
+                + "cycle's start");
+    }
+
+    @Test
     @DisplayName("a leg timeline coins the same clip whether or not the subject answers a leg")
     void anUnansweredSelectorStillCoinsTheClip() {
         BuiltStyle wag = wag();

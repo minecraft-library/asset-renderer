@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 
+import static lib.minecraft.renderer.pose.compile.CompilerFixtures.chained;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.row;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.walker;
@@ -73,6 +74,94 @@ class GaitShapeTest {
     private static @NotNull List<String> pitchesOf(@NotNull BuiltStyle style,
                                                    @NotNull String bone) {
         return framesOf(style, humanoid(), bone, PoseClip.Target.ROTATION);
+    }
+
+    /** The seconds one cycle of the chained fixture's clip runs. */
+    private static final double CHAIN_LENGTH = 0.8d;
+
+    /**
+     * A walker with three-bone legs, swinging every bone a trail reaches through the given cycle.
+     */
+    private static @NotNull BuiltStyle trailed(@NotNull UnaryOperator<Gait> cycle) {
+        return Poses.legged("glide")
+            .gait(gait -> cycle.apply(gait.step(leg -> leg.timeline(track -> track
+                .swing(Turn.PITCH, -32, 32).over(CHAIN_LENGTH)))))
+            .build();
+    }
+
+    /**
+     * The rotation keyframes one bone of the chained walker plays.
+     */
+    private static @NotNull List<String> chainedPitchesOf(@NotNull BuiltStyle style,
+                                                          @NotNull String bone) {
+        return framesOf(style, chained(), bone, PoseClip.Target.ROTATION);
+    }
+
+    @Test
+    @DisplayName("a trail lags and shortens each bone below a root, the root itself untouched")
+    void aTrailLagsAndShortensDownTheChain() {
+        BuiltStyle style = trailed(gait -> gait.trail(0.5, 0.5));
+        float root = (float) Math.toRadians(32);
+        float link = (float) Math.toRadians(16);
+        float foot = (float) Math.toRadians(8);
+
+        assertEquals(List.of("0.0 " + -root, "0.4 " + root, "0.8 " + -root),
+            chainedPitchesOf(style, "right_front_leg"),
+            "the root is no bones below itself, so it lags none of the cycle and travels the "
+                + "whole of the shape");
+        assertEquals(List.of("0.0 " + link, "0.4 " + -link, "0.8 " + link),
+            chainedPitchesOf(style, "right_front_leg_tip"),
+            "the bone below it lags the stated share and travels the stated multiple");
+        assertEquals(List.of("0.0 " + -foot, "0.4 " + foot, "0.8 " + -foot),
+            chainedPitchesOf(style, "right_front_foot"),
+            "and the bone below that lags twice as far - a whole cycle here, which wraps to "
+                + "none - at that multiple again");
+    }
+
+    @Test
+    @DisplayName("a fade is composed down the chain once and applied once")
+    void aFadeComposesBeforeItIsApplied() {
+        BuiltStyle style = trailed(gait -> gait.trail(0, 0.65));
+
+        assertEquals(List.of(
+                "0.0 " + (float) Math.toRadians(-32d * (0.65d * 0.65d)),
+                "0.4 " + (float) Math.toRadians(32d * (0.65d * 0.65d)),
+                "0.8 " + (float) Math.toRadians(-32d * (0.65d * 0.65d))),
+            chainedPitchesOf(style, "right_front_foot"),
+            "two bones down is the fade times itself, applied to the authored bound once - "
+                + "which is the number an author works out, and not the same bits as folding "
+                + "the bound through the fade twice");
+    }
+
+    @Test
+    @DisplayName("a trail widens what the cycle reaches, and nothing else does")
+    void onlyATrailReachesBelowTheRoots() {
+        assertEquals(4, PoseCompiler.compile(trailed(gait -> gait), row(chained(), EntityPose.NONE))
+                .pose().clips().getLast().clip().channels().size(),
+            "a cycle stamps each leg's root and lets the bones below it ride along");
+        assertEquals(12, PoseCompiler.compile(trailed(gait -> gait.trail(0.5, 0.5)),
+                row(chained(), EntityPose.NONE))
+                .pose().clips().getLast().clip().channels().size(),
+            "and writing the verb is what says the chain is being addressed, so the author "
+                + "does not restate the reach beside it");
+    }
+
+    @Test
+    @DisplayName("a row's multiple and a chain's fade compose on a bone that takes both")
+    void aGainAndAFadeCompose() {
+        BuiltStyle style = Poses.legged("glide")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track
+                    .swing(Turn.PITCH, -32, 32).over(CHAIN_LENGTH)))
+                .gain(Rank.HIND, 0.5)
+                .trail(0, 0.5))
+            .build();
+        float linked = (float) Math.toRadians(8);
+
+        assertEquals(List.of("0.0 " + -linked, "0.4 " + linked, "0.8 " + -linked),
+            chainedPitchesOf(style, "right_hind_leg_tip"),
+            "half for the row it sits in and half again for the bone above it - the two are "
+                + "different questions about one leg and both are answered");
     }
 
     @Test

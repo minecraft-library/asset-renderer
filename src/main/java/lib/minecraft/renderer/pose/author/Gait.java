@@ -37,6 +37,7 @@ public final class Gait {
     private @NotNull OptionalDouble opposed = OptionalDouble.empty();
     private @NotNull OptionalDouble coupled = OptionalDouble.empty();
     private @NotNull OptionalDouble plantShare = OptionalDouble.empty();
+    private @NotNull Optional<PoseScript.Trail> trail = Optional.empty();
     private @NotNull Mirror mirror = Mirror.SIGNED;
 
     Gait() {}
@@ -93,6 +94,33 @@ public final class Gait {
      */
     public @NotNull Gait phase(@NotNull Rank rank, double cycles) {
         this.phases.put(rank, cycles);
+        return this;
+    }
+
+    /**
+     * Lags each bone below a leg's root behind the bone above it, and shortens its travel.
+     *
+     * <p>A leg is one bone on most meshes and a chain on a few, and a chain that turns as one
+     * board reads as a board. Lagging each link behind the one above it and shortening what it
+     * covers is what makes the chain read as a leg, and it is one relationship rather than a stance
+     * per link: the bone one below travels the stated share late at the stated multiple, the bone
+     * two below twice as late at that multiple again.
+     *
+     * <p>This is the one verb that widens what a cycle reaches. The rest of a gait stamps each
+     * leg's root and lets the bones below it ride along - eight degrees stamped at a hip, a knee
+     * and a toe is twenty-four at the toe, which is a different motion rather than a longer one -
+     * so writing this verb is what says the chain is being addressed, and the author does not
+     * restate the reach beside it.
+     *
+     * <p>On legs that are one bone it is an exact identity: the root is no bones below itself, so
+     * it lags none of the cycle and travels the whole of the shape.
+     *
+     * @param cycles the share of one cycle each bone starts behind the bone above it
+     * @param fade what each bone's travel is multiplied by against the bone above it
+     * @return this gait
+     */
+    public @NotNull Gait trail(double cycles, double fade) {
+        this.trail = Optional.of(new PoseScript.Trail(cycles, fade));
         return this;
     }
 
@@ -219,11 +247,14 @@ public final class Gait {
         this.opposed.ifPresent(capture::opposed);
         this.coupled.ifPresent(capture::coupled);
         this.plantShare.ifPresent(capture::plant);
+        this.trail.ifPresent(trail -> capture.trail(trail.cycles(), trail.fade()));
+
+        Reach reach = this.trail.isPresent() ? Reach.CHAIN : Reach.ROOT;
         for (Shape shape : this.shapes)
             capture.selectedPair(
-                new LimbSelector.Legs(shape.rank(), Optional.of(Side.RIGHT), Reach.ROOT,
+                new LimbSelector.Legs(shape.rank(), Optional.of(Side.RIGHT), reach,
                     LimbSelector.Stamp.NEAR),
-                new LimbSelector.Legs(shape.rank(), Optional.of(Side.LEFT), Reach.ROOT,
+                new LimbSelector.Legs(shape.rank(), Optional.of(Side.LEFT), reach,
                     LimbSelector.Stamp.FAR),
                 PoseScript.AimAxis.DOWN, this.mirror, shape.verbs());
     }

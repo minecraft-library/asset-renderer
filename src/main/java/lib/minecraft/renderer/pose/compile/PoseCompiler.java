@@ -516,6 +516,9 @@ public final class PoseCompiler {
             if (cycle.coupled().isPresent() && !whole(cycle.coupled().getAsDouble()))
                 for (PoseScript.Stance stance : this.script.stances())
                     if (legsOf(stance).isPresent()) this.checkOffset("a trot", stance);
+            if (cycle.trail().isPresent() && !whole(cycle.trail().get().cycles()))
+                for (PoseScript.Stance stance : this.script.stances())
+                    if (legsOf(stance).isPresent()) this.checkOffset("a trailing chain", stance);
         }
 
         /**
@@ -534,12 +537,18 @@ public final class PoseCompiler {
         private void validateAxes() {
             if (this.script.cycle().isEmpty() || this.roster.rows().isEmpty()) return;
             PoseScript.Cycle cycle = this.script.cycle().get();
-            if (cycle.coupled().isEmpty()) return;
 
-            if (this.roster.rows().size() != COUPLET_ROWS)
-                this.refuse("Style '%s' gaits a trot on a mesh carrying '%d' leg row(s) - a diagonal pairs a front leg with the opposite hind one, which '%d' row(s) have no unique reading of",
-                    this.style.styleId(), this.roster.rows().size(), this.roster.rows().size());
-            this.refuseUnsided("a trot", "pairs each leg with the one across the body from it");
+            if (cycle.coupled().isPresent()) {
+                if (this.roster.rows().size() != COUPLET_ROWS)
+                    this.refuse("Style '%s' gaits a trot on a mesh carrying '%d' leg row(s) - a diagonal pairs a front leg with the opposite hind one, which '%d' row(s) have no unique reading of",
+                        this.style.styleId(), this.roster.rows().size(), this.roster.rows().size());
+                this.refuseUnsided("a trot", "pairs each leg with the one across the body from it");
+            }
+            if (cycle.trail().isPresent() && this.roster.rows().stream()
+                .flatMap(row -> row.members().stream())
+                .noneMatch(member -> member.depth() > 0))
+                this.refuse("Style '%s' gaits a trailing chain on a mesh whose legs declare no bone below the root - a lag and a fade per bone below the root is the stance itself where there is none",
+                    this.style.styleId());
         }
 
         /**
@@ -828,7 +837,36 @@ public final class PoseCompiler {
             Optional<LimbRoster.Placement> placed = this.roster.placementOf(bone);
             return this.rankShift(cycle, legs, placed)
                 + sideShift(cycle, placed)
-                + coupletShift(cycle, placed);
+                + coupletShift(cycle, placed)
+                + depthShift(cycle, placed);
+        }
+
+        /**
+         * The offset one bone takes from how far below its leg's root it sits - none at the root,
+         * and one more share of the cycle for every bone between it and there.
+         */
+        private static double depthShift(@NotNull PoseScript.Cycle cycle,
+                                         @NotNull Optional<LimbRoster.Placement> placed) {
+            if (cycle.trail().isEmpty() || placed.isEmpty()) return 0d;
+            return placed.get().member().depth() * cycle.trail().get().cycles();
+        }
+
+        /**
+         * What one bone multiplies its leg's travel by for sitting below the root - the whole of it
+         * at the root, and one more multiple for every bone between it and there.
+         *
+         * <p>Multiplied down the chain rather than raised to the depth, because that is the
+         * relationship the verb states and the number the author worked out: a fade of two thirds
+         * two bones down is two thirds of two thirds, which is what an author writes and not
+         * necessarily what a general power answers to the last bit.
+         */
+        private static double depthGain(@NotNull PoseScript.Cycle cycle,
+                                        @NotNull Optional<LimbRoster.Placement> placed) {
+            if (cycle.trail().isEmpty() || placed.isEmpty()) return 1d;
+            double faded = 1d;
+            for (int below = 0; below < placed.get().member().depth(); below++)
+                faded *= cycle.trail().get().fade();
+            return faded;
         }
 
         /**
@@ -850,8 +888,9 @@ public final class PoseCompiler {
         private double gainOf(@NotNull LimbSelector selector, @NotNull String bone) {
             if (this.script.cycle().isEmpty()) return 1d;
             if (!(selector instanceof LimbSelector.Legs legs)) return 1d;
-            return this.rowValue(this.script.cycle().get().gains(), legs,
-                this.roster.placementOf(bone), 1d);
+            PoseScript.Cycle cycle = this.script.cycle().get();
+            Optional<LimbRoster.Placement> placed = this.roster.placementOf(bone);
+            return this.rowValue(cycle.gains(), legs, placed, 1d) * depthGain(cycle, placed);
         }
 
         /**

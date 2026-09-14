@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.boneWrite;
+import static lib.minecraft.renderer.pose.compile.CompilerFixtures.chained;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.constant;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.crawler;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.flattened;
@@ -624,6 +625,37 @@ class PoseCompilerRefusalTest {
             .build(), walker(), EntityPose.NONE);
 
         assertTrue(refusal.getMessage().contains("a trot"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("carries no offset of its own"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a trailing chain on legs that are one bone refuses - there is nothing to lag")
+    void aTrailWithNoSegmentsRefuses() {
+        BuiltStyle glide = Poses.legged("glide")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -32, 32).over(0.8)))
+                .trail(0.5, 0.5))
+            .build();
+
+        for (EntityModelData mesh : List.of(humanoid(), walker(), crawler())) {
+            IllegalArgumentException refusal = refusalOf(glide, mesh, EntityPose.NONE);
+            assertTrue(refusal.getMessage().contains("no bone below the root"),
+                refusal::getMessage);
+        }
+        assertEquals(1, PoseCompiler.compile(glide, row(chained(), EntityPose.NONE))
+                .pose().clips().size(),
+            "and a mesh whose legs do carry bones below their roots compiles, because there is "
+                + "something for the lag and the fade to be about");
+    }
+
+    @Test
+    @DisplayName("a trailing chain over a swayed shape refuses, naming the chain")
+    void aTrailOverASwayRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("glide")
+            .gait(gait -> gait.step(leg -> leg.sway(Turn.PITCH, -32, 32)).trail(0.5, 0.5))
+            .build(), chained(), EntityPose.NONE);
+
+        assertTrue(refusal.getMessage().contains("a trailing chain"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("carries no offset of its own"), refusal.getMessage());
     }
 

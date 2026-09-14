@@ -66,6 +66,32 @@ public final class CompilerFixtures {
     }
 
     /**
+     * A four-legged walker whose every leg is a chain three bones deep - a root, the link below
+     * it, and a foot below that - which is the deepest shape the shipped corpus carries.
+     *
+     * <p>Every bone carries a pivot of its own, so the anatomical climb stops on the bone named
+     * rather than redirecting a link onto the one above it.
+     *
+     * @return a fresh mesh
+     */
+    public static @NotNull EntityModelData chained() {
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+        for (String side : new String[]{"right", "left"}) {
+            float x = "right".equals(side) ? -3f : 3f;
+            for (String rank : new String[]{"front", "hind"}) {
+                float z = "front".equals(rank) ? -5f : 7f;
+                String root = side + "_" + rank + "_leg";
+                mesh.getBones().put(root, bone(x, 14f, z, 0f, 0f, 0f, 1f, "body"));
+                mesh.getBones().put(root + "_tip", bone(x, 18f, z, 0f, 0f, 0f, 1f, root));
+                mesh.getBones().put(side + "_" + rank + "_foot",
+                    bone(x, 22f, z, 0f, 0f, 0f, 1f, root + "_tip"));
+            }
+        }
+        return mesh;
+    }
+
+    /**
      * An eight-legged crawler in four sided rows, evenly spread front to back.
      *
      * @return a fresh mesh

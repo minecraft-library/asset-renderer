@@ -68,10 +68,20 @@ public record PoseScript(
      *     cycles; empty where the legs do not run as diagonal pairs
      * @param plantShare the share of one cycle a shape stays at its resting bound before it
      *     travels; empty where every shape is the triangle it was written as
+     * @param trail how far each bone below a leg's root lags behind and falls short of the one
+     *     above it; empty where a cycle reaches each leg's root alone
      */
     public record Cycle(@NotNull Map<Rank, Double> phases, @NotNull Map<Rank, Double> gains,
                         @NotNull OptionalDouble opposed, @NotNull OptionalDouble coupled,
-                        @NotNull OptionalDouble plantShare) {}
+                        @NotNull OptionalDouble plantShare, @NotNull Optional<Trail> trail) {}
+
+    /**
+     * How far each bone below a leg's root lags behind and falls short of the one above it.
+     *
+     * @param cycles the share of one cycle each bone starts behind the bone above it
+     * @param fade what each bone's travel is multiplied by against the bone above it
+     */
+    public record Trail(double cycles, double fade) {}
 
     /**
      * Which model-space direction a limb's rest posture points along, for aim solves.
@@ -349,6 +359,7 @@ public record PoseScript(
         private @NotNull OptionalDouble opposed = OptionalDouble.empty();
         private @NotNull OptionalDouble coupled = OptionalDouble.empty();
         private @NotNull OptionalDouble plantShare = OptionalDouble.empty();
+        private @Nullable Trail trail;
 
         /**
          * Captures one limb stance - the lambda's verbs land on a fresh stance whose fragments
@@ -602,7 +613,8 @@ public record PoseScript(
                     ? Optional.of(new Cycle(
                         Collections.unmodifiableMap(new EnumMap<>(this.phases)),
                         Collections.unmodifiableMap(new EnumMap<>(this.gains)),
-                        this.opposed, this.coupled, this.plantShare))
+                        this.opposed, this.coupled, this.plantShare,
+                        Optional.ofNullable(this.trail)))
                     : Optional.empty()
             );
         }
@@ -612,7 +624,7 @@ public record PoseScript(
          */
         private boolean cycled() {
             return !this.phases.isEmpty() || !this.gains.isEmpty() || this.opposed.isPresent()
-                || this.coupled.isPresent() || this.plantShare.isPresent();
+                || this.coupled.isPresent() || this.plantShare.isPresent() || this.trail != null;
         }
 
         /**
@@ -673,6 +685,21 @@ public record PoseScript(
          */
         @NotNull Capture coupled(double cycles) {
             this.coupled = OptionalDouble.of(cycles);
+            return this;
+        }
+
+        /**
+         * Captures how far a walking cycle lags and shortens each bone below a leg's root.
+         *
+         * <p>A later cycle stating one replaces an earlier one's, and a later cycle stating none
+         * leaves the earlier one's standing, as an opposed side does.
+         *
+         * @param cycles the share of one cycle each bone starts behind the bone above it
+         * @param fade what each bone's travel is multiplied by against the bone above it
+         * @return this capture
+         */
+        @NotNull Capture trail(double cycles, double fade) {
+            this.trail = new Trail(cycles, fade);
             return this;
         }
 
