@@ -270,6 +270,25 @@ class LimbRosterCorpusTest {
     }
 
     @Test
+    @DisplayName("the crossed legs are handed over as legs rather than as a sentence about them")
+    void theCrossedLegsAreAnswerable() {
+        Map<String, List<String>> crossed = new TreeMap<>();
+        rosters().forEach((coordinate, roster) -> {
+            if (!roster.crossed().isEmpty()) crossed.put(coordinate, List.copyOf(roster.crossed()));
+        });
+
+        assertEquals(Map.of("BabyArmadilloModel#createBodyLayer",
+                List.of("right_front_leg", "left_front_leg")),
+            crossed,
+            "a caller keying on which side a leg is on reads this rather than parsing the note "
+                + "beside it, so rewording the note cannot silently disarm the reader");
+        rosters().forEach((coordinate, roster) -> assertEquals(
+            roster.ambiguities().stream().filter(note -> note.contains("is named")).count(),
+            roster.crossed().size(),
+            () -> coordinate + " answers one leg for every note it writes about one"));
+    }
+
+    @Test
     @DisplayName("exactly three geometries carry a row with no side, and they are named")
     void theUnsidedGeometriesAreNamed() {
         List<String> unsided = new ArrayList<>();

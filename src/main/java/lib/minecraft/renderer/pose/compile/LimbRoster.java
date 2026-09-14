@@ -34,9 +34,17 @@ import java.util.Set;
  * {@code mid}, {@code middle_hind}, {@code back} - are read as a cross-check and never as the key,
  * because a vocabulary keyed on the token needs a table per family where one keyed on front-to-back
  * position needs none. No entity id appears anywhere in the resolution.
+ *
+ * @param rows the legs the mesh declares, grouped front to back
+ * @param ambiguities what the resolution could not settle cleanly, in the words a reader needs
+ * @param crossed the legs whose name says one side and whose own geometry says the other, in
+ *     roster order - a fact about the mesh that a caller keying on which side a leg is on has to
+ *     be told, because the side a member carries is the name's and the pixels are elsewhere
  */
 @Parity(subject = Subject.ENTITY)
-public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentList<String> ambiguities) {
+public record LimbRoster(@NotNull ConcurrentList<Row> rows,
+                         @NotNull ConcurrentList<String> ambiguities,
+                         @NotNull ConcurrentList<String> crossed) {
 
     /** The side tokens a bone name is read for. */
     private static final @NotNull Set<String> SIDE_TOKENS = Set.of("left", "right");
@@ -120,8 +128,10 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
         Map<String, EntityModelData.Bone> bones = mesh.getBones();
         List<String> legish = bones.keySet().stream().filter(LimbRoster::legish).toList();
         List<String> notes = new ArrayList<>();
+        List<String> crossed = new ArrayList<>();
         if (legish.isEmpty())
-            return new LimbRoster(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+            return new LimbRoster(Concurrent.newUnmodifiableList(),
+                Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
 
         Map<String, Matrix4f> chains = new LinkedHashMap<>(BoneKit.buildChainTransforms(bones));
         Set<String> legNames = new LinkedHashSet<>(legish);
@@ -145,10 +155,12 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
                     : sideOf(seat);
                 if (kinds.get(seat) == Kind.ROOT && side.isEmpty())
                     notes.add("leg root '" + seat + "' carries neither a side token nor a resolvable side");
-                geometric(seat, bones, legNames, chains).ifPresent(read -> side
-                    .filter(named -> named != read)
-                    .ifPresent(named -> notes.add("leg '" + seat + "' is named " + named
-                        + " and sits " + read)));
+                Optional<Side> sits = geometric(seat, bones, legNames, chains);
+                if (side.isPresent() && sits.isPresent() && side.get() != sits.get()) {
+                    notes.add("leg '" + seat + "' is named " + side.get()
+                        + " and sits " + sits.get());
+                    crossed.add(seat);
+                }
                 members.add(new Member(seat, side, 0, kinds.get(seat)));
                 for (String below : segmentsUnder(seat, bones, legNames, kinds))
                     members.add(new Member(below, side, depth(below, seat, bones, legNames),
@@ -167,7 +179,7 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
                 notes.add("row grouper '" + bone + "' holds fewer than two legs");
 
         return new LimbRoster(Concurrent.newUnmodifiableList(rows),
-            Concurrent.newUnmodifiableList(notes));
+            Concurrent.newUnmodifiableList(notes), Concurrent.newUnmodifiableList(crossed));
     }
 
     /**

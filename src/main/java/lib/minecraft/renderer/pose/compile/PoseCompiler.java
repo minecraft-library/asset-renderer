@@ -381,6 +381,7 @@ public final class PoseCompiler {
             this.validateCycle();
             this.validateAxes();
             this.recordAbsentRanks();
+            this.recordCrossedSides();
             this.pool.adopt(this.shipped);
             this.foldStances();
             this.seatFollowers();
@@ -602,6 +603,42 @@ public final class PoseCompiler {
             if (!this.dropped.contains(reading)) this.dropped.add(reading);
             this.events.info("gait: %s names a row this mesh does not carry, so it lands on nothing",
                 reading);
+        }
+
+        /**
+         * Records the legs this mesh names against the side they sit on, where the style says
+         * which side a leg is on rather than stamping both alike.
+         *
+         * <p>The side a member carries is its NAME's, which is the right reading and stays one:
+         * the meshes a geometric reader gets wrong are silently wrong - a fox pivots both hind legs
+         * left of centre and a copper golem puts both on the midline - where a named side that
+         * disagrees with its own pixels is a fact the mesh states out loud and the roster can hand
+         * over. So it is handed over here rather than overriding anything.
+         *
+         * <p>It is recorded only where the style has something to lose by it. A stamp that reaches
+         * both sides alike loses nothing, because which of the two took the authored copy is not a
+         * question it asked. What loses is a chain that says which side a leg is ON - an offset
+         * between the two sides, a shared reading of the far one, a pairing across the body, or one
+         * leg addressed by side and rank. On a mesh whose names cross in ONE row of two, a pairing
+         * across the body reads as one along it, which is the other animal's cycle rendered
+         * cleanly.
+         */
+        private void recordCrossedSides() {
+            if (this.roster.crossed().isEmpty() || !this.sideKeyed()) return;
+            this.events.warn("crossed sides: %d leg(s) [%s] are named against the side they sit on, and this style states which side a leg is on - a pairing across the body reads as one along it, and a leg addressed by side is the one opposite",
+                this.roster.crossed().size(), String.join(", ", this.roster.crossed()));
+        }
+
+        /**
+         * Whether this style says which side a leg is on, as against stamping both alike.
+         */
+        private boolean sideKeyed() {
+            if (this.script.cycle().filter(cycle -> cycle.opposed().isPresent()
+                || cycle.coupled().isPresent() || cycle.shared()).isPresent()) return true;
+            for (PoseScript.Stance stance : this.script.stances())
+                if (legsOf(stance).filter(legs -> legs.side().isPresent()
+                    && legs.stamp() == LimbSelector.Stamp.LONE).isPresent()) return true;
+            return false;
         }
 
         /**

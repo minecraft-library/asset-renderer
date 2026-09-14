@@ -148,6 +148,26 @@ public final class CompilerFixtures {
     }
 
     /**
+     * A four-legged walker whose FRONT pair is named against the side it sits on, its hind pair
+     * named correctly - the shape vanilla ships on one mesh and one only.
+     *
+     * <p>One row crossed and one not is what makes it dangerous rather than merely mislabelled: a
+     * gait pairing a leg with the one across the body from it pairs the two legs down one flank
+     * instead, which is a real cycle and the other one.
+     *
+     * @return a fresh mesh
+     */
+    public static @NotNull EntityModelData crossedSides() {
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("right_front_leg", bone(3f, 14f, -5f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("left_front_leg", bone(-3f, 14f, -5f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("right_hind_leg", bone(-3f, 14f, 7f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("left_hind_leg", bone(3f, 14f, 7f, 0f, 0f, 0f, 1f, null));
+        return mesh;
+    }
+
+    /**
      * A mesh whose front row is a sided pair and whose hind row is one midline bone.
      *
      * <p>No shipped mesh mixes the two, which is what makes this the fixture separating a rule

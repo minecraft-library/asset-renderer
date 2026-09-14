@@ -12,6 +12,7 @@ import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
+import lib.minecraft.renderer.pose.author.Gait;
 import lib.minecraft.renderer.pose.author.Poses;
 import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
@@ -24,15 +25,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.boneWrite;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.constant;
+import static lib.minecraft.renderer.pose.compile.CompilerFixtures.crossedSides;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.dadd;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.flattened;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.input;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.pose;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.row;
+import static lib.minecraft.renderer.pose.compile.CompilerFixtures.walker;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -670,6 +674,79 @@ class PoseCompilerTest {
         return new PoseStyle(id, Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty(),
             Optional.empty());
+    }
+
+    /**
+     * The crossed-side warnings one style records on the mesh whose front pair is named backwards.
+     */
+    private static @NotNull List<String> crossingsOf(@NotNull BuiltStyle style,
+                                                     @NotNull EntityModelData mesh) {
+        StyleDiagnostics scope = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null)
+            .child("minecraft:test").child(style.styleId());
+        PoseCompiler.compile(style, row(mesh, EntityPose.NONE), scope);
+        return scope.entries().stream()
+            .filter(entry -> entry.severity() == StyleDiagnostics.Severity.WARN)
+            .map(StyleDiagnostics.Entry::message)
+            .filter(message -> message.startsWith("crossed sides:"))
+            .toList();
+    }
+
+    @Test
+    @DisplayName("a style keyed on which side a leg is on is told when the mesh names them crossed")
+    void aCrossedMeshIsReportedToASideKeyedStyle() {
+        List<UnaryOperator<Gait>> keyed = List.of(
+            gait -> gait.trot(0.5),
+            gait -> gait.oppose(0.5),
+            gait -> gait.share());
+
+        for (UnaryOperator<Gait> written : keyed) {
+            BuiltStyle style = Poses.legged("canter")
+                .gait(gait -> written.apply(gait.step(leg -> leg.timeline(track -> track
+                    .swing(Turn.PITCH, -20, 20).over(0.4)))))
+                .build();
+            List<String> crossings = crossingsOf(style, crossedSides());
+
+            assertEquals(1, crossings.size(), () -> "one line, once per compile: " + crossings);
+            assertTrue(crossings.getFirst().contains("right_front_leg"), crossings::toString);
+            assertTrue(crossings.getFirst().contains("left_front_leg"), crossings::toString);
+            assertFalse(crossings.getFirst().contains("hind"),
+                () -> "and it names the legs that cross rather than the row that does not: "
+                    + crossings);
+        }
+    }
+
+    @Test
+    @DisplayName("one leg addressed by rank and side is told too - it is the leg opposite")
+    void anAddressedLegIsReportedToo() {
+        BuiltStyle lift = Poses.legged("lift")
+            .leg(Rank.FRONT, Side.RIGHT, leg -> leg.pitchBy(-20))
+            .build();
+
+        assertEquals(1, crossingsOf(lift, crossedSides()).size(),
+            "the author named a side and the mesh answers with the leg across from it");
+    }
+
+    @Test
+    @DisplayName("a stamp reaching both sides alike is told nothing, having asked nothing")
+    void asymmetricStampIsNotReported() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .over(0.4)
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                .plant(0.25)
+                .phase(Rank.HIND, 0.5)
+                .gain(Rank.HIND, 0.5))
+            .build();
+
+        assertEquals(List.of(), crossingsOf(amble, crossedSides()),
+            "which of a row's two legs took the authored copy is not a question this chain "
+                + "asked, so a crossed name costs it nothing and saying so would be noise");
+        assertEquals(List.of(), crossingsOf(Poses.legged("canter")
+                .gait(gait -> gait
+                    .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                    .trot(0.5))
+                .build(), walker()),
+            "and a mesh naming its legs for the sides they sit on is told nothing either");
     }
 
     /**
