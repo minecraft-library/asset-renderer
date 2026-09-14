@@ -308,10 +308,13 @@ class SelectedLegsInstallTest {
         assertEquals(near, framesOf(pace, "minecraft:wolf", "right_hind_leg"),
             "a side offset states nothing about rows, so both near legs run together");
 
-        for (String fused : List.of("front_legs", "middle_legs", "back_legs"))
-            assertEquals(near, framesOf(pace, "minecraft:bee", fused),
-                () -> "one bone paints both legs of '" + fused + "', so the row has no far half "
-                    + "to start behind the near one and takes one copy of the shape");
+        for (String entityId : List.of("minecraft:bee", "minecraft:bat")) {
+            IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+                () -> StyleRegistrar.ofShipped().addTolerant(entityId, pace),
+                () -> "one bone paints both legs of each row on " + entityId + ", so the "
+                    + "alternation this states lands on nothing");
+            assertTrue(refusal.getMessage().contains("carry no side"), refusal::getMessage);
+        }
     }
 
     @Test

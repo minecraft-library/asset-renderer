@@ -26,6 +26,31 @@ import java.util.function.UnaryOperator;
  * nothing, and one shape stamped over every row on a mesh that also carries a shape of its own
  * for one of them waves that row's channel twice, which the compiler refuses - a gait states one
  * shape per row or one for all of them, never both.
+ *
+ * <p>Every verb but {@link #over} and {@link #step} states a RELATIONSHIP between the copies of
+ * the shape rather than a shape of its own, and each keys on one thing a mesh's legs either have
+ * or do not:
+ *
+ * <ul>
+ * <li><b>the row a leg sits in</b> - {@link #phase} and {@link #gain}. A rank the mesh has no row
+ * for lands on nothing, which is an answer rather than an error, so it is reported the way an
+ * address reaching no bone is reported: a strict install refuses and names the rank, a tolerant
+ * one proceeds.</li>
+ * <li><b>the side a leg sits on</b> - {@link #oppose} and {@link #share}. A row one bone paints
+ * whole has no two sides, so a mesh carrying one refuses these however the install was asked for,
+ * naming the bones.</li>
+ * <li><b>both at once</b> - {@link #trot}, which needs two rows and two sides to name a diagonal
+ * and refuses anywhere else.</li>
+ * <li><b>how far below its root a bone sits</b> - {@link #trail}, which refuses on legs that are
+ * one bone, where its arithmetic is an exact identity.</li>
+ * </ul>
+ *
+ * <p>{@link #plant} keys on none of them - it reshapes one copy of the shape and states nothing
+ * about any other - so it is the one verb beside {@link #over} and {@link #step} that every mesh
+ * carrying a leg can answer.
+ *
+ * <p>A mesh naming no leg at all is not any of those cases. That subject has no legs rather than
+ * the wrong ones, so the whole gait falls to the drop a tolerant install already allows.
  */
 @Parity(subject = Subject.ENTITY)
 public final class Gait {
@@ -248,6 +273,7 @@ public final class Gait {
         this.coupled.ifPresent(capture::coupled);
         this.plantShare.ifPresent(capture::plant);
         this.trail.ifPresent(trail -> capture.trail(trail.cycles(), trail.fade()));
+        if (this.mirror == Mirror.SHARED) capture.shared();
 
         Reach reach = this.trail.isPresent() ? Reach.CHAIN : Reach.ROOT;
         for (Shape shape : this.shapes)

@@ -52,12 +52,13 @@ public record PoseScript(
 ) {
 
     /**
-     * One captured walking cycle - what a gait said about time, kept beside the stances it wrote.
+     * One captured walking cycle - what a gait said about its legs, beside the stances it wrote.
      *
-     * <p>The shapes a gait stamps are ordinary stances and need nothing here. What does is the
-     * timing, because where a leg's copy of the shape starts is a fact about the leg rather than
-     * about any one bone, and one shape stated over the whole roster carries a different offset
-     * per leg it lands on.
+     * <p>The shapes a gait stamps are ordinary stances and need nothing here. What does is every
+     * relationship BETWEEN the copies of those shapes, because where a leg's copy starts, how far
+     * it travels and what its far side does are facts about the leg rather than about any one
+     * bone - and one shape stated over the whole roster carries a different answer per leg it
+     * lands on.
      *
      * @param phases each row's own offset into the cycle, in cycles, in rank order
      * @param gains each row's own multiple of the shape's travel, in rank order; a row named
@@ -70,10 +71,13 @@ public record PoseScript(
      *     travels; empty where every shape is the triangle it was written as
      * @param trail how far each bone below a leg's root lags behind and falls short of the one
      *     above it; empty where a cycle reaches each leg's root alone
+     * @param shared whether the far side of every pair was asked to read the near one's stance
+     *     with every sign as written rather than deriving under the mirror sign rule
      */
     public record Cycle(@NotNull Map<Rank, Double> phases, @NotNull Map<Rank, Double> gains,
                         @NotNull OptionalDouble opposed, @NotNull OptionalDouble coupled,
-                        @NotNull OptionalDouble plantShare, @NotNull Optional<Trail> trail) {}
+                        @NotNull OptionalDouble plantShare, @NotNull Optional<Trail> trail,
+                        boolean shared) {}
 
     /**
      * How far each bone below a leg's root lags behind and falls short of the one above it.
@@ -360,6 +364,7 @@ public record PoseScript(
         private @NotNull OptionalDouble coupled = OptionalDouble.empty();
         private @NotNull OptionalDouble plantShare = OptionalDouble.empty();
         private @Nullable Trail trail;
+        private boolean shared;
 
         /**
          * Captures one limb stance - the lambda's verbs land on a fresh stance whose fragments
@@ -614,17 +619,18 @@ public record PoseScript(
                         Collections.unmodifiableMap(new EnumMap<>(this.phases)),
                         Collections.unmodifiableMap(new EnumMap<>(this.gains)),
                         this.opposed, this.coupled, this.plantShare,
-                        Optional.ofNullable(this.trail)))
+                        Optional.ofNullable(this.trail), this.shared))
                     : Optional.empty()
             );
         }
 
         /**
-         * Whether any gait said anything about how a cycle is spent.
+         * Whether any gait stated a relationship between the copies of the shapes it stamped.
          */
         private boolean cycled() {
             return !this.phases.isEmpty() || !this.gains.isEmpty() || this.opposed.isPresent()
-                || this.coupled.isPresent() || this.plantShare.isPresent() || this.trail != null;
+                || this.coupled.isPresent() || this.plantShare.isPresent() || this.trail != null
+                || this.shared;
         }
 
         /**
@@ -685,6 +691,21 @@ public record PoseScript(
          */
         @NotNull Capture coupled(double cycles) {
             this.coupled = OptionalDouble.of(cycles);
+            return this;
+        }
+
+        /**
+         * Captures that a walking cycle asked the far side of every pair to read the near one's
+         * stance with every sign as written.
+         *
+         * <p>The signs a stance carries are stamped at capture, so this records only that the verb
+         * was written - what it asks for is a fact about the two sides, which is the axis a mesh
+         * carrying rows one bone paints whole cannot answer.
+         *
+         * @return this capture
+         */
+        @NotNull Capture shared() {
+            this.shared = true;
             return this;
         }
 

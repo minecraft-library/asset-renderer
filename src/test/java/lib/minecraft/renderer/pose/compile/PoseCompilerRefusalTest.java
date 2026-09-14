@@ -510,23 +510,52 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
-    @DisplayName("an opposed side on a mesh whose rows carry no side addresses nothing, on any subject")
-    void opposeOnAnUnsidedRowIsInert() {
-        PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.legged("pace")
+    @DisplayName("an opposed side on a mesh whose rows carry no side refuses, naming the bones")
+    void opposeOnAnUnsidedRowRefuses() {
+        BuiltStyle pace = Poses.legged("pace")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                .oppose(0.5))
+            .build();
+
+        for (EntityModelData mesh : List.of(fused(), fusedRows())) {
+            IllegalArgumentException refusal = refusalOf(pace, mesh, EntityPose.NONE);
+            assertTrue(refusal.getMessage().contains("carry no side"), refusal::getMessage);
+            assertTrue(refusal.getMessage().contains("an opposed far side"), refusal::getMessage);
+        }
+    }
+
+    @Test
+    @DisplayName("a shared far side refuses there too - there is no far side to share it with")
+    void shareOnAnUnsidedRowRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("glide")
+            .gait(gait -> gait.share().step(leg -> leg.rollBy(8)))
+            .build(), fused(), EntityPose.NONE);
+
+        assertTrue(refusal.getMessage().contains("a shared far side"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("feet"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a side-keyed verb is what refuses, not a fused row itself")
+    void afusedRowTakesAGaitThatSaysNothingAboutSides() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.legged("hover")
                 .gait(gait -> gait
                     .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
-                    .oppose(0.5))
+                    .plant(0.25))
                 .build(),
             row(fused(), EntityPose.NONE));
 
         assertEquals(List.of("0.0 " + (float) Math.toRadians(-20),
-                "0.2 " + (float) Math.toRadians(20),
+                "0.1 " + (float) Math.toRadians(-20),
+                "0.25 " + (float) Math.toRadians(20),
                 "0.4 " + (float) Math.toRadians(-20)),
             compiled.pose().clips().getLast().clip().channels().getFirst().keyframes().stream()
                 .map(frame -> frame.timeSeconds() + " " + frame.x())
                 .toList(),
-            "one bone paints both legs of the row, so there is no far half to start behind the "
-                + "near one and the row takes one copy of the shape");
+            "one bone paints both legs of the row and takes one copy of the shape, which is "
+                + "the whole point of the row - so a cycle saying nothing about the two sides "
+                + "walks it exactly as written");
     }
 
     @Test

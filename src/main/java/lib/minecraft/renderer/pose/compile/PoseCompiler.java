@@ -544,6 +544,12 @@ public final class PoseCompiler {
                         this.style.styleId(), this.roster.rows().size(), this.roster.rows().size());
                 this.refuseUnsided("a trot", "pairs each leg with the one across the body from it");
             }
+            if (cycle.opposed().isPresent())
+                this.refuseUnsided("an opposed far side",
+                    "starts the far side of every pair behind the near one");
+            if (cycle.shared())
+                this.refuseUnsided("a shared far side",
+                    "reads the far side of every pair with every sign as written");
             if (cycle.trail().isPresent() && this.roster.rows().stream()
                 .flatMap(row -> row.members().stream())
                 .noneMatch(member -> member.depth() > 0))

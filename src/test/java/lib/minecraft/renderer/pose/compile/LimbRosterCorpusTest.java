@@ -270,6 +270,27 @@ class LimbRosterCorpusTest {
     }
 
     @Test
+    @DisplayName("exactly three geometries carry a row with no side, and they are named")
+    void theUnsidedGeometriesAreNamed() {
+        List<String> unsided = new ArrayList<>();
+        rosters().forEach((coordinate, roster) -> {
+            if (roster.rows().isEmpty()) return;
+            boolean anyUnsided = roster.rows().stream().anyMatch(row -> row.members().stream()
+                .filter(member -> member.depth() == 0)
+                .noneMatch(member -> member.side().isPresent()));
+            if (anyUnsided) unsided.add(coordinate);
+        });
+
+        assertEquals(List.of(
+                "AdultBeeModel#createBodyLayer",
+                "BabyBeeModel#createBodyLayer",
+                "BatModel#createBodyLayer"),
+            unsided,
+            "what a verb keyed on the two sides of a row costs, stated as the meshes rather "
+                + "than as a number - every other legged geometry answers such a verb");
+    }
+
+    @Test
     @DisplayName("a rank's own bones are placed in the row that rank addresses")
     void aRanksBonesArePlacedInItsRow() {
         for (Rank rank : Rank.values())
