@@ -148,6 +148,26 @@ public final class CompilerFixtures {
     }
 
     /**
+     * A mesh whose front row is a sided pair and whose hind row is one midline bone.
+     *
+     * <p>No shipped mesh mixes the two, which is what makes this the fixture separating a rule
+     * stated over EVERY row from one stated over the mesh: the two readings agree on all 155
+     * geometries and part company here.
+     *
+     * @return a fresh mesh
+     */
+    public static @NotNull EntityModelData halfFused() {
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("right_front_leg", bone(-3f, 14f, -5f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("left_front_leg", bone(3f, 14f, -5f, 0f, 0f, 0f, 1f, null));
+        EntityModelData.Bone back = bone(0f, 20f, 7f, 0f, 0f, 0f, 1f, null);
+        back.getCubes().add(cube(-3f, 0f, -1f, 6f, 1f, 2f));
+        mesh.getBones().put("back_legs", back);
+        return mesh;
+    }
+
+    /**
      * One unrotated cube at a bone-local corner and extent, with no UV overrides and no mirror.
      */
     public static @NotNull EntityModelData.Cube cube(

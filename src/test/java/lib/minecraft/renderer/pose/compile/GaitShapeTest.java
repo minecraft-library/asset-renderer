@@ -147,6 +147,28 @@ class GaitShapeTest {
     }
 
     @Test
+    @DisplayName("a diagonal and a trailing chain compose, each keying on what it keys on")
+    void aTrotAndATrailCompose() {
+        BuiltStyle style = trailed(gait -> gait.trot(0.5).trail(0.5, 0.5));
+        float root = (float) Math.toRadians(32);
+        float link = (float) Math.toRadians(16);
+
+        assertEquals(List.of("0.0 " + -root, "0.4 " + root, "0.8 " + -root),
+            chainedPitchesOf(style, "right_front_leg"),
+            "the leading root takes neither term");
+        assertEquals(List.of("0.0 " + link, "0.4 " + -link, "0.8 " + link),
+            chainedPitchesOf(style, "right_front_leg_tip"),
+            "the bone below it takes the chain's lag alone, because its root leads");
+        assertEquals(List.of("0.0 " + root, "0.4 " + -root, "0.8 " + root),
+            chainedPitchesOf(style, "left_front_leg"),
+            "the following root takes the diagonal's share alone, because it is a root");
+        assertEquals(List.of("0.0 " + -link, "0.4 " + link, "0.8 " + -link),
+            chainedPitchesOf(style, "left_front_leg_tip"),
+            "and the bone below THAT takes both, which here sum to a whole cycle and wrap back "
+                + "to the start - the two verbs compose rather than one winning");
+    }
+
+    @Test
     @DisplayName("a row's multiple and a chain's fade compose on a bone that takes both")
     void aGainAndAFadeCompose() {
         BuiltStyle style = Poses.legged("glide")

@@ -8,6 +8,7 @@ import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.Ease;
+import lib.minecraft.renderer.pose.author.Gait;
 import lib.minecraft.renderer.pose.author.Poses;
 import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.boneWrite;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.chained;
@@ -27,11 +29,13 @@ import static lib.minecraft.renderer.pose.compile.CompilerFixtures.crawler;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.flattened;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.fused;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.fusedRows;
+import static lib.minecraft.renderer.pose.compile.CompilerFixtures.halfFused;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.input;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.row;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.walker;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -686,6 +690,47 @@ class PoseCompilerRefusalTest {
 
         assertTrue(refusal.getMessage().contains("a trailing chain"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("carries no offset of its own"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("one row with no side is enough to refuse a verb speaking for every row")
+    void oneUnsidedRowAmongSidedOnesRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("pace")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                .oppose(0.5))
+            .build(), halfFused(), EntityPose.NONE);
+
+        assertTrue(refusal.getMessage().contains("back_legs"), refusal.getMessage());
+        assertFalse(refusal.getMessage().contains("right_front_leg"),
+            () -> "the sided row answers the verb and is not what refuses it: "
+                + refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a gait number that is not a number refuses before it can key a frame at no time")
+    void anUnrealGaitNumberRefuses() {
+        List<UnaryOperator<Gait>> unreal = List.of(
+            gait -> gait.phase(Rank.FRONT, Double.NaN),
+            gait -> gait.gain(Rank.HIND, Double.POSITIVE_INFINITY),
+            gait -> gait.oppose(Double.NaN),
+            gait -> gait.trot(Double.NEGATIVE_INFINITY),
+            gait -> gait.plant(Double.NaN),
+            gait -> gait.trail(Double.NaN, 0.5),
+            gait -> gait.trail(0.5, Double.POSITIVE_INFINITY));
+
+        for (UnaryOperator<Gait> written : unreal) {
+            BuiltStyle style = Poses.legged("garbled")
+                .gait(gait -> written.apply(gait.step(leg -> leg.timeline(track -> track
+                    .swing(Turn.PITCH, -20, 20).over(0.4)))))
+                .build();
+            IllegalArgumentException refusal = refusalOf(style, walker(), EntityPose.NONE);
+            assertTrue(refusal.getMessage().contains("is a real one")
+                    || refusal.getMessage().contains("at least none of it"),
+                () -> "a value outside the reals passes the whole-cycle test, the wrap and the "
+                    + "clip's own duplicate-frame test, because it is equal to nothing including "
+                    + "itself: " + refusal.getMessage());
+        }
     }
 
     @Test

@@ -495,6 +495,17 @@ public final class PoseCompiler {
         private void validateCycle() {
             if (this.script.cycle().isEmpty()) return;
             PoseScript.Cycle cycle = this.script.cycle().get();
+            cycle.phases().forEach((rank, cycles) ->
+                this.refuseUnreal("a phase at rank '" + rank + "'", cycles));
+            cycle.gains().forEach((rank, factor) ->
+                this.refuseUnreal("a gain at rank '" + rank + "'", factor));
+            cycle.opposed().ifPresent(cycles -> this.refuseUnreal("an opposed far side", cycles));
+            cycle.coupled().ifPresent(cycles -> this.refuseUnreal("a trot", cycles));
+            cycle.plantShare().ifPresent(share -> this.refuseUnreal("a plant", share));
+            cycle.trail().ifPresent(trail -> {
+                this.refuseUnreal("a trailing chain's lag", trail.cycles());
+                this.refuseUnreal("a trailing chain's fade", trail.fade());
+            });
             if (cycle.coupled().isPresent() && cycle.opposed().isPresent())
                 this.refuse("Style '%s' gaits both a trot and an opposed side - a trot already states what the two sides of a row do, so the two together state a cycle that is neither a diagonal nor a pace",
                     this.style.styleId());
@@ -614,6 +625,24 @@ public final class PoseCompiler {
             if (fused.isEmpty()) return;
             this.refuse("Style '%s' gaits %s, which %s, on a mesh whose leg row(s) [%s] carry no side - one bone paints both legs of the row, so there is no second leg for the term to land on",
                 this.style.styleId(), reading, does, String.join(", ", fused));
+        }
+
+        /**
+         * Refuses a gait number that is not a number.
+         *
+         * <p>Every other rule about these values asks what they MEAN, and a value outside the reals
+         * has no meaning to ask about: it passes the whole-cycle test, because it is not equal to
+         * zero; it passes the wrap, because it is neither below zero nor equal to it; and it passes
+         * the clip's own duplicate-frame test, because it is not equal to itself either. What it
+         * reaches is a keyframe at no time carrying no value, which nothing downstream can see.
+         *
+         * @param reading how the refusal names the number, in the author's own terms
+         * @param value the number as the author wrote it
+         */
+        private void refuseUnreal(@NotNull String reading, double value) {
+            if (Double.isFinite(value)) return;
+            this.refuse("Style '%s' states %s as '%s' - every number a cycle carries is a real one",
+                this.style.styleId(), reading, value);
         }
 
         /**
