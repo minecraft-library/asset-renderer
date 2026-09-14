@@ -21,8 +21,10 @@ import java.util.Optional;
 
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.boneWrite;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.constant;
+import static lib.minecraft.renderer.pose.compile.CompilerFixtures.crawler;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.flattened;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.fused;
+import static lib.minecraft.renderer.pose.compile.CompilerFixtures.fusedRows;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.input;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.row;
@@ -522,6 +524,67 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
+    @DisplayName("a trot on anything but two rows refuses - a diagonal has no reading there")
+    void aTrotOffTwoRowsRefuses() {
+        BuiltStyle canter = trotted();
+
+        IllegalArgumentException onOneRow = refusalOf(canter, humanoid(), EntityPose.NONE);
+        assertTrue(onOneRow.getMessage().contains("no unique reading of"), onOneRow.getMessage());
+        assertTrue(onOneRow.getMessage().contains("'1' leg row(s)"), onOneRow.getMessage());
+
+        IllegalArgumentException onFourRows = refusalOf(canter, crawler(), EntityPose.NONE);
+        assertTrue(onFourRows.getMessage().contains("'4' leg row(s)"), onFourRows.getMessage());
+    }
+
+    @Test
+    @DisplayName("a trot on two rows one bone paints whole refuses, naming the bones")
+    void aTrotOnUnsidedRowsRefuses() {
+        IllegalArgumentException refusal = refusalOf(trotted(), fusedRows(), EntityPose.NONE);
+
+        assertTrue(refusal.getMessage().contains("carry no side"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("front_legs"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("back_legs"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a trot on a subject with no legs at all keeps the drop a tolerant install allows")
+    void aTrotOnALeglessMeshDoesNotRefuse() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(trotted(),
+            row(new EntityModelData(), EntityPose.NONE));
+
+        assertEquals(1, compiled.pose().clips().size(),
+            "no legs is a subject this cycle is not for rather than the wrong legs, which is "
+                + "the drop the strict and tolerant install paths already fork on");
+    }
+
+    @Test
+    @DisplayName("a trot beside an opposed side refuses whatever the two numbers are")
+    void aTrotBesideAnOpposedSideRefuses() {
+        for (double opposed : List.of(0.3, 0.5))
+            assertTrue(refusalOf(Poses.legged("muddle")
+                    .gait(gait -> gait
+                        .step(leg -> leg.timeline(track -> track
+                            .swing(Turn.PITCH, -20, 20).over(0.4)))
+                        .trot(0.5)
+                        .oppose(opposed))
+                    .build(), walker(), EntityPose.NONE)
+                    .getMessage().contains("neither a diagonal nor a pace"),
+                "the two write one number, so the pair refuses on agreeing values as on "
+                    + "disagreeing ones");
+    }
+
+    @Test
+    @DisplayName("a trot over a swayed shape refuses, naming the trot")
+    void aTrotOverASwayRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("canter")
+            .gait(gait -> gait.step(leg -> leg.sway(Turn.PITCH, -20, 20)).trot(0.5))
+            .build(), walker(), EntityPose.NONE);
+
+        assertTrue(refusal.getMessage().contains("a trot"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("carries no offset of its own"), refusal.getMessage());
+    }
+
+    @Test
     @DisplayName("a shape stated over every row beside one stated for a row refuses")
     void anUnkeyedShapeBesideAKeyedOneRefuses() {
         IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
@@ -533,6 +596,17 @@ class PoseCompilerRefusalTest {
     }
 
     // ------------------------------------------------------------------------------------
+
+    /**
+     * One cycle running every leg with the one across the body from it, half a cycle apart.
+     */
+    private static @NotNull BuiltStyle trotted() {
+        return Poses.legged("canter")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                .trot(0.5))
+            .build();
+    }
 
     /**
      * Compiles against a fresh humanoid row and hands back the refusal.

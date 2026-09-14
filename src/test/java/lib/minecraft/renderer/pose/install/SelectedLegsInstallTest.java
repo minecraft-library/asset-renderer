@@ -315,6 +315,41 @@ class SelectedLegsInstallTest {
     }
 
     @Test
+    @DisplayName("a trot runs a walker's diagonals and refuses every other leg count")
+    void aTrotServesTwoRowsAndSaysSoElsewhere() {
+        BuiltStyle canter = Poses.legged("canter")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.8)))
+                .trot(0.5))
+            .build();
+
+        List<String> leading = List.of("0.0 -0.34906584", "0.4 0.34906584", "0.8 -0.34906584");
+        List<String> following = List.of("0.0 0.34906584", "0.4 -0.34906584", "0.8 0.34906584");
+        assertEquals(leading, framesOf(canter, "minecraft:wolf", "right_front_leg"),
+            "the near front leg leads");
+        assertEquals(leading, framesOf(canter, "minecraft:wolf", "left_hind_leg"),
+            "with the leg across the body from it");
+        assertEquals(following, framesOf(canter, "minecraft:wolf", "left_front_leg"),
+            "and the other diagonal follows");
+        assertEquals(following, framesOf(canter, "minecraft:wolf", "right_hind_leg"),
+            "both of it");
+
+        for (String entityId : List.of("minecraft:zombie", "minecraft:spider", "minecraft:bee")) {
+            IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+                () -> StyleRegistrar.ofShipped().addTolerant(entityId, canter),
+                () -> "a diagonal has no reading on " + entityId);
+            assertTrue(refusal.getMessage().contains("no unique reading of"),
+                refusal::getMessage);
+        }
+
+        assertEquals(List.of(), tolerantly(canter, "minecraft:squid")
+                .styles().byId("canter").orElseThrow().drivers().keySet().stream()
+                .filter(field -> field.contains("leg")).sorted().toList(),
+            "and a subject with no legs at all keeps the drop, because it has none rather than "
+                + "the wrong number of them");
+    }
+
+    @Test
     @DisplayName("a leg timeline coins the same clip whether or not the subject answers a leg")
     void anUnansweredSelectorStillCoinsTheClip() {
         BuiltStyle wag = wag();

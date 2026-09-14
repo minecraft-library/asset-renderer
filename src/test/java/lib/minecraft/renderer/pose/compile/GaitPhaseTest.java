@@ -19,6 +19,7 @@ import static lib.minecraft.renderer.pose.compile.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.row;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.walker;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -225,6 +226,71 @@ class GaitPhaseTest {
         assertEquals(framesOf(style, walker(), "right_front_leg"),
             framesOf(style, walker(), "right_hind_leg"),
             "while both near legs run as their shapes were written");
+    }
+
+    @Test
+    @DisplayName("a trot runs each leg with the one across the body from it")
+    void aTrotPairsTheDiagonals() {
+        BuiltStyle style = walked(gait -> gait.trot(0.5));
+        List<String> leading = List.of("0.0 " + -SWEPT, "0.25 " + SWEPT, "0.5 " + -SWEPT);
+        List<String> following = List.of("0.0 " + SWEPT, "0.25 " + -SWEPT, "0.5 " + SWEPT);
+
+        assertEquals(leading, framesOf(style, walker(), "right_front_leg"),
+            "the near front leg takes the shape as written, so the bound order is the lead");
+        assertEquals(leading, framesOf(style, walker(), "left_hind_leg"),
+            "and the far hind leg travels with it, which is the diagonal");
+        assertEquals(following, framesOf(style, walker(), "left_front_leg"),
+            "the other pair follows a share of the cycle behind");
+        assertEquals(following, framesOf(style, walker(), "right_hind_leg"),
+            "both of it, together");
+    }
+
+    @Test
+    @DisplayName("a trot pairs the diagonals at any share, not only at a half")
+    void aTrotHoldsAwayFromAHalf() {
+        BuiltStyle style = walked(gait -> gait.trot(0.2));
+
+        assertEquals(List.of("0.0 " + -SWEPT, "0.25 " + SWEPT, "0.5 " + -SWEPT),
+            framesOf(style, walker(), "left_hind_leg"),
+            "the far hind leg leads, carrying no offset at all - a couplet that summed a side "
+                + "term and a row term would put it at twice the share instead, which is the "
+                + "cycle only at a half");
+        assertEquals(framesOf(style, walker(), "left_front_leg"),
+            framesOf(style, walker(), "right_hind_leg"),
+            "and the following pair carries the share once between them");
+        assertNotEquals(framesOf(style, walker(), "right_front_leg"),
+            framesOf(style, walker(), "left_front_leg"),
+            "with the two pairs genuinely apart");
+    }
+
+    @Test
+    @DisplayName("a row's offset nudges a trot rather than replacing it")
+    void aPhaseNudgesATrot() {
+        BuiltStyle style = walked(gait -> gait.trot(0.5).phase(Rank.HIND, 0.25));
+
+        assertEquals(List.of("0.0 " + -SWEPT, "0.25 " + SWEPT, "0.5 " + -SWEPT),
+            framesOf(style, walker(), "right_front_leg"),
+            "the front row's near leg is reached by neither term");
+        assertEquals(List.of("0.0 " + SWEPT, "0.25 " + -SWEPT, "0.5 " + SWEPT),
+            framesOf(style, walker(), "left_front_leg"),
+            "its far leg by the couplet alone");
+        assertEquals(List.of("0.0 0.0", "0.125 " + -SWEPT, "0.375 " + SWEPT, "0.5 0.0"),
+            framesOf(style, walker(), "left_hind_leg"),
+            "the hind row's far leg by the row's offset alone, since the couplet leads it");
+        assertEquals(List.of("0.0 0.0", "0.125 " + SWEPT, "0.375 " + -SWEPT, "0.5 0.0"),
+            framesOf(style, walker(), "right_hind_leg"),
+            "and its near leg by both, summed - three quarters of the cycle in");
+    }
+
+    @Test
+    @DisplayName("a whole cycle of trot is no offset, so both pairs run together")
+    void aWholeCycleOfTrotIsNoOffset() {
+        BuiltStyle style = walked(gait -> gait.trot(1.0));
+
+        assertEquals(framesOf(style, walker(), "right_front_leg"),
+            framesOf(style, walker(), "left_front_leg"),
+            "the wrap takes a whole number of cycles to zero, on the couplet as on every other "
+                + "term that states one");
     }
 
     @Test

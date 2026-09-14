@@ -128,6 +128,17 @@ public final class PoseCompiler {
      */
     private static final int NO_ROW = -1;
 
+    /**
+     * How many rows of legs a diagonal pairing is defined on - a front row and a hind one.
+     */
+    private static final int COUPLET_ROWS = 2;
+
+    /**
+     * The side index of the leg the frontmost diagonal pair is led by, counting the two sides in
+     * the order {@link Side} declares them.
+     */
+    private static final int LEADING_SIDE = 1;
+
     private PoseCompiler() {}
 
     // ------------------------------------------------------------------------------------
@@ -367,7 +378,8 @@ public final class PoseCompiler {
 
             this.validatePeriod();
             this.validateRanks();
-            this.validateGait();
+            this.validateCycle();
+            this.validateAxes();
             this.pool.adopt(this.shipped);
             this.foldStances();
             this.seatFollowers();
@@ -479,9 +491,12 @@ public final class PoseCompiler {
          * takes it to zero, and the same chain written as a zero would be lowered rather than
          * read.
          */
-        private void validateGait() {
+        private void validateCycle() {
             if (this.script.cycle().isEmpty()) return;
             PoseScript.Cycle cycle = this.script.cycle().get();
+            if (cycle.coupled().isPresent() && cycle.opposed().isPresent())
+                this.refuse("Style '%s' gaits both a trot and an opposed side - a trot already states what the two sides of a row do, so the two together state a cycle that is neither a diagonal nor a pace",
+                    this.style.styleId());
             if (cycle.plantShare().isPresent()) {
                 double share = cycle.plantShare().getAsDouble();
                 if (!(share >= 0d && share < 1d))
@@ -497,6 +512,56 @@ public final class PoseCompiler {
             if (cycle.opposed().isPresent() && !whole(cycle.opposed().getAsDouble()))
                 for (PoseScript.Stance stance : this.script.stances())
                     if (reachesFarSide(stance)) this.checkOffset("an opposed far side", stance);
+            if (cycle.coupled().isPresent() && !whole(cycle.coupled().getAsDouble()))
+                for (PoseScript.Stance stance : this.script.stances())
+                    if (legsOf(stance).isPresent()) this.checkOffset("a trot", stance);
+        }
+
+        /**
+         * Refuses a gait verb whose axis this mesh's legs cannot answer.
+         *
+         * <p>This is the one gait rule that reads the mesh, and it reads it once - before a member
+         * is stamped, so the message is a function of the roster and the chain rather than of what
+         * the fold happened to reach first. A verb keyed on an axis the legs do not carry states a
+         * relationship that lands on nothing, which renders as some other animal's cycle with
+         * nothing red, so it refuses however the install was asked for.
+         *
+         * <p>A mesh naming no leg at all is passed over. That subject has no legs rather than the
+         * wrong ones, which is the drop a tolerant install exists for, and the selector's own empty
+         * resolution already reports it.
+         */
+        private void validateAxes() {
+            if (this.script.cycle().isEmpty() || this.roster.rows().isEmpty()) return;
+            PoseScript.Cycle cycle = this.script.cycle().get();
+            if (cycle.coupled().isEmpty()) return;
+
+            if (this.roster.rows().size() != COUPLET_ROWS)
+                this.refuse("Style '%s' gaits a trot on a mesh carrying '%d' leg row(s) - a diagonal pairs a front leg with the opposite hind one, which '%d' row(s) have no unique reading of",
+                    this.style.styleId(), this.roster.rows().size(), this.roster.rows().size());
+            this.refuseUnsided("a trot", "pairs each leg with the one across the body from it");
+        }
+
+        /**
+         * Refuses a side-keyed verb on a mesh carrying a row one bone paints whole.
+         *
+         * <p>Stated over every row rather than over none, because that is the verb's own sentence:
+         * it speaks for each row the mesh carries, and a mesh mixing a fused row with a sided one
+         * would otherwise take the alternation on half its legs and nothing on the other half.
+         *
+         * @param reading how the refusal names the verb, in the author's own terms
+         * @param does what the verb states about the two sides, as a third-person clause
+         */
+        private void refuseUnsided(@NotNull String reading, @NotNull String does) {
+            List<String> fused = new ArrayList<>();
+            for (LimbRoster.Row row : this.roster.rows())
+                if (row.members().stream().noneMatch(member ->
+                    member.depth() == 0 && member.side().isPresent()))
+                    row.members().stream()
+                        .filter(member -> member.depth() == 0)
+                        .forEach(member -> fused.add(member.bone()));
+            if (fused.isEmpty()) return;
+            this.refuse("Style '%s' gaits %s, which %s, on a mesh whose leg row(s) [%s] carry no side - one bone paints both legs of the row, so there is no second leg for the term to land on",
+                this.style.styleId(), reading, does, String.join(", ", fused));
         }
 
         /**
@@ -722,7 +787,9 @@ public final class PoseCompiler {
             if (!(selector instanceof LimbSelector.Legs legs)) return 0d;
             PoseScript.Cycle cycle = this.script.cycle().get();
             Optional<LimbRoster.Placement> placed = this.roster.placementOf(bone);
-            return this.rankShift(cycle, legs, placed) + sideShift(cycle, placed);
+            return this.rankShift(cycle, legs, placed)
+                + sideShift(cycle, placed)
+                + coupletShift(cycle, placed);
         }
 
         /**
@@ -751,6 +818,27 @@ public final class PoseCompiler {
             return placed.flatMap(at -> at.member().side()).filter(Side.LEFT::equals).isPresent()
                 ? cycle.opposed().getAsDouble()
                 : 0d;
+        }
+
+        /**
+         * The offset one leg takes from the diagonal pair it belongs to - none on the leading
+         * pair, and the whole of what the trot states on the other.
+         *
+         * <p>Which pair a leg is in is its row and its side read together, counting the row from
+         * the front and the two sides in the order a body meets them. The frontmost right leg is
+         * always in the leading pair, so which pair leads travels in the shape's own bound order
+         * rather than in an argument nothing about a mesh predicts.
+         *
+         * <p>A leg carrying no side is in neither pair, which is a mesh {@link #validateAxes} has
+         * already refused a trot on - the term reads its answer rather than guessing one.
+         */
+        private static double coupletShift(@NotNull PoseScript.Cycle cycle,
+                                           @NotNull Optional<LimbRoster.Placement> placed) {
+            if (cycle.coupled().isEmpty() || placed.isEmpty()) return 0d;
+            Optional<Side> side = placed.get().member().side();
+            if (side.isEmpty()) return 0d;
+            int pair = (placed.get().row() + LEADING_SIDE - side.get().ordinal()) % COUPLET_ROWS;
+            return pair == 0 ? 0d : cycle.coupled().getAsDouble();
         }
 
         /**

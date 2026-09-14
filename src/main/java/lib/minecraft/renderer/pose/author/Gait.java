@@ -34,6 +34,7 @@ public final class Gait {
     private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
     private @NotNull OptionalDouble lengthSeconds = OptionalDouble.empty();
     private @NotNull OptionalDouble opposed = OptionalDouble.empty();
+    private @NotNull OptionalDouble coupled = OptionalDouble.empty();
     private @NotNull OptionalDouble plantShare = OptionalDouble.empty();
     private @NotNull Mirror mirror = Mirror.SIGNED;
 
@@ -91,6 +92,32 @@ public final class Gait {
      */
     public @NotNull Gait phase(@NotNull Rank rank, double cycles) {
         this.phases.put(rank, cycles);
+        return this;
+    }
+
+    /**
+     * Runs each leg with the one across the body from it, the two pairs a share of the cycle apart.
+     *
+     * <p>A trot is diagonal pairs where a pace is lateral ones, so the word names which of the two
+     * it produces. The front leg on one side travels with the hind leg on the other, and the
+     * remaining pair follows them - the grouping vanilla uses on more four-legged subjects than
+     * every other grouping put together.
+     *
+     * <p>The share is stated rather than fixed at a half, because a mesh whose two pairs are not
+     * exactly opposite is a real mesh and a verb fixing the half would miss every frame of its far
+     * pair. Which pair leads is the shape's own bound order rather than an argument: a shape
+     * written from its negative bound leads, and one written from its positive bound follows.
+     *
+     * <p>A diagonal needs two rows and two sides to be a diagonal at all, so a mesh carrying any
+     * other number of rows, or rows one bone paints whole, refuses rather than running some other
+     * animal's cycle. It states the same thing {@link #oppose} states about the two sides of a row,
+     * so writing both refuses too.
+     *
+     * @param cycles the share of one cycle the following pair starts behind the leading one
+     * @return this gait
+     */
+    public @NotNull Gait trot(double cycles) {
+        this.coupled = OptionalDouble.of(cycles);
         return this;
     }
 
@@ -162,6 +189,7 @@ public final class Gait {
         this.lengthSeconds.ifPresent(capture::period);
         if (!this.phases.isEmpty()) capture.cycle(this.phases);
         this.opposed.ifPresent(capture::opposed);
+        this.coupled.ifPresent(capture::coupled);
         this.plantShare.ifPresent(capture::plant);
         for (Shape shape : this.shapes)
             capture.selectedPair(

@@ -62,11 +62,13 @@ public record PoseScript(
      * @param phases each row's own offset into the cycle, in cycles, in rank order
      * @param opposed the offset the far side of every pair starts behind the near one, in cycles;
      *     empty where the two sides run together
+     * @param coupled the offset the following diagonal pair starts behind the leading one, in
+     *     cycles; empty where the legs do not run as diagonal pairs
      * @param plantShare the share of one cycle a shape stays at its resting bound before it
      *     travels; empty where every shape is the triangle it was written as
      */
     public record Cycle(@NotNull Map<Rank, Double> phases, @NotNull OptionalDouble opposed,
-                        @NotNull OptionalDouble plantShare) {}
+                        @NotNull OptionalDouble coupled, @NotNull OptionalDouble plantShare) {}
 
     /**
      * Which model-space direction a limb's rest posture points along, for aim solves.
@@ -341,6 +343,7 @@ public record PoseScript(
         private @NotNull OptionalDouble periodSeconds = OptionalDouble.empty();
         private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
         private @NotNull OptionalDouble opposed = OptionalDouble.empty();
+        private @NotNull OptionalDouble coupled = OptionalDouble.empty();
         private @NotNull OptionalDouble plantShare = OptionalDouble.empty();
 
         /**
@@ -594,7 +597,7 @@ public record PoseScript(
                 this.cycled()
                     ? Optional.of(new Cycle(
                         Collections.unmodifiableMap(new EnumMap<>(this.phases)),
-                        this.opposed, this.plantShare))
+                        this.opposed, this.coupled, this.plantShare))
                     : Optional.empty()
             );
         }
@@ -604,7 +607,7 @@ public record PoseScript(
          */
         private boolean cycled() {
             return !this.phases.isEmpty() || this.opposed.isPresent()
-                || this.plantShare.isPresent();
+                || this.coupled.isPresent() || this.plantShare.isPresent();
         }
 
         /**
@@ -635,6 +638,20 @@ public record PoseScript(
          */
         @NotNull Capture opposed(double cycles) {
             this.opposed = OptionalDouble.of(cycles);
+            return this;
+        }
+
+        /**
+         * Captures how far behind the leading diagonal pair a walking cycle starts the other one.
+         *
+         * <p>A later cycle stating one replaces an earlier one's, and a later cycle stating none
+         * leaves the earlier one's standing, as an opposed side does.
+         *
+         * @param cycles the share of one cycle the following pair starts behind the leading one
+         * @return this capture
+         */
+        @NotNull Capture coupled(double cycles) {
+            this.coupled = OptionalDouble.of(cycles);
             return this;
         }
 

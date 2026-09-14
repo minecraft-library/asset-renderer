@@ -66,6 +66,25 @@ public final class CompilerFixtures {
     }
 
     /**
+     * An eight-legged crawler in four sided rows, evenly spread front to back.
+     *
+     * @return a fresh mesh
+     */
+    public static @NotNull EntityModelData crawler() {
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+        String[] rows = {"front", "second", "third", "hind"};
+        float[] depths = {-6f, -2f, 2f, 6f};
+        for (int row = 0; row < rows.length; row++) {
+            mesh.getBones().put("right_" + rows[row] + "_leg",
+                bone(-4f, 15f, depths[row], 0f, 0f, 0f, 1f, null));
+            mesh.getBones().put("left_" + rows[row] + "_leg",
+                bone(4f, 15f, depths[row], 0f, 0f, 0f, 1f, null));
+        }
+        return mesh;
+    }
+
+    /**
      * A mesh whose whole leg roster is one midline bone painting both legs of its row - the shape
      * a bat carries, which the roster reads as a fused row carrying no side at all.
      *
@@ -77,6 +96,28 @@ public final class CompilerFixtures {
         EntityModelData.Bone feet = bone(0f, 20f, 0f, 0f, 0f, 0f, 1f, null);
         feet.getCubes().add(cube(-3f, 0f, -1f, 6f, 1f, 2f));
         mesh.getBones().put("feet", feet);
+        return mesh;
+    }
+
+    /**
+     * A mesh carrying TWO rows of legs, each one midline bone painting both legs of its row.
+     *
+     * <p>No shipped mesh is shaped this way - the corpus fuses one row or three, never two - so
+     * this is what separates a rule stated over every row from one stated over the row count. A
+     * mesh answering two rows and no side at all passes a row-count reading and has no second leg
+     * for a side term to land on.
+     *
+     * @return a fresh mesh
+     */
+    public static @NotNull EntityModelData fusedRows() {
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+        EntityModelData.Bone front = bone(0f, 20f, -5f, 0f, 0f, 0f, 1f, null);
+        front.getCubes().add(cube(-3f, 0f, -1f, 6f, 1f, 2f));
+        mesh.getBones().put("front_legs", front);
+        EntityModelData.Bone back = bone(0f, 20f, 7f, 0f, 0f, 0f, 1f, null);
+        back.getCubes().add(cube(-3f, 0f, -1f, 6f, 1f, 2f));
+        mesh.getBones().put("back_legs", back);
         return mesh;
     }
 
