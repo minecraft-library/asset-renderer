@@ -103,6 +103,14 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
                          @NotNull Kind kind) {}
 
     /**
+     * Where one bone sits among the legs - the row holding it, and what it is to that row.
+     *
+     * @param row where the row sits front to back, the frontmost at zero
+     * @param member the leg itself, carrying its side, its depth below its root and its kind
+     */
+    public record Placement(int row, @NotNull Member member) {}
+
+    /**
      * Resolves the legs a mesh declares.
      *
      * @param mesh the body mesh to read
@@ -223,6 +231,25 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows, @NotNull ConcurrentL
         if (member.side().isPresent())
             return legs.side().isEmpty() || legs.side().equals(member.side());
         return legs.side().isEmpty() || legs.stamp() == LimbSelector.Stamp.NEAR;
+    }
+
+    /**
+     * Where one bone sits among the legs, or empty where no row holds it.
+     *
+     * <p>This is the one reading of a leg that is the mesh's rather than the address's. A side read
+     * here is the side of the leg the bone hangs off and never the side its own name claims - two
+     * boots in the corpus are cross-parented by vanilla - and a depth read here is the chain the
+     * mesh declares rather than the reach the author asked for.
+     *
+     * @param bone the bone name, as the mesh names it
+     * @return where it sits
+     */
+    public @NotNull Optional<Placement> placementOf(@NotNull String bone) {
+        for (Row row : this.rows)
+            for (Member member : row.members())
+                if (member.bone().equals(bone))
+                    return Optional.of(new Placement(row.ordinal(), member));
+        return Optional.empty();
     }
 
     /**

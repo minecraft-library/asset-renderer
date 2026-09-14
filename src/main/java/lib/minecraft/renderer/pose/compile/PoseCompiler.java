@@ -122,6 +122,11 @@ public final class PoseCompiler {
      */
     private static final float SEAT_EPSILON = 1e-4f;
 
+    /**
+     * The row ordinal standing for a bone the leg roster holds nowhere, which no row answers to.
+     */
+    private static final int NO_ROW = -1;
+
     private PoseCompiler() {}
 
     // ------------------------------------------------------------------------------------
@@ -672,11 +677,11 @@ public final class PoseCompiler {
             Map<Rank, Double> phases = this.script.cycle().get().phases();
             if (legs.rank().isPresent()) return phases.getOrDefault(legs.rank().get(), 0d);
 
+            int row = this.roster.placementOf(bone)
+                .map(LimbRoster.Placement::row).orElse(NO_ROW);
             double shift = 0d;
             for (Map.Entry<Rank, Double> phase : phases.entrySet())
-                if (this.roster.row(phase.getKey()).stream()
-                    .flatMap(row -> row.members().stream())
-                    .anyMatch(member -> member.bone().equals(bone)))
+                if (this.roster.row(phase.getKey()).filter(held -> held.ordinal() == row).isPresent())
                     shift = phase.getValue();
             return shift;
         }

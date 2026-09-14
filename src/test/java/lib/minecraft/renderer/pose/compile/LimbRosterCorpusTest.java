@@ -3,6 +3,9 @@ package lib.minecraft.renderer.pose.compile;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
+import lib.minecraft.renderer.pose.author.LimbSelector;
+import lib.minecraft.renderer.pose.author.Rank;
+import lib.minecraft.renderer.pose.author.Reach;
 import lib.minecraft.renderer.pose.author.Side;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -244,8 +247,41 @@ class LimbRosterCorpusTest {
         LimbRoster roster = LimbRoster.of(new EntityModelData());
         assertTrue(roster.rows().isEmpty(), "no mesh, no rows");
         assertEquals(0, roster.legCount(), "no mesh, no legs");
-        assertFalse(roster.row(lib.minecraft.renderer.pose.author.Rank.FRONT).isPresent(),
+        assertFalse(roster.row(Rank.FRONT).isPresent(),
             "a rank addresses nothing where the mesh carries no row");
+    }
+
+    @Test
+    @DisplayName("every member answers where it sits, and a bone no row holds answers nowhere")
+    void everyMemberIsPlaced() {
+        rosters().forEach((coordinate, roster) -> {
+            roster.rows().forEach(row -> row.members().forEach(member ->
+                assertEquals(Optional.of(new LimbRoster.Placement(row.ordinal(), member)),
+                    roster.placementOf(member.bone()),
+                    () -> coordinate + " places '" + member.bone() + "' in the row holding it")));
+
+            Set<String> held = new LinkedHashSet<>();
+            roster.rows().forEach(row -> row.members().forEach(member -> held.add(member.bone())));
+            GEOMETRIES.get(coordinate).getBones().keySet().stream()
+                .filter(bone -> !held.contains(bone))
+                .forEach(bone -> assertEquals(Optional.empty(), roster.placementOf(bone),
+                    () -> coordinate + " holds '" + bone + "' in no row of legs"));
+        });
+    }
+
+    @Test
+    @DisplayName("a rank's own bones are placed in the row that rank addresses")
+    void aRanksBonesArePlacedInItsRow() {
+        for (Rank rank : Rank.values())
+            rosters().forEach((coordinate, roster) -> {
+                int addressed = roster.row(rank).map(LimbRoster.Row::ordinal).orElse(-1);
+                for (String bone : roster.members(new LimbSelector.Legs(
+                    Optional.of(rank), Optional.empty(), Reach.CHAIN, LimbSelector.Stamp.LONE)))
+                    assertEquals(addressed,
+                        roster.placementOf(bone).map(LimbRoster.Placement::row).orElse(-1),
+                        () -> coordinate + " answers '" + bone + "' for " + rank
+                            + " out of the row that rank addresses");
+            });
     }
 
     /**
