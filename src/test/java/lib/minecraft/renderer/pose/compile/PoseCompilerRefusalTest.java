@@ -16,11 +16,13 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.boneWrite;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.constant;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.flattened;
+import static lib.minecraft.renderer.pose.compile.CompilerFixtures.fused;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.input;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.row;
@@ -418,6 +420,77 @@ class PoseCompilerRefusalTest {
                 .phase(Rank.FRONT, 0.25))
             .build());
         assertTrue(refusal.getMessage().contains("holds rather than loops"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("an opposed side over a swayed shape refuses, naming the side rather than a row")
+    void opposeOverASwayRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("pace")
+            .gait(gait -> gait
+                .step(leg -> leg.sway(Turn.PITCH, -20, 20))
+                .oppose(0.5))
+            .build());
+        assertTrue(refusal.getMessage().contains("an opposed far side"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("carries no offset of its own"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("an opposed side over a track that does not close refuses, as a phase does")
+    void opposeOverAnOpenTrackRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("pace")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track
+                    .keyframe(0, -30, 0, 0)
+                    .keyframe(0.4, 10, 0, 0)
+                    .over(0.4)))
+                .oppose(0.25))
+            .build());
+        assertTrue(refusal.getMessage().contains("does not close"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a whole cycle of opposition is no offset, so what one refuses it does not")
+    void aWholeCycleOfOppositionIsNoOffset() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.legged("pace")
+                .gait(gait -> gait
+                    .step(leg -> leg.sway(Turn.PITCH, -20, 20))
+                    .oppose(1.0))
+                .build(),
+            row(humanoid(), EntityPose.NONE));
+        assertEquals(2, compiled.style().drivers().size(),
+            "the wrap takes it to zero, so the swayed shape keeps its driver rather than "
+                + "being asked for a timeline");
+    }
+
+    @Test
+    @DisplayName("an opposed side on a mesh whose rows carry no side addresses nothing, on any subject")
+    void opposeOnAnUnsidedRowIsInert() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.legged("pace")
+                .gait(gait -> gait
+                    .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                    .oppose(0.5))
+                .build(),
+            row(fused(), EntityPose.NONE));
+
+        assertEquals(List.of("0.0 " + (float) Math.toRadians(-20),
+                "0.2 " + (float) Math.toRadians(20),
+                "0.4 " + (float) Math.toRadians(-20)),
+            compiled.pose().clips().getLast().clip().channels().getFirst().keyframes().stream()
+                .map(frame -> frame.timeSeconds() + " " + frame.x())
+                .toList(),
+            "one bone paints both legs of the row, so there is no far half to start behind the "
+                + "near one and the row takes one copy of the shape");
+    }
+
+    @Test
+    @DisplayName("a shape stated over every row beside one stated for a row refuses")
+    void anUnkeyedShapeBesideAKeyedOneRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.sway(Turn.PITCH, -20, 20))
+                .step(Rank.FRONT, leg -> leg.sway(Turn.PITCH, -35, 35)))
+            .build());
+        assertTrue(refusal.getMessage().contains("one field holds one driver"), refusal.getMessage());
     }
 
     // ------------------------------------------------------------------------------------

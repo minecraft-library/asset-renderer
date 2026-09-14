@@ -9,6 +9,7 @@ import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -41,6 +42,53 @@ public final class CompilerFixtures {
         mesh.getBones().put("right_leg", bone(-2f, 12f, 0f, 0f, 0f, 0f, 1f, null));
         mesh.getBones().put("left_leg", bone(2f, 12f, 0f, 0f, 0f, 0f, 1f, null));
         return mesh;
+    }
+
+    /**
+     * A four-legged walker in two sided rows - the front pair well ahead of the hind, every bone
+     * top-level and every leg named for the side it sits on.
+     *
+     * <p>The rows are far enough apart to cluster as two under the roster's own relative tolerance,
+     * and the legs carry no cubes, so the geometric side cross-check reads their pivots and agrees
+     * with their names.
+     *
+     * @return a fresh mesh
+     */
+    public static @NotNull EntityModelData walker() {
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("head", bone(0f, 8f, -6f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("body", bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("right_front_leg", bone(-3f, 14f, -5f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("left_front_leg", bone(3f, 14f, -5f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("right_hind_leg", bone(-3f, 14f, 7f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("left_hind_leg", bone(3f, 14f, 7f, 0f, 0f, 0f, 1f, null));
+        return mesh;
+    }
+
+    /**
+     * A mesh whose whole leg roster is one midline bone painting both legs of its row - the shape
+     * a bat carries, which the roster reads as a fused row carrying no side at all.
+     *
+     * @return a fresh mesh
+     */
+    public static @NotNull EntityModelData fused() {
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+        EntityModelData.Bone feet = bone(0f, 20f, 0f, 0f, 0f, 0f, 1f, null);
+        feet.getCubes().add(cube(-3f, 0f, -1f, 6f, 1f, 2f));
+        mesh.getBones().put("feet", feet);
+        return mesh;
+    }
+
+    /**
+     * One unrotated cube at a bone-local corner and extent, with no UV overrides and no mirror.
+     */
+    public static @NotNull EntityModelData.Cube cube(
+        float x, float y, float z, float width, float height, float depth) {
+
+        return new EntityModelData.Cube(new Vector3f(x, y, z),
+            new Vector3f(width, height, depth), Vector2f.ZERO, Vector3f.ZERO, false,
+            Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
     }
 
     /**

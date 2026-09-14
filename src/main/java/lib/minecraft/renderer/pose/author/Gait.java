@@ -33,6 +33,7 @@ public final class Gait {
     private final @NotNull List<Shape> shapes = new ArrayList<>();
     private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
     private @NotNull OptionalDouble lengthSeconds = OptionalDouble.empty();
+    private @NotNull OptionalDouble opposed = OptionalDouble.empty();
     private @NotNull Mirror mirror = Mirror.SIGNED;
 
     Gait() {}
@@ -93,6 +94,29 @@ public final class Gait {
     }
 
     /**
+     * States how far behind the near one the far side of every pair starts.
+     *
+     * <p>Half a cycle is a pace on its own - the two sides of every row exactly opposite, which is
+     * what a two-legged stride is and what a camel walks on four legs. The mirror sign rule cannot
+     * say it, because it keeps pitch and pitch is where a leg's cycle lives, so under a signed
+     * mirror the far side travels with the near one rather than against it.
+     *
+     * <p>An offset is real time and so the clip clock's to state, which binds this verb exactly as
+     * it binds {@link #phase}: a shape written as a {@link LimbStance#sway sway} carries no offset
+     * to start late by and refuses, naming {@link LimbStance#timeline timeline} as the remedy.
+     *
+     * <p>A row one bone paints whole has no far side, so the offset lands on nothing there and the
+     * row takes one copy of the shape rather than two.
+     *
+     * @param cycles the share of one cycle the far side of each pair starts behind the near one
+     * @return this gait
+     */
+    public @NotNull Gait oppose(double cycles) {
+        this.opposed = OptionalDouble.of(cycles);
+        return this;
+    }
+
+    /**
      * Reads the far side of every pair with every sign as written.
      *
      * <p>The far side otherwise derives under the mirror sign rule - pitch kept, yaw and roll
@@ -114,6 +138,7 @@ public final class Gait {
     void captured(@NotNull PoseScript.Capture capture) {
         this.lengthSeconds.ifPresent(capture::period);
         if (!this.phases.isEmpty()) capture.cycle(this.phases);
+        this.opposed.ifPresent(capture::opposed);
         for (Shape shape : this.shapes)
             capture.selectedPair(
                 new LimbSelector.Legs(shape.rank(), Optional.of(Side.RIGHT), Reach.ROOT,

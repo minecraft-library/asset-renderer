@@ -110,6 +110,38 @@ class GaitTest {
             "every stance a gait captures asks the mesh rather than naming a bone");
     }
 
+    @Test
+    @DisplayName("a second gait keeps the first one's opposed side rather than unsaying it")
+    void aSecondGaitKeepsTheOpposedSide() {
+        PoseScript kept = Poses.legged("amble")
+            .gait(gait -> gait.oppose(0.5).step(Rank.FRONT, leg -> leg.pitchBy(10)))
+            .gait(gait -> gait.step(Rank.HIND, leg -> leg.pitchBy(20)))
+            .build()
+            .script();
+        PoseScript replaced = Poses.legged("amble")
+            .gait(gait -> gait.oppose(0.5).step(Rank.FRONT, leg -> leg.pitchBy(10)))
+            .gait(gait -> gait.oppose(0.25).step(Rank.HIND, leg -> leg.pitchBy(20)))
+            .build()
+            .script();
+
+        assertEquals(0.5, kept.cycle().orElseThrow().opposed().orElseThrow(),
+            "the offset is the style's, so a later cycle naming none leaves it standing");
+        assertEquals(0.25, replaced.cycle().orElseThrow().opposed().orElseThrow(),
+            "and a later cycle naming one takes the later number, as a period does");
+    }
+
+    @Test
+    @DisplayName("a gait that says nothing about time captures no cycle at all")
+    void aTimelessGaitCapturesNoCycle() {
+        PoseScript script = Poses.legged("hover")
+            .gait(gait -> gait.step(Rank.FRONT, leg -> leg.pitchBy(22.5)))
+            .build()
+            .script();
+
+        assertEquals(Optional.empty(), script.cycle(),
+            "three rests and no relationship between them is a gait with no clock in it");
+    }
+
     /**
      * The address each captured stance was written with, in author order.
      */

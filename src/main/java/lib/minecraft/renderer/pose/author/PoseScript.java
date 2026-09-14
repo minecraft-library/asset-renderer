@@ -55,12 +55,15 @@ public record PoseScript(
      * One captured walking cycle - what a gait said about time, kept beside the stances it wrote.
      *
      * <p>The shapes a gait stamps are ordinary stances and need nothing here. What does is the
-     * timing, because a row's offset is a fact about the row rather than about any one bone, and
-     * one shape stated over the whole roster carries a different offset per row it lands on.
+     * timing, because where a leg's copy of the shape starts is a fact about the leg rather than
+     * about any one bone, and one shape stated over the whole roster carries a different offset
+     * per leg it lands on.
      *
      * @param phases each row's own offset into the cycle, in cycles, in rank order
+     * @param opposed the offset the far side of every pair starts behind the near one, in cycles;
+     *     empty where the two sides run together
      */
-    public record Cycle(@NotNull Map<Rank, Double> phases) {}
+    public record Cycle(@NotNull Map<Rank, Double> phases, @NotNull OptionalDouble opposed) {}
 
     /**
      * Which model-space direction a limb's rest posture points along, for aim solves.
@@ -334,6 +337,7 @@ public record PoseScript(
         private @Nullable Hover hover;
         private @NotNull OptionalDouble periodSeconds = OptionalDouble.empty();
         private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
+        private @NotNull OptionalDouble opposed = OptionalDouble.empty();
 
         /**
          * Captures one limb stance - the lambda's verbs land on a fresh stance whose fragments
@@ -583,10 +587,18 @@ public record PoseScript(
                 this.keepStride,
                 Optional.ofNullable(this.hover),
                 this.periodSeconds,
-                this.phases.isEmpty()
-                    ? Optional.empty()
-                    : Optional.of(new Cycle(Collections.unmodifiableMap(new EnumMap<>(this.phases))))
+                this.cycled()
+                    ? Optional.of(new Cycle(
+                        Collections.unmodifiableMap(new EnumMap<>(this.phases)), this.opposed))
+                    : Optional.empty()
             );
+        }
+
+        /**
+         * Whether any gait said anything about time.
+         */
+        private boolean cycled() {
+            return !this.phases.isEmpty() || this.opposed.isPresent();
         }
 
         /**
@@ -602,6 +614,21 @@ public record PoseScript(
          */
         @NotNull Capture cycle(@NotNull Map<Rank, Double> phases) {
             this.phases.putAll(phases);
+            return this;
+        }
+
+        /**
+         * Captures how far behind the near one a walking cycle starts the far side of every pair.
+         *
+         * <p>A later cycle stating one replaces an earlier one's, as a period or a hover does, and
+         * a later cycle stating none leaves the earlier one's standing - the offset is a fact about
+         * the style rather than about the gait that spoke it.
+         *
+         * @param cycles the share of one cycle the far side starts behind the near one
+         * @return this capture
+         */
+        @NotNull Capture opposed(double cycles) {
+            this.opposed = OptionalDouble.of(cycles);
             return this;
         }
 

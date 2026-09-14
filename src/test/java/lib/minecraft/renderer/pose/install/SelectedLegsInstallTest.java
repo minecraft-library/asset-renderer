@@ -291,6 +291,30 @@ class SelectedLegsInstallTest {
     }
 
     @Test
+    @DisplayName("one opposed side alternates a walker's pairs and leaves a fused row whole")
+    void anOpposedSideReachesOnlyARowWithTwoOfThem() {
+        BuiltStyle pace = Poses.legged("pace")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.8)))
+                .oppose(0.5))
+            .build();
+
+        List<String> near = framesOf(pace, "minecraft:wolf", "right_front_leg");
+        List<String> far = framesOf(pace, "minecraft:wolf", "left_front_leg");
+        assertEquals(List.of("0.0 -0.34906584", "0.4 0.34906584", "0.8 -0.34906584"), near,
+            () -> "the near side takes the shape as written: " + near);
+        assertEquals(List.of("0.0 0.34906584", "0.4 -0.34906584", "0.8 0.34906584"), far,
+            () -> "and the far side half a cycle behind it: " + far);
+        assertEquals(near, framesOf(pace, "minecraft:wolf", "right_hind_leg"),
+            "a side offset states nothing about rows, so both near legs run together");
+
+        for (String fused : List.of("front_legs", "middle_legs", "back_legs"))
+            assertEquals(near, framesOf(pace, "minecraft:bee", fused),
+                () -> "one bone paints both legs of '" + fused + "', so the row has no far half "
+                    + "to start behind the near one and takes one copy of the shape");
+    }
+
+    @Test
     @DisplayName("a leg timeline coins the same clip whether or not the subject answers a leg")
     void anUnansweredSelectorStillCoinsTheClip() {
         BuiltStyle wag = wag();

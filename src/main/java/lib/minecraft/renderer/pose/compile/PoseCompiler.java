@@ -22,6 +22,7 @@ import lib.minecraft.renderer.pose.author.Ease;
 import lib.minecraft.renderer.pose.author.LimbSelector;
 import lib.minecraft.renderer.pose.author.PoseScript;
 import lib.minecraft.renderer.pose.author.Rank;
+import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.intellij.lang.annotations.PrintFormat;
@@ -438,7 +439,7 @@ public final class PoseCompiler {
             LinkedHashMap<Integer, Rank> claimed = new LinkedHashMap<>();
             Set<Rank> named = EnumSet.noneOf(Rank.class);
             for (PoseScript.Stance stance : this.script.stances()) {
-                Optional<Rank> addressed = rankOf(stance);
+                Optional<Rank> addressed = legsOf(stance).flatMap(LimbSelector.Legs::rank);
                 if (addressed.isEmpty() || !named.add(addressed.get())) continue;
                 Rank rank = addressed.get();
                 Optional<LimbRoster.Row> row = this.roster.row(rank);
@@ -453,11 +454,16 @@ public final class PoseCompiler {
         /**
          * Refuses a cycle offset the shape it was written over cannot carry.
          *
+         * <p>Two verbs state an offset and both answer here, because what makes one unstateable is
+         * the shape rather than the verb. The offsets are read in rank order and the side's after
+         * them, so which of several unstateable offsets is named is the chain's own reading and
+         * never the run's.
+         *
          * <p>Every reason an offset is unstateable is a fact about what the author wrote, so every
          * refusal here reads the script and no mesh. A rank the target carries no row for is NOT
          * one of them: it addresses nothing, which is the answer rather than an error, and a
          * refusal keyed on it would let the same chain install on one subject and refuse on the
-         * next.
+         * next. A mesh whose rows carry no side to offset is the same answer for the same reason.
          *
          * <p>What is unstateable: a shape written as a wave, which has no offset to start late by,
          * because a wave lowers to a driver and a driver derives its whole phase from the tick -
@@ -475,27 +481,43 @@ public final class PoseCompiler {
          */
         private void validateGait() {
             if (this.script.cycle().isEmpty()) return;
-            this.script.cycle().get().phases().forEach((rank, cycles) -> {
-                if (cycles % 1d == 0d) return;
+            PoseScript.Cycle cycle = this.script.cycle().get();
+            cycle.phases().forEach((rank, cycles) -> {
+                if (whole(cycles)) return;
                 for (PoseScript.Stance stance : this.script.stances())
-                    if (phased(stance, rank)) this.checkOffset(rank, stance);
+                    if (reachesRank(stance, rank))
+                        this.checkOffset("a phase at rank '" + rank + "'", stance);
             });
+            if (cycle.opposed().isPresent() && !whole(cycle.opposed().getAsDouble()))
+                for (PoseScript.Stance stance : this.script.stances())
+                    if (reachesFarSide(stance)) this.checkOffset("an opposed far side", stance);
         }
 
         /**
-         * Refuses one stance a phase cannot start late.
+         * Whether a share of a cycle is no offset at all - the wrap takes a whole number of cycles
+         * to zero, so it states what writing zero states.
          */
-        private void checkOffset(@NotNull Rank rank, @NotNull PoseScript.Stance stance) {
+        private static boolean whole(double cycles) {
+            return cycles % 1d == 0d;
+        }
+
+        /**
+         * Refuses one stance an offset cannot start late.
+         *
+         * @param reading how the refusal names the offset, in the author's own terms
+         * @param stance the captured stance the offset was written over
+         */
+        private void checkOffset(@NotNull String reading, @NotNull PoseScript.Stance stance) {
             if (!stance.sways().isEmpty() || !stance.spins().isEmpty())
-                this.refuse("Style '%s' gaits a phase at rank '%s' over a swayed shape - a wave carries no offset of its own, so a row starting late in the cycle states its shape as a timeline",
-                    this.style.styleId(), rank);
+                this.refuse("Style '%s' gaits %s over a swayed shape - a wave carries no offset of its own, so a shape starting late in the cycle states itself as a timeline",
+                    this.style.styleId(), reading);
             for (PoseScript.Track track : stance.tracks()) {
                 if (!track.looping())
-                    this.refuse("Style '%s' gaits a phase at rank '%s' over a clip that holds rather than loops - a share of a cycle needs a cycle to wrap in",
-                        this.style.styleId(), rank);
+                    this.refuse("Style '%s' gaits %s over a clip that holds rather than loops - a share of a cycle needs a cycle to wrap in",
+                        this.style.styleId(), reading);
                 if (track.ease() == Ease.SMOOTH)
-                    this.refuse("Style '%s' gaits a phase at rank '%s' over a smoothed track - a smoothed frame reads its neighbours from the clip's ends rather than across them, so re-timing one states a different curve",
-                        this.style.styleId(), rank);
+                    this.refuse("Style '%s' gaits %s over a smoothed track - a smoothed frame reads its neighbours from the clip's ends rather than across them, so re-timing one states a different curve",
+                        this.style.styleId(), reading);
                 double length = track.overSeconds().orElse(this.windowSeconds);
                 framesOf(track, length, 1f).values().forEach(frames -> {
                     List<Frame> sorted = new ArrayList<>(frames);
@@ -503,13 +525,13 @@ public final class PoseCompiler {
                     for (int at = 1; at < sorted.size(); at++)
                         if ((float) sorted.get(at).atSeconds()
                             == (float) sorted.get(at - 1).atSeconds())
-                            this.refuse("Style '%s' gaits a phase at rank '%s' over a track keying '%s' seconds twice - keyframe times ascend strictly per channel, an offset included",
-                                this.style.styleId(), rank, sorted.get(at).atSeconds());
+                            this.refuse("Style '%s' gaits %s over a track keying '%s' seconds twice - keyframe times ascend strictly per channel, an offset included",
+                                this.style.styleId(), reading, sorted.get(at).atSeconds());
                     if (sorted.getFirst().atSeconds() != 0d
                         || sorted.getLast().atSeconds() != length
                         || !sorted.getFirst().rests(sorted.getLast()))
-                        this.refuse("Style '%s' gaits a phase at rank '%s' over a track that does not close - an offset moves where the cycle wraps, and a wrap the two ends disagree across is a jump",
-                            this.style.styleId(), rank);
+                        this.refuse("Style '%s' gaits %s over a track that does not close - an offset moves where the cycle wraps, and a wrap the two ends disagree across is a jump",
+                            this.style.styleId(), reading);
                 });
             }
         }
@@ -520,25 +542,37 @@ public final class PoseCompiler {
          * <p>An address naming no rank reaches every row the mesh answers, so it reaches that one
          * too - which is what makes a phase written beside the whole-roster step verb bind.
          */
-        private static boolean phased(@NotNull PoseScript.Stance stance, @NotNull Rank rank) {
-            if (stance.limb().isEmpty()) return false;
-            if (!(stance.limb().get() instanceof PoseScript.Limb.Selected selected)) return false;
-            if (!(selected.selector() instanceof LimbSelector.Legs legs)) return false;
-            return legs.rank().isEmpty() || legs.rank().get() == rank;
+        private static boolean reachesRank(@NotNull PoseScript.Stance stance, @NotNull Rank rank) {
+            return legsOf(stance)
+                .filter(legs -> legs.rank().isEmpty() || legs.rank().get() == rank)
+                .isPresent();
         }
 
         /**
-         * The rank one stance addresses, empty where it names no row of legs.
+         * Whether one stance's address reaches the far side of a pair.
+         *
+         * <p>An address naming no side reaches both sides, so it reaches that one too. Read off
+         * what the author wrote and never off the mesh: a chain reaching no far leg on one subject
+         * has to reach the same verdict as one reaching four on the next.
+         */
+        private static boolean reachesFarSide(@NotNull PoseScript.Stance stance) {
+            return legsOf(stance)
+                .filter(legs -> legs.side().isEmpty() || legs.side().get() == Side.LEFT)
+                .isPresent();
+        }
+
+        /**
+         * The leg address one stance was written with, empty where it names a bone or a family.
          *
          * @param stance the captured stance to read
-         * @return the rank, or empty where the stance addresses a bone or every row at once
+         * @return the address, or empty where the stance addresses something other than legs
          */
-        private static @NotNull Optional<Rank> rankOf(@NotNull PoseScript.Stance stance) {
+        private static @NotNull Optional<LimbSelector.Legs> legsOf(@NotNull PoseScript.Stance stance) {
             if (stance.limb().isEmpty()) return Optional.empty();
             if (!(stance.limb().get() instanceof PoseScript.Limb.Selected selected))
                 return Optional.empty();
             if (!(selected.selector() instanceof LimbSelector.Legs legs)) return Optional.empty();
-            return legs.rank();
+            return Optional.of(legs);
         }
 
         /**
@@ -649,7 +683,7 @@ public final class PoseCompiler {
             this.events.info("selector: %s reaches %d bone(s) %s",
                 selected.reading(), members.size(), members);
             for (String member : members) {
-                double shift = this.phaseOf(selected.selector(), member);
+                double shift = this.shiftOf(selected.selector(), member);
                 PoseScript.Limb.Named named =
                     new PoseScript.Limb.Named(member, selected.axis(), selected.anatomical());
                 PoseScript.Limb.Named landed = this.articulated(named);
@@ -662,28 +696,55 @@ public final class PoseCompiler {
         /**
          * How far into the cycle one leg's copy of a gait's shape starts, as a share of it.
          *
-         * <p>An address naming a rank takes that rank's offset. One naming none reaches every row,
-         * so the offset is the leg's own row's - read per leg rather than per address, or a shape
-         * stated once over the whole roster would take one row's offset or none at all, and a gait
-         * written the way the verb set is meant to be written would walk in lockstep.
+         * <p>Two terms sum here and both are read off the LEG rather than off the address that
+         * reached it. Its row's own offset: an address naming a rank takes that rank's, and one
+         * naming none reaches every row, so the offset is the leg's own row's - or a shape stated
+         * once over the whole roster would take one row's offset or none at all, and a gait written
+         * the way the verb set is meant to be written would walk in lockstep. And its side's: the
+         * far side of every pair starts behind the near one, on the side the mesh hangs the leg off
+         * rather than the side the bone's own name claims.
+         *
+         * <p>A row one bone paints whole carries no side, so the side term is zero there and the
+         * row takes one copy of the shape rather than two a share of a cycle apart.
          *
          * @param selector the address the stance was written with
          * @param bone the leg the roster answered, as the mesh names it
          * @return the share of a cycle this leg starts into
          */
-        private double phaseOf(@NotNull LimbSelector selector, @NotNull String bone) {
+        private double shiftOf(@NotNull LimbSelector selector, @NotNull String bone) {
             if (this.script.cycle().isEmpty()) return 0d;
             if (!(selector instanceof LimbSelector.Legs legs)) return 0d;
-            Map<Rank, Double> phases = this.script.cycle().get().phases();
+            PoseScript.Cycle cycle = this.script.cycle().get();
+            Optional<LimbRoster.Placement> placed = this.roster.placementOf(bone);
+            return this.rankShift(cycle, legs, placed) + sideShift(cycle, placed);
+        }
+
+        /**
+         * The offset one leg takes from the row it sits in.
+         */
+        private double rankShift(@NotNull PoseScript.Cycle cycle, LimbSelector.@NotNull Legs legs,
+                                 @NotNull Optional<LimbRoster.Placement> placed) {
+            Map<Rank, Double> phases = cycle.phases();
             if (legs.rank().isPresent()) return phases.getOrDefault(legs.rank().get(), 0d);
 
-            int row = this.roster.placementOf(bone)
-                .map(LimbRoster.Placement::row).orElse(NO_ROW);
+            int row = placed.map(LimbRoster.Placement::row).orElse(NO_ROW);
             double shift = 0d;
             for (Map.Entry<Rank, Double> phase : phases.entrySet())
                 if (this.roster.row(phase.getKey()).filter(held -> held.ordinal() == row).isPresent())
                     shift = phase.getValue();
             return shift;
+        }
+
+        /**
+         * The offset one leg takes from the side it sits on - the far side's, and nothing on the
+         * near side or on a row carrying no side at all.
+         */
+        private static double sideShift(@NotNull PoseScript.Cycle cycle,
+                                        @NotNull Optional<LimbRoster.Placement> placed) {
+            if (cycle.opposed().isEmpty()) return 0d;
+            return placed.flatMap(at -> at.member().side()).filter(Side.LEFT::equals).isPresent()
+                ? cycle.opposed().getAsDouble()
+                : 0d;
         }
 
         /**
