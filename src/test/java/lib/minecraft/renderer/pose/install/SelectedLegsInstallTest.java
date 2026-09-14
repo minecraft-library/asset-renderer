@@ -350,6 +350,34 @@ class SelectedLegsInstallTest {
     }
 
     @Test
+    @DisplayName("one shape at two amplitudes, stated once, over a real four-legged subject")
+    void aGainCarriesTheSecondAmplitude() {
+        BuiltStyle canter = Poses.legged("canter")
+            .gait(gait -> gait
+                .over(0.8)
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -32, 32).over(0.8)))
+                .gain(Rank.HIND, 0.625)
+                .trot(0.5))
+            .build();
+        float front = (float) Math.toRadians(32);
+        float hind = (float) Math.toRadians(20);
+
+        assertEquals(List.of("0.0 " + -front, "0.4 " + front, "0.8 " + -front),
+            framesOf(canter, "minecraft:horse", "right_front_leg"),
+            "the front row reaches the whole of the one authored bound");
+        assertEquals(List.of("0.0 " + -hind, "0.4 " + hind, "0.8 " + -hind),
+            framesOf(canter, "minecraft:horse", "left_hind_leg"),
+            "the leg across the body from it travels with it and five eighths as far");
+        assertEquals(List.of("0.0 " + front, "0.4 " + -front, "0.8 " + front),
+            framesOf(canter, "minecraft:horse", "left_front_leg"),
+            "and the following pair carries the same two amplitudes half a cycle behind");
+        assertEquals(List.of("0.0 " + hind, "0.4 " + -hind, "0.8 " + hind),
+            framesOf(canter, "minecraft:horse", "right_hind_leg"),
+            "which is four legs, two amplitudes and one diagonal out of three numbers and "
+                + "one shape");
+    }
+
+    @Test
     @DisplayName("a leg timeline coins the same clip whether or not the subject answers a leg")
     void anUnansweredSelectorStillCoinsTheClip() {
         BuiltStyle wag = wag();

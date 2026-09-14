@@ -32,6 +32,7 @@ public final class Gait {
 
     private final @NotNull List<Shape> shapes = new ArrayList<>();
     private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
+    private final @NotNull Map<Rank, Double> gains = new EnumMap<>(Rank.class);
     private @NotNull OptionalDouble lengthSeconds = OptionalDouble.empty();
     private @NotNull OptionalDouble opposed = OptionalDouble.empty();
     private @NotNull OptionalDouble coupled = OptionalDouble.empty();
@@ -92,6 +93,32 @@ public final class Gait {
      */
     public @NotNull Gait phase(@NotNull Rank rank, double cycles) {
         this.phases.put(rank, cycles);
+        return this;
+    }
+
+    /**
+     * Scales how far one row's copy of the shape travels, leaving its rest where it is.
+     *
+     * <p>This is the one shape difference a row can carry without restating the shape - an equine
+     * carries one cycle at two amplitudes, a longer reach in front than behind, and writing it as
+     * two shapes would be two sets of bounds that can disagree the next time either is edited.
+     * A gain of none of the travel holds the row at its rest, which is the still row a mesh keeps
+     * beside its moving ones.
+     *
+     * <p>It scales the travel and never the rest: the bounds of a {@link LimbStance#sway sway}, the
+     * angle a {@link LimbStance#spin spin} covers, and the reach of each fragment of a
+     * {@link LimbStance#timeline timeline}. What states where a limb LANDS is untouched, because
+     * half of a destination is a different destination rather than a smaller excursion toward it.
+     *
+     * <p>The row is the mesh's, so a gain lands on whatever copy of the shape that row took -
+     * whether the shape was stated for that row alone or once over every row the mesh carries.
+     *
+     * @param rank which row front to back
+     * @param factor what that row's travel is multiplied by, its rest untouched
+     * @return this gait
+     */
+    public @NotNull Gait gain(@NotNull Rank rank, double factor) {
+        this.gains.put(rank, factor);
         return this;
     }
 
@@ -188,6 +215,7 @@ public final class Gait {
     void captured(@NotNull PoseScript.Capture capture) {
         this.lengthSeconds.ifPresent(capture::period);
         if (!this.phases.isEmpty()) capture.cycle(this.phases);
+        if (!this.gains.isEmpty()) capture.gains(this.gains);
         this.opposed.ifPresent(capture::opposed);
         this.coupled.ifPresent(capture::coupled);
         this.plantShare.ifPresent(capture::plant);

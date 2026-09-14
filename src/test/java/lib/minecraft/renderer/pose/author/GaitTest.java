@@ -6,6 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -128,6 +129,21 @@ class GaitTest {
             "the offset is the style's, so a later cycle naming none leaves it standing");
         assertEquals(0.25, replaced.cycle().orElseThrow().opposed().orElseThrow(),
             "and a later cycle naming one takes the later number, as a period does");
+    }
+
+    @Test
+    @DisplayName("a second gait keeps the first one's multiples rather than unsaying them")
+    void aSecondGaitKeepsTheGains() {
+        PoseScript script = Poses.legged("amble")
+            .gait(gait -> gait.gain(Rank.FRONT, 0.5).step(leg -> leg.pitchBy(10)))
+            .gait(gait -> gait.gain(Rank.HIND, 0.25).step(Rank.HIND, leg -> leg.pitchBy(20)))
+            .build()
+            .script();
+
+        assertEquals(Map.of(Rank.FRONT, 0.5, Rank.HIND, 0.25),
+            script.cycle().orElseThrow().gains(),
+            "how far a row travels is a fact about the row, so a later cycle naming other rows "
+                + "leaves the earlier rows' multiples standing");
     }
 
     @Test

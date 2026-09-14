@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pose.compile;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
+import lib.minecraft.renderer.asset.pose.StyleDriver;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.Gait;
 import lib.minecraft.renderer.pose.author.Poses;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.UnaryOperator;
 
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.humanoid;
@@ -71,6 +73,102 @@ class GaitShapeTest {
     private static @NotNull List<String> pitchesOf(@NotNull BuiltStyle style,
                                                    @NotNull String bone) {
         return framesOf(style, humanoid(), bone, PoseClip.Target.ROTATION);
+    }
+
+    @Test
+    @DisplayName("a gain scales one row's travel and leaves the rows it does not name alone")
+    void aGainScalesOneRowsTravel() {
+        BuiltStyle canter = Poses.legged("canter")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -32, 32).over(LENGTH)))
+                .gain(Rank.HIND, 0.625))
+            .build();
+        float front = (float) Math.toRadians(32);
+        float hind = (float) Math.toRadians(20);
+
+        assertEquals(List.of("0.0 " + -front, "0.25 " + front, "0.5 " + -front),
+            framesOf(canter, walker(), "right_front_leg", PoseClip.Target.ROTATION),
+            "the shape is stated once, and the row no gain names travels the whole of it");
+        assertEquals(List.of("0.0 " + -hind, "0.25 " + hind, "0.5 " + -hind),
+            framesOf(canter, walker(), "right_hind_leg", PoseClip.Target.ROTATION),
+            "while the named row travels five eighths of it, on the same times");
+        assertEquals(framesOf(canter, walker(), "right_hind_leg", PoseClip.Target.ROTATION),
+            framesOf(canter, walker(), "left_hind_leg", PoseClip.Target.ROTATION),
+            "and both legs of that row, because a gain is a fact about the row");
+    }
+
+    @Test
+    @DisplayName("a gain reaches a shape stated for one row as readily as one stated for every row")
+    void aGainReachesAKeyedShape() {
+        BuiltStyle keyed = Poses.legged("canter")
+            .gait(gait -> gait
+                .step(Rank.HIND, leg -> leg.timeline(track -> track
+                    .swing(Turn.PITCH, -32, 32).over(LENGTH)))
+                .gain(Rank.HIND, 0.625))
+            .build();
+        float hind = (float) Math.toRadians(20);
+
+        assertEquals(List.of("0.0 " + -hind, "0.25 " + hind, "0.5 " + -hind),
+            framesOf(keyed, walker(), "right_hind_leg", PoseClip.Target.ROTATION),
+            "the row a gain names is the mesh's, so it finds whichever copy of the shape "
+                + "landed there rather than needing one stated for it");
+    }
+
+    @Test
+    @DisplayName("two gains name two rows, and each row takes its own")
+    void twoGainsNameTwoRows() {
+        BuiltStyle style = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -32, 32).over(LENGTH)))
+                .gain(Rank.FRONT, 0.5)
+                .gain(Rank.HIND, 0.25))
+            .build();
+        float front = (float) Math.toRadians(16);
+        float hind = (float) Math.toRadians(8);
+
+        assertEquals(List.of("0.0 " + -front, "0.25 " + front, "0.5 " + -front),
+            framesOf(style, walker(), "right_front_leg", PoseClip.Target.ROTATION),
+            "the front row takes the front row's multiple");
+        assertEquals(List.of("0.0 " + -hind, "0.25 " + hind, "0.5 " + -hind),
+            framesOf(style, walker(), "right_hind_leg", PoseClip.Target.ROTATION),
+            "and the hind row takes its own rather than the last one written");
+    }
+
+    @Test
+    @DisplayName("a gain of none of the travel holds the row at its rest")
+    void aGainOfNothingHoldsTheRowStill() {
+        BuiltStyle style = Poses.legged("hover")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -32, 32).over(LENGTH)))
+                .gain(Rank.HIND, 0))
+            .build();
+
+        assertEquals(List.of("0.0 -0.0", "0.25 0.0", "0.5 -0.0"),
+            framesOf(style, walker(), "right_hind_leg", PoseClip.Target.ROTATION),
+            "a still row beside moving ones is a real shape and not a missing one, so it keys "
+                + "its channel at rest rather than dropping out of the clip");
+    }
+
+    @Test
+    @DisplayName("a gain scales what travels and never what states where a limb lands")
+    void aGainLeavesTheRestAlone() {
+        BuiltStyle style = Poses.legged("canter")
+            .gait(gait -> gait
+                .step(leg -> leg.pitchBy(12).scale(2).sway(Turn.PITCH, -32, 32))
+                .gain(Rank.HIND, 0.5))
+            .build();
+        Map<String, StyleDriver> drivers =
+            PoseCompiler.compile(style, row(walker(), EntityPose.NONE)).style().drivers();
+
+        assertEquals((float) Math.toRadians(-32 + 12), drivers.get("style$canter$right_front_leg$x_rot").rest(),
+            "the unnamed row sweeps its whole authored bound around the rest it was given");
+        assertEquals((float) Math.toRadians(-16 + 12), drivers.get("style$canter$right_hind_leg$x_rot").rest(),
+            "the named row sweeps half of it around the SAME rest - the twelve degrees the "
+                + "stance adds is where the limb sits, not how far it goes");
+        assertEquals(drivers.get("style$canter$right_front_leg$scale").extent(),
+            drivers.get("style$canter$right_hind_leg$scale").extent(),
+            "and a uniform scale rests at one rather than at zero, so halving it would resize "
+                + "the bone instead of moving it less far");
     }
 
     @Test

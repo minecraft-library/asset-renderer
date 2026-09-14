@@ -380,6 +380,7 @@ public final class PoseCompiler {
             this.validateRanks();
             this.validateCycle();
             this.validateAxes();
+            this.recordAbsentRanks();
             this.pool.adopt(this.shipped);
             this.foldStances();
             this.seatFollowers();
@@ -539,6 +540,42 @@ public final class PoseCompiler {
                 this.refuse("Style '%s' gaits a trot on a mesh carrying '%d' leg row(s) - a diagonal pairs a front leg with the opposite hind one, which '%d' row(s) have no unique reading of",
                     this.style.styleId(), this.roster.rows().size(), this.roster.rows().size());
             this.refuseUnsided("a trot", "pairs each leg with the one across the body from it");
+        }
+
+        /**
+         * Records a rank a gait's numbers name and this mesh answers with no row.
+         *
+         * <p>A number keyed on an absent row lands on nothing, which is exactly what an ADDRESS
+         * keyed on one already does - and an address says so, because its own empty resolution
+         * joins the written bones the mesh does not declare. A number resolves nothing, so it has
+         * no empty resolution to report, and a mistyped rank on a gait's timing was the one thing
+         * in the vocabulary that could go wrong in silence on every install path at once.
+         *
+         * <p>It joins the same list rather than refusing, so the fork stays where it is: a strict
+         * install refuses and names the rank, and a tolerant one proceeds - which is what keeps a
+         * chain deliberately written to run over two, four and eight legs installable while still
+         * catching the slip on the path that asks to be told.
+         *
+         * <p>A mesh naming no leg at all is passed over. Every rank is absent there, so recording
+         * them would report the mesh rather than the chain, and the selector's own empty resolution
+         * already reports that.
+         */
+        private void recordAbsentRanks() {
+            if (this.script.cycle().isEmpty() || this.roster.rows().isEmpty()) return;
+            PoseScript.Cycle cycle = this.script.cycle().get();
+            cycle.phases().keySet().forEach(rank -> this.recordAbsentRank("phase", rank));
+            cycle.gains().keySet().forEach(rank -> this.recordAbsentRank("gain", rank));
+        }
+
+        /**
+         * Records one gait number's rank where the mesh carries no such row.
+         */
+        private void recordAbsentRank(@NotNull String verb, @NotNull Rank rank) {
+            if (this.roster.row(rank).isPresent()) return;
+            String reading = verb + "(" + rank + ")";
+            if (!this.dropped.contains(reading)) this.dropped.add(reading);
+            this.events.info("gait: %s names a row this mesh does not carry, so it lands on nothing",
+                reading);
         }
 
         /**
@@ -755,12 +792,14 @@ public final class PoseCompiler {
                 selected.reading(), members.size(), members);
             for (String member : members) {
                 double shift = this.shiftOf(selected.selector(), member);
+                PoseScript.Stance travelled =
+                    scaled(stance, this.gainOf(selected.selector(), member));
                 PoseScript.Limb.Named named =
                     new PoseScript.Limb.Named(member, selected.axis(), selected.anatomical());
                 PoseScript.Limb.Named landed = this.articulated(named);
-                for (PoseScript.Track track : stance.tracks())
+                for (PoseScript.Track track : travelled.tracks())
                     this.trackPlans.add(new TrackPlan(Optional.of(landed.bone()), track, shift));
-                this.foldLimb(landed, stance);
+                this.foldLimb(landed, travelled);
             }
         }
 
@@ -797,15 +836,48 @@ public final class PoseCompiler {
          */
         private double rankShift(@NotNull PoseScript.Cycle cycle, LimbSelector.@NotNull Legs legs,
                                  @NotNull Optional<LimbRoster.Placement> placed) {
-            Map<Rank, Double> phases = cycle.phases();
-            if (legs.rank().isPresent()) return phases.getOrDefault(legs.rank().get(), 0d);
+            return this.rowValue(cycle.phases(), legs, placed, 0d);
+        }
+
+        /**
+         * What one leg multiplies the shape's travel by - the multiple of the row it sits in, and
+         * the whole of the travel where no gait named that row.
+         *
+         * @param selector the address the stance was written with
+         * @param bone the leg the roster answered, as the mesh names it
+         * @return the multiple this leg's copy of the shape travels
+         */
+        private double gainOf(@NotNull LimbSelector selector, @NotNull String bone) {
+            if (this.script.cycle().isEmpty()) return 1d;
+            if (!(selector instanceof LimbSelector.Legs legs)) return 1d;
+            return this.rowValue(this.script.cycle().get().gains(), legs,
+                this.roster.placementOf(bone), 1d);
+        }
+
+        /**
+         * The number one leg takes from a per-row table.
+         *
+         * <p>An address naming a rank takes that rank's entry. One naming none reaches every row,
+         * so the entry is the LEG's own row's - read per leg rather than per address, or a shape
+         * stated once over the whole roster would take one row's number or none at all.
+         *
+         * @param byRank the table a gait filled, in rank order
+         * @param legs the address the stance was written with
+         * @param placed where the roster holds this leg
+         * @param none what a leg no entry reaches takes
+         * @return the number this leg takes
+         */
+        private double rowValue(@NotNull Map<Rank, Double> byRank, LimbSelector.@NotNull Legs legs,
+                                @NotNull Optional<LimbRoster.Placement> placed, double none) {
+            if (byRank.isEmpty()) return none;
+            if (legs.rank().isPresent()) return byRank.getOrDefault(legs.rank().get(), none);
 
             int row = placed.map(LimbRoster.Placement::row).orElse(NO_ROW);
-            double shift = 0d;
-            for (Map.Entry<Rank, Double> phase : phases.entrySet())
-                if (this.roster.row(phase.getKey()).filter(held -> held.ordinal() == row).isPresent())
-                    shift = phase.getValue();
-            return shift;
+            double held = none;
+            for (Map.Entry<Rank, Double> entry : byRank.entrySet())
+                if (this.roster.row(entry.getKey()).filter(at -> at.ordinal() == row).isPresent())
+                    held = entry.getValue();
+            return held;
         }
 
         /**
@@ -1976,6 +2048,64 @@ public final class PoseCompiler {
      * @param target which of the bone's members it displaces
      */
     private record ChannelKey(@NotNull String bone, @NotNull PoseClip.Target target) {}
+
+    /**
+     * One stance with every fragment of its TRAVEL multiplied, and everything else untouched.
+     *
+     * <p>What travels is a wave's bounds, the angle a turn covers, and the reach of each fragment
+     * of a timeline. What is left alone is everything that states where a limb LANDS - the writes,
+     * the uniform scales and the aim targets - because a multiple of a destination is a different
+     * destination rather than a shorter excursion toward one. A scale in particular rests at one
+     * rather than at zero, so multiplying it would resize the bone instead of moving it less far.
+     *
+     * <p>A multiple of the whole travel returns the stance itself rather than a copy of it, which
+     * is what keeps a gait stating no multiple lowering exactly as it lowered before there was one
+     * to state - the fragment lists are the very instances the capture built, identity included.
+     *
+     * @param stance the captured stance to scale
+     * @param factor what the travel is multiplied by
+     * @return the scaled stance, or the stance itself at a factor of one
+     */
+    private static @NotNull PoseScript.Stance scaled(@NotNull PoseScript.Stance stance, double factor) {
+        if (factor == 1d) return stance;
+        return new PoseScript.Stance(
+            stance.limb(), stance.writes(), stance.scales(), stance.aims(),
+            Concurrent.newUnmodifiableList(stance.sways().stream()
+                .map(sway -> new PoseScript.Sway(sway.axis(),
+                    sway.fromDegrees() * factor, sway.toDegrees() * factor)).toList()),
+            Concurrent.newUnmodifiableList(stance.spins().stream()
+                .map(spin -> new PoseScript.Spin(spin.axis(),
+                    spin.perPeriodDegrees() * factor)).toList()),
+            Concurrent.newUnmodifiableList(stance.tracks().stream()
+                .map(track -> scaled(track, factor)).toList()));
+    }
+
+    /**
+     * One timeline with every motion fragment's reach multiplied, its times untouched - a gain
+     * states how far a copy of the shape travels and never when it travels there.
+     */
+    private static @NotNull PoseScript.Track scaled(@NotNull PoseScript.Track track, double factor) {
+        return new PoseScript.Track(
+            Concurrent.newUnmodifiableList(track.motions().stream()
+                .map(motion -> scaled(motion, factor)).toList()),
+            track.overSeconds(), track.ease(), track.looping());
+    }
+
+    /**
+     * One motion fragment with its reach multiplied.
+     */
+    private static @NotNull PoseScript.Motion scaled(@NotNull PoseScript.Motion motion, double factor) {
+        return switch (motion) {
+            case PoseScript.Swing swing -> new PoseScript.Swing(swing.axis(),
+                swing.fromDegrees() * factor, swing.toDegrees() * factor);
+            case PoseScript.Bob bob -> new PoseScript.Bob(bob.pixels() * factor);
+            case PoseScript.Keyframe frame -> new PoseScript.Keyframe(frame.atSeconds(),
+                frame.pitchDegrees() * factor, frame.yawDegrees() * factor,
+                frame.rollDegrees() * factor);
+            case PoseScript.Shift shift -> new PoseScript.Shift(shift.atSeconds(),
+                shift.xPixels() * factor, shift.yPixels() * factor, shift.zPixels() * factor);
+        };
+    }
 
     /**
      * The double-width sum of two expressions - the splice shape every lowering rule emits.

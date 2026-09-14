@@ -12,6 +12,7 @@ import lib.minecraft.renderer.pose.author.Poses;
 import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
+import lib.minecraft.renderer.pose.install.StyleRegistrar;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -321,17 +322,59 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
-    @DisplayName("a phase at a rank the mesh has no row for addresses nothing rather than refusing")
-    void phaseAtAnAbsentRankIsInert() {
+    @DisplayName("a timing number at a rank the mesh has no row for drops rather than refusing")
+    void anAbsentRankOnATimingNumberDrops() {
         PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.legged("amble")
                 .gait(gait -> gait
                     .step(Rank.FRONT, leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20)))
-                    .phase(Rank.SECOND, 0.25))
+                    .phase(Rank.SECOND, 0.25)
+                    .gain(Rank.THIRD, 0.5))
                 .build(),
             row(humanoid(), EntityPose.NONE));
+
         assertEquals(1, compiled.pose().clips().size(),
-            "an offset keyed on a row this mesh does not carry starts nothing late, and a chain "
-                + "reaching one subject's rows must not refuse on the next");
+            "a number keyed on a row this mesh does not carry states nothing about any leg, and "
+                + "a chain reaching one subject's rows must not refuse outright on the next");
+        assertEquals(List.of("phase(SECOND)", "gain(THIRD)"), List.copyOf(compiled.droppedBones()),
+            () -> "but it is reported, in the order a rank ladder reads rather than a hash "
+                + "order: " + compiled.droppedBones());
+    }
+
+    @Test
+    @DisplayName("a timing number at an absent rank refuses a strict install and not a tolerant one")
+    void anAbsentRankForksOnStrictness() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                .phase(Rank.SECOND, 0.25))
+            .build();
+
+        IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.ofShipped().add("minecraft:wolf", amble));
+        assertTrue(refusal.getMessage().contains("phase(SECOND)"), refusal.getMessage());
+
+        assertEquals(4, StyleRegistrar.ofShipped().addTolerant("minecraft:wolf", amble)
+                .definitions().get("minecraft:wolf").pose().clips().getLast().clip()
+                .channels().size(),
+            "while the tolerant path installs it over all four legs, which is the escape a "
+                + "chain written to run over two, four and eight legs alike needs");
+    }
+
+    @Test
+    @DisplayName("a mesh naming no leg at all reports no absent rank, having no rows to be absent from")
+    void aLeglessMeshReportsNoAbsentRank() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.legged("amble")
+                .gait(gait -> gait
+                    .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                    .phase(Rank.SECOND, 0.25)
+                    .gain(Rank.HIND, 0.5))
+                .build(),
+            row(new EntityModelData(), EntityPose.NONE));
+
+        assertEquals(List.of("every row RIGHT ROOT"), List.copyOf(compiled.droppedBones()),
+            () -> "the selector's own empty resolution reports the subject, and reporting every "
+                + "rank beside it would report the mesh rather than the chain: "
+                + compiled.droppedBones());
     }
 
     @Test

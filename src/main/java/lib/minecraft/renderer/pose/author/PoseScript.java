@@ -60,6 +60,8 @@ public record PoseScript(
      * per leg it lands on.
      *
      * @param phases each row's own offset into the cycle, in cycles, in rank order
+     * @param gains each row's own multiple of the shape's travel, in rank order; a row named
+     *     nowhere here travels as the shape was written
      * @param opposed the offset the far side of every pair starts behind the near one, in cycles;
      *     empty where the two sides run together
      * @param coupled the offset the following diagonal pair starts behind the leading one, in
@@ -67,8 +69,9 @@ public record PoseScript(
      * @param plantShare the share of one cycle a shape stays at its resting bound before it
      *     travels; empty where every shape is the triangle it was written as
      */
-    public record Cycle(@NotNull Map<Rank, Double> phases, @NotNull OptionalDouble opposed,
-                        @NotNull OptionalDouble coupled, @NotNull OptionalDouble plantShare) {}
+    public record Cycle(@NotNull Map<Rank, Double> phases, @NotNull Map<Rank, Double> gains,
+                        @NotNull OptionalDouble opposed, @NotNull OptionalDouble coupled,
+                        @NotNull OptionalDouble plantShare) {}
 
     /**
      * Which model-space direction a limb's rest posture points along, for aim solves.
@@ -342,6 +345,7 @@ public record PoseScript(
         private @Nullable Hover hover;
         private @NotNull OptionalDouble periodSeconds = OptionalDouble.empty();
         private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
+        private final @NotNull Map<Rank, Double> gains = new EnumMap<>(Rank.class);
         private @NotNull OptionalDouble opposed = OptionalDouble.empty();
         private @NotNull OptionalDouble coupled = OptionalDouble.empty();
         private @NotNull OptionalDouble plantShare = OptionalDouble.empty();
@@ -597,6 +601,7 @@ public record PoseScript(
                 this.cycled()
                     ? Optional.of(new Cycle(
                         Collections.unmodifiableMap(new EnumMap<>(this.phases)),
+                        Collections.unmodifiableMap(new EnumMap<>(this.gains)),
                         this.opposed, this.coupled, this.plantShare))
                     : Optional.empty()
             );
@@ -606,7 +611,7 @@ public record PoseScript(
          * Whether any gait said anything about how a cycle is spent.
          */
         private boolean cycled() {
-            return !this.phases.isEmpty() || this.opposed.isPresent()
+            return !this.phases.isEmpty() || !this.gains.isEmpty() || this.opposed.isPresent()
                 || this.coupled.isPresent() || this.plantShare.isPresent();
         }
 
@@ -638,6 +643,22 @@ public record PoseScript(
          */
         @NotNull Capture opposed(double cycles) {
             this.opposed = OptionalDouble.of(cycles);
+            return this;
+        }
+
+        /**
+         * Captures what each row multiplies the shape's travel by.
+         *
+         * <p>The multiples accumulate across every cycle a style writes, for the reason the offsets
+         * do: how far a row travels is a fact about the row rather than about the gait that stated
+         * it, and a second gait naming other rows must not unsay the first one's. A rank stated
+         * twice takes the later number.
+         *
+         * @param gains each row's own multiple of the shape's travel
+         * @return this capture
+         */
+        @NotNull Capture gains(@NotNull Map<Rank, Double> gains) {
+            this.gains.putAll(gains);
             return this;
         }
 
