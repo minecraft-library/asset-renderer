@@ -379,11 +379,14 @@ public final class StyleRegistrar {
         PoseCompiler.Compiled arm = PoseCompiler.compileLayer(style, layer.pose(), evidence, mesh, coined,
             scope, pool, site, periodTicks);
         if (!arm.droppedBones().isEmpty()) {
+            // Recorded BEFORE the strict refusal, so strictness adds the error and never subtracts
+            // the warning: both forks say the same thing about the same drop, and the strict one
+            // says one more thing after it.
+            events.warn("weave-subset: layer '%s' drops bone(s) [%s] and weaves the rest%s",
+                coined, joined(arm.droppedBones()), texture);
             if (strict)
                 throw this.refuse(install, "Style '%s' weaves layer '%s' of entity '%s', whose mesh does not declare bone(s) [%s] - it declares [%s]",
                     style.styleId(), coined, entityId, joined(arm.droppedBones()), joined(mesh.getBones().keySet()));
-            events.warn("weave-subset: layer '%s' drops bone(s) [%s] and weaves the rest%s",
-                coined, joined(arm.droppedBones()), texture);
         } else
             events.info("weave-full: layer '%s' woven whole - %d written bone(s)%s",
                 coined, landing.size(), texture);

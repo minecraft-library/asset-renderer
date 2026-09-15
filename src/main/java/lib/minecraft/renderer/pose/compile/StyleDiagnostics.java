@@ -29,13 +29,15 @@ import java.util.stream.Collectors;
  * the root); {@link Output} gates emission only - a library must not print uninvited, so
  * {@code NONE} is the resting mode and {@code CONSOLE}/{@code FILE} are caller opt-ins.
  *
- * <p>Nothing recorded is load-bearing: refusals throw on their own facts, and an entry beside a
- * throw is the post-mortem, never a second refusal channel. Lines speak driver, field, bone,
+ * <p>No refusal is DECIDED here: a refusal throws on its own facts, and the entry beside it is the
+ * post-mortem rather than a second refusal channel. What is recorded is still read - the install
+ * surface hands its root out - so an entry is observable to a caller even though none gates a
+ * compile. Lines speak driver, field, bone,
  * channel and count vocabulary - never a rendered expression graph, whose per-path expansion is
  * exactly what the pose tables exist to avoid.
  *
  * <p>Counts are SUBTREE-aggregated: {@link #count(Severity)} and {@link #failed()} cover this
- * scope and every descendant. {@link Severity} declaration order is escalation order.
+ * scope and every descendant.
  */
 @Parity(subject = Subject.ENTITY)
 public final class StyleDiagnostics {
@@ -46,7 +48,11 @@ public final class StyleDiagnostics {
     public enum Output { NONE, CONSOLE, FILE }
 
     /**
-     * Entry severities, in escalation order. Declaration order is load-bearing.
+     * Entry severities, written in escalation order for a reader.
+     *
+     * <p>Nothing reads the order: a count matches one severity against another and never compares
+     * or indexes by ordinal, so these three reorder without moving a verdict. The order is a
+     * convention for whoever reads the list, not a contract.
      */
     public enum Severity { INFO, WARN, ERROR }
 
