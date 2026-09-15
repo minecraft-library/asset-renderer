@@ -118,15 +118,14 @@ whether this package expects a sixth arm at all, and what a guard against a chan
 is worth - the five arms have not changed since the type was written, which is evidence for both
 readings and settles neither.
 
-## Three types in one package record an absence three different ways
+## Whether a near miss the seat derivation refuses is worth recording
 
-One writes free prose into a record component that a caller reads back; one records nothing at all when
-it refuses, with no diagnostics channel reaching it; one funnels every absence through the shared
-recorder. None of the three knows about the others, and the middle one's class javadoc argues its
-tolerance at length without ever saying that a near miss goes unrecorded.
+The seat derivation takes no diagnostics channel and records nothing when it refuses a follower, so a
+chain that misses the residual bound by a hair is indistinguishable from one that was never a
+candidate. Its class javadoc argues the tolerance at length and its tolerance field carries the nine
+measured shares and the four near misses, and neither says that a near miss goes unrecorded.
 
-Routing the first through the recorder was considered and is blocked mechanically - it is derived by a
-static with no scope to record into, called from a site that has none either. Routing the second through
-it hits the same wall. What is open is whether the silence is a choice or an omission, which cannot be
-told from the file, and whether the prose-in-a-component shape should exist at all: rewording it makes
-a test that asserts over its substrings vacuously true, and the test stays green.
+The claim that this is blocked mechanically does not hold: the busier of its two production call
+sites holds a scope and uses it eleven lines below the derive. What is open is whether the silence is
+a choice - a derivation answering a question nobody asked is not an absence worth a line - or an
+omission, which cannot be told from the file either way.

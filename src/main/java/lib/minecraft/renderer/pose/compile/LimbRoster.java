@@ -37,15 +37,45 @@ import java.util.function.Supplier;
  * position needs none. No entity id appears anywhere in the resolution.
  *
  * @param rows the legs the mesh declares, grouped front to back
- * @param ambiguities what the resolution could not settle cleanly, in the words a reader needs
+ * @param ambiguities what the resolution could not settle cleanly, each as a kind and the words a
+ *     reader needs
  * @param crossed the legs whose name says one side and whose own geometry says the other, in
  *     roster order - a fact about the mesh that a caller keying on which side a leg is on has to
  *     be told, because the side a member carries is the name's and the pixels are elsewhere
  */
 @Parity(subject = Subject.ENTITY)
 public record LimbRoster(@NotNull ConcurrentList<Row> rows,
-                         @NotNull ConcurrentList<String> ambiguities,
+                         @NotNull ConcurrentList<Note> ambiguities,
                          @NotNull ConcurrentList<String> crossed) {
+
+    /**
+     * One thing the resolution could not settle cleanly.
+     *
+     * <p>The kind is what a reader matches on and the reading is what a reader reads. They are two
+     * components rather than one because a note's sentence is written for a person and changes when
+     * a better sentence is found, where what it is about does not - so a test keying on the kind
+     * keeps biting across a reword, and a renamed kind is a compile error rather than silence.
+     *
+     * @param kind what the resolution could not settle
+     * @param reading the note in the words a reader needs
+     */
+    public record Note(@NotNull Kind kind, @NotNull String reading) {
+
+        /**
+         * What a note is about.
+         */
+        public enum Kind {
+
+            /** A leg root carrying neither a side token nor a side its own geometry resolves. */
+            UNSIDED_ROOT,
+
+            /** A leg named for one side and sitting on the other. */
+            CROSSED,
+
+            /** A row grouper holding fewer legs than a row takes. */
+            THIN_GROUPER
+        }
+    }
 
     /** The side tokens a bone name is read for. */
     private static final @NotNull Set<String> SIDE_TOKENS = Set.of("left", "right");
@@ -143,7 +173,7 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
     public static @NotNull LimbRoster of(@NotNull EntityModelData mesh) {
         Map<String, EntityModelData.Bone> bones = mesh.getBones();
         List<String> legish = bones.keySet().stream().filter(LimbRoster::legish).toList();
-        List<String> notes = new ArrayList<>();
+        List<Note> notes = new ArrayList<>();
         List<String> crossed = new ArrayList<>();
         if (legish.isEmpty())
             return new LimbRoster(Concurrent.newUnmodifiableList(),
@@ -170,11 +200,12 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
                     ? Optional.empty()
                     : sideOf(seat);
                 if (kinds.get(seat) == Kind.ROOT && side.isEmpty())
-                    notes.add("leg root '" + seat + "' carries neither a side token nor a resolvable side");
+                    notes.add(new Note(Note.Kind.UNSIDED_ROOT, "leg root '" + seat
+                        + "' carries neither a side token nor a resolvable side"));
                 Optional<Side> sits = geometric(seat, bones, legNames, chains);
                 if (side.isPresent() && sits.isPresent() && side.get() != sits.get()) {
-                    notes.add("leg '" + seat + "' is named " + side.get()
-                        + " and sits " + sits.get());
+                    notes.add(new Note(Note.Kind.CROSSED, "leg '" + seat + "' is named "
+                        + side.get() + " and sits " + sits.get()));
                     crossed.add(seat);
                 }
                 members.add(new Member(seat, ordinal, side, 0, kinds.get(seat)));
@@ -192,7 +223,8 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
 
         for (String bone : legish)
             if (kinds.get(bone) == Kind.GROUPER && childLegs(bone, bones, legNames).size() < 2)
-                notes.add("row grouper '" + bone + "' holds fewer than two legs");
+                notes.add(new Note(Note.Kind.THIN_GROUPER, "row grouper '" + bone
+                    + "' holds fewer than two legs"));
 
         return new LimbRoster(Concurrent.newUnmodifiableList(rows),
             Concurrent.newUnmodifiableList(notes), Concurrent.newUnmodifiableList(crossed));

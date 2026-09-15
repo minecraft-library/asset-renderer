@@ -9,6 +9,7 @@ import lib.minecraft.renderer.pose.author.Reach;
 import lib.minecraft.renderer.pose.author.Side;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -186,12 +187,15 @@ class LimbRosterCorpusTest {
     @DisplayName("no geometry resolves ambiguously, so a hit is a mesh the detector has not met")
     void theCorpusIsUnambiguous() {
         List<String> ambiguous = new ArrayList<>();
-        rosters().forEach((coordinate, roster) -> roster.ambiguities()
-            .forEach(note -> ambiguous.add(coordinate + ": " + note)));
-        assertTrue(ambiguous.stream().noneMatch(note -> note.contains("neither a side token")),
-            () -> "every leg root resolves a side: " + ambiguous);
-        assertTrue(ambiguous.stream().noneMatch(note -> note.contains("fewer than two legs")),
-            () -> "every row grouper holds a row: " + ambiguous);
+        rosters().forEach((coordinate, roster) -> roster.ambiguities().stream()
+            .filter(note -> note.kind() != LimbRoster.Note.Kind.CROSSED)
+            .forEach(note -> ambiguous.add(coordinate + ": " + note.kind() + " " + note.reading())));
+
+        assertEquals(List.of(), ambiguous,
+            "the corpus writes one kind of note and one only, so anything else is a mesh the "
+                + "detector has not met - and the kinds it never writes are exercised on meshes "
+                + "built for them rather than asserted absent here, where absent is all the corpus "
+                + "can ever say");
     }
 
     @Test
@@ -199,8 +203,8 @@ class LimbRosterCorpusTest {
     void onlyOneMeshNamesALegAgainstItsPosition() {
         List<String> crossed = new ArrayList<>();
         rosters().forEach((coordinate, roster) -> roster.ambiguities().stream()
-            .filter(note -> note.contains("is named"))
-            .forEach(note -> crossed.add(coordinate + ": " + note)));
+            .filter(note -> note.kind() == LimbRoster.Note.Kind.CROSSED)
+            .forEach(note -> crossed.add(coordinate + ": " + note.reading())));
 
         assertEquals(List.of(
                 "BabyArmadilloModel#createBodyLayer: leg 'right_front_leg' is named RIGHT and sits LEFT",
@@ -285,7 +289,8 @@ class LimbRosterCorpusTest {
             "a caller keying on which side a leg is on reads this rather than parsing the note "
                 + "beside it, so rewording the note cannot silently disarm the reader");
         rosters().forEach((coordinate, roster) -> assertEquals(
-            roster.ambiguities().stream().filter(note -> note.contains("is named")).count(),
+            roster.ambiguities().stream()
+                .filter(note -> note.kind() == LimbRoster.Note.Kind.CROSSED).count(),
             roster.crossed().size(),
             () -> coordinate + " answers one leg for every note it writes about one"));
     }
@@ -339,6 +344,55 @@ class LimbRosterCorpusTest {
             .toList();
         assertFalse(found.isEmpty(), "the corpus declares a mesh naming '" + bone + "'");
         return found;
+    }
+
+    /**
+     * The two notes the shipped corpus never writes, on meshes built to make it write them.
+     *
+     * <p>A corpus assertion can only ever say a note is ABSENT, and both of these are absent from
+     * every shipped geometry - so asserting their absence there passes whether the detector writes
+     * them or not, and would go on passing with the lines that write them deleted. What holds them
+     * is a mesh shaped to produce each one.
+     */
+    @Nested
+    @DisplayName("the notes no shipped geometry produces")
+    class UnmetShapes {
+
+        @Test
+        @DisplayName("a leg root with no side in its name and none in its pixels is told about")
+        void anUnsidedLegRootIsTold() {
+            EntityModelData mesh = new EntityModelData();
+            EntityModelData.Bone leg = CompilerFixtures.bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null);
+            leg.getCubes().add(CompilerFixtures.cube(2f, 0f, -1f, 3f, 8f, 2f));
+            mesh.getBones().put("leg", leg);
+
+            assertEquals(List.of(LimbRoster.Note.Kind.UNSIDED_ROOT), kindsOf(mesh),
+                "the name carries no side token, and a root is not a fused row just because it "
+                    + "lacks one - its cubes sit wholly off the midline");
+        }
+
+        @Test
+        @DisplayName("a row grouper holding one leg is told about")
+        void aThinRowGrouperIsTold() {
+            EntityModelData mesh = new EntityModelData();
+            mesh.getBones().put("legs", CompilerFixtures.bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+            EntityModelData.Bone leg = CompilerFixtures.bone(-2f, 0f, 0f, 0f, 0f, 0f, 1f, "legs");
+            leg.getCubes().add(CompilerFixtures.cube(-3f, 0f, -1f, 2f, 8f, 2f));
+            mesh.getBones().put("right_leg", leg);
+
+            assertEquals(List.of(LimbRoster.Note.Kind.THIN_GROUPER), kindsOf(mesh),
+                "a cubeless leg-named bone over leg children is a grouper, and one child is "
+                    + "fewer than a row takes");
+        }
+
+        /**
+         * The kinds one mesh's roster writes, in the order it writes them.
+         */
+        private @NotNull List<LimbRoster.Note.Kind> kindsOf(@NotNull EntityModelData mesh) {
+            return LimbRoster.of(mesh).ambiguities().stream()
+                .map(LimbRoster.Note::kind)
+                .toList();
+        }
     }
 
 }
