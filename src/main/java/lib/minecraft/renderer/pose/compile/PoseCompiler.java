@@ -309,9 +309,10 @@ public final class PoseCompiler {
         private final @NotNull Set<String> fields = new LinkedHashSet<>();
 
         /**
-         * The written bones the mesh does not declare, in first-written order.
+         * The written bones the mesh does not declare, in first-written order and each recorded
+         * once - the set is what holds both, so a recording site adds without asking.
          */
-        private final @NotNull List<String> dropped = new ArrayList<>();
+        private final @NotNull Set<String> dropped = new LinkedHashSet<>();
 
         /**
          * The per-bone channel plans, in first-touch order.
@@ -600,7 +601,7 @@ public final class PoseCompiler {
         private void recordAbsentRank(@NotNull String verb, @NotNull Rank rank) {
             if (this.roster.row(rank).isPresent()) return;
             String reading = verb + "(" + rank + ")";
-            if (!this.dropped.contains(reading)) this.dropped.add(reading);
+            this.dropped.add(reading);
             this.events.info("gait: %s names a row this mesh does not carry, so it lands on nothing",
                 reading);
         }
@@ -820,8 +821,7 @@ public final class PoseCompiler {
                 return;
             }
             if (!this.mesh.getBones().containsKey(limb.bone())) {
-                if (!this.dropped.contains(limb.bone()))
-                    this.dropped.add(limb.bone());
+                this.dropped.add(limb.bone());
                 for (PoseScript.Track track : stance.tracks())
                     this.trackPlans.add(new TrackPlan(Optional.of(limb.bone()), track));
                 return;
@@ -863,8 +863,7 @@ public final class PoseCompiler {
                     && legs.stamp() == LimbSelector.Stamp.FAR;
                 this.events.info("selector: %s reaches no bone this mesh declares",
                     selected.reading());
-                if (!derived && !this.dropped.contains(selected.reading()))
-                    this.dropped.add(selected.reading());
+                if (!derived) this.dropped.add(selected.reading());
                 for (PoseScript.Track track : stance.tracks())
                     this.trackPlans.add(new TrackPlan(Optional.empty(), track));
                 return;
@@ -1770,8 +1769,7 @@ public final class PoseCompiler {
         private void lowerRaws(@NotNull LinkedHashMap<String, Map<PoseChannel, PoseExpr>> bones) {
             for (PoseScript.Raw raw : this.script.raws()) {
                 if (!this.mesh.getBones().containsKey(raw.bone())) {
-                    if (!this.dropped.contains(raw.bone()))
-                        this.dropped.add(raw.bone());
+                    this.dropped.add(raw.bone());
                     continue;
                 }
                 PoseExpr interned = this.pool.intern(raw.expr());
