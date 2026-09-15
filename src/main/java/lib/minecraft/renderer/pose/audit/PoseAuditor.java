@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pose.audit;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
@@ -16,6 +17,7 @@ import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.compile.PoseCompiler;
 import lib.minecraft.renderer.pose.compile.Seats;
+import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -84,10 +86,17 @@ public final class PoseAuditor {
     /**
      * Audits a built style against one target row.
      *
+     * <p>The audit PREDICTS an install rather than measuring a fit against the body: what it
+     * reports as unreached is what a strict install would refuse over, which means the woven
+     * layers are compiled too and not the body alone. A style whose bones all land on the body
+     * and miss a layer's mesh is the case the two readings disagree on, and it is the case an
+     * author most needs told before installing.
+     *
      * @param style the built style to audit
      * @param row the shipped row the style would install on
      * @return the audit
-     * @throws IllegalArgumentException if the style refuses to compile against the row
+     * @throws IllegalArgumentException if the style refuses to compile against the row or any
+     *     layer it would weave
      */
     public static @NotNull PoseAudit audit(@NotNull BuiltStyle style, @NotNull Entity row) {
         PoseCompiler.Compiled compiled = PoseCompiler.compile(style, row);
@@ -157,7 +166,33 @@ public final class PoseAuditor {
         }
 
         return new PoseAudit(style.styleId(), row.id().toString(), pairs.size(),
-            compiled.drops(), Concurrent.newUnmodifiableList(findings));
+            unreached(style, row, compiled), Concurrent.newUnmodifiableList(findings));
+    }
+
+    /**
+     * Every address the style reaches nothing with, over the body and every layer it would weave.
+     *
+     * <p>A layer no written bone lands on reports every address it was asked for, which is the
+     * same fact the install records as a skipped weave said the other way round - so the list is
+     * what reached nothing ANYWHERE rather than what reached nothing on the body.
+     *
+     * @param style the built style being audited
+     * @param row the shipped row the style would install on
+     * @param body the body compile, already taken
+     * @return the unreached addresses, in first-written order and each recorded once
+     */
+    private static @NotNull ConcurrentList<PoseCompiler.Unreached> unreached(
+        @NotNull BuiltStyle style, @NotNull Entity row, @NotNull PoseCompiler.Compiled body) {
+
+        Set<PoseCompiler.Unreached> drops = new LinkedHashSet<>(body.drops());
+        StyleDiagnostics quiet = StyleDiagnostics.root("audit", StyleDiagnostics.Output.NONE, null);
+        List<Entity.OverlayLayer> overlays = row.overlays();
+        for (int index = 0; index < overlays.size(); index++) {
+            Entity.OverlayLayer layer = overlays.get(index);
+            drops.addAll(PoseCompiler.compileLayer(style, layer.pose(), layer.model(),
+                "$layer" + index, quiet.child("weave")).drops());
+        }
+        return Concurrent.newUnmodifiableList(drops);
     }
 
     /**

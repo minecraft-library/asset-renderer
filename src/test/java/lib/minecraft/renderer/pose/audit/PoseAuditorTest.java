@@ -3,7 +3,9 @@ package lib.minecraft.renderer.pose.audit;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
@@ -14,6 +16,8 @@ import lib.minecraft.renderer.pose.author.Poses;
 import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
+import lib.minecraft.renderer.pose.compile.CompilerFixtures;
+import lib.minecraft.renderer.pose.compile.PoseCompiler;
 import lib.minecraft.renderer.pose.install.RegistrarFixtures;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -321,6 +325,26 @@ class PoseAuditorTest {
             .findFirst()
             .orElseThrow(() -> new AssertionError(
                 "no " + kind + " finding on " + boneA + " <-> " + boneB + " in:\n" + audit.report()));
+    }
+
+
+    @Test
+    @DisplayName("an address that lands on the body and misses a layer's mesh is reported, because the audit predicts an install")
+    void aLayerOnlyMissIsReported() {
+        EntityModelData mesh = CompilerFixtures.humanoid();
+        EntityModelData wings = new EntityModelData();
+        wings.getBones().put("left_wing", CompilerFixtures.bone(2f, 4f, 0f, 0f, 0f, 0f, 1f, null));
+        Entity row = RegistrarFixtures.entity("minecraft:test", mesh, EntityPose.NONE,
+            StyleCatalog.BIND_ONLY, RegistrarFixtures.overlay(wings, EntityPose.NONE));
+
+        // The head is a bone the BODY declares and the wing layer does not, so a body-only audit
+        // reads this style as clean while a strict install refuses it on the layer.
+        PoseAudit audit = Poses.humanoid("nod").head(head -> head.pitch(-15)).build().validate(row);
+
+        assertEquals(List.of("bone 'head'"),
+            audit.drops().stream().map(PoseCompiler.Unreached::describe).toList(),
+            () -> "the layer the style reaches nothing on is what the install would refuse over: "
+                + audit.drops());
     }
 
 }
