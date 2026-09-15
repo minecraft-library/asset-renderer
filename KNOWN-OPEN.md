@@ -43,28 +43,42 @@ Check the vanilla behaviour before building anything else on the pair mechanism.
 
 ## Twelve face lookups each carry the substitution answer as a bare boolean
 
-`MissingTexture`'s three lookups take a trailing `boolean substituting`, and the twelve call sites
-in `BlockRenderer` and `ItemRenderer` each pass it. That the answer travels from the render is
-forced - the substitution cannot be keyed on the texture id, because a block model's face load and
-an entity's carried-block overlay see the same string and need opposite answers. What is open is the
-shape it travels in: `MissingTexture.textureAtTick(this.context, part.texture(), tick,
-this.substituting)` is four arguments of which the last reads as a flag rather than as a question
-about that texture, and a reader has to know the callee to know what `true` means.
+`MissingTexture`'s three lookups take a trailing `boolean substituting`, and the twelve call sites in
+`BlockRenderer` and `ItemRenderer` each pass it. That the answer travels from the render is forced -
+the substitution cannot be keyed on the texture id, because a block model's face load and an
+entity's carried-block overlay see the same string and need opposite answers. What is open is the
+shape it travels in: a four-argument call ending in a positional boolean.
 
-It is not a cost problem, which is the trap in re-opening it. Threading the flag costs **zero**
-extra parameters: every item helper already holds `ItemOptions` and the isometric assembly already
-holds the render's options, so the answer rides on what was there. Three shapes have been tried and
-put down - a constructor field on the two renderers, reverted once its cost showed on the item side;
-a per-render record pairing the context with the flag, built and gated green and then walked back as
-a top-level type holding two values; and widening the port's own lookups, which moves the ternary to
-the call sites rather than removing it.
+**Four of this entry's own premises were measured and are wrong. It is re-stated here on what the
+tree actually holds, because the decision it asks for cannot be taken on the old ones.**
 
-**A return type cannot take this off the call sites, and that rules out a whole family at once.**
-The flag chooses between drawing the checkerboard and raising, and a returned value can report that
-a texture is absent but cannot raise on the caller's behalf - so neither a carrier record bundling
-the buffer with what is known about it, nor a container distinguishing absent from empty, removes a
-single one of the twelve. Both were evaluated against exactly this and neither survived it. Anything
-that closes this is on the calling side.
+- *"a reader has to know the callee to know what `true` means"* - no production call site passes a
+  literal. All twelve read a named field, a named local, or the option getter; `true` and `false`
+  appear only in the two test files. Nobody is reading a bare literal and guessing, so the defect is
+  the weaker one of a positional boolean rather than an unreadable one.
+- *"a constructor field on the two renderers, reverted once its cost showed"* - a constructor field
+  is in the tree today on the block side and six of the seven block sites read it. It was refused
+  for the ITEM side alone, where four of the five lookups sit in statics no instance field reaches.
+- *"a returned value cannot raise on the caller's behalf, and that rules out a whole family at
+  once"* - false. The third lookup returns a function whose body raises when applied, and a test
+  asserts exactly that. The sentence is true of an eager carrier and false of a returned lookup, so
+  it rules out nothing of the kind.
+- *"Both were evaluated against exactly this and neither survived it"* - no commit, branch, stash or
+  reflog in this repo carries any of the three shapes the entry says were tried. This entry is their
+  only record.
+
+What survives is a taste question with a measured price. A two-constant enum nested inside
+`MissingTexture` keeps the arity and makes a mis-threaded polarity a compile error, and it pays only
+if the block field and the two item locals are retyped with it - otherwise the three sites reading
+the getter inline get longer rather than clearer. Nesting is not optional: a new top-level type under
+the engine tree is a path the reach graph has never heard of, and a plan over it refuses outright
+until the graph is rebuilt.
+
+**The gate is the reason this is not a free afternoon.** The three types reach ten artifacts, and the
+swap is byte-neutral by ARGUMENT rather than by construction - the compiler takes an inverted
+constant exactly as it takes an inverted boolean. `check` cannot see a flipped site, because the
+renderer-level proof that all twelve substitute lives in the slow suite. So the honest acceptance is
+the slow suite read on its own exit code, with the capture bundle as secondary confirmation.
 
 ## What a compile rule may read is declarable and when it may run is not
 
