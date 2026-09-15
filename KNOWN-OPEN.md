@@ -118,19 +118,6 @@ whether this package expects a sixth arm at all, and what a guard against a chan
 is worth - the five arms have not changed since the type was written, which is evidence for both
 readings and settles neither.
 
-## Nothing measures what rebuilding a roster per stance costs
-
-The roster is derived inside a loop over stances, twice, and each derivation walks the whole mesh's
-chain transforms plus work quadratic in the leg count. The far cheaper interner pool beside it IS
-cached per entity. The seat derivation is quadratic in bones times states and is cached nowhere, and it
-cannot be cached per mesh the way the roster could, because it takes the pose and the install rewrites
-the pose.
-
-Caching the roster per mesh was considered and is held for the commit that measures it, which is the
-honest order: nobody has run a bench or a counter, so the cost is a shape rather than a number. What is
-open is whether it matters at the sizes this actually runs at - an install is a handful of stances over
-a mesh of tens of bones, and a cache is a field and an invalidation question.
-
 ## Three types in one package record an absence three different ways
 
 One writes free prose into a record component that a caller reads back; one records nothing at all when

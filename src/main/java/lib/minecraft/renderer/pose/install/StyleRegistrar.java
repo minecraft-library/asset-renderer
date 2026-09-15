@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * The install surface of pose authoring - binds entity-free built styles onto entity rows and
@@ -561,10 +562,11 @@ public final class StyleRegistrar implements AutoCloseable {
      */
     private static @NotNull Set<String> writtenBones(@NotNull PoseScript script,
                                                      @NotNull EntityModelData mesh) {
+        Supplier<LimbRoster> roster = rosterOf(mesh);
         Set<String> bones = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances())
             stance.limb().ifPresent(limb -> {
-                if (carries(stance)) bones.addAll(addressed(limb, mesh));
+                if (carries(stance)) bones.addAll(addressed(limb, mesh, roster));
             });
         for (PoseScript.Raw raw : script.raws())
             bones.add(raw.bone());
@@ -576,10 +578,11 @@ public final class StyleRegistrar implements AutoCloseable {
      */
     private static @NotNull Set<String> scaledBones(@NotNull PoseScript script,
                                                     @NotNull EntityModelData mesh) {
+        Supplier<LimbRoster> roster = rosterOf(mesh);
         Set<String> bones = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances())
             stance.limb().ifPresent(limb -> {
-                if (!stance.of(PoseScript.Scale.class).isEmpty()) bones.addAll(addressed(limb, mesh));
+                if (!stance.of(PoseScript.Scale.class).isEmpty()) bones.addAll(addressed(limb, mesh, roster));
             });
         for (PoseScript.Raw raw : script.raws())
             if (raw.channel().kind() == PoseChannel.Kind.SCALE) bones.add(raw.bone());
@@ -589,15 +592,43 @@ public final class StyleRegistrar implements AutoCloseable {
     /**
      * The bones one captured limb names on the given mesh - the bone itself where it was written
      * by name, and whatever the mesh's own roster answers where it was written as a selector.
+     *
+     * @param roster the shared derivation every selected limb of one script reads through
      */
     private static @NotNull List<String> addressed(PoseScript.@NotNull Limb limb,
-                                                   @NotNull EntityModelData mesh) {
+                                                   @NotNull EntityModelData mesh,
+                                                   @NotNull Supplier<LimbRoster> roster) {
         return switch (limb) {
             case PoseScript.Limb.Named named -> List.of(named.bone());
-            // The roster is built inside the supplier rather than before it, so a family address
-            // resolves without one - which is what this method did before the resolver was shared.
+            // Handed on as the supplier rather than as a roster, so a family address still resolves
+            // without one ever being derived.
             case PoseScript.Limb.Selected selected ->
-                LimbRoster.members(selected.selector(), mesh, () -> LimbRoster.of(mesh));
+                LimbRoster.members(selected.selector(), mesh, roster);
+        };
+    }
+
+    /**
+     * One roster derivation shared across every selected limb of one script.
+     *
+     * <p>Deriving one is a full chain-transform walk over the mesh plus work quadratic in the leg
+     * count, and a script addressing legs several times asked for that walk once per address. It
+     * stays a supplier rather than becoming a roster so that a script addressing none of them, or
+     * addressing only a family, still derives nothing at all - which is the reason the resolver
+     * takes a supplier in the first place.
+     *
+     * @param mesh the mesh the roster is derived from
+     * @return a supplier deriving on its first call and answering the same roster after
+     */
+    private static @NotNull Supplier<LimbRoster> rosterOf(@NotNull EntityModelData mesh) {
+        return new Supplier<>() {
+
+            private @Nullable LimbRoster derived;
+
+            @Override
+            public @NotNull LimbRoster get() {
+                if (this.derived == null) this.derived = LimbRoster.of(mesh);
+                return this.derived;
+            }
         };
     }
 
