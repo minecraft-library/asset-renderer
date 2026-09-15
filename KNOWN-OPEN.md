@@ -93,19 +93,6 @@ it, and it would sit beside the bound the plant share is already held to.
 What is open is whether an inert number is worth catching at all. No style in the tree writes a
 gait yet, so there is no evidence about how often an author strands one.
 
-## Whether an entry's severity is part of the library's contract
-
-The registrar exposes its diagnostics publicly, so a consumer can count entries of a given severity and
-branch on the answer. The class javadoc says nothing recorded is load-bearing, which reads as permission
-to reclassify freely; what is actually true is narrower - nothing recorded reaches a shipped byte. Those
-are different claims and the second does not license the first.
-
-Pinning the severities was considered: it means an assertion per recording site, twenty-one of them, and
-it freezes a vocabulary that is still being written down. Leaving it unstated was considered and is the
-status quo, which is how a reclassification can reach a consumer as a behaviour change that no note
-calls one. What is open is which of the two the class doc should say, and the answer decides whether a
-future severity change is a free edit or a compatibility event.
-
 ## What a compile rule may read is declarable and when it may run is not
 
 A rule that takes only the script and the diagnostics cannot read a mesh, and the compiler enforces

@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
  *
  * <p>No refusal is DECIDED here: a refusal throws on its own facts, and the entry beside it is the
  * post-mortem rather than a second refusal channel. What is recorded is still read - the install
- * surface hands its root out - so an entry is observable to a caller even though none gates a
- * compile. Lines speak driver, field, bone,
- * channel and count vocabulary - never a rendered expression graph, whose per-path expansion is
- * exactly what the pose tables exist to avoid.
+ * surface hands its root out, and so does a compiled result - so an entry is observable to a caller
+ * even though none gates a compile. Lines speak driver, field, bone, channel and count vocabulary -
+ * never a rendered expression graph, whose per-path expansion is exactly what the pose tables exist
+ * to avoid.
  *
  * <p>Counts are SUBTREE-aggregated: {@link #count(Severity)} and {@link #failed()} cover this
  * scope and every descendant.
@@ -53,6 +53,13 @@ public final class StyleDiagnostics {
      * <p>Nothing reads the order: a count matches one severity against another and never compares
      * or indexes by ordinal, so these three reorder without moving a verdict. The order is a
      * convention for whoever reads the list, not a contract.
+     *
+     * <p><b>Neither is the classification.</b> What each severity means is stated with the member
+     * that records it, and that criterion is the contract; which severity a given line carries is a
+     * reading of it, and a line moves when the reading is corrected. So a consumer counting one
+     * severity is counting how many lines meet a criterion today rather than a number this holds
+     * still - what a count is stable against is a refusal, which throws on its own facts and never
+     * on an entry.
      */
     public enum Severity { INFO, WARN, ERROR }
 
@@ -131,8 +138,8 @@ public final class StyleDiagnostics {
      * as spelled.
      *
      * <p>The instances: an address the subject carries none of, fewer addresses than the chain
-     * named, an address opposite the one named, a wave nothing follows, or a span the render
-     * window truncates.
+     * named, none of them at all on a woven layer, an address opposite the one named, a wave
+     * nothing follows, a seat carried round to itself, or a span the render window truncates.
      *
      * <p>A fact that would refuse under a strict install records the SAME warning under a tolerant
      * one. Strictness adds the error and the throw; it never removes an entry, and tolerance never
