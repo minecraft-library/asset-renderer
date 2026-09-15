@@ -4310,6 +4310,18 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/PoseNode": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/PoseNodeTextTest": {
       "artifacts": [],
       "source": "derived"

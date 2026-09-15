@@ -20,6 +20,7 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pose.MotionSource;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseNode;
 import lib.minecraft.renderer.pose.PosePredicate;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.PoseScript;
@@ -446,7 +447,7 @@ public final class StyleRegistrar implements AutoCloseable {
         for (EntityPose.Clip site : pose.clips())
             for (PoseClip.Channel channel : site.clip().channels()) {
                 if (mesh.getBones().containsKey(channel.bone())) {
-                    if (channel.target() == PoseClip.Target.SCALE && scaled.contains(channel.bone()))
+                    if (channel.target() == PoseChannel.Kind.SCALE && scaled.contains(channel.bone()))
                         throw this.refuse(install, "Style '%s' scales bone '%s', which shipped clip '%s' already scales - one factor cannot hold both",
                             style.styleId(), channel.bone(), site.coordinate());
                 } else if (reachesContainer(channel.bone(), mesh) && !displacing.contains(site.coordinate()))
@@ -503,7 +504,7 @@ public final class StyleRegistrar implements AutoCloseable {
      * Checks each landing raw's reads against one mesh, visiting each node once by instance.
      */
     private void checkRawReads(@NotNull StyleDiagnostics install, @NotNull BuiltStyle style, @NotNull EntityModelData mesh) {
-        Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<PoseNode> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         for (PoseScript.Raw raw : style.script().raws()) {
             if (!mesh.getBones().containsKey(raw.bone())) continue;
             String missing = missingRead(raw.expr(), mesh, visited);
@@ -516,8 +517,8 @@ public final class StyleRegistrar implements AutoCloseable {
     /**
      * The first bone a graph reads that the mesh does not declare, or {@code null}.
      */
-    private static @Nullable String missingRead(@NotNull PoseExpr node, @NotNull EntityModelData mesh,
-                                                @NotNull Set<Object> visited) {
+    private static @Nullable String missingRead(@NotNull PoseNode node, @NotNull EntityModelData mesh,
+                                                @NotNull Set<PoseNode> visited) {
         if (!visited.add(node)) return null;
         return switch (node) {
             case PoseExpr.BoneRead read -> mesh.getBones().containsKey(read.bone()) ? null : read.bone();
@@ -534,19 +535,13 @@ public final class StyleRegistrar implements AutoCloseable {
                 if (found == null) found = missingRead(select.whenFalse(), mesh, visited);
                 yield found;
             }
+            case PosePredicate predicate -> {
+                String found = missingRead(predicate.left(), mesh, visited);
+                yield found != null ? found : missingRead(predicate.right(), mesh, visited);
+            }
             case PoseExpr.Const ignored -> null;
             case PoseExpr.Input ignored -> null;
         };
-    }
-
-    /**
-     * The condition arm of the same walk.
-     */
-    private static @Nullable String missingRead(@NotNull PosePredicate node, @NotNull EntityModelData mesh,
-                                                @NotNull Set<Object> visited) {
-        if (!visited.add(node)) return null;
-        String found = missingRead(node.left(), mesh, visited);
-        return found != null ? found : missingRead(node.right(), mesh, visited);
     }
 
     // ------------------------------------------------------------------------------------

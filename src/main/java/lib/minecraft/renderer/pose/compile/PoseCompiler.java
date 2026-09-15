@@ -15,6 +15,7 @@ import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pose.MotionSource;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseNode;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.PosePredicate;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
@@ -1324,9 +1325,9 @@ public final class PoseCompiler {
             PoseScript.Track track = plan.track();
             double length = track.overSeconds().orElse(this.windowSeconds);
             PoseClip.Interpolation curve = track.ease().interpolation();
-            LinkedHashMap<PoseClip.Target, List<Frame>> emitted =
+            LinkedHashMap<PoseChannel.Kind, List<Frame>> emitted =
                 framesOf(track, length, this.flattened, planted(this.script));
-            for (Map.Entry<PoseClip.Target, List<Frame>> channel : emitted.entrySet()) {
+            for (Map.Entry<PoseChannel.Kind, List<Frame>> channel : emitted.entrySet()) {
                 List<Frame> frames = plan.shiftCycles() % 1d == 0d
                     ? channel.getValue()
                     : this.offset(bone, channel.getValue(),
@@ -1403,15 +1404,15 @@ public final class PoseCompiler {
          * @param planted the share of the cycle a triangle stays at its resting bound
          * @return the frames each target takes, in the order the motions named them
          */
-        private static @NotNull LinkedHashMap<PoseClip.Target, List<Frame>> framesOf(
+        private static @NotNull LinkedHashMap<PoseChannel.Kind, List<Frame>> framesOf(
             @NotNull PoseScript.Track track, double length, float flattened, double planted) {
 
             double peak = (planted + 1d) / 2d;
-            LinkedHashMap<PoseClip.Target, List<Frame>> emitted = new LinkedHashMap<>();
+            LinkedHashMap<PoseChannel.Kind, List<Frame>> emitted = new LinkedHashMap<>();
             for (PoseScript.Motion motion : track.motions()) {
                 switch (motion) {
                     case PoseScript.Swing swing -> {
-                        List<Frame> frames = framesOf(emitted, PoseClip.Target.ROTATION);
+                        List<Frame> frames = framesOf(emitted, PoseChannel.Kind.ROTATION);
                         frames.add(rotationFrame(0d, swing.axis(), swing.fromDegrees()));
                         if (planted > 0d)
                             frames.add(rotationFrame(planted * length, swing.axis(),
@@ -1420,7 +1421,7 @@ public final class PoseCompiler {
                         frames.add(rotationFrame(length, swing.axis(), swing.fromDegrees()));
                     }
                     case PoseScript.Bob bob -> {
-                        List<Frame> frames = framesOf(emitted, PoseClip.Target.POSITION);
+                        List<Frame> frames = framesOf(emitted, PoseChannel.Kind.POSITION);
                         double lifted = -bob.pixels() / flattened;
                         frames.add(new Frame(0d, 0d, 0d, 0d));
                         if (planted > 0d) frames.add(new Frame(planted * length, 0d, 0d, 0d));
@@ -1428,13 +1429,13 @@ public final class PoseCompiler {
                         frames.add(new Frame(length, 0d, 0d, 0d));
                     }
                     case PoseScript.Keyframe frame ->
-                        framesOf(emitted, PoseClip.Target.ROTATION)
+                        framesOf(emitted, PoseChannel.Kind.ROTATION)
                             .add(new Frame(frame.atSeconds(),
                                 Math.toRadians(frame.pitchDegrees()),
                                 Math.toRadians(frame.yawDegrees()),
                                 Math.toRadians(frame.rollDegrees())));
                     case PoseScript.Shift shift ->
-                        framesOf(emitted, PoseClip.Target.POSITION)
+                        framesOf(emitted, PoseChannel.Kind.POSITION)
                             .add(new Frame(shift.atSeconds(),
                                 shift.xPixels() / flattened,
                                 shift.yPixels() / flattened,
@@ -1467,8 +1468,8 @@ public final class PoseCompiler {
          * The accumulating frame list of one target.
          */
         private static @NotNull List<Frame> framesOf(
-            @NotNull LinkedHashMap<PoseClip.Target, List<Frame>> emitted,
-            @NotNull PoseClip.Target target) {
+            @NotNull LinkedHashMap<PoseChannel.Kind, List<Frame>> emitted,
+            @NotNull PoseChannel.Kind target) {
 
             return emitted.computeIfAbsent(target, key -> new ArrayList<>());
         }
@@ -1549,9 +1550,13 @@ public final class PoseCompiler {
          * <p>Nothing here reads the subject, which is why it runs for every raw the style writes
          * rather than for the ones this mesh happens to place.
          */
-        private void checkWritten(@NotNull PoseExpr node, @NotNull Set<Object> visited) {
+        private void checkWritten(@NotNull PoseNode node, @NotNull Set<PoseNode> visited) {
             if (!visited.add(node)) return;
             switch (node) {
+                case PosePredicate predicate -> {
+                    this.checkWritten(predicate.left(), visited);
+                    this.checkWritten(predicate.right(), visited);
+                }
                 case PoseExpr.Const constant -> {
                     if (constant.width() == PoseOperator.Width.FLOAT
                         && (double) (float) constant.value() != constant.value())
@@ -1583,15 +1588,6 @@ public final class PoseCompiler {
         }
 
         /**
-         * Checks one raw predicate's operands under the authored-text walk.
-         */
-        private void checkWritten(@NotNull PosePredicate node, @NotNull Set<Object> visited) {
-            if (!visited.add(node)) return;
-            this.checkWritten(node.left(), visited);
-            this.checkWritten(node.right(), visited);
-        }
-
-        /**
          * Runs the bone-read walk over a raw graph, memoized per node instance.
          */
         private void checkReads(@NotNull PoseExpr root) {
@@ -1605,9 +1601,13 @@ public final class PoseCompiler {
          * mesh cannot place filters out whole, so what its graph reads is a question about a
          * channel nothing evaluates.
          */
-        private void checkReads(@NotNull PoseExpr node, @NotNull Set<Object> visited) {
+        private void checkReads(@NotNull PoseNode node, @NotNull Set<PoseNode> visited) {
             if (!visited.add(node)) return;
             switch (node) {
+                case PosePredicate predicate -> {
+                    this.checkReads(predicate.left(), visited);
+                    this.checkReads(predicate.right(), visited);
+                }
                 case PoseExpr.Const ignored -> { }
                 case PoseExpr.Input ignored -> { }
                 case PoseExpr.BoneRead read -> {
@@ -1625,15 +1625,6 @@ public final class PoseCompiler {
                     this.checkReads(select.whenFalse(), visited);
                 }
             }
-        }
-
-        /**
-         * Checks one raw predicate's operands under the bone-read walk.
-         */
-        private void checkReads(@NotNull PosePredicate node, @NotNull Set<Object> visited) {
-            if (!visited.add(node)) return;
-            this.checkReads(node.left(), visited);
-            this.checkReads(node.right(), visited);
         }
 
         /**
@@ -1708,7 +1699,7 @@ public final class PoseCompiler {
          */
         private static @Nullable String drivenFieldIn(@NotNull PoseExpr node,
                                                       @NotNull Set<String> driven,
-                                                      @NotNull Set<Object> visited) {
+                                                      @NotNull Set<PoseNode> visited) {
             if (!visited.add(node)) return null;
             return switch (node) {
                 case PoseExpr.Input input -> driven.contains(input.field()) ? input.field() : null;
@@ -2459,7 +2450,7 @@ public final class PoseCompiler {
      * @param bone the bone the channel displaces
      * @param target which of the bone's members it displaces
      */
-    private record ChannelKey(@NotNull String bone, @NotNull PoseClip.Target target) {}
+    private record ChannelKey(@NotNull String bone, @NotNull PoseChannel.Kind target) {}
 
     /**
      * One stance with every fragment of its TRAVEL multiplied, and everything else untouched.

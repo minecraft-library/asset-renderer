@@ -32,13 +32,13 @@ public record PosePredicate(
     @NotNull Comparison comparison,
     @NotNull PoseExpr left,
     @NotNull PoseExpr right
-) {
+) implements PoseNode {
 
     /** {@inheritDoc} */
     @Override
     public @NotNull String toString() {
-        return this.comparison.token() + PoseExpr.ref(this)
-            + "(" + PoseExpr.ref(this.left) + ", " + PoseExpr.ref(this.right) + ")";
+        return this.comparison.token() + PoseNode.ref(this)
+            + "(" + PoseNode.ref(this.left) + ", " + PoseNode.ref(this.right) + ")";
     }
 
     /** How two numbers are compared. */

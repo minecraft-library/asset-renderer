@@ -306,7 +306,7 @@ class PoseCompilerTest {
         assertEquals(1, clip.channels().size());
         PoseClip.Channel channel = clip.channels().getFirst();
         assertEquals("right_arm", channel.bone());
-        assertEquals(PoseClip.Target.ROTATION, channel.target());
+        assertEquals(PoseChannel.Kind.ROTATION, channel.target());
         assertEquals(List.of(0f, 0.3f, 0.6f),
             channel.keyframes().stream().map(PoseClip.Keyframe::timeSeconds).toList(),
             "the swing triangle keys its ends and middle");
@@ -450,7 +450,7 @@ class PoseCompilerTest {
      */
     private static @NotNull EntityPose.Clip displacingSite() {
         PoseClip clip = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
-            new PoseClip.Channel("root", PoseClip.Target.ROTATION, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel("root", PoseChannel.Kind.ROTATION, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(0.5f, 0f, 0f, 0.05f, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(1f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR)))));

@@ -160,7 +160,7 @@ class StyleRegistrarTest {
     @DisplayName("a scale write over a bone a shipped clip scales refuses naming bone and coordinate")
     void shippedClipScaleCollisionRefuses() {
         PoseClip puff = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
-            new PoseClip.Channel("right_arm", PoseClip.Target.SCALE, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel("right_arm", PoseChannel.Kind.SCALE, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(0.5f, 0.1f, 0.1f, 0.1f, PoseClip.Interpolation.LINEAR)))));
         EntityPose shipped = pose(List.of(), Map.of(), List.of(
@@ -181,7 +181,7 @@ class StyleRegistrarTest {
     @DisplayName("a hand-built selection site naming no gate field refuses at install")
     void selectSiteWithoutFieldRefuses() {
         PoseClip wob = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
-            new PoseClip.Channel("head", PoseClip.Target.ROTATION, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel("head", PoseChannel.Kind.ROTATION, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR)))));
         EntityPose shipped = pose(List.of(), Map.of(), List.of(
             new EntityPose.Clip("FixtureAnimation#WOB", MotionSource.SELECT, Optional.empty(),

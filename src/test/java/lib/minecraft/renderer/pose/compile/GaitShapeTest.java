@@ -2,8 +2,8 @@ package lib.minecraft.renderer.pose.compile;
 
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.StyleDriver;
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.Gait;
 import lib.minecraft.renderer.pose.author.Poses;
@@ -56,7 +56,7 @@ class GaitShapeTest {
     private static @NotNull List<String> framesOf(@NotNull BuiltStyle style,
                                                   @NotNull EntityModelData mesh,
                                                   @NotNull String bone,
-                                                  @NotNull PoseClip.Target target) {
+                                                  @NotNull PoseChannel.Kind target) {
         return PoseCompiler.compile(style, row(mesh, EntityPose.NONE))
             .pose().clips().getLast().clip().channels().stream()
             .filter(channel -> channel.bone().equals(bone))
@@ -64,7 +64,7 @@ class GaitShapeTest {
             .findFirst().orElseThrow(() -> new AssertionError("no " + target + " for " + bone))
             .keyframes().stream()
             .map(frame -> frame.timeSeconds() + " "
-                + (target == PoseClip.Target.ROTATION ? frame.x() : frame.y()))
+                + (target == PoseChannel.Kind.ROTATION ? frame.x() : frame.y()))
             .toList();
     }
 
@@ -73,7 +73,7 @@ class GaitShapeTest {
      */
     private static @NotNull List<String> pitchesOf(@NotNull BuiltStyle style,
                                                    @NotNull String bone) {
-        return framesOf(style, humanoid(), bone, PoseClip.Target.ROTATION);
+        return framesOf(style, humanoid(), bone, PoseChannel.Kind.ROTATION);
     }
 
     /** The seconds one cycle of the chained fixture's clip runs. */
@@ -94,7 +94,7 @@ class GaitShapeTest {
      */
     private static @NotNull List<String> chainedPitchesOf(@NotNull BuiltStyle style,
                                                           @NotNull String bone) {
-        return framesOf(style, chained(), bone, PoseClip.Target.ROTATION);
+        return framesOf(style, chained(), bone, PoseChannel.Kind.ROTATION);
     }
 
     @Test
@@ -198,13 +198,13 @@ class GaitShapeTest {
         float hind = (float) Math.toRadians(20);
 
         assertEquals(List.of("0.0 " + -front, "0.25 " + front, "0.5 " + -front),
-            framesOf(canter, walker(), "right_front_leg", PoseClip.Target.ROTATION),
+            framesOf(canter, walker(), "right_front_leg", PoseChannel.Kind.ROTATION),
             "the shape is stated once, and the row no gain names travels the whole of it");
         assertEquals(List.of("0.0 " + -hind, "0.25 " + hind, "0.5 " + -hind),
-            framesOf(canter, walker(), "right_hind_leg", PoseClip.Target.ROTATION),
+            framesOf(canter, walker(), "right_hind_leg", PoseChannel.Kind.ROTATION),
             "while the named row travels five eighths of it, on the same times");
-        assertEquals(framesOf(canter, walker(), "right_hind_leg", PoseClip.Target.ROTATION),
-            framesOf(canter, walker(), "left_hind_leg", PoseClip.Target.ROTATION),
+        assertEquals(framesOf(canter, walker(), "right_hind_leg", PoseChannel.Kind.ROTATION),
+            framesOf(canter, walker(), "left_hind_leg", PoseChannel.Kind.ROTATION),
             "and both legs of that row, because a gain is a fact about the row");
     }
 
@@ -220,7 +220,7 @@ class GaitShapeTest {
         float hind = (float) Math.toRadians(20);
 
         assertEquals(List.of("0.0 " + -hind, "0.25 " + hind, "0.5 " + -hind),
-            framesOf(keyed, walker(), "right_hind_leg", PoseClip.Target.ROTATION),
+            framesOf(keyed, walker(), "right_hind_leg", PoseChannel.Kind.ROTATION),
             "the row a gain names is the mesh's, so it finds whichever copy of the shape "
                 + "landed there rather than needing one stated for it");
     }
@@ -238,10 +238,10 @@ class GaitShapeTest {
         float hind = (float) Math.toRadians(8);
 
         assertEquals(List.of("0.0 " + -front, "0.25 " + front, "0.5 " + -front),
-            framesOf(style, walker(), "right_front_leg", PoseClip.Target.ROTATION),
+            framesOf(style, walker(), "right_front_leg", PoseChannel.Kind.ROTATION),
             "the front row takes the front row's multiple");
         assertEquals(List.of("0.0 " + -hind, "0.25 " + hind, "0.5 " + -hind),
-            framesOf(style, walker(), "right_hind_leg", PoseClip.Target.ROTATION),
+            framesOf(style, walker(), "right_hind_leg", PoseChannel.Kind.ROTATION),
             "and the hind row takes its own rather than the last one written");
     }
 
@@ -255,7 +255,7 @@ class GaitShapeTest {
             .build();
 
         assertEquals(List.of("0.0 -0.0", "0.25 0.0", "0.5 -0.0"),
-            framesOf(style, walker(), "right_hind_leg", PoseClip.Target.ROTATION),
+            framesOf(style, walker(), "right_hind_leg", PoseChannel.Kind.ROTATION),
             "a still row beside moving ones is a real shape and not a missing one, so it keys "
                 + "its channel at rest rather than dropping out of the clip");
     }
@@ -313,10 +313,10 @@ class GaitShapeTest {
 
         assertEquals(List.of(
                 "0.0 " + -SWEPT, "0.2 " + -SWEPT, "0.35 " + SWEPT, "0.5 " + -SWEPT),
-            framesOf(style, humanoid(), "right_leg", PoseClip.Target.ROTATION),
+            framesOf(style, humanoid(), "right_leg", PoseChannel.Kind.ROTATION),
             "the swing plants");
         assertEquals(List.of("0.0 0.0", "0.2 0.0", "0.35 -3.0", "0.5 0.0"),
-            framesOf(style, humanoid(), "right_leg", PoseClip.Target.POSITION),
+            framesOf(style, humanoid(), "right_leg", PoseChannel.Kind.POSITION),
             "and so does the lift beside it, on its own target and at the same two times");
     }
 
@@ -347,7 +347,7 @@ class GaitShapeTest {
 
         for (String leg : List.of("right_front_leg", "left_front_leg",
             "right_hind_leg", "left_hind_leg"))
-            assertEquals(planted, framesOf(style, walker(), leg, PoseClip.Target.ROTATION),
+            assertEquals(planted, framesOf(style, walker(), leg, PoseChannel.Kind.ROTATION),
                 () -> "a plant states no relationship between limbs, so every leg plants: " + leg);
     }
 

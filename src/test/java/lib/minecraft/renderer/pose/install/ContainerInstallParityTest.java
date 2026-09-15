@@ -143,7 +143,7 @@ class ContainerInstallParityTest {
         // A shipped clip on the root reaches the seat without being a bone the mesh declares, which
         // is what makes the fold displace and therefore what makes the token list get recorded.
         PoseClip rock = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
-            new PoseClip.Channel("root", PoseClip.Target.ROTATION, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel("root", PoseChannel.Kind.ROTATION, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(1f, 0f, 0f, 0.05f, PoseClip.Interpolation.LINEAR)))));
         EntityPose shipped = pose(List.of(), Map.of(),

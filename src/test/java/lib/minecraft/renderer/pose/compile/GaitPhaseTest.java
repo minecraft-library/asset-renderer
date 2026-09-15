@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pose.compile;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.Gait;
 import lib.minecraft.renderer.pose.author.Poses;
@@ -77,7 +78,7 @@ class GaitPhaseTest {
             .pose().clips().getLast().clip();
         return clip.channels().stream()
             .filter(channel -> channel.bone().equals(bone))
-            .filter(channel -> channel.target() == PoseClip.Target.ROTATION)
+            .filter(channel -> channel.target() == PoseChannel.Kind.ROTATION)
             .findFirst().orElseThrow(() -> new AssertionError("no rotation channel for " + bone))
             .keyframes().stream()
             .map(frame -> frame.timeSeconds() + " " + frame.x())

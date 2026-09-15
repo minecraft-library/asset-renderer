@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseNode;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.PosePredicate;
 import org.jetbrains.annotations.NotNull;
@@ -111,7 +112,7 @@ public final class PoseEvaluator {
 
         // One memo across the whole pose rather than one per channel: the sharing spans channels and
         // bones, so a memo per channel would walk the paths the table exists not to write.
-        Map<Object, Double> memo = new IdentityHashMap<>();
+        Map<PoseNode, Double> memo = new IdentityHashMap<>();
 
         // In order, because the container is a sequence rather than one transform: a step is a part
         // pose and what separates two of them is that composing them the other way round is a
@@ -151,7 +152,7 @@ public final class PoseEvaluator {
         @NotNull List<PoseExpr> expressions, @NotNull EntityModelData model,
         @NotNull ToDoubleFunction<String> frame) {
 
-        Map<Object, Double> memo = new IdentityHashMap<>();
+        Map<PoseNode, Double> memo = new IdentityHashMap<>();
         return expressions.stream()
             .map(expression -> (float) value(expression, model, frame, memo))
             .collect(Concurrent.toUnmodifiableList());
@@ -162,7 +163,7 @@ public final class PoseEvaluator {
     /** One bone's channels, narrowed to the width a channel is finally stored at. */
     private static @NotNull Map<PoseChannel, Float> channels(
         @NotNull Map<PoseChannel, PoseExpr> written, @NotNull EntityModelData model,
-        @NotNull ToDoubleFunction<String> frame, @NotNull Map<Object, Double> memo) {
+        @NotNull ToDoubleFunction<String> frame, @NotNull Map<PoseNode, Double> memo) {
 
         if (written.isEmpty()) return Map.of();
         Map<PoseChannel, Float> out = new EnumMap<>(PoseChannel.class);
@@ -179,7 +180,7 @@ public final class PoseEvaluator {
      */
     private static double value(
         @NotNull PoseExpr expr, @NotNull EntityModelData model,
-        @NotNull ToDoubleFunction<String> frame, @NotNull Map<Object, Double> memo) {
+        @NotNull ToDoubleFunction<String> frame, @NotNull Map<PoseNode, Double> memo) {
 
         Double known = memo.get(expr);
         if (known != null) return known;
@@ -228,7 +229,7 @@ public final class PoseEvaluator {
     /** One condition, memoized the same way an expression is. */
     private static boolean test(
         @NotNull PosePredicate predicate, @NotNull EntityModelData model,
-        @NotNull ToDoubleFunction<String> frame, @NotNull Map<Object, Double> memo) {
+        @NotNull ToDoubleFunction<String> frame, @NotNull Map<PoseNode, Double> memo) {
 
         Double known = memo.get(predicate);
         if (known != null) return known != 0d;

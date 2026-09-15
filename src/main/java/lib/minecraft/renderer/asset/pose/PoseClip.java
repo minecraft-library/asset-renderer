@@ -37,52 +37,6 @@ public record PoseClip(
 ) {
 
     /**
-     * Which of a bone's three members a channel displaces.
-     *
-     * <p>Each names the channel triple it lands on, so nothing downstream re-derives the mapping and
-     * a target the table gains has one place to declare it.
-     */
-    @EnumLookup
-    @RequiredArgsConstructor
-    public enum Target {
-
-        /** The bone's pivot, in model pixels. */
-        POSITION("position", PoseChannel.X, PoseChannel.Y, PoseChannel.Z),
-
-        /** The bone's rotation, in radians. */
-        ROTATION("rotation", PoseChannel.X_ROT, PoseChannel.Y_ROT, PoseChannel.Z_ROT),
-
-        /** The bone's per-axis scale, added to the one it rests at. */
-        SCALE("scale", PoseChannel.X_SCALE, PoseChannel.Y_SCALE, PoseChannel.Z_SCALE);
-
-        /** The lower-case token this target is spelled with in the shipped table. */
-        @KeyField
-        @Getter(style = NamingStyle.FLUENT)
-        private final @NotNull String token;
-
-        private final @NotNull PoseChannel x;
-        private final @NotNull PoseChannel y;
-        private final @NotNull PoseChannel z;
-
-        /**
-         * The channel one component of this target displaces.
-         *
-         * @param axis the component, zero for x
-         * @return the channel it lands on
-         * @throws IllegalArgumentException if the axis is not one of three
-         */
-        public @NotNull PoseChannel channel(int axis) {
-            return switch (axis) {
-                case 0 -> this.x;
-                case 1 -> this.y;
-                case 2 -> this.z;
-                default -> throw new IllegalArgumentException("a target has three axes, not " + axis);
-            };
-        }
-
-    }
-
-    /**
      * How a keyframe reaches the one before it.
      *
      * <p>Carried on the keyframe being approached rather than the one being left, which is vanilla's
@@ -117,7 +71,7 @@ public record PoseClip(
      */
     public record Channel(
         @NotNull String bone,
-        @NotNull Target target,
+        @NotNull PoseChannel.Kind target,
         @NotNull ConcurrentList<Keyframe> keyframes
     ) {}
 

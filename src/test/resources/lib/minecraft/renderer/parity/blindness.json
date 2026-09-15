@@ -1579,9 +1579,9 @@
       "id": "B62",
       "mode": "select",
       "probe": "change PoseOperator.DADD's apply arm to subtract and re-capture: every artifact carrying a posed subject moves, because a bone channel is decided by that arithmetic and by nothing else",
-      "reason": "The arithmetic a shipped pose is written in, and the channels and motion sources it is written for. It is read by the evaluator on every render that poses a bone and by the loader that reads the table, so the graph reaches it from each artifact drawing a posed subject and from both dumps, which carry the loaded expressions as serialised data. Nothing is subtracted: no artifact here has been measured blind to a change in the arithmetic, and a demotion nobody measured would be a claim rather than a reading. The rule is per FILE - the five vocabulary types answer for themselves, which is what keeps the region's reach a reading of the graph rather than one sentence about a directory.",
+      "reason": "The arithmetic a shipped pose is written in, and the channels and motion sources it is written for. It is read by the evaluator on every render that poses a bone and by the loader that reads the table, so the graph reaches it from each artifact drawing a posed subject and from both dumps, which carry the loaded expressions as serialised data. Nothing is subtracted: no artifact here has been measured blind to a change in the arithmetic, and a demotion nobody measured would be a claim rather than a reading. The rule is per FILE - each vocabulary type answers for itself, which is what keeps the region's reach a reading of the graph rather than one sentence about a directory.",
       "sees": [],
-      "source": "derived per file from the reference graph, which answers the seven artifacts for each of the five vocabulary types. No perturbation is owed because nothing is subtracted; the probe above is what would falsify the selection itself.",
+      "source": "derived per file from the reference graph, which answers the same seven artifacts for every vocabulary type in the region. No perturbation is owed because nothing is subtracted; the probe above is what would falsify the selection itself.",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pose/**"
       ]
