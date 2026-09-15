@@ -4546,6 +4546,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/compile/StyleDiagnosticsMirrorTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/compile/StyleDiagnosticsTest": {
       "artifacts": [],
       "source": "derived"

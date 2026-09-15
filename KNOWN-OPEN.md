@@ -10,6 +10,32 @@ it, and in the `reason` recorded with the baseline it moved.
 
 Delete an entry when it closes.
 
+## The two diagnostics sinks are one sink, and the only place to share it is published
+
+`StyleDiagnostics` and the generator's `Diagnostics` are 78 stripped code lines each and agree on
+every one of them, once each side's name for the type and for the root factory's parameter is folded
+together. What genuinely differs is the exception policy alone - neither build can name the other's
+throwable - and a mirror test now holds all of that, so the pair no longer drifts unseen. What is
+open is whether to stop maintaining two.
+
+**The obstruction is where a shared sink could live.** The builds share exactly one module,
+`client/`, and the renderer takes it `api(...)`, so a sink moved there joins the published JAR - a
+one-way door for a type that is a diagnostics channel and nothing a consumer asked for. It is also
+conditional on the package: a path in `lib.minecraft.renderer.client` plans four ids and three
+captures, and a path anywhere else under `client/` refuses the plan outright until a blindness rule
+is coined for it. The other shared leaf cannot host it at all - `parity/` is `compileOnly`
+source-retention annotations and carries no runtime class.
+
+**And a shared sink needs an exception policy neither build has.** The renderer raises
+`IllegalStateException` and `UncheckedIOException`; the generator raises its own `ToolingException`,
+which is deliberately not under the renderer's root so a batch renderer's skip-and-continue cannot
+swallow it. A third policy would have to be invented for the shared type and then read correctly by
+both, which is the part no line count surfaces and the part worth thinking about before anything
+moves.
+
+Take it the next time a `tooling/**` change is being gated anyway, when the flow re-run it owes is
+already being paid for. Not on its own.
+
 ## Four held-pose style rows are measured constant, and their names say they should move
 
 The style emitter measures frog `jump`, bat `rest` and both axolotl `play_dead` selections
