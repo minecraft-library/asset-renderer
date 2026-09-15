@@ -9,10 +9,10 @@ import java.util.OptionalDouble;
  * One value a pose expression computes - the symbolic operand a {@code setupAnim} walk pushes where
  * a running client would push a number.
  *
- * <p>Seven arms cover the corpus: a literal, the three ways a render state is read, a read of a
- * channel the pose has already touched, an operation, and the join of a branch. Every operation is
- * {@link Op}, ternaries included, so an arity is a property of the operator rather than of the arm
- * carrying it and a three-operand call needs no shape of its own.
+ * <p>Eight arms cover the corpus: a literal, the three ways a render state is read, a figure the
+ * model keeps between poses, a read of a channel the pose has already touched, an operation, and the
+ * join of a branch. Every operation is {@link Op}, ternaries included, so an arity is a property of
+ * the operator rather than of the arm carrying it and a three-operand call needs no shape of its own.
  *
  * <p>There is no arm for a loop and none for a call. A constant-bound or array-bound loop is
  * unrolled while walking and a helper is inlined into its caller, so both are gone by the time an

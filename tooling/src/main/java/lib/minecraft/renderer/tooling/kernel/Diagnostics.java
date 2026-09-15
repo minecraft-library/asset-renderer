@@ -37,7 +37,7 @@ public final class Diagnostics {
     /** Where recorded entries are emitted. Recording itself is unconditional. */
     public enum Output { NONE, CONSOLE, FILE }
 
-    /** Entry severities, in escalation order. Declaration order is load-bearing. */
+    /** Entry severities, written in escalation order for a reader, which nothing reads. */
     public enum Severity { INFO, WARN, ERROR }
 
     /**
