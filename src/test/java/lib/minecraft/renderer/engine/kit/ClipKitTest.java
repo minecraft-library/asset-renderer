@@ -177,6 +177,51 @@ class ClipKitTest {
                 drive + " gives a clip no time axis to read");
     }
 
+    @Test
+    @DisplayName("every target names the channel triple it lands on, axis for axis")
+    void everyTargetAxisNamesItsChannel() {
+        // The three channels a target is declared with are mutually assignable, and the merge
+        // below reads whichever one it is handed without asking what it accumulates - so a pair
+        // swapped in the declaration, or in the switch that reads them out, sums a rotation into
+        // a scale on every frame and compiles clean. Nine slots, stated here rather than left to
+        // whichever of them a fixture happens to discriminate.
+        assertEquals(PoseChannel.X, PoseClip.Target.POSITION.channel(0));
+        assertEquals(PoseChannel.Y, PoseClip.Target.POSITION.channel(1));
+        assertEquals(PoseChannel.Z, PoseClip.Target.POSITION.channel(2));
+
+        assertEquals(PoseChannel.X_ROT, PoseClip.Target.ROTATION.channel(0));
+        assertEquals(PoseChannel.Y_ROT, PoseClip.Target.ROTATION.channel(1));
+        assertEquals(PoseChannel.Z_ROT, PoseClip.Target.ROTATION.channel(2));
+
+        assertEquals(PoseChannel.X_SCALE, PoseClip.Target.SCALE.channel(0));
+        assertEquals(PoseChannel.Y_SCALE, PoseClip.Target.SCALE.channel(1));
+        assertEquals(PoseChannel.Z_SCALE, PoseClip.Target.SCALE.channel(2));
+
+        for (PoseClip.Target target : PoseClip.Target.values()) {
+            assertThrows(IllegalArgumentException.class, () -> target.channel(3),
+                target + " has three axes, so a fourth is an error rather than a wrap");
+            assertThrows(IllegalArgumentException.class, () -> target.channel(-1),
+                target + " has three axes, so none below zero reads one");
+        }
+    }
+
+    @Test
+    @DisplayName("each target's three channels accumulate the one thing that target names")
+    void eachTargetKeepsToOneKind() {
+        // The stronger statement behind the slot pins: a target lands on one kind throughout, so
+        // a swap ACROSS two targets is caught here even where both slots hold the same axis.
+        for (PoseClip.Target target : PoseClip.Target.values()) {
+            PoseChannel.Kind kind = target.channel(0).kind();
+            for (int axis = 0; axis < 3; axis++)
+                assertEquals(kind, target.channel(axis).kind(),
+                    () -> target + " displaces one kind of member, whichever of its axes is read");
+        }
+
+        assertEquals(PoseChannel.Kind.POSITION, PoseClip.Target.POSITION.channel(0).kind());
+        assertEquals(PoseChannel.Kind.ROTATION, PoseClip.Target.ROTATION.channel(0).kind());
+        assertEquals(PoseChannel.Kind.SCALE, PoseClip.Target.SCALE.channel(0).kind());
+    }
+
     // ------------------------------------------------------------------------------------
 
     /** The two ends of the mirrored ramp, chosen to disagree in the middle rather than at the ends. */
