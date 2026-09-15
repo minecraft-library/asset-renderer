@@ -243,7 +243,3 @@ on it. What is open is what happens when the two rules ever disagree - which the
 being derived - and the question becomes live for any design that moves a type between the four
 sub-packages, because the four-glob rule exists precisely so that such a move moves the type's own
 answer.
-
----
-
-*End of the pasteable block.*
