@@ -61,8 +61,11 @@ public final class HumanoidPose {
         }
 
         /**
-         * Stances the hat shell directly, claiming it from the head's auto-mirror; the write
-         * drops silently on a hatless mesh.
+         * Stances the hat shell directly, claiming it from the head's auto-mirror.
+         *
+         * <p>A hat spelled here is an address the author wrote, so a mesh declaring no hat
+         * records it as reaching nothing and a strict install refuses on it by name. The head's
+         * automatic copy is the half that drops quietly, because nobody wrote it.
          *
          * @param stance the stance lambda
          * @return this builder

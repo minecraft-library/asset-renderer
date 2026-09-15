@@ -93,23 +93,6 @@ it, and it would sit beside the bound the plant share is already held to.
 What is open is whether an inert number is worth catching at all. No style in the tree writes a
 gait yet, so there is no evidence about how often an author strands one.
 
-## The implicit hat mirror turns on reference identity and only one end of it says so
-
-A hat stance the build copied from the head shares the head's fragment instances, and that sharing is
-what the compile reads to tell an implicit hat from an authored one. The copy's own javadoc says it
-shares by reference and never says that anything downstream turns on it; the compile's says it detects
-the automatic copy and names no producer. The two live in different packages and neither names the
-other, so a refactor that rebuilds a stance at either end severs the link with nothing red - the hat
-silently stops being mirrored under a tolerant install, and starts being refused by name under a strict
-one.
-
-Value equality was considered and put down: it cannot separate what the build made from what the author
-wrote, which is the only question being asked. Documenting the contract at the producing end is cheap
-and is what the scaling rule beside it already does for its own identity dependency. What is open is
-whether a comment is the right instrument at all, or whether the relationship wants to be carried as
-data - a flag on the stance saying the build made it - which trades a silent break for a component
-every reader has to account for.
-
 ## Whether an entry's severity is part of the library's contract
 
 The registrar exposes its diagnostics publicly, so a consumer can count entries of a given severity and
@@ -190,17 +173,3 @@ static with no scope to record into, called from a site that has none either. Ro
 it hits the same wall. What is open is whether the silence is a choice or an omission, which cannot be
 told from the file, and whether the prose-in-a-component shape should exist at all: rewording it makes
 a test that asserts over its substrings vacuously true, and the test stays green.
-
-## Whether two overlapping blindness globs resolve most-specific-first has not been read
-
-The pose region is claimed twice - once by a subtree glob over the whole package and once by four
-package globs over its sub-packages - and the subtree glob matches every path the four do. Both rules
-are derived, so each resolves per file to whatever the reach graph answers, and for every file in the
-sub-packages that is the empty set; the overlap therefore changes which rules a plan names and not what
-it prices.
-
-Reading the toolkit's resolution order was considered and not done, because nothing in this pack turns
-on it. What is open is what happens when the two rules ever disagree - which they cannot today, both
-being derived - and the question becomes live for any design that moves a type between the four
-sub-packages, because the four-glob rule exists precisely so that such a move moves the type's own
-answer.

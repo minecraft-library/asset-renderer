@@ -527,6 +527,13 @@ public record PoseScript(
          * Appends verbatim copies of every stance the source bone has captured so far onto the
          * target bone - the fragment list shared by reference, values untouched.
          *
+         * <p><b>The sharing is load-bearing and not an economy.</b> A copy carries the source's
+         * very list, and that instance is what tells a copy this made from a stance an author
+         * spelled by hand to the same values - nothing else separates the two, because the values
+         * are equal by construction. Rebuilding the list here severs a relationship a reader
+         * downstream turns on, and the pins that hold it are in the compile's tests rather than
+         * anywhere this file can name.
+         *
          * @param source the bone whose stances are copied
          * @param target the bone the copies land on
          * @return this capture
