@@ -31,12 +31,7 @@ import java.util.function.UnaryOperator;
 @Parity(subject = Subject.ENTITY)
 public final class LimbStance {
 
-    private final @NotNull List<PoseScript.Write> writes = new ArrayList<>();
-    private final @NotNull List<PoseScript.Scale> scales = new ArrayList<>();
-    private final @NotNull List<PoseScript.Aim> aims = new ArrayList<>();
-    private final @NotNull List<PoseScript.Sway> sways = new ArrayList<>();
-    private final @NotNull List<PoseScript.Spin> spins = new ArrayList<>();
-    private final @NotNull List<PoseScript.Track> tracks = new ArrayList<>();
+    private final @NotNull List<PoseScript.Fragment> fragments = new ArrayList<>();
 
     LimbStance() {}
 
@@ -51,7 +46,7 @@ public final class LimbStance {
      * @return this stance
      */
     public @NotNull LimbStance pitch(double degrees) {
-        this.writes.add(new PoseScript.Write(PoseChannel.X_ROT, degrees, true));
+        this.fragments.add(new PoseScript.Write(PoseChannel.X_ROT, degrees, true));
         return this;
     }
 
@@ -66,7 +61,7 @@ public final class LimbStance {
      * @return this stance
      */
     public @NotNull LimbStance yaw(double degrees) {
-        this.writes.add(new PoseScript.Write(PoseChannel.Y_ROT, degrees, true));
+        this.fragments.add(new PoseScript.Write(PoseChannel.Y_ROT, degrees, true));
         return this;
     }
 
@@ -81,7 +76,7 @@ public final class LimbStance {
      * @return this stance
      */
     public @NotNull LimbStance roll(double degrees) {
-        this.writes.add(new PoseScript.Write(PoseChannel.Z_ROT, degrees, true));
+        this.fragments.add(new PoseScript.Write(PoseChannel.Z_ROT, degrees, true));
         return this;
     }
 
@@ -113,7 +108,7 @@ public final class LimbStance {
      * @return this stance
      */
     public @NotNull LimbStance scale(double factor) {
-        this.scales.add(new PoseScript.Scale(factor));
+        this.fragments.add(new PoseScript.Scale(factor));
         return this;
     }
 
@@ -129,9 +124,9 @@ public final class LimbStance {
      * @return this stance
      */
     public @NotNull LimbStance offset(double xPixels, double yPixels, double zPixels) {
-        this.writes.add(new PoseScript.Write(PoseChannel.X, xPixels, false));
-        this.writes.add(new PoseScript.Write(PoseChannel.Y, yPixels, false));
-        this.writes.add(new PoseScript.Write(PoseChannel.Z, zPixels, false));
+        this.fragments.add(new PoseScript.Write(PoseChannel.X, xPixels, false));
+        this.fragments.add(new PoseScript.Write(PoseChannel.Y, yPixels, false));
+        this.fragments.add(new PoseScript.Write(PoseChannel.Z, zPixels, false));
         return this;
     }
 
@@ -145,7 +140,7 @@ public final class LimbStance {
      * @return this stance
      */
     public @NotNull LimbStance pitchBy(double degrees) {
-        this.writes.add(new PoseScript.Write(PoseChannel.X_ROT, degrees, false));
+        this.fragments.add(new PoseScript.Write(PoseChannel.X_ROT, degrees, false));
         return this;
     }
 
@@ -159,7 +154,7 @@ public final class LimbStance {
      * @return this stance
      */
     public @NotNull LimbStance yawBy(double degrees) {
-        this.writes.add(new PoseScript.Write(PoseChannel.Y_ROT, degrees, false));
+        this.fragments.add(new PoseScript.Write(PoseChannel.Y_ROT, degrees, false));
         return this;
     }
 
@@ -173,7 +168,7 @@ public final class LimbStance {
      * @return this stance
      */
     public @NotNull LimbStance rollBy(double degrees) {
-        this.writes.add(new PoseScript.Write(PoseChannel.Z_ROT, degrees, false));
+        this.fragments.add(new PoseScript.Write(PoseChannel.Z_ROT, degrees, false));
         return this;
     }
 
@@ -207,7 +202,7 @@ public final class LimbStance {
      * @return this stance
      */
     public @NotNull LimbStance aimAt(double xPixels, double yPixels, double zPixels) {
-        this.aims.add(new PoseScript.Aim(xPixels, yPixels, zPixels));
+        this.fragments.add(new PoseScript.Aim(xPixels, yPixels, zPixels));
         return this;
     }
 
@@ -224,7 +219,7 @@ public final class LimbStance {
      * @return this stance
      */
     public @NotNull LimbStance sway(@NotNull Turn axis, double fromDegrees, double toDegrees) {
-        this.sways.add(new PoseScript.Sway(axis, fromDegrees, toDegrees));
+        this.fragments.add(new PoseScript.Sway(axis, fromDegrees, toDegrees));
         return this;
     }
 
@@ -240,7 +235,7 @@ public final class LimbStance {
      * @return this stance
      */
     public @NotNull LimbStance spin(@NotNull Turn axis, double perPeriodDegrees) {
-        this.spins.add(new PoseScript.Spin(axis, perPeriodDegrees));
+        this.fragments.add(new PoseScript.Spin(axis, perPeriodDegrees));
         return this;
     }
 
@@ -257,7 +252,7 @@ public final class LimbStance {
     public @NotNull LimbStance timeline(@NotNull UnaryOperator<Keyframes> motion) {
         Keyframes timeline = new Keyframes();
         motion.apply(timeline);
-        this.tracks.add(timeline.captured());
+        this.fragments.add(timeline.captured());
         return this;
     }
 
@@ -268,15 +263,7 @@ public final class LimbStance {
      * @return the captured stance
      */
     @NotNull PoseScript.Stance captured(@NotNull Optional<PoseScript.Limb> limb) {
-        return new PoseScript.Stance(
-            limb,
-            Concurrent.newUnmodifiableList(this.writes),
-            Concurrent.newUnmodifiableList(this.scales),
-            Concurrent.newUnmodifiableList(this.aims),
-            Concurrent.newUnmodifiableList(this.sways),
-            Concurrent.newUnmodifiableList(this.spins),
-            Concurrent.newUnmodifiableList(this.tracks)
-        );
+        return new PoseScript.Stance(limb, Concurrent.newUnmodifiableList(this.fragments));
     }
 
 }

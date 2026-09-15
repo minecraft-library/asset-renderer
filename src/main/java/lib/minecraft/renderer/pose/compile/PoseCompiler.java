@@ -698,10 +698,10 @@ public final class PoseCompiler {
          * @param stance the captured stance the offset was written over
          */
         private void checkOffset(@NotNull String reading, @NotNull PoseScript.Stance stance) {
-            if (!stance.sways().isEmpty() || !stance.spins().isEmpty())
+            if (!stance.of(PoseScript.Sway.class).isEmpty() || !stance.of(PoseScript.Spin.class).isEmpty())
                 this.refuse("Style '%s' gaits %s over a swayed shape - a wave carries no offset of its own, so a shape starting late in the cycle states itself as a timeline",
                     this.style.styleId(), reading);
-            for (PoseScript.Track track : stance.tracks()) {
+            for (PoseScript.Track track : stance.of(PoseScript.Track.class)) {
                 if (!track.looping())
                     this.refuse("Style '%s' gaits %s over a clip that holds rather than loops - a share of a cycle needs a cycle to wrap in",
                         this.style.styleId(), reading);
@@ -822,12 +822,12 @@ public final class PoseCompiler {
             }
             if (!this.mesh.getBones().containsKey(limb.bone())) {
                 this.dropped.add(limb.bone());
-                for (PoseScript.Track track : stance.tracks())
+                for (PoseScript.Track track : stance.of(PoseScript.Track.class))
                     this.trackPlans.add(new TrackPlan(Optional.of(limb.bone()), track));
                 return;
             }
             PoseScript.Limb.Named landed = this.articulated(limb);
-            for (PoseScript.Track track : stance.tracks())
+            for (PoseScript.Track track : stance.of(PoseScript.Track.class))
                 this.trackPlans.add(new TrackPlan(Optional.of(landed.bone()), track));
             this.foldLimb(landed, stance);
         }
@@ -864,7 +864,7 @@ public final class PoseCompiler {
                 this.events.info("selector: %s reaches no bone this mesh declares",
                     selected.reading());
                 if (!derived) this.dropped.add(selected.reading());
-                for (PoseScript.Track track : stance.tracks())
+                for (PoseScript.Track track : stance.of(PoseScript.Track.class))
                     this.trackPlans.add(new TrackPlan(Optional.empty(), track));
                 return;
             }
@@ -877,7 +877,7 @@ public final class PoseCompiler {
                 PoseScript.Limb.Named named =
                     new PoseScript.Limb.Named(member, selected.axis(), selected.anatomical());
                 PoseScript.Limb.Named landed = this.articulated(named);
-                for (PoseScript.Track track : travelled.tracks())
+                for (PoseScript.Track track : travelled.of(PoseScript.Track.class))
                     this.trackPlans.add(new TrackPlan(Optional.of(landed.bone()), track, shift));
                 this.foldLimb(landed, travelled);
             }
@@ -1072,13 +1072,13 @@ public final class PoseCompiler {
          * Folds one container step's verbs, refusing what a seat cannot carry.
          */
         private void foldStep(@NotNull PoseScript.Stance stance) {
-            if (!stance.aims().isEmpty())
+            if (!stance.of(PoseScript.Aim.class).isEmpty())
                 this.refuse("Style '%s' aims a container step - a step has no pivot to aim from",
                     this.style.styleId());
-            if (!stance.tracks().isEmpty())
+            if (!stance.of(PoseScript.Track.class).isEmpty())
                 this.refuse("Style '%s' keys a timeline on a container step - a clip channel names a bone",
                     this.style.styleId());
-            if (!stance.scales().isEmpty())
+            if (!stance.of(PoseScript.Scale.class).isEmpty())
                 this.refuse("Style '%s' scales a container step, which reaches no bone below it",
                     this.style.styleId());
             LinkedHashMap<PoseChannel, ChannelPlan> plan = new LinkedHashMap<>();
@@ -1093,9 +1093,9 @@ public final class PoseCompiler {
             LinkedHashMap<PoseChannel, ChannelPlan> plan =
                 this.bonePlans.computeIfAbsent(limb.bone(), bone -> new LinkedHashMap<>());
             this.foldVerbs(stance, plan);
-            for (PoseScript.Scale scale : stance.scales())
+            for (PoseScript.Scale scale : stance.of(PoseScript.Scale.class))
                 this.scalePlans.put(limb.bone(), scale.factor());
-            for (PoseScript.Aim aim : stance.aims())
+            for (PoseScript.Aim aim : stance.of(PoseScript.Aim.class))
                 this.foldAim(limb, aim, plan);
         }
 
@@ -1105,14 +1105,14 @@ public final class PoseCompiler {
          */
         private void foldVerbs(@NotNull PoseScript.Stance stance,
                                @NotNull LinkedHashMap<PoseChannel, ChannelPlan> plan) {
-            for (PoseScript.Write write : stance.writes()) {
+            for (PoseScript.Write write : stance.of(PoseScript.Write.class)) {
                 ChannelPlan channel = plan.computeIfAbsent(write.channel(), key -> new ChannelPlan());
                 if (write.absolute()) channel.absoluteDegrees = write.value();
                 else channel.additive += write.value();
             }
-            for (PoseScript.Sway sway : stance.sways())
+            for (PoseScript.Sway sway : stance.of(PoseScript.Sway.class))
                 this.foldWave(plan, channelOf(sway.axis()), sway, null);
-            for (PoseScript.Spin spin : stance.spins())
+            for (PoseScript.Spin spin : stance.of(PoseScript.Spin.class))
                 this.foldWave(plan, channelOf(spin.axis()), null, spin);
         }
 
@@ -1131,24 +1131,24 @@ public final class PoseCompiler {
         }
 
         /**
-         * Whether a stance is the head's implicit hat mirror - a hat stance whose fragment
-         * lists are the very instances a head stance captured, which only the automatic
-         * build-time copy produces. An implicit mirror rides the head's lowered instances and
-         * drops silently where a mesh lacks the shell, because the author never spelled it.
+         * Whether a stance is the head's implicit hat mirror - a hat stance whose fragment list
+         * is the very instance a head stance captured, which the automatic build-time copy
+         * produces. An implicit mirror rides the head's lowered instances and drops silently where
+         * a mesh lacks the shell, because the author never spelled it.
+         *
+         * <p>Reference identity is the whole test, and it is the test because a hat spelled by
+         * hand to the same values captures into its own list. Sharing a list by reference is not
+         * unique to the hat copy - a selector pair asked to read one side's stance as written
+         * shares one too - so the head-named sibling is what narrows it to this one idiom.
          */
         private boolean implicitHatMirror(@NotNull PoseScript.Stance stance) {
             if (stance.limb().flatMap(PoseScript.Limb::named)
                 .filter("hat"::equals).isEmpty()) return false;
-            boolean carries = !stance.writes().isEmpty() || !stance.scales().isEmpty()
-                || !stance.aims().isEmpty() || !stance.sways().isEmpty()
-                || !stance.spins().isEmpty() || !stance.tracks().isEmpty();
-            if (!carries) return false;
+            if (stance.fragments().isEmpty()) return false;
             for (PoseScript.Stance other : this.script.stances()) {
                 if (other == stance) continue;
                 if (other.limb().flatMap(PoseScript.Limb::named).filter("head"::equals).isPresent()
-                    && other.writes() == stance.writes() && other.scales() == stance.scales()
-                    && other.aims() == stance.aims() && other.sways() == stance.sways()
-                    && other.spins() == stance.spins() && other.tracks() == stance.tracks())
+                    && other.fragments() == stance.fragments())
                     return true;
             }
             return false;
@@ -2169,7 +2169,7 @@ public final class PoseCompiler {
      *
      * <p>A multiple of the whole travel returns the stance itself rather than a copy of it, which
      * is what keeps a gait stating no multiple lowering exactly as it lowered before there was one
-     * to state - the fragment lists are the very instances the capture built, identity included.
+     * to state - the fragment list is the very instance the capture built, identity included.
      *
      * @param stance the captured stance to scale
      * @param factor what the travel is multiplied by
@@ -2177,16 +2177,17 @@ public final class PoseCompiler {
      */
     private static @NotNull PoseScript.Stance scaled(@NotNull PoseScript.Stance stance, double factor) {
         if (factor == 1d) return stance;
-        return new PoseScript.Stance(
-            stance.limb(), stance.writes(), stance.scales(), stance.aims(),
-            Concurrent.newUnmodifiableList(stance.sways().stream()
-                .map(sway -> new PoseScript.Sway(sway.axis(),
-                    sway.fromDegrees() * factor, sway.toDegrees() * factor)).toList()),
-            Concurrent.newUnmodifiableList(stance.spins().stream()
-                .map(spin -> new PoseScript.Spin(spin.axis(),
-                    spin.perPeriodDegrees() * factor)).toList()),
-            Concurrent.newUnmodifiableList(stance.tracks().stream()
-                .map(track -> scaled(track, factor)).toList()));
+        return new PoseScript.Stance(stance.limb(), Concurrent.newUnmodifiableList(
+            stance.fragments().stream().<PoseScript.Fragment>map(fragment -> switch (fragment) {
+                case PoseScript.Sway sway -> new PoseScript.Sway(sway.axis(),
+                    sway.fromDegrees() * factor, sway.toDegrees() * factor);
+                case PoseScript.Spin spin -> new PoseScript.Spin(spin.axis(),
+                    spin.perPeriodDegrees() * factor);
+                case PoseScript.Track track -> scaled(track, factor);
+                case PoseScript.Write write -> write;
+                case PoseScript.Scale scale -> scale;
+                case PoseScript.Aim aim -> aim;
+            }).toList()));
     }
 
     /**

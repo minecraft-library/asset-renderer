@@ -549,7 +549,7 @@ public final class StyleRegistrar {
         Set<String> bones = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances())
             stance.limb().ifPresent(limb -> {
-                if (!stance.scales().isEmpty()) bones.addAll(addressed(limb, mesh));
+                if (!stance.of(PoseScript.Scale.class).isEmpty()) bones.addAll(addressed(limb, mesh));
             });
         for (PoseScript.Raw raw : script.raws())
             if (raw.channel().kind() == PoseChannel.Kind.SCALE) bones.add(raw.bone());
@@ -578,11 +578,11 @@ public final class StyleRegistrar {
         Set<String> tokens = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances()) {
             if (stance.limb().isPresent()) continue;
-            for (PoseScript.Write write : stance.writes())
+            for (PoseScript.Write write : stance.of(PoseScript.Write.class))
                 tokens.add(write.channel().token());
-            for (PoseScript.Sway sway : stance.sways())
+            for (PoseScript.Sway sway : stance.of(PoseScript.Sway.class))
                 tokens.add(rotationToken(sway.axis()));
-            for (PoseScript.Spin spin : stance.spins())
+            for (PoseScript.Spin spin : stance.of(PoseScript.Spin.class))
                 tokens.add(rotationToken(spin.axis()));
         }
         script.hover().ifPresent(hover -> {
@@ -596,8 +596,7 @@ public final class StyleRegistrar {
      * Whether a stance captured any verb at all - an empty lambda addresses nothing.
      */
     private static boolean carries(@NotNull PoseScript.Stance stance) {
-        return !stance.writes().isEmpty() || !stance.scales().isEmpty() || !stance.aims().isEmpty()
-            || !stance.sways().isEmpty() || !stance.spins().isEmpty() || !stance.tracks().isEmpty();
+        return !stance.fragments().isEmpty();
     }
 
     /**

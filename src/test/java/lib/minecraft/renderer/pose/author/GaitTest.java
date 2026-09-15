@@ -74,7 +74,7 @@ class GaitTest {
             selectorsOf(script),
             "three rows, six addresses, and not one bone name among them");
         assertEquals(List.of(22.5, 22.5, 45d, 45d, 45d, 45d),
-            script.stances().stream().map(stance -> stance.writes().getFirst().value()).toList(),
+            script.stances().stream().map(stance -> stance.of(PoseScript.Write.class).getFirst().value()).toList(),
             "each row keeping the rest it was written with");
     }
 
@@ -185,7 +185,7 @@ class GaitTest {
      */
     private static @NotNull List<Double> rollsOf(@NotNull PoseScript script) {
         return script.stances().stream()
-            .flatMap(stance -> stance.writes().stream())
+            .flatMap(stance -> stance.of(PoseScript.Write.class).stream())
             .filter(write -> write.channel() == PoseChannel.Z_ROT)
             .map(PoseScript.Write::value)
             .toList();

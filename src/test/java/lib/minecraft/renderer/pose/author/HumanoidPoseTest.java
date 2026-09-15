@@ -36,9 +36,9 @@ class HumanoidPoseTest {
         assertEquals(PoseScript.AimAxis.DOWN, stanceOf(script, "body").limb().orElseThrow().axis(),
             "torso addresses the bone the mesh names body");
         assertEquals(List.of(new PoseScript.Write(PoseChannel.Z_ROT, -35, true)),
-            List.copyOf(stanceOf(script, "left_arm").writes()));
+            List.copyOf(stanceOf(script, "left_arm").of(PoseScript.Write.class)));
         assertEquals(List.of(new PoseScript.Write(PoseChannel.X_ROT, -90, true)),
-            List.copyOf(stanceOf(script, "right_leg").writes()));
+            List.copyOf(stanceOf(script, "right_leg").of(PoseScript.Write.class)));
     }
 
     @Test
@@ -51,7 +51,10 @@ class HumanoidPoseTest {
 
         PoseScript.Stance head = stanceOf(script, "head");
         PoseScript.Stance hat = stanceOf(script, "hat");
-        assertSame(head.writes(), hat.writes(), "the hat copy shares the head's fragments, values untouched");
+        // Reference identity, not equality - it is what the compiler reads to tell this copy from a
+        // hat spelled by hand, so the assertion has to be over the list the copy shares.
+        assertSame(head.fragments(), hat.fragments(),
+            "the hat copy shares the head's fragments, values untouched");
         assertEquals(PoseScript.AimAxis.FACING, hat.limb().orElseThrow().axis());
     }
 
@@ -67,7 +70,7 @@ class HumanoidPoseTest {
         List<PoseScript.Stance> hats = stancesOf(script, "hat");
         assertEquals(1, hats.size(), "the authored stance is the hat's whole story");
         assertEquals(List.of(new PoseScript.Write(PoseChannel.Y_ROT, 5, true)),
-            List.copyOf(hats.getFirst().writes()));
+            List.copyOf(hats.getFirst().of(PoseScript.Write.class)));
     }
 
     @Test
@@ -96,7 +99,7 @@ class HumanoidPoseTest {
                 new PoseScript.Write(PoseChannel.X, 1, false),
                 new PoseScript.Write(PoseChannel.Y, 2, false),
                 new PoseScript.Write(PoseChannel.Z, 3, false)),
-            List.copyOf(stanceOf(script, "right_arm").writes()), "the authored side as given");
+            List.copyOf(stanceOf(script, "right_arm").of(PoseScript.Write.class)), "the authored side as given");
         assertEquals(List.of(
                 new PoseScript.Write(PoseChannel.X_ROT, -90, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, 10, true),
@@ -104,7 +107,7 @@ class HumanoidPoseTest {
                 new PoseScript.Write(PoseChannel.X, -1, false),
                 new PoseScript.Write(PoseChannel.Y, 2, false),
                 new PoseScript.Write(PoseChannel.Z, 3, false)),
-            List.copyOf(stanceOf(script, "left_arm").writes()),
+            List.copyOf(stanceOf(script, "left_arm").of(PoseScript.Write.class)),
             "pitch kept, yaw and roll negated, the sideways offset crossed");
     }
 
@@ -140,8 +143,8 @@ class HumanoidPoseTest {
             .build()
             .script();
 
-        PoseScript.Track right = stanceOf(script, "right_arm").tracks().getFirst();
-        PoseScript.Track left = stanceOf(script, "left_arm").tracks().getFirst();
+        PoseScript.Track right = stanceOf(script, "right_arm").of(PoseScript.Track.class).getFirst();
+        PoseScript.Track left = stanceOf(script, "left_arm").of(PoseScript.Track.class).getFirst();
         assertEquals(List.of(
                 new PoseScript.Swing(Turn.YAW, 0, -25),
                 new PoseScript.Bob(2),
@@ -171,9 +174,9 @@ class HumanoidPoseTest {
         assertEquals(List.of(
                 new PoseScript.Sway(Turn.ROLL, 8, -8),
                 new PoseScript.Sway(Turn.PITCH, -5, 5)),
-            List.copyOf(left.sways()), "the roll bounds negate, the pitch sway rides unchanged");
-        assertEquals(List.of(new PoseScript.Spin(Turn.YAW, -360)), List.copyOf(left.spins()));
-        assertEquals(List.of(new PoseScript.Aim(-18, -30, -14)), List.copyOf(left.aims()),
+            List.copyOf(left.of(PoseScript.Sway.class)), "the roll bounds negate, the pitch sway rides unchanged");
+        assertEquals(List.of(new PoseScript.Spin(Turn.YAW, -360)), List.copyOf(left.of(PoseScript.Spin.class)));
+        assertEquals(List.of(new PoseScript.Aim(-18, -30, -14)), List.copyOf(left.of(PoseScript.Aim.class)),
             "the aim target crosses the centre plane");
     }
 
@@ -191,7 +194,7 @@ class HumanoidPoseTest {
                 new PoseScript.Write(PoseChannel.X_ROT, -124, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, 51, true),
                 new PoseScript.Write(PoseChannel.Z_ROT, 35, true)),
-            List.copyOf(stanceOf(script, "left_arm").writes()));
+            List.copyOf(stanceOf(script, "left_arm").of(PoseScript.Write.class)));
         assertEquals(1, stancesOf(script, "left_arm").size(),
             "a source stance authored after the copy does not follow");
         assertEquals(-124, folded(script, "right_arm", PoseChannel.X_ROT), "the source is untouched");
@@ -210,7 +213,7 @@ class HumanoidPoseTest {
                 new PoseScript.Write(PoseChannel.X_ROT, 1, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, -2, true),
                 new PoseScript.Write(PoseChannel.Z_ROT, -3, true)),
-            List.copyOf(stanceOf(script, "right_leg").writes()));
+            List.copyOf(stanceOf(script, "right_leg").of(PoseScript.Write.class)));
     }
 
     @Test
@@ -231,14 +234,14 @@ class HumanoidPoseTest {
                 new PoseScript.Write(PoseChannel.X_ROT, -160, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, -35, true),
                 new PoseScript.Write(PoseChannel.Z_ROT, -10, true)),
-            List.copyOf(stanceOf(script, "left_arm").writes()), "the right arm crossed sides mirrored");
+            List.copyOf(stanceOf(script, "left_arm").of(PoseScript.Write.class)), "the right arm crossed sides mirrored");
         assertEquals(List.of(
                 new PoseScript.Write(PoseChannel.X_ROT, -30, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, -4, false)),
-            List.copyOf(stanceOf(script, "right_leg").writes()), "the left leg crossed sides mirrored");
+            List.copyOf(stanceOf(script, "right_leg").of(PoseScript.Write.class)), "the left leg crossed sides mirrored");
         assertEquals(-15, folded(script, "head", PoseChannel.Y_ROT), "the head mirrors in place");
         assertEquals(List.of(new PoseScript.Write(PoseChannel.Z_ROT, -4, false)),
-            List.copyOf(stanceOf(script, "body").writes()), "the torso mirrors in place");
+            List.copyOf(stanceOf(script, "body").of(PoseScript.Write.class)), "the torso mirrors in place");
 
         PoseScript.Stance step = script.stances().stream()
             .filter(stance -> stance.limb().isEmpty())
@@ -248,9 +251,9 @@ class HumanoidPoseTest {
                 new PoseScript.Write(PoseChannel.X, -1, false),
                 new PoseScript.Write(PoseChannel.Y, 0, false),
                 new PoseScript.Write(PoseChannel.Z, 0, false)),
-            List.copyOf(step.writes()), "the container step mirrors in place");
+            List.copyOf(step.of(PoseScript.Write.class)), "the container step mirrors in place");
         assertEquals(List.of(new PoseScript.Write(PoseChannel.X_ROT, -10, true)),
-            List.copyOf(stanceOf(script, "right_arm").writes()), "a stance authored after the flip is unaffected");
+            List.copyOf(stanceOf(script, "right_arm").of(PoseScript.Write.class)), "a stance authored after the flip is unaffected");
     }
 
     @Test
@@ -316,7 +319,7 @@ class HumanoidPoseTest {
         double value = Double.NaN;
 
         for (PoseScript.Stance stance : stancesOf(script, bone)) {
-            for (PoseScript.Write write : stance.writes()) {
+            for (PoseScript.Write write : stance.of(PoseScript.Write.class)) {
                 if (write.channel() == channel && write.absolute())
                     value = write.value();
             }

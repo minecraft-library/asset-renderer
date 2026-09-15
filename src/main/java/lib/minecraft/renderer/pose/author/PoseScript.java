@@ -203,26 +203,34 @@ public record PoseScript(
     }
 
     /**
-     * One captured selector call - a limb's (or a container step's) verbs, each fragment list in
-     * call order.
+     * One captured selector call - a limb's (or a container step's) verbs, in call order.
      *
      * @param limb the stanced bone and its aim axis; empty for a container step
-     * @param writes the captured channel writes
-     * @param scales the captured uniform scales
-     * @param aims the captured aim targets
-     * @param sways the captured sweeps
-     * @param spins the captured full turns
-     * @param tracks the captured timelines
+     * @param fragments the captured verbs, in the order they were spelled
      */
     public record Stance(
         @NotNull Optional<Limb> limb,
-        @NotNull ConcurrentList<Write> writes,
-        @NotNull ConcurrentList<Scale> scales,
-        @NotNull ConcurrentList<Aim> aims,
-        @NotNull ConcurrentList<Sway> sways,
-        @NotNull ConcurrentList<Spin> spins,
-        @NotNull ConcurrentList<Track> tracks
-    ) {}
+        @NotNull ConcurrentList<Fragment> fragments
+    ) {
+
+        /**
+         * The captured verbs of one kind, in call order.
+         *
+         * @param kind the fragment kind to read
+         * @param <F> the fragment kind
+         * @return every captured fragment of that kind, in the order it was spelled
+         */
+        public <F extends Fragment> @NotNull ConcurrentList<F> of(@NotNull Class<F> kind) {
+            return Concurrent.newUnmodifiableList(
+                this.fragments.stream().filter(kind::isInstance).map(kind::cast).toList());
+        }
+
+    }
+
+    /**
+     * One verb a stance captured, held exactly as the author spelled it.
+     */
+    public sealed interface Fragment permits Write, Scale, Aim, Sway, Spin, Track {}
 
     /**
      * One captured channel write.
@@ -233,14 +241,14 @@ public record PoseScript(
      * @param absolute whether the value states where the channel lands; an additive write adds
      *     to whatever already drives the channel
      */
-    public record Write(@NotNull PoseChannel channel, double value, boolean absolute) {}
+    public record Write(@NotNull PoseChannel channel, double value, boolean absolute) implements Fragment {}
 
     /**
      * One captured uniform scale over all three scale channels.
      *
      * @param factor the scale factor, resting at one
      */
-    public record Scale(double factor) {}
+    public record Scale(double factor) implements Fragment {}
 
     /**
      * One captured aim target - a model-space point the stanced limb points at, solved into
@@ -250,7 +258,7 @@ public record PoseScript(
      * @param yPixels the target's vertical component, in model pixels on the y-down axis
      * @param zPixels the target's depth component, in model pixels
      */
-    public record Aim(double xPixels, double yPixels, double zPixels) {}
+    public record Aim(double xPixels, double yPixels, double zPixels) implements Fragment {}
 
     /**
      * One captured sway - a there-and-back sweep between two bounds once per period.
@@ -259,7 +267,7 @@ public record PoseScript(
      * @param fromDegrees the bound the sweep rests at, at both ends of the period
      * @param toDegrees the bound the sweep peaks at mid-period
      */
-    public record Sway(@NotNull Turn axis, double fromDegrees, double toDegrees) {}
+    public record Sway(@NotNull Turn axis, double fromDegrees, double toDegrees) implements Fragment {}
 
     /**
      * One captured spin - a seamless ramp through a full angle once per period.
@@ -267,7 +275,7 @@ public record PoseScript(
      * @param axis the rotation axis turned
      * @param perPeriodDegrees the degrees one period travels
      */
-    public record Spin(@NotNull Turn axis, double perPeriodDegrees) {}
+    public record Spin(@NotNull Turn axis, double perPeriodDegrees) implements Fragment {}
 
     /**
      * One captured timeline - a limb's keyframed motion fragments plus the settings shaping
@@ -283,7 +291,7 @@ public record PoseScript(
         @NotNull OptionalDouble overSeconds,
         @NotNull Ease ease,
         boolean looping
-    ) {}
+    ) implements Fragment {}
 
     /**
      * One captured timeline motion fragment - all values are deltas around the stance.
@@ -444,8 +452,7 @@ public record PoseScript(
             Optional<Limb> far = Optional.of(new Limb.Selected(derived, axis, true, mirror));
             this.stances.add(mirror == Mirror.SIGNED
                 ? mirrored(captured, far)
-                : new Stance(far, captured.writes(), captured.scales(), captured.aims(),
-                    captured.sways(), captured.spins(), captured.tracks()));
+                : new Stance(far, captured.fragments()));
             return this;
         }
 
@@ -519,7 +526,7 @@ public record PoseScript(
 
         /**
          * Appends verbatim copies of every stance the source bone has captured so far onto the
-         * target bone - fragment lists shared by reference, values untouched.
+         * target bone - the fragment list shared by reference, values untouched.
          *
          * @param source the bone whose stances are copied
          * @param target the bone the copies land on
@@ -532,8 +539,7 @@ public record PoseScript(
                     .filter(limb -> limb.named().filter(source::equals).isPresent())
                     .ifPresent(limb -> copies.add(new Stance(
                         Optional.of(new Limb.Named(target, limb.axis(), limb.anatomical())),
-                        stance.writes(), stance.scales(), stance.aims(),
-                        stance.sways(), stance.spins(), stance.tracks())));
+                        stance.fragments())));
             this.stances.addAll(copies);
             return this;
         }
@@ -747,62 +753,35 @@ public record PoseScript(
          * @return the mirrored stance
          */
         private static @NotNull Stance mirrored(@NotNull Stance stance, @NotNull Optional<Limb> limb) {
-            return new Stance(
-                limb,
-                Concurrent.newUnmodifiableList(stance.writes().stream().map(Capture::mirrored).toList()),
-                stance.scales(),
-                Concurrent.newUnmodifiableList(stance.aims().stream().map(Capture::mirrored).toList()),
-                Concurrent.newUnmodifiableList(stance.sways().stream().map(Capture::mirrored).toList()),
-                Concurrent.newUnmodifiableList(stance.spins().stream().map(Capture::mirrored).toList()),
-                Concurrent.newUnmodifiableList(stance.tracks().stream().map(Capture::mirrored).toList())
-            );
+            return new Stance(limb, Concurrent.newUnmodifiableList(
+                stance.fragments().stream().map(Capture::mirrored).toList()));
         }
 
         /**
-         * Mirrors one channel write - yaw, roll and the sideways position negate, all else holds.
+         * Mirrors one captured verb under the mirror sign rule - yaw, roll and the sideways
+         * position negate, pitch and the vertical hold, and a scale crosses unchanged because a
+         * uniform factor has no side to cross to.
          */
-        private static @NotNull Write mirrored(@NotNull Write write) {
-            return switch (write.channel()) {
-                case Y_ROT, Z_ROT, X -> new Write(write.channel(), negated(write.value()), write.absolute());
-                default -> write;
+        private static @NotNull Fragment mirrored(@NotNull Fragment fragment) {
+            return switch (fragment) {
+                case Write write -> switch (write.channel()) {
+                    case Y_ROT, Z_ROT, X -> new Write(write.channel(), negated(write.value()), write.absolute());
+                    default -> write;
+                };
+                case Scale scale -> scale;
+                case Aim aim -> new Aim(negated(aim.xPixels()), aim.yPixels(), aim.zPixels());
+                case Sway sway -> sway.axis() == Turn.PITCH
+                    ? sway
+                    : new Sway(sway.axis(), negated(sway.fromDegrees()), negated(sway.toDegrees()));
+                case Spin spin -> spin.axis() == Turn.PITCH
+                    ? spin
+                    : new Spin(spin.axis(), negated(spin.perPeriodDegrees()));
+                case Track track -> new Track(
+                    Concurrent.newUnmodifiableList(track.motions().stream().map(Capture::mirrored).toList()),
+                    track.overSeconds(),
+                    track.ease(),
+                    track.looping());
             };
-        }
-
-        /**
-         * Mirrors one aim target - the sideways component crosses the centre plane.
-         */
-        private static @NotNull Aim mirrored(@NotNull Aim aim) {
-            return new Aim(negated(aim.xPixels()), aim.yPixels(), aim.zPixels());
-        }
-
-        /**
-         * Mirrors one sway - yaw and roll bounds negate, pitch holds.
-         */
-        private static @NotNull Sway mirrored(@NotNull Sway sway) {
-            return sway.axis() == Turn.PITCH
-                ? sway
-                : new Sway(sway.axis(), negated(sway.fromDegrees()), negated(sway.toDegrees()));
-        }
-
-        /**
-         * Mirrors one spin - yaw and roll travel negates, pitch holds.
-         */
-        private static @NotNull Spin mirrored(@NotNull Spin spin) {
-            return spin.axis() == Turn.PITCH
-                ? spin
-                : new Spin(spin.axis(), negated(spin.perPeriodDegrees()));
-        }
-
-        /**
-         * Mirrors one timeline - every motion fragment mirrored, the settings untouched.
-         */
-        private static @NotNull Track mirrored(@NotNull Track track) {
-            return new Track(
-                Concurrent.newUnmodifiableList(track.motions().stream().map(Capture::mirrored).toList()),
-                track.overSeconds(),
-                track.ease(),
-                track.looping()
-            );
         }
 
         /**

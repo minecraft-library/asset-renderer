@@ -31,7 +31,7 @@ class LeggedPoseTest {
         assertEquals(PoseScript.AimAxis.FACING, stanceOf(script, "head").limb().orElseThrow().axis());
         assertEquals(PoseScript.AimAxis.DOWN, stanceOf(script, "body").limb().orElseThrow().axis());
         assertEquals(List.of(new PoseScript.Write(PoseChannel.Y_ROT, 20, true)),
-            List.copyOf(stanceOf(script, "tail").writes()));
+            List.copyOf(stanceOf(script, "tail").of(PoseScript.Write.class)));
     }
 
     @Test
@@ -52,7 +52,7 @@ class LeggedPoseTest {
                 new LimbSelector.Legs(Optional.of(Rank.HIND), Optional.of(Side.RIGHT))),
             selectorsOf(script), "one address per call, in author order");
         assertEquals(List.of(1d, 2d, 3d, 4d),
-            script.stances().stream().map(stance -> stance.writes().getFirst().value()).toList(),
+            script.stances().stream().map(stance -> stance.of(PoseScript.Write.class).getFirst().value()).toList(),
             "each keeping the value it was written with");
     }
 
@@ -84,11 +84,11 @@ class LeggedPoseTest {
         assertEquals(List.of(
                 new PoseScript.Write(PoseChannel.X_ROT, -35, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, 5, false)),
-            List.copyOf(script.stances().getFirst().writes()), "the near side as authored");
+            List.copyOf(script.stances().getFirst().of(PoseScript.Write.class)), "the near side as authored");
         assertEquals(List.of(
                 new PoseScript.Write(PoseChannel.X_ROT, -35, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, -5, false)),
-            List.copyOf(script.stances().getLast().writes()), "the far side under the sign rule");
+            List.copyOf(script.stances().getLast().of(PoseScript.Write.class)), "the far side under the sign rule");
         assertEquals(List.of(
                 new LimbSelector.Legs(Optional.of(Rank.FRONT), Optional.of(Side.RIGHT), Reach.ROOT,
                     LimbSelector.Stamp.NEAR),
@@ -105,8 +105,8 @@ class LeggedPoseTest {
             .build()
             .script();
 
-        assertEquals(10, script.stances().getFirst().writes().getFirst().value());
-        assertEquals(-10, script.stances().getLast().writes().getFirst().value());
+        assertEquals(10, script.stances().getFirst().of(PoseScript.Write.class).getFirst().value());
+        assertEquals(-10, script.stances().getLast().of(PoseScript.Write.class).getFirst().value());
     }
 
     /**
@@ -138,9 +138,9 @@ class LeggedPoseTest {
             script.stances().getFirst().limb().orElseThrow().named());
         assertEquals(Optional.of("tail"),
             script.stances().getLast().limb().orElseThrow().named());
-        assertEquals(1, stanceOf(script, "head").tracks().size());
+        assertEquals(1, stanceOf(script, "head").of(PoseScript.Track.class).size());
         assertEquals(List.of(new PoseScript.Sway(Turn.YAW, -25, 25)),
-            List.copyOf(stanceOf(script, "tail").sways()));
+            List.copyOf(stanceOf(script, "tail").of(PoseScript.Sway.class)));
     }
 
     /**
