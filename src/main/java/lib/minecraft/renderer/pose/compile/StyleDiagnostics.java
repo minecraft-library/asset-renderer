@@ -113,8 +113,11 @@ public final class StyleDiagnostics {
     }
 
     /**
-     * Records an {@link Severity#INFO} entry in this scope - a choice made that the author may
-     * want to see.
+     * Records an {@link Severity#INFO} entry in this scope - a choice the compile made that the
+     * author may want to see.
+     *
+     * <p>It reads back what was spelled and never says that anything went wrong. A fact already
+     * warned once by an aggregate in THIS scope is recorded here rather than warned twice.
      *
      * @param message the format string
      * @param args the format arguments
@@ -124,8 +127,16 @@ public final class StyleDiagnostics {
     }
 
     /**
-     * Records a {@link Severity#WARN} entry in this scope - authored intent that will not
-     * render as spelled.
+     * Records a {@link Severity#WARN} entry in this scope - authored intent that will not render
+     * as spelled.
+     *
+     * <p>The instances: an address the subject carries none of, fewer addresses than the chain
+     * named, an address opposite the one named, a wave nothing follows, or a span the render
+     * window truncates.
+     *
+     * <p>A fact that would refuse under a strict install records the SAME warning under a tolerant
+     * one. Strictness adds the error and the throw; it never removes an entry, and tolerance never
+     * adds one - so the two installs differ by the error and by nothing else.
      *
      * @param message the format string
      * @param args the format arguments
@@ -135,8 +146,11 @@ public final class StyleDiagnostics {
     }
 
     /**
-     * Records an {@link Severity#ERROR} entry in this scope - refusal context, recorded beside
-     * a throw and never in place of one.
+     * Records an {@link Severity#ERROR} entry in this scope - refusal context, recorded beside a
+     * throw and never in place of one.
+     *
+     * <p>Nothing gates on the count: a refusal is the throw, and this is what a reader consults
+     * afterwards to find out which one it was.
      *
      * @param message the format string
      * @param args the format arguments
