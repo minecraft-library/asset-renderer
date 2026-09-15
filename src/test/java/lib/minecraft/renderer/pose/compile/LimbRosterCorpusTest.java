@@ -255,10 +255,14 @@ class LimbRosterCorpusTest {
     @DisplayName("every member answers where it sits, and a bone no row holds answers nowhere")
     void everyMemberIsPlaced() {
         rosters().forEach((coordinate, roster) -> {
-            roster.rows().forEach(row -> row.members().forEach(member ->
-                assertEquals(Optional.of(new LimbRoster.Placement(row.ordinal(), member)),
-                    roster.placementOf(member.bone()),
-                    () -> coordinate + " places '" + member.bone() + "' in the row holding it")));
+            roster.rows().forEach(row -> row.members().forEach(member -> {
+                assertEquals(Optional.of(member), roster.placementOf(member.bone()),
+                    () -> coordinate + " places '" + member.bone() + "' in the row holding it");
+                // The member carries the ordinal rather than being paired with it, so this is the
+                // assertion that the one it carries is the one of the row listing it.
+                assertEquals(row.ordinal(), member.row(),
+                    () -> coordinate + ": '" + member.bone() + "' carries its own row's ordinal");
+            }));
 
             Set<String> held = new LinkedHashSet<>();
             roster.rows().forEach(row -> row.members().forEach(member -> held.add(member.bone())));
@@ -318,7 +322,7 @@ class LimbRosterCorpusTest {
                 for (String bone : roster.members(new LimbSelector.Legs(
                     Optional.of(rank), Optional.empty(), Reach.CHAIN, LimbSelector.Stamp.LONE)))
                     assertEquals(addressed,
-                        roster.placementOf(bone).map(LimbRoster.Placement::row).orElse(-1),
+                        roster.placementOf(bone).map(LimbRoster.Member::row).orElse(-1),
                         () -> coordinate + " answers '" + bone + "' for " + rank
                             + " out of the row that rank addresses");
             });

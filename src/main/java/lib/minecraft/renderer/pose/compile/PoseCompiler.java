@@ -902,7 +902,7 @@ public final class PoseCompiler {
             if (this.script.cycle().isEmpty()) return 0d;
             if (!(selector instanceof LimbSelector.Legs legs)) return 0d;
             PoseScript.Cycle cycle = this.script.cycle().get();
-            Optional<LimbRoster.Placement> placed = this.roster.placementOf(bone);
+            Optional<LimbRoster.Member> placed = this.roster.placementOf(bone);
             return this.rankShift(cycle, legs, placed)
                 + sideShift(cycle, placed)
                 + coupletShift(cycle, placed)
@@ -914,9 +914,9 @@ public final class PoseCompiler {
          * and one more share of the cycle for every bone between it and there.
          */
         private static double depthShift(@NotNull PoseScript.Cycle cycle,
-                                         @NotNull Optional<LimbRoster.Placement> placed) {
+                                         @NotNull Optional<LimbRoster.Member> placed) {
             if (cycle.trail().isEmpty() || placed.isEmpty()) return 0d;
-            return placed.get().member().depth() * cycle.trail().get().cycles();
+            return placed.get().depth() * cycle.trail().get().cycles();
         }
 
         /**
@@ -929,10 +929,10 @@ public final class PoseCompiler {
          * necessarily what a general power answers to the last bit.
          */
         private static double depthGain(@NotNull PoseScript.Cycle cycle,
-                                        @NotNull Optional<LimbRoster.Placement> placed) {
+                                        @NotNull Optional<LimbRoster.Member> placed) {
             if (cycle.trail().isEmpty() || placed.isEmpty()) return 1d;
             double faded = 1d;
-            for (int below = 0; below < placed.get().member().depth(); below++)
+            for (int below = 0; below < placed.get().depth(); below++)
                 faded *= cycle.trail().get().fade();
             return faded;
         }
@@ -941,7 +941,7 @@ public final class PoseCompiler {
          * The offset one leg takes from the row it sits in.
          */
         private double rankShift(@NotNull PoseScript.Cycle cycle, LimbSelector.@NotNull Legs legs,
-                                 @NotNull Optional<LimbRoster.Placement> placed) {
+                                 @NotNull Optional<LimbRoster.Member> placed) {
             return this.rowValue(cycle.phases(), legs, placed, 0d);
         }
 
@@ -957,7 +957,7 @@ public final class PoseCompiler {
             if (this.script.cycle().isEmpty()) return 1d;
             if (!(selector instanceof LimbSelector.Legs legs)) return 1d;
             PoseScript.Cycle cycle = this.script.cycle().get();
-            Optional<LimbRoster.Placement> placed = this.roster.placementOf(bone);
+            Optional<LimbRoster.Member> placed = this.roster.placementOf(bone);
             return this.rowValue(cycle.gains(), legs, placed, 1d) * depthGain(cycle, placed);
         }
 
@@ -975,11 +975,11 @@ public final class PoseCompiler {
          * @return the number this leg takes
          */
         private double rowValue(@NotNull Map<Rank, Double> byRank, LimbSelector.@NotNull Legs legs,
-                                @NotNull Optional<LimbRoster.Placement> placed, double none) {
+                                @NotNull Optional<LimbRoster.Member> placed, double none) {
             if (byRank.isEmpty()) return none;
             if (legs.rank().isPresent()) return byRank.getOrDefault(legs.rank().get(), none);
 
-            int row = placed.map(LimbRoster.Placement::row).orElse(NO_ROW);
+            int row = placed.map(LimbRoster.Member::row).orElse(NO_ROW);
             double held = none;
             for (Map.Entry<Rank, Double> entry : byRank.entrySet())
                 if (this.roster.row(entry.getKey()).filter(at -> at.ordinal() == row).isPresent())
@@ -992,9 +992,9 @@ public final class PoseCompiler {
          * near side or on a row carrying no side at all.
          */
         private static double sideShift(@NotNull PoseScript.Cycle cycle,
-                                        @NotNull Optional<LimbRoster.Placement> placed) {
+                                        @NotNull Optional<LimbRoster.Member> placed) {
             if (cycle.opposed().isEmpty()) return 0d;
-            return placed.flatMap(at -> at.member().side()).filter(Side.LEFT::equals).isPresent()
+            return placed.flatMap(LimbRoster.Member::side).filter(Side.LEFT::equals).isPresent()
                 ? cycle.opposed().getAsDouble()
                 : 0d;
         }
@@ -1012,9 +1012,9 @@ public final class PoseCompiler {
          * already refused a trot on - the term reads its answer rather than guessing one.
          */
         private static double coupletShift(@NotNull PoseScript.Cycle cycle,
-                                           @NotNull Optional<LimbRoster.Placement> placed) {
+                                           @NotNull Optional<LimbRoster.Member> placed) {
             if (cycle.coupled().isEmpty() || placed.isEmpty()) return 0d;
-            Optional<Side> side = placed.get().member().side();
+            Optional<Side> side = placed.get().side();
             if (side.isEmpty()) return 0d;
             int pair = (placed.get().row() + LEADING_SIDE - side.get().ordinal()) % COUPLET_ROWS;
             return pair == 0 ? 0d : cycle.coupled().getAsDouble();

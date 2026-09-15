@@ -101,23 +101,19 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
     public record Row(int ordinal, @NotNull ConcurrentList<Member> members) {}
 
     /**
-     * One leg the mesh declares.
+     * One leg the mesh declares, carrying where it sits among the legs.
+     *
+     * <p>The row is the ordinal of the {@link Row} holding this member, taken from the same loop
+     * that builds it - so a member and the row it is listed under cannot disagree.
      *
      * @param bone the bone name, as the mesh names it
+     * @param row where its row sits front to back, the frontmost at zero
      * @param side which side of its row, or empty where the row is one fused bone
      * @param depth how far below its row's root the bone sits, the root itself at zero
      * @param kind what the bone is to the roster
      */
-    public record Member(@NotNull String bone, @NotNull Optional<Side> side, int depth,
+    public record Member(@NotNull String bone, int row, @NotNull Optional<Side> side, int depth,
                          @NotNull Kind kind) {}
-
-    /**
-     * Where one bone sits among the legs - the row holding it, and what it is to that row.
-     *
-     * @param row where the row sits front to back, the frontmost at zero
-     * @param member the leg itself, carrying its side, its depth below its root and its kind
-     */
-    public record Placement(int row, @NotNull Member member) {}
 
     /**
      * Resolves the legs a mesh declares.
@@ -162,10 +158,10 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
                         + " and sits " + sits.get());
                     crossed.add(seat);
                 }
-                members.add(new Member(seat, side, 0, kinds.get(seat)));
+                members.add(new Member(seat, ordinal, side, 0, kinds.get(seat)));
                 for (String below : segmentsUnder(seat, bones, legNames, kinds))
-                    members.add(new Member(below, side, depth(below, seat, bones, legNames),
-                        Kind.SEGMENT));
+                    members.add(new Member(below, ordinal, side,
+                        depth(below, seat, bones, legNames), Kind.SEGMENT));
             }
             members.sort(Comparator
                 .comparingInt((Member member) -> member.side().map(Side::ordinal).orElse(-1))
@@ -279,11 +275,11 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
      * @param bone the bone name, as the mesh names it
      * @return where it sits
      */
-    public @NotNull Optional<Placement> placementOf(@NotNull String bone) {
+    public @NotNull Optional<Member> placementOf(@NotNull String bone) {
         for (Row row : this.rows)
             for (Member member : row.members())
                 if (member.bone().equals(bone))
-                    return Optional.of(new Placement(row.ordinal(), member));
+                    return Optional.of(member);
         return Optional.empty();
     }
 
