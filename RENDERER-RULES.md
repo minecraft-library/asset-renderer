@@ -1030,4 +1030,44 @@ Entity:
   is `VanillaEase`, the bit-exact reproduction of vanilla's easing, which has a test of its own on
   each side.
 
+Pose authoring and compiling:
+
+- Do not hoist the double-wave or the duplicate-keyframe refusal to where a dropped address reaches
+  them. `PoseCompiler.Rules`' own doc settles it: the per-bone refusals that run inside the fold are
+  left visible rather than gathered, because moving them in states a schedule they do not keep.
+  Neither sits behind a drop the way it reads, either - `foldWave` is reached unconditionally for a
+  container step, and `lowerClip`'s duplicate check does fire on a named bone the mesh lacks, the
+  drop keeping that bone on its track plan. Only a selector answering no bone goes unsaid. The rule
+  they would join already has a script-only twin: `Rules.checkOffset` walks the same frames against
+  the script, with the flattening at one and no mesh in hand.
+- Do not record a near miss the seat derivation refuses. The refusal sits inside a walk over every
+  ordered pair of bones, so a line at it fires 1530 times over one pass of the shipped corpus,
+  across 49 of the 131 subjects, 29 of them near the bound. What it would report is a property of
+  the shipped pose and the mesh rather than of the style being compiled - the derivation reads
+  neither the script nor anything a caller chose - so the same lines repeat under every style of
+  every row. The shares `Seats.TOLERANCE` argues from are the record, and the corpus's nearest
+  refusal is an ender dragon's head on its third neck segment, at `0.1006`.
+- Do not give `Turn` a mirror-negation accessor. It covers three of the seven arms that negate under
+  the mirror, and `Keyframe` - the timeline analogue of `Swing`, four lines below it in the same
+  switch - carries three named angles and no axis, so it applies the same rule inline and can never
+  consult one. An accessor reading as the rule, while the arm a reader would most want held to it
+  cannot call it, is worse than the two spellings standing side by side.
+- Do not unify the three-test root-anchor predicate. Four bodies carry it and only two are free to
+  touch - `Seats.isTopLevel` and the compiler's joint climb - so a shared body has to be authored
+  where those two live and leave `BoneKit` and `PoseKit` spelling it themselves, which is the
+  opposite of the unification `PoseKit.isTopLevel`'s javadoc gestures at. The compiler's is not a
+  copy: it carries a fourth test for a pivot of its own, argued in place, and folding the first
+  three out makes a four-test climb read as three and an afterthought. The kit javadoc claiming the
+  same three tests is imprecise rather than false - the composition reaches the root by a fourth
+  route, a parent cycle, which fires only on re-entry and which a tree cannot produce.
+- Do not extract the mirror sign rule or the gain-scale rule as a shared helper. The two records it
+  is written over implement different sealed interfaces with nothing above them, so a helper taking
+  the axis and the two bounds has no return type it can use: closing both arms takes a constructor
+  reference against a functional interface this tree has none of, and the gain site takes a fifth
+  argument because the factor is a parameter. The arms return the captured instance itself where the
+  axis is pitch, and `implicitHatMirror` compares fragment-list identity with `==`, so a helper that
+  always allocates moves what a pin already reads. The rule is written three times rather than twice
+  - a spin follows it over its one value - so a helper closing two of the three leaves the drift it
+  exists to close.
+
 [tooling/CLAUDE.md]: tooling/CLAUDE.md
