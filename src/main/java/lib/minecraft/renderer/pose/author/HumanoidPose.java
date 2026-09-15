@@ -142,7 +142,7 @@ public final class HumanoidPose {
          * @return this builder
          */
         public @NotNull Builder mirrorArms(@NotNull Side source) {
-            this.capture.mirror(armOf(source), armOf(opposite(source)));
+            this.capture.mirror(armOf(source), armOf(source.opposite()));
             return this;
         }
 
@@ -154,7 +154,7 @@ public final class HumanoidPose {
          * @return this builder
          */
         public @NotNull Builder mirrorLegs(@NotNull Side source) {
-            this.capture.mirror(legOf(source), legOf(opposite(source)));
+            this.capture.mirror(legOf(source), legOf(source.opposite()));
             return this;
         }
 
@@ -212,13 +212,6 @@ public final class HumanoidPose {
          */
         private static @NotNull String legOf(@NotNull Side side) {
             return side == Side.RIGHT ? "right_leg" : "left_leg";
-        }
-
-        /**
-         * The other side of a mirrored pair.
-         */
-        private static @NotNull Side opposite(@NotNull Side side) {
-            return side == Side.RIGHT ? Side.LEFT : Side.RIGHT;
         }
 
         /**

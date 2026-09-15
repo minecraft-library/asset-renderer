@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pose.author;
 
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Which of a mirrored limb pair a selector addresses.
@@ -22,6 +23,18 @@ public enum Side {
     /**
      * The subject's own right.
      */
-    RIGHT
+    RIGHT;
+
+    /**
+     * The other of the mirrored pair.
+     *
+     * <p>Read as a name rather than as a number, so it answers the same whichever order the two
+     * are declared in.
+     *
+     * @return the side this one faces
+     */
+    public @NotNull Side opposite() {
+        return this == RIGHT ? LEFT : RIGHT;
+    }
 
 }

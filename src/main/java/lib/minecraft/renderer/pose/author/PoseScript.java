@@ -772,7 +772,7 @@ public record PoseScript(
             return switch (fragment) {
                 case Write write -> switch (write.channel()) {
                     case Y_ROT, Z_ROT, X -> new Write(write.channel(), negated(write.value()), write.absolute());
-                    default -> write;
+                    case X_ROT, Y, Z, X_SCALE, Y_SCALE, Z_SCALE -> write;
                 };
                 case Scale scale -> scale;
                 case Aim aim -> new Aim(negated(aim.xPixels()), aim.yPixels(), aim.zPixels());

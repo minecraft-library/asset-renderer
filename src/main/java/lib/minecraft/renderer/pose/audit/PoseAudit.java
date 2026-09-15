@@ -17,7 +17,8 @@ import java.util.Optional;
  * @param styleId the audited style's id
  * @param rowId the target row's entity id
  * @param pairsChecked how many bind-adjacent pairs the audit measured
- * @param drops the addresses that reached nothing on the target mesh
+ * @param drops the addresses that reached nothing on the body or on any layer the install would
+ * weave, in first-written order and each recorded once
  * @param findings the pairs that left the shipped envelope, in mesh order
  */
 @Parity(subject = Subject.ENTITY)
@@ -128,8 +129,8 @@ public record PoseAudit(
     }
 
     /**
-     * Renders the whole audit as a report - one header line, the dropped-bone inventory when
-     * one exists, then each finding's two lines.
+     * Renders the whole audit as a report - one header line, the inventory of addresses that
+     * reached nothing when one exists, then each finding's two lines.
      *
      * @return the rendered report
      */
@@ -143,7 +144,7 @@ public record PoseAudit(
                     this.findings.size(), this.findings.size() == 1 ? "" : "s", this.pairsChecked)));
 
         if (!this.drops.isEmpty())
-            out.append("\n    addresses the mesh answers with nothing: ")
+            out.append("\n    addresses that reached nothing on the body or a layer: ")
                 .append(PoseCompiler.Unreached.describeAll(this.drops));
         for (Finding finding : this.findings)
             out.append("\n    ").append(finding.describe());

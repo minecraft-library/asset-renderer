@@ -250,9 +250,10 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
      * The bones one address reaches on a mesh, whichever kind of address it is.
      *
      * <p>The roster is supplied rather than passed, and that is the point of the parameter: only a
-     * leg address needs one. A family walks the mesh down from its stem and never asks which bones
-     * are legs, so a caller holding no roster does not pay to build one it will not read - and
-     * building one is a full chain-transform walk over the mesh.
+     * leg address needs one. A family resolves through {@link LimbFamily}, which walks the mesh
+     * down from its stem and never asks which bones are legs, so a caller holding no roster does
+     * not pay to build one it will not read - and building one is a full chain-transform walk over
+     * the mesh.
      *
      * @param selector the address to resolve
      * @param mesh the mesh being addressed
