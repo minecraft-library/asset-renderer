@@ -835,6 +835,23 @@ class PoseCompilerTest {
         assertEquals(List.of(), gaitReadingsOf(amble, walker()));
     }
 
+    @Test
+    @DisplayName("a compiled result hands back the scope it was given, which reaches the compile's own lines")
+    void aCompiledResultHandsBackTheScopeItWasGiven() {
+        StyleDiagnostics handed = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null)
+            .child("minecraft:test").child("sit");
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.humanoid("sit").container(step -> step.offset(0, 7, 0)).build(),
+            row(humanoid(), EntityPose.NONE), handed);
+
+        assertSame(handed, compiled.diagnostics(),
+            "the scope handed in is the scope handed back, and not the compile child under it");
+        assertTrue(compiled.diagnostics().entries().stream()
+                .anyMatch(entry -> entry.path().equals("styles/minecraft:test/sit/compile")),
+            "reading the parent reaches the child's lines, which is why the choice costs nothing "
+                + "to a caller reading what one compile said");
+    }
+
     /**
      * The gait readings one style records against the given mesh.
      */

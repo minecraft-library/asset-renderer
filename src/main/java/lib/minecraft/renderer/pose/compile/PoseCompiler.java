@@ -232,7 +232,10 @@ public final class PoseCompiler {
      * @param style one flat row carrying sources, drivers, toggles and age
      * @param drops the addresses that reached nothing on the target mesh, in first-written
      *     order - what a strict install refuses over and a tolerant one proceeds past
-     * @param diagnostics the scope this compile recorded into
+     * @param diagnostics the scope handed in, not the {@code compile} child the lines land in -
+     *     so it answers with this compile's lines and with whatever else was recorded beside
+     *     them, a woven layer's compile included, and a caller asking one compile what it alone
+     *     said is asking the wrong scope
      */
     public record Compiled(
         @NotNull EntityPose pose,

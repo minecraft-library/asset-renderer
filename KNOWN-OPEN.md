@@ -103,19 +103,6 @@ whether a refusal's predicate is a fact about the script is a reading of the pre
 signature, annotation or scan exposes a reading. So what is open is whether the convention wants any
 guard at all, or whether a handful of rules in one place is few enough that review is the mechanism.
 
-## A compile hands back the parent of the scope it recorded into
-
-The compile writes every one of its lines into a child scope opened for the purpose, and the result it
-returns exposes the parent. Reading the parent reaches the child's entries as well, so nothing is lost
-today - but a caller asking the result what the compile said is answered by a scope that also holds
-whatever else was recorded under the same root.
-
-Returning the child instead was considered and is not a pure move: it changes what the registrar and
-the audit see, which makes it a behaviour decision rather than a tidy-up. What is open is which of the
-two a caller is entitled to, and the answer is worth writing down either way, because the field it
-would change is read exactly twice in a seventeen-hundred-line class and a reader has no way to tell
-the choice from an accident.
-
 ## A sixth arm on the sealed expression type would be skipped in silence by five walks
 
 The expression type's own javadoc names its five arms as a count something depends on. Five walks over
