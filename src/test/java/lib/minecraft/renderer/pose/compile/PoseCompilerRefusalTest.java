@@ -34,6 +34,7 @@ import static lib.minecraft.renderer.pose.compile.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.input;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.row;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.walker;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -486,6 +487,24 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
+    @DisplayName("a track's closure is measured against the script's own window, never the target row's period")
+    void closureIsMeasuredAgainstTheScriptsWindowAndNotTheRows() {
+        // The default window is 24 ticks, so a track with no length of its own closes at 1.2
+        // seconds whatever the row says. The second row's catalog period is twice that: read off
+        // the ROW, the first style would refuse there and pass at 24, and the second the reverse.
+        double defaultWindow = 1.2d;
+        for (int periodTicks : new int[] {24, 48}) {
+            assertDoesNotThrow(
+                () -> PoseCompiler.compile(closingAt(defaultWindow), row(walker(), EntityPose.NONE, periodTicks)),
+                "a track closing at the default window installs on a row at " + periodTicks + " ticks");
+            IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+                () -> PoseCompiler.compile(closingAt(defaultWindow * 2d), row(walker(), EntityPose.NONE, periodTicks)),
+                "and one closing at twice it refuses there too");
+            assertTrue(refusal.getMessage().contains("does not close"), refusal.getMessage());
+        }
+    }
+
+    @Test
     @DisplayName("an opposed side over a track that does not close refuses, as a phase does")
     void opposeOverAnOpenTrackRefuses() {
         IllegalArgumentException refusal = refusalOf(Poses.legged("pace")
@@ -754,6 +773,23 @@ class PoseCompilerRefusalTest {
             .gait(gait -> gait
                 .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
                 .trot(0.5))
+            .build();
+    }
+
+    /**
+     * A gait whose timeline closes over the given seconds, offset so the closure rule reads it.
+     *
+     * @param seconds where the timeline's last keyframe sits, its first resting at zero
+     * @return the built style
+     */
+    private static @NotNull BuiltStyle closingAt(double seconds) {
+        return Poses.legged("amble")
+            .gait(gait -> gait
+                .step(Rank.FRONT, leg -> leg.timeline(track -> track
+                    .keyframe(0, -20, 0, 0)
+                    .keyframe(seconds / 2d, 20, 0, 0)
+                    .keyframe(seconds, -20, 0, 0)))
+                .phase(Rank.FRONT, 0.25))
             .build();
     }
 

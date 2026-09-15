@@ -379,7 +379,7 @@ public final class PoseCompiler {
 
             Rules.period(this.style, this.events);
             Rules.ranks(this.style, this.roster, this.events);
-            Rules.cycleOffsets(this.style, this.windowSeconds, this.events);
+            Rules.cycleOffsets(this.style, this.events);
             Rules.axes(this.style, this.roster, this.events);
             Rules.absentRanks(this.style, this.roster, this.dropped, this.events);
             Rules.crossedSides(this.style, this.roster, this.events);
@@ -1779,8 +1779,7 @@ public final class PoseCompiler {
          * takes it to zero, and the same chain written as a zero would be lowered rather than
          * read.
          */
-        static void cycleOffsets(@NotNull BuiltStyle style, double windowSeconds,
-                                 @NotNull StyleDiagnostics events) {
+        static void cycleOffsets(@NotNull BuiltStyle style, @NotNull StyleDiagnostics events) {
             if (style.script().cycle().isEmpty()) return;
             PoseScript.Cycle cycle = style.script().cycle().get();
             cycle.phases().forEach((rank, cycles) ->
@@ -1807,17 +1806,17 @@ public final class PoseCompiler {
                 if (whole(cycles)) return;
                 for (PoseScript.Stance stance : style.script().stances())
                     if (reachesRank(stance, rank))
-                        checkOffset(style, windowSeconds, events, "a phase at rank '" + rank + "'", stance);
+                        checkOffset(style, events, "a phase at rank '" + rank + "'", stance);
             });
             if (cycle.opposed().isPresent() && !whole(cycle.opposed().getAsDouble()))
                 for (PoseScript.Stance stance : style.script().stances())
-                    if (reachesFarSide(stance)) checkOffset(style, windowSeconds, events, "an opposed far side", stance);
+                    if (reachesFarSide(stance)) checkOffset(style, events, "an opposed far side", stance);
             if (cycle.coupled().isPresent() && !whole(cycle.coupled().getAsDouble()))
                 for (PoseScript.Stance stance : style.script().stances())
-                    if (legsOf(stance).isPresent()) checkOffset(style, windowSeconds, events, "a trot", stance);
+                    if (legsOf(stance).isPresent()) checkOffset(style, events, "a trot", stance);
             if (cycle.trail().isPresent() && !whole(cycle.trail().get().cycles()))
                 for (PoseScript.Stance stance : style.script().stances())
-                    if (legsOf(stance).isPresent()) checkOffset(style, windowSeconds, events, "a trailing chain", stance);
+                    if (legsOf(stance).isPresent()) checkOffset(style, events, "a trailing chain", stance);
         }
 
         /**
@@ -1923,6 +1922,21 @@ public final class PoseCompiler {
         /**
          * Whether this style says which side a leg is on, as against stamping both alike.
          */
+        /**
+         * The window a track with no authored length closes over.
+         *
+         * <p>The declared period where the author stated one, and the default period otherwise -
+         * never the TARGET ROW's catalog period. A closure verdict is a fact about what the author
+         * wrote, so reading the row here would let one chain close on one subject and fail to close
+         * on the next, which is the thing every other rule in this class is arranged to prevent.
+         *
+         * @param script the captured script to read
+         * @return the window in seconds
+         */
+        private static double closureWindow(@NotNull PoseScript script) {
+            return script.periodSeconds().orElse((double) DEFAULT_PERIOD_TICKS / TICKS_PER_SECOND);
+        }
+
         private static boolean sideKeyed(@NotNull PoseScript script) {
             if (script.cycle().filter(cycle -> cycle.opposed().isPresent()
                 || cycle.coupled().isPresent() || cycle.shared()).isPresent()) return true;
@@ -1990,8 +2004,8 @@ public final class PoseCompiler {
          * @param reading how the refusal names the offset, in the author's own terms
          * @param stance the captured stance the offset was written over
          */
-        private static void checkOffset(@NotNull BuiltStyle style, double windowSeconds,
-                                        @NotNull StyleDiagnostics events, @NotNull String reading,
+        private static void checkOffset(@NotNull BuiltStyle style, @NotNull StyleDiagnostics events,
+                                        @NotNull String reading,
                                         @NotNull PoseScript.Stance stance) {
             if (!stance.of(PoseScript.Sway.class).isEmpty() || !stance.of(PoseScript.Spin.class).isEmpty())
                 throw refuse(events, "Style '%s' gaits %s over a swayed shape - a wave carries no offset of its own, so a shape starting late in the cycle states itself as a timeline",
@@ -2003,7 +2017,7 @@ public final class PoseCompiler {
                 if (track.ease() == Ease.SMOOTH)
                     throw refuse(events, "Style '%s' gaits %s over a smoothed track - a smoothed frame reads its neighbours from the clip's ends rather than across them, so re-timing one states a different curve",
                         style.styleId(), reading);
-                double length = track.overSeconds().orElse(windowSeconds);
+                double length = track.overSeconds().orElse(closureWindow(style.script()));
                 Lowering.framesOf(track, length, 1f, planted(style.script())).values().forEach(frames -> {
                     List<Frame> sorted = new ArrayList<>(frames);
                     sorted.sort(Comparator.comparingDouble(Frame::atSeconds));

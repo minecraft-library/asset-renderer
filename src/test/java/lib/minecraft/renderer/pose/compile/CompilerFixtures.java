@@ -5,6 +5,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PoseOperator;
@@ -229,6 +230,23 @@ public final class CompilerFixtures {
 
     /**
      * A target row over a mesh and its shipped pose, everything else normalised.
+     */
+    public static @NotNull Entity row(@NotNull EntityModelData mesh, @NotNull EntityPose pose,
+                                      int periodTicks) {
+        return Entity.builder()
+            .id(ResourceId.parse("minecraft:test"))
+            .model(mesh)
+            .pose(pose)
+            .styles(new StyleCatalog(periodTicks, Concurrent.newUnmodifiableList()))
+            .build();
+    }
+
+    /**
+     * A bare row over the given mesh and pose, at the default catalog period.
+     *
+     * @param mesh the body mesh
+     * @param pose the shipped pose
+     * @return the row
      */
     public static @NotNull Entity row(@NotNull EntityModelData mesh, @NotNull EntityPose pose) {
         return Entity.builder()
