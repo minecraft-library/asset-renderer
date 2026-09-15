@@ -151,7 +151,9 @@ public final class PoseEmitter {
                     this.count(select.whenTrue());
                     this.count(select.whenFalse());
                 }
-                default -> { }
+                case PoseExpr.Const ignored -> { }
+                case PoseExpr.Input ignored -> { }
+                case PoseExpr.BoneRead ignored -> { }
             }
         }
 
@@ -178,7 +180,9 @@ public final class PoseEmitter {
                     this.assign(select.whenTrue(), visited);
                     this.assign(select.whenFalse(), visited);
                 }
-                default -> { }
+                case PoseExpr.Const ignored -> { }
+                case PoseExpr.Input ignored -> { }
+                case PoseExpr.BoneRead ignored -> { }
             }
             this.index(node);
         }

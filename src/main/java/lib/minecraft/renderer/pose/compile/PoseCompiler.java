@@ -1729,7 +1729,8 @@ public final class PoseCompiler {
                     if (found == null) found = drivenFieldIn(select.whenFalse(), driven, visited);
                     yield found;
                 }
-                default -> null;
+                case PoseExpr.Const ignored -> null;
+                case PoseExpr.BoneRead ignored -> null;
             };
         }
 

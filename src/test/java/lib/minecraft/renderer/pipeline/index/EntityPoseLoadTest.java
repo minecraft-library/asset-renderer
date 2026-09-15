@@ -228,7 +228,10 @@ class EntityPoseLoadTest {
                 edges(select.whenTrue(), reached);
                 edges(select.whenFalse(), reached);
             }
-            default -> { /* a leaf reaches nothing */ }
+            // Spelled out rather than defaulted, so a sixth arm stops the build here.
+            case PoseExpr.Const ignored -> { }
+            case PoseExpr.Input ignored -> { }
+            case PoseExpr.BoneRead ignored -> { }
         }
     }
 
@@ -341,7 +344,9 @@ class EntityPoseLoadTest {
                 figures(select.condition().left(), reads, walked);
                 figures(select.condition().right(), reads, walked);
             }
-            default -> { /* a literal and a bone read name no figure */ }
+            // Spelled out rather than defaulted, so a sixth arm stops the build here.
+            case PoseExpr.Const ignored -> { }
+            case PoseExpr.BoneRead ignored -> { }
         }
     }
 

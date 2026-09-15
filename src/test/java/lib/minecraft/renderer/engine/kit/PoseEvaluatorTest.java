@@ -265,7 +265,9 @@ class PoseEvaluatorTest {
                 declareRead(select.whenFalse(), mesh, walked);
                 declareRead(select.condition(), mesh, walked);
             }
-            default -> { /* a leaf reads no bone */ }
+            // Spelled out rather than defaulted, so a sixth arm stops the build here.
+            case PoseExpr.Const ignored -> { }
+            case PoseExpr.Input ignored -> { }
         }
     }
 

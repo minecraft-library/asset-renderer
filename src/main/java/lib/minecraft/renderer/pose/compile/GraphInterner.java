@@ -85,7 +85,9 @@ public final class GraphInterner {
                 this.adopt(select.whenTrue(), visited);
                 this.adopt(select.whenFalse(), visited);
             }
-            default -> { }
+            case PoseExpr.Const ignored -> { }
+            case PoseExpr.Input ignored -> { }
+            case PoseExpr.BoneRead ignored -> { }
         }
         this.exprs.putIfAbsent(keyOf(node), node);
         this.internedExprs.putIfAbsent(node, node);

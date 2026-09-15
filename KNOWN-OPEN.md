@@ -103,21 +103,6 @@ whether a refusal's predicate is a fact about the script is a reading of the pre
 signature, annotation or scan exposes a reading. So what is open is whether the convention wants any
 guard at all, or whether a handful of rules in one place is few enough that review is the mechanism.
 
-## A sixth arm on the sealed expression type would be skipped in silence by five walks
-
-The expression type's own javadoc names its five arms as a count something depends on. Five walks over
-it carry a default arm and so opt out of exhaustiveness checking: a sixth record would compile clean
-and be silently skipped by all five, which means the driven-field scan stops descending under the new
-node and the interner pools it without pooling its children. Four other walks would force the author to
-think, because they are exhaustive with no default.
-
-Landing a rule that forbids the default arm was considered and put down for ordering rather than merit:
-every one of the five sites is in one family of walks, and the unification that collapses that family
-deletes all five, so writing the rule first writes lines the unification then removes. What is open is
-whether this package expects a sixth arm at all, and what a guard against a change nobody is planning
-is worth - the five arms have not changed since the type was written, which is evidence for both
-readings and settles neither.
-
 ## Whether a near miss the seat derivation refuses is worth recording
 
 The seat derivation takes no diagnostics channel and records nothing when it refuses a follower, so a

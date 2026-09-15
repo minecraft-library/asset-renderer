@@ -534,7 +534,8 @@ public final class StyleRegistrar implements AutoCloseable {
                 if (found == null) found = missingRead(select.whenFalse(), mesh, visited);
                 yield found;
             }
-            default -> null;
+            case PoseExpr.Const ignored -> null;
+            case PoseExpr.Input ignored -> null;
         };
     }
 
