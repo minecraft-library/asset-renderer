@@ -1060,6 +1060,31 @@ Pose authoring and compiling:
   three out makes a four-test climb read as three and an afterthought. The kit javadoc claiming the
   same three tests is imprecise rather than false - the composition reaches the root by a fourth
   route, a parent cycle, which fires only on re-entry and which a tree cannot produce.
+- Do not merge the two clocks. `StyleDriver` counts ticks and REPLACES a render-state field, its
+  window arriving from the row it was resolved against; a clip counts seconds through truncated
+  whole milliseconds and ADDS a bone displacement, its window a component of its own. They address
+  different spaces - a field name against a bone, a member and an axis - and one evaluates itself
+  where the other's arithmetic is private to the kit that reads it. They are not even peers: a
+  clip's own gate and clock ARE drivers, minted three lines above the clip in `Lowering`, so a
+  merged type would take its own output as a precondition. Neither record validates anything and
+  nothing cross-checks the arms, so a merged constructor would accept a held clock carrying
+  keyframes - it would compile, render, and displace nothing. What IS worth taking is the arithmetic:
+  `ClipKit` holds the keyframe curve and four helpers privately, called from one site, and none of
+  them reads anything outside a keyframe, so they would sit on the channel beside the driver's own
+  `at` and make the two units and the two rounding schedules legible as a pair for no new state.
+- Do not hoist the raw hatch out of the custom tier. It puts the one capture nothing can mirror into
+  the one builder that rewrites captures retroactively: the flip and the two mirror verbs walk the
+  stances and never the raws, and there is no expression mirror to fix that with - the mirror sign
+  rule maps a stance's fragments and nothing negates a sign inside an expression. After a hoist a
+  flip sends the stance to the far bone and leaves the raw on the near one, where the raw lowering
+  splices it over whatever crossed in, and what is recorded is a divergence of a pair rather than
+  the collision it reads as. The diagnostic that would make it visible cannot be written where it
+  looks like it can: the channel map a raw is spliced over is seeded from the SHIPPED pose, so a
+  warn on "something was already here" fires on the hatch doing the thing it exists to do. A raw
+  landing where this style's own stance wove has to be read off the stance plans. Land that check
+  before widening the surface; the blindness is the ground, not the width. Folding the tier also
+  deletes no tier - the builder above it is abstract and self-typed, so a concrete leaf survives
+  either way, and the saving is one file.
 - Do not extract the mirror sign rule or the gain-scale rule as a shared helper. The two records it
   is written over implement different sealed interfaces with nothing above them, so a helper taking
   the axis and the two bounds has no return type it can use: closing both arms takes a constructor
