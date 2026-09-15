@@ -589,8 +589,8 @@ public final class PoseCompiler {
             List<String> members = LimbRoster.members(selected.selector(), this.mesh, () -> this.roster);
             // The chain note stays on this side of the seam: the resolver answers bones and records
             // nothing, so an install resolving the same address adds no entry it does not add today.
-            if (selected.selector() instanceof LimbSelector.Family
-                && LimbFamily.chained(this.mesh, members))
+            if (selected.selector() instanceof LimbSelector.Family family
+                && LimbFamily.chained(this.mesh, family.stem()))
                 this.events.info("family: %s hangs each member off the one before it, so one stance compounds down the chain",
                     selected.reading());
             if (members.isEmpty()) {

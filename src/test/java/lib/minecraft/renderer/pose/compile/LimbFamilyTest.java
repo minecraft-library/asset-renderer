@@ -72,10 +72,12 @@ class LimbFamilyTest {
         chain.getBones().put("arm1", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "arm0"));
         chain.getBones().put("body", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, null));
 
-        assertFalse(LimbFamily.chained(siblings, LimbFamily.members(siblings, "arm")),
+        assertFalse(LimbFamily.chained(siblings, "arm"),
             "two arms hanging off the trunk each turn by what they were given");
-        assertTrue(LimbFamily.chained(chain, LimbFamily.members(chain, "arm")),
+        assertTrue(LimbFamily.chained(chain, "arm"),
             "one arm hanging off the other compounds what it was given");
+        assertFalse(LimbFamily.chained(siblings, "tentacle"),
+            "a stem the mesh spells no bone for hangs nothing off anything");
     }
 
 }

@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -61,18 +62,23 @@ public final class LimbFamily {
     }
 
     /**
-     * Whether a family's members hang off one another rather than standing as siblings.
+     * Whether one stem's members hang off one another rather than standing as siblings.
      *
      * <p>A stance stated once reaches every member either way, and what differs is what the
      * subject then looks like: on a chain each member carries the members below it, so one uniform
      * turn compounds down the links, where siblings each turn by what they were given.
      *
+     * <p>It is asked of a stem rather than of a list of bones, so the members it reads are the ones
+     * {@link #members} answers for that stem and there is no set a caller can ask this of that the
+     * stem does not spell.
+     *
      * @param mesh the mesh being asked
-     * @param members the family's bones, as {@link #members} answered them
+     * @param stem the name every member begins with
      * @return {@code true} where any member names another as its parent
      */
-    public static boolean chained(@NotNull EntityModelData mesh, @NotNull List<String> members) {
+    public static boolean chained(@NotNull EntityModelData mesh, @NotNull String stem) {
         Map<String, EntityModelData.Bone> bones = mesh.getBones();
+        Set<String> members = Set.copyOf(members(mesh, stem));
         for (String member : members) {
             EntityModelData.Bone bone = bones.get(member);
             if (bone != null && bone.getParent() != null && members.contains(bone.getParent()))
