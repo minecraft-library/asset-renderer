@@ -374,7 +374,7 @@ public final class PoseCompiler {
          */
         private @NotNull Compiled lower() {
             if (!this.shipped.isReadable())
-                this.refuse("Style '%s' cannot compile against a pose that could not be read: %s",
+                throw this.refuse("Style '%s' cannot compile against a pose that could not be read: %s",
                     this.style.styleId(), this.shipped.refusal().orElse(""));
 
             this.validatePeriod();
@@ -427,14 +427,14 @@ public final class PoseCompiler {
             if (this.script.periodSeconds().isEmpty()) return;
             double seconds = this.script.periodSeconds().getAsDouble();
             if (seconds <= 0d)
-                this.refuse("Style '%s' declares a period of '%s' seconds, which is not positive",
+                throw this.refuse("Style '%s' declares a period of '%s' seconds, which is not positive",
                     this.style.styleId(), seconds);
             long ticks = Math.round(seconds * TICKS_PER_SECOND);
             if (ticks <= 0 || ticks % StyleCatalog.STRIP_FRAMES != 0)
-                this.refuse("Style '%s' declares a period of '%s' seconds (%d ticks), which the %d-frame strip does not tile",
+                throw this.refuse("Style '%s' declares a period of '%s' seconds (%d ticks), which the %d-frame strip does not tile",
                     this.style.styleId(), seconds, ticks, StyleCatalog.STRIP_FRAMES);
             if (this.style.sources().isEmpty())
-                this.refuse("Style '%s' declares a period but holds still - only a moving style reads one",
+                throw this.refuse("Style '%s' declares a period but holds still - only a moving style reads one",
                     this.style.styleId());
         }
 
@@ -461,7 +461,7 @@ public final class PoseCompiler {
                 if (row.isEmpty()) continue;
                 Rank held = claimed.putIfAbsent(row.get().ordinal(), rank);
                 if (held != null)
-                    this.refuse("Style '%s' stances rank '%s' and rank '%s', which a mesh carrying '%d' leg row(s) answers with one row - the second stamp lands on the row the first already holds",
+                    throw this.refuse("Style '%s' stances rank '%s' and rank '%s', which a mesh carrying '%d' leg row(s) answers with one row - the second stamp lands on the row the first already holds",
                         this.style.styleId(), held, rank, this.roster.rows().size());
             }
         }
@@ -509,12 +509,12 @@ public final class PoseCompiler {
                 this.refuseUnreal("a trailing chain's fade", trail.fade());
             });
             if (cycle.coupled().isPresent() && cycle.opposed().isPresent())
-                this.refuse("Style '%s' gaits both a trot and an opposed side - a trot already states what the two sides of a row do, so the two together state a cycle that is neither a diagonal nor a pace",
+                throw this.refuse("Style '%s' gaits both a trot and an opposed side - a trot already states what the two sides of a row do, so the two together state a cycle that is neither a diagonal nor a pace",
                     this.style.styleId());
             if (cycle.plantShare().isPresent()) {
                 double share = cycle.plantShare().getAsDouble();
                 if (!(share >= 0d && share < 1d))
-                    this.refuse("Style '%s' plants for '%s' of a cycle - a plant holds a shape at rest for a share of the cycle it then travels in, which is at least none of it and less than all of it",
+                    throw this.refuse("Style '%s' plants for '%s' of a cycle - a plant holds a shape at rest for a share of the cycle it then travels in, which is at least none of it and less than all of it",
                         this.style.styleId(), share);
             }
             cycle.phases().forEach((rank, cycles) -> {
@@ -553,7 +553,7 @@ public final class PoseCompiler {
 
             if (cycle.coupled().isPresent()) {
                 if (this.roster.rows().size() != COUPLET_ROWS)
-                    this.refuse("Style '%s' gaits a trot on a mesh carrying '%d' leg row(s) - a diagonal pairs a front leg with the opposite hind one, which '%d' row(s) have no unique reading of",
+                    throw this.refuse("Style '%s' gaits a trot on a mesh carrying '%d' leg row(s) - a diagonal pairs a front leg with the opposite hind one, which '%d' row(s) have no unique reading of",
                         this.style.styleId(), this.roster.rows().size(), this.roster.rows().size());
                 this.refuseUnsided("a trot", "pairs each leg with the one across the body from it");
             }
@@ -565,7 +565,7 @@ public final class PoseCompiler {
                     "reads the far side of every pair with every sign as written");
             if (cycle.trail().isPresent() && this.roster.members().stream()
                 .noneMatch(member -> member.depth() > 0))
-                this.refuse("Style '%s' gaits a trailing chain on a mesh whose legs declare no bone below the root - a lag and a fade per bone below the root is the stance itself where there is none",
+                throw this.refuse("Style '%s' gaits a trailing chain on a mesh whose legs declare no bone below the root - a lag and a fade per bone below the root is the stance itself where there is none",
                     this.style.styleId());
         }
 
@@ -660,7 +660,7 @@ public final class PoseCompiler {
                         .filter(member -> member.depth() == 0)
                         .forEach(member -> fused.add(member.bone()));
             if (fused.isEmpty()) return;
-            this.refuse("Style '%s' gaits %s, which %s, on a mesh whose leg row(s) [%s] carry no side - one bone paints both legs of the row, so there is no second leg for the term to land on",
+            throw this.refuse("Style '%s' gaits %s, which %s, on a mesh whose leg row(s) [%s] carry no side - one bone paints both legs of the row, so there is no second leg for the term to land on",
                 this.style.styleId(), reading, does, String.join(", ", fused));
         }
 
@@ -678,7 +678,7 @@ public final class PoseCompiler {
          */
         private void refuseUnreal(@NotNull String reading, double value) {
             if (Double.isFinite(value)) return;
-            this.refuse("Style '%s' states %s as '%s' - every number a cycle carries is a real one",
+            throw this.refuse("Style '%s' states %s as '%s' - every number a cycle carries is a real one",
                 this.style.styleId(), reading, value);
         }
 
@@ -698,14 +698,14 @@ public final class PoseCompiler {
          */
         private void checkOffset(@NotNull String reading, @NotNull PoseScript.Stance stance) {
             if (!stance.of(PoseScript.Sway.class).isEmpty() || !stance.of(PoseScript.Spin.class).isEmpty())
-                this.refuse("Style '%s' gaits %s over a swayed shape - a wave carries no offset of its own, so a shape starting late in the cycle states itself as a timeline",
+                throw this.refuse("Style '%s' gaits %s over a swayed shape - a wave carries no offset of its own, so a shape starting late in the cycle states itself as a timeline",
                     this.style.styleId(), reading);
             for (PoseScript.Track track : stance.of(PoseScript.Track.class)) {
                 if (!track.looping())
-                    this.refuse("Style '%s' gaits %s over a clip that holds rather than loops - a share of a cycle needs a cycle to wrap in",
+                    throw this.refuse("Style '%s' gaits %s over a clip that holds rather than loops - a share of a cycle needs a cycle to wrap in",
                         this.style.styleId(), reading);
                 if (track.ease() == Ease.SMOOTH)
-                    this.refuse("Style '%s' gaits %s over a smoothed track - a smoothed frame reads its neighbours from the clip's ends rather than across them, so re-timing one states a different curve",
+                    throw this.refuse("Style '%s' gaits %s over a smoothed track - a smoothed frame reads its neighbours from the clip's ends rather than across them, so re-timing one states a different curve",
                         this.style.styleId(), reading);
                 double length = track.overSeconds().orElse(this.windowSeconds);
                 framesOf(track, length, 1f, this.planted()).values().forEach(frames -> {
@@ -714,12 +714,12 @@ public final class PoseCompiler {
                     for (int at = 1; at < sorted.size(); at++)
                         if ((float) sorted.get(at).atSeconds()
                             == (float) sorted.get(at - 1).atSeconds())
-                            this.refuse("Style '%s' gaits %s over a track keying '%s' seconds twice - keyframe times ascend strictly per channel, an offset included",
+                            throw this.refuse("Style '%s' gaits %s over a track keying '%s' seconds twice - keyframe times ascend strictly per channel, an offset included",
                                 this.style.styleId(), reading, sorted.get(at).atSeconds());
                     if (sorted.getFirst().atSeconds() != 0d
                         || sorted.getLast().atSeconds() != length
                         || !sorted.getFirst().rests(sorted.getLast()))
-                        this.refuse("Style '%s' gaits %s over a track that does not close - an offset moves where the cycle wraps, and a wrap the two ends disagree across is a jump",
+                        throw this.refuse("Style '%s' gaits %s over a track that does not close - an offset moves where the cycle wraps, and a wrap the two ends disagree across is a jump",
                             this.style.styleId(), reading);
                 });
             }
@@ -1069,13 +1069,13 @@ public final class PoseCompiler {
          */
         private void foldStep(@NotNull PoseScript.Stance stance) {
             if (!stance.of(PoseScript.Aim.class).isEmpty())
-                this.refuse("Style '%s' aims a container step - a step has no pivot to aim from",
+                throw this.refuse("Style '%s' aims a container step - a step has no pivot to aim from",
                     this.style.styleId());
             if (!stance.of(PoseScript.Track.class).isEmpty())
-                this.refuse("Style '%s' keys a timeline on a container step - a clip channel names a bone",
+                throw this.refuse("Style '%s' keys a timeline on a container step - a clip channel names a bone",
                     this.style.styleId());
             if (!stance.of(PoseScript.Scale.class).isEmpty())
-                this.refuse("Style '%s' scales a container step, which reaches no bone below it",
+                throw this.refuse("Style '%s' scales a container step, which reaches no bone below it",
                     this.style.styleId());
             LinkedHashMap<PoseChannel, ChannelPlan> plan = new LinkedHashMap<>();
             this.foldVerbs(stance, plan);
@@ -1120,7 +1120,7 @@ public final class PoseCompiler {
                               @Nullable PoseScript.Sway sway, @Nullable PoseScript.Spin spin) {
             ChannelPlan folded = plan.computeIfAbsent(channel, key -> new ChannelPlan());
             if (folded.sway != null || folded.spin != null)
-                this.refuse("Style '%s' waves channel '%s' twice on one target - one field holds one driver",
+                throw this.refuse("Style '%s' waves channel '%s' twice on one target - one field holds one driver",
                     this.style.styleId(), channel.token());
             folded.sway = sway;
             folded.spin = spin;
@@ -1376,7 +1376,7 @@ public final class PoseCompiler {
                 Concurrent.newUnmodifiableList(baseX, baseY, baseZ), this.mesh, PoseEvaluator.AT_REST);
             float rest = rests.getFirst();
             if (rest != rests.get(1) || rest != rests.get(2))
-                this.refuse("Style '%s' scales bone '%s' whose axes rest at ('%s', '%s', '%s') - one uniform delta cannot rebase divergent rests",
+                throw this.refuse("Style '%s' scales bone '%s' whose axes rest at ('%s', '%s', '%s') - one uniform delta cannot rebase divergent rests",
                     this.style.styleId(), bone, rests.getFirst(), rests.get(1), rests.get(2));
             double delta = factor - rest;
             if (delta == 0d) return;
@@ -1436,7 +1436,7 @@ public final class PoseCompiler {
                 boolean waved = folded.sway != null || folded.spin != null;
                 if (!waved && delta == 0d) return;
                 if (!rotation && this.flattened != 1f)
-                    this.refuse("Style '%s' displaces the container of a mesh flattened at '%s' - the step seats parentless, which that factor alone does not answer",
+                    throw this.refuse("Style '%s' displaces the container of a mesh flattened at '%s' - the step seats parentless, which that factor alone does not answer",
                         this.style.styleId(), this.flattened);
                 this.claimContainer(channel);
                 String field = this.containerField(channel.token());
@@ -1454,7 +1454,7 @@ public final class PoseCompiler {
         private @NotNull Map<PoseChannel, PoseExpr> lowerHover(@NotNull PoseScript.Hover hover) {
             if (hover.liftPixels() == 0d && hover.bobPixels() == 0d) return Map.of();
             if (this.flattened != 1f)
-                this.refuse("Style '%s' hovers a mesh flattened at '%s' - the step seats parentless, which that factor alone does not answer",
+                throw this.refuse("Style '%s' hovers a mesh flattened at '%s' - the step seats parentless, which that factor alone does not answer",
                     this.style.styleId(), this.flattened);
             this.claimContainer(PoseChannel.Y);
             PoseExpr lift = null;
@@ -1484,7 +1484,7 @@ public final class PoseCompiler {
          */
         private void claimContainer(@NotNull PoseChannel channel) {
             if (!this.containerClaimed.add(channel))
-                this.refuse("Style '%s' writes container channel '%s' twice - one field holds one driver",
+                throw this.refuse("Style '%s' writes container channel '%s' twice - one field holds one driver",
                     this.style.styleId(), channel.token());
         }
 
@@ -1521,7 +1521,7 @@ public final class PoseCompiler {
             boolean looping = this.trackPlans.getFirst().track().looping();
             for (TrackPlan plan : this.trackPlans)
                 if (plan.track().looping() != looping)
-                    this.refuse("Style '%s' mixes loop() and once() across its timelines - a clip loops or holds as one",
+                    throw this.refuse("Style '%s' mixes loop() and once() across its timelines - a clip loops or holds as one",
                         this.style.styleId());
             double length = 0d;
             for (TrackPlan plan : this.trackPlans)
@@ -1542,7 +1542,7 @@ public final class PoseCompiler {
                 keyframes.sort(Comparator.comparingDouble(PoseClip.Keyframe::timeSeconds));
                 for (int at = 1; at < keyframes.size(); at++)
                     if (keyframes.get(at).timeSeconds() == keyframes.get(at - 1).timeSeconds())
-                        this.refuse("Style '%s' keys bone '%s' %s twice at '%s' seconds - keyframe times ascend strictly per channel",
+                        throw this.refuse("Style '%s' keys bone '%s' %s twice at '%s' seconds - keyframe times ascend strictly per channel",
                             this.style.styleId(), key.bone(), key.target().token(),
                             keyframes.get(at).timeSeconds());
                 channels.add(new PoseClip.Channel(key.bone(), key.target(),
@@ -1644,7 +1644,7 @@ public final class PoseCompiler {
                     continue;
                 }
                 if (!frame.narrows(kept.getLast()))
-                    this.refuse("Style '%s' keys bone '%s' twice at '%s' seconds - keyframe times ascend strictly per channel",
+                    throw this.refuse("Style '%s' keys bone '%s' twice at '%s' seconds - keyframe times ascend strictly per channel",
                         this.style.styleId(), bone, (float) frame.atSeconds());
             }
             return kept;
@@ -1815,24 +1815,24 @@ public final class PoseCompiler {
                 case PoseExpr.Const constant -> {
                     if (constant.width() == PoseOperator.Width.FLOAT
                         && (double) (float) constant.value() != constant.value())
-                        this.refuse("Style '%s' splices float literal '%s', which no float holds exactly",
+                        throw this.refuse("Style '%s' splices float literal '%s', which no float holds exactly",
                             this.style.styleId(), constant.value());
                 }
                 case PoseExpr.Input input -> {
                     String gate = FIELD_PREFIX + this.style.styleId();
                     if (input.field().startsWith(FIELD_PREFIX)
                         && !input.field().equals(gate) && !input.field().startsWith(gate + "$"))
-                        this.refuse("Style '%s' reads field '%s', which another style's namespace drives",
+                        throw this.refuse("Style '%s' reads field '%s', which another style's namespace drives",
                             this.style.styleId(), input.field());
                 }
                 case PoseExpr.BoneRead read -> {
                     if (!this.mesh.getBones().containsKey(read.bone()))
-                        this.refuse("Style '%s' reads bone '%s', which this mesh does not declare - a read of a missing bone throws at render",
+                        throw this.refuse("Style '%s' reads bone '%s', which this mesh does not declare - a read of a missing bone throws at render",
                             this.style.styleId(), read.bone());
                 }
                 case PoseExpr.Op op -> {
                     if (op.operands().size() != op.operator().arity())
-                        this.refuse("Style '%s' applies '%s' to %d operand(s), which takes %d",
+                        throw this.refuse("Style '%s' applies '%s' to %d operand(s), which takes %d",
                             this.style.styleId(), op.operator().token(),
                             op.operands().size(), op.operator().arity());
                     for (PoseExpr operand : op.operands())
@@ -1870,7 +1870,7 @@ public final class PoseCompiler {
             double dy = aim.yPixels() - pivot.y();
             double dz = aim.zPixels() - pivot.z();
             if (dx == 0d && dy == 0d && dz == 0d)
-                this.refuse("Style '%s' aims bone '%s' at its own pivot - no direction to aim",
+                throw this.refuse("Style '%s' aims bone '%s' at its own pivot - no direction to aim",
                     this.style.styleId(), limb.bone());
             double pitch = Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
             if (limb.axis() == PoseScript.AimAxis.DOWN) pitch -= 90d;
@@ -1907,7 +1907,7 @@ public final class PoseCompiler {
             String driven = drivenFieldIn(base, this.drivenFields,
                 Collections.newSetFromMap(new IdentityHashMap<>()));
             if (driven != null)
-                this.refuse("Style '%s' writes bone '%s' channel '%s' absolutely over a base reading driven field '%s' - %s",
+                throw this.refuse("Style '%s' writes bone '%s' channel '%s' absolutely over a base reading driven field '%s' - %s",
                     this.style.styleId(), bone, channel.token(), driven, remedyFor(channel));
         }
 
@@ -2018,12 +2018,22 @@ public final class PoseCompiler {
         }
 
         /**
-         * Records the refusal context and throws it - the entry is the post-mortem, the throw the gate.
+         * Records the refusal context and builds it - the entry is the post-mortem, and the
+         * {@code throw} at the call site is the gate.
+         *
+         * <p>Returned rather than thrown so that not returning is visible to the compiler and to a
+         * reader: a refusal spelled {@code throw this.refuse(...)} ends its branch in the branch,
+         * where one that threw from in here ended it somewhere a reader had to already know about.
+         *
+         * @param message the refusal, as a format string
+         * @param args the format arguments
+         * @return the refusal to throw
          */
-        private void refuse(@NotNull @PrintFormat String message, @Nullable Object... args) {
+        private @NotNull IllegalArgumentException refuse(@NotNull @PrintFormat String message,
+                                                         @Nullable Object... args) {
             String formatted = String.format(message, args);
             this.events.error("%s", formatted);
-            throw new IllegalArgumentException(formatted);
+            return new IllegalArgumentException(formatted);
         }
 
     }

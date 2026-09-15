@@ -212,7 +212,7 @@ public final class StyleRegistrar {
     public @NotNull StyleRegistrar skin(@NotNull PixelBuffer skin) {
         Entity rig = this.working.get(PlayerRig.ENTITY_ID);
         if (rig == null)
-            this.refuse(this.root.child(PlayerRig.ENTITY_ID).child("skin"),
+            throw this.refuse(this.root.child(PlayerRig.ENTITY_ID).child("skin"),
                 "A caller skin rides the '%s' row, which this registrar does not carry - put the rig row in the definitions before registering a skin",
                 PlayerRig.ENTITY_ID);
         this.skin = skin;
@@ -271,11 +271,11 @@ public final class StyleRegistrar {
 
         Entity row = this.working.get(entityId);
         if (row == null)
-            this.refuse(install, "Entity '%s' is not a definition this registrar carries, so style '%s' has no row to install on",
+            throw this.refuse(install, "Entity '%s' is not a definition this registrar carries, so style '%s' has no row to install on",
                 entityId, style.styleId());
 
         if (row.styles().ids().contains(style.styleId()))
-            this.refuse(install, "Entity '%s' already carries style '%s' - shipped ids and previously installed ids are taken alike",
+            throw this.refuse(install, "Entity '%s' already carries style '%s' - shipped ids and previously installed ids are taken alike",
                 entityId, style.styleId());
 
         Set<String> scaled = scaledBones(style.script(), row.model());
@@ -290,7 +290,7 @@ public final class StyleRegistrar {
         PoseCompiler.Compiled body = PoseCompiler.compile(style, row, given.pose(), scope, pool);
 
         if (strict && !body.droppedBones().isEmpty())
-            this.refuse(install, "Style '%s' writes bone(s) [%s] that entity '%s' does not declare - its mesh declares [%s]",
+            throw this.refuse(install, "Style '%s' writes bone(s) [%s] that entity '%s' does not declare - its mesh declares [%s]",
                 style.styleId(), joined(body.droppedBones()), entityId, joined(row.model().getBones().keySet()));
 
         this.checkSelectSites(install, entityId, body.pose());
@@ -380,7 +380,7 @@ public final class StyleRegistrar {
             scope, pool, site, periodTicks);
         if (!arm.droppedBones().isEmpty()) {
             if (strict)
-                this.refuse(install, "Style '%s' weaves layer '%s' of entity '%s', whose mesh does not declare bone(s) [%s] - it declares [%s]",
+                throw this.refuse(install, "Style '%s' weaves layer '%s' of entity '%s', whose mesh does not declare bone(s) [%s] - it declares [%s]",
                     style.styleId(), coined, entityId, joined(arm.droppedBones()), joined(mesh.getBones().keySet()));
             events.warn("weave-subset: layer '%s' drops bone(s) [%s] and weaves the rest%s",
                 coined, joined(arm.droppedBones()), texture);
@@ -413,7 +413,7 @@ public final class StyleRegistrar {
             for (PoseClip.Channel channel : site.clip().channels()) {
                 if (mesh.getBones().containsKey(channel.bone())) {
                     if (channel.target() == PoseClip.Target.SCALE && scaled.contains(channel.bone()))
-                        this.refuse(install, "Style '%s' scales bone '%s', which shipped clip '%s' already scales - one factor cannot hold both",
+                        throw this.refuse(install, "Style '%s' scales bone '%s', which shipped clip '%s' already scales - one factor cannot hold both",
                             style.styleId(), channel.bone(), site.coordinate());
                 } else if (reachesContainer(channel.bone(), mesh) && !displacing.contains(site.coordinate()))
                     displacing.add(site.coordinate());
@@ -442,10 +442,10 @@ public final class StyleRegistrar {
         for (EntityPose.Clip site : pose.clips()) {
             if (site.drive() != MotionSource.SELECT) continue;
             if (site.field().isEmpty())
-                this.refuse(install, "Entity '%s' would carry selection site '%s' naming no gate field",
+                throw this.refuse(install, "Entity '%s' would carry selection site '%s' naming no gate field",
                     entityId, site.coordinate());
             if (site.arguments().size() != 1)
-                this.refuse(install, "Entity '%s' would carry selection site '%s' on %d term(s), which takes 1",
+                throw this.refuse(install, "Entity '%s' would carry selection site '%s' on %d term(s), which takes 1",
                     entityId, site.coordinate(), site.arguments().size());
         }
     }
@@ -474,7 +474,7 @@ public final class StyleRegistrar {
             if (!mesh.getBones().containsKey(raw.bone())) continue;
             String missing = missingRead(raw.expr(), mesh, visited);
             if (missing != null)
-                this.refuse(install, "Style '%s' reads bone '%s', which a mesh evaluating the woven row does not declare - a read of a missing bone throws at render",
+                throw this.refuse(install, "Style '%s' reads bone '%s', which a mesh evaluating the woven row does not declare - a read of a missing bone throws at render",
                     style.styleId(), missing);
         }
     }
@@ -617,12 +617,24 @@ public final class StyleRegistrar {
     }
 
     /**
-     * Records the refusal context and throws it - the entry is the post-mortem, the throw the gate.
+     * Records the refusal context and builds it - the entry is the post-mortem, and the
+     * {@code throw} at the call site is the gate.
+     *
+     * <p>Returned rather than thrown so that not returning is visible to the compiler and to a
+     * reader: a refusal spelled {@code throw this.refuse(...)} ends its branch in the branch, where
+     * one that threw from in here ended it somewhere a reader had to already know about.
+     *
+     * @param scope the diagnostics scope the refusal records into
+     * @param message the refusal, as a format string
+     * @param args the format arguments
+     * @return the refusal to throw
      */
-    private void refuse(@NotNull StyleDiagnostics scope, @NotNull @PrintFormat String message, @Nullable Object... args) {
+    private @NotNull IllegalArgumentException refuse(@NotNull StyleDiagnostics scope,
+                                                     @NotNull @PrintFormat String message,
+                                                     @Nullable Object... args) {
         String formatted = String.format(message, args);
         scope.error("%s", formatted);
-        throw new IllegalArgumentException(formatted);
+        return new IllegalArgumentException(formatted);
     }
 
     /**
