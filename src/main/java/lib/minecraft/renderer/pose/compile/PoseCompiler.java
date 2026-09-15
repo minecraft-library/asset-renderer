@@ -1862,26 +1862,52 @@ public final class PoseCompiler {
          * <p>Ranks are ordinals into however many rows a mesh carries, so more than one of them
          * reaches the same row on a mesh shorter than the ladder - {@code FRONT} and {@code HIND}
          * are one row on every mesh carrying a single row of legs, which is what lets one chain
-         * run over two legs and eight. Stancing both names that row twice, and the second stamp
-         * lands on the first with nothing in either name saying so.
+         * run over two legs and eight. Naming that row twice lands the second on the first with
+         * nothing in either name saying so.
+         *
+         * <p>Each of the three tables a rank can key is read on its own, because they answer
+         * different questions of one leg: a stance stamps a shape on it, a phase offsets that
+         * shape and a gain scales it, so one rank in two tables describes a leg once rather than
+         * twice. Within a table there is nothing to tell them apart, and the loss is silent - a
+         * step written over the whole roster reads its number back by row, and of two ranks
+         * answering that row the rearmost is what it finds.
          *
          * <p>A rank the mesh has no row for is passed over here: it addresses nothing rather than
          * something already held, and the roster filter answers it.
          */
         static void ranks(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
                           @NotNull StyleDiagnostics events) {
+            Set<Rank> stanced = new LinkedHashSet<>();
+            for (PoseScript.Stance stance : style.script().stances())
+                legsOf(stance).flatMap(LimbSelector.Legs::rank).ifPresent(stanced::add);
+            collided(style, roster, events, "stances", stanced);
+
+            style.script().cycle().ifPresent(cycle -> {
+                collided(style, roster, events, "phases", cycle.phases().keySet());
+                collided(style, roster, events, "gains", cycle.gains().keySet());
+            });
+        }
+
+        /**
+         * Refuses two of one table's ranks that the target answers with a single row.
+         *
+         * @param style the style being compiled
+         * @param roster the target's leg roster
+         * @param events the sink the refusal records into
+         * @param verb what the style does with the ranks, for the refusal to name
+         * @param ranks the ranks the table carries, in the order it reads them
+         */
+        private static void collided(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
+                                     @NotNull StyleDiagnostics events, @NotNull String verb,
+                                     @NotNull Set<Rank> ranks) {
             LinkedHashMap<Integer, Rank> claimed = new LinkedHashMap<>();
-            Set<Rank> named = EnumSet.noneOf(Rank.class);
-            for (PoseScript.Stance stance : style.script().stances()) {
-                Optional<Rank> addressed = legsOf(stance).flatMap(LimbSelector.Legs::rank);
-                if (addressed.isEmpty() || !named.add(addressed.get())) continue;
-                Rank rank = addressed.get();
+            for (Rank rank : ranks) {
                 Optional<LimbRoster.Row> row = roster.row(rank);
                 if (row.isEmpty()) continue;
                 Rank held = claimed.putIfAbsent(row.get().ordinal(), rank);
                 if (held != null)
-                    throw refuse(events, "Style '%s' stances rank '%s' and rank '%s', which a mesh carrying '%d' leg row(s) answers with one row - the second stamp lands on the row the first already holds",
-                        style.styleId(), held, rank, roster.rows().size());
+                    throw refuse(events, "Style '%s' %s rank '%s' and rank '%s', which a mesh carrying '%d' leg row(s) answers with one row - the second lands on the row the first already holds",
+                        style.styleId(), verb, held, rank, roster.rows().size());
             }
         }
 

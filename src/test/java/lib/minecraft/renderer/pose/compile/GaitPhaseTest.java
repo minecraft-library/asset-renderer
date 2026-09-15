@@ -139,10 +139,12 @@ class GaitPhaseTest {
             .build();
 
         IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
-            () -> PoseCompiler.compile(swayed, row(humanoid(), EntityPose.NONE)));
+            () -> PoseCompiler.compile(swayed, row(walker(), EntityPose.NONE)));
         assertTrue(refusal.getMessage().contains("FRONT"),
             () -> "the offsets are read front to back however they were written: "
                 + refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("carries no offset of its own"),
+            () -> "the shape is what refuses here, not the two ranks: " + refusal.getMessage());
     }
 
     @Test

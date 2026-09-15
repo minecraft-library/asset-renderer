@@ -332,6 +332,57 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
+    @DisplayName("two gains one mesh answers with a single row refuse, as two stances do")
+    void aliasedGainsRefuse() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -32, 32).over(0.4)))
+                .gain(Rank.FRONT, 0.5)
+                .gain(Rank.HIND, 0.25))
+            .build();
+
+        IllegalArgumentException refusal = refusalOf(amble, humanoid(), EntityPose.NONE);
+        assertTrue(refusal.getMessage().contains("gains rank"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("answers with one row"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("FRONT"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("HIND"), refusal.getMessage());
+
+        assertDoesNotThrow(() -> PoseCompiler.compile(amble, row(walker(), EntityPose.NONE)),
+            "two rows answer the two ranks apart, so the same chain installs there");
+    }
+
+    @Test
+    @DisplayName("two phases one mesh answers with a single row refuse, as two gains do")
+    void aliasedPhasesRefuse() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -32, 32).over(0.4)))
+                .phase(Rank.FRONT, 0.25)
+                .phase(Rank.HIND, 0.5))
+            .build();
+
+        IllegalArgumentException refusal = refusalOf(amble, humanoid(), EntityPose.NONE);
+        assertTrue(refusal.getMessage().contains("phases rank"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("answers with one row"), refusal.getMessage());
+
+        assertDoesNotThrow(() -> PoseCompiler.compile(amble, row(walker(), EntityPose.NONE)),
+            "two rows answer the two ranks apart, so the same chain installs there");
+    }
+
+    @Test
+    @DisplayName("two tables reaching one row are a leg described once, so they are no collision")
+    void ranksAcrossTwoTablesAreNotACollision() {
+        assertDoesNotThrow(() -> PoseCompiler.compile(Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -32, 32).over(0.4)))
+                .phase(Rank.FRONT, 0.25)
+                .gain(Rank.HIND, 0.5))
+            .build(), row(humanoid(), EntityPose.NONE)),
+            "the one row takes the front offset and the hind multiple, and loses neither - a phase "
+                + "offsets the shape a gain scales, so each table answers its own question of the leg");
+    }
+
+    @Test
     @DisplayName("one rank stanced over both sides is one name and not two")
     void oneRankOverBothSidesPasses() {
         PoseCompiler.Compiled compiled = PoseCompiler.compile(
