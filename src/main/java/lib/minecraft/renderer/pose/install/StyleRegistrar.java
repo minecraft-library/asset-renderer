@@ -23,7 +23,6 @@ import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PosePredicate;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.PoseScript;
-import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.GraphInterner;
 import lib.minecraft.renderer.pose.compile.LimbRoster;
 import lib.minecraft.renderer.pose.compile.PoseCompiler;
@@ -579,9 +578,9 @@ public final class StyleRegistrar {
             for (PoseScript.Write write : stance.of(PoseScript.Write.class))
                 tokens.add(write.channel().token());
             for (PoseScript.Sway sway : stance.of(PoseScript.Sway.class))
-                tokens.add(rotationToken(sway.axis()));
+                tokens.add(sway.axis().channel().token());
             for (PoseScript.Spin spin : stance.of(PoseScript.Spin.class))
-                tokens.add(rotationToken(spin.axis()));
+                tokens.add(spin.axis().channel().token());
         }
         script.hover().ifPresent(hover -> {
             if (hover.liftPixels() != 0d || hover.bobPixels() != 0d)
@@ -595,17 +594,6 @@ public final class StyleRegistrar {
      */
     private static boolean carries(@NotNull PoseScript.Stance stance) {
         return !stance.fragments().isEmpty();
-    }
-
-    /**
-     * The channel token one turn axis lands on.
-     */
-    private static @NotNull String rotationToken(@NotNull Turn axis) {
-        return switch (axis) {
-            case PITCH -> PoseChannel.X_ROT.token();
-            case YAW -> PoseChannel.Y_ROT.token();
-            case ROLL -> PoseChannel.Z_ROT.token();
-        };
     }
 
     /**

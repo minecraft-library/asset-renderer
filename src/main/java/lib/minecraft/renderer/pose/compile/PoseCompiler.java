@@ -1107,9 +1107,9 @@ public final class PoseCompiler {
                 else channel.additive += write.value();
             }
             for (PoseScript.Sway sway : stance.of(PoseScript.Sway.class))
-                this.foldWave(plan, channelOf(sway.axis()), sway, null);
+                this.foldWave(plan, sway.axis().channel(), sway, null);
             for (PoseScript.Spin spin : stance.of(PoseScript.Spin.class))
-                this.foldWave(plan, channelOf(spin.axis()), null, spin);
+                this.foldWave(plan, spin.axis().channel(), null, spin);
         }
 
         /**
@@ -1584,9 +1584,7 @@ public final class PoseCompiler {
                                @NotNull LinkedHashMap<ChannelKey, List<PoseClip.Keyframe>> accumulated) {
             PoseScript.Track track = plan.track();
             double length = track.overSeconds().orElse(this.windowSeconds);
-            PoseClip.Interpolation curve = track.ease() == Ease.SMOOTH
-                ? PoseClip.Interpolation.CATMULLROM
-                : PoseClip.Interpolation.LINEAR;
+            PoseClip.Interpolation curve = track.ease().interpolation();
             LinkedHashMap<PoseClip.Target, List<Frame>> emitted =
                 framesOf(track, length, this.flattened, this.planted());
             for (Map.Entry<PoseClip.Target, List<Frame>> channel : emitted.entrySet()) {
@@ -2218,17 +2216,6 @@ public final class PoseCompiler {
      */
     private static @NotNull PoseExpr dadd(@NotNull PoseExpr left, @NotNull PoseExpr right) {
         return new PoseExpr.Op(PoseOperator.DADD, Concurrent.newUnmodifiableList(left, right));
-    }
-
-    /**
-     * The rotation channel one turn axis lands on.
-     */
-    private static @NotNull PoseChannel channelOf(@NotNull Turn axis) {
-        return switch (axis) {
-            case PITCH -> PoseChannel.X_ROT;
-            case YAW -> PoseChannel.Y_ROT;
-            case ROLL -> PoseChannel.Z_ROT;
-        };
     }
 
     /**
