@@ -182,6 +182,20 @@ public final class StyleDiagnostics {
     }
 
     /**
+     * Whether one recorded entry falls in this scope or anywhere below it.
+     *
+     * <p>The subtree test, spelled once. A count and a listing answer the same question about the
+     * same path in two idioms, with nothing binding them, and the two are read by different
+     * callers - so a change to one that misses the other is a divergence nothing catches.
+     *
+     * @param entry the recorded entry
+     * @return whether the entry belongs to this subtree
+     */
+    private boolean holds(@NotNull Entry entry) {
+        return entry.path().equals(this.path) || entry.path().startsWith(this.path + "/");
+    }
+
+    /**
      * Counts the entries of the given severity recorded by this scope and every descendant.
      *
      * @param severity the severity to count
@@ -189,11 +203,8 @@ public final class StyleDiagnostics {
      */
     public int count(@NotNull Severity severity) {
         int total = 0;
-        String subtree = this.path + "/";
-        for (Entry entry : this.rootEntries) {
-            if (entry.severity() != severity) continue;
-            if (entry.path().equals(this.path) || entry.path().startsWith(subtree)) total++;
-        }
+        for (Entry entry : this.rootEntries)
+            if (entry.severity() == severity && this.holds(entry)) total++;
         return total;
     }
 
@@ -201,9 +212,8 @@ public final class StyleDiagnostics {
      * An immutable snapshot of this scope's subtree entries, in recording order.
      */
     public @NotNull List<Entry> entries() {
-        String subtree = this.path + "/";
         return this.rootEntries.stream()
-            .filter(entry -> entry.path().equals(this.path) || entry.path().startsWith(subtree))
+            .filter(this::holds)
             .collect(Collectors.toUnmodifiableList());
     }
 

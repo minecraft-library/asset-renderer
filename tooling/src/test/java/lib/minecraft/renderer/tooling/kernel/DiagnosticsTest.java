@@ -81,6 +81,10 @@ class DiagnosticsTest {
         root.flush();
         String written = Files.readString(log);
         assertTrue(written.contains("[ERROR] flow/subject - kaput"));
+        // The tables artifact digests this log per flow, so a host newline would make that digest
+        // a fact about the machine rather than about the run.
+        assertTrue(written.endsWith("\n"), "terminated with a literal LF");
+        assertFalse(written.contains("\r"), "joined with literal LFs, never the host newline");
     }
 
     @Test
